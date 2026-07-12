@@ -17,8 +17,8 @@ extension DefaultAgentsManager {
         guard !spawningIds.contains(conversationId) else {
             throw AgentError.spawnFailed("Spawn already in progress for \(conversationId)")
         }
-        guard !reconfiguringIds.contains(conversationId) else {
-            throw AgentError.spawnFailed("Reconfigure already in progress for \(conversationId)")
+        guard !reconfiguringIds.contains(conversationId), !suspendingIds.contains(conversationId) else {
+            throw AgentError.spawnFailed("Session change already in progress for \(conversationId)")
         }
         reconfiguringIds.insert(conversationId)
         defer {

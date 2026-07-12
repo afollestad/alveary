@@ -5,6 +5,22 @@ import XCTest
 
 @MainActor
 extension SidebarViewModelTests {
+    func testArchiveThreadInvalidatesEveryConversationController() async throws {
+        let invalidations = SidebarControllerInvalidationRecorder()
+        let fixture = try SidebarTestFixture(
+            invalidateConversationController: invalidations.record
+        )
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-archive-controller-cleanup",
+            conversationIDs: ["main", "side"]
+        )
+
+        try await fixture.viewModel.archiveThread(thread)
+
+        XCTAssertEqual(invalidations.conversationIDs.sorted(), ["main", "side"])
+    }
+
     func testDeletionSaveFailureKeepsTargetAndPersistsUnrelatedPendingChange() async throws {
         let fixture = try SidebarTestFixture(saveDeletionCommit: { _ in
             throw SidebarDeletionCommitTestError.saveFailed
@@ -39,7 +55,10 @@ extension SidebarViewModelTests {
     }
 
     func testDeleteThreadRemovesEveryConversationAttachmentDirectory() async throws {
-        let fixture = try SidebarTestFixture()
+        let invalidations = SidebarControllerInvalidationRecorder()
+        let fixture = try SidebarTestFixture(
+            invalidateConversationController: invalidations.record
+        )
         let thread = try fixture.insertThread(
             projectName: "Alveary",
             projectPath: "/tmp/alveary-attachment-cleanup",
@@ -50,10 +69,14 @@ extension SidebarViewModelTests {
 
         let removedConversationIDs = await fixture.attachmentStore.removedConversationIDs
         XCTAssertEqual(removedConversationIDs.sorted(), ["main", "side"])
+        XCTAssertEqual(invalidations.conversationIDs.sorted(), ["main", "side"])
     }
 
     func testDeleteProjectRemovesAttachmentDirectoriesAcrossAllThreads() async throws {
-        let fixture = try SidebarTestFixture()
+        let invalidations = SidebarControllerInvalidationRecorder()
+        let fixture = try SidebarTestFixture(
+            invalidateConversationController: invalidations.record
+        )
         let project = Project(path: "/tmp/alveary-project-attachment-cleanup", name: "Alveary")
         let first = AgentThread(name: "First", project: project)
         first.conversations = [
@@ -71,6 +94,7 @@ extension SidebarViewModelTests {
 
         let removedConversationIDs = await fixture.attachmentStore.removedConversationIDs
         XCTAssertEqual(removedConversationIDs.sorted(), ["first", "second"])
+        XCTAssertEqual(invalidations.conversationIDs.sorted(), ["first", "second"])
     }
 
     func testTrustEquivalentDraftDeleteCannotReuseOldDraftOrDestroyReplacementRuntime() async throws {
@@ -229,4 +253,13 @@ extension SidebarViewModelTests {
 
 private enum SidebarDeletionCommitTestError: Error {
     case saveFailed
+}
+
+@MainActor
+private final class SidebarControllerInvalidationRecorder {
+    private(set) var conversationIDs: [String] = []
+
+    func record(_ conversationID: String) {
+        conversationIDs.append(conversationID)
+    }
 }

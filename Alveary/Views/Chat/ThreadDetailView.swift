@@ -7,18 +7,14 @@ struct ThreadDetailView: View {
     @Bindable var appState: AppState
     let modelContext: ModelContext
     let agentsManager: any AgentsManager
-    let runtimeStore: any ConversationRuntimeStore
-    let attachmentStore: any ConversationAttachmentStore
-    let keepAwakeService: KeepAwakeService
+    let conversationControllerRegistry: any ConversationControllerRegistry
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
     let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
-    let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
-    let threadActivityRecorder: any ThreadActivityRecording
     let availableProjects: [Project]
     let selectDraftProject: @MainActor (PersistentIdentifier, String) async -> Void
     let deleteThread: @MainActor (AgentThread) async throws -> Void
@@ -95,16 +91,11 @@ struct ThreadDetailView: View {
 
                     ConversationView(
                         conversation: conversation,
-                        agentsManager: agentsManager,
-                        runtimeStore: runtimeStore,
-                        attachmentStore: attachmentStore,
-                        keepAwakeService: keepAwakeService,
+                        conversationControllerRegistry: conversationControllerRegistry,
                         modelContext: modelContext,
                         settingsService: settingsService,
                         providerRegistry: providerRegistry,
                         providerDiscovery: providerDiscovery,
-                        worktreeManager: worktreeManager,
-                        providerSetup: providerSetup,
                         contextWindowCache: contextWindowCache,
                         fileListManager: fileListManager,
                         runtimeStatus: selectedRuntimeStatus,
@@ -118,7 +109,6 @@ struct ThreadDetailView: View {
                         },
                         loadSkillCompletions: loadSkillCompletions,
                         diffViewModel: diffViewModel,
-                        threadActivityRecorder: threadActivityRecorder,
                         availableProjects: availableProjects,
                         onSelectDraftProject: { projectPath in
                             Task { await selectDraftProject(thread.persistentModelID, projectPath) }
@@ -415,12 +405,14 @@ private extension ThreadDetailView {
         do {
             guard let liveThread = uiModelContext.resolveThread(id: threadPersistentID) else {
                 conversationActionError = nil
+                invalidateConversationController(conversationIDString)
                 try await agentsManager.destroyRuntime(conversationId: conversationIDString)
                 return
             }
             guard let liveConversation = uiModelContext.resolveConversation(id: id) else {
                 conversationActionError = nil
                 appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
+                invalidateConversationController(conversationIDString)
                 try await agentsManager.destroyRuntime(conversationId: conversationIDString)
                 return
             }
@@ -428,8 +420,11 @@ private extension ThreadDetailView {
             // Dismiss any delivered banner and clear the unread count before the row disappears,
             // so the dock badge and Notification Center both stay consistent with the live DB.
             notificationManager.markConversationRead(conversationId: conversationIDString)
-            uiModelContext.delete(liveConversation)
-            try uiModelContext.save()
+            try ThreadDetailConversationDeletion.commit(
+                liveConversation,
+                in: uiModelContext,
+                invalidateController: { invalidateConversationController(conversationIDString) }
+            )
             conversationActionError = nil
 
             appState.repairSelectedConversationIfNeeded(for: liveThread, conversations: conversations)
@@ -443,6 +438,12 @@ private extension ThreadDetailView {
         } catch {
             conversationActionError = "Couldn't remove conversation: \(error.localizedDescription)"
         }
+    }
+
+    func invalidateConversationController(_ conversationID: String) {
+        conversationControllerRegistry.invalidate(
+            for: ConversationControllerKey(conversationID: conversationID)
+        )
     }
 
     func refreshDiffAfterRemovingConversation(from thread: AgentThread, excluding conversationIDString: String) async {

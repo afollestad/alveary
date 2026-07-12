@@ -367,7 +367,9 @@ private extension ConversationViewModel {
         state.isAutomaticSessionHandoffPending = false
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
-        state.lastTurnError = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
+        let normalizedMessage = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
+        controllerTerminalFailureMessage = normalizedMessage
+        state.lastTurnError = normalizedMessage
         state.endTurn()
         scheduleSave()
     }
@@ -378,6 +380,7 @@ private extension ConversationViewModel {
         state.isAutomaticSessionHandoffPending = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
+        controllerTerminalFailureMessage = nil
         state.lastTurnInterrupted = true
         markTranscriptActivityInterrupted()
         pauseQueuedMessagesAfterInterruptionIfNeeded()
@@ -401,6 +404,7 @@ private extension ConversationViewModel {
         state.isAutomaticSessionHandoffPending = false
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
+        controllerTerminalFailureMessage = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
         state.lastTurnError = nil
         state.endTurn()
         return true

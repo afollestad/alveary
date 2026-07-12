@@ -35,6 +35,11 @@ extension ContentView {
             providerDiscovery: dependencies.providerDiscovery,
             providerSessionActions: dependencies.providerSessionActions,
             attachmentStore: dependencies.attachmentStore,
+            invalidateConversationController: { conversationID in
+                dependencies.conversationControllerRegistry.invalidate(
+                    for: ConversationControllerKey(conversationID: conversationID)
+                )
+            },
             presentUnexpectedError: { message in
                 appState.presentUnexpectedError(message: message)
             },

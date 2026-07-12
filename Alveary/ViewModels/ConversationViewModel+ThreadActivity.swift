@@ -1,6 +1,7 @@
 extension ConversationViewModel {
     func markVisibleTurnStarted(isSessionHandoffSeed: Bool = false) {
         markPromptDismissalNewOutboundTurnStarted()
+        controllerTerminalFailureMessage = nil
         state.currentTurnActivityVisibility = .visible
         state.hasRecordedLocalTurnEndActivity = false
         state.isSessionHandoffSeedTurnActive = isSessionHandoffSeed

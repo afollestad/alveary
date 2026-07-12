@@ -7,18 +7,14 @@ struct MiddlePane: View {
     let modelContext: ModelContext
     let gitHubCLI: GitHubCLIService
     let agentsManager: any AgentsManager
-    let runtimeStore: any ConversationRuntimeStore
-    let attachmentStore: any ConversationAttachmentStore
-    let keepAwakeService: KeepAwakeService
+    let conversationControllerRegistry: any ConversationControllerRegistry
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
     let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
-    let worktreeManager: WorktreeManager
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
-    let threadActivityRecorder: any ThreadActivityRecording
     let sidebarViewModel: SidebarViewModel
     let loadInstalledSkills: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
@@ -51,18 +47,14 @@ struct MiddlePane: View {
                 appState: appState,
                 modelContext: modelContext,
                 agentsManager: agentsManager,
-                runtimeStore: runtimeStore,
-                attachmentStore: attachmentStore,
-                keepAwakeService: keepAwakeService,
+                conversationControllerRegistry: conversationControllerRegistry,
                 settingsService: settingsService,
                 providerRegistry: providerRegistry,
                 providerDiscovery: providerDiscovery,
-                worktreeManager: worktreeManager,
                 providerSetup: providerSetup,
                 contextWindowCache: contextWindowCache,
                 fileListManager: fileListManager,
                 notificationManager: notificationManager,
-                threadActivityRecorder: threadActivityRecorder,
                 availableProjects: projects,
                 selectDraftProject: { threadID, projectPath in
                     do {

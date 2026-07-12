@@ -33,6 +33,46 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testAgentCLIKitFailedDeferredResumePreservesPendingControllerBoundary() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: DeferredThenMessageAgentCLIKitAdapter(failsResume: true),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-failed-deferred-resume"
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: "/tmp"))
+        let maybeSubscription = await manager.subscribe(conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let approvalEvent = try await nextEvent(from: subscription.stream, description: "failed deferred resume approval")
+        guard case let .toolApprovalRequested(approval) = approvalEvent else {
+            return XCTFail("Expected tool approval request, got \(approvalEvent)")
+        }
+        try await waitForFallbackApprovalResumeReadiness(manager: manager, conversationId: conversationId)
+        let state = manager.conversationState(for: conversationId)
+        state.currentTurnActivityVisibility = .visible
+        state.deferControllerTerminalBoundary()
+
+        do {
+            _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
+                conversationId: conversationId,
+                approval: approval,
+                resolution: ClaudeToolApprovalResolution(decision: .allow),
+                additionalApprovals: [],
+                sessionApproval: nil,
+                config: spawnConfig(workingDirectory: "/tmp")
+            ))
+            XCTFail("Expected deferred approval resume to fail")
+        } catch DeferredThenMessageAdapterError.resumeFailed {
+            // expected
+        }
+
+        XCTAssertFalse(state.turnState.isActive)
+        XCTAssertNil(state.lastControllerTerminalBoundary)
+        XCTAssertTrue(state.hasDeferredControllerTerminalBoundary)
+        await manager.kill(conversationId: conversationId)
+    }
+
     func testAgentCLIKitFallbackParallelApprovalsSendRuntimeResolutionsAfterRespawn() async throws {
         let fixture = makeAgentCLIKitFixture(
             adapter: ParallelApprovalResolutionAdapter(),

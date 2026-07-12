@@ -201,7 +201,7 @@ extension ConversationViewModel {
         state.isCancellingTurn = false
         state.lastTurnInterrupted = false
         state.lastTurnError = nil
-        state.endTurn()
+        state.deferControllerTerminalBoundary()
         return true
     }
 

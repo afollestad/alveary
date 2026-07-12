@@ -20,6 +20,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     var pendingSessionRemovalErrors: [String: String] = [:]
     var spawningIds: Set<String> = []
     var reconfiguringIds: Set<String> = []
+    var suspendingIds: Set<String> = []
     var pendingKillIds: Set<String> = []
     var deniedToolUseIdsByConversation: [String: Set<String>] = [:]
     var cancelledInteractionsByConversation: [String: CancelledInteractionResolution] = [:]
@@ -108,13 +109,16 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     }
 
     func hasInflightLifecycle(conversationId: String) -> Bool {
-        spawningIds.contains(conversationId) || reconfiguringIds.contains(conversationId)
+        spawningIds.contains(conversationId) ||
+            reconfiguringIds.contains(conversationId) ||
+            suspendingIds.contains(conversationId)
     }
 
     func isRunning(conversationId: String) -> Bool {
         agentCLIKitStatuses[conversationId]?.isProcessRunning == true ||
             spawningIds.contains(conversationId) ||
-            reconfiguringIds.contains(conversationId)
+            reconfiguringIds.contains(conversationId) ||
+            suspendingIds.contains(conversationId)
     }
 
     func performGoalAction(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws {

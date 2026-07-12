@@ -378,23 +378,38 @@ private struct ThreadDetailProjectTrustFixture {
         services: ThreadDetailProjectTrustViewServices
     ) -> ThreadDetailView {
         let fileListManager = SnapshotMockFileListManager()
+        let agentsManager = SidebarMockAgentsManager()
+        let runtimeStore = MockConversationRuntimeStore()
+        let worktreeManager = MockWorktreeManager(
+            worktreeInfo: WorktreeInfo(path: "/tmp/alveary-worktree", branch: "main")
+        )
+        let contextWindowCache = MockContextWindowCache()
+        let conversationControllerRegistry = DefaultConversationControllerRegistry { conversation in
+            ConversationViewModel(
+                conversation: conversation,
+                agentsManager: agentsManager,
+                runtimeStore: runtimeStore,
+                keepAwakeService: RecordingKeepAwakeService(),
+                modelContext: context,
+                settingsService: services.settingsService,
+                worktreeManager: worktreeManager,
+                providerSetup: services.providerSetup,
+                contextWindowCache: contextWindowCache
+            )
+        }
         return ThreadDetailView(
             thread: thread,
             appState: appState,
             modelContext: context,
-            agentsManager: SidebarMockAgentsManager(),
-            runtimeStore: MockConversationRuntimeStore(),
-            attachmentStore: DefaultConversationAttachmentStore(),
-            keepAwakeService: RecordingKeepAwakeService(),
+            agentsManager: agentsManager,
+            conversationControllerRegistry: conversationControllerRegistry,
             settingsService: services.settingsService,
             providerRegistry: DefaultProviderRegistry(agentRegistry: DefaultAgentRegistry()),
             providerDiscovery: SnapshotThreadProviderDiscoveryService(),
-            worktreeManager: MockWorktreeManager(worktreeInfo: WorktreeInfo(path: "/tmp/alveary-worktree", branch: "main")),
             providerSetup: services.providerSetup,
-            contextWindowCache: MockContextWindowCache(),
+            contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: RecordingNotificationManager(),
-            threadActivityRecorder: NoopThreadActivityRecorder(),
             availableProjects: thread.project.map { [$0] } ?? [],
             selectDraftProject: { _, _ in },
             deleteThread: { thread in
@@ -404,7 +419,7 @@ private struct ThreadDetailProjectTrustFixture {
             diffViewModel: DiffViewerViewModel(
                 gitService: SnapshotMockGitService(statusResults: [[]], diffResults: [""]),
                 fileListManager: fileListManager,
-                agentsManager: SidebarMockAgentsManager(),
+                agentsManager: agentsManager,
                 fsEventDebounceDuration: .seconds(10),
                 idlePollInterval: .seconds(10)
             )

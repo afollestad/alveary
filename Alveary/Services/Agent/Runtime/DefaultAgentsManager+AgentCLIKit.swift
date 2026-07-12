@@ -55,7 +55,8 @@ extension DefaultAgentsManager {
     ) async throws {
         let services = agentCLIKitServices
         guard !shutdownRequested.withLock({ $0 }),
-              !closingConversationIds.contains(conversationId) else {
+              !closingConversationIds.contains(conversationId),
+              !suspendingIds.contains(conversationId) else {
             throw AgentError.stdinClosed
         }
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
@@ -109,7 +110,8 @@ extension DefaultAgentsManager {
     func startGoalWithAgentCLIKit(_ objective: String, conversationId: String) async throws {
         let services = agentCLIKitServices
         guard !shutdownRequested.withLock({ $0 }),
-              !closingConversationIds.contains(conversationId) else {
+              !closingConversationIds.contains(conversationId),
+              !suspendingIds.contains(conversationId) else {
             throw AgentError.stdinClosed
         }
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
@@ -144,8 +146,9 @@ extension DefaultAgentsManager {
         guard !spawningIds.contains(conversationId) else {
             throw AgentError.spawnFailed("Spawn already in progress for \(conversationId)")
         }
-        guard !reconfiguringIds.contains(conversationId) else {
-            throw AgentError.spawnFailed("Session refresh already in progress for \(conversationId)")
+        guard !reconfiguringIds.contains(conversationId),
+              !suspendingIds.contains(conversationId) else {
+            throw AgentError.spawnFailed("Session change already in progress for \(conversationId)")
         }
         reconfiguringIds.insert(conversationId)
         defer {
@@ -229,7 +232,9 @@ extension DefaultAgentsManager {
         eventBuffers[conversationId]?.acceptsLiveEvents = false
         eventBuffers[conversationId]?.buffer.finishAll()
 
-        if spawningIds.contains(conversationId) || reconfiguringIds.contains(conversationId) {
+        if spawningIds.contains(conversationId) ||
+            reconfiguringIds.contains(conversationId) ||
+            suspendingIds.contains(conversationId) {
             pendingKillIds.insert(conversationId)
             return
         }
@@ -264,7 +269,8 @@ extension DefaultAgentsManager {
                !closingConversationIds.contains(conversationId),
                !pendingSessionRemovalIds.contains(conversationId),
                !spawningIds.contains(conversationId),
-               !reconfiguringIds.contains(conversationId) {
+               !reconfiguringIds.contains(conversationId),
+               !suspendingIds.contains(conversationId) {
                 return
             }
             try await Task.sleep(for: .milliseconds(50))
@@ -272,10 +278,45 @@ extension DefaultAgentsManager {
         throw AgentError.spawnFailed("Timed out waiting for destructive teardown for \(conversationId)")
     }
 
+    func suspendRuntimeWithAgentCLIKit(conversationId: String) async {
+        guard !shutdownRequested.withLock({ $0 }),
+              !closingConversationIds.contains(conversationId),
+              !spawningIds.contains(conversationId),
+              !reconfiguringIds.contains(conversationId),
+              !suspendingIds.contains(conversationId) else {
+            return
+        }
+
+        suspendingIds.insert(conversationId)
+        defer {
+            suspendingIds.remove(conversationId)
+            if let generation = eventBuffers[conversationId]?.generation {
+                scheduleBufferCleanup(for: conversationId, generation: generation, delay: .seconds(30))
+            }
+            handleAgentCLIKitDeferredKillAfterSpawn(for: conversationId)
+        }
+
+        let services = agentCLIKitServices
+        let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
+        guard let status = await services.runtime.status(conversationId: runtimeConversationId) else {
+            agentCLIKitStatuses.removeValue(forKey: conversationId)
+            return
+        }
+        agentCLIKitStatuses[conversationId] = status
+
+        guard status.waitingState == .idle,
+              !status.isTurnActive else {
+            return
+        }
+
+        await tearDownAgentCLIKitRuntime(conversationId: conversationId, removeSession: false)
+    }
+
     func killAllWithAgentCLIKit() {
         let ids = Set(agentCLIKitStatuses.keys)
             .union(spawningIds)
             .union(reconfiguringIds)
+            .union(suspendingIds)
         for id in ids {
             killWithAgentCLIKit(conversationId: id)
         }
@@ -293,6 +334,9 @@ extension DefaultAgentsManager {
         }
         guard !reconfiguringIds.contains(id) else {
             throw AgentError.spawnFailed("Reconfigure already in progress for \(id)")
+        }
+        guard !suspendingIds.contains(id) else {
+            throw AgentError.spawnFailed("Runtime suspension already in progress for \(id)")
         }
     }
 

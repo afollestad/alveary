@@ -254,6 +254,8 @@ extension ConversationViewModelTests {
 
         XCTAssertFalse(fixture.viewModel.state.turnState.isActive)
         XCTAssertNil(fixture.viewModel.lastTurnError)
+        XCTAssertNil(fixture.viewModel.state.lastControllerTerminalBoundary)
+        XCTAssertTrue(fixture.viewModel.state.hasDeferredControllerTerminalBoundary)
     }
 
     func testApproveToolUseRecordsDecisionAndResumesSession() async throws {

@@ -317,6 +317,9 @@ private extension ConversationViewModel {
             }
 
             let wasActive = self.state.turnState.isActive
+            if wasActive {
+                self.controllerTerminalFailureMessage = "Agent connection ended before the turn completed"
+            }
             self.state.endTurn()
             if wasActive {
                 self.recordLocalVisibleTurnEndedIfNeeded()

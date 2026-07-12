@@ -126,6 +126,7 @@ struct FailedReplacementAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
 
 struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     let counter = AgentCLIKitLaunchCounter()
+    var failsResume = false
     let definition = AgentCLIKit.AgentProviderDefinition(
         id: .claude,
         displayName: "Claude",
@@ -137,6 +138,9 @@ struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         resumedSession: AgentCLIKit.AgentSessionRecord?
     ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
         let launch = await counter.next()
+        if launch > 1, failsResume {
+            throw DeferredThenMessageAdapterError.resumeFailed
+        }
         let output = launch == 1 ? "approval" : "message:resumed"
         // Idle on stdin like the real CLI. The deferred launch exits when the runtime closes stdin;
         // the resumed launch stays alive until the test explicitly tears the manager down.
@@ -179,6 +183,10 @@ struct DeferredThenMessageAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
         Data()
     }
+}
+
+enum DeferredThenMessageAdapterError: Error {
+    case resumeFailed
 }
 
 struct RestoredApprovalCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {

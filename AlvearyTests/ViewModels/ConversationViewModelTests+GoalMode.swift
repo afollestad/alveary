@@ -87,6 +87,17 @@ extension ConversationViewModelTests {
         XCTAssertTrue(goalStartCalls.isEmpty)
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Earlier request"])
         XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
+        XCTAssertTrue(fixture.viewModel.state.turnState.isActive)
+        XCTAssertTrue(fixture.viewModel.state.isExistingGoalControllerTurnActive)
+
+        fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
+            objective: "Audit remaining failures",
+            status: .achieved
+        )
+
+        XCTAssertFalse(fixture.viewModel.state.turnState.isActive)
+        XCTAssertFalse(fixture.viewModel.state.isExistingGoalControllerTurnActive)
+        XCTAssertEqual(fixture.viewModel.state.lastControllerTerminalBoundary?.result, .succeeded)
     }
 
     func testEstablishedThreadGoalStartRequiresExistingSessionCapability() async throws {

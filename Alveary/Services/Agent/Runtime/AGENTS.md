@@ -3,6 +3,7 @@
 These instructions cover provider-neutral runtime management under `Alveary/Services/Agent/Runtime/`.
 
 - `AgentsManager.destroyRuntime()` is the single public owner for waiting on destructive runtime teardown. UI flows may call `kill(conversationId:)` first when they need the visible model row removed immediately, but they must still call `destroyRuntime(conversationId:)` as the wait/cleanup phase instead of reimplementing wait loops or direct session-map removal.
+- `AgentsManager.suspendRuntime()` is non-destructive terminal cleanup. Suspend only idle, non-waiting runtimes; preserve the provider session, Alveary binding, conversation state, and reusable approvals so the next manual turn can resume.
 - `ConversationRuntimeStore` is the canonical composer-state owner across view and app-root actions. Initial-setup rollback must use `destroyRuntimePreservingState` so root-routed work cannot fork into a fresh state during teardown. Bind retained state after ordinary failure; cancellation replaces it and transfers active view-mount registration before binding the replacement.
 - `DefaultAgentsManager` is `AgentCLIKit`-only. Keep provider launch, provider process lifetime, stream decoding, hook transport, provider approval policy, transcript-path logic, and restored transcript inspection in `AgentCLIKit`.
 - `DefaultAgentsManager+Spawn.swift` should stay as host orchestration. Keep event buffer/status work in the `AgentCLIKit` companions and stream-status mapping in `DefaultAgentsManager+StreamEvents.swift`.

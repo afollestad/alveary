@@ -12,26 +12,72 @@ extension DefaultAgentsManager {
     }
 
     func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness {
-        guard !shutdownRequested.withLock({ $0 }) else {
+        while true {
+            if let blocked = outboundLifecycleBlock(conversationId: conversationId) {
+                return blocked
+            }
+            guard await waitForSuspensionToFinish(conversationId: conversationId) else {
+                return outboundLifecycleBlock(conversationId: conversationId) ??
+                    .blocked(reason: "Session changes are still being applied")
+            }
+            if let blocked = outboundLifecycleBlock(conversationId: conversationId) {
+                return blocked
+            }
+            guard !spawningIds.contains(conversationId),
+                  !reconfiguringIds.contains(conversationId) else {
+                return .blocked(reason: "Session changes are still being applied")
+            }
+
+            let services = agentCLIKitServices
+            let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
+            let status = await services.runtime.status(conversationId: runtimeConversationId)
+            if let blocked = outboundLifecycleBlock(conversationId: conversationId) {
+                return blocked
+            }
+            if suspendingIds.contains(conversationId) {
+                continue
+            }
+            guard !spawningIds.contains(conversationId),
+                  !reconfiguringIds.contains(conversationId) else {
+                return .blocked(reason: "Session changes are still being applied")
+            }
+            guard let status else {
+                agentCLIKitStatuses.removeValue(forKey: conversationId)
+                return .respawnRequired
+            }
+
+            agentCLIKitStatuses[conversationId] = status
+            return agentCLIKitOutboundReadiness(for: status)
+        }
+    }
+
+    private func waitForSuspensionToFinish(conversationId: String) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now + .seconds(7)
+        while suspendingIds.contains(conversationId) {
+            guard !shutdownRequested.withLock({ $0 }),
+                  !closingConversationIds.contains(conversationId),
+                  clock.now < deadline,
+                  !Task.isCancelled else {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return outboundLifecycleBlock(conversationId: conversationId) == nil &&
+            !suspendingIds.contains(conversationId)
+    }
+
+    private func outboundLifecycleBlock(conversationId: String) -> AgentOutboundReadiness? {
+        if Task.isCancelled {
+            return .blocked(reason: "Outbound request was cancelled")
+        }
+        if shutdownRequested.withLock({ $0 }) {
             return .blocked(reason: "App is shutting down")
         }
-        guard !closingConversationIds.contains(conversationId) else {
+        if closingConversationIds.contains(conversationId) {
             return .blocked(reason: "Conversation is closing")
         }
-        guard !spawningIds.contains(conversationId),
-              !reconfiguringIds.contains(conversationId) else {
-            return .blocked(reason: "Session changes are still being applied")
-        }
-
-        let services = agentCLIKitServices
-        let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
-        guard let status = await services.runtime.status(conversationId: runtimeConversationId) else {
-            agentCLIKitStatuses.removeValue(forKey: conversationId)
-            return .respawnRequired
-        }
-
-        agentCLIKitStatuses[conversationId] = status
-        return agentCLIKitOutboundReadiness(for: status)
+        return nil
     }
 }
 

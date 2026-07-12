@@ -4,16 +4,10 @@ import SwiftUI
 
 struct ConversationView: View {
     let conversation: Conversation
-    let agentsManager: any AgentsManager
-    let runtimeStore: any ConversationRuntimeStore
-    let attachmentStore: any ConversationAttachmentStore
-    let keepAwakeService: KeepAwakeService
     let modelContext: ModelContext
     let settingsService: SettingsService
     let providerRegistry: ProviderRegistry
     let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
-    let worktreeManager: WorktreeManager
-    let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let runtimeStatus: ActivitySignal
@@ -23,12 +17,11 @@ struct ConversationView: View {
     let onDenyProjectTrust: (ProjectTrustPrompt) -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
-    let threadActivityRecorder: any ThreadActivityRecording
     let availableProjects: [Project]
     let onSelectDraftProject: (String) -> Void
     @Bindable var appState: AppState
 
-    @State var viewModel: ConversationViewModel
+    @State var controllerLease: ConversationControllerLease
     @State var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
     @State var composerProviderOrdering: [AgentCLIKit.AgentProviderID]
     @State var hasLoadedComposerProviderStatuses: Bool
@@ -61,16 +54,11 @@ struct ConversationView: View {
 
     init(
         conversation: Conversation,
-        agentsManager: any AgentsManager,
-        runtimeStore: any ConversationRuntimeStore,
-        attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
-        keepAwakeService: KeepAwakeService,
+        conversationControllerRegistry: any ConversationControllerRegistry,
         modelContext: ModelContext,
         settingsService: SettingsService,
         providerRegistry: ProviderRegistry,
         providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService,
-        worktreeManager: WorktreeManager,
-        providerSetup: ProviderSetupService,
         contextWindowCache: any ContextWindowCache,
         fileListManager: FileListManager,
         runtimeStatus: ActivitySignal,
@@ -80,22 +68,15 @@ struct ConversationView: View {
         onDenyProjectTrust: @escaping (ProjectTrustPrompt) -> Void = { _ in },
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         diffViewModel: DiffViewerViewModel,
-        threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
         availableProjects: [Project] = [],
         onSelectDraftProject: @escaping (String) -> Void = { _ in },
         appState: AppState
     ) {
         self.conversation = conversation
-        self.agentsManager = agentsManager
-        self.runtimeStore = runtimeStore
-        self.attachmentStore = attachmentStore
-        self.keepAwakeService = keepAwakeService
         self.modelContext = modelContext
         self.settingsService = settingsService
         self.providerRegistry = providerRegistry
         self.providerDiscovery = providerDiscovery
-        self.worktreeManager = worktreeManager
-        self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache
         self.fileListManager = fileListManager
         self.runtimeStatus = runtimeStatus
@@ -105,7 +86,6 @@ struct ConversationView: View {
         self.onDenyProjectTrust = onDenyProjectTrust
         self.loadSkillCompletions = loadSkillCompletions
         self.diffViewModel = diffViewModel
-        self.threadActivityRecorder = threadActivityRecorder
         self.availableProjects = availableProjects
         self.onSelectDraftProject = onSelectDraftProject
         self.appState = appState
@@ -120,19 +100,13 @@ struct ConversationView: View {
         _composerProviderStatuses = State(initialValue: providerStatusSnapshot?.statuses ?? [:])
         _composerProviderOrdering = State(initialValue: providerStatusSnapshot?.ordering ?? AgentCLIKit.AgentProviderID.allCases)
         _hasLoadedComposerProviderStatuses = State(initialValue: providerStatusSnapshot != nil)
-        _viewModel = State(initialValue: ConversationViewModel(
-            conversation: conversation,
-            agentsManager: agentsManager,
-            runtimeStore: runtimeStore,
-            keepAwakeService: keepAwakeService,
-            modelContext: modelContext,
-            settingsService: settingsService,
-            worktreeManager: worktreeManager,
-            providerSetup: providerSetup,
-            contextWindowCache: contextWindowCache,
-            attachmentStore: attachmentStore,
-            threadActivityRecorder: threadActivityRecorder
-        ))
+        _controllerLease = State(
+            initialValue: conversationControllerRegistry.makeViewLease(for: conversation)
+        )
+    }
+
+    var viewModel: ConversationViewModel {
+        controllerLease.viewModel
     }
 
     var body: some View {
@@ -164,7 +138,7 @@ struct ConversationView: View {
             appState: appState
         )
         .task {
-            viewModel.activateViewLifecycle()
+            controllerLease.activate()
             if let path = activeWorkingDirectory {
                 await fileListManager.warmCache(for: path)
             }
@@ -178,7 +152,7 @@ struct ConversationView: View {
             }
         }
         .onDisappear {
-            viewModel.deactivateViewLifecycle()
+            controllerLease.deactivate()
         }
         .onChange(of: runtimeStatus) { _, newStatus in
             guard newStatus == .idle else {

@@ -265,6 +265,10 @@ private extension ConversationViewModel {
             (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
             try await agentsManager.startGoal(objective, conversationId: conversation.id)
             state.respawnAttempts = 0
+            markVisibleTurnStarted()
+            state.turnState.beginTurn()
+            state.beginExistingSessionGoalControllerTurn()
+            threadActivityRecorder.recordVisibleOutbound(conversationId: conversation.id)
         }
     }
 }

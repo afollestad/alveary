@@ -41,7 +41,7 @@ extension ConversationViewModel {
         // Claude should emit a terminal permission-denial result after the hook
         // returns, but the UI must not stay locked in an active turn if that
         // trailing token is delayed or dropped.
-        state.endTurn()
+        state.completeDeferredControllerTurn()
         recordLocalVisibleTurnEndedIfNeeded()
         state.clearStreamingText()
         state.isAutomaticSessionHandoffPending = false

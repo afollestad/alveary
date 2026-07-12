@@ -347,24 +347,36 @@ private struct ThreadDetailStatusFixture {
         )
     }
 
+    var conversationControllerRegistry: DefaultConversationControllerRegistry {
+        DefaultConversationControllerRegistry { conversation in
+            ConversationViewModel(
+                conversation: conversation,
+                agentsManager: agentsManager,
+                runtimeStore: runtimeStore,
+                keepAwakeService: RecordingKeepAwakeService(),
+                modelContext: context,
+                settingsService: settingsService,
+                worktreeManager: worktreeManager,
+                providerSetup: providerSetup,
+                contextWindowCache: contextWindowCache
+            )
+        }
+    }
+
     var view: some View {
         ThreadDetailView(
             thread: thread,
             appState: appState,
             modelContext: context,
             agentsManager: agentsManager,
-            runtimeStore: runtimeStore,
-            attachmentStore: DefaultConversationAttachmentStore(),
-            keepAwakeService: RecordingKeepAwakeService(),
+            conversationControllerRegistry: conversationControllerRegistry,
             settingsService: settingsService,
             providerRegistry: providerRegistry,
             providerDiscovery: providerDiscovery,
-            worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
-            threadActivityRecorder: NoopThreadActivityRecorder(),
             availableProjects: thread.project.map { [$0] } ?? [],
             selectDraftProject: { _, _ in },
             deleteThread: { _ in },

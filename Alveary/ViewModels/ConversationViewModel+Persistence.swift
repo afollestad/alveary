@@ -25,6 +25,42 @@ extension ConversationViewModel {
             await saveTask.value
         }
     }
+
+    func flushPendingSaveNow() async throws {
+        let acknowledgement = try flushPendingSaveSynchronously()
+        guard let acknowledgement else {
+            return
+        }
+        await agentsManager.markPersisted(
+            conversationId: conversation.id,
+            generation: acknowledgement.generation,
+            upTo: acknowledgement.index
+        )
+    }
+
+    @discardableResult
+    func flushPendingSaveSynchronously() throws -> ConversationPersistenceAcknowledgement? {
+        saveTask?.cancel()
+        saveTask = nil
+        saveTaskID = nil
+        needsFollowUpSave = false
+
+        try modelContext.save()
+
+        state.lastPersistedEventIndex = max(state.lastPersistedEventIndex, state.lastObservedEventIndex)
+        guard let generation = state.activeBufferGeneration else {
+            return nil
+        }
+        return ConversationPersistenceAcknowledgement(
+            generation: generation,
+            index: state.lastPersistedEventIndex
+        )
+    }
+}
+
+struct ConversationPersistenceAcknowledgement: Equatable, Sendable {
+    let generation: UUID
+    let index: Int
 }
 
 // Save snapshots decouple debounced model saves from runtime-buffer acknowledgement.

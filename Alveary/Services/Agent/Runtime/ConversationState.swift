@@ -82,6 +82,18 @@ enum QueuedMessagesPauseReason: Equatable, Sendable {
     case interrupted
 }
 
+struct ConversationTerminalBoundary: Equatable, Sendable {
+    enum Result: Equatable, Sendable {
+        case succeeded
+        case failed(message: String?)
+        case interrupted
+    }
+
+    let sequence: UInt64
+    let wasVisible: Bool
+    let result: Result
+}
+
 struct PausedQueueSendConfirmationState: Equatable, Sendable {
     let id: UUID
     let draft: ComposerDraft
@@ -115,6 +127,9 @@ final class ConversationState {
     var completedThoughtSequence = 0
     var lastTurnError: String?
     var lastTurnInterrupted = false
+    var controllerTerminalFailureMessage: String?
+    private(set) var lastControllerTerminalBoundary: ConversationTerminalBoundary?
+    private(set) var hasDeferredControllerTerminalBoundary = false
     var stagedContext: String?
     var sessionContinuityNotice: String?
     var isSendingMessage = false
@@ -189,7 +204,19 @@ final class ConversationState {
     var appShotProviderSessionTitleFallback: String?
     var pendingSyntheticAssistantDuplicateText: String?
     var isGoalModeArmed = false
-    var goalSnapshot: AgentGoalSnapshot?
+    var goalSnapshot: AgentGoalSnapshot? {
+        didSet {
+            guard isExistingGoalControllerTurnActive else {
+                return
+            }
+            if goalSnapshot?.status.isTerminal == true {
+                finishExistingSessionGoalControllerTurn(interrupted: false)
+            } else if goalSnapshot == nil {
+                finishExistingSessionGoalControllerTurn(interrupted: true)
+            }
+        }
+    }
+    var isExistingGoalControllerTurnActive = false
     var dismissedTerminalGoalKeys: Set<String> = []
     var lastPersistedGoalRecordKey: String?
     var goalActionError: String?
@@ -311,9 +338,68 @@ final class ConversationState {
     }
 
     func endTurn() {
+        if turnState.isActive || (hasDeferredControllerTerminalBoundary && lastTurnInterrupted) {
+            recordControllerTerminalBoundary()
+            hasDeferredControllerTerminalBoundary = false
+        }
         // The fresh-session handoff seed blocks normal steering only until any terminal turn boundary.
         turnState.endTurn()
         isSessionHandoffSeedTurnActive = false
+    }
+
+    func deferControllerTerminalBoundary() {
+        hasDeferredControllerTerminalBoundary = true
+        endTurnWithoutTerminalBoundary()
+    }
+
+    func completeDeferredControllerTurn() {
+        guard hasDeferredControllerTerminalBoundary else {
+            endTurn()
+            return
+        }
+        recordControllerTerminalBoundary()
+        hasDeferredControllerTerminalBoundary = false
+        endTurnWithoutTerminalBoundary()
+    }
+
+    func rollBackOptimisticTurn() {
+        endTurnWithoutTerminalBoundary()
+    }
+
+    func endTurnWithoutTerminalBoundary() {
+        turnState.endTurn()
+        isSessionHandoffSeedTurnActive = false
+    }
+
+    func beginExistingSessionGoalControllerTurn() {
+        isExistingGoalControllerTurnActive = true
+        if goalSnapshot?.status.isTerminal == true {
+            finishExistingSessionGoalControllerTurn(interrupted: false)
+        }
+    }
+
+    private func finishExistingSessionGoalControllerTurn(interrupted: Bool) {
+        isExistingGoalControllerTurnActive = false
+        if interrupted {
+            lastTurnInterrupted = true
+        }
+        endTurn()
+    }
+
+    private func recordControllerTerminalBoundary() {
+        let result: ConversationTerminalBoundary.Result
+        if lastTurnInterrupted {
+            result = .interrupted
+        } else if let controllerTerminalFailureMessage {
+            result = .failed(message: controllerTerminalFailureMessage)
+        } else {
+            result = .succeeded
+        }
+        lastControllerTerminalBoundary = ConversationTerminalBoundary(
+            sequence: (lastControllerTerminalBoundary?.sequence ?? 0) &+ 1,
+            wasVisible: currentTurnActivityVisibility == .visible,
+            result: result
+        )
     }
 
     func markRetryableFailedMessage(

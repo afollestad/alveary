@@ -29,7 +29,7 @@ extension ConversationViewModel {
     }
 
     func resubscribeIfActiveRuntimeIsRunning() async {
-        guard hasActivatedViewLifecycle,
+        guard hasActivatedControllerLifecycle,
               await agentsManager.isRunning(conversationId: conversation.id) else {
             return
         }

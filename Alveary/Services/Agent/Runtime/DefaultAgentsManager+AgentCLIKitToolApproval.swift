@@ -83,7 +83,7 @@ extension DefaultAgentsManager {
             }
             await discardAgentCLIKitTransientDecisions(approvals, services: services)
             await MainActor.run {
-                conversationState(for: request.conversationId).endTurn()
+                conversationState(for: request.conversationId).rollBackOptimisticTurn()
             }
             throw error
         }

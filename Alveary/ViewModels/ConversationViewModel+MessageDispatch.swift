@@ -317,7 +317,7 @@ private extension ConversationViewModel {
     }
 
     func canDrainForCurrentLifecycle(allowInactiveBeforeFirstActivation: Bool) -> Bool {
-        hasActivatedViewLifecycle || (allowInactiveBeforeFirstActivation && !hasEverActivatedViewLifecycle)
+        hasActivatedControllerLifecycle || (allowInactiveBeforeFirstActivation && !hasEverActivatedViewLifecycle)
     }
 
     func runtimeStatusForQueueDrain() async -> ActivitySignal {

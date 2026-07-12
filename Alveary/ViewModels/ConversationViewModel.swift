@@ -9,6 +9,7 @@ final class ConversationViewModel {
 
     private(set) var state: ConversationState
     var hasActivatedViewLifecycle = false
+    var hasActivatedBackgroundLifecycle = false
     var hasEverActivatedViewLifecycle = false
     var activeKeepAwakeSource: KeepAwakeActivitySource?
 
@@ -68,6 +69,11 @@ final class ConversationViewModel {
         set { state.lastTurnError = newValue }
     }
 
+    var controllerTerminalFailureMessage: String? {
+        get { state.controllerTerminalFailureMessage }
+        set { state.controllerTerminalFailureMessage = newValue }
+    }
+
     var stagedContext: String? {
         get { state.stagedContext }
         set { state.stagedContext = newValue }
@@ -85,6 +91,14 @@ final class ConversationViewModel {
 
     var hasUnansweredPrompt: Bool {
         state.grouper.hasUnansweredPrompt
+    }
+
+    var hasActivatedControllerLifecycle: Bool {
+        hasActivatedViewLifecycle || hasActivatedBackgroundLifecycle
+    }
+
+    var hasPendingPersistence: Bool {
+        saveTask != nil || needsFollowUpSave
     }
 
     func canSubmitPromptAnswer(promptId: String) -> Bool {
@@ -435,6 +449,8 @@ final class ConversationViewModel {
         state.hasPendingBlockInputDocumentChange = false
         queueDrainTask?.cancel()
         queueDrainTask = nil
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
         if let activeKeepAwakeSource {
             keepAwakeService.setActive(false, for: activeKeepAwakeSource)
         }

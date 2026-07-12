@@ -5,6 +5,10 @@ These instructions apply to files under `Alveary/ViewModels/`.
 ### Ownership Boundary
 
 - Keep view models as coordination layers: route UI intent, own observers/watchers, and delegate service-backed state to focused collaborators when state becomes shared or long-running.
+- `ConversationControllerRegistry` is the app-scoped owner for conversation view models. View and background leases for one conversation must share its subscription, queue drain, persistence path, and terminal outcome stream.
+- Keep background retention distinct from view mounting. Background leases may keep provider work alive, but only view leases may change `ConversationState.isViewMounted`.
+- Terminal outcomes come from explicit `ConversationState` boundary snapshots, not sampled idle UI state. Keep `tool_deferred` boundaries open through delayed approvals, and publish terminal results only after the required record flush; preserve resumable sessions and retain the controller when maintenance fails.
+- A nonterminal provider goal remains controller-owned work even while its runtime is idle or paused. Keep its controller and resumable runtime until the goal reaches a terminal state.
 - **Own side effects.** View models own mutable runtime state, persistence, and side effects.
 - **Keep presentation derived.** Renderer-neutral `*Presentation` types may derive display/action values from view-model state, but must not replace view-model ownership or perform service/model mutations.
 

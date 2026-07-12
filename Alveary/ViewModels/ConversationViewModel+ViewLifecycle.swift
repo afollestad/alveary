@@ -9,11 +9,16 @@ extension ConversationViewModel {
         hasActivatedViewLifecycle = true
         hasEverActivatedViewLifecycle = true
         state.registerViewMount()
-        hydratePendingRestoreContextIfNeeded()
-        hydratePendingToolApprovalIfNeeded()
-        subscribe()
-        schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()
-        scheduleQueueDrainIfNeeded()
+        activateControllerLifecycleIfNeeded()
+    }
+
+    func activateBackgroundLifecycle() {
+        guard !hasActivatedBackgroundLifecycle else {
+            return
+        }
+
+        hasActivatedBackgroundLifecycle = true
+        activateControllerLifecycleIfNeeded()
     }
 
     func deactivateViewLifecycle() {
@@ -23,6 +28,38 @@ extension ConversationViewModel {
 
         hasActivatedViewLifecycle = false
         state.unregisterViewMount()
+        deactivateControllerLifecycleIfNeeded()
+    }
+
+    func deactivateBackgroundLifecycle() {
+        guard hasActivatedBackgroundLifecycle else {
+            return
+        }
+
+        hasActivatedBackgroundLifecycle = false
+        deactivateControllerLifecycleIfNeeded()
+    }
+}
+
+private extension ConversationViewModel {
+    func activateControllerLifecycleIfNeeded() {
+        guard subscriptionTask == nil else {
+            scheduleQueueDrainIfNeeded()
+            return
+        }
+
+        hydratePendingRestoreContextIfNeeded()
+        hydratePendingToolApprovalIfNeeded()
+        subscribe()
+        schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()
+        scheduleQueueDrainIfNeeded()
+    }
+
+    func deactivateControllerLifecycleIfNeeded() {
+        guard !hasActivatedControllerLifecycle else {
+            return
+        }
+
         subscriptionTask?.cancel()
         subscriptionTask = nil
         queueDrainTask?.cancel()

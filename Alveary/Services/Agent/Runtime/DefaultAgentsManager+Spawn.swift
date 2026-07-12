@@ -46,6 +46,7 @@ extension DefaultAgentsManager {
     func hasRuntimePreventingBufferCleanup(conversationId: String) -> Bool {
         agentCLIKitStatuses[conversationId]?.isProcessRunning == true ||
             spawningIds.contains(conversationId) ||
-            reconfiguringIds.contains(conversationId)
+            reconfiguringIds.contains(conversationId) ||
+            suspendingIds.contains(conversationId)
     }
 }

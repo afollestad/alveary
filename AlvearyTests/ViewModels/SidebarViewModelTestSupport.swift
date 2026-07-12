@@ -34,6 +34,7 @@ struct SidebarTestFixture {
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -73,6 +74,7 @@ struct SidebarTestFixture {
             providerDiscovery: providerDiscovery,
             providerSessionActions: providerSessionActions,
             attachmentStore: attachmentStore,
+            invalidateConversationController: invalidateConversationController,
             saveDraftProjectMove: saveDraftProjectMove,
             saveDeletionCommit: saveDeletionCommit,
             saveThreadCreation: saveThreadCreation,

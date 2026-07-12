@@ -80,6 +80,7 @@ extension ConversationViewModel {
         state.isAutomaticSessionHandoffPending = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
+        controllerTerminalFailureMessage = nil
         state.lastTurnInterrupted = true
         markTranscriptActivityInterrupted()
         pauseQueuedMessagesAfterInterruptionIfNeeded()
@@ -91,14 +92,18 @@ extension ConversationViewModel {
         state.isAutomaticSessionHandoffPending = false
         state.lastTurnInterrupted = false
         guard payload.permissionDenials.isEmpty else {
+            controllerTerminalFailureMessage = nil
             state.lastTurnError = nil
             return
         }
         guard !shouldSuppressTokenErrorComposerMessage(payload) else {
+            controllerTerminalFailureMessage = ConversationErrorDisplayPolicy.tokenErrorMessage(stopReason: payload.stopReason)
             state.lastTurnError = nil
             return
         }
-        state.lastTurnError = ConversationErrorDisplayPolicy.tokenErrorMessage(stopReason: payload.stopReason)
+        let message = ConversationErrorDisplayPolicy.tokenErrorMessage(stopReason: payload.stopReason)
+        controllerTerminalFailureMessage = message
+        state.lastTurnError = message
     }
 
     func shouldSuppressTokenErrorComposerMessage(_ payload: TokenEventPayload) -> Bool {

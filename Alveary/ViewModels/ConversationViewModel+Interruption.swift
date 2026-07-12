@@ -157,7 +157,7 @@ extension ConversationViewModel {
 
     func restorePromptAnswerContinuation(_ snapshot: PromptAnswerContinuationSnapshot) {
         if !snapshot.wasTurnActive {
-            state.endTurn()
+            state.rollBackOptimisticTurn()
         }
         state.currentTurnActivityVisibility = snapshot.turnActivityVisibility
         state.hasRecordedLocalTurnEndActivity = snapshot.hasRecordedLocalTurnEndActivity

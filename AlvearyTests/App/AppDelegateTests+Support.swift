@@ -50,6 +50,7 @@ struct AppDelegateTestFixture {
         signalState: AppDelegateProcessSignalState? = nil,
         wakeRefreshDelay: Duration = .milliseconds(10),
         shutdownPersistTimeout: TimeInterval = 0.05,
+        flushConversationControllers: @escaping @MainActor () -> [ConversationControllerFlushFailure] = { [] },
         disableSuddenTermination: @escaping () -> Void = {},
         enableSuddenTermination: @escaping () -> Void = {}
     ) -> AppDelegate {
@@ -61,6 +62,7 @@ struct AppDelegateTestFixture {
                 attachmentStore: attachmentStore,
                 shellRunner: shellRunner,
                 modelContainer: modelContainer,
+                flushConversationControllers: flushConversationControllers,
                 notificationRouter: NotificationRouter(),
                 workspaceNotificationCenter: workspaceNotificationCenter,
                 notificationCenter: appNotificationCenter,
@@ -287,6 +289,7 @@ actor AppDelegateMockAgentsManager: AgentsManager {
     }
 
     nonisolated func beginShutdown() {
+        sharedState.shutdownOrderRecorder?.record("shutdown")
         sharedState.beginShutdownCalls += 1
     }
 
@@ -309,12 +312,17 @@ actor AppDelegateMockAgentsManager: AgentsManager {
     func beginShutdownCallCount() -> Int {
         sharedState.beginShutdownCalls
     }
+
+    nonisolated func setShutdownOrderRecorder(_ recorder: AppDelegateShutdownOrderRecorder) {
+        sharedState.shutdownOrderRecorder = recorder
+    }
 }
 
 final class AppDelegateSharedState: @unchecked Sendable {
     private let lock = NSLock()
     private var storedProcesses: [Process] = []
     private var shutdownCalls = 0
+    private var storedShutdownOrderRecorder: AppDelegateShutdownOrderRecorder?
 
     var allProcessesSnapshot: [Process] {
         get {
@@ -332,6 +340,28 @@ final class AppDelegateSharedState: @unchecked Sendable {
         set {
             lock.withLock { shutdownCalls = newValue }
         }
+    }
+
+    var shutdownOrderRecorder: AppDelegateShutdownOrderRecorder? {
+        get {
+            lock.withLock { storedShutdownOrderRecorder }
+        }
+        set {
+            lock.withLock { storedShutdownOrderRecorder = newValue }
+        }
+    }
+}
+
+final class AppDelegateShutdownOrderRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedValues: [String] = []
+
+    var values: [String] {
+        lock.withLock { storedValues }
+    }
+
+    func record(_ value: String) {
+        lock.withLock { storedValues.append(value) }
     }
 }
 

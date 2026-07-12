@@ -30,8 +30,10 @@ extension DefaultAgentsManager {
         agentCLIKitGenerationByConversation.removeValue(forKey: conversationId)
         agentCLIKitGenerationUUIDs.removeValue(forKey: conversationId)
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)
-        closingConversationIds.remove(conversationId)
-        pendingSessionRemovalIds.remove(conversationId)
+        if removeSession || !pendingKillIds.contains(conversationId) {
+            closingConversationIds.remove(conversationId)
+            pendingSessionRemovalIds.remove(conversationId)
+        }
         clearStatus(for: conversationId)
     }
 

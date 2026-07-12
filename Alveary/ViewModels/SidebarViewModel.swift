@@ -15,6 +15,7 @@ final class SidebarViewModel {
     let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     let providerSessionActionService: any ProviderSessionActionService
     let attachmentStore: any ConversationAttachmentStore
+    private let invalidateConversationController: @MainActor (String) -> Void
     let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
     let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
     let saveThreadCreation: @MainActor (ModelContext) throws -> Void
@@ -45,6 +46,7 @@ final class SidebarViewModel {
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
+        invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
         saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
@@ -63,6 +65,7 @@ final class SidebarViewModel {
         self.providerDiscovery = providerDiscovery
         self.providerSessionActionService = providerSessionActions
         self.attachmentStore = attachmentStore
+        self.invalidateConversationController = invalidateConversationController
         self.saveDraftProjectMove = saveDraftProjectMove
         self.saveDeletionCommit = saveDeletionCommit
         self.saveThreadCreation = saveThreadCreation
@@ -107,6 +110,12 @@ final class SidebarViewModel {
         sidebarError = nil
     }
 
+    private func invalidateConversationControllers(_ conversationIDs: [String]) {
+        for conversationID in conversationIDs {
+            invalidateConversationController(conversationID)
+        }
+    }
+
     func archiveThread(_ thread: AgentThread) async throws {
         let dbThread = try requireThread(thread)
         guard !dbThread.isDraft else {
@@ -132,6 +141,7 @@ final class SidebarViewModel {
                 throw error
             }
         }
+        invalidateConversationControllers(snapshot.conversationIDs)
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
         let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
@@ -169,6 +179,7 @@ final class SidebarViewModel {
         // Keep this commit before the first suspension so a draft cannot be reused
         // or materialized while its teardown continues from the immutable snapshot.
         try commitThreadDeletion(snapshot)
+        invalidateConversationControllers(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
         let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.providerSessionAction)
@@ -190,6 +201,7 @@ final class SidebarViewModel {
         let projectDirectoryExists = directoryExists(at: snapshot.projectPath)
         // Child drafts must disappear atomically before teardown yields to other UI work.
         try commitProjectDeletion(snapshot)
+        invalidateConversationControllers(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
         let providerSessionResolution = await deleteProviderSessionResolution(for: snapshot.threadSnapshots)

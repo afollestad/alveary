@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let attachmentStore: any ConversationAttachmentStore
         let shellRunner: any ShellRunner
         let modelContainer: ModelContainer
+        let flushConversationControllers: @MainActor () -> [ConversationControllerFlushFailure]
         let notificationRouter: NotificationRouter
         let workspaceNotificationCenter: NotificationCenter
         let notificationCenter: NotificationCenter
@@ -34,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 attachmentStore: component.conversationAttachmentStore,
                 shellRunner: component.shellRunner,
                 modelContainer: component.modelContainer,
+                flushConversationControllers: {
+                    component.conversationControllerRegistry.flushForTermination()
+                },
                 notificationRouter: component.notificationRouter,
                 workspaceNotificationCenter: NSWorkspace.shared.notificationCenter,
                 notificationCenter: .default,
@@ -178,6 +182,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startupTask?.cancel()
         wakeRefreshTask?.cancel()
 
+        let controllerFlushFailures = dependencies.flushConversationControllers()
+        for failure in controllerFlushFailures {
+            print("[AppDelegate] Failed to flush conversation \(failure.key.conversationID): \(failure.message)")
+        }
         dependencies.agentsManager.beginShutdown()
         dependencies.notificationCenter.post(name: .appWillTerminate, object: nil)
 

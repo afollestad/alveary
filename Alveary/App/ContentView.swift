@@ -17,10 +17,7 @@ struct ContentView: View {
     private let mcpService: MCPService
     private let agentsManager: any AgentsManager
     let agentOneShotPromptService: any AgentOneShotPromptService
-    private let runtimeStore: any ConversationRuntimeStore
-    private let attachmentStore: any ConversationAttachmentStore
-    private let keepAwakeService: KeepAwakeService
-    private let worktreeManager: WorktreeManager
+    private let conversationControllerRegistry: any ConversationControllerRegistry
     private let providerSetup: ProviderSetupService
     private let contextWindowCache: any ContextWindowCache
     private let fileListManager: FileListManager
@@ -74,10 +71,7 @@ struct ContentView: View {
         self.mcpService = dependencies.mcpService
         self.agentsManager = dependencies.agentsManager
         self.agentOneShotPromptService = dependencies.agentOneShotPromptService
-        self.runtimeStore = dependencies.runtimeStore
-        self.attachmentStore = dependencies.attachmentStore
-        self.keepAwakeService = dependencies.keepAwakeService
-        self.worktreeManager = dependencies.worktreeManager
+        self.conversationControllerRegistry = dependencies.conversationControllerRegistry
         self.providerSetup = dependencies.providerSetup
         self.contextWindowCache = dependencies.contextWindowCache
         self.fileListManager = dependencies.fileListManager
@@ -123,18 +117,14 @@ struct ContentView: View {
             modelContext: viewModelContext,
             gitHubCLI: gitHubCLI,
             agentsManager: agentsManager,
-            runtimeStore: runtimeStore,
-            attachmentStore: attachmentStore,
-            keepAwakeService: keepAwakeService,
+            conversationControllerRegistry: conversationControllerRegistry,
             settingsService: settingsService,
             providerRegistry: providerRegistry,
             providerDiscovery: providerDiscovery,
-            worktreeManager: worktreeManager,
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
-            threadActivityRecorder: threadActivityRecorder,
             sidebarViewModel: sidebarViewModel,
             loadInstalledSkills: { [skillsService] in
                 (try? await skillsService.loadInstalled()) ?? []

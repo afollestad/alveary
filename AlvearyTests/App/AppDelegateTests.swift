@@ -176,7 +176,17 @@ final class AppDelegateTests: XCTestCase {
 
     func testApplicationWillTerminateBeginsShutdownPostsNotificationAndPersistsSessionMap() async throws {
         let fixture = try AppDelegateTestFixture()
-        let appDelegate = fixture.makeAppDelegate(shutdownPersistTimeout: 0.2)
+        let flushRecorder = AppDelegateNotificationCounter()
+        let shutdownOrderRecorder = AppDelegateShutdownOrderRecorder()
+        fixture.agentsManager.setShutdownOrderRecorder(shutdownOrderRecorder)
+        let appDelegate = fixture.makeAppDelegate(
+            shutdownPersistTimeout: 0.2,
+            flushConversationControllers: {
+                flushRecorder.increment()
+                shutdownOrderRecorder.record("flush")
+                return []
+            }
+        )
 
         let appWillTerminateNotifications = AppDelegateNotificationCounter()
         let observer = fixture.appNotificationCenter.addObserver(
@@ -196,7 +206,26 @@ final class AppDelegateTests: XCTestCase {
         let persistCount = await fixture.sessionManager.persistCount()
         XCTAssertEqual(shutdownCallCount, 1)
         XCTAssertEqual(persistCount, 1)
+        XCTAssertEqual(flushRecorder.value, 1)
+        XCTAssertEqual(shutdownOrderRecorder.values, ["flush", "shutdown"])
         XCTAssertEqual(appWillTerminateNotifications.value, 1)
+    }
+
+    func testApplicationWillTerminateStillShutsDownAfterControllerFlushFailure() async throws {
+        let fixture = try AppDelegateTestFixture()
+        let appDelegate = fixture.makeAppDelegate(
+            flushConversationControllers: {
+                [ConversationControllerFlushFailure(
+                    key: ConversationControllerKey(conversationID: "conversation-1"),
+                    message: "save failed"
+                )]
+            }
+        )
+
+        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+
+        let shutdownCallCount = await fixture.agentsManager.beginShutdownCallCount()
+        XCTAssertEqual(shutdownCallCount, 1)
     }
 }
 

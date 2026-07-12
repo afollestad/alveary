@@ -49,6 +49,10 @@ extension DefaultAgentsManager {
         cancelTurnWithAgentCLIKit(conversationId: conversationId)
     }
 
+    func suspendRuntime(conversationId: String) async {
+        await suspendRuntimeWithAgentCLIKit(conversationId: conversationId)
+    }
+
     func destroyRuntime(conversationId: String) async throws {
         try await destroyRuntimeWithAgentCLIKit(conversationId: conversationId, timeout: .seconds(7))
     }
