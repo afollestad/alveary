@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import SwiftUI
 
 struct SidebarPinnedItem: Identifiable {
     enum Kind {
@@ -9,16 +8,16 @@ struct SidebarPinnedItem: Identifiable {
     }
 
     let kind: Kind
-    let activityDate: Date?
+    let legacyActivityDate: Date?
 
-    init(project: Project, activityDate: Date?) {
+    init(project: Project, activityDate: Date? = nil) {
         kind = .project(project)
-        self.activityDate = activityDate
+        legacyActivityDate = activityDate
     }
 
     init(thread: AgentThread) {
         kind = .thread(thread)
-        activityDate = thread.modifiedAt
+        legacyActivityDate = thread.modifiedAt
     }
 
     var id: String {
@@ -36,6 +35,24 @@ struct SidebarPinnedItem: Identifiable {
             .project(project)
         case .thread(let thread):
             .thread(thread)
+        }
+    }
+
+    var dragItem: SidebarDragItem {
+        switch kind {
+        case .project(let project):
+            .project(project.persistentModelID)
+        case .thread(let thread):
+            .pinnedThread(thread.persistentModelID)
+        }
+    }
+
+    var pinnedSortOrder: Int? {
+        switch kind {
+        case .project(let project):
+            project.pinnedSortOrder
+        case .thread(let thread):
+            thread.pinnedSortOrder
         }
     }
 
@@ -66,9 +83,9 @@ enum SidebarPinnedItemOrdering {
 
     @MainActor
     static func compare(_ lhs: SidebarPinnedItem, _ rhs: SidebarPinnedItem) -> Bool {
-        switch (lhs.activityDate, rhs.activityDate) {
-        case (.some(let lhsActivity), .some(let rhsActivity)) where lhsActivity != rhsActivity:
-            return lhsActivity > rhsActivity
+        switch (lhs.pinnedSortOrder, rhs.pinnedSortOrder) {
+        case (.some(let lhsOrder), .some(let rhsOrder)) where lhsOrder != rhsOrder:
+            return lhsOrder < rhsOrder
         case (.some, .none):
             return true
         case (.none, .some):
@@ -77,11 +94,37 @@ enum SidebarPinnedItemOrdering {
             break
         }
 
+        if lhs.pinnedSortOrder == nil, rhs.pinnedSortOrder == nil {
+            return legacyCompare(lhs, rhs)
+        }
+        return fallbackCompare(lhs, rhs)
+    }
+
+    @MainActor
+    static func legacySorted(_ items: [SidebarPinnedItem]) -> [SidebarPinnedItem] {
+        items.sorted(by: legacyCompare)
+    }
+
+    @MainActor
+    private static func legacyCompare(_ lhs: SidebarPinnedItem, _ rhs: SidebarPinnedItem) -> Bool {
+        switch (lhs.legacyActivityDate, rhs.legacyActivityDate) {
+        case (.some(let lhsActivity), .some(let rhsActivity)) where lhsActivity != rhsActivity:
+            return lhsActivity > rhsActivity
+        case (.some, .none):
+            return true
+        case (.none, .some):
+            return false
+        default:
+            return fallbackCompare(lhs, rhs)
+        }
+    }
+
+    @MainActor
+    private static func fallbackCompare(_ lhs: SidebarPinnedItem, _ rhs: SidebarPinnedItem) -> Bool {
         let nameComparison = lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName)
         if nameComparison != .orderedSame {
             return nameComparison == .orderedAscending
         }
-
         return lhs.stableID < rhs.stableID
     }
 }
@@ -99,50 +142,38 @@ extension SidebarViewModel {
                 }
                 return
             }
-            let didChangeOrder = notification.userInfo?[ThreadActivityNotificationKey.didChangeOrder] as? Bool == true
-            let threadID = notification.userInfo?[ThreadActivityNotificationKey.threadID] as? PersistentIdentifier
+            guard notification.userInfo?[ThreadActivityNotificationKey.didChangeOrder] as? Bool == true else {
+                return
+            }
             Task { @MainActor [weak self] in
-                guard let self else {
-                    return
-                }
-                let didChangePinnedOrder = threadID.flatMap { threadID -> Bool? in
-                    guard let thread = self.modelContext.resolveThread(id: threadID) else {
-                        return nil
-                    }
-                    return thread.isPinned || thread.project?.isPinned == true
-                } ?? false
-                guard didChangeOrder || didChangePinnedOrder else {
-                    return
-                }
-
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    self.threadOrderVersion += 1
-                }
+                self?.refreshThreadOrder(animated: true)
             }
         }
     }
 
     func pinnedThreads() -> [AgentThread] {
-        let descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isPinned == true && thread.isDraft == false
-            }
-        )
-
-        let threads = (try? modelContext.fetch(descriptor)) ?? []
-        return AgentThreadOrdering.sorted(threads.filter { $0.project?.isPinned != true })
+        fetchedVisiblePinnedThreads()
+            .filter { $0.project != nil && $0.project?.isPinned != true }
+            .sorted(by: comparePinnedThreads)
     }
 
     func pinnedItems(projects: [Project]) -> [SidebarPinnedItem] {
-        let projectItems = projects
-            .filter(\.isPinned)
+        let pinnedProjects = projects.filter(\.isPinned)
+        let legacyActivityThreads = pinnedProjects.contains { $0.pinnedSortOrder == nil }
+            ? fetchedVisibleThreadsForLegacyActivity()
+            : []
+        let projectItems = pinnedProjects
             .map { project in
                 SidebarPinnedItem(
                     project: project,
-                    activityDate: latestUnarchivedThreadModifiedAt(for: project)
+                    activityDate: project.pinnedSortOrder == nil
+                        ? latestVisibleThreadModifiedAt(for: project, threads: legacyActivityThreads)
+                        : nil
                 )
             }
-        let threadItems = pinnedThreads().map(SidebarPinnedItem.init(thread:))
+        let threadItems = fetchedVisiblePinnedThreads()
+            .filter { $0.project != nil && $0.project?.isPinned != true }
+            .map(SidebarPinnedItem.init(thread:))
         return SidebarPinnedItemOrdering.sorted(projectItems + threadItems)
     }
 
@@ -150,12 +181,12 @@ extension SidebarViewModel {
         let projectPath = project.path
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isPinned == false && thread.isDraft == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
 
         let threads = (try? modelContext.fetch(descriptor)) ?? []
-        return AgentThreadOrdering.sorted(threads)
+        return AgentThreadOrdering.sorted(threads.filter { project.isPinned || !$0.isPinned })
     }
 
     func hasAnyActiveThreads(for project: Project) -> Bool {
@@ -165,66 +196,143 @@ extension SidebarViewModel {
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-
         return ((try? modelContext.fetch(descriptor)) ?? []).isEmpty == false
     }
 
     func setProjectPinned(_ project: Project, isPinned: Bool) throws {
-        let dbProject = try requireProject(project)
-        let projectPath = dbProject.path
-        let childThreads = unarchivedThreads(projectPath: projectPath)
-        var didChange = false
-
-        if dbProject.isPinned != isPinned {
-            dbProject.isPinned = isPinned
-            didChange = true
+        guard modelContext.resolveProject(id: project.persistentModelID) != nil else {
+            throw SidebarViewModelError.projectMissing
         }
+        try flushPendingSidebarPinChanges()
 
-        for childThread in childThreads where childThread.isPinned {
-            childThread.isPinned = false
-            didChange = true
-        }
+        do {
+            var didChange = try normalizeSidebarOrdering()
+            let dbProject = try resolveProjectForPinning(project.persistentModelID)
+            let wasPinned = dbProject.isPinned
+            let projectPath = dbProject.path
 
-        guard didChange else {
-            return
-        }
+            if isPinned, !wasPinned {
+                for child in try unarchivedThreadsForOrdering(projectPath: projectPath)
+                where child.isPinned || child.pinnedSortOrder != nil {
+                    child.isPinned = false
+                    child.pinnedSortOrder = nil
+                    didChange = true
+                }
+                didChange = try normalizeSidebarOrdering() || didChange
+                let appendOrder = try currentPinnedItemCount()
+                dbProject.isPinned = true
+                dbProject.sidebarSortOrder = nil
+                dbProject.pinnedSortOrder = appendOrder
+                didChange = true
+            } else if !isPinned, wasPinned {
+                let appendOrder = try currentRegularProjectCount()
+                dbProject.isPinned = false
+                dbProject.pinnedSortOrder = nil
+                dbProject.sidebarSortOrder = appendOrder
+                didChange = true
+            }
 
-        try modelContext.save()
-        withAnimation(.easeInOut(duration: 0.15)) {
-            threadOrderVersion += 1
+            if wasPinned || isPinned {
+                for child in try unarchivedThreadsForOrdering(projectPath: projectPath)
+                where child.isPinned || child.pinnedSortOrder != nil {
+                    child.isPinned = false
+                    child.pinnedSortOrder = nil
+                    didChange = true
+                }
+            }
+
+            didChange = try normalizeSidebarOrdering() || didChange
+            guard didChange else {
+                return
+            }
+            try persistSidebarOrdering()
+            refreshThreadOrder(animated: true)
+        } catch {
+            modelContext.rollback()
+            throw error
         }
     }
 
     func setThreadPinned(_ thread: AgentThread, isPinned: Bool) throws {
-        let dbThread = try requireThread(thread)
-        guard !dbThread.isDraft else {
+        guard let currentThread = modelContext.resolveThread(id: thread.persistentModelID),
+              currentThread.archivedAt == nil,
+              !currentThread.isDraft else {
             throw SidebarViewModelError.threadMissing
         }
-        if isPinned, dbThread.project?.isPinned == true {
+        if isPinned, currentThread.project?.isPinned == true {
             return
         }
-        guard dbThread.isPinned != isPinned else {
-            return
-        }
+        try flushPendingSidebarPinChanges()
 
-        dbThread.isPinned = isPinned
-        try modelContext.save()
-        withAnimation(.easeInOut(duration: 0.15)) {
-            threadOrderVersion += 1
+        do {
+            var didChange = try normalizeSidebarOrdering()
+            guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID),
+                  dbThread.archivedAt == nil,
+                  !dbThread.isDraft else {
+                throw SidebarViewModelError.threadMissing
+            }
+            let wasPinned = dbThread.isPinned
+            if isPinned, !wasPinned {
+                let appendOrder = try currentPinnedItemCount()
+                dbThread.isPinned = true
+                dbThread.pinnedSortOrder = appendOrder
+                didChange = true
+            } else if !isPinned, wasPinned {
+                dbThread.isPinned = false
+                dbThread.pinnedSortOrder = nil
+                didChange = true
+            }
+
+            didChange = try normalizeSidebarOrdering() || didChange
+            guard didChange else {
+                return
+            }
+            try persistSidebarOrdering()
+            refreshThreadOrder(animated: true)
+        } catch {
+            modelContext.rollback()
+            throw error
         }
     }
+}
 
-    private func latestUnarchivedThreadModifiedAt(for project: Project) -> Date? {
-        unarchivedThreads(projectPath: project.path).compactMap(\.modifiedAt).max()
+private extension SidebarViewModel {
+    func latestVisibleThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
+        threads
+            .filter { $0.project?.path == project.path }
+            .compactMap(\.modifiedAt)
+            .max()
     }
 
-    private func unarchivedThreads(projectPath: String) -> [AgentThread] {
+    func fetchedVisiblePinnedThreads() -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isPinned == true && thread.isDraft == false
             }
         )
-
         return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    func fetchedVisibleThreadsForLegacyActivity() -> [AgentThread] {
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.archivedAt == nil && thread.isDraft == false
+            }
+        )
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    func flushPendingSidebarPinChanges() throws {
+        guard modelContext.hasChanges else {
+            return
+        }
+        try persistPendingSidebarChanges()
+    }
+
+    func resolveProjectForPinning(_ id: PersistentIdentifier) throws -> Project {
+        guard let project = modelContext.resolveProject(id: id) else {
+            throw SidebarViewModelError.projectMissing
+        }
+        return project
     }
 }

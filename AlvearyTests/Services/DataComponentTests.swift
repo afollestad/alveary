@@ -56,6 +56,51 @@ final class DataComponentTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Project>()), 1)
     }
 
+    func testSidebarOrderFieldsPersistAndAllowNilDefaults() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let configuration = ModelConfiguration(url: directory.appendingPathComponent("Alveary.store"))
+        let regularPath = "/tmp/regular"
+        let pinnedPath = "/tmp/pinned"
+        try autoreleasepool {
+            let container = try ModelContainer(
+                for: Project.self,
+                AgentThread.self,
+                Conversation.self,
+                ConversationEventRecord.self,
+                configurations: configuration
+            )
+            let context = container.mainContext
+            let regular = Project(path: regularPath, name: "Regular", sidebarSortOrder: 3)
+            let pinned = Project(path: pinnedPath, name: "Pinned", isPinned: true, pinnedSortOrder: 1)
+            let thread = AgentThread(name: "Thread", isPinned: true, pinnedSortOrder: 2, project: regular)
+            regular.threads = [thread]
+            context.insert(regular)
+            context.insert(pinned)
+            try context.save()
+        }
+
+        let reopenedContainer = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            configurations: configuration
+        )
+        let reopenedContext = reopenedContainer.mainContext
+        let projects = try reopenedContext.fetch(FetchDescriptor<Project>())
+        let threads = try reopenedContext.fetch(FetchDescriptor<AgentThread>())
+
+        XCTAssertEqual(projects.first { $0.path == regularPath }?.sidebarSortOrder, 3)
+        XCTAssertNil(projects.first { $0.path == regularPath }?.pinnedSortOrder)
+        XCTAssertEqual(projects.first { $0.path == pinnedPath }?.pinnedSortOrder, 1)
+        XCTAssertNil(projects.first { $0.path == pinnedPath }?.sidebarSortOrder)
+        XCTAssertEqual(threads.first?.pinnedSortOrder, 2)
+    }
+
     func testDeletingProjectCascadesThroughThreadConversationAndEvents() throws {
         let component = makeComponent()
         let context = component.modelContext

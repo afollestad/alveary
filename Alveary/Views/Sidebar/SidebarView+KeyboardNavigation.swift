@@ -28,6 +28,10 @@ extension SidebarView {
     }
 
     func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        if isSidebarDragInteractionInFlight {
+            return .handled
+        }
+
         // Let the inline-rename TextField own the keyboard while editing so arrow keys,
         // Return, and Delete don't leak into sidebar navigation or trigger a re-entrant
         // rename. Re-enabling this path while `editingThreadID` is set produces key

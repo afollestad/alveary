@@ -85,7 +85,7 @@ final class ThreadActivityRecorderTests: XCTestCase {
         XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, false)
     }
 
-    func testPinnedVisibleTurnEndPostsOrderChange() async throws {
+    func testPinnedVisibleTurnEndDoesNotPostOrderChange() async throws {
         let baseDate = Date(timeIntervalSince1970: 300)
         let clock = ManualDateProvider(now: baseDate)
         let fixture = try ThreadActivityRecorderFixture(clock: clock)
@@ -118,17 +118,17 @@ final class ThreadActivityRecorderTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 1)
         let modifiedAt = try XCTUnwrap(pinned.modifiedAt)
         XCTAssertGreaterThan(modifiedAt, baseDate)
-        XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
+        XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, false)
     }
 
     func testPinnedProjectChildVisibleTurnEndPostsOrderChange() async throws {
-        let baseDate = Date(timeIntervalSince1970: 300)
-        let clock = ManualDateProvider(now: baseDate)
+        let currentDate = Date(timeIntervalSince1970: 100)
+        let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
         let fixture = try ThreadActivityRecorderFixture(clock: clock)
         fixture.project.isPinned = true
         let child = fixture.insertThread(
             name: "Child",
-            modifiedAt: baseDate,
+            modifiedAt: currentDate,
             conversationIDs: ["child-main"]
         )
         _ = fixture.insertThread(name: "Sibling", modifiedAt: Date(timeIntervalSince1970: 200), conversationIDs: ["sibling-main"])
@@ -153,7 +153,7 @@ final class ThreadActivityRecorderTests: XCTestCase {
 
         await fulfillment(of: [expectation], timeout: 1)
         let modifiedAt = try XCTUnwrap(child.modifiedAt)
-        XCTAssertGreaterThan(modifiedAt, baseDate)
+        XCTAssertGreaterThan(modifiedAt, currentDate)
         XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
     }
 

@@ -15,9 +15,11 @@ final class SidebarViewModel {
     let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     let providerSessionActionService: any ProviderSessionActionService
     let attachmentStore: any ConversationAttachmentStore
-    private let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
-    private let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
-    private let saveThreadCreation: @MainActor (ModelContext) throws -> Void
+    let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
+    let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
+    let saveThreadCreation: @MainActor (ModelContext) throws -> Void
+    let savePendingSidebarChanges: @MainActor (ModelContext) throws -> Void
+    let saveSidebarOrdering: @MainActor (ModelContext) throws -> Void
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
     private let threadActivityRecorder: any ThreadActivityRecording
@@ -46,6 +48,8 @@ final class SidebarViewModel {
         saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         notificationManager: any NotificationManager,
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
@@ -62,6 +66,8 @@ final class SidebarViewModel {
         self.saveDraftProjectMove = saveDraftProjectMove
         self.saveDeletionCommit = saveDeletionCommit
         self.saveThreadCreation = saveThreadCreation
+        self.savePendingSidebarChanges = savePendingSidebarChanges
+        self.saveSidebarOrdering = saveSidebarOrdering
         self.presentUnexpectedError = presentUnexpectedError
         self.notificationManager = notificationManager
         self.threadActivityRecorder = threadActivityRecorder
@@ -89,28 +95,6 @@ final class SidebarViewModel {
         }
     }
 
-    func createProject(path: String) async throws -> Project {
-        let projectDetails = try await resolveProjectDetails(for: path)
-
-        // Load the shared repo config once during import so later settings/worktree flows
-        // reuse the same parse path. Invalid JSON intentionally degrades to defaults.
-        _ = await AlvearyProjectConfig(projectPath: projectDetails.path)
-
-        let project = Project(
-            path: projectDetails.path,
-            name: URL(fileURLWithPath: projectDetails.path).lastPathComponent,
-            gitRemote: projectDetails.remoteURL,
-            remoteName: projectDetails.remoteName,
-            gitBranch: projectDetails.gitBranch,
-            baseRef: projectDetails.baseRef,
-            githubRepository: projectDetails.githubRepository,
-            githubConnected: projectDetails.githubConnected
-        )
-        modelContext.insert(project)
-        try modelContext.save()
-        return project
-    }
-
     var defaultThreadCleanupAction: ThreadCleanupAction {
         settingsService.current.defaultThreadCleanupAction
     }
@@ -121,18 +105,6 @@ final class SidebarViewModel {
 
     func dismissSidebarError() {
         sidebarError = nil
-    }
-
-    func persistDraftProjectMove() throws {
-        try saveDraftProjectMove(modelContext)
-    }
-
-    func persistDeletionCommit() throws {
-        try saveDeletionCommit(modelContext)
-    }
-
-    func persistThreadCreation() throws {
-        try saveThreadCreation(modelContext)
     }
 
     func archiveThread(_ thread: AgentThread) async throws {
@@ -146,9 +118,19 @@ final class SidebarViewModel {
         await beginConversationTeardowns(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
-            dbThread.isPinned = false
-            dbThread.archivedAt = Date()
-            try modelContext.save()
+            if modelContext.hasChanges {
+                try modelContext.save()
+            }
+            do {
+                dbThread.isPinned = false
+                dbThread.pinnedSortOrder = nil
+                dbThread.archivedAt = Date()
+                _ = try normalizeSidebarOrderingForLifecycle()
+                try modelContext.save()
+            } catch {
+                modelContext.rollback()
+                throw error
+            }
         }
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
@@ -162,9 +144,21 @@ final class SidebarViewModel {
     func restoreThread(_ thread: AgentThread) async throws {
         let snapshot = try makeThreadArchiveSnapshot(thread)
         let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
-        let dbThread = try requireThread(thread)
-        dbThread.prepareForRestore()
-        try modelContext.save()
+        guard let dbThread = modelContext.resolveThread(id: snapshot.threadID),
+              !dbThread.isDraft else {
+            throw SidebarViewModelError.threadMissing
+        }
+        if modelContext.hasChanges {
+            try modelContext.save()
+        }
+        do {
+            dbThread.prepareForRestore()
+            _ = try normalizeSidebarOrderingForLifecycle()
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
         notificationManager.refreshBadgeCount()
         let diagnostics = await providerSessionActionService.unarchiveSessions(providerSessionResolution)
         presentProviderSessionActionDiagnostics(diagnostics)

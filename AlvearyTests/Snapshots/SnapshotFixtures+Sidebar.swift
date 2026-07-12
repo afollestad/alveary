@@ -77,7 +77,12 @@ func makeSidebarSnapshotFixture(includePinnedThread: Bool = false) async throws 
 @MainActor
 func makeMixedPinnedSidebarSnapshotFixture() async throws -> SnapshotMixedPinnedSidebarFixture {
     let fixture = try SidebarTestFixture()
-    let pinnedProject = Project(path: "/tmp/alveary", name: "Alveary", isPinned: true)
+    let pinnedProject = Project(
+        path: "/tmp/alveary",
+        name: "Alveary",
+        isPinned: true,
+        pinnedSortOrder: 1
+    )
     let pinnedProjectThread = AgentThread(
         name: "Refactor Chat Input",
         modifiedAt: Date(timeIntervalSince1970: 1_713_000_200),
@@ -91,6 +96,7 @@ func makeMixedPinnedSidebarSnapshotFixture() async throws -> SnapshotMixedPinned
     let standalonePinnedThread = AgentThread(
         name: "Use 3 tools",
         isPinned: true,
+        pinnedSortOrder: 0,
         modifiedAt: Date(timeIntervalSince1970: 1_713_000_100),
         project: regularProject
     )

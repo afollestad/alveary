@@ -9,7 +9,7 @@ enum SidebarThreadRowLayout {
 
 struct SidebarThreadRow: View {
     private static let statusIndicatorSize: CGFloat = 8
-    private static let cleanupButtonSize: CGFloat = 24
+    static let cleanupButtonSize: CGFloat = 24
     private static let cleanupConfirmationWidth: CGFloat = 72
     private static let statusIndicatorSpacing: CGFloat = 8
     private static let worktreeIndicatorSize: CGFloat = 12
@@ -31,10 +31,12 @@ struct SidebarThreadRow: View {
     let layout: SidebarThreadRowLayout
     @Binding var editingThreadID: PersistentIdentifier?
     let cleanupAction: ThreadCleanupAction
+    let suppressHoverAffordances: Bool
+    let dragConfiguration: SidebarRowDragConfiguration?
     let onCommitRename: (String) -> Void
     let onConfirmCleanup: () -> Void
 
-    @State private var editText = ""
+    @State var editText = ""
     @State private var initialEditText = ""
     @State private var isHovering = false
     @State private var isCleanupConfirmationArmed = false
@@ -48,7 +50,7 @@ struct SidebarThreadRow: View {
     @State private var cleanupConfirmationRemainingNanoseconds: UInt64?
     @State private var cleanupConfirmationResetTask: Task<Void, Never>?
     @State private var cleanupWidthAnimationTask: Task<Void, Never>?
-    @FocusState private var isFieldFocused: Bool
+    @FocusState var isFieldFocused: Bool
 
     init(
         thread: AgentThread,
@@ -57,6 +59,8 @@ struct SidebarThreadRow: View {
         layout: SidebarThreadRowLayout = .project,
         editingThreadID: Binding<PersistentIdentifier?>,
         cleanupAction: ThreadCleanupAction = .archive,
+        suppressHoverAffordances: Bool = false,
+        dragConfiguration: SidebarRowDragConfiguration? = nil,
         initialRowHover: Bool = false,
         initialCleanupConfirmationArmed: Bool = false,
         onCommitRename: @escaping (String) -> Void,
@@ -68,6 +72,8 @@ struct SidebarThreadRow: View {
         self.layout = layout
         _editingThreadID = editingThreadID
         self.cleanupAction = cleanupAction
+        self.suppressHoverAffordances = suppressHoverAffordances
+        self.dragConfiguration = dragConfiguration
         self.onCommitRename = onCommitRename
         self.onConfirmCleanup = onConfirmCleanup
         _isHovering = State(initialValue: initialRowHover)
@@ -75,9 +81,9 @@ struct SidebarThreadRow: View {
         _isCleanupConfirmationChromeVisible = State(initialValue: initialCleanupConfirmationArmed)
     }
 
-    private var isEditing: Bool { editingThreadID == thread.persistentModelID }
+    var isEditing: Bool { editingThreadID == thread.persistentModelID }
 
-    private var displayName: String { thread.displayName() }
+    var displayName: String { thread.displayName() }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -89,25 +95,8 @@ struct SidebarThreadRow: View {
                     .frame(width: 10)
             }
 
-            if isEditing {
-                TextField("Thread name", text: $editText)
-                    .textFieldStyle(.plain)
-                    .focused($isFieldFocused)
-                    .onSubmit { commitRename() }
-                    .onExitCommand { cancelRename() }
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(0)
-            } else {
-                AppMarkdownInlineLabel(text: displayName)
-                    .foregroundStyle(Color(nsColor: .labelColor))
-                    .allowsHitTesting(false)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .clipped()
-                    .layoutPriority(0)
-            }
+            titleArea
+                .sidebarDragSource(isEditing ? nil : dragConfiguration)
 
             trailingControls
         }
@@ -145,7 +134,7 @@ struct SidebarThreadRow: View {
             // this, VoiceOver users could bypass the guard and hit the SwiftUI unmount/
             // mount race that leaves the target row stuck in editing state without an
             // input field.
-            if editingThreadID == nil {
+            if editingThreadID == nil, !suppressHoverAffordances {
                 Button("Rename...") {
                     editingThreadID = thread.persistentModelID
                 }
@@ -266,11 +255,11 @@ struct SidebarThreadRow: View {
     }
 
     private var showsCleanupButton: Bool {
-        isHovering || isCleanupConfirmationArmed || isCleanupControlCollapsing
+        !suppressHoverAffordances && (isHovering || isCleanupConfirmationArmed || isCleanupControlCollapsing)
     }
 
     private var cleanupControlIsInteractive: Bool {
-        (isHovering || isCleanupConfirmationArmed) && !isCleanupControlCollapsing
+        !suppressHoverAffordances && (isHovering || isCleanupConfirmationArmed) && !isCleanupControlCollapsing
     }
 
     private var showsStatusIndicator: Bool {
@@ -296,7 +285,7 @@ struct SidebarThreadRow: View {
         return Color.primary.opacity(isCleanupButtonPressed ? 0.24 : 0.12)
     }
 
-    private var iconForegroundColor: Color {
+    var iconForegroundColor: Color {
         .primary.opacity(isCleanupButtonPressed ? 0.95 : 0.82)
     }
 
@@ -442,7 +431,7 @@ struct SidebarThreadRow: View {
         }
     }
 
-    private func commitRename() {
+    func commitRename() {
         if let committedName = sidebarThreadRenameCommitValue(
             initialValue: initialEditText,
             submittedValue: editText
@@ -452,49 +441,7 @@ struct SidebarThreadRow: View {
         editingThreadID = nil
     }
 
-    private func cancelRename() {
+    func cancelRename() {
         editingThreadID = nil
     }
-}
-
-private extension SidebarThreadRow {
-    func cleanupButtonContent(showsConfirm: Bool, showsIcon: Bool) -> some View {
-        ZStack(alignment: .trailing) {
-            if showsConfirm {
-                Text("Confirm")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            if showsIcon {
-                Image(systemName: cleanupAction.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(iconForegroundColor)
-                    .frame(width: Self.cleanupButtonSize, height: Self.cleanupButtonSize)
-            }
-        }
-    }
-}
-
-/// Returns the trimmed name to commit, or `nil` when the submission is empty or unchanged from
-/// the name shown when editing began. Skipping unchanged submissions matters because committing
-/// sets `hasCustomName`, which would pin an auto-generated title (see `renameThread`).
-func sidebarThreadRenameCommitValue(initialValue: String, submittedValue: String) -> String? {
-    let trimmedInitial = initialValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    let trimmedSubmitted = submittedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedSubmitted.isEmpty, trimmedSubmitted != trimmedInitial else {
-        return nil
-    }
-    return trimmedSubmitted
-}
-
-func sidebarThreadWorktreeTooltipText(for thread: AgentThread) -> String {
-    if let path = thread.worktreePath,
-       !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        let canonicalPath = CanonicalPath.normalize(path.trimmingCharacters(in: .whitespacesAndNewlines))
-        return CanonicalPath.abbreviateHomeDirectory(canonicalPath)
-    }
-
-    return "Worktree path not created yet"
 }

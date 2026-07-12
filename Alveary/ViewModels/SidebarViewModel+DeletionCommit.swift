@@ -6,6 +6,9 @@ extension SidebarViewModel {
         do {
             if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
                 modelContext.delete(dbThread)
+                _ = try normalizeSidebarOrderingForLifecycle(
+                    excludingThreadIDs: [snapshot.threadID]
+                )
                 try persistDeletionCommit()
             }
         } catch {
@@ -21,6 +24,10 @@ extension SidebarViewModel {
         do {
             if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
                 modelContext.delete(dbProject)
+                _ = try normalizeSidebarOrderingForLifecycle(
+                    excludingProjectIDs: [snapshot.projectID],
+                    excludingThreadIDs: threadIDs
+                )
                 try persistDeletionCommit()
             }
         } catch {

@@ -139,7 +139,6 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
             resolvedTimestamp = timestamp
         }
 
-        let affectsPinnedOrder = thread.isPinned || thread.project?.isPinned == true
         let beforeOrder = orderedThreadIDs(projectPath: projectPath)
         thread.modifiedAt = resolvedTimestamp
         do {
@@ -149,7 +148,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
             return false
         }
         let afterOrder = orderedThreadIDs(projectPath: projectPath)
-        let didChangeOrder = affectsPinnedOrder || beforeOrder != afterOrder
+        let didChangeOrder = beforeOrder != afterOrder
 
         if postsNotification {
             postActivityChanged(
@@ -186,10 +185,11 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     private func activeThreads(projectPath: String) -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isPinned == false && thread.isDraft == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-        return (try? modelContext.fetch(descriptor)) ?? []
+        let threads = (try? modelContext.fetch(descriptor)) ?? []
+        return threads.filter { !$0.isPinned || $0.project?.isPinned == true }
     }
 
     private func missingModifiedThreadIDs() -> [PersistentIdentifier] {
