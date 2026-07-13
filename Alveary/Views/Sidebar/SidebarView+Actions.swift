@@ -2,7 +2,11 @@ import Foundation
 import SwiftData
 
 func threadDeleteConfirmationMessage(for thread: AgentThread) -> String {
-    "This permanently deletes \"\(thread.displayName())\" from Alveary and removes its worktree and branch if present."
+    if thread.mode == .task {
+        return "This permanently deletes \"\(thread.displayName())\" and removes its Alveary-owned workspace or worktree. "
+            + "Granted folders are never deleted."
+    }
+    return "This permanently deletes \"\(thread.displayName())\" from Alveary and removes its worktree and branch if present."
 }
 
 extension SidebarView {
@@ -52,22 +56,33 @@ extension SidebarView {
     func archive(_ thread: AgentThread) async {
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection
+        let replacementItem = selectionAfterDeletingThread(thread)
+        var shouldOpenBlankTaskComposer = false
 
         if case .thread(let selectedThread) = appState.selectedSidebarItem,
-           selectedThread.persistentModelID == thread.persistentModelID,
-           let project = thread.project {
-            appState.selectedSidebarItem = .project(project)
+           selectedThread.persistentModelID == thread.persistentModelID {
+            if thread.mode == .task {
+                appState.selectedSidebarItem = replacementItem
+                shouldOpenBlankTaskComposer = replacementItem == nil
+            } else if let project = thread.project {
+                appState.selectedSidebarItem = .project(project)
+            }
         }
 
         if case .threadId(let bookmarkedID) = appState.previousSelection,
-           bookmarkedID == thread.persistentModelID,
-           let project = thread.project {
-            appState.previousSelection = .projectPath(project.path)
+           bookmarkedID == thread.persistentModelID {
+            if thread.mode == .task {
+                appState.previousSelection = replacementItem.flatMap(AppState.SidebarBookmark.init)
+            } else if let project = thread.project {
+                appState.previousSelection = .projectPath(project.path)
+            }
         }
 
         do {
             try await viewModel.archiveThread(thread)
+            completeTaskRemovalFallbackIfNeeded(shouldOpenBlankTaskComposer)
         } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
+            completeTaskRemovalFallbackIfNeeded(shouldOpenBlankTaskComposer)
             viewModel.presentSidebarError(error)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
@@ -105,6 +120,7 @@ extension SidebarView {
         let shouldRevealUnpinnedSelection: Bool
         if case .thread(let selectedThread) = appState.selectedSidebarItem,
            selectedThread.persistentModelID == threadID,
+           thread.mode == .project,
            !isPinned {
             shouldRevealUnpinnedSelection = true
         } else {
@@ -140,6 +156,9 @@ extension SidebarView {
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection
         let replacementItem = selectionAfterDeletingThread(thread)
+        let shouldOpenBlankTaskComposer = thread.mode == .task
+            && appState.selectedSidebarItem == .thread(thread)
+            && replacementItem == nil
 
         if case .thread(let selectedThread) = appState.selectedSidebarItem,
            selectedThread.persistentModelID == threadID {
@@ -154,8 +173,10 @@ extension SidebarView {
         do {
             try await viewModel.deleteThread(thread)
             appState.selectedConversationIDs.removeValue(forKey: threadID)
+            completeTaskRemovalFallbackIfNeeded(shouldOpenBlankTaskComposer)
         } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
             appState.selectedConversationIDs.removeValue(forKey: threadID)
+            completeTaskRemovalFallbackIfNeeded(shouldOpenBlankTaskComposer)
             viewModel.presentSidebarError(error)
         } catch {
             appState.selectedSidebarItem = previousSelectedItem
@@ -211,8 +232,12 @@ extension SidebarView {
     }
 
     func selectionAfterDeletingThread(_ thread: AgentThread) -> SidebarItem? {
+        if thread.mode == .task {
+            return selectionAfterDeletingTask(thread)
+        }
+
         if thread.isPinned && thread.project?.isPinned != true {
-            let threads = pinnedThreads()
+            let threads = pinnedThreads().filter { $0.mode == .project }
             if let deletedIndex = threads.firstIndex(where: { $0.persistentModelID == thread.persistentModelID }) {
                 if deletedIndex > 0 {
                     return .thread(threads[deletedIndex - 1])
@@ -246,6 +271,46 @@ extension SidebarView {
         }
 
         return .project(project)
+    }
+
+    func selectionAfterDeletingTask(_ task: AgentThread) -> SidebarItem? {
+        let tasks = visibleTaskThreadsForSelectionFallback()
+        guard let deletedIndex = tasks.firstIndex(where: { $0.persistentModelID == task.persistentModelID }) else {
+            return nil
+        }
+
+        let nextIndex = deletedIndex + 1
+        if tasks.indices.contains(nextIndex) {
+            return .thread(tasks[nextIndex])
+        }
+        if deletedIndex > 0 {
+            return .thread(tasks[deletedIndex - 1])
+        }
+        return nil
+    }
+
+    func visibleTaskThreadsForSelectionFallback() -> [AgentThread] {
+        let pinnedTasks = pinnedItems().compactMap { item -> AgentThread? in
+            guard case .thread(let thread) = item.kind, thread.mode == .task else {
+                return nil
+            }
+            return thread
+        }
+        return pinnedTasks + activeTaskThreads()
+    }
+
+    func completeTaskRemovalFallbackIfNeeded(_ shouldComplete: Bool) {
+        guard shouldComplete,
+              appState.selectedSidebarItem == nil,
+              appState.pendingCommand == nil else {
+            return
+        }
+        if let task = visibleTaskThreadsForSelectionFallback().first {
+            appState.selectedSidebarItem = .thread(task)
+            appState.previousSelection = .threadId(task.persistentModelID)
+        } else {
+            appState.startNewThreadFlow(mode: .task)
+        }
     }
 
     func selectedSidebarItemBelongs(toProjectPath projectPath: String) -> Bool {

@@ -248,6 +248,9 @@ func sidebarItemBoundaryFrames(
     case .pinnedThread(let threadID):
         let frame = geometry[.pinnedThread(threadID)]?.sidebarUnion
         return SidebarDragBoundaryFrames(header: frame, terminal: frame)
+    case .pinnedTask(let threadID):
+        let frame = geometry[.pinnedTask(threadID)]?.sidebarUnion
+        return SidebarDragBoundaryFrames(header: frame, terminal: frame)
     }
 }
 

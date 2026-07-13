@@ -33,13 +33,13 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
 func sidebarThreadContextMenuItems(
     isPinned: Bool,
     canRename: Bool,
-    allowsPinning: Bool = true
+    allowsPinning: Bool = true,
+    allowsForking: Bool = true
 ) -> [SidebarThreadContextMenuItem] {
-    var items: [SidebarThreadContextMenuItem] = [
-        .forkLocal,
-        .forkWorktree,
-        .divider
-    ]
+    var items: [SidebarThreadContextMenuItem] = []
+    if allowsForking {
+        items.append(contentsOf: [.forkLocal, .forkWorktree, .divider])
+    }
     if allowsPinning {
         items.append(isPinned ? .unpin : .pin)
     }

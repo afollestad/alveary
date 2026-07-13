@@ -141,6 +141,7 @@ enum SidebarDragGeometryRole: Hashable {
     case projectHeader(SidebarDropSection, PersistentIdentifier)
     case projectTerminal(SidebarDropSection, PersistentIdentifier)
     case pinnedThread(PersistentIdentifier)
+    case pinnedTask(PersistentIdentifier)
     case pinnedHeader
     case projectsHeader
     case viewport
@@ -251,8 +252,27 @@ extension SidebarView {
         )
     }
 
-    func pinnedThreadDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
+    func pinnedItemDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
+        switch thread.mode {
+        case .project:
+            return pinnedThreadDragConfiguration(for: thread)
+        case .task:
+            return pinnedTaskDragConfiguration(for: thread)
+        }
+    }
+
+    func pinnedItemDragGeometryRole(for thread: AgentThread) -> SidebarDragGeometryRole {
+        switch thread.mode {
+        case .project:
+            return .pinnedThread(thread.persistentModelID)
+        case .task:
+            return .pinnedTask(thread.persistentModelID)
+        }
+    }
+
+    private func pinnedThreadDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
         guard editingThreadID == nil,
+              thread.mode == .project,
               thread.isPinned,
               !thread.isDraft,
               thread.archivedAt == nil,
@@ -261,6 +281,27 @@ extension SidebarView {
         }
 
         let item = SidebarDragItem.pinnedThread(thread.persistentModelID)
+        return SidebarRowDragConfiguration(
+            isEnabled: sidebarDragSourceIsEnabled(item),
+            onChanged: { location in
+                updateSidebarDrag(item: item, location: location)
+            },
+            onEnded: { location in
+                finishSidebarDragGesture(item: item, location: location)
+            }
+        )
+    }
+
+    private func pinnedTaskDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
+        guard editingThreadID == nil,
+              thread.mode == .task,
+              thread.isPinned,
+              !thread.isDraft,
+              thread.archivedAt == nil else {
+            return nil
+        }
+
+        let item = SidebarDragItem.pinnedTask(thread.persistentModelID)
         return SidebarRowDragConfiguration(
             isEnabled: sidebarDragSourceIsEnabled(item),
             onChanged: { location in

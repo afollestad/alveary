@@ -3,6 +3,7 @@ import SwiftData
 enum SidebarDragItem: Hashable {
     case project(PersistentIdentifier)
     case pinnedThread(PersistentIdentifier)
+    case pinnedTask(PersistentIdentifier)
 }
 
 enum SidebarDropSection: Hashable {
@@ -69,7 +70,7 @@ func sidebarOrder(
     to target: SidebarDropTarget,
     in order: SidebarDragOrder
 ) -> SidebarDragOrder? {
-    if case .pinnedThread = draggedItem, target.section != .pinned {
+    if draggedItem.isPinnedConversation, target.section != .pinned {
         return nil
     }
 
@@ -100,4 +101,15 @@ func sidebarOrder(
     }
 
     return nextOrder
+}
+
+extension SidebarDragItem {
+    var isPinnedConversation: Bool {
+        switch self {
+        case .project:
+            false
+        case .pinnedThread, .pinnedTask:
+            true
+        }
+    }
 }

@@ -9,7 +9,8 @@ extension SidebarView {
             pinnedItems: pinnedItems(),
             projects: regularProjects,
             expandedProjects: expandedProjects,
-            activeThreads: activeThreads
+            activeThreads: activeThreads,
+            activeTasks: activeTaskThreads()
         )
     }
 
@@ -214,7 +215,8 @@ func buildNavigableItems(
     pinnedItems: [SidebarPinnedItem] = [],
     projects: [Project],
     expandedProjects: Set<String>,
-    activeThreads: (Project) -> [AgentThread]
+    activeThreads: (Project) -> [AgentThread],
+    activeTasks: [AgentThread] = []
 ) -> [SidebarItem] {
     var items: [SidebarItem] = [.skills, .mcp]
     for pinnedItem in pinnedItems {
@@ -233,6 +235,9 @@ func buildNavigableItems(
                 items.append(.thread(thread))
             }
         }
+    }
+    for task in activeTasks {
+        items.append(.thread(task))
     }
     return items
 }

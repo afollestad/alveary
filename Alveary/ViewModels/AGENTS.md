@@ -46,10 +46,12 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - **Keep unrelated approvals actionable.** A new approval should not blanket-supersede older unresolved approvals; resolving one approval should rehydrate the next unresolved approval so the composer stays blocked until all actionable approvals are handled.
   - **Do not reopen completed approvals.** A matching tool result terminalizes unresolved approval rows, and late approval events for that tool ID must not recreate pending approval UI.
 - Thread removal must route through `SidebarViewModel` lifecycle methods so runtime teardown, notification cleanup, provider-native Codex archive, worktree cleanup, and branch cleanup stay coordinated. Views that need to delete a thread, including project-trust denial flows, should receive a focused delete closure instead of calling `ModelContext.delete(_:)` on `AgentThread` directly.
+- `ArchivedTasksSettingsViewModel` owns archived Task fetching and Settings-side lifecycle state. Permanent deletion must preserve the row and app selection state on pre-commit failure; after a post-commit cleanup failure, remove stale selection, bookmark, conversation, and launch-restore references while surfacing the cleanup diagnostic.
 - Keep draft deletion atomic with its lifecycle boundary:
   - Commit the SwiftData removal before the first `await` so concurrent New Thread requests cannot reuse or materialize the deleted row.
   - Remove conversation attachment directories only after runtime teardown has been attempted, including teardown-failure paths.
   - Before a targeted mutation that may call `ModelContext.rollback()`, synchronously save pre-existing shared-context changes.
     A target failure must not discard unrelated pending work.
 - Project and Task drafts are independent mode-keyed identities. Materializing or deleting one mode must not clear the other mode's cached draft, creation task, or pending Project destination.
+- Pinned sidebar ordering is mode-explicit: Task threads use the Task drag domain and stay independently pinned even when backed by a pinned Project; Project pin normalization may absorb only Project-mode child threads.
 - Task folder grants may change only while the conversation is fully idle. Phase 3 also limits editing to Tasks with exactly one live conversation; lift that only with thread-wide runtime coordination. Persist canonical roots, restart an already-tracked idle runtime, leave suspended runtimes asleep, and roll back both persistence and runtime configuration when replacement cannot be applied.

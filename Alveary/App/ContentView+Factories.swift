@@ -67,4 +67,17 @@ extension ContentView {
             soundPreviewer: soundPreviewer.play
         )
     }
+
+    static func makeArchivedTasksSettingsViewModel(
+        dependencies: ContentViewDependencies,
+        sidebarViewModel: SidebarViewModel,
+        appState: AppState
+    ) -> ArchivedTasksSettingsViewModel {
+        ArchivedTasksSettingsViewModel(
+            modelContext: dependencies.modelContainer.mainContext,
+            sidebarViewModel: sidebarViewModel,
+            appState: appState,
+            settingsService: dependencies.settingsService
+        )
+    }
 }

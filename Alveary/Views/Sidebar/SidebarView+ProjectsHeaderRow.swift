@@ -11,14 +11,34 @@ struct SidebarSectionHeaderRow: View {
     private static let titleLeadingOpticalOffset: CGFloat = -3
     private static let trailingPadding = actionButtonCenterTrailingInset - actionButtonSize / 2
 
-    @State private var isHoveringAddProject = false
+    @State private var isHoveringAction = false
 
     let title: String
-    let onAddProject: (() -> Void)?
+    let actionSystemImage: String?
+    let actionAccessibilityLabel: String?
+    let actionHelp: String?
+    let onAction: (() -> Void)?
 
     init(title: String, onAddProject: (() -> Void)? = nil) {
         self.title = title
-        self.onAddProject = onAddProject
+        actionSystemImage = onAddProject == nil ? nil : "folder.badge.plus"
+        actionAccessibilityLabel = onAddProject == nil ? nil : "Add Project"
+        actionHelp = onAddProject == nil ? nil : "Add Project... (\(KeyboardShortcut.addProject.displayString))"
+        onAction = onAddProject
+    }
+
+    init(
+        title: String,
+        actionSystemImage: String,
+        actionAccessibilityLabel: String,
+        actionHelp: String,
+        onAction: @escaping () -> Void
+    ) {
+        self.title = title
+        self.actionSystemImage = actionSystemImage
+        self.actionAccessibilityLabel = actionAccessibilityLabel
+        self.actionHelp = actionHelp
+        self.onAction = onAction
     }
 
     var body: some View {
@@ -31,26 +51,26 @@ struct SidebarSectionHeaderRow: View {
 
             Spacer()
 
-            if let onAddProject {
-                Button(action: onAddProject) {
-                    Image(systemName: "folder.badge.plus")
+            if let onAction, let actionSystemImage, let actionAccessibilityLabel, let actionHelp {
+                Button(action: onAction) {
+                    Image(systemName: actionSystemImage)
                         .font(.system(size: Self.actionIconSize, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(isHoveringAddProject ? 0.9 : 0.68))
+                        .foregroundStyle(.primary.opacity(isHoveringAction ? 0.9 : 0.68))
                         .frame(width: Self.actionButtonSize, height: Self.actionButtonSize)
                         .background(
                             Circle()
-                                .fill(Color.primary.opacity(isHoveringAddProject ? 0.12 : 0))
+                                .fill(Color.primary.opacity(isHoveringAction ? 0.12 : 0))
                         )
                 }
                 .buttonStyle(.plain)
                 .contentShape(Circle())
                 .onHover { isHovering in
                     withAnimation(.easeOut(duration: 0.12)) {
-                        isHoveringAddProject = isHovering
+                        isHoveringAction = isHovering
                     }
                 }
-                .accessibilityLabel("Add Project")
-                .help("Add Project... (\(KeyboardShortcut.addProject.displayString))")
+                .accessibilityLabel(actionAccessibilityLabel)
+                .help(actionHelp)
             } else {
                 Color.clear
                     .frame(width: Self.actionButtonSize, height: Self.actionButtonSize)

@@ -21,6 +21,12 @@ struct SnapshotMixedPinnedSidebarFixture {
 }
 
 @MainActor
+struct SnapshotTaskSidebarFixture {
+    let fixture: SidebarTestFixture
+    let tasks: [AgentThread]
+}
+
+@MainActor
 func makeSidebarSnapshotFixture(includePinnedThread: Bool = false) async throws -> SnapshotSidebarFixture {
     let fixture = try SidebarTestFixture()
     let project = Project(path: "/tmp/alveary", name: "Alveary")
@@ -121,4 +127,47 @@ func makeMixedPinnedSidebarSnapshotFixture() async throws -> SnapshotMixedPinned
         pinnedProjectThread: pinnedProjectThread,
         standalonePinnedThread: standalonePinnedThread
     )
+}
+
+@MainActor
+func makeTaskSidebarSnapshotFixture(
+    pinnedNames: [String] = [],
+    activeNames: [String] = []
+) async throws -> SnapshotTaskSidebarFixture {
+    let fixture = try SidebarTestFixture()
+    let names = pinnedNames + activeNames
+    var tasks: [AgentThread] = []
+
+    for (index, name) in names.enumerated() {
+        let isPinned = index < pinnedNames.count
+        let task = AgentThread(
+            name: name,
+            isPinned: isPinned,
+            pinnedSortOrder: isPinned ? index : nil,
+            modifiedAt: Date(timeIntervalSince1970: 1_713_001_000 - Double(index)),
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: "/tmp/sidebar-task-\(index)",
+                ownershipStrategy: .projectLocal
+            )
+        )
+        let conversation = Conversation(
+            id: "sidebar-task-\(index)",
+            title: "Main",
+            provider: "claude",
+            thread: task
+        )
+        task.conversations = [conversation]
+        fixture.context.insert(task)
+        fixture.context.insert(conversation)
+        tasks.append(task)
+    }
+
+    try fixture.context.save()
+    for (index, task) in tasks.enumerated() {
+        if let conversationID = task.conversations.first?.id {
+            await fixture.agentsManager.setStatus(index == 0 ? .waitingForUser : .idle, for: conversationID)
+        }
+    }
+    return SnapshotTaskSidebarFixture(fixture: fixture, tasks: tasks)
 }

@@ -3,6 +3,40 @@ import SwiftData
 import SwiftUI
 
 extension SidebarView {
+    func activeTaskThreads() -> [AgentThread] {
+        viewModel.activeTaskThreads()
+    }
+
+    func hasAnyActiveTaskThreads() -> Bool {
+        viewModel.hasAnyActiveTaskThreads()
+    }
+
+    @ViewBuilder
+    func taskRows(
+        _ tasks: [AgentThread],
+        showsNoTasksPlaceholder: Bool
+    ) -> some View {
+        if showsNoTasksPlaceholder {
+            Text("No tasks")
+                .foregroundStyle(.secondary)
+                .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
+        }
+
+        ForEach(Array(tasks.enumerated()), id: \.element.persistentModelID) { index, task in
+            sidebarThreadRow(
+                task,
+                layout: .topLevel,
+                topSpacing: index == 0 ? 0 : SidebarRowMetrics.interThreadRowSpacing
+            )
+        }
+        .transaction { transaction in
+            if threadOrderAnimation == nil {
+                transaction.disablesAnimations = true
+                transaction.animation = nil
+            }
+        }
+    }
+
     @ViewBuilder
     func projectRows(
         _ visibleProjects: [Project],
@@ -12,7 +46,7 @@ extension SidebarView {
         if showsNoProjectsPlaceholder {
             Text("No projects yet")
                 .foregroundStyle(.secondary)
-                .padding(.leading, 8)
+                .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
         }
 
         ForEach(Array(visibleProjects.enumerated()), id: \.element.persistentModelID) { index, project in
@@ -158,6 +192,13 @@ extension SidebarView {
         }
         Task { await createThread(in: project) }
     }
+}
+
+func shouldShowNoTasksPlaceholder(
+    activeTaskThreads: [AgentThread],
+    hasAnyActiveTaskThreads: Bool
+) -> Bool {
+    activeTaskThreads.isEmpty && !hasAnyActiveTaskThreads
 }
 
 private struct SidebarProjectGroupConfiguration {

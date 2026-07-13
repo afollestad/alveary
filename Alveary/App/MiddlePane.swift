@@ -21,6 +21,7 @@ struct MiddlePane: View {
     let skillsViewModel: SkillsViewModel
     let mcpViewModel: MCPViewModel
     let settingsViewModel: SettingsViewModel
+    let archivedTasksSettingsViewModel: ArchivedTasksSettingsViewModel
     let appUpdateManager: AppUpdateManager
     let targetSettingsPage: AppSettings.SettingsPage?
     let onTargetSettingsPageHandled: (AppSettings.SettingsPage) -> Void
@@ -79,6 +80,7 @@ struct MiddlePane: View {
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
+                archivedTasksViewModel: archivedTasksSettingsViewModel,
                 gitHubCLI: gitHubCLI,
                 appUpdateManager: appUpdateManager,
                 targetPage: targetSettingsPage,

@@ -16,6 +16,8 @@ extension SidebarViewModel {
             throw error
         }
         invalidateDraftThreadIfNeeded(threadID: snapshot.threadID)
+        refreshThreadOrder(animated: true)
+        postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
     }
 
     func commitProjectDeletion(_ snapshot: ProjectDeletionSnapshot) throws {

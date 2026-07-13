@@ -93,8 +93,8 @@ func sidebarDropCandidates(
             viewport: viewport,
             stickyOcclusionMaxY: stickyOcclusionMaxY
         )
-    case .pinnedThread:
-        candidates += sidebarPinnedThreadDropCandidates(
+    case .pinnedThread, .pinnedTask:
+        candidates += sidebarPinnedItemDropCandidates(
             items: logicalOrder.pinnedItems,
             geometry: geometry,
             viewport: viewport
@@ -250,7 +250,7 @@ private func sidebarProjectDropCandidates(
     return candidates
 }
 
-private func sidebarPinnedThreadDropCandidates(
+private func sidebarPinnedItemDropCandidates(
     items: [SidebarDragItem],
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect

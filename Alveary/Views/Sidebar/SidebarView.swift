@@ -63,12 +63,13 @@ struct SidebarView: View {
             }
         }
 
-        return pinnedThreadCount + regularProjects.reduce(0) { count, project in
+        let projectThreadCount = regularProjects.reduce(0) { count, project in
             guard expandedProjects.contains(project.path) else {
                 return count
             }
             return count + activeThreads(for: project).count
         }
+        return pinnedThreadCount + projectThreadCount + activeTaskThreads().count
     }
 
     private func projectsHeader(isListSectionHeader: Bool) -> some View {
@@ -87,11 +88,22 @@ struct SidebarView: View {
             .sidebarDragGeometry(.pinnedHeader)
     }
 
+    private var tasksHeader: some View {
+        SidebarSectionHeaderRow(
+            title: "Tasks",
+            actionSystemImage: "plus",
+            actionAccessibilityLabel: "New task",
+            actionHelp: "New task",
+            onAction: { startNewTaskFlowFromSidebar(appState: appState) }
+        )
+    }
+
     var body: some View {
         let statusVersion = viewModel.statusVersion
         let threadOrderVersion = viewModel.threadOrderVersion
         let pinnedItems = self.pinnedItems()
         let regularProjects = self.regularProjects
+        let activeTaskThreads = self.activeTaskThreads()
         let visibleDragItems = Set(
             pinnedItems.map(\.dragItem) + regularProjects.map { .project($0.persistentModelID) }
         )
@@ -134,10 +146,10 @@ struct SidebarView: View {
                                     thread,
                                     layout: .topLevel,
                                     topSpacing: topSpacing,
-                                    dragConfiguration: pinnedThreadDragConfiguration(for: thread),
-                                    opacity: activeSidebarDragItem == .pinnedThread(thread.persistentModelID) ? 0.48 : 1
+                                    dragConfiguration: pinnedItemDragConfiguration(for: thread),
+                                    opacity: activeSidebarDragItem == item.dragItem ? 0.48 : 1
                                 )
-                                .sidebarDragGeometry(.pinnedThread(thread.persistentModelID))
+                                .sidebarDragGeometry(pinnedItemDragGeometryRole(for: thread))
                             }
                         }
                         .transaction { transaction in
@@ -153,6 +165,15 @@ struct SidebarView: View {
                             showsNoProjectsPlaceholder: projects.isEmpty,
                             dropSection: .projects
                         )
+
+                        tasksHeader
+                        taskRows(
+                            activeTaskThreads,
+                            showsNoTasksPlaceholder: shouldShowNoTasksPlaceholder(
+                                activeTaskThreads: activeTaskThreads,
+                                hasAnyActiveTaskThreads: hasAnyActiveTaskThreads()
+                            )
+                        )
                     }
                 }
 
@@ -162,6 +183,15 @@ struct SidebarView: View {
                             projects,
                             showsNoProjectsPlaceholder: projects.isEmpty,
                             dropSection: .projects
+                        )
+
+                        tasksHeader
+                        taskRows(
+                            activeTaskThreads,
+                            showsNoTasksPlaceholder: shouldShowNoTasksPlaceholder(
+                                activeTaskThreads: activeTaskThreads,
+                                hasAnyActiveTaskThreads: hasAnyActiveTaskThreads()
+                            )
                         )
                     } header: {
                         projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
@@ -301,7 +331,11 @@ struct SidebarView: View {
     }
 
     func archiveConfirmationMessage(for thread: AgentThread) -> String {
-        "This archives \"\(thread.displayName())\". "
+        if thread.mode == .task {
+            return "This archives \"\(thread.displayName())\". "
+                + "You can find archived tasks in Settings > Threads > Archived Tasks."
+        }
+        return "This archives \"\(thread.displayName())\". "
             + "You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
     }
 
@@ -368,7 +402,8 @@ struct SidebarView: View {
             sidebarThreadContextMenuItems(
                 isPinned: thread.isPinned,
                 canRename: editingThreadID == nil,
-                allowsPinning: thread.project?.isPinned != true
+                allowsPinning: thread.mode == .task || thread.project?.isPinned != true,
+                allowsForking: thread.mode == .project
             ),
             id: \.self
         ) { item in
@@ -428,6 +463,11 @@ struct SidebarView: View {
         chatComposerFocus?.release()
         isKeyboardFocused = true
     }
+}
+
+@MainActor
+func startNewTaskFlowFromSidebar(appState: AppState) {
+    appState.startNewThreadFlow(mode: .task)
 }
 
 func shouldShowNoThreadsPlaceholder(

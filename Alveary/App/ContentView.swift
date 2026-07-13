@@ -41,6 +41,7 @@ struct ContentView: View {
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
     @State private var settingsViewModel: SettingsViewModel
+    @State private var archivedTasksSettingsViewModel: ArchivedTasksSettingsViewModel
     @State var onboardingViewModel: OnboardingViewModel
     @State var terminalManager = TerminalManager()
     @State var appShotCoordinator: AppShotCoordinator
@@ -96,6 +97,9 @@ struct ContentView: View {
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
+        _archivedTasksSettingsViewModel = State(initialValue: Self.makeArchivedTasksSettingsViewModel(
+            dependencies: dependencies, sidebarViewModel: sidebarViewModel, appState: appState
+        ))
         _onboardingViewModel = State(
             initialValue: OnboardingViewModel(
                 settingsService: dependencies.settingsService,
@@ -133,6 +137,7 @@ struct ContentView: View {
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
             settingsViewModel: settingsViewModel,
+            archivedTasksSettingsViewModel: archivedTasksSettingsViewModel,
             appUpdateManager: appUpdateManager,
             targetSettingsPage: appState.pendingSettingsTargetPage,
             onTargetSettingsPageHandled: { page in

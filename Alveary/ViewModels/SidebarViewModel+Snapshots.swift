@@ -3,6 +3,7 @@ import SwiftData
 
 struct ThreadArchiveSnapshot {
     let threadID: PersistentIdentifier
+    let mode: AgentThreadMode
     let conversationIDs: [String]
     let providerSessionAction: ProviderSessionActionSnapshot
 }
@@ -88,6 +89,7 @@ extension SidebarViewModel {
         let threadID = dbThread.persistentModelID
         return ThreadArchiveSnapshot(
             threadID: threadID,
+            mode: dbThread.mode,
             conversationIDs: liveConversationIDs(for: threadID),
             providerSessionAction: providerSessionActionSnapshot(for: dbThread)
         )

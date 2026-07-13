@@ -1,6 +1,10 @@
 import Foundation
 
 extension SidebarViewModel {
+    var defaultThreadCleanupAction: ThreadCleanupAction {
+        settingsService.current.defaultThreadCleanupAction
+    }
+
     var pendingDraftProjectPath: String? {
         pendingDraftProjectPaths[.project]
     }
@@ -13,4 +17,5 @@ extension SidebarViewModel {
         )
         return exists && isDirectory.boolValue
     }
+
 }

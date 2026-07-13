@@ -87,9 +87,15 @@ enum ThreadDraftNotificationKey {
     static let mode = "mode"
 }
 
+enum ThreadLifecycleNotificationKey {
+    static let threadID = "threadID"
+    static let mode = "mode"
+}
+
 extension Notification.Name {
     static let threadDraftMaterialized = Notification.Name("threadDraftMaterialized")
     static let threadDraftProjectChanged = Notification.Name("threadDraftProjectChanged")
+    static let threadLifecycleChanged = Notification.Name("threadLifecycleChanged")
 }
 
 extension AgentThread {

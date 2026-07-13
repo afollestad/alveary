@@ -43,7 +43,12 @@ struct SidebarPinnedItem: Identifiable {
         case .project(let project):
             .project(project.persistentModelID)
         case .thread(let thread):
-            .pinnedThread(thread.persistentModelID)
+            switch thread.mode {
+            case .project:
+                .pinnedThread(thread.persistentModelID)
+            case .task:
+                .pinnedTask(thread.persistentModelID)
+            }
         }
     }
 
@@ -153,7 +158,7 @@ extension SidebarViewModel {
 
     func pinnedThreads() -> [AgentThread] {
         fetchedVisiblePinnedThreads()
-            .filter { $0.mode == .project && $0.project != nil && $0.project?.isPinned != true }
+            .filter(isVisiblePinnedSidebarThread)
             .sorted(by: comparePinnedThreads)
     }
 
@@ -172,9 +177,29 @@ extension SidebarViewModel {
                 )
             }
         let threadItems = fetchedVisiblePinnedThreads()
-            .filter { $0.mode == .project && $0.project != nil && $0.project?.isPinned != true }
+            .filter(isVisiblePinnedSidebarThread)
             .map(SidebarPinnedItem.init(thread:))
         return SidebarPinnedItemOrdering.sorted(projectItems + threadItems)
+    }
+
+    func activeTaskThreads() -> [AgentThread] {
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.archivedAt == nil && thread.isDraft == false && thread.isPinned == false
+            }
+        )
+        return AgentThreadOrdering.sorted(
+            ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.mode == .task }
+        )
+    }
+
+    func hasAnyActiveTaskThreads() -> Bool {
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.archivedAt == nil && thread.isDraft == false
+            }
+        )
+        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.mode == .task }
     }
 
     func activeThreads(for project: Project) -> [AgentThread] {
@@ -256,10 +281,11 @@ extension SidebarViewModel {
     func setThreadPinned(_ thread: AgentThread, isPinned: Bool) throws {
         guard let currentThread = modelContext.resolveThread(id: thread.persistentModelID),
               currentThread.archivedAt == nil,
-              !currentThread.isDraft else {
+              !currentThread.isDraft,
+              currentThread.mode == .task || currentThread.project != nil else {
             throw SidebarViewModelError.threadMissing
         }
-        if isPinned, currentThread.project?.isPinned == true {
+        if isPinned, currentThread.mode == .project, currentThread.project?.isPinned == true {
             return
         }
         try flushPendingSidebarPinChanges()
@@ -268,7 +294,8 @@ extension SidebarViewModel {
             var didChange = try normalizeSidebarOrdering()
             guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID),
                   dbThread.archivedAt == nil,
-                  !dbThread.isDraft else {
+                  !dbThread.isDraft,
+                  dbThread.mode == .task || dbThread.project != nil else {
                 throw SidebarViewModelError.threadMissing
             }
             let wasPinned = dbThread.isPinned
@@ -292,6 +319,20 @@ extension SidebarViewModel {
         } catch {
             modelContext.rollback()
             throw error
+        }
+    }
+
+    func isVisiblePinnedSidebarThread(_ thread: AgentThread) -> Bool {
+        guard thread.archivedAt == nil,
+              !thread.isDraft,
+              thread.isPinned else {
+            return false
+        }
+        switch thread.mode {
+        case .project:
+            return thread.project != nil && thread.project?.isPinned != true
+        case .task:
+            return true
         }
     }
 }

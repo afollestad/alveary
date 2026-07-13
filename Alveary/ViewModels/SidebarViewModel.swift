@@ -101,10 +101,6 @@ final class SidebarViewModel {
         }
     }
 
-    var defaultThreadCleanupAction: ThreadCleanupAction {
-        settingsService.current.defaultThreadCleanupAction
-    }
-
     func presentSidebarError(_ error: Error) {
         sidebarError = error.localizedDescription
     }
@@ -139,6 +135,8 @@ final class SidebarViewModel {
                 dbThread.archivedAt = Date()
                 _ = try normalizeSidebarOrderingForLifecycle()
                 try modelContext.save()
+                refreshThreadOrder(animated: true)
+                postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
             } catch {
                 modelContext.rollback()
                 throw error
@@ -168,6 +166,8 @@ final class SidebarViewModel {
             dbThread.prepareForRestore()
             _ = try normalizeSidebarOrderingForLifecycle()
             try modelContext.save()
+            refreshThreadOrder(animated: true)
+            postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
         } catch {
             modelContext.rollback()
             throw error

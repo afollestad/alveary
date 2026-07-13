@@ -30,8 +30,8 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 - `Project.remoteName` and `Project.gitRemote` are a paired invariant. Persist and update them together, and have Git/worktree/GitHub flows use the stored `remoteName` instead of rediscovering a remote ad hoc.
 - Sidebar manual ordering uses optional dense order fields:
     - **Regular projects:** `Project.sidebarSortOrder` is set only while `Project.isPinned == false`; pinned projects keep it `nil`.
-    - **Pinned items:** `Project.pinnedSortOrder` and `AgentThread.pinnedSortOrder` share one dense order for visible pinned projects and standalone pinned threads.
-    - **Exclude hidden threads:** unpinned, archived, draft, and project-nested threads keep `pinnedSortOrder == nil`; generic repair must not change a draft's unrelated `isPinned` value.
+    - **Pinned items:** `Project.pinnedSortOrder` and `AgentThread.pinnedSortOrder` share one dense order for visible pinned projects, standalone Project threads, and pinned Task-mode threads.
+    - **Exclude hidden threads:** unpinned, archived, draft, and Project-mode threads nested under a pinned Project keep `pinnedSortOrder == nil`; pinned Tasks stay independently visible even when backed by that Project. Generic repair must not change a draft's unrelated `isPinned` value.
     - **Keep lists dense:** initialization and sidebar lifecycle changes renumber visible order fields to `0..<count`.
 - `AgentThread.model` is the per-thread model override. It mirrors the `permissionMode`/`effort` pattern for thread-scoped picker state, but with a different nil semantic:
     - **Store `nil` for "use the provider's default model".** The composer reasoning dropdown's `"default"` value is a UI sentinel that settings writes translate to `nil` before persisting — never write the literal string `"default"` into `AgentThread.model`, or the adapter will pass `--model=default` to the CLI.

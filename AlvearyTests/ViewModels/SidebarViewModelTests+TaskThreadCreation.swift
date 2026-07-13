@@ -80,7 +80,7 @@ extension SidebarViewModelTests {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testAttachedTaskModeThreadDoesNotAppearInProjectOrPinnedSections() throws {
+    func testAttachedTaskModeThreadAppearsOnlyInPinnedWhenPinned() throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Source", path: "/tmp/attached-task-sidebar-source")
         let task = AgentThread(
@@ -101,8 +101,8 @@ extension SidebarViewModelTests {
 
         XCTAssertTrue(fixture.viewModel.activeThreads(for: project).isEmpty)
         XCTAssertFalse(fixture.viewModel.hasAnyActiveThreads(for: project))
-        XCTAssertTrue(fixture.viewModel.pinnedThreads().isEmpty)
-        XCTAssertTrue(fixture.viewModel.pinnedItems(projects: []).isEmpty)
+        XCTAssertEqual(fixture.viewModel.pinnedThreads().map(\.persistentModelID), [task.persistentModelID])
+        XCTAssertEqual(fixture.viewModel.pinnedItems(projects: []).map(\.dragItem), [.pinnedTask(task.persistentModelID)])
     }
 }
 
