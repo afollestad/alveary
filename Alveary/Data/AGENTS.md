@@ -50,6 +50,11 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
     - **Seed new threads from Settings.** `SidebarViewModel` reads the already-normalized Settings effort when creating a thread; Settings owns applying model-option defaults when the user changes the default model.
     - **Filter the composer dropdown before rendering.** `ConversationView` derives reasoning effort options from the selected `AgentModelOption` and passes them into `ChatView`/`ChatComposerActionRow`; action-row presentation must not rediscover providers or consult app-owned effort maps.
 - `AgentThread.speedMode` is optional thread-scoped speed state. Normalize `nil`, empty, or unknown strings to `AgentSpeedMode.standard`; only persist `.fast` when the active provider status reports speed support, and coerce stale Fast back to Standard in the same save as provider/model normalization.
+- Scheduled-task persistence separates mutable definitions from immutable run provenance:
+    - **Keep recurrence structured.** `ScheduledTask` persists flat recurrence fields plus a pinned IANA timezone; use its `recurrence` bridge instead of storing RRULE text.
+    - **Snapshot before execution.** Construct runs with `ScheduledTaskRun.init(snapshotting:...)` so revision, prompt, provider settings, project path, grants, and occurrence identity remain durable after edits or definition deletion.
+    - **Preserve history with nullification.** Project deletion nullifies schedules, schedule deletion nullifies runs, and Task-thread deletion nullifies run provenance. Existing Project-thread and conversation cascades remain unchanged.
+    - **Mutate future work only.** Definition mutations are revision-checked; pause, resume, and edit clear `pendingOccurrenceAt` and recompute `nextOccurrenceAt` strictly after the action time. Never rewrite an active run snapshot. Project deletion pauses and detaches definitions without changing run Task workspaces.
 
 ## Model Context Helpers
 

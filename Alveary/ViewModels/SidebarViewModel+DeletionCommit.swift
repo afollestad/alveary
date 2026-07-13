@@ -20,11 +20,20 @@ extension SidebarViewModel {
         postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
     }
 
-    func commitProjectDeletion(_ snapshot: ProjectDeletionSnapshot) throws {
+    func commitProjectDeletion(
+        _ snapshot: ProjectDeletionSnapshot,
+        at actionDate: Date = Date()
+    ) throws {
         let threadIDs = Set(snapshot.threadSnapshots.map(\.threadID))
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
+                for scheduledTaskID in snapshot.scheduledTaskIDs {
+                    guard let scheduledTask = modelContext.resolveScheduledTask(id: scheduledTaskID) else {
+                        continue
+                    }
+                    scheduledTask.pauseForProjectDeletion(at: actionDate)
+                }
                 for threadID in snapshot.detachedTaskThreadIDs {
                     modelContext.resolveThread(id: threadID)?.project = nil
                 }

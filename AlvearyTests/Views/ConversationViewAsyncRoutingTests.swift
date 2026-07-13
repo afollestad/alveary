@@ -314,6 +314,8 @@ private struct ConversationAsyncRoutingThreadFixture {
             for: Project.self,
             AgentThread.self,
             Conversation.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         let context = ModelContext(container)

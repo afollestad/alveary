@@ -24,6 +24,7 @@ struct ThreadCleanupSnapshot {
 struct ProjectDeletionSnapshot {
     let projectID: PersistentIdentifier
     let projectPath: String
+    let scheduledTaskIDs: [String]
     let detachedTaskThreadIDs: [PersistentIdentifier]
     let conversationIDs: [String]
     let threadSnapshots: [ThreadCleanupSnapshot]
@@ -143,6 +144,7 @@ extension SidebarViewModel {
         return ProjectDeletionSnapshot(
             projectID: dbProject.persistentModelID,
             projectPath: projectPath,
+            scheduledTaskIDs: dbProject.scheduledTasks.map(\.id),
             detachedTaskThreadIDs: attachedThreads
                 .filter { $0.mode == .task }
                 .map(\.persistentModelID),

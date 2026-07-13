@@ -116,6 +116,8 @@ private struct RoutingTestFixture {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         context = ModelContext(container)

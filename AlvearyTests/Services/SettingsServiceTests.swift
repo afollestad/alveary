@@ -455,12 +455,17 @@ final class SettingsServiceTests: XCTestCase {
         return defaults
     }
 
+}
+
+extension SettingsServiceTests {
     func makeModelContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Project.self,
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }

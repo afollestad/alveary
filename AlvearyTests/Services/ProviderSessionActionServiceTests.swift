@@ -330,6 +330,8 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         let context = ModelContext(container)

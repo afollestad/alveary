@@ -52,6 +52,8 @@ final class AgentThreadModeTests: XCTestCase {
                 AgentThread.self,
                 Conversation.self,
                 ConversationEventRecord.self,
+                ScheduledTask.self,
+                ScheduledTaskRun.self,
                 configurations: configuration
             )
             let context = reopenedContainer.mainContext
@@ -65,6 +67,8 @@ final class AgentThreadModeTests: XCTestCase {
             XCTAssertEqual(thread.project?.path, CanonicalPath.normalize(projectPath))
             XCTAssertEqual(thread.conversations.map(\.id), [conversationID])
             XCTAssertEqual(thread.conversations.first?.events.map(\.id), ["pre-task-mode-event"])
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTask>()), 0)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskRun>()), 0)
         }
     }
 
@@ -155,6 +159,8 @@ final class AgentThreadModeTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }

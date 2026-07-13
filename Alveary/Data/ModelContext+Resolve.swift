@@ -42,6 +42,36 @@ extension ModelContext {
         )
     }
 
+    func resolveScheduledTask(id: String) -> ScheduledTask? {
+        resolve(
+            FetchDescriptor<ScheduledTask>(
+                predicate: #Predicate { scheduledTask in
+                    scheduledTask.id == id
+                }
+            )
+        )
+    }
+
+    func resolveScheduledTask(id: PersistentIdentifier) -> ScheduledTask? {
+        resolve(
+            FetchDescriptor<ScheduledTask>(
+                predicate: #Predicate { scheduledTask in
+                    scheduledTask.persistentModelID == id
+                }
+            )
+        )
+    }
+
+    func resolveScheduledTaskRun(id: PersistentIdentifier) -> ScheduledTaskRun? {
+        resolve(
+            FetchDescriptor<ScheduledTaskRun>(
+                predicate: #Predicate { run in
+                    run.persistentModelID == id
+                }
+            )
+        )
+    }
+
     func resolveThread(conversationID: String) -> AgentThread? {
         resolveConversation(conversationID: conversationID)?.thread
     }

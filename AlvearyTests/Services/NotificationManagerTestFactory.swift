@@ -21,6 +21,8 @@ enum NotificationManagerTestFactory {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         return NotificationManagerTestContext(container: container)

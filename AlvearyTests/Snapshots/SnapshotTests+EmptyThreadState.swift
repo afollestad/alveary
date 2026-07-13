@@ -157,6 +157,8 @@ extension SnapshotTests {
             for: Project.self,
             AgentThread.self,
             Conversation.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         let context = ModelContext(container)
@@ -188,6 +190,8 @@ extension SnapshotTests {
             for: Project.self,
             AgentThread.self,
             Conversation.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         let context = ModelContext(container)
@@ -219,6 +223,8 @@ private extension SnapshotTests {
             for: Project.self,
             AgentThread.self,
             Conversation.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         let context = ModelContext(container)
@@ -253,6 +259,8 @@ private extension SnapshotTests {
             for: Project.self,
             AgentThread.self,
             Conversation.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         let context = ModelContext(container)

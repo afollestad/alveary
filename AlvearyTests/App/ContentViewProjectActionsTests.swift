@@ -104,6 +104,8 @@ final class ContentViewProjectActionsTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
@@ -159,6 +161,8 @@ final class ContentViewProjectActionsTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
@@ -186,6 +190,8 @@ final class ContentViewProjectActionsTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
@@ -210,6 +216,8 @@ final class ContentViewProjectActionsTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
@@ -254,6 +262,8 @@ final class ContentViewProjectActionsTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
@@ -392,6 +402,8 @@ private func makeDiffCommitTargetFixture(
         AgentThread.self,
         Conversation.self,
         ConversationEventRecord.self,
+        ScheduledTask.self,
+        ScheduledTaskRun.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let context = ModelContext(container)

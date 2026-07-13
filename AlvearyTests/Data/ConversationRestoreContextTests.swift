@@ -257,6 +257,8 @@ private struct ConversationRestoreContextFixture {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         context = ModelContext(container)

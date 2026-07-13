@@ -26,10 +26,14 @@ final class DataComponentTests: XCTestCase {
             role: "assistant",
             content: "Hello"
         )
+        let scheduledTask = makeScheduledTask(project: project)
+        let scheduledRun = makeScheduledRun(task: scheduledTask, thread: thread)
 
         XCTAssertFalse(project.isPinned)
         project.isPinned = true
         project.threads.append(thread)
+        project.scheduledTasks.append(scheduledTask)
+        scheduledTask.runs.append(scheduledRun)
         thread.conversations.append(conversation)
         conversation.events.append(event)
 
@@ -40,6 +44,8 @@ final class DataComponentTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<AgentThread>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Conversation>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ConversationEventRecord>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTask>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskRun>()), 1)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Project>()).first?.isPinned, true)
     }
 
@@ -71,6 +77,8 @@ final class DataComponentTests: XCTestCase {
                 AgentThread.self,
                 Conversation.self,
                 ConversationEventRecord.self,
+                ScheduledTask.self,
+                ScheduledTaskRun.self,
                 configurations: configuration
             )
             let context = container.mainContext
@@ -88,6 +96,8 @@ final class DataComponentTests: XCTestCase {
             AgentThread.self,
             Conversation.self,
             ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
             configurations: configuration
         )
         let reopenedContext = reopenedContainer.mainContext
@@ -139,5 +149,26 @@ final class DataComponentTests: XCTestCase {
 
     private func makeComponent() -> AppComponent {
         AppDI.makeTestComponent(isStoredInMemoryOnly: true)
+    }
+
+    private func makeScheduledTask(project: Project) -> ScheduledTask {
+        ScheduledTask(
+            title: "Daily review",
+            prompt: "Review changes.",
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            project: project
+        )
+    }
+
+    private func makeScheduledRun(task: ScheduledTask, thread: AgentThread) -> ScheduledTaskRun {
+        ScheduledTaskRun(
+            snapshotting: task,
+            occurrenceID: "daily-review:1",
+            occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
+            triggerKind: .scheduled,
+            thread: thread
+        )
     }
 }

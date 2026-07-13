@@ -27,13 +27,7 @@ final class AppShotCaptureControllerFixture {
         pausesDraftCreation: Bool = false,
         stagingError: AppShotRoutingTestError? = nil
     ) throws {
-        container = try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
+        container = try Self.makeModelContainer()
         context = ModelContext(container)
         settingsService = InMemorySettingsService(current: settings)
         attachmentStore = AppShotRoutingAttachmentStore(
@@ -115,6 +109,18 @@ final class AppShotCaptureControllerFixture {
     func runCapture() async {
         let task = controller.captureIfIdle()
         await task?.value
+    }
+
+    private static func makeModelContainer() throws -> ModelContainer {
+        try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
     }
 }
 

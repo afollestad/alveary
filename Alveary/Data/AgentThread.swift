@@ -27,6 +27,7 @@ final class AgentThread {
     var taskWorkspaceMarkerID: String?
     var taskSourceProjectPath: String?
     var project: Project?
+    var scheduledTaskRun: ScheduledTaskRun?
     @Relationship(deleteRule: .cascade, inverse: \Conversation.thread) var conversations: [Conversation]
 
     init(
@@ -50,6 +51,7 @@ final class AgentThread {
         mode: AgentThreadMode = .project,
         taskWorkspaceDescriptor: TaskWorkspaceDescriptor? = nil,
         project: Project? = nil,
+        scheduledTaskRun: ScheduledTaskRun? = nil,
         conversations: [Conversation] = []
     ) {
         self.name = name
@@ -76,6 +78,7 @@ final class AgentThread {
         self.taskWorkspaceMarkerID = taskWorkspaceDescriptor?.ownershipMarkerID
         self.taskSourceProjectPath = taskWorkspaceDescriptor?.sourceProjectPath
         self.project = project
+        self.scheduledTaskRun = scheduledTaskRun
         self.conversations = conversations
     }
 }

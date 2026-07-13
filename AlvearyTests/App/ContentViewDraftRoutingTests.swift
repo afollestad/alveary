@@ -229,6 +229,8 @@ private func makeProjectSelectionContainer() throws -> (ModelContainer, ModelCon
         AgentThread.self,
         Conversation.self,
         ConversationEventRecord.self,
+        ScheduledTask.self,
+        ScheduledTaskRun.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     return (container, ModelContext(container))
