@@ -101,6 +101,30 @@ extension SnapshotTests {
             colorScheme: .dark
         )
     }
+
+    func testComposerTaskWorkspaceMenuContent() {
+        let homeDirectory = NSHomeDirectory()
+        let configuration = ChatComposerActionRowView.TaskWorkspaceConfiguration(
+            primaryRoot: homeDirectory + "/Library/Application Support/com.afollestad.alveary/TaskWorkspaces/Private/task-123",
+            grantedRoots: [
+                homeDirectory + "/Development/alveary",
+                homeDirectory + "/Documents/Reference"
+            ],
+            ownershipStrategy: .privateOwned,
+            canEdit: true,
+            disabledTooltip: nil,
+            onAddFolders: { _ in },
+            onRemoveGrant: { _ in }
+        )
+        let size = ComposerTaskWorkspaceMenuMetrics.contentSize(grantCount: configuration.grantedRoots.count)
+
+        assertMacSnapshot(
+            ComposerTaskWorkspaceMenuSnapshot(configuration: configuration),
+            size: size,
+            named: "composer_task_workspace_menu_content",
+            colorScheme: .dark
+        )
+    }
 }
 
 @MainActor
@@ -237,4 +261,19 @@ private struct ComposerWorktreeLocationMenuSnapshot: NSViewControllerRepresentab
     }
 
     func updateNSViewController(_ controller: ComposerWorktreeMenuViewController, context: Context) {}
+}
+
+private struct ComposerTaskWorkspaceMenuSnapshot: NSViewControllerRepresentable {
+    let configuration: ChatComposerActionRowView.TaskWorkspaceConfiguration
+
+    func makeNSViewController(context: Context) -> ComposerTaskWorkspaceMenuViewController {
+        ComposerTaskWorkspaceMenuViewController(
+            configuration: configuration,
+            onAddFolders: {},
+            onRemoveGrant: { _ in },
+            onRequestClose: {}
+        )
+    }
+
+    func updateNSViewController(_ controller: ComposerTaskWorkspaceMenuViewController, context: Context) {}
 }

@@ -298,6 +298,7 @@ struct ConversationViewModelTestFixture {
     let settingsService: InMemorySettingsService
     let viewModel: ConversationViewModel
 
+    // swiftlint:disable:next function_body_length
     init(
         threadName: String = "Thread",
         conversationTitle: String? = nil,
@@ -316,7 +317,11 @@ struct ConversationViewModelTestFixture {
         pausesWorktreeCreate: Bool = false,
         initialAgentIsRunning: Bool? = nil,
         providerId: String = "claude",
+        threadMode: AgentThreadMode = .project,
+        taskWorkspaceDescriptor: TaskWorkspaceDescriptor? = nil,
+        autoTrustProjects: Bool = true,
         attachmentStore: (any ConversationAttachmentStore)? = nil,
+        taskWorkspaceOwnershipService: (any TaskWorkspaceOwnershipService)? = nil,
         threadActivityRecorder: (any ThreadActivityRecording)? = nil,
         draftMaterializationSaver: (() throws -> Void)? = nil
     ) throws {
@@ -328,13 +333,23 @@ struct ConversationViewModelTestFixture {
             hasCompletedInitialSetup: hasCompletedInitialSetup,
             useWorktree: useWorktree,
             isDraft: isDraft,
-            project: project
+            mode: threadMode,
+            taskWorkspaceDescriptor: taskWorkspaceDescriptor,
+            project: threadMode == .project ? project : nil
         )
         let conversation = Conversation(title: conversationTitle, provider: providerId, thread: thread)
         conversation.pendingRestoreContext = pendingRestoreContext
-        project.threads.append(thread); thread.conversations.append(conversation)
-        context.insert(project); try context.save()
-        let settingsService = InMemorySettingsService(current: Self.testSettings())
+        if threadMode == .project {
+            project.threads.append(thread)
+        }
+        thread.conversations.append(conversation)
+        context.insert(project)
+        context.insert(thread)
+        context.insert(conversation)
+        try context.save()
+        var settings = Self.testSettings()
+        settings.autoTrustProjects = autoTrustProjects
+        let settingsService = InMemorySettingsService(current: settings)
         let agentsManager = MockAgentsManager(
             isRunning: initialAgentIsRunning ?? hasCompletedInitialSetup,
             sendError: sendError,
@@ -359,6 +374,7 @@ struct ConversationViewModelTestFixture {
             modelContext: context,
             settingsService: settingsService,
             worktreeManager: worktreeManager,
+            taskWorkspaceOwnershipService: taskWorkspaceOwnershipService ?? DefaultTaskWorkspaceOwnershipService(),
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
             attachmentStore: attachmentStore ?? DefaultConversationAttachmentStore(),

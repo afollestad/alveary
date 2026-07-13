@@ -256,4 +256,24 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.showWorktreePicker)
         XCTAssertEqual(presentation.contextWindowCacheLookupID, "claude:\(AppSettings.defaultModelValue)")
     }
+
+    func testTaskThreadPresentationNeverShowsProjectWorktreePicker() {
+        let sourceProject = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
+        let thread = AgentThread(
+            name: "Scheduled task",
+            hasCompletedInitialSetup: false,
+            useWorktree: true,
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: "/tmp/alveary-task-worktree",
+                ownershipStrategy: .projectWorktreeOwned,
+                ownershipMarkerID: UUID().uuidString.lowercased(),
+                sourceProjectPath: sourceProject.path
+            )
+        )
+
+        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+
+        XCTAssertFalse(presentation.showWorktreePicker)
+    }
 }

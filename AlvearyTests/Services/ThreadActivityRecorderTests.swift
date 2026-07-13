@@ -121,6 +121,86 @@ final class ThreadActivityRecorderTests: XCTestCase {
         XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, false)
     }
 
+    func testTaskVisibleOutboundUsesGlobalTaskOrderingAndOmitsProjectPath() async throws {
+        let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
+        let fixture = try ThreadActivityRecorderFixture(clock: clock)
+        let older = fixture.insertThread(
+            name: "Older task",
+            modifiedAt: Date(timeIntervalSince1970: 100),
+            conversationIDs: ["older-task"],
+            mode: .task
+        )
+        _ = fixture.insertThread(
+            name: "Newer task",
+            modifiedAt: Date(timeIntervalSince1970: 200),
+            conversationIDs: ["newer-task"],
+            mode: .task
+        )
+        try fixture.save()
+        let expectation = expectation(description: "task activity notification")
+        let notificationPayload = NotificationPayloadRecorder()
+        let observer = NotificationCenter.default.addObserver(
+            forName: .threadActivityChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard notification.userInfo?[ThreadActivityNotificationKey.conversationID] as? String == "older-task" else {
+                return
+            }
+            notificationPayload.record(notification.userInfo)
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        fixture.recorder.recordVisibleOutbound(conversationId: "older-task")
+
+        await fulfillment(of: [expectation], timeout: 1)
+        let payload = notificationPayload.payload()
+        XCTAssertEqual(older.modifiedAt, clock.now)
+        XCTAssertEqual(payload?[ThreadActivityNotificationKey.threadMode] as? String, AgentThreadMode.task.rawValue)
+        XCTAssertNil(payload?[ThreadActivityNotificationKey.projectPath])
+        XCTAssertEqual(payload?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
+    }
+
+    func testPinnedTaskActivityUpdatesTimestampWithoutChangingTaskOrder() async throws {
+        let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
+        let fixture = try ThreadActivityRecorderFixture(clock: clock)
+        let pinned = fixture.insertThread(
+            name: "Pinned task",
+            modifiedAt: Date(timeIntervalSince1970: 100),
+            conversationIDs: ["pinned-task"],
+            isPinned: true,
+            mode: .task
+        )
+        _ = fixture.insertThread(
+            name: "Unpinned task",
+            modifiedAt: Date(timeIntervalSince1970: 200),
+            conversationIDs: ["unpinned-task"],
+            mode: .task
+        )
+        try fixture.save()
+        let expectation = expectation(description: "pinned task activity notification")
+        let notificationPayload = NotificationPayloadRecorder()
+        let observer = NotificationCenter.default.addObserver(
+            forName: .threadActivityChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard notification.userInfo?[ThreadActivityNotificationKey.conversationID] as? String == "pinned-task" else {
+                return
+            }
+            notificationPayload.record(notification.userInfo)
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        fixture.recorder.recordVisibleTurnEnded(conversationId: "pinned-task")
+
+        await fulfillment(of: [expectation], timeout: 1)
+        XCTAssertEqual(pinned.modifiedAt, clock.now)
+        XCTAssertEqual(notificationPayload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, false)
+    }
+
     func testPinnedProjectChildVisibleTurnEndPostsOrderChange() async throws {
         let currentDate = Date(timeIntervalSince1970: 100)
         let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
@@ -239,9 +319,24 @@ private final class ThreadActivityRecorderFixture {
         modifiedAt: Date?,
         conversationIDs: [String],
         isPinned: Bool = false,
-        isDraft: Bool = false
+        isDraft: Bool = false,
+        mode: AgentThreadMode = .project
     ) -> AgentThread {
-        let thread = AgentThread(name: name, isPinned: isPinned, isDraft: isDraft, modifiedAt: modifiedAt, project: project)
+        let taskWorkspace = mode == .task
+            ? TaskWorkspaceDescriptor(
+                primaryRoot: "/tmp/task-\(conversationIDs.first ?? "workspace")",
+                ownershipStrategy: .privateOwned
+            )
+            : nil
+        let thread = AgentThread(
+            name: name,
+            isPinned: isPinned,
+            isDraft: isDraft,
+            modifiedAt: modifiedAt,
+            mode: mode,
+            taskWorkspaceDescriptor: taskWorkspace,
+            project: mode == .project ? project : nil
+        )
         thread.conversations = conversationIDs.enumerated().map { index, id in
             Conversation(
                 id: id,
@@ -251,7 +346,9 @@ private final class ThreadActivityRecorderFixture {
                 thread: thread
             )
         }
-        project.threads.append(thread)
+        if mode == .project {
+            project.threads.append(thread)
+        }
         context.insert(thread)
         thread.conversations.forEach(context.insert)
         return thread

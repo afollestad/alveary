@@ -50,7 +50,10 @@ struct AgentCLIKitHostAdapter: Sendable {
             forkSession: forkSession,
             initialPrompt: config.initialPrompt,
             initialPromptAttachments: config.initialPromptAttachments.map(AgentCLIKit.AgentInputAttachment.init(localImageAttachment:)),
-            initialPromptMetadata: config.initialPromptMetadata
+            initialPromptMetadata: config.initialPromptMetadata,
+            additionalWorkspaceRoots: config.additionalWorkspaceRoots.map {
+                URL(fileURLWithPath: $0, isDirectory: true)
+            }
         )
     }
 }

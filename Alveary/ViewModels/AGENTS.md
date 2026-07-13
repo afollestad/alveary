@@ -51,3 +51,5 @@ These instructions apply to files under `Alveary/ViewModels/`.
   - Remove conversation attachment directories only after runtime teardown has been attempted, including teardown-failure paths.
   - Before a targeted mutation that may call `ModelContext.rollback()`, synchronously save pre-existing shared-context changes.
     A target failure must not discard unrelated pending work.
+- Project and Task drafts are independent mode-keyed identities. Materializing or deleting one mode must not clear the other mode's cached draft, creation task, or pending Project destination.
+- Task folder grants may change only while the conversation is fully idle. Phase 3 also limits editing to Tasks with exactly one live conversation; lift that only with thread-wide runtime coordination. Persist canonical roots, restart an already-tracked idle runtime, leave suspended runtimes asleep, and roll back both persistence and runtime configuration when replacement cannot be applied.

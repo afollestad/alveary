@@ -4,10 +4,15 @@ import Foundation
 
 @MainActor
 final class RecordingThreadActivityRecorder: ThreadActivityRecording {
+    private(set) var materializedTaskConversationIDs: [String] = []
     private(set) var visibleOutboundConversationIDs: [String] = []
     private(set) var visibleTurnEndedConversationIDs: [String] = []
     private(set) var historicalActivities: [(conversationId: String, timestamp: Date)] = []
     private(set) var backfillBatchSizes: [Int] = []
+
+    func recordTaskMaterialized(conversationId: String) {
+        materializedTaskConversationIDs.append(conversationId)
+    }
 
     func recordVisibleOutbound(conversationId: String) {
         visibleOutboundConversationIDs.append(conversationId)

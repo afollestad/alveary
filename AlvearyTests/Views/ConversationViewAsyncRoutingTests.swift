@@ -7,6 +7,34 @@ import XCTest
 
 @MainActor
 final class ConversationViewAsyncRoutingTests: XCTestCase {
+    func testProviderDiscoveryUsesProjectSourceButTaskPrimaryWorkspace() {
+        let project = Project(path: "/tmp/source-project", name: "Source")
+        let projectThread = AgentThread(
+            name: "Project worktree",
+            worktreePath: "/tmp/project-worktree",
+            project: project
+        )
+        let taskThread = AgentThread(
+            name: "Task worktree",
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: "/tmp/task-worktree",
+                ownershipStrategy: .projectWorktreeOwned,
+                ownershipMarkerID: UUID().uuidString.lowercased(),
+                sourceProjectPath: project.path
+            )
+        )
+
+        XCTAssertEqual(
+            ConversationView.providerDiscoveryURL(for: projectThread)?.path,
+            CanonicalPath.normalize(project.path)
+        )
+        XCTAssertEqual(
+            ConversationView.providerDiscoveryURL(for: taskThread)?.path,
+            CanonicalPath.normalize("/tmp/task-worktree")
+        )
+    }
+
     func testStaleProviderDiscoveryCannotOverwriteOrCacheUnderNewProject() async {
         ComposerProviderStatusCache.removeAll()
         defer { ComposerProviderStatusCache.removeAll() }

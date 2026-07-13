@@ -6,6 +6,24 @@ import XCTest
 
 @MainActor
 final class AppStateTests: XCTestCase {
+    func testNewThreadFlowCarriesExplicitMode() {
+        let state = AppState()
+
+        state.startNewThreadFlow()
+
+        guard case .newThread(_, let projectMode) = state.pendingCommand else {
+            return XCTFail("Expected a Project-mode new-thread command")
+        }
+        XCTAssertEqual(projectMode, .project)
+
+        state.startNewThreadFlow(mode: .task)
+
+        guard case .newThread(_, let taskMode) = state.pendingCommand else {
+            return XCTFail("Expected a Task-mode new-thread command")
+        }
+        XCTAssertEqual(taskMode, .task)
+    }
+
     func testOpenSettingsPreservesPreviousSelectionUntilLeavingSettings() throws {
         let fixture = try makeFixture(
             primaryConversations: [Conversation(title: "Main", provider: "claude")]

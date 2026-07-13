@@ -253,7 +253,11 @@ extension SidebarView {
             appState.selectedSidebarItem,
             belongsToProjectPath: projectPath,
             resolvedThreadProjectPath: { threadID in
-                uiModelContext.resolveThread(id: threadID)?.project?.path
+                guard let thread = uiModelContext.resolveThread(id: threadID),
+                      thread.mode == .project else {
+                    return nil
+                }
+                return thread.project?.path
             }
         )
     }
@@ -273,7 +277,7 @@ extension SidebarView {
                 thread.project?.path == projectPath
             }
         )
-        let threads = (try? uiModelContext.fetch(descriptor)) ?? []
+        let threads = ((try? uiModelContext.fetch(descriptor)) ?? []).filter { $0.mode == .project }
         return Set(threads.map(\.persistentModelID))
     }
 
@@ -297,6 +301,9 @@ func sidebarItem(
     case .project(let selectedProject):
         return selectedProject.path == projectPath
     case .thread(let selectedThread):
+        guard selectedThread.mode == .project else {
+            return false
+        }
         return selectedThread.project?.path == projectPath ||
             resolvedThreadProjectPath(selectedThread.persistentModelID) == projectPath
     default:

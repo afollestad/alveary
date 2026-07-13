@@ -90,9 +90,7 @@ struct ConversationView: View {
         self.onSelectDraftProject = onSelectDraftProject
         self.appState = appState
         let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
-            projectURL: conversation.thread?.project.map {
-                URL(fileURLWithPath: CanonicalPath.normalize($0.path), isDirectory: true)
-            },
+            projectURL: Self.providerDiscoveryURL(for: conversation.thread),
             activeProviderID: conversation.provider ?? settingsService.current.defaultProvider,
             settings: settingsService.current
         )

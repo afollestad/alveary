@@ -126,6 +126,16 @@ private extension EmptyThreadState {
     }
 
     var newThreadHero: some View {
+        Group {
+            if thread?.mode == .task {
+                taskThreadHero
+            } else {
+                projectThreadHero
+            }
+        }
+    }
+
+    var projectThreadHero: some View {
         VStack(spacing: 24) {
             Image(systemName: "sparkles")
                 .font(.system(size: 42, weight: .semibold))
@@ -156,6 +166,74 @@ private extension EmptyThreadState {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(40)
+    }
+
+    var taskThreadHero: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "checklist")
+                .font(.system(size: 42, weight: .semibold))
+                .foregroundStyle(.tint)
+
+            VStack(spacing: 12) {
+                Text("What should this task do?")
+                    .font(.title.weight(.semibold))
+
+                Text(
+                    "Your first message starts the task in \(taskWorkspaceIntroLocation). " +
+                        "Use Workspace below to grant access to additional folders."
+                )
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 560)
+
+                if let workspace = thread?.taskWorkspaceDescriptor {
+                    Text(taskWorkspaceSummary(workspace))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .help(taskWorkspaceHelp(workspace))
+                        .accessibilityLabel("Task workspace")
+                        .accessibilityValue(taskWorkspaceHelp(workspace))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
+    }
+
+    func taskWorkspaceSummary(_ workspace: TaskWorkspaceDescriptor) -> String {
+        let rootName = URL(fileURLWithPath: workspace.primaryRoot, isDirectory: true).lastPathComponent
+        let workspaceKind: String
+        switch workspace.ownershipStrategy {
+        case .privateOwned:
+            workspaceKind = "Private workspace"
+        case .projectLocal:
+            workspaceKind = "Project workspace"
+        case .projectWorktreeOwned:
+            workspaceKind = "Task worktree"
+        }
+        let count = workspace.grantedRoots.count
+        guard count > 0 else {
+            return "\(workspaceKind): \(rootName)"
+        }
+        return "\(workspaceKind): \(rootName) · \(count) additional folder\(count == 1 ? "" : "s")"
+    }
+
+    var taskWorkspaceIntroLocation: String {
+        switch thread?.taskWorkspaceDescriptor?.ownershipStrategy {
+        case .projectLocal:
+            return "the project workspace"
+        case .projectWorktreeOwned:
+            return "a dedicated task worktree"
+        case .privateOwned, nil:
+            return "a private workspace"
+        }
+    }
+
+    func taskWorkspaceHelp(_ workspace: TaskWorkspaceDescriptor) -> String {
+        ([workspace.primaryRoot] + workspace.grantedRoots).joined(separator: "\n")
     }
 
     @ViewBuilder

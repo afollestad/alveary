@@ -1,4 +1,5 @@
 import AppKit
+import SwiftData
 import SwiftUI
 
 // SF Symbols include leading side bearings; compensate so visible icon ink aligns with the header text.
@@ -45,7 +46,7 @@ extension SidebarView {
         case .project(let selectedProject):
             return selectedProject.path == project.path
         case .thread(let thread):
-            return thread.isDraft && thread.project?.path == project.path
+            return thread.mode == .project && thread.isDraft && thread.project?.path == project.path
         default:
             return false
         }
@@ -60,11 +61,11 @@ extension SidebarView {
     }
 
     func handleDraftMaterialized(_ notification: Notification) {
-        guard let projectPath = notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String else {
-            return
+        let mode = sidebarDraftMaterializedMode(notification)
+        if let projectPath = sidebarProjectPathToExpandAfterDraftMaterialization(notification) {
+            expandedProjects.insert(projectPath)
         }
-        expandedProjects.insert(projectPath)
-        viewModel.noteDraftMaterialized()
+        viewModel.noteDraftMaterialized(mode: mode)
     }
 
     func topLevelRow(
@@ -126,17 +127,11 @@ extension SidebarView {
     }
 
     func syncExpansionWithSelection(_ item: SidebarItem?) {
-        switch item {
-        case .project(let project):
-            expandedProjects.insert(project.path)
-        case .thread(let thread):
-            if let resolvedThread = uiModelContext.resolveThread(id: thread.persistentModelID),
-               !resolvedThread.isPinned || resolvedThread.project?.isPinned == true,
-               let projectPath = resolvedThread.project?.path {
-                expandedProjects.insert(projectPath)
-            }
-        default:
-            break
+        if let projectPath = sidebarProjectPathToExpand(
+            for: item,
+            resolveThread: { uiModelContext.resolveThread(id: $0) }
+        ) {
+            expandedProjects.insert(projectPath)
         }
     }
 
@@ -145,6 +140,38 @@ extension SidebarView {
             return Color(nsColor: sidebarTopLevelSelectedIconNSColor)
         }
         return AppAccentIcon.foreground
+    }
+}
+
+func sidebarDraftMaterializedMode(_ notification: Notification) -> AgentThreadMode {
+    (notification.userInfo?[ThreadDraftNotificationKey.mode] as? String)
+        .flatMap(AgentThreadMode.init(rawValue:)) ?? .project
+}
+
+func sidebarProjectPathToExpandAfterDraftMaterialization(_ notification: Notification) -> String? {
+    guard sidebarDraftMaterializedMode(notification) == .project else {
+        return nil
+    }
+    return notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String
+}
+
+@MainActor
+func sidebarProjectPathToExpand(
+    for item: SidebarItem?,
+    resolveThread: (PersistentIdentifier) -> AgentThread?
+) -> String? {
+    switch item {
+    case .project(let project):
+        return project.path
+    case .thread(let thread):
+        guard let resolvedThread = resolveThread(thread.persistentModelID),
+              resolvedThread.mode == .project,
+              !resolvedThread.isPinned || resolvedThread.project?.isPinned == true else {
+            return nil
+        }
+        return resolvedThread.project?.path
+    case .skills, .mcp, .settings, nil:
+        return nil
     }
 }
 

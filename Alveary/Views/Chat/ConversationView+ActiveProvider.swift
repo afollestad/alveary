@@ -3,11 +3,19 @@ import Foundation
 
 extension ConversationView {
     var activeWorkingDirectory: String? {
-        conversation.thread?.worktreePath ?? conversation.thread?.project?.path
+        conversation.thread?.primaryWorkingDirectory
     }
 
     var providerDiscoveryProjectURL: URL? {
-        conversation.thread?.project.map { URL(fileURLWithPath: CanonicalPath.normalize($0.path), isDirectory: true) }
+        Self.providerDiscoveryURL(for: conversation.thread)
+    }
+
+    static func providerDiscoveryURL(for thread: AgentThread?) -> URL? {
+        guard let thread else {
+            return nil
+        }
+        let path = thread.mode == .project ? thread.project?.path : thread.primaryWorkingDirectory
+        return path.map { URL(fileURLWithPath: CanonicalPath.normalize($0), isDirectory: true) }
     }
 
     var activeProviderID: String {

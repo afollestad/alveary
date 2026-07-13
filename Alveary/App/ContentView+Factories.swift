@@ -35,6 +35,7 @@ extension ContentView {
             providerDiscovery: dependencies.providerDiscovery,
             providerSessionActions: dependencies.providerSessionActions,
             attachmentStore: dependencies.attachmentStore,
+            taskWorkspaceOwnershipService: dependencies.taskWorkspaceOwnershipService,
             invalidateConversationController: { conversationID in
                 dependencies.conversationControllerRegistry.invalidate(
                     for: ConversationControllerKey(conversationID: conversationID)

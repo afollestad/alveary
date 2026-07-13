@@ -2,6 +2,9 @@ import Foundation
 
 extension ConversationViewModel {
     func ensureCanReserveOutbound() throws {
+        guard !isUpdatingTaskWorkspaceConfiguration else {
+            throw AgentError.spawnFailed("Task folder access is still being applied")
+        }
         guard !state.isReconfiguringSession else {
             throw AgentError.spawnFailed("Session changes are still being applied")
         }

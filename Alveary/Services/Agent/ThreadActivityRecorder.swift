@@ -3,6 +3,7 @@ import SwiftData
 
 @MainActor
 protocol ThreadActivityRecording: AnyObject, Sendable {
+    func recordTaskMaterialized(conversationId: String)
     func recordVisibleOutbound(conversationId: String)
     func recordVisibleTurnEnded(conversationId: String)
     func recordHistoricalActivity(conversationId: String, timestamp: Date)
@@ -25,6 +26,10 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     }
 
     func recordVisibleOutbound(conversationId: String) {
+        recordLiveActivity(conversationId: conversationId)
+    }
+
+    func recordTaskMaterialized(conversationId: String) {
         recordLiveActivity(conversationId: conversationId)
     }
 
@@ -124,7 +129,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     ) -> Bool {
         guard thread.archivedAt == nil,
               !thread.isDraft,
-              let projectPath = thread.project?.path else {
+              let scope = activityScope(for: thread) else {
             return false
         }
 
@@ -139,7 +144,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
             resolvedTimestamp = timestamp
         }
 
-        let beforeOrder = orderedThreadIDs(projectPath: projectPath)
+        let beforeOrder = orderedThreadIDs(scope: scope)
         thread.modifiedAt = resolvedTimestamp
         do {
             try modelContext.save()
@@ -147,12 +152,12 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
             thread.modifiedAt = currentTimestamp
             return false
         }
-        let afterOrder = orderedThreadIDs(projectPath: projectPath)
+        let afterOrder = orderedThreadIDs(scope: scope)
         let didChangeOrder = beforeOrder != afterOrder
 
         if postsNotification {
             postActivityChanged(
-                projectPath: projectPath,
+                scope: scope,
                 threadID: thread.persistentModelID,
                 conversationId: conversationId,
                 didChangeOrder: didChangeOrder
@@ -162,34 +167,67 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     }
 
     private func postActivityChanged(
-        projectPath: String,
+        scope: ThreadActivityScope,
         threadID: PersistentIdentifier,
         conversationId: String?,
         didChangeOrder: Bool
     ) {
         var userInfo: [String: Any] = [
-            ThreadActivityNotificationKey.projectPath: projectPath,
+            ThreadActivityNotificationKey.threadMode: scope.mode.rawValue,
             ThreadActivityNotificationKey.threadID: threadID,
             ThreadActivityNotificationKey.didChangeOrder: didChangeOrder
         ]
+        if case .project(let projectPath) = scope {
+            userInfo[ThreadActivityNotificationKey.projectPath] = projectPath
+        }
         if let conversationId {
             userInfo[ThreadActivityNotificationKey.conversationID] = conversationId
         }
         NotificationCenter.default.post(name: .threadActivityChanged, object: nil, userInfo: userInfo)
     }
 
-    private func orderedThreadIDs(projectPath: String) -> [PersistentIdentifier] {
-        AgentThreadOrdering.orderedIDs(activeThreads(projectPath: projectPath))
+    private func activityScope(for thread: AgentThread) -> ThreadActivityScope? {
+        switch thread.mode {
+        case .project:
+            guard let projectPath = thread.project?.path else {
+                return nil
+            }
+            return .project(projectPath)
+        case .task:
+            return .task
+        }
     }
 
-    private func activeThreads(projectPath: String) -> [AgentThread] {
-        let descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
-            }
-        )
-        let threads = (try? modelContext.fetch(descriptor)) ?? []
-        return threads.filter { !$0.isPinned || $0.project?.isPinned == true }
+    private func orderedThreadIDs(scope: ThreadActivityScope) -> [PersistentIdentifier] {
+        AgentThreadOrdering.orderedIDs(activeThreads(scope: scope))
+    }
+
+    private func activeThreads(scope: ThreadActivityScope) -> [AgentThread] {
+        switch scope {
+        case .project(let projectPath):
+            let projectMode = AgentThreadMode.project.rawValue
+            let descriptor = FetchDescriptor<AgentThread>(
+                predicate: #Predicate { thread in
+                    thread.archivedAt == nil &&
+                        thread.isDraft == false &&
+                        thread.modeRawValue == projectMode &&
+                        thread.project?.path == projectPath
+                }
+            )
+            let threads = (try? modelContext.fetch(descriptor)) ?? []
+            return threads.filter { !$0.isPinned || $0.project?.isPinned == true }
+        case .task:
+            let taskMode = AgentThreadMode.task.rawValue
+            let descriptor = FetchDescriptor<AgentThread>(
+                predicate: #Predicate { thread in
+                    thread.archivedAt == nil &&
+                        thread.isDraft == false &&
+                        thread.modeRawValue == taskMode &&
+                        thread.isPinned == false
+                }
+            )
+            return (try? modelContext.fetch(descriptor)) ?? []
+        }
     }
 
     private func missingModifiedThreadIDs() -> [PersistentIdentifier] {
@@ -244,6 +282,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
 
 enum ThreadActivityNotificationKey {
     static let projectPath = "projectPath"
+    static let threadMode = "threadMode"
     static let threadID = "threadID"
     static let conversationID = "conversationID"
     static let didChangeOrder = "didChangeOrder"
@@ -256,8 +295,23 @@ extension Notification.Name {
 
 @MainActor
 final class NoopThreadActivityRecorder: ThreadActivityRecording {
+    func recordTaskMaterialized(conversationId: String) {}
     func recordVisibleOutbound(conversationId: String) {}
     func recordVisibleTurnEnded(conversationId: String) {}
     func recordHistoricalActivity(conversationId: String, timestamp: Date) {}
     func backfillMissingModifiedDates(batchSize: Int = 100) async {}
+}
+
+private enum ThreadActivityScope {
+    case project(String)
+    case task
+
+    var mode: AgentThreadMode {
+        switch self {
+        case .project:
+            return .project
+        case .task:
+            return .task
+        }
+    }
 }

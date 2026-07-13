@@ -153,7 +153,7 @@ extension SidebarViewModel {
 
     func pinnedThreads() -> [AgentThread] {
         fetchedVisiblePinnedThreads()
-            .filter { $0.project != nil && $0.project?.isPinned != true }
+            .filter { $0.mode == .project && $0.project != nil && $0.project?.isPinned != true }
             .sorted(by: comparePinnedThreads)
     }
 
@@ -172,7 +172,7 @@ extension SidebarViewModel {
                 )
             }
         let threadItems = fetchedVisiblePinnedThreads()
-            .filter { $0.project != nil && $0.project?.isPinned != true }
+            .filter { $0.mode == .project && $0.project != nil && $0.project?.isPinned != true }
             .map(SidebarPinnedItem.init(thread:))
         return SidebarPinnedItemOrdering.sorted(projectItems + threadItems)
     }
@@ -185,7 +185,7 @@ extension SidebarViewModel {
             }
         )
 
-        let threads = (try? modelContext.fetch(descriptor)) ?? []
+        let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.mode == .project }
         return AgentThreadOrdering.sorted(threads.filter { project.isPinned || !$0.isPinned })
     }
 
@@ -196,7 +196,7 @@ extension SidebarViewModel {
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-        return ((try? modelContext.fetch(descriptor)) ?? []).isEmpty == false
+        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.mode == .project }
     }
 
     func setProjectPinned(_ project: Project, isPinned: Bool) throws {
@@ -299,7 +299,7 @@ extension SidebarViewModel {
 private extension SidebarViewModel {
     func latestVisibleThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
         threads
-            .filter { $0.project?.path == project.path }
+            .filter { $0.mode == .project && $0.project?.path == project.path }
             .compactMap(\.modifiedAt)
             .max()
     }

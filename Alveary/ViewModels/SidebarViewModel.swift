@@ -15,6 +15,7 @@ final class SidebarViewModel {
     let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     let providerSessionActionService: any ProviderSessionActionService
     let attachmentStore: any ConversationAttachmentStore
+    let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     private let invalidateConversationController: @MainActor (String) -> Void
     let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
     let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
@@ -31,10 +32,10 @@ final class SidebarViewModel {
     var statusVersion = 0
     var threadOrderVersion = 0
     var activeForkSourceThreadIDs: Set<PersistentIdentifier> = []
-    var draftCreationTask: Task<PersistentIdentifier, Error>?
-    var draftCreationTaskID: UUID?
-    var pendingDraftProjectPath: String?
-    var cachedDraftThreadID: PersistentIdentifier?
+    var draftCreationTasks: [AgentThreadMode: Task<PersistentIdentifier, Error>] = [:]
+    var draftCreationTaskIDs: [AgentThreadMode: UUID] = [:]
+    var pendingDraftProjectPaths: [AgentThreadMode: String] = [:]
+    var cachedDraftThreadIDs: [AgentThreadMode: PersistentIdentifier] = [:]
 
     init(
         agentsManager: any AgentsManager,
@@ -46,6 +47,7 @@ final class SidebarViewModel {
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         providerSessionActions: any ProviderSessionActionService = NoopProviderSessionActionService(),
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
+        taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
         invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
         saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
@@ -65,6 +67,7 @@ final class SidebarViewModel {
         self.providerDiscovery = providerDiscovery
         self.providerSessionActionService = providerSessionActions
         self.attachmentStore = attachmentStore
+        self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         self.invalidateConversationController = invalidateConversationController
         self.saveDraftProjectMove = saveDraftProjectMove
         self.saveDeletionCommit = saveDeletionCommit
@@ -242,7 +245,6 @@ final class SidebarViewModel {
             )
         }
 
-        try await worktreeManager.removeAll(projectPath: snapshot.projectPath)
     }
 
     private func cleanupThread(_ snapshot: ThreadCleanupSnapshot, skipGitWhenProjectMissing: Bool = false, waitForRuntime: Bool = true) async throws {
@@ -250,14 +252,23 @@ final class SidebarViewModel {
             try await awaitConversationTeardowns(snapshot.conversationIDs)
         }
 
-        if skipGitWhenProjectMissing, !directoryExists(at: snapshot.projectPath) {
+        if snapshot.mode == .task {
+            try await cleanupTaskWorkspace(snapshot)
+            return
+        }
+
+        guard let projectPath = snapshot.sourceProjectPath else {
+            throw SidebarViewModelError.threadMissingParentProject
+        }
+
+        if skipGitWhenProjectMissing, !directoryExists(at: projectPath) {
             return
         }
 
         for pendingCleanupBranch in snapshot.pendingCleanupBranches
         where pendingCleanupBranch != snapshot.branch {
             try await worktreeManager.deleteBranch(
-                projectPath: snapshot.projectPath,
+                projectPath: projectPath,
                 branch: pendingCleanupBranch
             )
         }
@@ -268,13 +279,13 @@ final class SidebarViewModel {
                 throw SidebarViewModelError.threadMissingDeletionMetadata
             }
             try await worktreeManager.remove(
-                projectPath: snapshot.projectPath,
+                projectPath: projectPath,
                 worktreePath: worktreePath,
                 branch: branch
             )
         } else if let worktreePath = snapshot.worktreePath {
             try await worktreeManager.remove(
-                projectPath: snapshot.projectPath,
+                projectPath: projectPath,
                 worktreePath: worktreePath,
                 branch: snapshot.branch
             )
@@ -484,12 +495,4 @@ extension SidebarViewModel {
         return .commandFailed(combined)
     }
 
-    func directoryExists(at path: String) -> Bool {
-        var isDirectory = ObjCBool(false)
-        let exists = FileManager.default.fileExists(
-            atPath: path,
-            isDirectory: &isDirectory
-        )
-        return exists && isDirectory.boolValue
-    }
 }

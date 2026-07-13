@@ -419,6 +419,7 @@ func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
+        taskWorkspace: nil,
         onSubmit: {},
         onStop: {}
     )

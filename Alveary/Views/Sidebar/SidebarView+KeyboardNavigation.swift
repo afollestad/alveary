@@ -125,9 +125,12 @@ extension SidebarView {
 
 func effectiveSidebarSelection(_ selection: SidebarItem?) -> SidebarItem? {
     guard case .thread(let thread) = selection,
-          thread.isDraft,
-          let project = thread.project else {
+          thread.isDraft else {
         return selection
+    }
+    guard thread.mode == .project,
+          let project = thread.project else {
+        return nil
     }
     return .project(project)
 }

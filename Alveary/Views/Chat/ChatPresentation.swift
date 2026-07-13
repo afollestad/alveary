@@ -99,6 +99,7 @@ struct ChatComposerModeState: Equatable, Sendable {
 // Reads SwiftData-backed thread fields into value state that SwiftUI and native
 // AppKit chat views can share without duplicating render-branch logic.
 struct ChatThreadPresentation: Equatable, Sendable {
+    let mode: AgentThreadMode
     let selectedModel: String
     let selectedEffort: String
     let selectedSpeedMode: AgentSpeedMode
@@ -117,6 +118,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
         runtimePlanModeEnabled: Bool? = nil,
         pendingPlanModeEnabled: Bool? = nil
     ) {
+        mode = thread?.mode ?? .project
         selectedModel = thread?.model ?? AppSettings.defaultModelValue
         selectedEffort = AppSettings.normalizedEffortLevel(thread?.effort)
         selectedSpeedMode = thread?.normalizedSpeedMode ?? .standard
@@ -129,6 +131,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
         selectedUseWorktree = thread?.useWorktree ?? false
 
         if let thread,
+           thread.mode == .project,
            let project = thread.project,
            project.isGitRepository,
            !thread.hasCompletedInitialSetup {

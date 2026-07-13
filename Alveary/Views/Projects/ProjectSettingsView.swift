@@ -247,7 +247,7 @@ private extension ProjectSettingsView {
                 thread.archivedAt != nil && thread.project?.path == projectPath
             }
         )
-        let threads = (try? modelContext.fetch(descriptor)) ?? []
+        let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.mode == .project }
         return threads.sorted { lhs, rhs in
             let leftDate = lhs.archivedAt ?? .distantPast
             let rightDate = rhs.archivedAt ?? .distantPast

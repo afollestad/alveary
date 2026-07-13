@@ -10,6 +10,7 @@ extension AppComponent {
             let keepAwakeService = self.keepAwakeService
             let settingsService = self.settingsService
             let worktreeManager = self.worktreeManager
+            let taskWorkspaceOwnershipService = self.taskWorkspaceOwnershipService
             let providerSetup = self.providerSetupService
             let contextWindowCache = self.contextWindowCache
             let attachmentStore = self.conversationAttachmentStore
@@ -23,6 +24,7 @@ extension AppComponent {
                     modelContext: modelContext,
                     settingsService: settingsService,
                     worktreeManager: worktreeManager,
+                    taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
                     providerSetup: providerSetup,
                     contextWindowCache: contextWindowCache,
                     attachmentStore: attachmentStore,

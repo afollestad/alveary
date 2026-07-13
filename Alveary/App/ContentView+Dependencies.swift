@@ -18,6 +18,7 @@ struct ContentViewDependencies {
     let attachmentStore: any ConversationAttachmentStore
     let keepAwakeService: KeepAwakeService
     let worktreeManager: WorktreeManager
+    let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     let providerSessionActions: any ProviderSessionActionService
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
@@ -50,6 +51,7 @@ struct ContentViewDependencies {
             attachmentStore: component.conversationAttachmentStore,
             keepAwakeService: component.keepAwakeService,
             worktreeManager: component.worktreeManager,
+            taskWorkspaceOwnershipService: component.taskWorkspaceOwnershipService,
             providerSessionActions: component.providerSessionActionService,
             providerSetup: component.providerSetupService,
             contextWindowCache: component.contextWindowCache,

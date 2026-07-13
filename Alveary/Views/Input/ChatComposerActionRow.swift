@@ -73,6 +73,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
             onPlanModeChange: { isPlanModeEnabled = $0 },
             onGoalModeChange: { isGoalModeArmed = $0 },
             onGoalModeChipDismiss: { isGoalModeArmed = false },
+            taskWorkspace: nil,
             onSubmit: onSubmit,
             onStop: onStop,
             onAddPhotosAndFiles: onAddPhotosAndFiles
@@ -176,6 +177,7 @@ final class ChatComposerActionRowView: NSView {
         var onPlanModeChange: (Bool) -> Void = { _ in }
         var onGoalModeChange: (Bool) -> Void = { _ in }
         var onGoalModeChipDismiss: () -> Void = {}
+        var taskWorkspace: TaskWorkspaceConfiguration?
         let onSubmit: () -> Void
         let onStop: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
@@ -211,6 +213,8 @@ final class ChatComposerActionRowView: NSView {
     var permissionMenuController: ComposerPermissionMenuViewController?
     var worktreePopover: NSPopover?
     var worktreeMenuController: ComposerWorktreeMenuViewController?
+    var taskWorkspacePopover: NSPopover?
+    var taskWorkspaceMenuController: ComposerTaskWorkspaceMenuViewController?
     private var progressStackHeightConstraint: NSLayoutConstraint?
     let rowSpacing: CGFloat = 10
     let plusControlVisibleSpacing: CGFloat = 20
@@ -245,6 +249,7 @@ final class ChatComposerActionRowView: NSView {
             closeReasoningMenu()
             closePermissionMenu()
             closeWorktreeLocationMenu()
+            closeTaskWorkspaceMenu()
         }
     }
 
@@ -369,6 +374,7 @@ final class ChatComposerActionRowView: NSView {
             closePlusMenu()
             closeReasoningMenu()
             closeWorktreeLocationMenu()
+            closeTaskWorkspaceMenu()
         }
         if configuration.areControlsDisabled || configuration.supportedPermissionModes.isEmpty {
             closePermissionMenu()
@@ -377,6 +383,7 @@ final class ChatComposerActionRowView: NSView {
             closeWorktreeLocationMenu()
         }
         applyMenuConfiguration(configuration)
+        applyTaskWorkspaceConfiguration(configuration)
         applyPlusButtonConfiguration(configuration)
         applyAccessoryConfiguration(configuration)
         applyActionConfiguration(configuration)
@@ -460,7 +467,7 @@ final class ChatComposerActionRowView: NSView {
         if configuration.isGoalModeChipVisible {
             views.append(goalModeButton)
         }
-        if configuration.showWorktreePicker {
+        if configuration.showWorktreePicker || configuration.taskWorkspace != nil {
             views.append(worktreeButton)
         }
 

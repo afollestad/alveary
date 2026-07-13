@@ -142,7 +142,8 @@ final class AppComponentTests: XCTestCase {
             effort: "high",
             reasoningSummaryMode: .auto,
             speedMode: .fast,
-            initialPrompt: "Start"
+            initialPrompt: "Start",
+            additionalWorkspaceRoots: ["/tmp/granted"]
         ))
 
         XCTAssertEqual(config.providerId.rawValue, "claude")
@@ -154,6 +155,7 @@ final class AppComponentTests: XCTestCase {
         XCTAssertEqual(config.reasoningSummaryMode, .auto)
         XCTAssertEqual(config.speedMode?.rawValue, "fast")
         XCTAssertEqual(config.initialPrompt, "Start")
+        XCTAssertEqual(config.additionalWorkspaceRoots.map(\.path), ["/tmp/granted"])
     }
 
     func testAgentCLIKitHostAdapterAcceptsCodexProvider() throws {
@@ -165,12 +167,14 @@ final class AppComponentTests: XCTestCase {
             permissionMode: "on-request",
             model: nil,
             effort: "high",
-            initialPrompt: nil
+            initialPrompt: nil,
+            additionalWorkspaceRoots: ["/tmp/granted"]
         ))
 
         XCTAssertEqual(config.providerId.rawValue, "codex")
         XCTAssertEqual(config.permissionMode, "on-request")
         XCTAssertEqual(config.effort, "high")
+        XCTAssertEqual(config.additionalWorkspaceRoots.map(\.path), ["/tmp/granted"])
     }
 
     func testAgentCLIKitHostAdapterRejectsUnsupportedProvider() {

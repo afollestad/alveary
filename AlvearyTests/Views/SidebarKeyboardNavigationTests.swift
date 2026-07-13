@@ -376,6 +376,21 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertNil(renameThreadID(for: .thread(thread), editingThreadID: nil))
     }
 
+    func testTaskDraftHasNoEffectiveSidebarSelection() {
+        let thread = AgentThread(
+            name: "Task draft",
+            isDraft: true,
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: "/tmp/task-draft",
+                ownershipStrategy: .privateOwned
+            )
+        )
+
+        XCTAssertNil(effectiveSidebarSelection(.thread(thread)))
+        XCTAssertNil(renameThreadID(for: .thread(thread), editingThreadID: nil))
+    }
+
     func testRenameThreadIDReturnsNilForNonThreadSelection() throws {
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 

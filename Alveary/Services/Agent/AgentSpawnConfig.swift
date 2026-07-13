@@ -18,6 +18,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let initialPrompt: String?
     let initialPromptAttachments: [LocalImageAttachment]
     let initialPromptMetadata: [String: AgentCLIKit.JSONValue]
+    let additionalWorkspaceRoots: [String]
     let allowedDirectories: [String]
     let initialGoal: String?
 
@@ -34,6 +35,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         initialPrompt: String? = nil,
         initialPromptAttachments: [LocalImageAttachment] = [],
         initialPromptMetadata: [String: AgentCLIKit.JSONValue] = [:],
+        additionalWorkspaceRoots: [String] = [],
         allowedDirectories: [String] = [],
         initialGoal: String? = nil
     ) {
@@ -49,6 +51,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.initialPrompt = initialPrompt
         self.initialPromptAttachments = initialPromptAttachments
         self.initialPromptMetadata = initialPromptMetadata
+        self.additionalWorkspaceRoots = additionalWorkspaceRoots.map(CanonicalPath.normalize)
         self.allowedDirectories = allowedDirectories.map(CanonicalPath.normalize)
         self.initialGoal = initialGoal
     }

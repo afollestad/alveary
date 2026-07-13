@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let providerDetection: any ProviderDetectionService
         let sessionManager: any SessionManager
         let attachmentStore: any ConversationAttachmentStore
+        let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
         let shellRunner: any ShellRunner
         let modelContainer: ModelContainer
         let flushConversationControllers: @MainActor () -> [ConversationControllerFlushFailure]
@@ -33,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 providerDetection: component.providerDetectionService,
                 sessionManager: component.sessionManager,
                 attachmentStore: component.conversationAttachmentStore,
+                taskWorkspaceOwnershipService: component.taskWorkspaceOwnershipService,
                 shellRunner: component.shellRunner,
                 modelContainer: component.modelContainer,
                 flushConversationControllers: {
@@ -68,17 +70,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var managedProcessesObserver: NSObjectProtocol?
     private var suddenTerminationDisabled = false
     private let notificationTapDelegate: NotificationTapDelegate
+    private let draftThreadIDsPresentAtInitialization: Set<PersistentIdentifier>?
 
     override init() {
         let dependencies = Dependencies.live()
         self.dependencies = dependencies
         self.notificationTapDelegate = NotificationTapDelegate(router: dependencies.notificationRouter)
+        self.draftThreadIDsPresentAtInitialization = Self.draftThreadIDs(in: dependencies.modelContainer.mainContext)
         super.init()
     }
 
     init(dependencies: Dependencies) {
         self.dependencies = dependencies
         self.notificationTapDelegate = NotificationTapDelegate(router: dependencies.notificationRouter)
+        self.draftThreadIDsPresentAtInitialization = Self.draftThreadIDs(in: dependencies.modelContainer.mainContext)
         super.init()
     }
 
@@ -100,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         removeObservers()
 
         UNUserNotificationCenter.current().delegate = notificationTapDelegate
-        let staleDraftConversationIDs = removeStaleDraftThreads()
+        let staleDraftConversationIDs = removeStaleDraftThreads(matching: draftThreadIDsPresentAtInitialization)
 
         startupTask?.cancel()
         startupTask = Task { [weak self] in
@@ -149,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func removeStaleDraftThreads(
+        matching threadIDs: Set<PersistentIdentifier>? = nil,
         persist: (ModelContext) throws -> Void = { try $0.save() }
     ) -> [String] {
         let modelContext = dependencies.modelContainer.mainContext
@@ -160,15 +166,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if modelContext.hasChanges {
                 try modelContext.save()
             }
-            let drafts = try modelContext.fetch(descriptor)
+            let drafts = try modelContext.fetch(descriptor).filter { thread in
+                threadIDs?.contains(thread.persistentModelID) ?? true
+            }
+            let draftIDs = Set(drafts.map(\.persistentModelID))
+            let retainedPrivateWorkspaceMarkerIDs = try retainedPrivateWorkspaceMarkerIDs(
+                excluding: draftIDs,
+                modelContext: modelContext
+            )
             let conversationIDs = drafts.flatMap { draft in
                 draft.conversations.map(\.id)
             }
+            let taskWorkspaces = drafts.compactMap(\.taskWorkspaceDescriptor)
             for draft in drafts {
                 modelContext.delete(draft)
             }
             if !drafts.isEmpty {
                 try persist(modelContext)
+            }
+            for workspace in taskWorkspaces {
+                do {
+                    try dependencies.taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
+                } catch {
+                    print("[AppDelegate] Failed to remove stale Task workspace: \(error)")
+                }
+            }
+            do {
+                try dependencies.taskWorkspaceOwnershipService.removeOrphanedPrivateWorkspaces(
+                    retainingMarkerIDs: retainedPrivateWorkspaceMarkerIDs
+                )
+            } catch {
+                print("[AppDelegate] Failed to sweep orphaned Task workspaces: \(error)")
             }
             return conversationIDs
         } catch {
@@ -176,6 +204,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("[AppDelegate] Failed to remove stale draft threads: \(error)")
             return []
         }
+    }
+
+    private func retainedPrivateWorkspaceMarkerIDs(
+        excluding threadIDs: Set<PersistentIdentifier>,
+        modelContext: ModelContext
+    ) throws -> Set<String> {
+        Set(try modelContext.fetch(FetchDescriptor<AgentThread>()).compactMap { thread -> String? in
+            guard !threadIDs.contains(thread.persistentModelID),
+                  thread.mode == .task,
+                  let workspace = thread.taskWorkspaceDescriptor,
+                  workspace.ownershipStrategy == .privateOwned else {
+                return nil
+            }
+            return workspace.ownershipMarkerID
+                ?? URL(fileURLWithPath: workspace.primaryRoot, isDirectory: true).lastPathComponent
+        })
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -222,6 +266,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private extension AppDelegate {
+    static func draftThreadIDs(in modelContext: ModelContext) -> Set<PersistentIdentifier>? {
+        let descriptor = FetchDescriptor<AgentThread>(predicate: #Predicate { thread in
+            thread.isDraft == true
+        })
+        do {
+            return Set(try modelContext.fetch(descriptor).map(\.persistentModelID))
+        } catch {
+            print("[AppDelegate] Failed to snapshot stale draft threads: \(error)")
+            return nil
+        }
+    }
+
     func scheduleWakeRefresh() {
         wakeRefreshTask?.cancel()
         let providerDetection = dependencies.providerDetection

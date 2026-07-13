@@ -51,7 +51,11 @@ enum NewThreadProjectResolver {
         case .project(let project):
             return modelContext.resolveProject(id: project.persistentModelID)
         case .thread(let thread):
-            return modelContext.resolveThread(id: thread.persistentModelID)?.project
+            guard let thread = modelContext.resolveThread(id: thread.persistentModelID),
+                  thread.mode == .project else {
+                return nil
+            }
+            return thread.project
         case .settings:
             guard let previousSelection else {
                 return nil
@@ -61,7 +65,11 @@ enum NewThreadProjectResolver {
             case .projectPath(let path):
                 return project(path: path, modelContext: modelContext)
             case .threadId(let id):
-                return modelContext.resolveThread(id: id)?.project
+                guard let thread = modelContext.resolveThread(id: id),
+                      thread.mode == .project else {
+                    return nil
+                }
+                return thread.project
             case .skills, .mcp:
                 return nil
             }
@@ -96,8 +104,8 @@ extension ContentView {
             case .newProject:
                 isAddProjectSheetPresented = true
 
-            case .newThread:
-                await handleNewThreadCommand(commandID: commandID)
+            case .newThread(_, let mode):
+                await handleNewThreadCommand(commandID: commandID, mode: mode)
             }
         }
     }
@@ -138,14 +146,19 @@ extension ContentView {
         return try? uiModelContext.fetch(descriptor).first
     }
 
-    func handleNewThreadCommand(commandID: UUID) async {
-        guard let project = resolvedNewThreadProject() else {
-            appState.presentUnexpectedError(message: NewThreadCommandPresentation.noProjectMessage)
-            return
-        }
-
+    func handleNewThreadCommand(commandID: UUID, mode: AgentThreadMode) async {
         do {
-            let createdThread = try await sidebarViewModel.openDraftThread(project: project)
+            let createdThread: AgentThread
+            switch mode {
+            case .project:
+                guard let project = resolvedNewThreadProject() else {
+                    appState.presentUnexpectedError(message: NewThreadCommandPresentation.noProjectMessage)
+                    return
+                }
+                createdThread = try await sidebarViewModel.openDraftThread(project: project)
+            case .task:
+                createdThread = try await sidebarViewModel.openTaskDraft()
+            }
             guard appState.pendingCommand?.id == commandID else {
                 return
             }
@@ -177,7 +190,11 @@ extension ContentView {
         case .project(let project):
             path = uiModelContext.resolveProject(id: project.persistentModelID)?.path
         case .thread(let thread):
-            path = uiModelContext.resolveThread(id: thread.persistentModelID)?.project?.path
+            guard let liveThread = uiModelContext.resolveThread(id: thread.persistentModelID),
+                  liveThread.mode == .project else {
+                return
+            }
+            path = liveThread.project?.path
         default:
             return
         }

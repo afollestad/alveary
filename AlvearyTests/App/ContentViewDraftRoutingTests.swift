@@ -62,6 +62,39 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         XCTAssertEqual(threadResolution.project?.persistentModelID, fixture.selectedProject.persistentModelID)
     }
 
+    func testTaskModeSelectionAndBookmarkDoNotChooseAttachedProject() throws {
+        let fixture = try DraftRoutingFixture()
+        let task = AgentThread(
+            name: "Attached task",
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: fixture.selectedProject.path,
+                ownershipStrategy: .projectLocal,
+                sourceProjectPath: fixture.selectedProject.path
+            ),
+            project: fixture.selectedProject
+        )
+        fixture.selectedProject.threads.append(task)
+        fixture.context.insert(task)
+        try fixture.context.save()
+
+        let selectedResolution = NewThreadProjectResolver.resolve(
+            selection: .thread(task),
+            previousSelection: nil,
+            lastActiveProjectPath: fixture.persistedProject.path,
+            modelContext: fixture.context
+        )
+        let bookmarkResolution = NewThreadProjectResolver.resolve(
+            selection: .settings,
+            previousSelection: .threadId(task.persistentModelID),
+            lastActiveProjectPath: fixture.persistedProject.path,
+            modelContext: fixture.context
+        )
+
+        XCTAssertEqual(selectedResolution.project?.persistentModelID, fixture.persistedProject.persistentModelID)
+        XCTAssertEqual(bookmarkResolution.project?.persistentModelID, fixture.persistedProject.persistentModelID)
+    }
+
     func testNewThreadProjectResolverRewritesStalePathToDeterministicFallback() throws {
         let (container, context) = try makeProjectSelectionContainer()
         let laterPath = Project(path: "/tmp/z-alveary", name: "alveary")

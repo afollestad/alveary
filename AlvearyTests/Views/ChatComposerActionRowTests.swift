@@ -276,6 +276,7 @@ func makeConfiguration(
     isStopConfirmationArmed: Bool = false,
     onPlanModeChange: @escaping (Bool) -> Void = { _ in },
     onGoalModeChipDismiss: @escaping () -> Void = {},
+    taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration? = nil,
     onEffortChange: @escaping (String) -> Bool = { _ in true },
     onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
     onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
@@ -314,6 +315,7 @@ func makeConfiguration(
         onUseWorktreeChange: { _ in },
         onPlanModeChange: onPlanModeChange,
         onGoalModeChipDismiss: onGoalModeChipDismiss,
+        taskWorkspace: taskWorkspace,
         onSubmit: onSubmit,
         onStop: onStop,
         onAddPhotosAndFiles: onAddPhotosAndFiles

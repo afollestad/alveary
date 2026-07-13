@@ -20,6 +20,12 @@ final class AgentThread {
     var isDraft: Bool = false
     var modifiedAt: Date?
     var archivedAt: Date?
+    var modeRawValue: String = AgentThreadMode.project.rawValue
+    var taskPrimaryRoot: String?
+    var taskGrantedRoots: [String] = []
+    var taskWorkspaceOwnershipStrategyRawValue: String?
+    var taskWorkspaceMarkerID: String?
+    var taskSourceProjectPath: String?
     var project: Project?
     @Relationship(deleteRule: .cascade, inverse: \Conversation.thread) var conversations: [Conversation]
 
@@ -41,6 +47,8 @@ final class AgentThread {
         isDraft: Bool = false,
         modifiedAt: Date? = nil,
         archivedAt: Date? = nil,
+        mode: AgentThreadMode = .project,
+        taskWorkspaceDescriptor: TaskWorkspaceDescriptor? = nil,
         project: Project? = nil,
         conversations: [Conversation] = []
     ) {
@@ -61,6 +69,12 @@ final class AgentThread {
         self.isDraft = isDraft
         self.modifiedAt = modifiedAt
         self.archivedAt = archivedAt
+        self.modeRawValue = mode.rawValue
+        self.taskPrimaryRoot = taskWorkspaceDescriptor?.primaryRoot
+        self.taskGrantedRoots = taskWorkspaceDescriptor?.grantedRoots ?? []
+        self.taskWorkspaceOwnershipStrategyRawValue = taskWorkspaceDescriptor?.ownershipStrategy.rawValue
+        self.taskWorkspaceMarkerID = taskWorkspaceDescriptor?.ownershipMarkerID
+        self.taskSourceProjectPath = taskWorkspaceDescriptor?.sourceProjectPath
         self.project = project
         self.conversations = conversations
     }
@@ -70,6 +84,7 @@ enum ThreadDraftNotificationKey {
     static let threadID = "threadID"
     static let conversationID = "conversationID"
     static let projectPath = "projectPath"
+    static let mode = "mode"
 }
 
 extension Notification.Name {
@@ -78,6 +93,57 @@ extension Notification.Name {
 }
 
 extension AgentThread {
+    var mode: AgentThreadMode {
+        get { AgentThreadMode(rawValue: modeRawValue) ?? .project }
+        set { modeRawValue = newValue.rawValue }
+    }
+
+    var taskWorkspaceDescriptor: TaskWorkspaceDescriptor? {
+        get {
+            guard mode == .task,
+                  let taskPrimaryRoot,
+                  !taskPrimaryRoot.isEmpty,
+                  let strategyRawValue = taskWorkspaceOwnershipStrategyRawValue,
+                  let ownershipStrategy = TaskWorkspaceOwnershipStrategy(rawValue: strategyRawValue)
+            else {
+                return nil
+            }
+
+            return TaskWorkspaceDescriptor(
+                primaryRoot: taskPrimaryRoot,
+                grantedRoots: taskGrantedRoots,
+                ownershipStrategy: ownershipStrategy,
+                ownershipMarkerID: taskWorkspaceMarkerID,
+                sourceProjectPath: taskSourceProjectPath
+            )
+        }
+        set {
+            taskPrimaryRoot = newValue?.primaryRoot
+            taskGrantedRoots = newValue?.grantedRoots ?? []
+            taskWorkspaceOwnershipStrategyRawValue = newValue?.ownershipStrategy.rawValue
+            taskWorkspaceMarkerID = newValue?.ownershipMarkerID
+            taskSourceProjectPath = newValue?.sourceProjectPath
+        }
+    }
+
+    var primaryWorkingDirectory: String? {
+        switch mode {
+        case .project:
+            worktreePath ?? project?.path
+        case .task:
+            taskWorkspaceDescriptor?.primaryRoot
+        }
+    }
+
+    var sourceProjectCleanupPath: String? {
+        switch mode {
+        case .project:
+            project?.path
+        case .task:
+            taskWorkspaceDescriptor?.sourceProjectPath
+        }
+    }
+
     var normalizedSpeedMode: AgentSpeedMode {
         AgentSpeedMode(normalizing: speedMode)
     }

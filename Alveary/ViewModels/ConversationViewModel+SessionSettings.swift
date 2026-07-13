@@ -29,8 +29,7 @@ extension ConversationViewModel {
         let providerId = settingsContext.liveConfig?.providerId ?? dbConversation.provider ?? settingsService.current.defaultProvider
         let workingDirectory = overrideWorkingDirectory
             ?? settingsContext.liveConfig?.workingDirectory
-            ?? dbConversation.thread?.worktreePath
-            ?? dbConversation.thread?.project?.path
+            ?? dbConversation.thread?.primaryWorkingDirectory
 
         guard let workingDirectory, !workingDirectory.isEmpty else {
             throw AgentError.spawnFailed("Cannot spawn agent: no working directory")
@@ -40,6 +39,9 @@ extension ConversationViewModel {
         let planModeOverride = spawnPlanModeOverride(settingsSource: settingsSource, context: settingsContext)
         let speedModeOverride = spawnSpeedModeOverride(settingsSource: settingsSource, context: settingsContext)
         let modelAndEffort = spawnModelAndEffort(context: settingsContext, thread: dbConversation.thread)
+        let additionalWorkspaceRoots = dbConversation.thread?.mode == .task
+            ? dbConversation.thread?.taskWorkspaceDescriptor?.grantedRoots ?? []
+            : []
 
         return AgentSpawnConfig(
             providerId: providerId,
@@ -53,6 +55,7 @@ extension ConversationViewModel {
             initialPrompt: initialPrompt,
             initialPromptAttachments: initialPromptAttachments,
             initialPromptMetadata: initialPromptMetadata,
+            additionalWorkspaceRoots: additionalWorkspaceRoots,
             allowedDirectories: mergedAllowedDirectories(
                 configured: settingsContext.liveConfig?.allowedDirectories ?? [],
                 additional: allowedDirectories

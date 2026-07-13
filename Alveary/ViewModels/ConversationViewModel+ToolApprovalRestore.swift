@@ -102,7 +102,7 @@ extension ConversationViewModel {
     func resolvedToolApprovalStatusFromClaudeSession(_ approval: ToolApprovalRequest) -> ToolApprovalStatus? {
         let providerId = conversation.provider ?? settingsService.current.defaultProvider
         guard providerId == "claude",
-              let workingDirectory = dbConversation()?.thread?.worktreePath ?? dbConversation()?.thread?.project?.path else {
+              let workingDirectory = dbConversation()?.thread?.primaryWorkingDirectory else {
             return nil
         }
 

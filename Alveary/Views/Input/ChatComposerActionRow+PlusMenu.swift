@@ -72,5 +72,6 @@ extension ChatComposerActionRowView: NSPopoverDelegate {
         finishReasoningMenuClose(for: popover)
         finishPermissionMenuClose(for: popover)
         finishWorktreeLocationMenuClose(for: popover)
+        finishTaskWorkspaceMenuClose(for: popover)
     }
 }

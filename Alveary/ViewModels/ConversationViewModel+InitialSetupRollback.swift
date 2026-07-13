@@ -51,8 +51,11 @@ extension ConversationViewModel {
         thread.hasCompletedInitialSetup = false
     }
 
-    func finishFailedInitialSetupRollback(project: Project, thread: AgentThread) async {
-        guard thread.useWorktree, let path = thread.worktreePath else {
+    func finishFailedInitialSetupRollback(project: Project?, thread: AgentThread) async {
+        guard thread.mode == .project,
+              thread.useWorktree,
+              let project,
+              let path = thread.worktreePath else {
             persistRollbackMetadataReset()
             return
         }

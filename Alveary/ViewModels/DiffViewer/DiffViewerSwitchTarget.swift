@@ -23,11 +23,15 @@ struct DiffViewerSwitchTarget: Equatable {
 
 extension DiffViewerSwitchTarget {
     static func forThread(_ thread: AgentThread, candidateConversationIDs: Set<String>? = nil) -> DiffViewerSwitchTarget? {
-        guard let directory = thread.worktreePath ?? thread.project?.path else {
+        guard let directory = thread.primaryWorkingDirectory else {
             return nil
         }
-        let projectPath = thread.project?.path ?? directory
-        let worktreePath = thread.worktreePath == projectPath ? nil : thread.worktreePath
+        let projectPath = thread.sourceProjectCleanupPath ?? directory
+        let taskWorktreePath = thread.taskWorkspaceDescriptor?.ownershipStrategy == .projectWorktreeOwned
+            ? thread.taskWorkspaceDescriptor?.primaryRoot
+            : nil
+        let resolvedWorktreePath = thread.mode == .project ? thread.worktreePath : taskWorktreePath
+        let worktreePath = resolvedWorktreePath == projectPath ? nil : resolvedWorktreePath
         return DiffViewerSwitchTarget(
             projectPath: projectPath,
             worktreePath: worktreePath,

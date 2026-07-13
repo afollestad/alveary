@@ -20,6 +20,7 @@ extension ConversationViewModel {
 
     func repairMissingWorktreeIfNeeded() throws {
         guard let thread = dbThread(),
+              thread.mode == .project,
               thread.useWorktree,
               thread.hasCompletedInitialSetup,
               let worktreePath = thread.worktreePath,
@@ -67,12 +68,9 @@ extension ConversationViewModel {
         ).id
 
         if let materializedThread {
-            materializedThread.isDraft = false
             do {
-                try draftMaterializationSaver()
+                try commitDraftMaterialization(materializedThread)
             } catch {
-                materializedThread.isDraft = true // Restore the identity-map value before SwiftData discards the failed transaction.
-                modelContext.rollback()
                 state.appShotProviderSessionTitleFallback = previousAppShotTitleFallback
                 rebuildChatItemsIfNeeded(from: conversationEventRecords(), forceFullRebuild: true)
                 throw error
@@ -180,7 +178,7 @@ extension ConversationViewModel {
         await providerSetup.prepareForSpawn(
             providerId: config.providerId,
             workingDirectory: config.workingDirectory,
-            autoTrust: settingsService.current.autoTrustProjects
+            autoTrust: shouldAutoTrustWorkspace(config.workingDirectory)
         )
     }
 
@@ -334,10 +332,10 @@ extension ConversationViewModel {
         prepareInitialSetupStart()
 
         guard let dbConversation = dbConversation(),
-              let thread = dbConversation.thread,
-              let project = thread.project else {
-            throw AgentError.spawnFailed("No project associated with this thread")
+              let thread = dbConversation.thread else {
+            throw AgentError.spawnFailed("No thread associated with this conversation")
         }
+        let project = thread.project
 
         let resolvedStagedContext = snapshotStagedContext ?? (useCurrentStagedContextWhenOverrideNil ? state.stagedContext : nil)
         let snapshot = ConversationInitialSetupSnapshot(
@@ -410,45 +408,9 @@ extension ConversationViewModel {
         state.respawnAttempts = 0
     }
 
-    func createInitialWorkingDirectory(
-        for thread: AgentThread,
-        project: Project,
-        message: String
-    ) async throws -> String {
-        guard thread.useWorktree else {
-            return project.path
-        }
-
-        guard project.isGitRepository else {
-            thread.useWorktree = false
-            try modelContext.save()
-            return project.path
-        }
-
-        setupPhase = .creatingWorktree
-        let worktreeSlug = AgentSessionPreviewGenerator.preview(fromInitialPrompt: message) ?? thread.name
-
-        do {
-            let info = try await worktreeManager.create(
-                projectPath: project.path,
-                threadName: worktreeSlug,
-                baseRef: project.baseRef,
-                remoteName: project.remoteName
-            )
-            thread.worktreePath = info.path
-            thread.branch = info.branch
-            try modelContext.save()
-            return info.path
-        } catch {
-            await rollbackFailedWorktreeCreation(for: thread, project: project)
-            setupPhase = nil
-            throw error
-        }
-    }
-
     func rollbackFailedInitialSetup(
         error: Error,
-        project: Project,
+        project: Project?,
         thread: AgentThread,
         snapshot: ConversationInitialSetupSnapshot,
         restoresDraft: Bool
@@ -463,30 +425,6 @@ extension ConversationViewModel {
         await finishFailedInitialSetupRollback(project: project, thread: thread)
         setupPhase = nil
     }
-}
-
-private extension ConversationViewModel {
-    func rollbackFailedWorktreeCreation(for thread: AgentThread, project: Project) async {
-        guard let path = thread.worktreePath else {
-            return
-        }
-
-        do {
-            try await worktreeManager.remove(
-                projectPath: project.path,
-                worktreePath: path,
-                branch: thread.branch
-            )
-            thread.worktreePath = nil
-            thread.branch = nil
-            try modelContext.save()
-        } catch {
-            state.lastTurnError =
-                "Initial worktree setup failed and rollback cleanup/metadata clear also failed: " +
-                error.localizedDescription
-        }
-    }
-
 }
 
 private struct InitialSetupReservedPayload {

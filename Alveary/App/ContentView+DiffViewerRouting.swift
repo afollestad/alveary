@@ -14,7 +14,7 @@ extension ContentView {
                 target = nil
                 break
             }
-            if thread.isDraft, let project = thread.project {
+            if thread.mode == .project, thread.isDraft, let project = thread.project {
                 target = resolvedDiffViewerTarget(for: project)
             } else {
                 target = resolvedDiffViewerTarget(for: thread)
@@ -55,7 +55,7 @@ extension ContentView {
                   thread.archivedAt == nil else {
                 return nil
             }
-            if thread.isDraft, let project = thread.project {
+            if thread.mode == .project, thread.isDraft, let project = thread.project {
                 return resolvedDiffViewerTarget(for: project)
             }
             return DiffViewerSwitchTarget.forThread(
@@ -100,7 +100,7 @@ extension ContentView {
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-        return (try? uiModelContext.fetch(descriptor)) ?? []
+        return ((try? uiModelContext.fetch(descriptor)) ?? []).filter { $0.mode == .project }
     }
 
     private func liveDiffViewerConversationIDs(for thread: AgentThread) -> Set<String> {

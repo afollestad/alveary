@@ -23,6 +23,9 @@ extension SidebarViewModel {
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
+                for threadID in snapshot.detachedTaskThreadIDs {
+                    modelContext.resolveThread(id: threadID)?.project = nil
+                }
                 modelContext.delete(dbProject)
                 _ = try normalizeSidebarOrderingForLifecycle(
                     excludingProjectIDs: [snapshot.projectID],

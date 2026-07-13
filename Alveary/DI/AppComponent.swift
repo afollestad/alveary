@@ -389,6 +389,10 @@ extension AppComponent {
         }
     }
 
+    var taskWorkspaceOwnershipService: TaskWorkspaceOwnershipService {
+        return shared { DefaultTaskWorkspaceOwnershipService() }
+    }
+
     var fileListManager: FileListManager {
         return shared { GitFileListManager(gitService: gitService) }
     }

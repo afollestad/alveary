@@ -454,6 +454,7 @@ private extension ContentView {
               let thread = uiModelContext.resolveThread(id: threadID),
               thread.archivedAt == nil,
               !thread.isDraft,
+              thread.mode == .project,
               let projectPath = thread.project?.path else {
             guard selectedThreadID == threadID else { return }
             toolbarProjectActions = []

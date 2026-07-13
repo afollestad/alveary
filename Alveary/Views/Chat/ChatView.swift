@@ -347,6 +347,17 @@ extension ChatView {
 
     var composerActionRowConfiguration: ChatComposerActionRowView.Configuration {
         let presentation = composerPresentation
+        let taskWorkspaceConfiguration = conversation.thread?.taskWorkspaceDescriptor.map { workspace in
+            ChatComposerActionRowView.TaskWorkspaceConfiguration(
+                primaryRoot: workspace.primaryRoot,
+                grantedRoots: workspace.grantedRoots,
+                ownershipStrategy: workspace.ownershipStrategy,
+                canEdit: viewModel.canEditTaskWorkspaceConfiguration,
+                disabledTooltip: viewModel.taskWorkspaceConfigurationDisabledReason,
+                onAddFolders: { viewModel.addTaskWorkspaceGrants($0) },
+                onRemoveGrant: { viewModel.removeTaskWorkspaceGrant($0) }
+            )
+        }
         return ChatComposerActionRowView.Configuration(
             reasoning: reasoningConfiguration,
             supportedPermissionModes: ChatComposerPermissionPresentation.options(
@@ -379,6 +390,7 @@ extension ChatView {
             onGoalModeChipDismiss: {
                 dismissGoalModeFromComposerChip()
             },
+            taskWorkspace: taskWorkspaceConfiguration,
             onSubmit: {
                 guard presentation.canSubmit else {
                     return

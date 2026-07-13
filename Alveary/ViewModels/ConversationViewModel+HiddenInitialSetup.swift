@@ -18,10 +18,10 @@ private extension ConversationViewModel {
         state.lastTurnError = nil
 
         guard let dbConversation = dbConversation(),
-              let thread = dbConversation.thread,
-              let project = thread.project else {
-            throw AgentError.spawnFailed("No project associated with this thread")
+              let thread = dbConversation.thread else {
+            throw AgentError.spawnFailed("No thread associated with this conversation")
         }
+        let project = thread.project
 
         let snapshot = ConversationInitialSetupSnapshot(
             draft: state.inputDraft,

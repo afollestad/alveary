@@ -89,6 +89,46 @@ extension SnapshotTests {
         )
     }
 
+    func testEmptyTaskStateHero() throws {
+        let fixture = try makeEmptyTaskFixture()
+        assertMacSnapshot(
+            EmptyThreadState(
+                setupPhase: nil,
+                isCancellingInitialSetup: false,
+                thread: fixture.thread
+            ),
+            size: CGSize(width: 900, height: 560),
+            named: "empty_task_hero"
+        )
+    }
+
+    func testEmptyTaskStateHeroDark() throws {
+        let fixture = try makeEmptyTaskFixture()
+        assertMacSnapshot(
+            EmptyThreadState(
+                setupPhase: nil,
+                isCancellingInitialSetup: false,
+                thread: fixture.thread
+            ),
+            size: CGSize(width: 900, height: 560),
+            named: "empty_task_hero_dark",
+            colorScheme: .dark
+        )
+    }
+
+    func testEmptyTaskStateHeroNarrow() throws {
+        let fixture = try makeEmptyTaskFixture()
+        assertMacSnapshot(
+            EmptyThreadState(
+                setupPhase: nil,
+                isCancellingInitialSetup: false,
+                thread: fixture.thread
+            ),
+            size: CGSize(width: 420, height: 560),
+            named: "empty_task_hero_narrow"
+        )
+    }
+
     func testEmptyThreadStateCreatingWorktree() {
         assertMacSnapshot(
             EmptyThreadState(
@@ -205,6 +245,33 @@ private extension SnapshotTests {
             thread: thread,
             projects: [project, duplicate, longProject]
         )
+    }
+
+    func makeEmptyTaskFixture() throws -> EmptyThreadFixture {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            configurations: configuration
+        )
+        let context = ModelContext(container)
+        let thread = AgentThread(
+            name: "New task",
+            isDraft: true,
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: "/Users/alice/Library/Application Support/com.afollestad.alveary/TaskWorkspaces/Private/task",
+                grantedRoots: ["/Users/alice/Documents/References"],
+                ownershipStrategy: .privateOwned,
+                ownershipMarkerID: UUID().uuidString.lowercased()
+            )
+        )
+        let conversation = Conversation(provider: "codex", thread: thread)
+        context.insert(thread)
+        context.insert(conversation)
+        try context.save()
+        return EmptyThreadFixture(container: container, thread: thread, projects: [])
     }
 }
 

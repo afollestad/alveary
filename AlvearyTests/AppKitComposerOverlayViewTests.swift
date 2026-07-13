@@ -398,6 +398,7 @@ func makeOverlayActionRowConfiguration() -> ChatComposerActionRowView.Configurat
         composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
+        taskWorkspace: nil,
         onSubmit: {},
         onStop: {}
     )

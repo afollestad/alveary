@@ -16,12 +16,19 @@ struct AppDelegateTestFixture {
     let modelContainer: ModelContainer
     let attachmentRoot: URL
     let attachmentStore: DefaultConversationAttachmentStore
+    let taskWorkspaceOwnershipService: DefaultTaskWorkspaceOwnershipService
 
     init() throws {
         modelContainer = try Self.makeModelContainer()
         attachmentRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("alveary-app-delegate-tests-\(UUID().uuidString)", isDirectory: true)
         attachmentStore = DefaultConversationAttachmentStore(rootDirectory: attachmentRoot)
+        let workspaceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-app-delegate-workspaces-\(UUID().uuidString)", isDirectory: true)
+        taskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(
+            privateWorkspacesRoot: workspaceRoot.appendingPathComponent("Private", isDirectory: true),
+            worktreeOwnershipRecordsRoot: workspaceRoot.appendingPathComponent("Worktrees", isDirectory: true)
+        )
     }
 
     func insertConversations(_ ids: [String]) throws {
@@ -60,6 +67,7 @@ struct AppDelegateTestFixture {
                 providerDetection: providerDetection,
                 sessionManager: sessionManager,
                 attachmentStore: attachmentStore,
+                taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
                 shellRunner: shellRunner,
                 modelContainer: modelContainer,
                 flushConversationControllers: flushConversationControllers,

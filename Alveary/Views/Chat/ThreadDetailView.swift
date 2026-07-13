@@ -356,7 +356,7 @@ private extension ThreadDetailView {
 
             appState.selectConversation(conversation, in: dbThread)
 
-            if let path = dbThread.worktreePath ?? dbThread.project?.path {
+            if let path = dbThread.primaryWorkingDirectory {
                 let baseRef = dbThread.project?.baseRef ?? "main"
                 let remoteName = dbThread.project?.remoteName
                 let conversationIds = Set(existingConversations.map(\.id)).union([conversation.id])
@@ -447,7 +447,7 @@ private extension ThreadDetailView {
     }
 
     func refreshDiffAfterRemovingConversation(from thread: AgentThread, excluding conversationIDString: String) async {
-        guard let path = thread.worktreePath ?? thread.project?.path else {
+        guard let path = thread.primaryWorkingDirectory else {
             return
         }
 

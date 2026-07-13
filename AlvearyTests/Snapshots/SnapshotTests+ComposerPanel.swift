@@ -54,6 +54,25 @@ extension SnapshotTests {
         )
     }
 
+    func testAppKitComposerPanelWithTaskWorkspaceNarrow() {
+        assertMacSnapshot(
+            AppKitComposerPanelNativeRowSnapshot(
+                taskWorkspace: .init(
+                    primaryRoot: "/tmp/private-task",
+                    grantedRoots: ["/tmp/design-assets", "/tmp/reference-data"],
+                    ownershipStrategy: .privateOwned,
+                    canEdit: true,
+                    disabledTooltip: nil,
+                    onAddFolders: { _ in },
+                    onRemoveGrant: { _ in }
+                )
+            ),
+            size: CGSize(width: 620, height: 150),
+            named: "appkit_composer_panel_task_workspace_narrow",
+            colorScheme: .dark
+        )
+    }
+
     func testAppKitComposerPanelWithNativeTopContent() {
         assertMacSnapshot(
             AppKitComposerPanelNativeRowSnapshot(
@@ -226,6 +245,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
     let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
     let isGoalModeChipVisible: Bool
     let isGoalModeChipEnabled: Bool
+    let taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration?
     let usageSummary = ConversationUsageSummary(
         contextUsedTokens: 186_000,
         contextWindowSize: 200_000,
@@ -250,7 +270,8 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
         queuedMessagesPauseHeaderTitle: String? = nil,
         interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil,
         isGoalModeChipVisible: Bool = false,
-        isGoalModeChipEnabled: Bool = false
+        isGoalModeChipEnabled: Bool = false,
+        taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration? = nil
     ) {
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessages = queuedMessages
@@ -258,6 +279,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
         self.interactionOverlayConfiguration = interactionOverlayConfiguration
         self.isGoalModeChipVisible = isGoalModeChipVisible
         self.isGoalModeChipEnabled = isGoalModeChipEnabled
+        self.taskWorkspace = taskWorkspace
     }
 
     var body: some View {
@@ -369,6 +391,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
+            taskWorkspace: taskWorkspace,
             onSubmit: {},
             onStop: {}
         )

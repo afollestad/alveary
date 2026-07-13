@@ -198,8 +198,7 @@ private extension ConversationViewModel {
     func approvalBatchWorkingDirectory() -> URL? {
         let workingDirectory = state.pendingSessionSettingsChange?.liveSessionConfig?.workingDirectory
             ?? state.liveSessionConfig?.workingDirectory
-            ?? dbConversation()?.thread?.worktreePath
-            ?? dbConversation()?.thread?.project?.path
+            ?? dbConversation()?.thread?.primaryWorkingDirectory
         guard let workingDirectory, !workingDirectory.isEmpty else {
             return nil
         }

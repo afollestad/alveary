@@ -72,6 +72,219 @@ extension SidebarViewModelTests {
         XCTAssertEqual(invalidations.conversationIDs.sorted(), ["main", "side"])
     }
 
+    func testDeleteTaskRemovesOwnedPrivateWorkspaceButPreservesGrants() async throws {
+        let fixture = try SidebarTestFixture()
+        let task = try await fixture.viewModel.openTaskDraft()
+        let originalWorkspace = try XCTUnwrap(task.taskWorkspaceDescriptor)
+        let grantedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-task-delete-grant-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: grantedRoot, withIntermediateDirectories: true)
+        task.taskWorkspaceDescriptor = TaskWorkspaceDescriptor(
+            primaryRoot: originalWorkspace.primaryRoot,
+            grantedRoots: [grantedRoot.path],
+            ownershipStrategy: originalWorkspace.ownershipStrategy,
+            ownershipMarkerID: originalWorkspace.ownershipMarkerID
+        )
+        task.isDraft = false
+        try fixture.context.save()
+        let taskID = task.persistentModelID
+
+        try await fixture.viewModel.deleteThread(task)
+
+        XCTAssertNil(fixture.context.resolveThread(id: taskID))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalWorkspace.primaryRoot))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: grantedRoot.path))
+        try? FileManager.default.removeItem(at: grantedRoot)
+    }
+
+    func testDeleteTaskRemovesOwnedWorktreeThroughSourceProject() async throws {
+        let fixture = try SidebarTestFixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-task-worktree-delete-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
+        let worktreeRoot = root.appendingPathComponent("Worktree", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try fixture.taskWorkspaceOwnershipService.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        let task = AgentThread(
+            name: "Worktree task",
+            branch: "alveary/task-run",
+            mode: .task,
+            taskWorkspaceDescriptor: workspace
+        )
+        task.conversations = [Conversation(id: "worktree-task", provider: "codex", thread: task)]
+        fixture.context.insert(task)
+        try fixture.context.save()
+        await fixture.worktreeManager.setListResult([
+            WorktreeInfo(path: worktreeRoot.path, branch: "alveary/task-run")
+        ])
+
+        try await fixture.viewModel.deleteThread(task)
+
+        let removeCalls = await fixture.worktreeManager.removeCalls()
+        XCTAssertEqual(removeCalls, [
+            .init(
+                projectPath: sourceRoot.path,
+                worktreePath: worktreeRoot.path,
+                branch: "alveary/task-run"
+            )
+        ])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeRoot.path))
+        XCTAssertThrowsError(try fixture.taskWorkspaceOwnershipService.validateOwnedWorkspace(workspace))
+    }
+
+    func testDeleteTaskRemovesOwnedWorktreeWhenSourceProjectIsMissing() async throws {
+        let fixture = try SidebarTestFixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-task-missing-source-delete-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
+        let worktreeRoot = root.appendingPathComponent("Worktree", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try fixture.taskWorkspaceOwnershipService.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        try FileManager.default.removeItem(at: sourceRoot)
+        let task = AgentThread(
+            name: "Orphaned worktree task",
+            branch: "alveary/task-run",
+            mode: .task,
+            taskWorkspaceDescriptor: workspace
+        )
+        task.conversations = [Conversation(id: "orphaned-worktree-task", provider: "codex", thread: task)]
+        fixture.context.insert(task)
+        try fixture.context.save()
+
+        try await fixture.viewModel.deleteThread(task)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeRoot.path))
+        XCTAssertThrowsError(try fixture.taskWorkspaceOwnershipService.validateOwnedWorkspace(workspace))
+    }
+
+    func testDeleteTaskRemovesUnregisteredOwnedWorktreeWithoutTouchingBranch() async throws {
+        let fixture = try SidebarTestFixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-task-unregistered-delete-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
+        let worktreeRoot = root.appendingPathComponent("Worktree", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try fixture.taskWorkspaceOwnershipService.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        let task = AgentThread(
+            name: "Unregistered worktree task",
+            branch: "alveary/task-run",
+            mode: .task,
+            taskWorkspaceDescriptor: workspace
+        )
+        task.conversations = [Conversation(id: "unregistered-worktree-task", provider: "codex", thread: task)]
+        fixture.context.insert(task)
+        try fixture.context.save()
+
+        try await fixture.viewModel.deleteThread(task)
+
+        let branchCalls = await fixture.worktreeManager.deleteBranchCalls()
+        XCTAssertTrue(branchCalls.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeRoot.path))
+        XCTAssertThrowsError(try fixture.taskWorkspaceOwnershipService.validateOwnedWorkspace(workspace))
+    }
+
+    func testDeleteProjectPreservesProjectlessTaskBackedByItsPath() async throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Source", path: "/tmp/task-source-project")
+        let task = AgentThread(
+            name: "Backed task",
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: project.path,
+                ownershipStrategy: .projectLocal,
+                sourceProjectPath: project.path
+            )
+        )
+        task.conversations = [Conversation(id: "backed-task", provider: "codex", thread: task)]
+        fixture.context.insert(task)
+        try fixture.context.save()
+        let taskID = task.persistentModelID
+
+        try await fixture.viewModel.deleteProject(project)
+
+        let survivingTask = try XCTUnwrap(fixture.context.resolveThread(id: taskID))
+        XCTAssertEqual(survivingTask.mode, .task)
+        XCTAssertEqual(survivingTask.taskWorkspaceDescriptor?.sourceProjectPath, "/tmp/task-source-project")
+    }
+
+    func testDeleteProjectDetachesAndPreservesAttachedTaskModeThread() async throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Source", path: "/tmp/attached-task-source-project")
+        let task = AgentThread(
+            name: "Attached task",
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: project.path,
+                ownershipStrategy: .projectLocal,
+                sourceProjectPath: project.path
+            ),
+            project: project
+        )
+        task.conversations = [Conversation(id: "attached-task", provider: "codex", thread: task)]
+        project.threads.append(task)
+        fixture.context.insert(task)
+        try fixture.context.save()
+        let taskID = task.persistentModelID
+        let sourceProjectPath = project.path
+
+        try await fixture.viewModel.deleteProject(project)
+
+        let survivingTask = try XCTUnwrap(fixture.context.resolveThread(id: taskID))
+        XCTAssertEqual(survivingTask.mode, .task)
+        XCTAssertNil(survivingTask.project)
+        XCTAssertEqual(survivingTask.taskWorkspaceDescriptor?.sourceProjectPath, sourceProjectPath)
+    }
+
+    func testDeleteProjectPreservesProjectlessOwnedTaskWorktree() async throws {
+        let fixture = try SidebarTestFixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-project-delete-task-worktree-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
+        let worktreeRoot = root.appendingPathComponent("Worktree", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        let project = try fixture.insertProject(name: "Source", path: sourceRoot.path)
+        let workspace = try fixture.taskWorkspaceOwnershipService.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        let task = AgentThread(
+            name: "Worktree task",
+            mode: .task,
+            taskWorkspaceDescriptor: workspace
+        )
+        task.conversations = [Conversation(id: "worktree-task", provider: "codex", thread: task)]
+        fixture.context.insert(task)
+        try fixture.context.save()
+        let taskID = task.persistentModelID
+
+        try await fixture.viewModel.deleteProject(project)
+
+        XCTAssertNotNil(fixture.context.resolveThread(id: taskID))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: worktreeRoot.path))
+        XCTAssertNoThrow(try fixture.taskWorkspaceOwnershipService.validateOwnedWorkspace(workspace))
+        try? FileManager.default.removeItem(at: root)
+    }
+
     func testDeleteProjectRemovesAttachmentDirectoriesAcrossAllThreads() async throws {
         let invalidations = SidebarControllerInvalidationRecorder()
         let fixture = try SidebarTestFixture(
@@ -218,7 +431,7 @@ extension SidebarViewModelTests {
         XCTAssertFalse(try fixture.threadExists(thread))
     }
 
-    func testDeleteProjectKeepsModelDeletedWhenFinalWorktreeSweepFails() async throws {
+    func testDeleteProjectDoesNotSweepUnownedWorktrees() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
         let thread = AgentThread(name: "Primary", project: project)
@@ -231,21 +444,13 @@ extension SidebarViewModelTests {
         try fixture.context.save()
         await fixture.worktreeManager.setRemoveAllError(.removeAllFailed)
 
-        do {
-            try await fixture.viewModel.deleteProject(project)
-            XCTFail("Expected delete to throw")
-        } catch let error as SidebarViewModelError {
-            guard case .projectDeleteCleanupFailed(let underlying) = error,
-                  let mockError = underlying as? SidebarMockWorktreeManager.MockError else {
-                XCTFail("Expected project delete cleanup failure")
-                return
-            }
-            XCTAssertEqual(mockError, .removeAllFailed)
-        }
+        try await fixture.viewModel.deleteProject(project)
 
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 0)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Conversation>()), 0)
+        let removeAllCalls = await fixture.worktreeManager.removeAllCalls()
+        XCTAssertTrue(removeAllCalls.isEmpty)
         let removedConversationIDs = await fixture.attachmentStore.removedConversationIDs
         XCTAssertEqual(removedConversationIDs, ["main"])
     }

@@ -315,7 +315,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(removeCalls, [
             .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
         ])
-        XCTAssertEqual(removeAllCalls, ["/tmp/alveary-project"])
+        XCTAssertTrue(removeAllCalls.isEmpty)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 0)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Conversation>()), 0)
@@ -381,7 +381,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(destroyCalls, ["main"])
         XCTAssertTrue(deleteBranchCalls.isEmpty)
         XCTAssertTrue(removeCalls.isEmpty)
-        XCTAssertEqual(removeAllCalls, [missingProjectURL.path])
+        XCTAssertTrue(removeAllCalls.isEmpty)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 0)
     }
 

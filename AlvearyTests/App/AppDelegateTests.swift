@@ -39,10 +39,14 @@ final class AppDelegateTests: XCTestCase {
     func testStaleDraftCleanupSaveFailureRollsBackPendingDeletion() throws {
         let fixture = try AppDelegateTestFixture()
         let context = fixture.modelContainer.mainContext
-        let project = Project(path: "/tmp/stale-draft-save-failure", name: "Stale")
-        let thread = AgentThread(name: "New thread", isDraft: true, project: project)
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let thread = AgentThread(
+            name: "New task",
+            isDraft: true,
+            mode: .task,
+            taskWorkspaceDescriptor: workspace
+        )
         let conversation = Conversation(id: "stale-draft-save-failure-main", provider: "claude", thread: thread)
-        context.insert(project)
         context.insert(thread)
         context.insert(conversation)
         try context.save()
@@ -60,6 +64,50 @@ final class AppDelegateTests: XCTestCase {
             [threadID]
         )
         XCTAssertEqual(try ModelContext(fixture.modelContainer).fetchCount(FetchDescriptor<AgentThread>()), 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+    }
+
+    func testStaleTaskDraftCleanupRemovesOnlyItsOwnedWorkspace() throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let grantedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-stale-task-grant-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: grantedRoot, withIntermediateDirectories: true)
+        let taskWorkspace = TaskWorkspaceDescriptor(
+            primaryRoot: workspace.primaryRoot,
+            grantedRoots: [grantedRoot.path],
+            ownershipStrategy: workspace.ownershipStrategy,
+            ownershipMarkerID: workspace.ownershipMarkerID
+        )
+        let thread = AgentThread(
+            name: "New task",
+            isDraft: true,
+            mode: .task,
+            taskWorkspaceDescriptor: taskWorkspace
+        )
+        let conversation = Conversation(id: "stale-task-main", provider: "codex", thread: thread)
+        context.insert(thread)
+        context.insert(conversation)
+        try context.save()
+        let conversationID = conversation.id
+
+        let removedConversationIDs = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertEqual(removedConversationIDs, [conversationID])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: grantedRoot.path))
+        try? FileManager.default.removeItem(at: grantedRoot)
+    }
+
+    func testStaleDraftCleanupRetriesPreviouslyOrphanedPrivateWorkspace() throws {
+        let fixture = try AppDelegateTestFixture()
+        let orphanedWorkspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+
+        let removedConversationIDs = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertTrue(removedConversationIDs.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedWorkspace.primaryRoot))
     }
 
     func testStartupWarmupLoadsSessionsTerminatesOnlySessionMappedOrphansAndChecksProviders() async throws {
@@ -226,6 +274,39 @@ final class AppDelegateTests: XCTestCase {
 
         let shutdownCallCount = await fixture.agentsManager.beginShutdownCallCount()
         XCTAssertEqual(shutdownCallCount, 1)
+    }
+}
+
+extension AppDelegateTests {
+    func testLaunchCleanupRemovesPreexistingDraftAndPreservesDraftCreatedAfterDelegateInitialization() async throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let staleThread = AgentThread(name: "New thread", isDraft: true)
+        let staleConversation = Conversation(id: "preexisting-launch-draft-main", provider: "codex", thread: staleThread)
+        context.insert(staleThread)
+        context.insert(staleConversation)
+        try context.save()
+        let appDelegate = fixture.makeAppDelegate()
+
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let thread = AgentThread(
+            name: "New task",
+            isDraft: true,
+            mode: .task,
+            taskWorkspaceDescriptor: workspace
+        )
+        let conversation = Conversation(id: "current-launch-task-main", provider: "claude", thread: thread)
+        context.insert(thread)
+        context.insert(conversation)
+        try context.save()
+
+        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        try await fixture.waitForProviderChecks(1, description: "expected startup cleanup to finish")
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<AgentThread>()).map(\.persistentModelID), [thread.persistentModelID])
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Conversation>()).map(\.persistentModelID), [conversation.persistentModelID])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
     }
 }
 

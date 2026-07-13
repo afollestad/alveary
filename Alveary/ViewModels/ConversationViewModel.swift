@@ -20,6 +20,7 @@ final class ConversationViewModel {
     let conversationModelID: PersistentIdentifier
     let settingsService: SettingsService
     let worktreeManager: WorktreeManager
+    let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
     let attachmentStore: any ConversationAttachmentStore
@@ -31,6 +32,7 @@ final class ConversationViewModel {
     var needsFollowUpSave = false
     var initialSetupTask: Task<Void, Error>?
     var queueDrainTask: Task<Void, Never>?
+    var isUpdatingTaskWorkspaceConfiguration = false
     @ObservationIgnored var composerDraftSnapshotProvider: ComposerDraftSnapshotProvider?
     @ObservationIgnored var promptDismissalsResolving: Set<String> = []
     @ObservationIgnored var promptDismissalFalloutSuppressionActive = false
@@ -119,6 +121,7 @@ final class ConversationViewModel {
         modelContext: ModelContext,
         settingsService: SettingsService,
         worktreeManager: WorktreeManager,
+        taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
         providerSetup: ProviderSetupService,
         contextWindowCache: any ContextWindowCache,
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
@@ -133,6 +136,7 @@ final class ConversationViewModel {
         self.conversationModelID = conversation.persistentModelID
         self.settingsService = settingsService
         self.worktreeManager = worktreeManager
+        self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache
         self.attachmentStore = attachmentStore

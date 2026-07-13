@@ -38,8 +38,8 @@ final class AppState {
         pendingSettingsTargetPage = nil
     }
 
-    func startNewThreadFlow() {
-        pendingCommand = .newThread(UUID())
+    func startNewThreadFlow(mode: AgentThreadMode = .project) {
+        pendingCommand = .newThread(UUID(), mode: mode)
     }
 
     func requestComposerFocus() {
@@ -196,12 +196,12 @@ final class AppState {
     }
 
     enum CommandRequest: Equatable {
-        case newThread(UUID)
+        case newThread(UUID, mode: AgentThreadMode)
         case newProject(UUID)
 
         var id: UUID {
             switch self {
-            case .newThread(let id), .newProject(let id):
+            case .newThread(let id, _), .newProject(let id):
                 return id
             }
         }
@@ -267,8 +267,10 @@ enum SidebarItem: Hashable {
 
     var canCommitDiffChanges: Bool {
         switch self {
-        case .project, .thread:
+        case .project:
             return true
+        case .thread(let thread):
+            return thread.mode == .project
         case .skills, .mcp, .settings:
             return false
         }

@@ -209,6 +209,7 @@ final class AppKitChatComposerPanelView: NSView {
         actionRowConfiguration.onAddPhotosAndFiles = { [weak self] in
             self?.presentPhotosAndFilesPicker()
         }
+        actionRowConfiguration.taskWorkspace = panelTaskWorkspaceConfiguration(configuration.taskWorkspace)
         actionRow.configure(actionRowConfiguration)
     }
 

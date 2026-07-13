@@ -94,7 +94,7 @@ extension SidebarViewModel {
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-        return try modelContext.fetch(descriptor)
+        return try modelContext.fetch(descriptor).filter { $0.mode == .project }
     }
 
     func compareRegularProjects(_ lhs: Project, _ rhs: Project) -> Bool {
@@ -297,7 +297,7 @@ private extension SidebarViewModel {
 
     func latestUnarchivedThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
         threads
-            .filter { $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
+            .filter { $0.mode == .project && $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
             .compactMap(\.modifiedAt)
             .max()
     }
@@ -306,6 +306,7 @@ private extension SidebarViewModel {
         thread.archivedAt == nil &&
             !thread.isDraft &&
             thread.isPinned &&
+            thread.mode == .project &&
             thread.project != nil &&
             thread.project?.isPinned != true
     }

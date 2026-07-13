@@ -16,6 +16,7 @@ struct SidebarTestFixture {
     let settingsService: InMemorySettingsService
     let providerSessionActions: RecordingProviderSessionActionService
     let attachmentStore: RecordingConversationAttachmentStore
+    let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     let unexpectedErrors: RecordingUnexpectedErrors
     let notificationManager: RecordingNotificationManager
     let viewModel: SidebarViewModel
@@ -29,6 +30,7 @@ struct SidebarTestFixture {
         providerDiscovery: (any AgentProviderDiscoveryService)? = nil,
         providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
         attachmentStore: RecordingConversationAttachmentStore = RecordingConversationAttachmentStore(),
+        taskWorkspaceOwnershipService: (any TaskWorkspaceOwnershipService)? = nil,
         saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
@@ -61,6 +63,7 @@ struct SidebarTestFixture {
         settingsService = InMemorySettingsService(current: settings)
         self.providerSessionActions = providerSessionActions
         self.attachmentStore = attachmentStore
+        self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService ?? makeSidebarTaskWorkspaceService()
         self.unexpectedErrors = unexpectedErrors
         notificationManager = RecordingNotificationManager()
 
@@ -74,6 +77,7 @@ struct SidebarTestFixture {
             providerDiscovery: providerDiscovery,
             providerSessionActions: providerSessionActions,
             attachmentStore: attachmentStore,
+            taskWorkspaceOwnershipService: self.taskWorkspaceOwnershipService,
             invalidateConversationController: invalidateConversationController,
             saveDraftProjectMove: saveDraftProjectMove,
             saveDeletionCommit: saveDeletionCommit,
@@ -320,15 +324,7 @@ actor SidebarMockAgentsManager: AgentsManager {
         recordedSpawnCalls
     }
 }
-
 actor SidebarMockWorktreeManager: WorktreeManager {
-    enum MockError: Error, Sendable, Equatable {
-        case createFailed
-        case prepareForkContextFailed
-        case removeFailed
-        case removeAllFailed
-    }
-
     struct CreateCall: Sendable, Equatable {
         let projectPath: String
         let threadName: String
@@ -362,6 +358,8 @@ actor SidebarMockWorktreeManager: WorktreeManager {
     private var prepareForkContextError: MockError?
     private var removeError: MockError?
     private var removeAllError: MockError?
+    private var listResult: [WorktreeInfo] = []
+    private var listError: MockError?
 
     func setCreateInfo(_ info: WorktreeInfo) {
         createInfo = info
@@ -381,6 +379,11 @@ actor SidebarMockWorktreeManager: WorktreeManager {
 
     func setRemoveAllError(_ error: MockError?) {
         removeAllError = error
+    }
+
+    func setListResult(_ result: [WorktreeInfo], error: MockError? = nil) {
+        listResult = result
+        listError = error
     }
 
     func create(
@@ -435,7 +438,10 @@ actor SidebarMockWorktreeManager: WorktreeManager {
     }
 
     func list(projectPath: String) async throws -> [WorktreeInfo] {
-        []
+        if let listError {
+            throw listError
+        }
+        return listResult
     }
 
     func deleteBranchCalls() -> [DeleteBranchCall] {

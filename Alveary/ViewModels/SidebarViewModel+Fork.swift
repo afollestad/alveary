@@ -47,6 +47,9 @@ private extension SidebarViewModel {
         guard !dbThread.isDraft else {
             throw SidebarViewModelError.threadForkUnavailable("Start the thread before forking it")
         }
+        guard dbThread.mode == .project else {
+            throw SidebarViewModelError.threadForkUnavailable("Task threads cannot be forked")
+        }
         guard let project = dbThread.project else {
             throw SidebarViewModelError.threadMissingParentProject
         }
