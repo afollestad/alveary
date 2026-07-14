@@ -1,6 +1,30 @@
 import Foundation
 
+struct ContentViewBootstrapState {
+    let sidebarViewModel: SidebarViewModel
+    let appShotCoordinator: AppShotCoordinator
+    let appShotCaptureController: AppShotCaptureController
+}
+
 extension ContentView {
+    static func makeBootstrapState(
+        dependencies: ContentViewDependencies,
+        appState: AppState
+    ) -> ContentViewBootstrapState {
+        let sidebarViewModel = makeSidebarViewModel(dependencies: dependencies, appState: appState)
+        let appShotCoordinator = AppShotCoordinator()
+        return ContentViewBootstrapState(
+            sidebarViewModel: sidebarViewModel,
+            appShotCoordinator: appShotCoordinator,
+            appShotCaptureController: makeAppShotCaptureController(
+                dependencies: dependencies,
+                appState: appState,
+                appShotCoordinator: appShotCoordinator,
+                sidebarViewModel: sidebarViewModel
+            )
+        )
+    }
+
     static func makeAppShotCaptureController(
         dependencies: ContentViewDependencies,
         appState: AppState,
@@ -68,6 +92,22 @@ extension ContentView {
             providerDiscovery: dependencies.providerDiscovery,
             agentRegistry: dependencies.agentRegistry,
             soundPreviewer: soundPreviewer.play
+        )
+    }
+
+    static func makeScheduledTasksViewModel(dependencies: ContentViewDependencies) -> ScheduledTasksViewModel {
+        ScheduledTasksViewModel(
+            modelContext: dependencies.modelContainer.mainContext,
+            mutationService: dependencies.scheduledTaskMutationService,
+            providerDiscovery: dependencies.providerDiscovery,
+            settingsService: dependencies.settingsService,
+            agentRegistry: dependencies.agentRegistry,
+            runNow: { request in
+                guard dependencies.scheduledTaskLifecycleCoordinator.canStartManualRuns else {
+                    return false
+                }
+                return dependencies.scheduledTaskSchedulerCoordinator.startRunNow(request)
+            }
         )
     }
 

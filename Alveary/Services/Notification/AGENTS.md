@@ -5,6 +5,7 @@ These instructions cover `DefaultNotificationManager`, `NotificationRouter`, and
 ## Invariants
 
 - OS notification `identifier` equals the `conversationId`. New events for the same conversation replace any pending banner (so stale "finished working" notifications don't pile up once newer events arrive), and `UNUserNotificationCenter.removeDeliveredNotifications(withIdentifiers:)` can target precisely on mark-read. Do not change to a per-event UUID.
+- Scheduled-definition failures are a separate namespace: use `scheduled-task-definition:<definitionID>` plus `scheduledTaskDefinitionId`, route taps to the Scheduled editor, and never pass them through conversation unread or badge handling.
 - Notification copy must name the actual state:
     - **Reserve completion copy for terminal work.** Do not use "finished working" for pending approval, `AskUserQuestion`, interim usage, or successful `tool_deferred` stops.
     - **Keep pending-action copy explicit.** Permission prompts should say what tool/action needs approval; `AskUserQuestion` prompts should include a short question summary.

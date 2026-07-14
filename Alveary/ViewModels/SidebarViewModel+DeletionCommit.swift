@@ -25,6 +25,7 @@ extension SidebarViewModel {
         at actionDate: Date = Date()
     ) throws {
         let threadIDs = Set(snapshot.threadSnapshots.map(\.threadID))
+        var affectedScheduledTaskIDs: [String] = []
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
@@ -33,6 +34,7 @@ extension SidebarViewModel {
                         continue
                     }
                     scheduledTask.pauseForProjectDeletion(at: actionDate)
+                    affectedScheduledTaskIDs.append(scheduledTaskID)
                 }
                 for threadID in snapshot.detachedTaskThreadIDs {
                     modelContext.resolveThread(id: threadID)?.project = nil
@@ -49,6 +51,14 @@ extension SidebarViewModel {
             throw error
         }
         invalidateDraftThreadIfNeeded(threadIDs: threadIDs)
+        guard !affectedScheduledTaskIDs.isEmpty else {
+            return
+        }
+        NotificationCenter.default.post(
+            name: .scheduledTasksChanged,
+            object: self,
+            userInfo: ["definitionIDs": affectedScheduledTaskIDs]
+        )
     }
 
     private func flushPendingModelChangesBeforeDeletion() throws {

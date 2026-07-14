@@ -58,6 +58,7 @@ struct AppDelegateTestFixture {
         wakeRefreshDelay: Duration = .milliseconds(10),
         shutdownPersistTimeout: TimeInterval = 0.05,
         flushConversationControllers: @escaping @MainActor () -> [ConversationControllerFlushFailure] = { [] },
+        scheduledTaskLifecycle: AppDelegateScheduledTaskLifecycleSpy? = nil,
         disableSuddenTermination: @escaping () -> Void = {},
         enableSuddenTermination: @escaping () -> Void = {}
     ) -> AppDelegate {
@@ -71,6 +72,15 @@ struct AppDelegateTestFixture {
                 shellRunner: shellRunner,
                 modelContainer: modelContainer,
                 flushConversationControllers: flushConversationControllers,
+                activateScheduledTasks: {
+                    scheduledTaskLifecycle?.recordActivation()
+                },
+                reconcileScheduledTasks: {
+                    scheduledTaskLifecycle?.recordReconciliation()
+                },
+                prepareScheduledTasksForTermination: { actionDate in
+                    scheduledTaskLifecycle?.prepareForTermination(at: actionDate)
+                },
                 notificationRouter: NotificationRouter(),
                 workspaceNotificationCenter: workspaceNotificationCenter,
                 notificationCenter: appNotificationCenter,

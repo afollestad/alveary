@@ -10,6 +10,8 @@ extension SidebarViewModelTests {
         let fixture = try SidebarTestFixture()
         let actionDate = Date(timeIntervalSince1970: 1_000)
         let graph = try ScheduledProjectDeletionGraph.insert(into: fixture.context)
+        let changeRecorder = observeScheduledTaskChanges(from: fixture.viewModel)
+        defer { NotificationCenter.default.removeObserver(changeRecorder.observer) }
 
         let snapshot = try fixture.viewModel.makeProjectDeletionSnapshot(graph.project)
         try fixture.viewModel.commitProjectDeletion(snapshot, at: actionDate)
@@ -33,6 +35,8 @@ extension SidebarViewModelTests {
         XCTAssertEqual(graph.completedRun.status, ScheduledTaskRunStatus.success)
         XCTAssertEqual(graph.completedRun.thread?.persistentModelID, graph.completedTaskThreadID)
         XCTAssertNotNil(fixture.context.resolveThread(id: graph.completedTaskThreadID))
+        XCTAssertEqual(changeRecorder.recorder.count, 1)
+        XCTAssertEqual(changeRecorder.recorder.definitionIDs, [graph.definition.id])
     }
 
     func testProjectDeletionPreservesLinkedRunTaskWhenModeFallsBackToProject() throws {
@@ -73,6 +77,8 @@ extension SidebarViewModelTests {
             }
         )
         let graph = try ScheduledProjectDeletionGraph.insert(into: fixture.context)
+        let changeRecorder = observeScheduledTaskChanges(from: fixture.viewModel)
+        defer { NotificationCenter.default.removeObserver(changeRecorder.observer) }
         let snapshot = try fixture.viewModel.makeProjectDeletionSnapshot(graph.project)
 
         XCTAssertThrowsError(
@@ -92,6 +98,23 @@ extension SidebarViewModelTests {
         XCTAssertEqual(definition.pendingOccurrenceAt, Date(timeIntervalSince1970: 950))
         XCTAssertNil(definition.pauseReason)
         XCTAssertEqual(definition.revision, 1)
+        XCTAssertEqual(changeRecorder.recorder.count, 0)
+    }
+
+    func testProjectDeletionWithoutSchedulesDoesNotPublishScheduledTaskChange() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/no-scheduled-project-delete", name: "No schedules")
+        fixture.context.insert(project)
+        try fixture.context.save()
+        let changeRecorder = observeScheduledTaskChanges(from: fixture.viewModel)
+        defer { NotificationCenter.default.removeObserver(changeRecorder.observer) }
+
+        let snapshot = try fixture.viewModel.makeProjectDeletionSnapshot(project)
+        XCTAssertTrue(snapshot.scheduledTaskIDs.isEmpty)
+
+        try fixture.viewModel.commitProjectDeletion(snapshot)
+
+        XCTAssertEqual(changeRecorder.recorder.count, 0)
     }
 
     func testProjectDeletedScheduleCannotResumeUntilProjectIsReattached() throws {
@@ -123,6 +146,39 @@ extension SidebarViewModelTests {
         XCTAssertEqual(definition.revision, 2)
         XCTAssertEqual(definition.modifiedAt, Date(timeIntervalSince1970: 1_000))
     }
+}
+
+private final class ScheduledTaskChangeRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedDefinitionIDs: [[String]] = []
+
+    var count: Int {
+        lock.withLock { recordedDefinitionIDs.count }
+    }
+
+    var definitionIDs: [String] {
+        lock.withLock { recordedDefinitionIDs.flatMap { $0 } }
+    }
+
+    func record(_ notification: Notification) {
+        let definitionIDs = notification.userInfo?["definitionIDs"] as? [String] ?? []
+        lock.withLock { recordedDefinitionIDs.append(definitionIDs) }
+    }
+}
+
+@MainActor
+private func observeScheduledTaskChanges(
+    from viewModel: SidebarViewModel
+) -> (observer: NSObjectProtocol, recorder: ScheduledTaskChangeRecorder) {
+    let recorder = ScheduledTaskChangeRecorder()
+    let observer = NotificationCenter.default.addObserver(
+        forName: .scheduledTasksChanged,
+        object: viewModel,
+        queue: nil
+    ) { notification in
+        recorder.record(notification)
+    }
+    return (observer, recorder)
 }
 
 private enum ScheduledProjectDeletionTestError: Error {

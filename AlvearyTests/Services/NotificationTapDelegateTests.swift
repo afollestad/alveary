@@ -48,4 +48,25 @@ final class NotificationTapDelegateTests: XCTestCase {
         )
         XCTAssertNil(id)
     }
+
+    func testDestinationRoutesScheduledTaskDefinitionForDefaultAction() {
+        let destination = NotificationTapDelegate.destination(
+            actionIdentifier: UNNotificationDefaultActionIdentifier,
+            userInfo: [NotificationUserInfoKey.scheduledTaskDefinitionId: "definition-3"]
+        )
+
+        XCTAssertEqual(destination, .scheduledTaskDefinition("definition-3"))
+    }
+
+    func testScheduledTaskDestinationTakesPrecedenceOverConversationPayload() {
+        let destination = NotificationTapDelegate.destination(
+            actionIdentifier: UNNotificationDefaultActionIdentifier,
+            userInfo: [
+                NotificationUserInfoKey.scheduledTaskDefinitionId: "definition-3",
+                NotificationUserInfoKey.conversationId: "conversation-9"
+            ]
+        )
+
+        XCTAssertEqual(destination, .scheduledTaskDefinition("definition-3"))
+    }
 }

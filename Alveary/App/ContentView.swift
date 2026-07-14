@@ -40,6 +40,7 @@ struct ContentView: View {
     @State private var terminalPaneHeight: CGFloat
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
+    @State private var scheduledTasksViewModel: ScheduledTasksViewModel
     @State private var settingsViewModel: SettingsViewModel
     @State private var archivedTasksSettingsViewModel: ArchivedTasksSettingsViewModel
     @State var onboardingViewModel: OnboardingViewModel
@@ -90,15 +91,15 @@ struct ContentView: View {
         _diffViewerCommitsTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerCommitsTopSectionFraction))
         _diffViewerMode = State(initialValue: settings.diffViewerMode)
         _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
-        let sidebarViewModel = Self.makeSidebarViewModel(dependencies: dependencies, appState: appState)
-        let appShotCoordinator = AppShotCoordinator()
-        _sidebarViewModel = State(initialValue: sidebarViewModel)
+        let bootstrapState = Self.makeBootstrapState(dependencies: dependencies, appState: appState)
+        _sidebarViewModel = State(initialValue: bootstrapState.sidebarViewModel)
         _diffViewModel = State(initialValue: Self.makeDiffViewModel(dependencies: dependencies))
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
+        _scheduledTasksViewModel = State(initialValue: Self.makeScheduledTasksViewModel(dependencies: dependencies))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _archivedTasksSettingsViewModel = State(initialValue: Self.makeArchivedTasksSettingsViewModel(
-            dependencies: dependencies, sidebarViewModel: sidebarViewModel, appState: appState
+            dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState
         ))
         _onboardingViewModel = State(
             initialValue: OnboardingViewModel(
@@ -106,13 +107,8 @@ struct ContentView: View {
                 dependencyService: dependencies.onboardingDependencyService
             )
         )
-        _appShotCoordinator = State(initialValue: appShotCoordinator)
-        _appShotCaptureController = State(initialValue: Self.makeAppShotCaptureController(
-            dependencies: dependencies,
-            appState: appState,
-            appShotCoordinator: appShotCoordinator,
-            sidebarViewModel: sidebarViewModel
-        ))
+        _appShotCoordinator = State(initialValue: bootstrapState.appShotCoordinator)
+        _appShotCaptureController = State(initialValue: bootstrapState.appShotCaptureController)
     }
 
     var body: some View {
@@ -136,6 +132,7 @@ struct ContentView: View {
             diffViewModel: diffViewModel,
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
+            scheduledTasksViewModel: scheduledTasksViewModel,
             settingsViewModel: settingsViewModel,
             archivedTasksSettingsViewModel: archivedTasksSettingsViewModel,
             appUpdateManager: appUpdateManager,
@@ -297,6 +294,11 @@ struct ContentView: View {
             openConversation(with: newValue)
             notificationRouter.clearPendingIfMatches(newValue)
         }
+        .onChange(of: notificationRouter.pendingScheduledTaskDefinitionId) { _, definitionID in
+            guard let definitionID else { return }
+            openScheduledTaskDefinition(with: definitionID)
+            notificationRouter.clearPendingScheduledTaskIfMatches(definitionID)
+        }
         .onChange(of: terminalManager.runningProjectActionSessionIDs, initial: true) { _, runningSessionIDs in
             handleTerminalRunningSessionIDsChange(runningSessionIDs)
         }
@@ -333,6 +335,10 @@ struct ContentView: View {
                 openConversation(with: pending)
                 notificationRouter.clearPendingIfMatches(pending)
             }
+            if let definitionID = notificationRouter.pendingScheduledTaskDefinitionId {
+                openScheduledTaskDefinition(with: definitionID)
+                notificationRouter.clearPendingScheduledTaskIfMatches(definitionID)
+            }
             // Mark-read of the active conversation is handled by `ThreadDetailView` once
             // the restored selection mounts; just sync the dock badge on launch.
             notificationManager.refreshBadgeCount()
@@ -347,6 +353,11 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    func openScheduledTaskDefinition(with definitionID: String) {
+        appState.selectedSidebarItem = .scheduled
+        scheduledTasksViewModel.requestEdit(definitionID: definitionID)
+    }
+
     var selectedThreadID: PersistentIdentifier? {
         guard case .thread(let thread) = appState.selectedSidebarItem,
               !thread.isDraft else {

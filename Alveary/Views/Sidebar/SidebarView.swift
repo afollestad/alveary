@@ -118,18 +118,7 @@ struct SidebarView: View {
 
             List {
                 Section {
-                    topLevelRow(
-                        title: "Skills",
-                        systemImage: "puzzlepiece.extension",
-                        item: .skills,
-                        bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
-                    )
-
-                    topLevelRow(
-                        title: "MCP",
-                        systemImage: "server.rack",
-                        item: .mcp
-                    )
+                    topLevelRows()
 
                     if !pinnedItems.isEmpty {
                         pinnedHeader

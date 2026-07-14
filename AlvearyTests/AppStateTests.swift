@@ -41,6 +41,16 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.previousSelection, AppState.SidebarBookmark.threadId(fixture.primaryThread.persistentModelID))
     }
 
+    func testOpenSettingsPreservesScheduledDestinationForReturn() {
+        let state = AppState()
+        state.selectedSidebarItem = .scheduled
+
+        state.openSettings()
+
+        XCTAssertEqual(state.previousSelection, .scheduled)
+        XCTAssertEqual(state.selectedSidebarItem, .settings)
+    }
+
     func testOpenSettingsCanTargetOneSettingsPage() throws {
         let fixture = try makeFixture(
             primaryConversations: [Conversation(title: "Main", provider: "claude")]

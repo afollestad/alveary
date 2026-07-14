@@ -5,6 +5,10 @@ import XCTest
 
 @MainActor
 extension SidebarViewTests {
+    func testScheduledTaskIndicatorUsesAudibleAccessibilityLabel() {
+        XCTAssertEqual(SidebarThreadRow.scheduledIndicatorAccessibilityLabel, "Scheduled task")
+    }
+
     func testScheduledTaskRemovalSanitizesReselectedTargetAtPersistenceCommit() async throws {
         for action in SidebarScheduledLifecycleAction.allCases {
             let runGate = SidebarScheduledLifecycleActionGate()
@@ -129,11 +133,11 @@ extension SidebarViewTests {
                 await action.perform(view: view, thread: task)
             }
             await gate.waitUntilEntered()
-            appState.selectedSidebarItem = .skills
+            appState.selectedSidebarItem = .scheduled
             gate.release()
             await operation.value
 
-            XCTAssertEqual(appState.selectedSidebarItem, .skills, action.rawValue)
+            XCTAssertEqual(appState.selectedSidebarItem, .scheduled, action.rawValue)
             XCTAssertNil(appState.previousSelection, action.rawValue)
             XCTAssertNil(appState.pendingCommand, action.rawValue)
         }

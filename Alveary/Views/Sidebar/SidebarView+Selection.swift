@@ -68,6 +68,27 @@ extension SidebarView {
         viewModel.noteDraftMaterialized(mode: mode)
     }
 
+    @ViewBuilder
+    func topLevelRows() -> some View {
+        topLevelRow(
+            title: "Skills",
+            systemImage: "puzzlepiece.extension",
+            item: .skills,
+            bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
+        )
+        topLevelRow(
+            title: "MCP",
+            systemImage: "server.rack",
+            item: .mcp,
+            bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
+        )
+        topLevelRow(
+            title: "Scheduled",
+            systemImage: "clock",
+            item: .scheduled
+        )
+    }
+
     func topLevelRow(
         title: String,
         systemImage: String,
@@ -170,7 +191,7 @@ func sidebarProjectPathToExpand(
             return nil
         }
         return resolvedThread.project?.path
-    case .skills, .mcp, .settings, nil:
+    case .skills, .mcp, .scheduled, .settings, nil:
         return nil
     }
 }

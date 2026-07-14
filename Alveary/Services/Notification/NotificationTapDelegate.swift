@@ -25,7 +25,7 @@ final class NotificationTapDelegate: NSObject, UNUserNotificationCenterDelegate 
     ) {
         defer { completionHandler() }
 
-        guard let conversationId = Self.conversationId(
+        guard let destination = Self.destination(
             actionIdentifier: response.actionIdentifier,
             userInfo: response.notification.request.content.userInfo
         ) else {
@@ -35,8 +35,29 @@ final class NotificationTapDelegate: NSObject, UNUserNotificationCenterDelegate 
         let router = router
         Task { @MainActor in
             NSApp.activate(ignoringOtherApps: true)
-            router.requestOpen(conversationId: conversationId)
+            switch destination {
+            case .conversation(let conversationId):
+                router.requestOpen(conversationId: conversationId)
+            case .scheduledTaskDefinition(let definitionId):
+                router.requestOpenScheduledTask(definitionId: definitionId)
+            }
         }
+    }
+
+    static func destination(
+        actionIdentifier: String,
+        userInfo: [AnyHashable: Any]
+    ) -> NotificationTapDestination? {
+        guard actionIdentifier == UNNotificationDefaultActionIdentifier else {
+            return nil
+        }
+        if let definitionId = userInfo[NotificationUserInfoKey.scheduledTaskDefinitionId] as? String {
+            return .scheduledTaskDefinition(definitionId)
+        }
+        if let conversationId = userInfo[NotificationUserInfoKey.conversationId] as? String {
+            return .conversation(conversationId)
+        }
+        return nil
     }
 
     /// Extract the conversation id from a notification response payload. Returns `nil` when the
@@ -45,9 +66,17 @@ final class NotificationTapDelegate: NSObject, UNUserNotificationCenterDelegate 
         actionIdentifier: String,
         userInfo: [AnyHashable: Any]
     ) -> String? {
-        guard actionIdentifier == UNNotificationDefaultActionIdentifier else {
+        guard case let .conversation(conversationId) = destination(
+            actionIdentifier: actionIdentifier,
+            userInfo: userInfo
+        ) else {
             return nil
         }
-        return userInfo[NotificationUserInfoKey.conversationId] as? String
+        return conversationId
     }
+}
+
+enum NotificationTapDestination: Equatable, Sendable {
+    case conversation(String)
+    case scheduledTaskDefinition(String)
 }

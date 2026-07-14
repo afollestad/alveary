@@ -176,6 +176,7 @@ final class AppState {
     enum SidebarBookmark: Hashable {
         case skills
         case mcp
+        case scheduled
         case projectPath(String)
         case threadId(PersistentIdentifier)
 
@@ -185,6 +186,8 @@ final class AppState {
                 self = .skills
             case .mcp:
                 self = .mcp
+            case .scheduled:
+                self = .scheduled
             case .project(let project):
                 self = .projectPath(project.path)
             case .thread(let thread):
@@ -261,6 +264,7 @@ enum CommitMessageGenerationError: LocalizedError, Sendable, Equatable {
 enum SidebarItem: Hashable {
     case skills
     case mcp
+    case scheduled
     case project(Project)
     case thread(AgentThread)
     case settings
@@ -271,7 +275,7 @@ enum SidebarItem: Hashable {
             return true
         case .thread(let thread):
             return thread.effectiveMode == .project
-        case .skills, .mcp, .settings:
+        case .skills, .mcp, .scheduled, .settings:
             return false
         }
     }
@@ -282,6 +286,8 @@ enum SidebarItem: Hashable {
             hasher.combine("skills")
         case .mcp:
             hasher.combine("mcp")
+        case .scheduled:
+            hasher.combine("scheduled")
         case .settings:
             hasher.combine("settings")
         case .project(let project):
@@ -293,7 +299,7 @@ enum SidebarItem: Hashable {
 
     static func == (lhs: SidebarItem, rhs: SidebarItem) -> Bool {
         switch (lhs, rhs) {
-        case (.skills, .skills), (.mcp, .mcp), (.settings, .settings):
+        case (.skills, .skills), (.mcp, .mcp), (.scheduled, .scheduled), (.settings, .settings):
             return true
         case (.project(let left), .project(let right)):
             return left.path == right.path

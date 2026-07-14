@@ -12,9 +12,10 @@ struct SidebarThreadRow: View {
     static let cleanupButtonSize: CGFloat = 24
     private static let cleanupConfirmationWidth: CGFloat = 72
     private static let statusIndicatorSpacing: CGFloat = 8
-    private static let worktreeIndicatorSize: CGFloat = 12
-    private static let worktreeIndicatorStatusSpacing: CGFloat = 6
+    private static let provenanceIndicatorSize: CGFloat = 12
+    private static let provenanceIndicatorSpacing: CGFloat = 6
     private static let worktreeIndicatorRotationDegrees: CGFloat = 90
+    static let scheduledIndicatorAccessibilityLabel = "Scheduled task"
     private static let cleanupWidthAnimationDuration = 0.18
     private static let cleanupWidthAnimationNanoseconds: UInt64 = 180_000_000
     private static let cleanupHideAnimationDuration = 0.12
@@ -192,14 +193,26 @@ struct SidebarThreadRow: View {
 
     private var worktreeIndicator: some View {
         Image(systemName: "arrow.trianglehead.branch")
-            .font(.system(size: Self.worktreeIndicatorSize, weight: .medium))
+            .font(.system(size: Self.provenanceIndicatorSize, weight: .medium))
             .foregroundStyle(.secondary)
             .rotationEffect(.degrees(Self.worktreeIndicatorRotationDegrees))
-            .frame(width: Self.worktreeIndicatorSize, height: Self.worktreeIndicatorSize)
+            .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
             .accessibilityHidden(true)
             .overlay {
                 AppHoverTooltipAnchor(text: sidebarThreadWorktreeTooltipText(for: thread))
-                    .frame(width: Self.worktreeIndicatorSize, height: Self.worktreeIndicatorSize)
+                    .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
+            }
+    }
+
+    private var scheduledIndicator: some View {
+        Image(systemName: "clock")
+            .font(.system(size: Self.provenanceIndicatorSize, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
+            .accessibilityLabel(Self.scheduledIndicatorAccessibilityLabel)
+            .overlay {
+                AppHoverTooltipAnchor(text: Self.scheduledIndicatorAccessibilityLabel)
+                    .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
             }
     }
 
@@ -208,11 +221,18 @@ struct SidebarThreadRow: View {
             Color.clear
                 .frame(width: trailingControlSpacing)
 
+            if thread.scheduledTaskRun != nil {
+                scheduledIndicator
+
+                Color.clear
+                    .frame(width: Self.provenanceIndicatorSpacing)
+            }
+
             if thread.useWorktree {
                 worktreeIndicator
 
                 Color.clear
-                    .frame(width: Self.worktreeIndicatorStatusSpacing)
+                    .frame(width: Self.provenanceIndicatorSpacing)
             }
 
             trailingStatusOrCleanupControl

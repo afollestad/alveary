@@ -20,6 +20,7 @@ struct MiddlePane: View {
     let diffViewModel: DiffViewerViewModel
     let skillsViewModel: SkillsViewModel
     let mcpViewModel: MCPViewModel
+    let scheduledTasksViewModel: ScheduledTasksViewModel
     let settingsViewModel: SettingsViewModel
     let archivedTasksSettingsViewModel: ArchivedTasksSettingsViewModel
     let appUpdateManager: AppUpdateManager
@@ -35,6 +36,8 @@ struct MiddlePane: View {
             SkillsScreen(viewModel: skillsViewModel)
         case .mcp:
             MCPScreen(viewModel: mcpViewModel)
+        case .scheduled:
+            ScheduledTasksScreen(viewModel: scheduledTasksViewModel)
         case .project(let project):
             ProjectSettingsView(
                 project: project,
@@ -125,6 +128,8 @@ func resolveSidebarSelectionBookmark(
         return .skills
     case .mcp:
         return .mcp
+    case .scheduled:
+        return .scheduled
     case .projectPath(let path):
         let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
             project.path == path

@@ -30,4 +30,19 @@ final class NotificationRouterTests: XCTestCase {
         router.requestOpen(conversationId: "second")
         XCTAssertEqual(router.pendingConversationId, "second")
     }
+
+    func testScheduledTaskDefinitionRouteHasIndependentPendingState() {
+        let router = NotificationRouter()
+        router.requestOpen(conversationId: "conversation")
+        router.requestOpenScheduledTask(definitionId: "definition")
+
+        XCTAssertEqual(router.pendingConversationId, "conversation")
+        XCTAssertEqual(router.pendingScheduledTaskDefinitionId, "definition")
+
+        router.clearPendingScheduledTaskIfMatches("other")
+        XCTAssertEqual(router.pendingScheduledTaskDefinitionId, "definition")
+        router.clearPendingScheduledTaskIfMatches("definition")
+        XCTAssertNil(router.pendingScheduledTaskDefinitionId)
+        XCTAssertEqual(router.pendingConversationId, "conversation")
+    }
 }

@@ -1,6 +1,36 @@
 import Foundation
 import SwiftData
 
+extension Notification.Name {
+    static let scheduledTasksChanged = Notification.Name("scheduledTasksChanged")
+}
+
+enum ScheduledTasksChangeUserInfoKey {
+    static let definitionID = "definitionID"
+    static let schedulerClaimResolved = "schedulerClaimResolved"
+}
+
+extension NotificationCenter {
+    func postScheduledTasksChanged(
+        object: Any? = nil,
+        definitionID: String? = nil,
+        schedulerClaimResolved: Bool = false
+    ) {
+        var userInfo: [AnyHashable: Any] = [:]
+        if let definitionID {
+            userInfo[ScheduledTasksChangeUserInfoKey.definitionID] = definitionID
+        }
+        if schedulerClaimResolved {
+            userInfo[ScheduledTasksChangeUserInfoKey.schedulerClaimResolved] = true
+        }
+        post(
+            name: .scheduledTasksChanged,
+            object: object,
+            userInfo: userInfo.isEmpty ? nil : userInfo
+        )
+    }
+}
+
 struct ScheduledTaskDefinitionEdit {
     let title: String
     let prompt: String
@@ -132,13 +162,58 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
 final class ScheduledTaskMutationService {
     private let modelContext: ModelContext
     private let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
+    private let notificationCenter: NotificationCenter
 
     init(
         modelContext: ModelContext,
-        recurrenceCalculator: ScheduledTaskRecurrenceCalculator = ScheduledTaskRecurrenceCalculator()
+        recurrenceCalculator: ScheduledTaskRecurrenceCalculator = ScheduledTaskRecurrenceCalculator(),
+        notificationCenter: NotificationCenter = .default
     ) {
         self.modelContext = modelContext
         self.recurrenceCalculator = recurrenceCalculator
+        self.notificationCenter = notificationCenter
+    }
+
+    @discardableResult
+    func create(
+        edit: ScheduledTaskDefinitionEdit,
+        at actionDate: Date = .now
+    ) throws -> ScheduledTask {
+        try flushPendingChanges()
+        try validate(edit)
+        let nextOccurrence = try recurrenceCalculator.nextOccurrence(
+            strictlyAfter: actionDate,
+            recurrence: edit.recurrence,
+            timeZoneIdentifier: edit.timeZoneIdentifier
+        )
+        let definition = ScheduledTask(
+            title: edit.title.trimmingCharacters(in: .whitespacesAndNewlines),
+            prompt: edit.prompt.trimmingCharacters(in: .whitespacesAndNewlines),
+            state: nextOccurrence == nil ? .completed : .active,
+            recurrence: edit.recurrence,
+            timeZoneIdentifier: edit.timeZoneIdentifier,
+            providerID: edit.providerID,
+            model: edit.model,
+            effort: edit.effort,
+            permissionMode: edit.permissionMode,
+            workspaceKind: edit.workspaceKind,
+            workspaceStrategy: edit.workspaceStrategy,
+            grantedRoots: edit.grantedRoots,
+            project: edit.workspaceKind == .project ? edit.project : nil,
+            nextOccurrenceAt: nextOccurrence,
+            createdAt: actionDate,
+            modifiedAt: actionDate
+        )
+
+        do {
+            modelContext.insert(definition)
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+        publishChange(definitionID: definition.id)
+        return definition
     }
 
     func pause(
@@ -146,7 +221,7 @@ final class ScheduledTaskMutationService {
         expectedRevision: Int? = nil,
         at actionDate: Date = .now
     ) throws {
-        try mutateDefinition(
+        let didChange = try mutateDefinition(
             definitionID: definitionID,
             expectedRevision: expectedRevision
         ) { definition in
@@ -169,6 +244,9 @@ final class ScheduledTaskMutationService {
             definition.modifiedAt = actionDate
             return true
         }
+        if didChange {
+            publishChange(definitionID: definitionID)
+        }
     }
 
     func resume(
@@ -176,7 +254,7 @@ final class ScheduledTaskMutationService {
         expectedRevision: Int? = nil,
         at actionDate: Date = .now
     ) throws {
-        try mutateDefinition(
+        let didChange = try mutateDefinition(
             definitionID: definitionID,
             expectedRevision: expectedRevision
         ) { definition in
@@ -203,6 +281,9 @@ final class ScheduledTaskMutationService {
             definition.modifiedAt = actionDate
             return true
         }
+        if didChange {
+            publishChange(definitionID: definitionID)
+        }
     }
 
     func edit(
@@ -211,25 +292,19 @@ final class ScheduledTaskMutationService {
         edit: ScheduledTaskDefinitionEdit,
         at actionDate: Date = .now
     ) throws {
-        try mutateDefinition(
+        let didChange = try mutateDefinition(
             definitionID: definitionID,
             expectedRevision: expectedRevision
         ) { definition in
-            if edit.workspaceKind == .project, edit.project == nil {
-                throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
-            }
-            try self.recurrenceCalculator.validate(
-                edit.recurrence,
-                timeZoneIdentifier: edit.timeZoneIdentifier
-            )
+            try self.validate(edit)
             let nextOccurrence = try self.recurrenceCalculator.nextOccurrence(
                 strictlyAfter: actionDate,
                 recurrence: edit.recurrence,
                 timeZoneIdentifier: edit.timeZoneIdentifier
             )
             let wasPaused = definition.state == .paused
-            definition.title = edit.title
-            definition.prompt = edit.prompt
+            definition.title = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            definition.prompt = edit.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
             definition.recurrence = edit.recurrence
             definition.timeZoneIdentifier = edit.timeZoneIdentifier
             definition.providerID = edit.providerID
@@ -249,6 +324,9 @@ final class ScheduledTaskMutationService {
             definition.modifiedAt = actionDate
             return true
         }
+        if didChange {
+            publishChange(definitionID: definitionID)
+        }
     }
 
     func delete(
@@ -267,6 +345,7 @@ final class ScheduledTaskMutationService {
             modelContext.rollback()
             throw error
         }
+        publishChange(definitionID: definitionID)
     }
 
     func prepareRunNow(
@@ -311,7 +390,7 @@ private extension ScheduledTaskMutationService {
         definitionID: String,
         expectedRevision: Int?,
         mutation: (ScheduledTask) throws -> Bool
-    ) throws {
+    ) throws -> Bool {
         try flushPendingChanges()
         guard let definition = modelContext.resolveScheduledTask(id: definitionID) else {
             throw ScheduledTaskMutationError.definitionNotFound
@@ -319,13 +398,31 @@ private extension ScheduledTaskMutationService {
         try validateRevision(definition, expectedRevision: expectedRevision)
         do {
             guard try mutation(definition) else {
-                return
+                return false
             }
             try modelContext.save()
+            return true
         } catch {
             modelContext.rollback()
             throw error
         }
+    }
+
+    func validate(_ edit: ScheduledTaskDefinitionEdit) throws {
+        if edit.workspaceKind == .project, edit.project == nil {
+            throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
+        }
+        try recurrenceCalculator.validate(
+            edit.recurrence,
+            timeZoneIdentifier: edit.timeZoneIdentifier
+        )
+    }
+
+    func publishChange(definitionID: String) {
+        notificationCenter.postScheduledTasksChanged(
+            object: self,
+            definitionID: definitionID
+        )
     }
 
     func validateRevision(

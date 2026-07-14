@@ -31,6 +31,7 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertTrue(SidebarItem.project(project).canCommitDiffChanges)
         XCTAssertTrue(SidebarItem.thread(thread).canCommitDiffChanges)
         XCTAssertFalse(SidebarItem.skills.canCommitDiffChanges)
+        XCTAssertFalse(SidebarItem.scheduled.canCommitDiffChanges)
     }
 
     func testDiffCommitTargetResolverResolvesThreadTarget() throws {
@@ -84,6 +85,17 @@ final class ContentViewProjectActionsTests: XCTestCase {
             modelContext: fixture.context,
             appState: fixture.appState,
             activeDirectory: nil
+        ))
+    }
+
+    func testDiffCommitTargetResolverRejectsScheduledDestination() throws {
+        let fixture = try makeDiffCommitTargetFixture()
+
+        XCTAssertNil(DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: .scheduled,
+            modelContext: fixture.context,
+            appState: fixture.appState,
+            activeDirectory: fixture.project.path
         ))
     }
 

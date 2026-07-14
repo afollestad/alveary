@@ -20,6 +20,7 @@ extension SidebarKeyboardNavigationTests {
         XCTAssertEqual(items, [
             .skills,
             .mcp,
+            .scheduled,
             .thread(pinnedTask),
             .project(project),
             .thread(task)
@@ -36,7 +37,7 @@ extension SidebarKeyboardNavigationTests {
                 activeThreads: { _ in [] },
                 activeTasks: [task]
             ),
-            [.skills, .mcp, .thread(task)]
+            [.skills, .mcp, .scheduled, .thread(task)]
         )
     }
 }

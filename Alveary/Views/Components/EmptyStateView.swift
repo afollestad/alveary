@@ -5,6 +5,21 @@ struct EmptyStateView: View {
     let heading: String
     let subtext: String
     let actions: [EmptyStateAction]
+    let iconToHeadingSpacing: CGFloat
+
+    init(
+        icon: String,
+        heading: String,
+        subtext: String,
+        actions: [EmptyStateAction],
+        iconToHeadingSpacing: CGFloat = 24
+    ) {
+        self.icon = icon
+        self.heading = heading
+        self.subtext = subtext
+        self.actions = actions
+        self.iconToHeadingSpacing = iconToHeadingSpacing
+    }
 
     struct EmptyStateAction {
         let title: String
@@ -29,7 +44,7 @@ struct EmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 0) {
             Image(systemName: icon)
                 .font(.system(size: 42, weight: .semibold))
                 .foregroundStyle(.tint)
@@ -44,6 +59,7 @@ struct EmptyStateView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 420)
             }
+            .padding(.top, iconToHeadingSpacing)
 
             if !actions.isEmpty {
                 HStack(spacing: 12) {
@@ -75,6 +91,7 @@ struct EmptyStateView: View {
                         }
                     }
                 }
+                .padding(.top, 24)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

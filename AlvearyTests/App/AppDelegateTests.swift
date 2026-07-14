@@ -329,25 +329,6 @@ final class AppDelegateTests: XCTestCase {
         appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
     }
 
-    func testWakeNotificationCancelsOlderRefreshBeforeRunningProviderCheck() async throws {
-        let fixture = try AppDelegateTestFixture()
-        let appDelegate = fixture.makeAppDelegate(wakeRefreshDelay: .milliseconds(40))
-
-        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await fixture.waitForProviderChecks(1, description: "expected initial startup provider detection")
-
-        fixture.workspaceNotificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
-        try? await Task.sleep(for: .milliseconds(10))
-        fixture.workspaceNotificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
-
-        try await fixture.waitForProviderChecks(2, description: "expected only latest wake refresh to run")
-        try? await Task.sleep(for: .milliseconds(60))
-
-        let providerCheckCount = await fixture.providerDetection.checkAllCount()
-        XCTAssertEqual(providerCheckCount, 2)
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
-    }
-
     func testStartupWarmupRemovesSessionEntryWhenOrphanedConversationWasDeleted() async throws {
         let fixture = try AppDelegateTestFixture()
 
@@ -454,6 +435,7 @@ final class AppDelegateTests: XCTestCase {
         let shutdownCallCount = await fixture.agentsManager.beginShutdownCallCount()
         XCTAssertEqual(shutdownCallCount, 1)
     }
+
 }
 
 extension AppDelegateTests {

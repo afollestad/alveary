@@ -7,7 +7,13 @@ final class ScheduledTaskSchedulerCoordinator {
     typealias PendingOccurrenceStateSaver = @MainActor () throws -> Void
     typealias TerminalStateSaver = @MainActor () throws -> Void
     typealias TerminalConversationReconciliation = @MainActor (_ conversationID: String) -> Void
+    typealias DefinitionFailureNotification = @MainActor (
+        _ definitionID: String,
+        _ title: String,
+        _ reason: String
+    ) -> Void
     typealias PersistenceRetryWait = @MainActor () async -> Void
+    typealias SchedulingStateDidChange = @MainActor (_ definitionID: String) -> Void
 
     let modelContext: ModelContext
     private let engine: ScheduledTaskSchedulerEngine
@@ -17,6 +23,7 @@ final class ScheduledTaskSchedulerCoordinator {
     private let keepAwakeService: any KeepAwakeService
     let notificationManager: any NotificationManager
     let terminalConversationReconciliation: TerminalConversationReconciliation
+    private let definitionFailureNotification: DefinitionFailureNotification
     private let clearPendingOccurrence: PendingOccurrenceClearer
     let saveTerminalState: TerminalStateSaver
     let persistenceRetryWait: PersistenceRetryWait
@@ -29,6 +36,7 @@ final class ScheduledTaskSchedulerCoordinator {
     private var idleWaiters: [CheckedContinuation<Void, Never>] = []
     private var runIdleWaiters: [PersistentIdentifier: [CheckedContinuation<Void, Never>]] = [:]
     private var lifecycleState = ScheduledTaskCoordinatorLifecycleState.running
+    private var schedulingStateDidChange: SchedulingStateDidChange?
 
     init(
         modelContext: ModelContext,
@@ -39,6 +47,7 @@ final class ScheduledTaskSchedulerCoordinator {
         keepAwakeService: any KeepAwakeService,
         notificationManager: any NotificationManager,
         terminalConversationReconciliation: @escaping TerminalConversationReconciliation = { _ in },
+        definitionFailureNotification: @escaping DefinitionFailureNotification = { _, _, _ in },
         clearPendingOccurrence: PendingOccurrenceClearer? = nil,
         savePendingOccurrenceState: PendingOccurrenceStateSaver? = nil,
         saveTerminalState: TerminalStateSaver? = nil,
@@ -53,6 +62,7 @@ final class ScheduledTaskSchedulerCoordinator {
         self.keepAwakeService = keepAwakeService
         self.notificationManager = notificationManager
         self.terminalConversationReconciliation = terminalConversationReconciliation
+        self.definitionFailureNotification = definitionFailureNotification
         let savePendingOccurrenceState = savePendingOccurrenceState ?? { try modelContext.save() }
         self.clearPendingOccurrence = clearPendingOccurrence ?? { runID in
             guard let run = modelContext.resolveScheduledTaskRun(id: runID),
@@ -83,6 +93,14 @@ final class ScheduledTaskSchedulerCoordinator {
         Set(launchIDsByRunID.keys)
     }
 
+    var definitionIDsBeingClaimed: Set<String> {
+        definitionsBeingClaimed
+    }
+
+    func setSchedulingStateDidChange(_ handler: @escaping SchedulingStateDidChange) {
+        schedulingStateDidChange = handler
+    }
+
     func isActive(runID: PersistentIdentifier) -> Bool {
         launchIDsByRunID[runID] != nil
     }
@@ -100,8 +118,9 @@ final class ScheduledTaskSchedulerCoordinator {
             guard persistedState != .completed else {
                 return nil
             }
+            let hasActiveRun = definition.runs.contains { !$0.hasKnownTerminalStatus }
             let nextIsDue = definition.nextOccurrenceAt.map { $0 <= actionDate } ?? false
-            let pendingIsDue = definition.pendingOccurrenceAt.map { $0 <= actionDate } ?? false
+            let pendingIsDue = !hasActiveRun && (definition.pendingOccurrenceAt.map { $0 <= actionDate } ?? false)
             let needsDefinitionValidation = persistedState == nil || (
                 persistedState == .active
                     && definition.nextOccurrenceAt == nil
@@ -151,6 +170,7 @@ final class ScheduledTaskSchedulerCoordinator {
             }
             let launch = makeLaunch(definitionID: run.definitionID)
             register(runID: runID, for: launch)
+            schedulingStateDidChange?(run.definitionID)
             launch.task = Task { @MainActor [weak self, weak launch] in
                 guard let self, let launch else {
                     return
@@ -236,7 +256,7 @@ final class ScheduledTaskSchedulerCoordinator {
     /// Closes the launch boundary and waits for every in-flight pipeline to quiesce. Provider
     /// cancellation is owned by the executing task; user-stop semantics are intentionally not
     /// used here so coalesced occurrences remain available for the next catch-up pass.
-    func shutdown() async {
+    func beginShutdown() {
         if lifecycleState == .running {
             lifecycleState = .shuttingDown
             for launch in launches.values {
@@ -244,6 +264,10 @@ final class ScheduledTaskSchedulerCoordinator {
                 launch.task?.cancel()
             }
         }
+    }
+
+    func shutdown() async {
+        beginShutdown()
         await waitUntilIdle()
         lifecycleState = .shutDown
     }
@@ -294,6 +318,10 @@ private extension ScheduledTaskSchedulerCoordinator {
             try Task.checkCancellation()
             let result = try await claim()
             try Task.checkCancellation()
+            if case let .paused(reason) = result,
+               let definition = modelContext.resolveScheduledTask(id: launch.definitionID) {
+                definitionFailureNotification(definition.id, definition.title, reason)
+            }
             guard let runID = runnableRunID(from: result),
                   let run = modelContext.resolveScheduledTaskRun(id: runID),
                   run.status == .claimed else {
@@ -302,6 +330,7 @@ private extension ScheduledTaskSchedulerCoordinator {
             }
             register(runID: runID, for: launch)
             definitionsBeingClaimed.remove(launch.definitionID)
+            schedulingStateDidChange?(launch.definitionID)
             await performRun(runID: runID, launch: launch)
         } catch is CancellationError {
             await persistInterruptedRunIfNeeded(for: launch)
@@ -430,6 +459,7 @@ private extension ScheduledTaskSchedulerCoordinator {
         definitionsBeingClaimed.remove(launch.definitionID)
         launches.removeValue(forKey: launch.id)
         releaseStopFenceIfPossible(definitionID: launch.definitionID)
+        schedulingStateDidChange?(launch.definitionID)
         guard launches.isEmpty else {
             return
         }

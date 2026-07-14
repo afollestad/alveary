@@ -56,6 +56,11 @@ final class AppComponentTests: XCTestCase {
     func testScheduledTaskServicesAreAppScopedAndIdleWhenResolved() {
         let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
 
+        XCTAssertTrue(component.scheduledTaskMutationService === component.scheduledTaskMutationService)
+        XCTAssertTrue(
+            component.scheduledTaskDefinitionFailureNotifier === component.scheduledTaskDefinitionFailureNotifier
+        )
+        _ = component.scheduledTaskRecoveryReadinessValidator
         XCTAssertTrue(component.scheduledTaskSchedulerEngine === component.scheduledTaskSchedulerEngine)
         XCTAssertTrue(component.scheduledTaskRootLock === component.scheduledTaskRootLock)
         assertSameInstance(component.scheduledTaskRunMaterializer, component.scheduledTaskRunMaterializer)
@@ -63,6 +68,8 @@ final class AppComponentTests: XCTestCase {
         XCTAssertTrue(component.scheduledTaskRunRecoveryCoordinator === component.scheduledTaskRunRecoveryCoordinator)
         XCTAssertTrue(component.scheduledTaskSchedulerCoordinator === component.scheduledTaskSchedulerCoordinator)
         XCTAssertTrue(component.scheduledTaskSchedulerCoordinator.activeRunIDs.isEmpty)
+        XCTAssertTrue(component.scheduledTaskLifecycleCoordinator === component.scheduledTaskLifecycleCoordinator)
+        XCTAssertNil(component.scheduledTaskLifecycleCoordinator.scheduledDeadline)
     }
 
     func testOnboardingDependencyServiceIsAppScoped() {

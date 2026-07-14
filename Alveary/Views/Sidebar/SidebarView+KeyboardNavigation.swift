@@ -142,7 +142,7 @@ func shouldNavigateUpOnLeftArrow(
     projectHasVisibleThreads: (Project) -> Bool = { _ in true }
 ) -> Bool {
     switch selection {
-    case .skills, .mcp:
+    case .skills, .mcp, .scheduled:
         return true
     case .thread:
         return true
@@ -158,7 +158,7 @@ func shouldNavigateDownOnRightArrow(
     expandedProjects: Set<String>
 ) -> Bool {
     switch selection {
-    case .skills, .mcp:
+    case .skills, .mcp, .scheduled:
         return true
     case .thread:
         return true
@@ -218,7 +218,7 @@ func buildNavigableItems(
     activeThreads: (Project) -> [AgentThread],
     activeTasks: [AgentThread] = []
 ) -> [SidebarItem] {
-    var items: [SidebarItem] = [.skills, .mcp]
+    var items: [SidebarItem] = [.skills, .mcp, .scheduled]
     for pinnedItem in pinnedItems {
         items.append(pinnedItem.sidebarItem)
         if case .project(let project) = pinnedItem.kind,

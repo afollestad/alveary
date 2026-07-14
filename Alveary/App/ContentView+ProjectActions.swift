@@ -84,7 +84,7 @@ enum TerminalDefaultShellContextResolver {
                     selectedProjectPath: projectPath
                 )
             )
-        case .skills, .mcp, .settings, nil:
+        case .skills, .mcp, .scheduled, .settings, nil:
             return fallback(builder: builder)
         }
     }

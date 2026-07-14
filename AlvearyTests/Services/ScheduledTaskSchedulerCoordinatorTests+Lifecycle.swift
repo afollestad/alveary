@@ -5,6 +5,86 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskSchedulerCoordinatorTests {
+    func testSchedulingStateChangesAfterClaimAndTerminalCompletion() async throws {
+        let fixture = try ScheduledTaskCoordinatorFixture()
+        try fixture.insertDefinition(id: "state-change", projectPath: "/tmp/state-change")
+        let executionProbe = ScheduledTaskBlockingProbe()
+        let services = fixture.makeServices(executionProbe: executionProbe)
+        var changedDefinitionIDs: [String] = []
+        services.coordinator.setSchedulingStateDidChange { definitionID in
+            changedDefinitionIDs.append(definitionID)
+        }
+
+        XCTAssertTrue(services.coordinator.startDueTask(definitionID: "state-change", at: fixture.actionDate))
+        try await waitUntil("expected claimed run to enter execution") {
+            await executionProbe.snapshot().entryCount == 1
+        }
+        XCTAssertEqual(changedDefinitionIDs, ["state-change"])
+
+        await executionProbe.release()
+        await services.coordinator.waitUntilIdle()
+        XCTAssertEqual(changedDefinitionIDs, ["state-change", "state-change"])
+    }
+
+    func testDuePendingOccurrenceWaitsForUnknownNonterminalRun() async throws {
+        let fixture = try ScheduledTaskCoordinatorFixture()
+        let definition = try fixture.insertDefinition(id: "held-pending", projectPath: "/tmp/held-pending")
+        definition.nextOccurrenceAt = fixture.actionDate.addingTimeInterval(60)
+        definition.pendingOccurrenceAt = fixture.actionDate
+        let run = try fixture.insertRun(definition: definition, status: .running)
+        run.statusRawValue = "future-nonterminal-status"
+        try fixture.context.save()
+        let services = fixture.makeServices()
+
+        XCTAssertEqual(try services.coordinator.startDueTasks(at: fixture.actionDate), 0)
+        XCTAssertTrue(services.coordinator.definitionIDsBeingClaimed.isEmpty)
+        XCTAssertTrue(try fixture.runs().allSatisfy { !$0.hasKnownTerminalStatus })
+    }
+
+    func testDueNextOccurrenceStillCoalescesWhilePendingIsHeldByActiveRun() async throws {
+        let fixture = try ScheduledTaskCoordinatorFixture()
+        let definition = try fixture.insertDefinition(id: "newer-overlap", projectPath: "/tmp/newer-overlap")
+        definition.nextOccurrenceAt = fixture.actionDate
+        definition.pendingOccurrenceAt = fixture.actionDate.addingTimeInterval(-60)
+        _ = try fixture.insertRun(definition: definition, status: .running)
+        let services = fixture.makeServices()
+
+        XCTAssertEqual(try services.coordinator.startDueTasks(at: fixture.actionDate), 1)
+        await services.coordinator.waitUntilIdle()
+
+        XCTAssertEqual(definition.pendingOccurrenceAt, fixture.actionDate)
+        XCTAssertEqual(try fixture.runs().count, 1)
+    }
+
+    func testInvalidDefinitionPublishesDefinitionFailureWithoutCreatingConversationWork() async throws {
+        let fixture = try ScheduledTaskCoordinatorFixture()
+        let definition = try fixture.insertDefinition(id: "definition-notification", projectPath: "/tmp/definition-notification")
+        definition.nextOccurrenceAt = nil
+        definition.timeZoneIdentifier = "invalid/timezone"
+        try fixture.context.save()
+        var definitionIDs: [String] = []
+        var titles: [String] = []
+        var reasons: [String] = []
+        let services = fixture.makeServices(
+            definitionFailureNotification: { definitionID, title, reason in
+                definitionIDs.append(definitionID)
+                titles.append(title)
+                reasons.append(reason)
+            }
+        )
+
+        XCTAssertEqual(try services.coordinator.startDueTasks(at: fixture.actionDate), 1)
+        await services.coordinator.waitUntilIdle()
+
+        XCTAssertEqual(definitionIDs, [definition.id])
+        XCTAssertEqual(titles, [definition.title])
+        XCTAssertEqual(reasons.count, 1)
+        XCTAssertEqual(reasons.first, definition.pauseReason)
+        XCTAssertTrue(try fixture.runs().isEmpty)
+        XCTAssertEqual(services.notificationManager.refreshBadgeCountCalls, 0)
+        XCTAssertTrue(services.notificationManager.handleEventCalls.isEmpty)
+    }
+
     func testKeepAwakeCoversMaterializationAndReleasesAfterCompletion() async throws {
         let fixture = try ScheduledTaskCoordinatorFixture()
         try fixture.insertDefinition(id: "materializing-power", projectPath: "/tmp/materializing-power")

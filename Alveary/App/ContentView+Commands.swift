@@ -70,10 +70,10 @@ enum NewThreadProjectResolver {
                     return nil
                 }
                 return thread.project
-            case .skills, .mcp:
+            case .skills, .mcp, .scheduled:
                 return nil
             }
-        case .skills, .mcp, nil:
+        case .skills, .mcp, .scheduled, nil:
             return nil
         }
     }

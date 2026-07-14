@@ -436,6 +436,7 @@ enum SidebarSelectionToken: Equatable {
     case none
     case skills
     case mcp
+    case scheduled
     case project(PersistentIdentifier)
     case thread(PersistentIdentifier)
     case settings
@@ -464,6 +465,8 @@ func sidebarSelectionToken(_ item: SidebarItem?) -> SidebarSelectionToken {
         .skills
     case .mcp:
         .mcp
+    case .scheduled:
+        .scheduled
     case .project(let project):
         .project(project.persistentModelID)
     case .thread(let thread):

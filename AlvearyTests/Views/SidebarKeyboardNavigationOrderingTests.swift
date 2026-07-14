@@ -39,6 +39,7 @@ final class SidebarKeyboardNavigationOrderingTests: XCTestCase {
         XCTAssertEqual(items, [
             .skills,
             .mcp,
+            .scheduled,
             .thread(standalonePinned),
             .project(pinnedProject),
             .thread(pinnedChild),

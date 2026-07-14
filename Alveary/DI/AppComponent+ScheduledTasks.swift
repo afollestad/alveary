@@ -2,9 +2,31 @@ import NeedleFoundation
 
 @MainActor
 extension AppComponent {
+    var scheduledTaskMutationService: ScheduledTaskMutationService {
+        return shared {
+            ScheduledTaskMutationService(modelContext: modelContainer.mainContext)
+        }
+    }
+
+    var scheduledTaskDefinitionFailureNotifier: ScheduledTaskDefinitionFailureNotifier {
+        return shared {
+            ScheduledTaskDefinitionFailureNotifier(settingsService: settingsService)
+        }
+    }
+
     var scheduledTaskPreflightValidator: DefaultScheduledTaskPreflightValidator {
         return shared {
             DefaultScheduledTaskPreflightValidator(
+                providerDiscovery: agentCLIKitProviderDiscoveryService,
+                workspaceOwnershipService: taskWorkspaceOwnershipService,
+                worktreeManager: worktreeManager
+            )
+        }
+    }
+
+    var scheduledTaskRecoveryReadinessValidator: ScheduledTaskRecoveryReadinessValidator {
+        return shared {
+            ScheduledTaskRecoveryReadinessValidator(
                 providerDiscovery: agentCLIKitProviderDiscoveryService,
                 workspaceOwnershipService: taskWorkspaceOwnershipService,
                 worktreeManager: worktreeManager
@@ -74,7 +96,25 @@ extension AppComponent {
                     self.conversationControllerRegistry.reconcileScheduledTaskTerminalState(
                         conversationID: conversationID
                     )
+                },
+                definitionFailureNotification: { definitionID, title, reason in
+                    self.scheduledTaskDefinitionFailureNotifier.publish(
+                        definitionID: definitionID,
+                        title: title,
+                        reason: reason
+                    )
                 }
+            )
+        }
+    }
+
+    var scheduledTaskLifecycleCoordinator: ScheduledTaskLifecycleCoordinator {
+        return shared {
+            ScheduledTaskLifecycleCoordinator(
+                modelContext: modelContainer.mainContext,
+                schedulerCoordinator: scheduledTaskSchedulerCoordinator,
+                recoveryCoordinator: scheduledTaskRunRecoveryCoordinator,
+                readinessValidator: scheduledTaskRecoveryReadinessValidator
             )
         }
     }

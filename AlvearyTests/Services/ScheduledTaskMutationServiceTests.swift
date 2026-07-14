@@ -370,9 +370,10 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
 }
 
 @MainActor
-private struct ScheduledTaskMutationFixture {
+struct ScheduledTaskMutationFixture {
     let container: ModelContainer
     let context: ModelContext
+    let notificationCenter: NotificationCenter
     let service: ScheduledTaskMutationService
 
     init() throws {
@@ -386,7 +387,11 @@ private struct ScheduledTaskMutationFixture {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         context = ModelContext(container)
-        service = ScheduledTaskMutationService(modelContext: context)
+        notificationCenter = NotificationCenter()
+        service = ScheduledTaskMutationService(
+            modelContext: context,
+            notificationCenter: notificationCenter
+        )
     }
 
     func insertDefinition(

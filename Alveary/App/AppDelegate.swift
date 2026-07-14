@@ -14,6 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shellRunner: any ShellRunner
         let modelContainer: ModelContainer
         let flushConversationControllers: @MainActor () -> [ConversationControllerFlushFailure]
+        let activateScheduledTasks: @MainActor () async -> Void
+        let reconcileScheduledTasks: @MainActor () -> Void
+        let prepareScheduledTasksForTermination: @MainActor (Date) throws -> ScheduledTaskTerminationPreparation?
         let notificationRouter: NotificationRouter
         let workspaceNotificationCenter: NotificationCenter
         let notificationCenter: NotificationCenter
@@ -39,6 +42,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 modelContainer: component.modelContainer,
                 flushConversationControllers: {
                     component.conversationControllerRegistry.flushForTermination()
+                },
+                activateScheduledTasks: {
+                    await component.scheduledTaskLifecycleCoordinator.activateAfterProviderRefresh()
+                },
+                reconcileScheduledTasks: {
+                    component.scheduledTaskLifecycleCoordinator.reconcileAfterSystemChange()
+                },
+                prepareScheduledTasksForTermination: { actionDate in
+                    try component.scheduledTaskLifecycleCoordinator.prepareForTermination(at: actionDate)
                 },
                 notificationRouter: component.notificationRouter,
                 workspaceNotificationCenter: NSWorkspace.shared.notificationCenter,
@@ -128,6 +140,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             await dependencies.providerDetection.checkAllProviders()
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await dependencies.activateScheduledTasks()
         }
 
         wakeObserver = dependencies.workspaceNotificationCenter.addObserver(
@@ -210,7 +227,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startupTask?.cancel()
         wakeRefreshTask?.cancel()
 
-        let controllerFlushFailures = dependencies.flushConversationControllers()
+        let controllerFlushFailures: [ConversationControllerFlushFailure]
+        do {
+            if let preparation = try dependencies.prepareScheduledTasksForTermination(.now) {
+                controllerFlushFailures = preparation.controllerFlushFailures
+            } else {
+                controllerFlushFailures = dependencies.flushConversationControllers()
+            }
+        } catch {
+            print("[AppDelegate] Failed to reconcile scheduled tasks for termination: \(error)")
+            controllerFlushFailures = dependencies.flushConversationControllers()
+        }
         for failure in controllerFlushFailures {
             print("[AppDelegate] Failed to flush conversation \(failure.key.conversationID): \(failure.message)")
         }
@@ -273,6 +300,10 @@ private extension AppDelegate {
             }
 
             await providerDetection.checkAllProviders()
+            guard !Task.isCancelled else {
+                return
+            }
+            dependencies.reconcileScheduledTasks()
         }
     }
 
@@ -422,73 +453,4 @@ private extension AppDelegate {
             self.managedProcessesObserver = nil
         }
     }
-}
-
-private struct ClaudeProcessCandidate {
-    let pid: Int32
-    let sessionId: String
-
-    static func parse(psOutput: String) -> [ClaudeProcessCandidate] {
-        psOutput
-            .split(whereSeparator: \.isNewline)
-            .compactMap(Self.parse(line:))
-    }
-
-    private static func parse(line: Substring) -> ClaudeProcessCandidate? {
-        let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedLine.isEmpty else {
-            return nil
-        }
-
-        let parts = trimmedLine.split(maxSplits: 1, whereSeparator: \.isWhitespace)
-        guard parts.count == 2,
-              let pid = Int32(parts[0]) else {
-            return nil
-        }
-
-        let command = String(parts[1])
-        guard executableBasename(in: command) == "claude",
-              let sessionId = sessionId(in: command) else {
-            return nil
-        }
-
-        return ClaudeProcessCandidate(pid: pid, sessionId: sessionId)
-    }
-
-    private static func executableBasename(in command: String) -> String? {
-        guard let executable = command.split(whereSeparator: \.isWhitespace).first else {
-            return nil
-        }
-
-        return executable.split(separator: "/").last.map(String.init)
-    }
-
-    private static func sessionId(in command: String) -> String? {
-        let tokens = command.split(whereSeparator: \.isWhitespace).map(String.init)
-        for (index, token) in tokens.enumerated() {
-            switch token {
-            case "--resume", "--session-id":
-                let nextIndex = index + 1
-                guard nextIndex < tokens.count else {
-                    continue
-                }
-                return tokens[nextIndex]
-            default:
-                if token.hasPrefix("--resume=") {
-                    return String(token.dropFirst("--resume=".count))
-                }
-                if token.hasPrefix("--session-id=") {
-                    return String(token.dropFirst("--session-id=".count))
-                }
-            }
-        }
-
-        return nil
-    }
-}
-
-private struct TrackedClaudeProcess {
-    let pid: Int32
-    let sessionId: String
-    let cwd: String
 }

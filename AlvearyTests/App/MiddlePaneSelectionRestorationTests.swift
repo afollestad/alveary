@@ -4,6 +4,15 @@ import XCTest
 
 @MainActor
 final class MiddlePaneSelectionRestorationTests: XCTestCase {
+    func testResolveScheduledBookmarkReturnsScheduledDestination() throws {
+        let fixture = try SidebarTestFixture()
+
+        XCTAssertEqual(
+            resolveSidebarSelectionBookmark(.scheduled, modelContext: fixture.context),
+            .scheduled
+        )
+    }
+
     func testResolveSidebarBookmarkReturnsThreadForActiveThreadBookmark() throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
