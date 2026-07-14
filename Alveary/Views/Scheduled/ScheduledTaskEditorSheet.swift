@@ -3,6 +3,14 @@ import SwiftUI
 struct ScheduledTaskEditorSheet: View {
     let viewModel: ScheduledTasksViewModel
     let onClose: () -> Void
+    private let titleOverride: String?
+    private let subtitleOverride: String?
+    private let submitTitleOverride: String?
+    private let errorMessageOverride: String?
+    private let onDismissErrorOverride: (() -> Void)?
+    private let onSubmit: (ScheduledTaskEditorDraft) -> Bool
+    private let minimumWidth: CGFloat
+    private let minimumHeight: CGFloat
 
     @State private var draft: ScheduledTaskEditorDraft
 
@@ -13,6 +21,38 @@ struct ScheduledTaskEditorSheet: View {
     ) {
         self.viewModel = viewModel
         self.onClose = onClose
+        self.titleOverride = nil
+        self.subtitleOverride = nil
+        self.submitTitleOverride = nil
+        self.errorMessageOverride = nil
+        self.onDismissErrorOverride = nil
+        self.onSubmit = { draft in viewModel.save(draft) }
+        self.minimumWidth = 640
+        self.minimumHeight = 620
+        _draft = State(initialValue: initialDraft)
+    }
+
+    init(
+        viewModel: ScheduledTasksViewModel,
+        initialDraft: ScheduledTaskEditorDraft,
+        title: String,
+        subtitle: String,
+        submitTitle: String,
+        errorMessage: String?,
+        onDismissError: @escaping () -> Void,
+        onSubmit: @escaping (ScheduledTaskEditorDraft) -> Bool,
+        onClose: @escaping () -> Void
+    ) {
+        self.viewModel = viewModel
+        self.onClose = onClose
+        self.titleOverride = title
+        self.subtitleOverride = subtitle
+        self.submitTitleOverride = submitTitle
+        self.errorMessageOverride = errorMessage
+        self.onDismissErrorOverride = onDismissError
+        self.onSubmit = onSubmit
+        self.minimumWidth = 0
+        self.minimumHeight = 0
         _draft = State(initialValue: initialDraft)
     }
 
@@ -24,12 +64,12 @@ struct ScheduledTaskEditorSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    if let errorMessage = viewModel.editorErrorMessage {
+                    if let errorMessage = errorMessageOverride ?? viewModel.editorErrorMessage {
                         InlineBanner(
                             message: errorMessage,
                             severity: .error,
                             autoDismissAfter: nil,
-                            onDismiss: viewModel.clearEditorError
+                            onDismiss: dismissError
                         )
                     }
 
@@ -48,11 +88,15 @@ struct ScheduledTaskEditorSheet: View {
 
             footer
         }
-        .frame(minWidth: 640, idealWidth: 700, minHeight: 620, idealHeight: 760)
+        .frame(minWidth: minimumWidth, idealWidth: 700, minHeight: minimumHeight, idealHeight: 760)
         .onChange(of: draft.providerID) { _, _ in
             viewModel.normalizeProviderDependentFields(&draft)
         }
         .onChange(of: draft.modelSelection) { _, _ in
+            viewModel.normalizeProviderDependentFields(&draft)
+        }
+        .onChange(of: viewModel.isLoadingProviders) { wasLoading, isLoading in
+            guard wasLoading, !isLoading else { return }
             viewModel.normalizeProviderDependentFields(&draft)
         }
     }
@@ -60,9 +104,9 @@ struct ScheduledTaskEditorSheet: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(draft.isEditing ? "Edit scheduled task" : "New scheduled task")
+                Text(titleOverride ?? (draft.isEditing ? "Edit scheduled task" : "New scheduled task"))
                     .font(.title2.weight(.semibold))
-                Text("Changes apply only to future runs.")
+                Text(subtitleOverride ?? "Changes apply only to future runs.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -84,14 +128,22 @@ struct ScheduledTaskEditorSheet: View {
 
             Button("Cancel", action: onClose)
                 .secondaryActionButtonStyle()
-            Button(draft.isEditing ? "Save changes" : "Create task") {
-                if viewModel.save(draft) {
+            Button(submitTitleOverride ?? (draft.isEditing ? "Save changes" : "Create task")) {
+                if onSubmit(draft) {
                     onClose()
                 }
             }
             .primaryActionButtonStyle()
         }
         .padding(20)
+    }
+
+    private func dismissError() {
+        if let onDismissErrorOverride {
+            onDismissErrorOverride()
+        } else {
+            viewModel.clearEditorError()
+        }
     }
 }
 

@@ -332,6 +332,7 @@ final class ProviderSessionActionServiceTests: XCTestCase {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let context = ModelContext(container)

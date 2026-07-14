@@ -44,6 +44,7 @@ extension SnapshotTests {
             named: "scheduled_tasks_populated_narrow"
         )
     }
+
     func testScheduledTaskEditorWeekdaySelection() throws {
         let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
         var draft = fixture.viewModel.makeNewDraft()
@@ -57,6 +58,196 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 760, height: 780),
             named: "scheduled_task_editor_weekday_selection"
+        )
+    }
+
+    func testScheduledTaskDeleteProposalOverlay() throws {
+        let fixture = try ScheduledTaskProposalSnapshotFixture()
+
+        assertMacSnapshot(
+            ScheduledTaskProposalOverlay(
+                proposal: fixture.proposal,
+                coordinator: fixture.coordinator,
+                scheduledTasksViewModel: fixture.viewModel
+            ),
+            size: CGSize(width: 900, height: 680),
+            named: "scheduled_task_delete_proposal"
+        )
+    }
+
+    func testScheduledTaskDeleteProposalOverlayDark() throws {
+        let fixture = try ScheduledTaskProposalSnapshotFixture()
+
+        assertMacSnapshot(
+            ScheduledTaskProposalOverlay(
+                proposal: fixture.proposal,
+                coordinator: fixture.coordinator,
+                scheduledTasksViewModel: fixture.viewModel
+            ),
+            size: CGSize(width: 900, height: 680),
+            named: "scheduled_task_delete_proposal_dark",
+            colorScheme: .dark
+        )
+    }
+
+    func testScheduledTaskEditorProposalOverlayError() throws {
+        let fixture = try ScheduledTaskProposalSnapshotFixture()
+        fixture.coordinator.errorMessage = "The proposal could not be rejected because its pending confirmation could not be saved."
+
+        assertMacSnapshot(
+            ScheduledTaskProposalOverlay(
+                proposal: fixture.editorProposal,
+                coordinator: fixture.coordinator,
+                scheduledTasksViewModel: fixture.viewModel
+            ),
+            size: CGSize(width: 900, height: 780),
+            named: "scheduled_task_editor_proposal_error"
+        )
+    }
+
+    func testScheduledTaskEditorProposalOverlayNarrow() throws {
+        let fixture = try ScheduledTaskProposalSnapshotFixture()
+
+        assertMacSnapshot(
+            ScheduledTaskProposalOverlay(
+                proposal: fixture.editorProposal,
+                coordinator: fixture.coordinator,
+                scheduledTasksViewModel: fixture.viewModel
+            ),
+            size: CGSize(width: 640, height: 780),
+            named: "scheduled_task_editor_proposal_narrow"
+        )
+    }
+
+    func testScheduledTaskIntervalProposalOverlay() throws {
+        let fixture = try ScheduledTaskProposalSnapshotFixture()
+
+        assertMacSnapshot(
+            ScheduledTaskProposalOverlay(
+                proposal: fixture.intervalEditorProposal,
+                coordinator: fixture.coordinator,
+                scheduledTasksViewModel: fixture.viewModel
+            ),
+            size: CGSize(width: 1_200, height: 768),
+            named: "scheduled_task_interval_proposal"
+        )
+    }
+
+    func testScheduledTaskIntervalProposalOverlayDark() throws {
+        let fixture = try ScheduledTaskProposalSnapshotFixture()
+
+        assertMacSnapshot(
+            ScheduledTaskProposalOverlay(
+                proposal: fixture.intervalEditorProposal,
+                coordinator: fixture.coordinator,
+                scheduledTasksViewModel: fixture.viewModel
+            ),
+            size: CGSize(width: 1_200, height: 768),
+            named: "scheduled_task_interval_proposal_dark",
+            colorScheme: .dark
+        )
+    }
+}
+
+@MainActor
+private final class ScheduledTaskProposalSnapshotFixture {
+    let proposal = ScheduledTaskProposalPresentation(
+        id: "proposal-delete-snapshot",
+        action: .delete,
+        sourceConversationID: "proposal-source",
+        targetDefinitionID: "proposal-target",
+        expectedDefinitionRevision: 3,
+        targetTitle: "Review open pull requests",
+        targetScheduleSummary: "Weekdays at 9:00 AM [America/Chicago]",
+        definitionDraft: nil,
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+        conflictMessage: nil
+    )
+    let editorProposal = ScheduledTaskProposalPresentation(
+        id: "proposal-create-snapshot",
+        action: .create,
+        sourceConversationID: "proposal-editor-source",
+        targetDefinitionID: nil,
+        expectedDefinitionRevision: nil,
+        targetTitle: nil,
+        targetScheduleSummary: nil,
+        definitionDraft: ScheduledTaskProposalDefinitionDraft(
+            title: "Review open pull requests",
+            prompt: "Summarize open pull requests, identify risks, and recommend the next review.",
+            recurrence: .weekdays(hour: 9, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            model: nil,
+            effort: "medium",
+            permissionMode: "on-request",
+            workspaceKind: .privateWorkspace,
+            workspaceStrategy: .worktree,
+            grantedRoots: ["/tmp/review-inputs"],
+            projectPath: nil
+        ),
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+        conflictMessage: nil
+    )
+    let intervalEditorProposal = ScheduledTaskProposalPresentation(
+        id: "proposal-interval-snapshot",
+        action: .create,
+        sourceConversationID: "proposal-interval-source",
+        targetDefinitionID: nil,
+        expectedDefinitionRevision: nil,
+        targetTitle: nil,
+        targetScheduleSummary: nil,
+        definitionDraft: ScheduledTaskProposalDefinitionDraft(
+            title: "Hello Every Minute",
+            prompt: "Say \"Hello\".",
+            recurrence: .interval(
+                minutes: 1,
+                anchor: Date(timeIntervalSince1970: 1_800_000_000)
+            ),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "claude",
+            model: nil,
+            effort: "medium",
+            permissionMode: "default",
+            workspaceKind: .privateWorkspace,
+            workspaceStrategy: .worktree,
+            grantedRoots: [],
+            projectPath: nil
+        ),
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000),
+        conflictMessage: nil
+    )
+    let coordinator: ScheduledTaskProposalQueueCoordinator
+    let viewModel: ScheduledTasksViewModel
+
+    init() throws {
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = ModelContext(container)
+        let notificationCenter = NotificationCenter()
+        let mutationService = ScheduledTaskMutationService(
+            modelContext: context,
+            notificationCenter: notificationCenter
+        )
+        coordinator = ScheduledTaskProposalQueueCoordinator(
+            modelContext: context,
+            mutationService: mutationService,
+            notificationCenter: notificationCenter,
+            runNow: { _ in true }
+        )
+        viewModel = ScheduledTasksViewModel(
+            modelContext: context,
+            mutationService: mutationService,
+            settingsService: InMemorySettingsService(),
+            notificationCenter: notificationCenter,
+            runNow: { _ in true }
         )
     }
 }
@@ -95,6 +286,7 @@ private final class ScheduledTasksSnapshotFixture {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }

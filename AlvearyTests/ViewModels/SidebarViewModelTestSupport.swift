@@ -42,15 +42,7 @@ struct SidebarTestFixture {
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
         let configuration = modelConfiguration ?? ModelConfiguration(isStoredInMemoryOnly: true)
-        container = try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            ScheduledTask.self,
-            ScheduledTaskRun.self,
-            configurations: configuration
-        )
+        container = try makeSidebarTestModelContainer(configuration: configuration)
         context = ModelContext(container)
         shell = MockShellRunner()
         gitHubCLI = SidebarMockGitHubCLIService(
@@ -178,6 +170,21 @@ struct SidebarTestFixture {
         dbThread.archivedAt = Date()
         try context.save()
     }
+}
+
+private func makeSidebarTestModelContainer(
+    configuration: ModelConfiguration
+) throws -> ModelContainer {
+    try ModelContainer(
+        for: Project.self,
+        AgentThread.self,
+        Conversation.self,
+        ConversationEventRecord.self,
+        ScheduledTask.self,
+        ScheduledTaskRun.self,
+        ScheduledTaskProposal.self,
+        configurations: configuration
+    )
 }
 
 enum SidebarFixtureError: Error {

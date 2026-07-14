@@ -52,6 +52,38 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(freeform, "Searching for tool `notebook jupyter`")
     }
 
+    func testToolSummaryDerivesReadableDynamicToolNames() {
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(
+                name: "mcp__alveary_host__list_scheduled_tasks",
+                input: "{}"
+            ),
+            "List scheduled tasks"
+        )
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(
+                name: "list_scheduled_tasks",
+                input: "{}"
+            ),
+            "List scheduled tasks"
+        )
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(
+                name: "mcp__linear__create-issue",
+                input: "not-json"
+            ),
+            "Create issue"
+        )
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(name: "mcp__github__search", input: "{}"),
+            "Search"
+        )
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(name: "CustomTool", input: "{}"),
+            "CustomTool"
+        )
+    }
+
     func testSkillSummaryFormatsInvocation() {
         let summary = ChatItemGrouper.toolSummary(
             name: "Skill",

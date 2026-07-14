@@ -59,7 +59,8 @@ private extension ConversationViewModel {
 
         let config = try makeSpawnConfig(
             allowedDirectories: required,
-            settingsSource: .currentContinuation
+            settingsSource: .currentContinuation,
+            hostToolExposure: .ordinaryOutbound
         )
         let result = try await reconfigureSession(config: config)
         guard result != .nextTurnRequired else {

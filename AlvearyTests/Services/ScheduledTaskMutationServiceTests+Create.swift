@@ -32,7 +32,7 @@ extension ScheduledTaskMutationServiceTests {
                 permissionMode: "default",
                 workspaceKind: .privateWorkspace,
                 workspaceStrategy: .worktree,
-                grantedRoots: ["/tmp/grant/", "/tmp/grant"],
+                grantedRoots: [CanonicalPath.normalize("/tmp/grant")],
                 project: nil
             ),
             at: actionDate
@@ -70,6 +70,66 @@ extension ScheduledTaskMutationServiceTests {
             )
         ) { error in
             XCTAssertEqual(error as? ScheduledTaskMutationError, .projectWorkspaceRequiresProject)
+        }
+    }
+
+    func testCreateRejectsNoncanonicalGrantRoots() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+
+        XCTAssertThrowsError(
+            try fixture.service.create(
+                edit: ScheduledTaskDefinitionEdit(
+                    title: "Grant task",
+                    prompt: "Run checks",
+                    recurrence: .daily(hour: 8, minute: 0),
+                    timeZoneIdentifier: "UTC",
+                    providerID: "codex",
+                    model: nil,
+                    effort: "medium",
+                    permissionMode: "default",
+                    workspaceKind: .privateWorkspace,
+                    workspaceStrategy: .worktree,
+                    grantedRoots: ["/tmp/grant/", "/tmp/grant"],
+                    project: nil
+                )
+            )
+        ) { error in
+            XCTAssertEqual(error as? ScheduledTaskMutationError, .workspaceRootsChanged)
+        }
+    }
+
+    func testCreateRejectsProjectWhoseCanonicalTargetChanged() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScheduledTaskMutationProject-\(UUID().uuidString)", isDirectory: true)
+        let projectURL = root.appendingPathComponent("Project", isDirectory: true)
+        let replacementURL = root.appendingPathComponent("Replacement", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: replacementURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = Project(path: projectURL.path, name: "Project")
+        try FileManager.default.removeItem(at: projectURL)
+        try FileManager.default.createSymbolicLink(at: projectURL, withDestinationURL: replacementURL)
+
+        XCTAssertThrowsError(
+            try fixture.service.create(
+                edit: ScheduledTaskDefinitionEdit(
+                    title: "Project task",
+                    prompt: "Run checks",
+                    recurrence: .daily(hour: 8, minute: 0),
+                    timeZoneIdentifier: "UTC",
+                    providerID: "codex",
+                    model: nil,
+                    effort: "medium",
+                    permissionMode: "default",
+                    workspaceKind: .project,
+                    workspaceStrategy: .worktree,
+                    grantedRoots: [],
+                    project: project
+                )
+            )
+        ) { error in
+            XCTAssertEqual(error as? ScheduledTaskMutationError, .workspaceRootsChanged)
         }
     }
 }

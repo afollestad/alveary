@@ -196,7 +196,8 @@ final class ConversationViewModel {
                     try await deliverMessageReserved(
                         message,
                         useCurrentStagedContextWhenOverrideNil: false,
-                        respawnSettingsSource: .currentContinuation
+                        respawnSettingsSource: .currentContinuation,
+                        hostToolExposure: .currentContinuation
                     )
                 }
             } else {
@@ -206,7 +207,8 @@ final class ConversationViewModel {
             try await deliverMessageReserved(
                 message,
                 useCurrentStagedContextWhenOverrideNil: false,
-                respawnSettingsSource: .currentContinuation
+                respawnSettingsSource: .currentContinuation,
+                hostToolExposure: .currentContinuation
             )
             supersedePendingToolApprovalAfterPromptAnswer(pendingApproval)
         }

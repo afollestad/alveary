@@ -37,6 +37,13 @@ extension DefaultAgentsManager {
 }
 
 extension AgentCLIKit.AgentEventEnvelope {
+    var isHostToolServerUnavailableDiagnostic: Bool {
+        guard case let .diagnostic(event) = event else {
+            return false
+        }
+        return event.code == .hostToolServerUnavailable
+    }
+
     var isRuntimeStartLifecycle: Bool {
         guard case let .lifecycle(event) = event else {
             return false

@@ -197,16 +197,29 @@ extension ConversationViewModel {
         config: AgentSpawnConfig,
         performsCancellationCleanup: Bool = true
     ) async throws {
-        try await prepareForSpawn(config: config)
-        try await agentsManager.spawn(id: conversation.id, config: config)
-        if Task.isCancelled {
-            if performsCancellationCleanup {
-                try await destroyRuntimeIgnoringTaskCancellation()
+        let hostToolTransition = state.beginSchedulingHostToolRuntimeTransition()
+        do {
+            try await prepareForSpawn(config: config)
+            try await agentsManager.spawn(id: conversation.id, config: config)
+            if Task.isCancelled {
+                if performsCancellationCleanup {
+                    try await destroyRuntimeIgnoringTaskCancellation()
+                }
+                throw CancellationError()
             }
-            throw CancellationError()
+        } catch {
+            state.finishSchedulingHostToolRuntimeTransition(
+                hostToolTransition,
+                appliedRequestedConfiguration: false
+            )
+            throw error
         }
-        state.liveSessionConfig = config
+        state.liveSessionConfig = effectiveLiveSessionConfig(config)
         state.runtimeSpeedMode = config.speedMode
+        state.finishSchedulingHostToolRuntimeTransition(
+            hostToolTransition,
+            appliedRequestedConfiguration: true
+        )
         subscribe()
     }
 
@@ -228,13 +241,15 @@ extension ConversationViewModel {
         respawnSettingsSource: SessionSettingsConfigSource = .nextTurn,
         marksSessionHandoffSeedTurn: Bool = false,
         failureHandling: LocalUserMessageFailureHandling = .retryable,
-        isAutomatedScheduledTurn: Bool = false
+        isAutomatedScheduledTurn: Bool = false,
+        hostToolExposure: SchedulingHostToolExposure = .ordinaryOutbound
     ) async throws {
         try repairMissingWorktreeIfNeeded()
         let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(
             stagedContextOverride: stagedContextOverride,
             useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
-            respawnSettingsSource: respawnSettingsSource
+            respawnSettingsSource: respawnSettingsSource,
+            hostToolExposure: hostToolExposure
         )
         if resolvedStagedContext.consumedCurrentStagedContext != nil { state.stagedContext = nil }
         let attempt = try localUserMessageAttempt(
@@ -294,7 +309,10 @@ extension ConversationViewModel {
                 stagedContextOverride: resolvedStagedContext.stagedContext ?? (attempt.insertedMessage ? attempt.stagedContext : nil),
                 useCurrentStagedContextWhenOverrideNil: false,
                 existingLocalUserMessageID: attempt.id,
-                respawnSettingsSource: respawnSettingsSource,
+                respawn: OutboundRespawnConfiguration(
+                    settingsSource: respawnSettingsSource,
+                    hostToolExposure: hostToolExposure
+                ),
                 marksSessionHandoffSeedTurn: marksSessionHandoffSeedTurn,
                 initialGoal: initialGoal,
                 onResolvedRecoveryContext: { retryStagedContext = $0.stagedContext }

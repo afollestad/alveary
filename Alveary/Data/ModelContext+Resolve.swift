@@ -22,6 +22,16 @@ extension ModelContext {
         )
     }
 
+    func resolveProject(path: String) -> Project? {
+        resolve(
+            FetchDescriptor<Project>(
+                predicate: #Predicate { project in
+                    project.path == path
+                }
+            )
+        )
+    }
+
     func resolveConversation(id: PersistentIdentifier) -> Conversation? {
         resolve(
             FetchDescriptor<Conversation>(
@@ -67,6 +77,26 @@ extension ModelContext {
             FetchDescriptor<ScheduledTaskRun>(
                 predicate: #Predicate { run in
                     run.persistentModelID == id
+                }
+            )
+        )
+    }
+
+    func resolveScheduledTaskProposal(id: String) -> ScheduledTaskProposal? {
+        resolve(
+            FetchDescriptor<ScheduledTaskProposal>(
+                predicate: #Predicate { proposal in
+                    proposal.id == id
+                }
+            )
+        )
+    }
+
+    func resolveScheduledTaskProposal(sourceConversationID: String) -> ScheduledTaskProposal? {
+        resolve(
+            FetchDescriptor<ScheduledTaskProposal>(
+                predicate: #Predicate { proposal in
+                    proposal.sourceConversationID == sourceConversationID
                 }
             )
         )

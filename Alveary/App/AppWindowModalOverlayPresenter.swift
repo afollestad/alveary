@@ -151,7 +151,22 @@ struct AppWindowModalOverlayPresenter: NSViewRepresentable {
         }
 
         private func updateOverlayRootView(_ modal: Modal) {
-            hostingView?.rootView = modal.content
+            guard let overlayContentView else {
+                return
+            }
+            replaceHostingView(with: modal, in: overlayContentView)
+        }
+
+        func replaceHostingView(
+            with modal: Modal,
+            in overlayContentView: AppWindowModalOverlayContentView
+        ) {
+            hostingView?.removeFromSuperview()
+            let hostingView = NSHostingView(rootView: modal.content)
+            hostingView.frame = overlayContentView.bounds
+            hostingView.autoresizingMask = [.width, .height]
+            overlayContentView.addSubview(hostingView)
+            self.hostingView = hostingView
             presentedModalID = modal.id
         }
 

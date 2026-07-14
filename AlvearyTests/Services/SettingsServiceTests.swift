@@ -466,6 +466,7 @@ extension SettingsServiceTests {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }

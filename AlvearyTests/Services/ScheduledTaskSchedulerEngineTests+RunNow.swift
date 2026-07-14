@@ -84,6 +84,146 @@ extension ScheduledTaskSchedulerEngineTests {
         XCTAssertNil(definition.nextOccurrenceAt)
     }
 
+    func testManualRunNowIdempotencyKeyReusesClaimAcrossDifferentConfirmationTimes() async throws {
+        let fixture = try ScheduledTaskSchedulerFixture()
+        let definition = try fixture.insertDefinition(
+            state: .completed,
+            recurrence: .once(fixture.date(300)),
+            nextOccurrenceAt: nil
+        )
+        let firstRequest = ScheduledTaskRunNowRequest(
+            definitionID: definition.id,
+            definitionRevision: definition.revision,
+            occurrenceAt: fixture.date(600),
+            triggeredAt: fixture.date(600),
+            occurrenceSource: .manual,
+            idempotencyKey: "proposal-1"
+        )
+        let engine = fixture.makeEngine()
+
+        let firstResult = try await engine.claimRunNow(firstRequest)
+        guard case let .claimed(runID) = firstResult,
+              let run = fixture.run(id: runID) else {
+            return XCTFail("Expected first Run now request to be claimed; received \(String(describing: firstResult))")
+        }
+        run.status = .success
+        run.finishedAt = fixture.date(700)
+        try fixture.context.save()
+
+        let retryRequest = ScheduledTaskRunNowRequest(
+            definitionID: definition.id,
+            definitionRevision: definition.revision,
+            occurrenceAt: fixture.date(900),
+            triggeredAt: fixture.date(900),
+            occurrenceSource: .manual,
+            idempotencyKey: "proposal-1"
+        )
+        guard case let .alreadyClaimed(retriedRunID) = try await engine.claimRunNow(retryRequest) else {
+            return XCTFail("Expected retry to resolve the existing run")
+        }
+
+        XCTAssertEqual(retriedRunID, run.persistentModelID)
+        XCTAssertEqual(try fixture.runCount(), 1)
+    }
+
+    func testScheduledRunNowIdempotencyKeyReusesClaimAfterCadenceAdvances() async throws {
+        let fixture = try ScheduledTaskSchedulerFixture()
+        let definition = try fixture.insertDefinition(
+            recurrence: .interval(minutes: 5, anchor: fixture.date(0)),
+            nextOccurrenceAt: fixture.date(300)
+        )
+        let firstRequest = ScheduledTaskRunNowRequest(
+            definitionID: definition.id,
+            definitionRevision: definition.revision,
+            occurrenceAt: fixture.date(600),
+            triggeredAt: fixture.date(600),
+            occurrenceSource: .scheduled,
+            idempotencyKey: "scheduled-proposal"
+        )
+        var preflightCount = 0
+        let engine = fixture.makeEngine { snapshot in
+            preflightCount += 1
+            guard preflightCount == 1 else {
+                return .invalid(reason: "Provider became unavailable.")
+            }
+            return scheduledTaskReadyOutcome(for: snapshot)
+        }
+
+        let firstResult = try await engine.claimRunNow(firstRequest)
+        guard case let .claimed(runID) = firstResult,
+              let run = fixture.run(id: runID) else {
+            return XCTFail("Expected the scheduled occurrence to be claimed")
+        }
+        run.status = .success
+        run.finishedAt = fixture.date(650)
+        try fixture.context.save()
+
+        let retryRequest = ScheduledTaskRunNowRequest(
+            definitionID: definition.id,
+            definitionRevision: definition.revision,
+            occurrenceAt: fixture.date(900),
+            triggeredAt: fixture.date(900),
+            occurrenceSource: .scheduled,
+            idempotencyKey: "scheduled-proposal"
+        )
+        guard case let .alreadyClaimed(retriedRunID) = try await engine.claimRunNow(retryRequest) else {
+            return XCTFail("Expected the retry to reuse the consumed scheduled occurrence")
+        }
+
+        XCTAssertEqual(retriedRunID, run.persistentModelID)
+        XCTAssertEqual(preflightCount, 1)
+        XCTAssertEqual(definition.state, .active)
+        XCTAssertEqual(definition.revision, 1)
+        XCTAssertEqual(definition.nextOccurrenceAt, fixture.date(900))
+        XCTAssertNil(definition.lastError)
+        XCTAssertEqual(try fixture.runCount(), 1)
+    }
+
+    func testPendingRunNowIdempotencyKeyReusesClaimAfterPendingOccurrenceClears() async throws {
+        let fixture = try ScheduledTaskSchedulerFixture()
+        let definition = try fixture.insertDefinition(
+            state: .paused,
+            recurrence: .interval(minutes: 5, anchor: fixture.date(0)),
+            nextOccurrenceAt: fixture.date(900),
+            pendingOccurrenceAt: fixture.date(540)
+        )
+        let firstRequest = ScheduledTaskRunNowRequest(
+            definitionID: definition.id,
+            definitionRevision: definition.revision,
+            occurrenceAt: fixture.date(540),
+            triggeredAt: fixture.date(600),
+            occurrenceSource: .pending,
+            idempotencyKey: "pending-proposal"
+        )
+        let engine = fixture.makeEngine()
+
+        let firstResult = try await engine.claimRunNow(firstRequest)
+        guard case let .claimed(runID) = firstResult,
+              let run = fixture.run(id: runID) else {
+            return XCTFail("Expected the pending occurrence to be claimed")
+        }
+        run.status = .success
+        run.finishedAt = fixture.date(650)
+        try fixture.context.save()
+
+        let retryRequest = ScheduledTaskRunNowRequest(
+            definitionID: definition.id,
+            definitionRevision: definition.revision,
+            occurrenceAt: fixture.date(900),
+            triggeredAt: fixture.date(900),
+            occurrenceSource: .scheduled,
+            idempotencyKey: "pending-proposal"
+        )
+        guard case let .alreadyClaimed(retriedRunID) = try await engine.claimRunNow(retryRequest) else {
+            return XCTFail("Expected the retry to reuse the consumed pending occurrence")
+        }
+
+        XCTAssertEqual(retriedRunID, run.persistentModelID)
+        XCTAssertNil(definition.pendingOccurrenceAt)
+        XCTAssertEqual(definition.nextOccurrenceAt, fixture.date(900))
+        XCTAssertEqual(try fixture.runCount(), 1)
+    }
+
     func testRunNowConsumesLatestDueOccurrenceAndAdvancesAnchoredCadencePastTriggerTime() async throws {
         let fixture = try ScheduledTaskSchedulerFixture()
         let definition = try fixture.insertDefinition(

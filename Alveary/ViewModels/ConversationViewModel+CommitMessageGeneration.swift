@@ -103,7 +103,7 @@ private extension ConversationViewModel {
 
             if await needsRespawn() {
                 try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
-                state.sessionContinuityNotice = nil
+                clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled()
                 state.respawnAttempts = 0
             }
 

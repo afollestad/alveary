@@ -47,15 +47,7 @@ final class AgentThreadModeTests: XCTestCase {
         }
 
         try autoreleasepool {
-            let reopenedContainer = try ModelContainer(
-                for: Project.self,
-                AgentThread.self,
-                Conversation.self,
-                ConversationEventRecord.self,
-                ScheduledTask.self,
-                ScheduledTaskRun.self,
-                configurations: configuration
-            )
+            let reopenedContainer = try makeCurrentAgentThreadModeContainer(configuration: configuration)
             let context = reopenedContainer.mainContext
             let thread = try XCTUnwrap(
                 try context.fetch(FetchDescriptor<AgentThread>()).first { $0.name == "Legacy thread" }
@@ -69,6 +61,7 @@ final class AgentThreadModeTests: XCTestCase {
             XCTAssertEqual(thread.conversations.first?.events.map(\.id), ["pre-task-mode-event"])
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTask>()), 0)
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskRun>()), 0)
+            XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
         }
     }
 
@@ -217,6 +210,7 @@ final class AgentThreadModeTests: XCTestCase {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }
@@ -248,4 +242,19 @@ final class AgentThreadModeTests: XCTestCase {
             workspaceStrategySnapshot: .worktree
         )
     }
+}
+
+private func makeCurrentAgentThreadModeContainer(
+    configuration: ModelConfiguration
+) throws -> ModelContainer {
+    try ModelContainer(
+        for: Project.self,
+        AgentThread.self,
+        Conversation.self,
+        ConversationEventRecord.self,
+        ScheduledTask.self,
+        ScheduledTaskRun.self,
+        ScheduledTaskProposal.self,
+        configurations: configuration
+    )
 }

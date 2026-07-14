@@ -25,9 +25,13 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         XCTAssertTrue(request.prompt.hasPrefix("Generate subject"))
         XCTAssertTrue(request.prompt.contains("AGENTS.md"))
         XCTAssertTrue(request.prompt.contains("CLAUDE.md"))
-        XCTAssertEqual(request.arguments, ["--append-system-prompt", "Use terse output"])
+        XCTAssertEqual(
+            request.arguments,
+            ["--append-system-prompt", "Use terse output", "--disallowedTools", "RemoteTrigger"]
+        )
         XCTAssertEqual(request.environment["PATH"], "/opt/homebrew/bin:/usr/bin")
         XCTAssertEqual(request.environment["ALVEARY_TEST"], "1")
+        XCTAssertEqual(request.environment["CLAUDE_CODE_DISABLE_CRON"], "1")
         XCTAssertNil(request.model)
         XCTAssertEqual(request.effort, AppSettings.defaultEffortLevel)
         XCTAssertEqual(try XCTUnwrap(request.timeout), 7, accuracy: 0.001)

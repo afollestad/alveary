@@ -28,6 +28,18 @@ final class DataComponentTests: XCTestCase {
         )
         let scheduledTask = makeScheduledTask(project: project)
         let scheduledRun = makeScheduledRun(task: scheduledTask, thread: thread)
+        let scheduledProposal = ScheduledTaskProposal(
+            id: "proposal-1",
+            deduplicationKey: "proposal-deduplication-key",
+            action: .create,
+            canonicalPayloadJSON: #"{"action":"create"}"#,
+            canonicalPayloadHash: "proposal-payload-hash",
+            sourceProviderID: "codex",
+            sourceProcessToken: UUID(),
+            sourceRequestID: "string:proposal-request",
+            sourceConversation: conversation,
+            project: project
+        )
 
         XCTAssertFalse(project.isPinned)
         project.isPinned = true
@@ -38,6 +50,7 @@ final class DataComponentTests: XCTestCase {
         conversation.events.append(event)
 
         context.insert(project)
+        context.insert(scheduledProposal)
         try context.save()
 
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Project>()), 1)
@@ -46,7 +59,12 @@ final class DataComponentTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ConversationEventRecord>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTask>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskRun>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 1)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Project>()).first?.isPinned, true)
+        let persistedProposal = try XCTUnwrap(context.fetch(FetchDescriptor<ScheduledTaskProposal>()).first)
+        XCTAssertEqual(persistedProposal.action, .create)
+        XCTAssertEqual(persistedProposal.sourceConversation?.id, conversation.id)
+        XCTAssertEqual(persistedProposal.project?.path, project.path)
     }
 
     func testProjectPathIsUnique() throws {
@@ -79,6 +97,7 @@ final class DataComponentTests: XCTestCase {
                 ConversationEventRecord.self,
                 ScheduledTask.self,
                 ScheduledTaskRun.self,
+                ScheduledTaskProposal.self,
                 configurations: configuration
             )
             let context = container.mainContext
@@ -98,12 +117,14 @@ final class DataComponentTests: XCTestCase {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let reopenedContext = reopenedContainer.mainContext
         let projects = try reopenedContext.fetch(FetchDescriptor<Project>())
         let threads = try reopenedContext.fetch(FetchDescriptor<AgentThread>())
 
+        XCTAssertEqual(try reopenedContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
         XCTAssertEqual(projects.first { $0.path == regularPath }?.sidebarSortOrder, 3)
         XCTAssertNil(projects.first { $0.path == regularPath }?.pinnedSortOrder)
         XCTAssertEqual(projects.first { $0.path == pinnedPath }?.pinnedSortOrder, 1)

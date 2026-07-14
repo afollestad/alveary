@@ -131,6 +131,7 @@ final class ScheduledTasksViewModel {
         let actionDate = now()
         let suggestedOccurrence = actionDate.addingTimeInterval(60 * 60)
         let calendar = Calendar.current
+        let intervalAnchor = startOfMinute(actionDate)
 
         return ScheduledTaskEditorDraft(
             id: UUID(),
@@ -139,7 +140,8 @@ final class ScheduledTasksViewModel {
             title: "",
             prompt: "",
             recurrenceKind: .daily,
-            recurrenceAnchorAt: suggestedOccurrence,
+            onceOccurrenceAt: suggestedOccurrence,
+            intervalAnchorAt: intervalAnchor,
             intervalMinutes: 60,
             wallClockHour: calendar.component(.hour, from: suggestedOccurrence),
             wallClockMinute: calendar.component(.minute, from: suggestedOccurrence),
@@ -186,6 +188,16 @@ final class ScheduledTasksViewModel {
 
         let recurrence = definition.recurrence
         let modelOptions = modelOptions(for: definition.providerID)
+        let actionDate = now()
+        let fallbackDate = actionDate.addingTimeInterval(60 * 60)
+        let fallbackIntervalAnchor = startOfMinute(actionDate)
+        let recurrenceFields = recurrence.map {
+            ProposalDraftRecurrenceFields(
+                recurrence: $0,
+                fallbackOnceOccurrence: fallbackDate,
+                fallbackIntervalAnchor: fallbackIntervalAnchor
+            )
+        }
         return ScheduledTaskEditorDraft(
             id: UUID(),
             definitionID: definition.id,
@@ -193,7 +205,8 @@ final class ScheduledTasksViewModel {
             title: definition.title,
             prompt: definition.prompt,
             recurrenceKind: recurrence?.kind ?? .once,
-            recurrenceAnchorAt: definition.recurrenceAnchorAt ?? now().addingTimeInterval(60 * 60),
+            onceOccurrenceAt: recurrenceFields?.onceOccurrenceAt ?? fallbackDate,
+            intervalAnchorAt: recurrenceFields?.intervalAnchorAt ?? fallbackIntervalAnchor,
             intervalMinutes: definition.intervalMinutes ?? 60,
             wallClockHour: definition.wallClockHour ?? 9,
             wallClockMinute: definition.wallClockMinute ?? 0,
@@ -212,19 +225,77 @@ final class ScheduledTasksViewModel {
         )
     }
 
+    func makeProposalDraft(
+        _ definitionDraft: ScheduledTaskProposalDefinitionDraft,
+        definitionID: String?,
+        expectedRevision: Int?
+    ) -> ScheduledTaskEditorDraft {
+        let modelOptions = modelOptions(for: definitionDraft.providerID)
+        let recurrence = definitionDraft.recurrence
+        let actionDate = now()
+        let recurrenceFields = ProposalDraftRecurrenceFields(
+            recurrence: recurrence,
+            fallbackOnceOccurrence: actionDate.addingTimeInterval(60 * 60),
+            fallbackIntervalAnchor: startOfMinute(actionDate)
+        )
+        return ScheduledTaskEditorDraft(
+            id: UUID(),
+            definitionID: definitionID,
+            expectedRevision: expectedRevision,
+            title: definitionDraft.title,
+            prompt: definitionDraft.prompt,
+            recurrenceKind: recurrence.kind,
+            onceOccurrenceAt: recurrenceFields.onceOccurrenceAt,
+            intervalAnchorAt: recurrenceFields.intervalAnchorAt,
+            intervalMinutes: recurrenceFields.intervalMinutes,
+            wallClockHour: recurrenceFields.wallClockHour,
+            wallClockMinute: recurrenceFields.wallClockMinute,
+            selectedWeekdays: recurrenceFields.selectedWeekdays,
+            weeklyWeekday: recurrenceFields.weeklyWeekday,
+            monthlyDay: recurrenceFields.monthlyDay,
+            timeZoneIdentifier: definitionDraft.timeZoneIdentifier,
+            providerID: definitionDraft.providerID,
+            modelSelection: AgentModelOptionSelection.pickerValue(
+                in: modelOptions,
+                matching: definitionDraft.model
+            ),
+            effort: definitionDraft.effort,
+            permissionMode: definitionDraft.permissionMode,
+            workspaceKind: definitionDraft.workspaceKind,
+            workspaceStrategy: definitionDraft.workspaceStrategy,
+            projectPath: definitionDraft.projectPath,
+            grantedRoots: definitionDraft.grantedRoots
+        )
+    }
+
+    private func startOfMinute(_ date: Date) -> Date {
+        Calendar.current.dateInterval(of: .minute, for: date)?.start ?? date
+    }
+
     @discardableResult
-    func save(_ draft: ScheduledTaskEditorDraft) -> Bool {
+    func save(
+        _ draft: ScheduledTaskEditorDraft,
+        consumingProposalID: String? = nil
+    ) -> Bool {
         do {
-            let edit = try makeDefinitionEdit(from: draft)
+            let edit = try makeDefinitionEdit(
+                from: draft,
+                preservesTrustedGrantSnapshot: consumingProposalID != nil
+            )
             if let definitionID = draft.definitionID {
                 try mutationService.edit(
                     definitionID: definitionID,
                     expectedRevision: draft.expectedRevision,
                     edit: edit,
-                    at: now()
+                    at: now(),
+                    consumingProposalID: consumingProposalID
                 )
             } else {
-                try mutationService.create(edit: edit, at: now())
+                try mutationService.create(
+                    edit: edit,
+                    at: now(),
+                    consumingProposalID: consumingProposalID
+                )
             }
             editorErrorMessage = nil
             errorMessage = nil
@@ -318,7 +389,10 @@ private extension ScheduledTasksViewModel {
         }
     }
 
-    func makeDefinitionEdit(from draft: ScheduledTaskEditorDraft) throws -> ScheduledTaskDefinitionEdit {
+    func makeDefinitionEdit(
+        from draft: ScheduledTaskEditorDraft,
+        preservesTrustedGrantSnapshot: Bool
+    ) throws -> ScheduledTaskDefinitionEdit {
         let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else {
             throw ScheduledTasksViewModelError.titleRequired
@@ -364,7 +438,9 @@ private extension ScheduledTasksViewModel {
             permissionMode: draft.permissionMode,
             workspaceKind: draft.workspaceKind,
             workspaceStrategy: draft.workspaceStrategy,
-            grantedRoots: draft.grantedRoots,
+            grantedRoots: preservesTrustedGrantSnapshot
+                ? draft.grantedRoots
+                : ScheduledTask.normalizedUniquePaths(draft.grantedRoots),
             project: project
         )
     }

@@ -401,37 +401,6 @@ struct AgentCLIKitEventMapper: Sendable {
         return .completed
     }
 
-    private func diagnosticEvents(from event: AgentCLIKit.AgentDiagnosticEvent) -> [ConversationEvent] {
-        if event.code == .hookApprovalFailed {
-            return [.toolApprovalFailed(ToolApprovalFailure(
-                sessionId: event.metadata.stringValue("session_id"),
-                toolUseId: event.metadata.stringValue("tool_use_id"),
-                toolName: event.metadata.stringValue("tool_name"),
-                message: event.message
-            ))]
-        }
-        if event.code == .codexAppServerResponseFailure,
-           event.severity == .warning,
-           event.metadata.stringValue("codex_status")?.lowercased() == "systemerror" {
-            return [.error(message: event.message)]
-        }
-        if event.severity == .error {
-            return [.error(message: event.message)]
-        }
-        guard event.message == "init",
-              let sessionId = event.metadata.stringValue("session_id") else {
-            return []
-        }
-        return [.sessionInit(sessionId: sessionId)]
-    }
-
-    static func serialized(_ value: AgentCLIKit.JSONValue) -> String {
-        guard let data = try? JSONEncoder().encode(value),
-              let string = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-        return string
-    }
 }
 
 private extension AgentCLIKitEventMapper {

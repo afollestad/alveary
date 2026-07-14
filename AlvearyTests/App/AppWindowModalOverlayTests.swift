@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import XCTest
 
 @testable import Alveary
@@ -73,6 +74,26 @@ final class AppWindowModalOverlayTests: XCTestCase {
 
         XCTAssertNil(contentView.hitTest(NSPoint(x: 18, y: 267)))
         XCTAssertEqual(contentView.hitTest(NSPoint(x: 100, y: 100)), contentView)
+    }
+
+    func testChangingModalIdentityReplacesHostingViewState() throws {
+        let contentView = AppWindowModalOverlayContentView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        let coordinator = AppWindowModalOverlayPresenter.Coordinator()
+
+        coordinator.replaceHostingView(
+            with: .init(id: "first", content: AnyView(Text("First"))),
+            in: contentView
+        )
+        let firstHostingView = try XCTUnwrap(contentView.subviews.first)
+
+        coordinator.replaceHostingView(
+            with: .init(id: "second", content: AnyView(Text("Second"))),
+            in: contentView
+        )
+        let secondHostingView = try XCTUnwrap(contentView.subviews.first)
+
+        XCTAssertEqual(contentView.subviews.count, 1)
+        XCTAssertFalse(firstHostingView === secondHostingView)
     }
 
     private func keyEvent(keyCode: UInt16) -> NSEvent {

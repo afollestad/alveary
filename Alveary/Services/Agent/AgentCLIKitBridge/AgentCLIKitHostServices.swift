@@ -53,7 +53,9 @@ struct AgentCLIKitHostAdapter: Sendable {
             initialPromptMetadata: config.initialPromptMetadata,
             additionalWorkspaceRoots: config.additionalWorkspaceRoots.map {
                 URL(fileURLWithPath: $0, isDirectory: true)
-            }
+            },
+            hostToolServer: config.hostToolServer,
+            hostTools: config.hostTools
         )
     }
 }

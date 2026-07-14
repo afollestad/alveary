@@ -3,13 +3,15 @@ import SwiftUI
 enum ContentViewRootModalKind: Equatable {
     case onboarding
     case imagePreview(UUID)
+    case scheduledTaskProposal(String)
 }
 
 extension ContentView {
     var rootWindowModal: AppWindowModalOverlayPresenter.Modal? {
         switch Self.rootWindowModalKind(
             isOnboardingPresented: onboardingViewModel.isPresented,
-            imagePreviewRequest: appState.imagePreviewRequest
+            imagePreviewRequest: appState.imagePreviewRequest,
+            scheduledTaskProposalID: scheduledTaskProposalQueueCoordinator.currentProposal?.id
         ) {
         case .onboarding:
             return AppWindowModalOverlayPresenter.Modal(
@@ -30,6 +32,23 @@ extension ContentView {
                     )
                 )
             )
+        case .scheduledTaskProposal:
+            guard let proposal = scheduledTaskProposalQueueCoordinator.currentProposal else {
+                return nil
+            }
+            return AppWindowModalOverlayPresenter.Modal(
+                id: Self.scheduledTaskProposalModalID(
+                    proposalID: proposal.id,
+                    conflictMessage: proposal.conflictMessage
+                ),
+                content: AnyView(
+                    ScheduledTaskProposalOverlay(
+                        proposal: proposal,
+                        coordinator: scheduledTaskProposalQueueCoordinator,
+                        scheduledTasksViewModel: scheduledTasksViewModel
+                    )
+                )
+            )
         case nil:
             return nil
         }
@@ -37,19 +56,42 @@ extension ContentView {
 
     static func rootWindowModalKind(
         isOnboardingPresented: Bool,
-        imagePreviewRequest: AppImagePreviewRequest?
+        imagePreviewRequest: AppImagePreviewRequest?,
+        scheduledTaskProposalID: String? = nil
     ) -> ContentViewRootModalKind? {
         if isOnboardingPresented {
             return .onboarding
         }
 
-        return imagePreviewRequest.map { .imagePreview($0.id) }
+        if let imagePreviewRequest {
+            return .imagePreview(imagePreviewRequest.id)
+        }
+
+        return scheduledTaskProposalID.map(ContentViewRootModalKind.scheduledTaskProposal)
+    }
+
+    static func scheduledTaskProposalModalID(
+        proposalID: String,
+        conflictMessage: String?
+    ) -> String {
+        "scheduled-task-proposal-\(proposalID)-\(conflictMessage ?? "ready")"
     }
 
     func dismissRootWindowModal() {
-        guard !onboardingViewModel.isPresented else {
+        switch Self.rootWindowModalKind(
+            isOnboardingPresented: onboardingViewModel.isPresented,
+            imagePreviewRequest: appState.imagePreviewRequest,
+            scheduledTaskProposalID: scheduledTaskProposalQueueCoordinator.currentProposal?.id
+        ) {
+        case .onboarding, nil:
             return
+        case .imagePreview:
+            appState.dismissImagePreview()
+        case .scheduledTaskProposal(let proposalID):
+            scheduledTaskProposalQueueCoordinator.reject(
+                proposalID: proposalID,
+                clearingProposalErrorIn: scheduledTasksViewModel
+            )
         }
-        appState.dismissImagePreview()
     }
 }

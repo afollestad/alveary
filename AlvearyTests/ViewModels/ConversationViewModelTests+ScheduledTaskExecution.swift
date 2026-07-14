@@ -62,6 +62,7 @@ extension ConversationViewModelTests {
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         let spawn = try XCTUnwrap(spawnCalls.first)
         XCTAssertTrue(spawn.config.isAutomatedScheduledTurn)
+        XCTAssertTrue(spawn.config.hostTools.isEmpty)
         XCTAssertEqual(spawn.config.initialPrompt, "Run the scheduled audit.")
         XCTAssertTrue(try fixture.dbThread().hasCompletedInitialSetup)
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Run the scheduled audit."])
@@ -105,28 +106,8 @@ extension ConversationViewModelTests {
         let approvalCalls = await fixture.agentsManager.approvalCalls()
         let approvalCall = try XCTUnwrap(approvalCalls.first)
         XCTAssertTrue(approvalCall.config.isAutomatedScheduledTurn)
+        XCTAssertTrue(approvalCall.config.hostTools.isEmpty)
         XCTAssertFalse(try fixture.viewModel.makeSpawnConfig(settingsSource: .nextTurn).isAutomatedScheduledTurn)
-    }
-
-    func testManualFollowUpResumesAutomatedSessionWithoutRestrictions() async throws {
-        let scheduledFixture = try ScheduledConversationViewModelFixture()
-        defer { scheduledFixture.removeFiles() }
-        let fixture = scheduledFixture.fixture
-        try await fixture.viewModel.startAutomatedScheduledTurn("Run the scheduled audit.")
-        fixture.viewModel.state.endTurn()
-        try scheduledFixture.markRunTerminal()
-
-        try await fixture.viewModel.send("Continue manually.")
-
-        let spawnCalls = await fixture.agentsManager.spawnCalls()
-        let suspendCalls = await fixture.agentsManager.suspendCalls()
-        let destroyCalls = await fixture.agentsManager.destroyCalls()
-        XCTAssertEqual(spawnCalls.count, 2)
-        XCTAssertTrue(spawnCalls[0].config.isAutomatedScheduledTurn)
-        XCTAssertFalse(spawnCalls[1].config.isAutomatedScheduledTurn)
-        XCTAssertFalse(spawnCalls[1].forkSession)
-        XCTAssertEqual(suspendCalls, [fixture.conversation.id])
-        XCTAssertTrue(destroyCalls.isEmpty)
     }
 
     func testManualOutboundCannotPreemptScheduledInitialTurn() async throws {
@@ -280,6 +261,11 @@ extension ConversationViewModelTests {
         let destroyCalls = await fixture.agentsManager.destroyCalls()
         XCTAssertTrue(spawnCalls[0].config.isAutomatedScheduledTurn)
         XCTAssertFalse(spawnCalls[1].config.isAutomatedScheduledTurn)
+        XCTAssertTrue(spawnCalls[0].config.hostTools.isEmpty)
+        XCTAssertEqual(
+            spawnCalls[1].config.hostTools.map(\.name),
+            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+        )
         XCTAssertFalse(spawnCalls[1].forkSession)
         XCTAssertEqual(suspendCalls, [fixture.conversation.id])
         XCTAssertTrue(destroyCalls.isEmpty)
@@ -388,8 +374,13 @@ extension ConversationViewModelTests {
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         let spawn = try XCTUnwrap(spawnCalls.first)
         XCTAssertFalse(spawn.config.isAutomatedScheduledTurn)
+        XCTAssertEqual(
+            spawn.config.hostTools.map(\.name),
+            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+        )
         XCTAssertNil(fixture.viewModel.state.messageQueue.peekNext())
     }
+
 }
 
 @MainActor

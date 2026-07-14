@@ -10,12 +10,14 @@ final class Conversation {
     var providerSessionProviderId: String?
     var providerSessionWorkingDirectory: String?
     var pendingRestoreContext: String?
+    var scheduledTaskProposalReceiptsJSON: String?
     var isActive: Bool
     var isMain: Bool
     var displayOrder: Int
     var isUnread: Bool
     var thread: AgentThread?
     @Relationship(deleteRule: .cascade, inverse: \ConversationEventRecord.conversation) var events: [ConversationEventRecord]
+    @Relationship(deleteRule: .cascade, inverse: \ScheduledTaskProposal.sourceConversation) var scheduledTaskProposals: [ScheduledTaskProposal]
 
     init(
         id: String = UUID().uuidString,
@@ -30,7 +32,8 @@ final class Conversation {
         displayOrder: Int = 0,
         isUnread: Bool = false,
         thread: AgentThread? = nil,
-        events: [ConversationEventRecord] = []
+        events: [ConversationEventRecord] = [],
+        scheduledTaskProposals: [ScheduledTaskProposal] = []
     ) {
         self.id = id
         self.title = title
@@ -39,12 +42,14 @@ final class Conversation {
         self.providerSessionProviderId = providerSessionProviderId
         self.providerSessionWorkingDirectory = providerSessionWorkingDirectory.map(CanonicalPath.normalize)
         self.pendingRestoreContext = pendingRestoreContext
+        self.scheduledTaskProposalReceiptsJSON = nil
         self.isActive = isActive
         self.isMain = isMain
         self.displayOrder = displayOrder
         self.isUnread = isUnread
         self.thread = thread
         self.events = events
+        self.scheduledTaskProposals = scheduledTaskProposals
     }
 }
 

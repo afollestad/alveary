@@ -328,6 +328,7 @@ struct ScheduledTaskRecoveryFixture {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = ModelContext(container)
@@ -471,7 +472,6 @@ final class RecoveryWorkspaceOwnershipService: TaskWorkspaceOwnershipService, @u
 
     func removeOrphanedPrivateWorkspaces(retainingMarkerIDs: Set<String>) throws {}
 }
-
 @MainActor
 private func makeScheduledTaskRun(
     status: ScheduledTaskRunStatus,

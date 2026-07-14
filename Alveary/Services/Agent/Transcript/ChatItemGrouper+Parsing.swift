@@ -10,7 +10,7 @@ extension ChatItemGrouper {
             return "Tool"
         }
         guard let json = parsedJSONDictionary(from: input) else {
-            return name
+            return readableToolName(name)
         }
 
         return toolSummary(name: name, json: json)
@@ -35,8 +35,30 @@ extension ChatItemGrouper {
         case "TodoWrite":
             return todoWriteSummary(from: json)
         default:
-            return name
+            return readableToolName(name)
         }
+    }
+
+    /// Claude prefixes MCP calls with `mcp__<server>__`; Codex reports the tool segment directly.
+    private static func readableToolName(_ rawName: String) -> String {
+        let name: Substring
+        if rawName.hasPrefix("mcp__"),
+           let separator = rawName.range(of: "__", options: .backwards),
+           !rawName[separator.upperBound...].isEmpty {
+            name = rawName[separator.upperBound...]
+        } else {
+            name = rawName[...]
+        }
+
+        let words = name.split { character in
+            character == "_" || character == "-"
+        }
+        guard !words.isEmpty else {
+            return String(name)
+        }
+
+        let phrase = words.joined(separator: " ")
+        return phrase.prefix(1).uppercased() + phrase.dropFirst()
     }
 
     func parseTodoWriteInput(_ input: String?) -> [TaskEntry] {

@@ -20,6 +20,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let initialPromptMetadata: [String: AgentCLIKit.JSONValue]
     let additionalWorkspaceRoots: [String]
     let allowedDirectories: [String]
+    let hostToolServer: AgentCLIKit.AgentHostToolServerMetadata
+    let hostTools: [AgentCLIKit.AgentHostToolDefinition]
     let initialGoal: String?
     let isAutomatedScheduledTurn: Bool
 
@@ -38,6 +40,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
         initialPromptMetadata: [String: AgentCLIKit.JSONValue] = [:],
         additionalWorkspaceRoots: [String] = [],
         allowedDirectories: [String] = [],
+        hostToolServer: AgentCLIKit.AgentHostToolServerMetadata = AgentCLIKit.AgentHostToolServerMetadata(),
+        hostTools: [AgentCLIKit.AgentHostToolDefinition] = [],
         initialGoal: String? = nil,
         isAutomatedScheduledTurn: Bool = false
     ) {
@@ -55,8 +59,45 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.initialPromptMetadata = initialPromptMetadata
         self.additionalWorkspaceRoots = additionalWorkspaceRoots.map(CanonicalPath.normalize)
         self.allowedDirectories = allowedDirectories.map(CanonicalPath.normalize)
+        self.hostToolServer = hostToolServer
+        self.hostTools = hostTools
         self.initialGoal = initialGoal
         self.isAutomatedScheduledTurn = isAutomatedScheduledTurn
+    }
+
+    func withoutHostTools() -> AgentSpawnConfig {
+        AgentSpawnConfig(
+            copying: self,
+            hostToolServer: AgentCLIKit.AgentHostToolServerMetadata(),
+            hostTools: []
+        )
+    }
+
+    private init(
+        copying config: AgentSpawnConfig,
+        hostToolServer: AgentCLIKit.AgentHostToolServerMetadata,
+        hostTools: [AgentCLIKit.AgentHostToolDefinition]
+    ) {
+        providerId = config.providerId
+        workingDirectory = config.workingDirectory
+        permissionMode = config.permissionMode
+        planModeEnabled = config.planModeEnabled
+        model = config.model
+        effort = config.effort
+        reasoningSummaryMode = config.reasoningSummaryMode
+        speedMode = config.speedMode
+        sessionFork = config.sessionFork
+        initialPrompt = config.initialPrompt
+        initialPromptAttachments = config.initialPromptAttachments
+        initialPromptMetadata = config.initialPromptMetadata
+        // Preserve the authorization snapshot verbatim. Re-normalizing here could follow a
+        // same-path symlink replacement between the primary launch and its fallback attempt.
+        additionalWorkspaceRoots = config.additionalWorkspaceRoots
+        allowedDirectories = config.allowedDirectories
+        self.hostToolServer = hostToolServer
+        self.hostTools = hostTools
+        initialGoal = config.initialGoal
+        isAutomatedScheduledTurn = config.isAutomatedScheduledTurn
     }
 }
 

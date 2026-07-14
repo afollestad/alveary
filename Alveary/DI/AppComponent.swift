@@ -302,7 +302,8 @@ extension AppComponent {
         return shared {
             AgentCLIKit.DefaultAgentRuntime(
                 adapterSet: agentCLIKitProviderAdapterSet,
-                sessionStore: agentCLIKitSessionStore
+                sessionStore: agentCLIKitSessionStore,
+                hostToolHandling: scheduledTaskHostToolHandling
             )
         }
     }

@@ -15,6 +15,7 @@ extension DataComponent {
                 ConversationEventRecord.self,
                 ScheduledTask.self,
                 ScheduledTaskRun.self,
+                ScheduledTaskProposal.self,
                 configurations: configuration
             )
         } catch {

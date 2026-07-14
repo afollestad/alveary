@@ -19,7 +19,6 @@ extension DefaultAgentsManager {
         try await assertNoActiveAgentCLIKitRuntime(id: id, services: services)
         await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
 
-        let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: forkSession, services: services)
         let runtimeConversationId = services.hostAdapter.conversationId(id)
         let replayCursor = await services.runtime.status(conversationId: runtimeConversationId)?.lastEventIndex
         let subscription = await services.runtime.subscribe(
@@ -35,9 +34,12 @@ extension DefaultAgentsManager {
         startAgentCLIKitStatusTask(conversationId: id, services: services)
 
         do {
-            try await services.runtime.spawn(
-                conversationId: runtimeConversationId,
-                config: spawnConfig
+            try await spawnAgentCLIKitWithSchedulingHostToolFallback(
+                conversationId: id,
+                runtimeConversationId: runtimeConversationId,
+                config: config,
+                forkSession: forkSession,
+                services: services
             )
             await refreshAgentCLIKitStatus(conversationId: id, services: services)
         } catch {
@@ -202,10 +204,11 @@ extension DefaultAgentsManager {
         services: AgentCLIKitHostServices
     ) async throws {
         prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
-        let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: false, services: services)
-        try await services.runtime.freshSession(
-            conversationId: runtimeConversationId,
-            config: spawnConfig
+        let effectiveConfig = try await freshAgentCLIKitSessionWithSchedulingHostToolFallback(
+            conversationId: conversationId,
+            runtimeConversationId: runtimeConversationId,
+            config: config,
+            services: services
         )
         await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
         await removePreviousAgentCLIKitSessionState(
@@ -218,7 +221,7 @@ extension DefaultAgentsManager {
         )
         installAgentCLIKitSubscriptionBuffer(
             conversationId: conversationId,
-            config: config,
+            config: effectiveConfig,
             subscription: subscription
         )
     }
@@ -384,15 +387,13 @@ extension DefaultAgentsManager {
             customArguments: parseExtraArgs(customConfig?.extraArgs ?? ""),
             allowedDirectories: config.allowedDirectories
         )
-        let arguments = AutomatedScheduledTurnLaunchPolicy.arguments(
+        let arguments = ClaudeNativeSchedulingLaunchPolicy.arguments(
             providerID: config.providerId,
-            configuredArguments: configuredArguments,
-            isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
+            configuredArguments: configuredArguments
         )
-        let environment = AutomatedScheduledTurnLaunchPolicy.environment(
+        let environment = ClaudeNativeSchedulingLaunchPolicy.environment(
             providerID: config.providerId,
-            baseEnvironment: agentCLIKitEnvironment(detectedPath: detectedPath),
-            isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
+            baseEnvironment: agentCLIKitEnvironment(detectedPath: detectedPath)
         )
         return try services.hostAdapter.spawnConfig(
             from: config,

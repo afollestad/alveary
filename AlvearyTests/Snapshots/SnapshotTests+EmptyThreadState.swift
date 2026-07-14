@@ -159,6 +159,7 @@ extension SnapshotTests {
             Conversation.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let context = ModelContext(container)
@@ -192,6 +193,7 @@ extension SnapshotTests {
             Conversation.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let context = ModelContext(container)
@@ -225,6 +227,7 @@ private extension SnapshotTests {
             Conversation.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let context = ModelContext(container)
@@ -261,6 +264,7 @@ private extension SnapshotTests {
             Conversation.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let context = ModelContext(container)

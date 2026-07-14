@@ -103,14 +103,22 @@ final class DefaultAgentOneShotPromptService: AgentOneShotPromptService, @unchec
         )
 
         let detectedPath = try await detectedExecutablePath(for: providerId)
-        let arguments = try parseExtraArgs(settings.providerConfigs[providerId]?.extraArgs ?? "")
+        let configuredArguments = try parseExtraArgs(settings.providerConfigs[providerId]?.extraArgs ?? "")
+        let arguments = ClaudeNativeSchedulingLaunchPolicy.arguments(
+            providerID: providerId,
+            configuredArguments: configuredArguments
+        )
+        let environment = ClaudeNativeSchedulingLaunchPolicy.environment(
+            providerID: providerId,
+            baseEnvironment: oneShotEnvironment(detectedPath: detectedPath)
+        )
 
         return AgentCLIKit.AgentOneShotPromptRequest(
             providerId: try Self.agentProviderID(providerId),
             workingDirectory: URL(fileURLWithPath: normalizedWorkingDirectory, isDirectory: true),
             prompt: Self.promptWithReadOnlyProjectGuidance(prompt),
             arguments: arguments,
-            environment: oneShotEnvironment(detectedPath: detectedPath),
+            environment: environment,
             model: Self.normalizedModel(settings.defaultModel),
             effort: settings.effort,
             timeout: Self.timeInterval(from: timeout),

@@ -81,7 +81,7 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
                 permissionMode: "acceptEdits",
                 workspaceKind: .privateWorkspace,
                 workspaceStrategy: .worktree,
-                grantedRoots: ["/tmp/grant", "/tmp/grant/"],
+                grantedRoots: [CanonicalPath.normalize("/tmp/grant")],
                 project: nil
             ),
             at: actionDate
@@ -384,6 +384,7 @@ struct ScheduledTaskMutationFixture {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         context = ModelContext(container)

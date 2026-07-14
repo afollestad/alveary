@@ -47,6 +47,13 @@ final class ScheduledTaskSchedulerEngine {
         _ request: ScheduledTaskRunNowRequest
     ) async throws -> ScheduledTaskClaimResult {
         try savePendingChanges()
+        if let idempotencyKey = request.idempotencyKey,
+           !idempotencyKey.isEmpty,
+           let existingRun = resolveRun(occurrenceID: runNowOccurrenceID(request)) {
+            // The original claim persisted its run and cadence mutation atomically. A replay must
+            // not revalidate changed external state or consume a later scheduled occurrence.
+            return .alreadyClaimed(runID: existingRun.persistentModelID)
+        }
         guard let definition = modelContext.resolveScheduledTask(id: request.definitionID) else {
             return .definitionNotFound
         }
@@ -413,12 +420,6 @@ private extension ScheduledTaskSchedulerEngine {
     ) throws -> ScheduledTaskClaimResult {
         let occurrenceID = runNowOccurrenceID(request)
         if let existingRun = resolveRun(occurrenceID: occurrenceID) {
-            let definitionSnapshot = ScheduledTaskClaimMutationSnapshot(definition)
-            try applyRunNowConsumption(request, to: definition)
-            try persistClaimMutation(
-                definition: definition,
-                restoring: definitionSnapshot
-            )
             return .alreadyClaimed(runID: existingRun.persistentModelID)
         }
 

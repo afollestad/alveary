@@ -62,7 +62,8 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     var title: String
     var prompt: String
     var recurrenceKind: ScheduledTaskRecurrence.Kind
-    var recurrenceAnchorAt: Date
+    var onceOccurrenceAt: Date
+    var intervalAnchorAt: Date
     var intervalMinutes: Int
     var wallClockHour: Int
     var wallClockMinute: Int
@@ -86,9 +87,9 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     var recurrence: ScheduledTaskRecurrence {
         switch recurrenceKind {
         case .once:
-            .once(recurrenceAnchorAt)
+            .once(onceOccurrenceAt)
         case .interval:
-            .interval(minutes: intervalMinutes, anchor: recurrenceAnchorAt)
+            .interval(minutes: intervalMinutes, anchor: intervalAnchorAt)
         case .daily:
             .daily(hour: wallClockHour, minute: wallClockMinute)
         case .weekdays:
@@ -97,6 +98,48 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
             .weekly(weekday: weeklyWeekday, hour: wallClockHour, minute: wallClockMinute)
         case .monthly:
             .monthly(day: monthlyDay, hour: wallClockHour, minute: wallClockMinute)
+        }
+    }
+}
+
+struct ProposalDraftRecurrenceFields {
+    var onceOccurrenceAt: Date
+    var intervalAnchorAt: Date
+    var intervalMinutes = 60
+    var wallClockHour = 9
+    var wallClockMinute = 0
+    var selectedWeekdays = Set(ScheduledTaskRecurrence.standardWeekdays)
+    var weeklyWeekday = 2
+    var monthlyDay = 1
+
+    init(
+        recurrence: ScheduledTaskRecurrence,
+        fallbackOnceOccurrence: Date,
+        fallbackIntervalAnchor: Date
+    ) {
+        onceOccurrenceAt = fallbackOnceOccurrence
+        intervalAnchorAt = fallbackIntervalAnchor
+        switch recurrence {
+        case .once(let occurrence):
+            onceOccurrenceAt = occurrence
+        case let .interval(minutes, anchor):
+            intervalAnchorAt = anchor
+            intervalMinutes = minutes
+        case let .daily(hour, minute):
+            wallClockHour = hour
+            wallClockMinute = minute
+        case let .weekdays(days, hour, minute):
+            selectedWeekdays = Set(days)
+            wallClockHour = hour
+            wallClockMinute = minute
+        case let .weekly(weekday, hour, minute):
+            weeklyWeekday = weekday
+            wallClockHour = hour
+            wallClockMinute = minute
+        case let .monthly(day, hour, minute):
+            monthlyDay = day
+            wallClockHour = hour
+            wallClockMinute = minute
         }
     }
 }

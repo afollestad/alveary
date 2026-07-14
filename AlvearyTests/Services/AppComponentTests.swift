@@ -3,6 +3,17 @@ import XCTest
 
 @testable import Alveary
 
+private let mappedHostToolServer = AgentHostToolServerMetadata(
+    name: "alveary_host",
+    title: "Alveary",
+    instructions: "Use tools only for explicit scheduling requests."
+)
+private let mappedHostTool = AgentHostToolDefinition(
+    name: "list_scheduled_tasks",
+    description: "Lists scheduled tasks.",
+    inputSchema: .object(["type": .string("object")])
+)
+
 @MainActor
 final class AppComponentTests: XCTestCase {
     func testContainerScopedServicesReturnStableInstances() throws {
@@ -56,6 +67,8 @@ final class AppComponentTests: XCTestCase {
     func testScheduledTaskServicesAreAppScopedAndIdleWhenResolved() {
         let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
 
+        XCTAssertTrue(component.scheduledTaskHostToolService === component.scheduledTaskHostToolService)
+        _ = component.scheduledTaskHostToolHandling
         XCTAssertTrue(component.scheduledTaskMutationService === component.scheduledTaskMutationService)
         XCTAssertTrue(
             component.scheduledTaskDefinitionFailureNotifier === component.scheduledTaskDefinitionFailureNotifier
@@ -162,7 +175,9 @@ final class AppComponentTests: XCTestCase {
             reasoningSummaryMode: .auto,
             speedMode: .fast,
             initialPrompt: "Start",
-            additionalWorkspaceRoots: ["/tmp/granted"]
+            additionalWorkspaceRoots: ["/tmp/granted"],
+            hostToolServer: mappedHostToolServer,
+            hostTools: [mappedHostTool]
         ))
 
         XCTAssertEqual(config.providerId.rawValue, "claude")
@@ -175,6 +190,8 @@ final class AppComponentTests: XCTestCase {
         XCTAssertEqual(config.speedMode?.rawValue, "fast")
         XCTAssertEqual(config.initialPrompt, "Start")
         XCTAssertEqual(config.additionalWorkspaceRoots.map(\.path), ["/tmp/granted"])
+        XCTAssertEqual(config.hostToolServer, mappedHostToolServer)
+        XCTAssertEqual(config.hostTools, [mappedHostTool])
     }
 
     func testAgentCLIKitHostAdapterAcceptsCodexProvider() throws {

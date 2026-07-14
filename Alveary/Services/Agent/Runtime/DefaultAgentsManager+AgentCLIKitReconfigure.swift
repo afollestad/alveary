@@ -11,6 +11,7 @@ private struct AgentCLIKitReconfigureFailureContext {
 
 extension DefaultAgentsManager {
     @discardableResult
+    // swiftlint:disable:next function_body_length
     func reconfigureSessionWithAgentCLIKit(conversationId: String, config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
         let services = agentCLIKitServices
         await installAgentCLIKitLiveHookHandlerIfNeeded(services: services)
@@ -29,14 +30,15 @@ extension DefaultAgentsManager {
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
         let replayCursor = await services.runtime.status(conversationId: runtimeConversationId)?.lastEventIndex
         do {
-            let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: true, services: services)
-            let result = try await services.runtime.reconfigure(
-                conversationId: runtimeConversationId,
-                config: spawnConfig
+            let reconfigure = try await reconfigureAgentCLIKitWithSchedulingHostToolFallback(
+                conversationId: conversationId,
+                runtimeConversationId: runtimeConversationId,
+                config: config,
+                services: services
             )
             await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
-            guard result == .restarted else {
-                return AgentSessionReconfigureResult(result)
+            guard reconfigure.result == .restarted else {
+                return AgentSessionReconfigureResult(reconfigure.result)
             }
 
             prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
@@ -46,7 +48,7 @@ extension DefaultAgentsManager {
             )
             installAgentCLIKitSubscriptionBuffer(
                 conversationId: conversationId,
-                config: config,
+                config: reconfigure.effectiveConfig,
                 subscription: subscription,
                 dropsPreStartTerminalLifecycle: true
             )

@@ -1,12 +1,11 @@
 import Foundation
 
-enum AutomatedScheduledTurnLaunchPolicy {
+enum ClaudeNativeSchedulingLaunchPolicy {
     static func arguments(
         providerID: String,
-        configuredArguments: [String],
-        isAutomatedScheduledTurn: Bool
+        configuredArguments: [String]
     ) -> [String] {
-        guard providerID == "claude", isAutomatedScheduledTurn else {
+        guard providerID == "claude" else {
             return configuredArguments
         }
         return argumentsDisallowingRemoteTrigger(configuredArguments)
@@ -14,10 +13,9 @@ enum AutomatedScheduledTurnLaunchPolicy {
 
     static func environment(
         providerID: String,
-        baseEnvironment: [String: String],
-        isAutomatedScheduledTurn: Bool
+        baseEnvironment: [String: String]
     ) -> [String: String] {
-        guard providerID == "claude", isAutomatedScheduledTurn else {
+        guard providerID == "claude" else {
             return baseEnvironment
         }
         var environment = baseEnvironment

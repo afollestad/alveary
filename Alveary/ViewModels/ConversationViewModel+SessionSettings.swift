@@ -6,9 +6,19 @@ enum SessionSettingsConfigSource {
     case nextTurn
 }
 
+enum SchedulingHostToolExposure {
+    case currentContinuation
+    case ordinaryOutbound
+}
+
 private struct SpawnSettingsContext {
     let liveConfig: AgentSpawnConfig?
     let currentContinuationSnapshot: SessionSettingsSnapshot?
+}
+
+private struct SchedulingHostToolConfiguration {
+    let server: AgentCLIKit.AgentHostToolServerMetadata
+    let tools: [AgentCLIKit.AgentHostToolDefinition]
 }
 
 extension ConversationViewModel {
@@ -20,7 +30,8 @@ extension ConversationViewModel {
         allowedDirectories: [String] = [],
         initialGoal: String? = nil,
         isAutomatedScheduledTurn: Bool = false,
-        settingsSource: SessionSettingsConfigSource = .nextTurn
+        settingsSource: SessionSettingsConfigSource = .nextTurn,
+        hostToolExposure: SchedulingHostToolExposure? = nil
     ) throws -> AgentSpawnConfig {
         guard let dbConversation = dbConversation() else {
             throw AgentError.spawnFailed("Conversation no longer exists")
@@ -46,6 +57,12 @@ extension ConversationViewModel {
         let preservesAutomatedScheduledTurn = settingsSource == .currentContinuation
             && settingsContext.liveConfig?.isAutomatedScheduledTurn == true
             && defersOrdinaryScheduledOutbound
+        let resolvedAutomatedScheduledTurn = isAutomatedScheduledTurn || preservesAutomatedScheduledTurn
+        let schedulingHostTools = schedulingHostToolConfiguration(
+            requestedExposure: hostToolExposure,
+            settingsSource: settingsSource,
+            isAutomatedScheduledTurn: resolvedAutomatedScheduledTurn
+        )
 
         return AgentSpawnConfig(
             providerId: providerId,
@@ -64,8 +81,43 @@ extension ConversationViewModel {
                 configured: settingsContext.liveConfig?.allowedDirectories ?? [],
                 additional: allowedDirectories
             ),
+            hostToolServer: schedulingHostTools.server,
+            hostTools: schedulingHostTools.tools,
             initialGoal: initialGoal,
-            isAutomatedScheduledTurn: isAutomatedScheduledTurn || preservesAutomatedScheduledTurn
+            isAutomatedScheduledTurn: resolvedAutomatedScheduledTurn
+        )
+    }
+
+    func effectiveLiveSessionConfig(_ config: AgentSpawnConfig) -> AgentSpawnConfig {
+        state.schedulingHostToolsDisabled ? config.withoutHostTools() : config
+    }
+
+    func clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled() {
+        guard !state.schedulingHostToolsDisabled else {
+            return
+        }
+        state.sessionContinuityNotice = nil
+    }
+
+    private func schedulingHostToolConfiguration(
+        requestedExposure: SchedulingHostToolExposure?,
+        settingsSource: SessionSettingsConfigSource,
+        isAutomatedScheduledTurn: Bool
+    ) -> SchedulingHostToolConfiguration {
+        let exposure = requestedExposure ?? (
+            settingsSource == .nextTurn ? .ordinaryOutbound : .currentContinuation
+        )
+        guard exposure == .ordinaryOutbound,
+              !isAutomatedScheduledTurn,
+              !state.schedulingHostToolsDisabled else {
+            return SchedulingHostToolConfiguration(
+                server: AgentCLIKit.AgentHostToolServerMetadata(),
+                tools: []
+            )
+        }
+        return SchedulingHostToolConfiguration(
+            server: ScheduledTaskHostToolCatalog.serverMetadata,
+            tools: ScheduledTaskHostToolCatalog.tools
         )
     }
 
@@ -129,7 +181,7 @@ extension ConversationViewModel {
             state.runtimeSpeedMode = pending.pending.speedMode
         }
 
-        state.liveSessionConfig = config
+        state.liveSessionConfig = effectiveLiveSessionConfig(config)
         state.pendingSessionSettingsChange = nil
 
         if recordsContextWindowInvalidation && pending.invalidatesContextWindow {
@@ -173,7 +225,7 @@ extension ConversationViewModel {
                 recordsContextWindowInvalidation: false
             )
         } else {
-            state.liveSessionConfig = config
+            state.liveSessionConfig = effectiveLiveSessionConfig(config)
         }
     }
 }

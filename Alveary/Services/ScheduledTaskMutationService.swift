@@ -46,93 +46,12 @@ struct ScheduledTaskDefinitionEdit {
     let project: Project?
 }
 
-enum ScheduledTaskRunNowOccurrenceSource: Equatable, Sendable {
-    case scheduled
-    case pending
-    case manual
-}
-
-struct ScheduledTaskRunNowRequest: Equatable, Sendable {
-    let definitionID: String
-    let definitionRevision: Int
-    let occurrenceAt: Date
-    let triggeredAt: Date
-    let occurrenceSource: ScheduledTaskRunNowOccurrenceSource
-
-    var consumesScheduledOccurrence: Bool {
-        occurrenceSource != .manual
-    }
-
-    @MainActor
-    static func prepare(
-        definition: ScheduledTask,
-        triggeredAt: Date,
-        recurrenceCalculator: ScheduledTaskRecurrenceCalculator
-    ) -> Self {
-        let scheduledOccurrence = latestScheduledOccurrence(
-            definition: definition,
-            through: triggeredAt,
-            recurrenceCalculator: recurrenceCalculator
-        )
-        let pendingOccurrence = definition.pendingOccurrenceAt.flatMap { occurrence in
-            occurrence <= triggeredAt ? occurrence : nil
-        }
-
-        let occurrenceAt: Date
-        let occurrenceSource: ScheduledTaskRunNowOccurrenceSource
-        switch (scheduledOccurrence, pendingOccurrence) {
-        case let (scheduled?, pending?) where pending > scheduled:
-            occurrenceAt = pending
-            occurrenceSource = .pending
-        case let (scheduled?, _):
-            occurrenceAt = scheduled
-            occurrenceSource = .scheduled
-        case let (nil, pending?):
-            occurrenceAt = pending
-            occurrenceSource = .pending
-        case (nil, nil):
-            occurrenceAt = triggeredAt
-            occurrenceSource = .manual
-        }
-
-        return Self(
-            definitionID: definition.id,
-            definitionRevision: definition.revision,
-            occurrenceAt: occurrenceAt,
-            triggeredAt: triggeredAt,
-            occurrenceSource: occurrenceSource
-        )
-    }
-
-    @MainActor
-    private static func latestScheduledOccurrence(
-        definition: ScheduledTask,
-        through actionDate: Date,
-        recurrenceCalculator: ScheduledTaskRecurrenceCalculator
-    ) -> Date? {
-        guard let firstOccurrence = definition.nextOccurrenceAt,
-              firstOccurrence <= actionDate else {
-            return nil
-        }
-        guard let recurrence = definition.recurrence,
-              let window = try? recurrenceCalculator.coalescedOccurrences(
-                  startingAt: firstOccurrence,
-                  through: actionDate,
-                  recurrence: recurrence,
-                  timeZoneIdentifier: definition.timeZoneIdentifier
-              ) else {
-            // Let the scheduler preflight pause malformed definitions instead of
-            // turning Run now preparation into a separate validation path.
-            return firstOccurrence
-        }
-        return window.latestDueOccurrence ?? firstOccurrence
-    }
-}
-
 enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
     case definitionNotFound
+    case proposalNotFound
     case invalidRecurrence
     case projectWorkspaceRequiresProject
+    case workspaceRootsChanged
     case revisionConflict(expected: Int, actual: Int)
     case runNowBlockedByActiveRun
     case scheduleIsCompleted
@@ -142,10 +61,14 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
         switch self {
         case .definitionNotFound:
             "Scheduled task no longer exists."
+        case .proposalNotFound:
+            "Scheduling proposal no longer exists."
         case .invalidRecurrence:
             "Scheduled task recurrence is invalid."
         case .projectWorkspaceRequiresProject:
             "Project schedules require a project."
+        case .workspaceRootsChanged:
+            "The selected project or folder grants changed and must be reviewed before saving."
         case let .revisionConflict(expected, actual):
             "Scheduled task changed from revision \(expected) to \(actual)."
         case .runNowBlockedByActiveRun:
@@ -177,10 +100,12 @@ final class ScheduledTaskMutationService {
     @discardableResult
     func create(
         edit: ScheduledTaskDefinitionEdit,
-        at actionDate: Date = .now
+        at actionDate: Date = .now,
+        consumingProposalID: String? = nil
     ) throws -> ScheduledTask {
         try flushPendingChanges()
         try validate(edit)
+        let proposal = try proposalToConsume(id: consumingProposalID)
         let nextOccurrence = try recurrenceCalculator.nextOccurrence(
             strictlyAfter: actionDate,
             recurrence: edit.recurrence,
@@ -204,26 +129,36 @@ final class ScheduledTaskMutationService {
             createdAt: actionDate,
             modifiedAt: actionDate
         )
+        // The model initializer normalizes paths. Restore the validated literal snapshot so a
+        // post-validation symlink swap cannot rewrite the user's authorization boundary.
+        definition.grantedRoots = edit.grantedRoots
+        let consumesProposal = proposal != nil
 
         do {
             modelContext.insert(definition)
+            if let proposal {
+                modelContext.delete(proposal)
+            }
             try modelContext.save()
         } catch {
             modelContext.rollback()
             throw error
         }
         publishChange(definitionID: definition.id)
+        publishProposalConsumption(if: consumesProposal)
         return definition
     }
 
     func pause(
         definitionID: String,
         expectedRevision: Int? = nil,
-        at actionDate: Date = .now
+        at actionDate: Date = .now,
+        consumingProposalID: String? = nil
     ) throws {
         let didChange = try mutateDefinition(
             definitionID: definitionID,
-            expectedRevision: expectedRevision
+            expectedRevision: expectedRevision,
+            consumingProposalID: consumingProposalID
         ) { definition in
             guard definition.state != .completed else {
                 throw ScheduledTaskMutationError.scheduleIsCompleted
@@ -252,11 +187,13 @@ final class ScheduledTaskMutationService {
     func resume(
         definitionID: String,
         expectedRevision: Int? = nil,
-        at actionDate: Date = .now
+        at actionDate: Date = .now,
+        consumingProposalID: String? = nil
     ) throws {
         let didChange = try mutateDefinition(
             definitionID: definitionID,
-            expectedRevision: expectedRevision
+            expectedRevision: expectedRevision,
+            consumingProposalID: consumingProposalID
         ) { definition in
             guard definition.state == .paused else {
                 throw ScheduledTaskMutationError.scheduleIsNotPaused
@@ -290,11 +227,13 @@ final class ScheduledTaskMutationService {
         definitionID: String,
         expectedRevision: Int? = nil,
         edit: ScheduledTaskDefinitionEdit,
-        at actionDate: Date = .now
+        at actionDate: Date = .now,
+        consumingProposalID: String? = nil
     ) throws {
         let didChange = try mutateDefinition(
             definitionID: definitionID,
-            expectedRevision: expectedRevision
+            expectedRevision: expectedRevision,
+            consumingProposalID: consumingProposalID
         ) { definition in
             try self.validate(edit)
             let nextOccurrence = try self.recurrenceCalculator.nextOccurrence(
@@ -313,7 +252,7 @@ final class ScheduledTaskMutationService {
             definition.permissionMode = edit.permissionMode
             definition.workspaceKind = edit.workspaceKind
             definition.workspaceStrategy = edit.workspaceStrategy
-            definition.grantedRoots = ScheduledTask.normalizedUniquePaths(edit.grantedRoots)
+            definition.grantedRoots = edit.grantedRoots
             definition.project = edit.workspaceKind == .project ? edit.project : nil
             definition.state = wasPaused ? .paused : (nextOccurrence == nil ? .completed : .active)
             definition.nextOccurrenceAt = nextOccurrence
@@ -331,27 +270,35 @@ final class ScheduledTaskMutationService {
 
     func delete(
         definitionID: String,
-        expectedRevision: Int? = nil
+        expectedRevision: Int? = nil,
+        consumingProposalID: String? = nil
     ) throws {
         try flushPendingChanges()
         guard let definition = modelContext.resolveScheduledTask(id: definitionID) else {
             throw ScheduledTaskMutationError.definitionNotFound
         }
         try validateRevision(definition, expectedRevision: expectedRevision)
+        let proposal = try proposalToConsume(id: consumingProposalID)
+        let consumesProposal = proposal != nil
         do {
             modelContext.delete(definition)
+            if let proposal {
+                modelContext.delete(proposal)
+            }
             try modelContext.save()
         } catch {
             modelContext.rollback()
             throw error
         }
         publishChange(definitionID: definitionID)
+        publishProposalConsumption(if: consumesProposal)
     }
 
     func prepareRunNow(
         definitionID: String,
         expectedRevision: Int? = nil,
-        at actionDate: Date = .now
+        at actionDate: Date = .now,
+        idempotencyKey: String? = nil
     ) throws -> ScheduledTaskRunNowRequest {
         try flushPendingChanges()
         guard let definition = modelContext.resolveScheduledTask(id: definitionID) else {
@@ -365,8 +312,24 @@ final class ScheduledTaskMutationService {
         return ScheduledTaskRunNowRequest.prepare(
             definition: definition,
             triggeredAt: actionDate,
-            recurrenceCalculator: recurrenceCalculator
+            recurrenceCalculator: recurrenceCalculator,
+            idempotencyKey: idempotencyKey
         )
+    }
+
+    func consumeProposal(id: String) throws {
+        try flushPendingChanges()
+        guard let proposal = modelContext.resolveScheduledTaskProposal(id: id) else {
+            throw ScheduledTaskMutationError.proposalNotFound
+        }
+        do {
+            modelContext.delete(proposal)
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+        notificationCenter.postScheduledTaskProposalsChanged(object: self)
     }
 }
 
@@ -389,6 +352,7 @@ private extension ScheduledTaskMutationService {
     func mutateDefinition(
         definitionID: String,
         expectedRevision: Int?,
+        consumingProposalID: String?,
         mutation: (ScheduledTask) throws -> Bool
     ) throws -> Bool {
         try flushPendingChanges()
@@ -396,12 +360,19 @@ private extension ScheduledTaskMutationService {
             throw ScheduledTaskMutationError.definitionNotFound
         }
         try validateRevision(definition, expectedRevision: expectedRevision)
+        let proposal = try proposalToConsume(id: consumingProposalID)
+        let consumesProposal = proposal != nil
         do {
-            guard try mutation(definition) else {
+            let didChange = try mutation(definition)
+            if let proposal {
+                modelContext.delete(proposal)
+            }
+            guard didChange || proposal != nil else {
                 return false
             }
             try modelContext.save()
-            return true
+            publishProposalConsumption(if: consumesProposal)
+            return didChange
         } catch {
             modelContext.rollback()
             throw error
@@ -411,6 +382,14 @@ private extension ScheduledTaskMutationService {
     func validate(_ edit: ScheduledTaskDefinitionEdit) throws {
         if edit.workspaceKind == .project, edit.project == nil {
             throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
+        }
+        guard ScheduledTask.normalizedUniquePaths(edit.grantedRoots) == edit.grantedRoots else {
+            throw ScheduledTaskMutationError.workspaceRootsChanged
+        }
+        if edit.workspaceKind == .project,
+           let projectPath = edit.project?.path,
+           CanonicalPath.normalize(projectPath) != projectPath {
+            throw ScheduledTaskMutationError.workspaceRootsChanged
         }
         try recurrenceCalculator.validate(
             edit.recurrence,
@@ -423,6 +402,23 @@ private extension ScheduledTaskMutationService {
             object: self,
             definitionID: definitionID
         )
+    }
+
+    func proposalToConsume(id: String?) throws -> ScheduledTaskProposal? {
+        guard let id else {
+            return nil
+        }
+        guard let proposal = modelContext.resolveScheduledTaskProposal(id: id) else {
+            throw ScheduledTaskMutationError.proposalNotFound
+        }
+        return proposal
+    }
+
+    func publishProposalConsumption(if consumedProposal: Bool) {
+        guard consumedProposal else {
+            return
+        }
+        notificationCenter.postScheduledTaskProposalsChanged(object: self)
     }
 
     func validateRevision(

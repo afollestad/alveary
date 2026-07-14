@@ -381,6 +381,9 @@ struct ConversationViewModelTestFixture {
             threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder(),
             draftMaterializationSaver: draftMaterializationSaver
         )
+        if initialAgentIsRunning ?? hasCompletedInitialSetup {
+            viewModel.state.liveSessionConfig = try viewModel.makeSpawnConfig()
+        }
         self.container = container; self.context = context; self.project = project; self.thread = thread
         self.conversation = conversation; self.agentsManager = agentsManager; self.runtimeStore = runtimeStore
         self.keepAwakeService = keepAwakeService; self.worktreeManager = worktreeManager; self.providerSetup = providerSetup
@@ -402,6 +405,7 @@ struct ConversationViewModelTestFixture {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         return (container, ModelContext(container))

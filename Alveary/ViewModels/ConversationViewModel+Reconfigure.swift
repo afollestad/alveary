@@ -1,5 +1,10 @@
 import Foundation
 
+struct ConversationRuntimeReconfigureOutcome {
+    let result: AgentSessionReconfigureResult
+    let hostToolTransition: SchedulingHostToolRuntimeTransition
+}
+
 extension ConversationViewModel {
     @discardableResult
     func reconfigureSession(config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
@@ -17,11 +22,23 @@ extension ConversationViewModel {
         state.isReconfiguringSession = true
         defer { state.isReconfiguringSession = false }
 
-        await flushPendingSaveIfNeeded()
-        try await prepareForSpawn(config: config)
-        let result = try await performRuntimeReconfigure(config: config)
-        applyReconfigureResult(result, config: config)
-        return result
+        let hostToolTransition = state.beginSchedulingHostToolRuntimeTransition()
+        do {
+            await flushPendingSaveIfNeeded()
+            try await prepareForSpawn(config: config)
+            let outcome = try await performRuntimeReconfigure(
+                config: config,
+                hostToolTransition: hostToolTransition
+            )
+            applyReconfigureResult(outcome, config: config)
+            return outcome.result
+        } catch {
+            state.finishSchedulingHostToolRuntimeTransition(
+                hostToolTransition,
+                appliedRequestedConfiguration: false
+            )
+            throw error
+        }
     }
 
     @discardableResult
@@ -37,25 +54,37 @@ extension ConversationViewModel {
         subscribe()
     }
 
-    private func performRuntimeReconfigure(config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
+    func performRuntimeReconfigure(
+        config: AgentSpawnConfig,
+        hostToolTransition: SchedulingHostToolRuntimeTransition
+    ) async throws -> ConversationRuntimeReconfigureOutcome {
         do {
-            return try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
+            let result = try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
+            return ConversationRuntimeReconfigureOutcome(
+                result: result,
+                hostToolTransition: hostToolTransition
+            )
         } catch {
             await resubscribeIfActiveRuntimeIsRunning()
             throw error
         }
     }
 
-    private func applyReconfigureResult(_ result: AgentSessionReconfigureResult, config: AgentSpawnConfig) {
+    func applyReconfigureResult(_ outcome: ConversationRuntimeReconfigureOutcome, config: AgentSpawnConfig) {
+        let result = outcome.result
+        state.finishSchedulingHostToolRuntimeTransition(
+            outcome.hostToolTransition,
+            appliedRequestedConfiguration: result != .nextTurnRequired
+        )
         guard result == .restarted else {
             if result == .appliedInPlace {
-                state.liveSessionConfig = config
+                state.liveSessionConfig = effectiveLiveSessionConfig(config)
                 state.runtimeSpeedMode = config.speedMode
             }
             return
         }
 
-        state.liveSessionConfig = config
+        state.liveSessionConfig = effectiveLiveSessionConfig(config)
         state.runtimeSpeedMode = config.speedMode
         state.lastObservedEventIndex = 0
         state.lastPersistedEventIndex = 0

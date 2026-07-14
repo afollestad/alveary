@@ -150,6 +150,7 @@ extension SidebarViewModelTests {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let viewModel = SidebarViewModel(

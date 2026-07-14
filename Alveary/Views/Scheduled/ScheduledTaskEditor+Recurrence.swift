@@ -41,29 +41,37 @@ struct ScheduledTaskEditorRecurrenceSection: View {
                 SettingsResponsiveControlRow("Run at") {
                     DatePicker(
                         "Run at",
-                        selection: $draft.recurrenceAnchorAt,
+                        selection: $draft.onceOccurrenceAt,
                         displayedComponents: [.date, .hourAndMinute]
                     )
                     .environment(\.timeZone, selectedTimeZone)
+                    .datePickerStyle(.field)
                     .labelsHidden()
                 }
             }
         case .interval:
             SettingsFormRow {
-                SettingsResponsiveControlRow("Interval", horizontalControlSizing: .intrinsic) {
-                    Stepper(value: $draft.intervalMinutes, in: 1 ... Int.max) {
-                        Text("Every \(draft.intervalMinutes) minute\(draft.intervalMinutes == 1 ? "" : "s")")
+                SettingsResponsiveControlRow("Interval", horizontalControlSizing: .intrinsicInline) {
+                    HStack(spacing: 6) {
+                        Text("Every")
+                        TextField("Minutes", value: intervalMinutesBinding, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 64)
+                            .accessibilityLabel("Interval in minutes")
+                        Text(draft.intervalMinutes == 1 ? "minute" : "minutes")
                     }
                 }
             }
             SettingsFormRow {
-                SettingsResponsiveControlRow("Anchor") {
+                SettingsResponsiveControlRow("Anchor", horizontalControlSizing: .intrinsicInline) {
                     DatePicker(
                         "Anchor",
-                        selection: $draft.recurrenceAnchorAt,
+                        selection: $draft.intervalAnchorAt,
                         displayedComponents: [.date, .hourAndMinute]
                     )
                     .environment(\.timeZone, selectedTimeZone)
+                    .datePickerStyle(.field)
                     .labelsHidden()
                 }
             }
@@ -172,6 +180,13 @@ struct ScheduledTaskEditorRecurrenceSection: View {
 
     private var selectedTimeZone: TimeZone {
         TimeZone(identifier: draft.timeZoneIdentifier) ?? .current
+    }
+
+    private var intervalMinutesBinding: Binding<Int> {
+        Binding(
+            get: { draft.intervalMinutes },
+            set: { draft.intervalMinutes = max(1, $0) }
+        )
     }
 }
 

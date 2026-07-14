@@ -85,10 +85,12 @@ extension DefaultAgentsManager {
         dropsPreStartTerminalLifecycle: Bool = false
     ) {
         agentCLIKitEventTasks[conversationId]?.cancel()
-        let mapper = AgentCLIKitEventMapper()
         agentCLIKitEventTasks[conversationId] = Task { [weak self] in
             var hasSeenRuntimeStart = !dropsPreStartTerminalLifecycle
             for await envelope in subscription.events {
+                guard !Task.isCancelled else {
+                    return
+                }
                 // Replacement buffers can replay an old process exit that raced after the cursor; keep real content,
                 // but ignore that stale terminal lifecycle until the new runtime start boundary arrives.
                 if !hasSeenRuntimeStart {
@@ -98,37 +100,100 @@ extension DefaultAgentsManager {
                         continue
                     }
                 }
-                await self?.recordProviderSessionBindingIfNeeded(
-                    from: envelope,
+                await self?.processAgentCLIKitEnvelope(
+                    envelope,
                     conversationId: conversationId,
+                    subscriptionGeneration: subscription.generation,
+                    subscriptionBufferGeneration: bufferGeneration,
                     workingDirectory: workingDirectory
                 )
-                let events = mapper.conversationEvents(from: envelope)
-                let generation = envelope.generation == subscription.generation
-                    ? bufferGeneration
-                    : await self?.currentAgentCLIKitGenerationUUID(
-                        conversationId: conversationId,
-                        agentGeneration: envelope.generation
-                    )
-                guard let generation else {
-                    continue
-                }
-                for event in events {
-                    await self?.handleStreamEvent(
-                        event,
-                        conversationId: conversationId,
-                        generation: generation,
-                        providerId: envelope.providerId.rawValue,
-                        runtimeEventIndex: envelope.index
-                    )
-                }
-                await self?.recordAgentCLIKitEnvelopeIndex(envelope.index, conversationId: conversationId, generation: generation)
             }
             guard !Task.isCancelled else {
                 return
             }
             await self?.finishStreamBufferIfCurrent(conversationId: conversationId, generation: bufferGeneration)
         }
+    }
+
+    private func processAgentCLIKitEnvelope(
+        _ envelope: AgentCLIKit.AgentEventEnvelope,
+        conversationId: String,
+        subscriptionGeneration: Int,
+        subscriptionBufferGeneration: UUID,
+        workingDirectory: String
+    ) async {
+        guard !Task.isCancelled else {
+            return
+        }
+        let isHostToolServerUnavailableDiagnostic = envelope.isHostToolServerUnavailableDiagnostic
+        guard !isHostToolServerUnavailableDiagnostic || envelope.generation >= subscriptionGeneration else {
+            return
+        }
+        await recordProviderSessionBindingIfNeeded(
+            from: envelope,
+            conversationId: conversationId,
+            workingDirectory: workingDirectory
+        )
+        let generation = agentCLIKitBufferGeneration(
+            for: envelope,
+            conversationId: conversationId,
+            subscriptionGeneration: subscriptionGeneration,
+            subscriptionBufferGeneration: subscriptionBufferGeneration
+        )
+        if isHostToolServerUnavailableDiagnostic {
+            guard !Task.isCancelled else {
+                return
+            }
+            await markSchedulingHostToolsUnavailableIfCurrent(
+                conversationId: conversationId,
+                subscriptionGeneration: subscriptionGeneration,
+                envelopeGeneration: envelope.generation,
+                bufferGeneration: generation
+            )
+        }
+        for event in AgentCLIKitEventMapper().conversationEvents(from: envelope) {
+            await handleStreamEvent(
+                event,
+                conversationId: conversationId,
+                generation: generation,
+                providerId: envelope.providerId.rawValue,
+                runtimeEventIndex: envelope.index
+            )
+        }
+        recordAgentCLIKitEnvelopeIndex(envelope.index, conversationId: conversationId, generation: generation)
+    }
+
+    private func agentCLIKitBufferGeneration(
+        for envelope: AgentCLIKit.AgentEventEnvelope,
+        conversationId: String,
+        subscriptionGeneration: Int,
+        subscriptionBufferGeneration: UUID
+    ) -> UUID {
+        guard envelope.generation != subscriptionGeneration else {
+            return subscriptionBufferGeneration
+        }
+        return currentAgentCLIKitGenerationUUID(
+            conversationId: conversationId,
+            agentGeneration: envelope.generation
+        )
+    }
+
+    private func markSchedulingHostToolsUnavailableIfCurrent(
+        conversationId: String,
+        subscriptionGeneration: Int,
+        envelopeGeneration: Int,
+        bufferGeneration: UUID
+    ) async {
+        guard envelopeGeneration >= subscriptionGeneration,
+              let managedBuffer = eventBuffers[conversationId],
+              managedBuffer.generation == bufferGeneration,
+              managedBuffer.acceptsLiveEvents else {
+            return
+        }
+        await markSchedulingHostToolsUnavailable(
+            conversationId: conversationId,
+            requiresRuntimeReplacement: true
+        )
     }
 
     private func currentAgentCLIKitGenerationUUID(conversationId: String, agentGeneration: Int) -> UUID {

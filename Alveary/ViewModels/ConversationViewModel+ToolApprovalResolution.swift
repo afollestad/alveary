@@ -215,6 +215,7 @@ private extension ConversationViewModel {
         )
         state.lastTurnError = nil
         if !isResolvingLiveHookApproval {
+            state.invalidateSchedulingHostToolRuntimeConfiguration()
             subscribe()
         }
     }

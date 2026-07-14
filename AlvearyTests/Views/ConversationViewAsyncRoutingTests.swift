@@ -316,6 +316,7 @@ private struct ConversationAsyncRoutingThreadFixture {
             Conversation.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: configuration
         )
         let context = ModelContext(container)

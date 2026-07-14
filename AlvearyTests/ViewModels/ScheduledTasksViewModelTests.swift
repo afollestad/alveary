@@ -5,6 +5,36 @@ import XCTest
 
 @MainActor
 final class ScheduledTasksViewModelTests: XCTestCase {
+    func testNewDraftUsesCurrentMinuteForIntervalAnchorWithoutChangingOneTimeSuggestion() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+
+        var draft = fixture.viewModel.makeNewDraft()
+
+        XCTAssertEqual(draft.intervalAnchorAt, Calendar.current.dateInterval(of: .minute, for: fixture.now)?.start)
+        XCTAssertEqual(draft.onceOccurrenceAt, fixture.now.addingTimeInterval(60 * 60))
+
+        draft.recurrenceKind = .interval
+        XCTAssertEqual(draft.recurrence, .interval(minutes: 60, anchor: draft.intervalAnchorAt))
+
+        draft.recurrenceKind = .once
+        XCTAssertEqual(draft.recurrence, .once(draft.onceOccurrenceAt))
+    }
+
+    func testEditDraftPreservesExistingIntervalAnchor() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let anchor = fixture.now.addingTimeInterval(-3_600)
+        try fixture.insertDefinition(
+            id: "interval",
+            state: .active,
+            recurrence: .interval(minutes: 15, anchor: anchor)
+        )
+
+        let draft = try XCTUnwrap(fixture.viewModel.makeEditDraft(definitionID: "interval"))
+
+        XCTAssertEqual(draft.intervalAnchorAt, anchor)
+        XCTAssertEqual(draft.recurrence, .interval(minutes: 15, anchor: anchor))
+    }
+
     func testFiltersKeepCompletedOneShotInAllAndBlockedDefinitionInPaused() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         try fixture.insertDefinition(id: "active", state: .active)
@@ -282,6 +312,7 @@ private final class ScheduledTasksViewModelFixture {
             ConversationEventRecord.self,
             ScheduledTask.self,
             ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         context = ModelContext(container)

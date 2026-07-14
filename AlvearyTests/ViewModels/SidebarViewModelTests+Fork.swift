@@ -274,6 +274,10 @@ private func assertLocalForkThread(
     XCTAssertEqual(spawnCall.config.workingDirectory, "/tmp/alveary-project")
     XCTAssertEqual(spawnCall.config.initialPrompt, nil)
     XCTAssertEqual(spawnCall.config.reasoningSummaryMode, .concise)
+    XCTAssertEqual(
+        spawnCall.config.hostTools.map(\.name),
+        [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+    )
     XCTAssertEqual(forkRequest.sourceSessionId, "codex-thread")
     XCTAssertEqual(forkRequest.sourceWorkingDirectory, "/tmp/alveary-project")
     XCTAssertEqual(forkRequest.mode, .local)

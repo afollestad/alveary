@@ -16,6 +16,7 @@ final class Project {
     var pinnedSortOrder: Int?
     @Relationship(deleteRule: .cascade, inverse: \AgentThread.project) var threads: [AgentThread]
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.project) var scheduledTasks: [ScheduledTask]
+    @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskProposal.project) var scheduledTaskProposals: [ScheduledTaskProposal]
 
     init(
         path: String,
@@ -30,7 +31,8 @@ final class Project {
         sidebarSortOrder: Int? = nil,
         pinnedSortOrder: Int? = nil,
         threads: [AgentThread] = [],
-        scheduledTasks: [ScheduledTask] = []
+        scheduledTasks: [ScheduledTask] = [],
+        scheduledTaskProposals: [ScheduledTaskProposal] = []
     ) {
         self.path = CanonicalPath.normalize(path)
         self.name = name
@@ -45,6 +47,7 @@ final class Project {
         self.pinnedSortOrder = pinnedSortOrder
         self.threads = threads
         self.scheduledTasks = scheduledTasks
+        self.scheduledTaskProposals = scheduledTaskProposals
     }
 
     var isGitRepository: Bool {

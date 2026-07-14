@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 struct ContentViewBootstrapState {
     let sidebarViewModel: SidebarViewModel
@@ -102,6 +103,21 @@ extension ContentView {
             providerDiscovery: dependencies.providerDiscovery,
             settingsService: dependencies.settingsService,
             agentRegistry: dependencies.agentRegistry,
+            runNow: { request in
+                guard dependencies.scheduledTaskLifecycleCoordinator.canStartManualRuns else {
+                    return false
+                }
+                return dependencies.scheduledTaskSchedulerCoordinator.startRunNow(request)
+            }
+        )
+    }
+
+    static func makeScheduledTaskProposalQueueCoordinator(
+        dependencies: ContentViewDependencies
+    ) -> ScheduledTaskProposalQueueCoordinator {
+        ScheduledTaskProposalQueueCoordinator(
+            modelContext: ModelContext(dependencies.modelContainer),
+            mutationService: dependencies.scheduledTaskMutationService,
             runNow: { request in
                 guard dependencies.scheduledTaskLifecycleCoordinator.canStartManualRuns else {
                     return false

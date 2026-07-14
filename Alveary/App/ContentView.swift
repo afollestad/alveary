@@ -40,7 +40,8 @@ struct ContentView: View {
     @State private var terminalPaneHeight: CGFloat
     @State private var skillsViewModel: SkillsViewModel
     @State private var mcpViewModel: MCPViewModel
-    @State private var scheduledTasksViewModel: ScheduledTasksViewModel
+    @State var scheduledTasksViewModel: ScheduledTasksViewModel
+    @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     @State private var settingsViewModel: SettingsViewModel
     @State private var archivedTasksSettingsViewModel: ArchivedTasksSettingsViewModel
     @State var onboardingViewModel: OnboardingViewModel
@@ -97,6 +98,9 @@ struct ContentView: View {
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
         _scheduledTasksViewModel = State(initialValue: Self.makeScheduledTasksViewModel(dependencies: dependencies))
+        _scheduledTaskProposalQueueCoordinator = State(
+            initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
+        )
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _archivedTasksSettingsViewModel = State(initialValue: Self.makeArchivedTasksSettingsViewModel(
             dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState

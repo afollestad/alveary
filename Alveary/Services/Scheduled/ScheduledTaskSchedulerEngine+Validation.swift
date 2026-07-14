@@ -9,7 +9,8 @@ extension ScheduledTaskSchedulerEngine {
         ScheduledTaskRunNowRequest.prepare(
             definition: definition,
             triggeredAt: request.triggeredAt,
-            recurrenceCalculator: recurrenceCalculator
+            recurrenceCalculator: recurrenceCalculator,
+            idempotencyKey: request.idempotencyKey
         ) == request
     }
 

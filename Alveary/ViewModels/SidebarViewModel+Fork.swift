@@ -295,7 +295,9 @@ private extension SidebarViewModel {
                 sourceWorkingDirectory: sourceRecord.workingDirectory?.path ?? source.sourceWorkingDirectory,
                 mode: source.mode.sessionForkMode
             ),
-            initialPrompt: nil
+            initialPrompt: nil,
+            hostToolServer: ScheduledTaskHostToolCatalog.serverMetadata,
+            hostTools: ScheduledTaskHostToolCatalog.tools
         )
     }
 

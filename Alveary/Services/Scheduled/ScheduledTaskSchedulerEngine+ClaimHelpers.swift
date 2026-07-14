@@ -27,6 +27,10 @@ extension ScheduledTaskSchedulerEngine {
     }
 
     func runNowOccurrenceID(_ request: ScheduledTaskRunNowRequest) -> String {
+        if let idempotencyKey = request.idempotencyKey,
+           !idempotencyKey.isEmpty {
+            return "run-now:\(request.definitionID):idempotent:\(idempotencyKey)"
+        }
         if request.consumesScheduledOccurrence {
             return scheduledOccurrenceID(
                 definitionID: request.definitionID,

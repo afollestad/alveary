@@ -1,7 +1,21 @@
+import AgentCLIKit
 import NeedleFoundation
 
 @MainActor
 extension AppComponent {
+    var scheduledTaskHostToolService: ScheduledTaskHostToolService {
+        return shared {
+            ScheduledTaskHostToolService(modelContext: modelContainer.mainContext)
+        }
+    }
+
+    var scheduledTaskHostToolHandling: AgentCLIKit.AgentHostToolHandling {
+        let service = scheduledTaskHostToolService
+        return AgentCLIKit.AgentHostToolHandling { context, call in
+            await service.handle(context: context, call: call)
+        }
+    }
+
     var scheduledTaskMutationService: ScheduledTaskMutationService {
         return shared {
             ScheduledTaskMutationService(modelContext: modelContainer.mainContext)
