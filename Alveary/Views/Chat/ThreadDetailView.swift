@@ -80,11 +80,13 @@ struct ThreadDetailView: View {
                             onSelect: { appState.selectConversation($0, in: thread) },
                             onCommitRename: { renameConversation($0, to: $1) },
                             onRemove: { conversation in
-                                guard conversations.count > 1 else { return }
+                                guard conversations.count > 1,
+                                      ThreadDetailConversationDeletion.canRemove(conversation) else { return }
                                 pendingDeleteConversation = conversation
                             },
                             onCreate: { Task { await createConversation() } },
                             isCreateDisabled: isProjectTrustBlocked,
+                            canRemove: ThreadDetailConversationDeletion.canRemove,
                             editingConversationID: $editingConversationID
                         )
                     }
@@ -234,8 +236,10 @@ struct ThreadDetailView: View {
                 conversations: conversations,
                 selectedConversation: selectedConversation,
                 isRenaming: editingConversationID != nil,
+                canRemove: ThreadDetailConversationDeletion.canRemove,
                 onRemove: { conversation in
-                    guard conversations.count > 1 else { return }
+                    guard conversations.count > 1,
+                          ThreadDetailConversationDeletion.canRemove(conversation) else { return }
                     pendingDeleteConversation = conversation
                 }
             )
@@ -391,6 +395,14 @@ private extension ThreadDetailView {
         }
         guard conversations.count > 1 else {
             conversationActionError = "Couldn't remove conversation: threads must keep at least one conversation"
+            return
+        }
+        guard let requestedConversation = uiModelContext.resolveConversation(id: id) else {
+            conversationActionError = "Couldn't remove conversation: it no longer exists"
+            return
+        }
+        guard ThreadDetailConversationDeletion.canRemove(requestedConversation) else {
+            conversationActionError = "Couldn't remove conversation: the original scheduled task conversation is retained with its run history"
             return
         }
 

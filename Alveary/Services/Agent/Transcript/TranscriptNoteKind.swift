@@ -3,6 +3,7 @@ enum TranscriptNoteKind: Equatable {
     case sessionHandoffInProgress
     case sessionHandoff
     case sessionForked
+    case scheduledTask(String)
     case enteredPlanMode
     case exitedPlanMode
     case stayingInPlanMode
@@ -13,7 +14,7 @@ enum TranscriptNoteKind: Equatable {
 
     var alignment: TranscriptNoteAlignment {
         switch self {
-        case .sessionHandoffInProgress, .sessionHandoff, .sessionForked,
+        case .sessionHandoffInProgress, .sessionHandoff, .sessionForked, .scheduledTask,
              .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
             return .centered
         case .enteredPlanMode, .exitedPlanMode, .stayingInPlanMode, .steeredConversation:
@@ -33,6 +34,8 @@ enum TranscriptNoteKind: Equatable {
             return ConversationSessionHandoff.displayMessage
         case .sessionForked:
             return ConversationSessionFork.displayMessage
+        case .scheduledTask(let text):
+            return text
         case .enteredPlanMode:
             return "Entered plan mode"
         case .exitedPlanMode:

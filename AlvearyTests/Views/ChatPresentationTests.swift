@@ -276,4 +276,42 @@ final class ChatPresentationTests: XCTestCase {
 
         XCTAssertFalse(presentation.showWorktreePicker)
     }
+
+    func testLinkedScheduledRunUsesTaskPresentationWhenPersistedModeFallsBackToProject() {
+        let sourceProject = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
+        let run = makeChatPresentationScheduledRun()
+        let thread = AgentThread(
+            name: "Fallback scheduled task",
+            hasCompletedInitialSetup: false,
+            useWorktree: true,
+            project: sourceProject,
+            scheduledTaskRun: run
+        )
+        thread.modeRawValue = "future-mode"
+        run.thread = thread
+
+        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+
+        XCTAssertEqual(presentation.mode, .task)
+        XCTAssertFalse(presentation.showWorktreePicker)
+    }
+}
+
+private func makeChatPresentationScheduledRun() -> ScheduledTaskRun {
+    ScheduledTaskRun(
+        occurrenceID: UUID().uuidString,
+        definitionID: "chat-presentation-definition",
+        definitionRevision: 1,
+        occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+        triggerKind: .scheduled,
+        status: .success,
+        titleSnapshot: "Scheduled task",
+        promptSnapshot: "Run scheduled work.",
+        timeZoneIdentifierSnapshot: "UTC",
+        providerIDSnapshot: "codex",
+        effortSnapshot: "high",
+        permissionModeSnapshot: "default",
+        workspaceKindSnapshot: .project,
+        workspaceStrategySnapshot: .worktree
+    )
 }

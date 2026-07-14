@@ -29,6 +29,7 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
     - Keep it out of `.commands` / `CommandGroup` because those surface in the menu bar and can lose to default close handling.
 - When closing the selected tab, select the visual neighbor first: next, then previous.
 - `onRemove` must re-check `conversations.count > 1` before presenting confirmation.
+- The original main conversation of a scheduled-run Task is durable provenance and is never removable. Hide its close affordance, consume Cmd-W as a no-op, and keep the commit-time guard for stale UI actions.
 - In the confirmation button, capture `persistentModelID` and the UUID-string `id` synchronously and pass both into `removeConversation(...)`.
 - Do not re-resolve a `Conversation` only to read `.id`; `modelContext.model(for:)` can return a zombie. See `Alveary/Data/AGENTS.md`.
 

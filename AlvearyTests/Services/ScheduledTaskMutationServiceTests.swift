@@ -178,7 +178,7 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
         XCTAssertEqual(definition.revision, 1)
     }
 
-    func testRunNowUsesLatestDueOccurrenceWithoutChangingCadenceOrState() throws {
+    func testRunNowCoalescesToLatestDueOccurrenceWithoutChangingCadenceOrState() throws {
         let fixture = try ScheduledTaskMutationFixture()
         let definition = try fixture.insertDefinition(
             state: .paused,
@@ -196,9 +196,9 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
             at: Date(timeIntervalSince1970: 600)
         )
 
-        XCTAssertEqual(request.occurrenceAt, Date(timeIntervalSince1970: 540))
+        XCTAssertEqual(request.occurrenceAt, Date(timeIntervalSince1970: 600))
         XCTAssertEqual(request.triggeredAt, Date(timeIntervalSince1970: 600))
-        XCTAssertEqual(request.occurrenceSource, .pending)
+        XCTAssertEqual(request.occurrenceSource, .scheduled)
         XCTAssertTrue(request.consumesScheduledOccurrence)
         XCTAssertEqual(definition.state, .paused)
         XCTAssertEqual(definition.nextOccurrenceAt, Date(timeIntervalSince1970: 300))
@@ -242,6 +242,43 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
         XCTAssertTrue(request.consumesScheduledOccurrence)
     }
 
+    func testRunNowCoalescesCalendarScheduleToLatestMissedOccurrence() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+        let definition = try fixture.insertDefinition(
+            recurrence: .daily(hour: 8, minute: 0),
+            nextOccurrenceAt: Date(timeIntervalSince1970: 28_800)
+        )
+
+        let request = try fixture.service.prepareRunNow(
+            definitionID: definition.id,
+            at: Date(timeIntervalSince1970: 205_200)
+        )
+
+        XCTAssertEqual(request.occurrenceAt, Date(timeIntervalSince1970: 201_600))
+        XCTAssertEqual(request.occurrenceSource, .scheduled)
+        XCTAssertEqual(definition.nextOccurrenceAt, Date(timeIntervalSince1970: 28_800))
+    }
+
+    func testRunNowUsesPendingOccurrenceWhenTheNextCadenceInstantIsFuture() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+        let definition = try fixture.insertDefinition(
+            state: .paused,
+            recurrence: .interval(minutes: 5, anchor: Date(timeIntervalSince1970: 0)),
+            nextOccurrenceAt: Date(timeIntervalSince1970: 900),
+            pendingOccurrenceAt: Date(timeIntervalSince1970: 540)
+        )
+
+        let request = try fixture.service.prepareRunNow(
+            definitionID: definition.id,
+            at: Date(timeIntervalSince1970: 600)
+        )
+
+        XCTAssertEqual(request.occurrenceAt, Date(timeIntervalSince1970: 540))
+        XCTAssertEqual(request.occurrenceSource, .pending)
+        XCTAssertEqual(definition.nextOccurrenceAt, Date(timeIntervalSince1970: 900))
+        XCTAssertEqual(definition.pendingOccurrenceAt, Date(timeIntervalSince1970: 540))
+    }
+
     func testRunNowRejectsEveryActiveRunStatus() throws {
         for status in [
             ScheduledTaskRunStatus.claimed,
@@ -261,6 +298,22 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
             ) { error in
                 XCTAssertEqual(error as? ScheduledTaskMutationError, .runNowBlockedByActiveRun)
             }
+        }
+    }
+
+    func testRunNowRejectsUnknownPersistedRunStatus() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+        let definition = try fixture.insertDefinition()
+        let run = fixture.makeRun(definition: definition, status: .success)
+        run.statusRawValue = "future-status"
+        definition.runs = [run]
+        fixture.context.insert(run)
+        try fixture.context.save()
+
+        XCTAssertThrowsError(
+            try fixture.service.prepareRunNow(definitionID: definition.id)
+        ) { error in
+            XCTAssertEqual(error as? ScheduledTaskMutationError, .runNowBlockedByActiveRun)
         }
     }
 

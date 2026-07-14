@@ -129,7 +129,7 @@ func effectiveSidebarSelection(_ selection: SidebarItem?) -> SidebarItem? {
           thread.isDraft else {
         return selection
     }
-    guard thread.mode == .project,
+    guard thread.effectiveMode == .project,
           let project = thread.project else {
         return nil
     }

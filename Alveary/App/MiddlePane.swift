@@ -138,8 +138,11 @@ func resolveSidebarSelectionBookmark(
             return nil
         }
 
-        if thread.archivedAt != nil {
+        if thread.archivedAt != nil, thread.effectiveMode == .project {
             return thread.project.map(SidebarItem.project)
+        }
+        guard thread.archivedAt == nil else {
+            return nil
         }
         return .thread(thread)
     }

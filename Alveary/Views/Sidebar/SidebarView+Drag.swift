@@ -253,7 +253,7 @@ extension SidebarView {
     }
 
     func pinnedItemDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
-        switch thread.mode {
+        switch thread.effectiveMode {
         case .project:
             return pinnedThreadDragConfiguration(for: thread)
         case .task:
@@ -262,7 +262,7 @@ extension SidebarView {
     }
 
     func pinnedItemDragGeometryRole(for thread: AgentThread) -> SidebarDragGeometryRole {
-        switch thread.mode {
+        switch thread.effectiveMode {
         case .project:
             return .pinnedThread(thread.persistentModelID)
         case .task:
@@ -272,7 +272,7 @@ extension SidebarView {
 
     private func pinnedThreadDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
         guard editingThreadID == nil,
-              thread.mode == .project,
+              thread.effectiveMode == .project,
               thread.isPinned,
               !thread.isDraft,
               thread.archivedAt == nil,
@@ -294,7 +294,7 @@ extension SidebarView {
 
     private func pinnedTaskDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
         guard editingThreadID == nil,
-              thread.mode == .task,
+              thread.effectiveMode == .task,
               thread.isPinned,
               !thread.isDraft,
               thread.archivedAt == nil else {
@@ -391,7 +391,8 @@ extension SidebarView {
         let selectedItem = appState.selectedSidebarItem
         let selectedThreadBelongsToDraggedProject: Bool
         if case .project(let projectID) = session.item,
-           case .thread(let selectedThread) = selectedItem {
+           case .thread(let selectedThread) = selectedItem,
+           selectedThread.effectiveMode == .project {
             selectedThreadBelongsToDraggedProject = selectedThread.project?.persistentModelID == projectID
         } else {
             selectedThreadBelongsToDraggedProject = false

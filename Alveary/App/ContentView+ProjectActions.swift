@@ -9,7 +9,7 @@ struct ProjectActionExecutionContext: Equatable {
     let command: String
 
     init?(thread: AgentThread, action: AlvearyProjectConfig.ProjectAction) {
-        guard thread.mode == .project,
+        guard thread.effectiveMode == .project,
               let currentDirectory = thread.primaryWorkingDirectory else {
             return nil
         }
@@ -54,7 +54,7 @@ enum TerminalDefaultShellContextResolver {
             }
 
             if thread.isDraft {
-                let draftDirectory = thread.mode == .task
+                let draftDirectory = thread.effectiveMode == .task
                     ? thread.primaryWorkingDirectory
                     : thread.project?.path
                 return TerminalDefaultShellContext(
@@ -70,7 +70,7 @@ enum TerminalDefaultShellContextResolver {
                 threadID: thread.persistentModelID,
                 threadName: thread.name,
                 currentDirectory: builder.defaultShellDirectory(
-                    threadWorktreePath: thread.mode == .project ? thread.worktreePath : nil,
+                    threadWorktreePath: thread.effectiveMode == .project ? thread.worktreePath : nil,
                     threadProjectPath: thread.primaryWorkingDirectory,
                     selectedProjectPath: nil
                 )

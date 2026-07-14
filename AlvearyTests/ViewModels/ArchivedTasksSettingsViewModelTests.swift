@@ -5,6 +5,45 @@ import XCTest
 
 @MainActor
 final class ArchivedTasksSettingsViewModelTests: XCTestCase {
+    func testPermanentDeleteSanitizesRoutingAtCommitBeforeCleanupFinishes() async throws {
+        let fixture = try SidebarTestFixture()
+        let cleanupGate = ArchivedTaskCleanupGate()
+        await fixture.agentsManager.setDestroyObserver { _ in
+            await cleanupGate.waitForRelease()
+        }
+        let task = try insertTask(
+            in: fixture,
+            name: "Commit boundary",
+            archivedAt: Date()
+        )
+        let conversationID = try XCTUnwrap(task.conversations.first?.persistentModelID)
+        let (viewModel, appState) = makeViewModel(fixture: fixture)
+        appState.selectedSidebarItem = .thread(task)
+        appState.previousSelection = .threadId(task.persistentModelID)
+        appState.selectedConversationIDs[task.persistentModelID] = conversationID
+        fixture.settingsService.updateRestoreSelection(
+            threadID: task.persistentModelID,
+            conversationID: conversationID
+        )
+        viewModel.refresh()
+        let item = try XCTUnwrap(viewModel.items.first)
+
+        let deletion = Task { @MainActor in
+            await viewModel.confirmPermanentDeletion(item)
+        }
+        await cleanupGate.waitUntilEntered()
+
+        XCTAssertNil(fixture.context.resolveThread(id: task.persistentModelID))
+        XCTAssertNil(appState.selectedSidebarItem)
+        XCTAssertNil(appState.previousSelection)
+        XCTAssertNil(appState.selectedConversationIDs[task.persistentModelID])
+        XCTAssertNil(fixture.settingsService.current.lastOpenThreadID)
+        XCTAssertNil(fixture.settingsService.current.lastOpenConversationID)
+
+        cleanupGate.release()
+        await deletion.value
+    }
+
     func testRefreshFetchesOnlyArchivedNondraftTasksInDeterministicNewestFirstOrder() throws {
         let fixture = try SidebarTestFixture()
         let oldest = try insertTask(
@@ -232,6 +271,38 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.items.map(\.id), [task.persistentModelID])
     }
+
+    func testArchivedLinkedScheduledRunsUseTaskIdentityForFallbackModes() async throws {
+        let fixture = try SidebarTestFixture()
+        let (projectModeTask, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "archived-project-mode-task"
+        )
+        let (unknownModeTask, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "archived-unknown-mode-task"
+        )
+        projectModeTask.modeRawValue = AgentThreadMode.project.rawValue
+        projectModeTask.archivedAt = Date(timeIntervalSinceReferenceDate: 100)
+        unknownModeTask.modeRawValue = "future-mode"
+        unknownModeTask.archivedAt = Date(timeIntervalSinceReferenceDate: 200)
+        try fixture.context.save()
+        let viewModel = makeViewModel(fixture: fixture).viewModel
+
+        viewModel.refresh()
+
+        XCTAssertEqual(viewModel.items.map(\.id), [
+            unknownModeTask.persistentModelID,
+            projectModeTask.persistentModelID
+        ])
+
+        await viewModel.restore(try XCTUnwrap(viewModel.items.first))
+
+        XCTAssertNil(unknownModeTask.archivedAt)
+        XCTAssertEqual(viewModel.items.map(\.id), [projectModeTask.persistentModelID])
+    }
 }
 
 private extension ArchivedTasksSettingsViewModelTests {
@@ -295,4 +366,34 @@ private enum ArchivedTasksSettingsTestError: Error {
 
 private final class ArchivedTasksFetchState {
     var shouldFail = true
+}
+
+@MainActor
+private final class ArchivedTaskCleanupGate {
+    private var didEnter = false
+    private var entryContinuation: CheckedContinuation<Void, Never>?
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+
+    func waitForRelease() async {
+        didEnter = true
+        entryContinuation?.resume()
+        entryContinuation = nil
+        await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func waitUntilEntered() async {
+        guard !didEnter else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            entryContinuation = continuation
+        }
+    }
+
+    func release() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
+    }
 }

@@ -197,7 +197,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
 }
 
 @MainActor
-private final class HostedConversationCloseShortcut {
+final class HostedConversationCloseShortcut {
     private let controller: NSHostingController<AnyView>
     private let closeRecorder: ConversationCloseWindowDelegate
     private let window: NSWindow
@@ -209,12 +209,14 @@ private final class HostedConversationCloseShortcut {
         conversations: [Conversation],
         selectedConversation: Conversation?,
         isRenaming: Bool,
+        canRemove: @escaping (Conversation) -> Bool = { _ in true },
         onRemove: @escaping (Conversation) -> Void
     ) {
         let rootView = ConversationCloseShortcutSink(
             conversations: conversations,
             selectedConversation: selectedConversation,
             isRenaming: isRenaming,
+            canRemove: canRemove,
             onRemove: onRemove
         )
         .frame(width: 320, height: 180)

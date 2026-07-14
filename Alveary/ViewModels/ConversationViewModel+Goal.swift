@@ -171,6 +171,7 @@ extension ConversationViewModel {
     ) async throws {
         let trimmedObjective = objective.trimmingCharacters(in: .whitespacesAndNewlines)
         try validateGoalStartAvailability(trimmedObjective)
+        try ensureOrdinaryScheduledOutboundAvailable()
 
         do {
             if hasVisibleUserMessageHistory {
@@ -234,7 +235,7 @@ private extension ConversationViewModel {
 
     func startFirstMessageGoal(_ objective: String) async throws {
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             try await deliverMessageReserved(
                 objective,
                 initialGoal: objective,
@@ -245,7 +246,7 @@ private extension ConversationViewModel {
 
     func startExistingSessionGoal(_ objective: String) async throws {
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             try repairMissingWorktreeIfNeeded()
             try await setupHiddenInitialRuntimeIfNeeded()
             if let recoveryContext = try await prepareRuntimeForOutbound(settingsSource: .nextTurn) {

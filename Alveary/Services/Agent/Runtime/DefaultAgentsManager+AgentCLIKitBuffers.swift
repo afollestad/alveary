@@ -6,7 +6,8 @@ extension DefaultAgentsManager {
         conversationId: String,
         agentGeneration: Int,
         hasImmediateTurn: Bool,
-        initialTurnActivityVisibility: AgentTurnActivityVisibility
+        initialTurnActivityVisibility: AgentTurnActivityVisibility,
+        defersScheduledTerminalNotifications: Bool
     ) -> UUID {
         let generation = UUID()
         eventBuffers[conversationId]?.buffer.finishAll()
@@ -24,6 +25,7 @@ extension DefaultAgentsManager {
             resolvedLiveToolApprovals: [],
             deferredToolStopSessionId: nil,
             deferredToolStopToolUseId: nil,
+            defersScheduledTerminalNotifications: defersScheduledTerminalNotifications,
             buffer: EventBuffer()
         )
         if hasImmediateTurn {
@@ -63,7 +65,8 @@ extension DefaultAgentsManager {
             conversationId: conversationId,
             agentGeneration: subscription.generation,
             hasImmediateTurn: resolvedHasImmediateTurn,
-            initialTurnActivityVisibility: resolvedInitialTurnActivityVisibility
+            initialTurnActivityVisibility: resolvedInitialTurnActivityVisibility,
+            defersScheduledTerminalNotifications: config.isAutomatedScheduledTurn
         )
         startAgentCLIKitEventTask(
             conversationId: conversationId,
@@ -129,12 +132,15 @@ extension DefaultAgentsManager {
     }
 
     private func currentAgentCLIKitGenerationUUID(conversationId: String, agentGeneration: Int) -> UUID {
+        let defersScheduledTerminalNotifications = eventBuffers[conversationId]?
+            .defersScheduledTerminalNotifications ?? false
         if agentCLIKitGenerationByConversation[conversationId] != agentGeneration {
             return installAgentCLIKitBuffer(
                 conversationId: conversationId,
                 agentGeneration: agentGeneration,
                 hasImmediateTurn: false,
-                initialTurnActivityVisibility: .hidden
+                initialTurnActivityVisibility: .hidden,
+                defersScheduledTerminalNotifications: defersScheduledTerminalNotifications
             )
         }
         if let existing = agentCLIKitGenerationUUIDs[conversationId]?[agentGeneration] {
@@ -144,7 +150,8 @@ extension DefaultAgentsManager {
             conversationId: conversationId,
             agentGeneration: agentGeneration,
             hasImmediateTurn: false,
-            initialTurnActivityVisibility: .hidden
+            initialTurnActivityVisibility: .hidden,
+            defersScheduledTerminalNotifications: defersScheduledTerminalNotifications
         )
     }
 }

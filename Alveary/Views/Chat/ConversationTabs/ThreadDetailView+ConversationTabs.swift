@@ -18,6 +18,7 @@ struct ThreadDetailConversationTabs: View {
     let onRemove: (Conversation) -> Void
     let onCreate: () -> Void
     let isCreateDisabled: Bool
+    var canRemove: (Conversation) -> Bool = { _ in true }
 
     @Binding var editingConversationID: PersistentIdentifier?
     @Environment(\.colorScheme) private var colorScheme
@@ -46,6 +47,7 @@ struct ThreadDetailConversationTabs: View {
                                         status: statusForConversation(conversation),
                                         isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
                                         tabIndex: index,
+                                        canRemove: canRemove(conversation),
                                         editingConversationID: $editingConversationID,
                                         onSelect: { onSelect(conversation) },
                                         onCommitRename: { onCommitRename(conversation, $0) },
@@ -160,6 +162,7 @@ struct ConversationCloseShortcutSink: View {
     let conversations: [Conversation]
     let selectedConversation: Conversation?
     let isRenaming: Bool
+    var canRemove: (Conversation) -> Bool = { _ in true }
     let onRemove: (Conversation) -> Void
 
     var body: some View {
@@ -177,7 +180,8 @@ struct ConversationCloseShortcutSink: View {
         // cannot reach the default Close Window command.
         guard !isRenaming,
               conversations.count > 1,
-              let selectedConversation else {
+              let selectedConversation,
+              canRemove(selectedConversation) else {
             return
         }
         onRemove(selectedConversation)
@@ -189,6 +193,7 @@ private struct ConversationTabChip: View {
     let status: ThreadStatus
     let isSelected: Bool
     let tabIndex: Int
+    let canRemove: Bool
     @Binding var editingConversationID: PersistentIdentifier?
     let onSelect: () -> Void
     let onCommitRename: (String) -> Void
@@ -314,6 +319,7 @@ private extension ConversationTabChip {
             selectShortcut: switchShortcut,
             closeHelpText: "Close Conversation (\(KeyboardShortcut.closeConversation.displayString))",
             renameAccessibilityAction: renameAction,
+            showsCloseButton: canRemove,
             onSelect: onSelect,
             onClose: onClose
         )

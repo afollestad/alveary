@@ -1,84 +1,165 @@
 import Foundation
 
+struct WorktreeCreationIdentityValidation: Sendable {
+    static let unchecked = WorktreeCreationIdentityValidation(project: nil, worktree: nil)
+
+    let project: TaskWorkspaceFileSystemIdentity?
+    let worktree: TaskWorkspaceFileSystemIdentity?
+
+    var validatesWorktree: Bool { project != nil }
+}
+
+struct WorktreeSetupFailure: Error {
+    let message: String
+}
+
+private struct WorktreeLifecycleContext {
+    let projectPath: String
+    let worktreePath: String
+    let threadName: String
+    let branch: String
+}
+
 extension DefaultWorktreeManager {
+    func refreshRollbackBranchOID(
+        _ prepared: PreparedWorktreeCreation,
+        worktreeIdentity: TaskWorkspaceFileSystemIdentity?,
+        branchIsOwned: Bool,
+        branchOID: String?,
+        provenanceContext: WorktreeCreationProvenanceContext?
+    ) async -> String? {
+        guard branchIsOwned, let branchOID else {
+            return nil
+        }
+        guard let refreshedOID = try? await captureCreatedBranchOID(
+            prepared,
+            worktreeIdentity: worktreeIdentity
+        ) else {
+            return branchOID
+        }
+        guard refreshedOID != branchOID, let provenanceContext else {
+            return refreshedOID
+        }
+        do {
+            try await recordCreationProvenance(
+                prepared: prepared,
+                worktreeIdentity: worktreeIdentity,
+                branchIsOwned: true,
+                branchOID: refreshedOID,
+                context: provenanceContext
+            )
+            return refreshedOID
+        } catch {
+            return branchOID
+        }
+    }
+
     func postCreateSetup(
         projectPath: String,
         worktreePath: String,
         threadName: String,
         branch: String,
-        rollbackBranch: String?
+        identityValidation: WorktreeCreationIdentityValidation
     ) async throws {
-        let config = await AlvearyProjectConfig(projectPath: projectPath)
+        try requireCreationIdentities(
+            identityValidation,
+            projectPath: projectPath,
+            worktreePath: worktreePath
+        )
+        let config = await projectConfigLoader(projectPath)
+        try requireCreationIdentities(
+            identityValidation,
+            projectPath: projectPath,
+            worktreePath: worktreePath
+        )
         try preserveFiles(from: projectPath, to: worktreePath, patterns: config.preservePatterns)
+        try requireCreationIdentities(
+            identityValidation,
+            projectPath: projectPath,
+            worktreePath: worktreePath
+        )
 
         guard config.setupScript != nil else { return }
 
-        let failureMessage = await runSetupScript(
-            projectPath: projectPath,
-            worktreePath: worktreePath,
-            threadName: threadName,
-            branch: branch,
-            config: config
+        let failureMessage = try await runSetupScript(
+            context: WorktreeLifecycleContext(
+                projectPath: projectPath,
+                worktreePath: worktreePath,
+                threadName: threadName,
+                branch: branch
+            ),
+            config: config,
+            identityValidation: identityValidation
         )
         guard let failureMessage else {
             return
         }
-
-        if try await cleanupFailedSetup(
-            projectPath: projectPath,
-            worktreePath: worktreePath,
-            rollbackBranch: rollbackBranch
-        ) {
-            throw GitError.commandFailed(
-                "Setup script failed: \(failureMessage). Cleanup also failed for worktree \(worktreePath)."
-            )
-        }
-
-        throw GitError.commandFailed("Setup script failed: \(failureMessage)")
+        throw WorktreeSetupFailure(message: failureMessage)
     }
 
-    func runSetupScript(
-        projectPath: String,
-        worktreePath: String,
-        threadName: String,
-        branch: String,
-        config: AlvearyProjectConfig
-    ) async -> String? {
+    private func runSetupScript(
+        context: WorktreeLifecycleContext,
+        config: AlvearyProjectConfig,
+        identityValidation: WorktreeCreationIdentityValidation
+    ) async throws -> String? {
         guard let setupScript = config.setupScript else {
             return nil
         }
 
+        try requireCreationIdentities(
+            identityValidation,
+            projectPath: context.projectPath,
+            worktreePath: context.worktreePath
+        )
+        let result: ShellResult
         do {
-            let result = try await shell.run(
+            result = try await shell.run(
                 executable: "/bin/sh",
                 args: ["-c", setupScript],
-                in: worktreePath,
+                in: context.worktreePath,
                 environment: buildLifecycleScriptEnvironment(
-                    projectPath: projectPath,
-                    worktreePath: worktreePath,
-                    threadName: threadName,
-                    branch: branch
+                    projectPath: context.projectPath,
+                    worktreePath: context.worktreePath,
+                    threadName: context.threadName,
+                    branch: context.branch
                 ),
                 timeout: .seconds(config.setupTimeoutSeconds ?? 300)
             )
-            return result.succeeded
-                ? nil
-                : result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
+            try requireCreationIdentities(
+                identityValidation,
+                projectPath: context.projectPath,
+                worktreePath: context.worktreePath
+            )
             return error.localizedDescription
         }
+        try requireCreationIdentities(
+            identityValidation,
+            projectPath: context.projectPath,
+            worktreePath: context.worktreePath
+        )
+        return result.succeeded
+            ? nil
+            : result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func runTeardownScriptIfNeeded(
         projectPath: String,
         worktreePath: String,
-        branch: String?
-    ) async {
-        let config = await AlvearyProjectConfig(projectPath: projectPath)
+        branch: String?,
+        identityValidation: WorktreeRemovalIdentityValidation = .unchecked
+    ) async throws {
+        try requireProjectIdentity(identityValidation.project, at: projectPath)
+        try requireWorktreeIdentity(identityValidation, at: worktreePath)
+        let config = await projectConfigLoader(projectPath)
+        try requireProjectIdentity(identityValidation.project, at: projectPath)
+        try requireWorktreeIdentity(identityValidation, at: worktreePath)
         guard let teardownScript = config.teardownScript else {
             return
         }
 
+        try requireProjectIdentity(identityValidation.project, at: projectPath)
+        try requireWorktreeIdentity(identityValidation, at: worktreePath)
         _ = try? await shell.run(
             executable: "/bin/sh",
             args: ["-c", teardownScript],
@@ -91,6 +172,8 @@ extension DefaultWorktreeManager {
             ),
             timeout: .seconds(60)
         )
+        try requireProjectIdentity(identityValidation.project, at: projectPath)
+        try requireWorktreeIdentity(identityValidation, at: worktreePath)
     }
 
     // Runs the partial-worktree cleanup as a detached child task so the caller's cancellation
@@ -100,43 +183,89 @@ extension DefaultWorktreeManager {
     func detachedCleanupAfterFailedCreate(
         projectPath: String,
         worktreePath: String,
-        rollbackBranch: String?
-    ) async {
+        rollbackBranch: String?,
+        rollbackBranchOID: String?,
+        identityValidation: WorktreeCreationIdentityValidation
+    ) async -> Bool {
         let cleanup = Task.detached { [weak self] in
-            guard let self else { return }
-            _ = try? await self.cleanupFailedSetup(
+            guard let self else { return true }
+            return await self.cleanupFailedSetup(
                 projectPath: projectPath,
                 worktreePath: worktreePath,
-                rollbackBranch: rollbackBranch
+                rollbackBranch: rollbackBranch,
+                rollbackBranchOID: rollbackBranchOID,
+                identityValidation: identityValidation
             )
         }
-        await cleanup.value
+        return await cleanup.value
     }
 
     func cleanupFailedSetup(
         projectPath: String,
         worktreePath: String,
-        rollbackBranch: String?
-    ) async throws -> Bool {
-        let removeResult = try? await removeWorktree(projectPath: projectPath, worktreePath: worktreePath)
-        let rollbackBranchDeleteFailed = try await rollbackBranchDeleteFailed(
+        rollbackBranch: String?,
+        rollbackBranchOID: String?,
+        identityValidation: WorktreeCreationIdentityValidation
+    ) async -> Bool {
+        let removeResult = try? await removeWorktree(
             projectPath: projectPath,
-            rollbackBranch: rollbackBranch
+            worktreePath: worktreePath,
+            identityValidation: WorktreeRemovalIdentityValidation(
+                project: identityValidation.project,
+                worktree: identityValidation.worktree,
+                validatesWorktree: identityValidation.validatesWorktree
+            )
         )
-        return removeResult?.succeeded != true || rollbackBranchDeleteFailed
+        let rollbackBranchDeleteFailed = await rollbackBranchDeleteFailed(
+            projectPath: projectPath,
+            rollbackBranch: rollbackBranch,
+            rollbackBranchOID: rollbackBranchOID,
+            expectedProjectIdentity: identityValidation.project
+        )
+        let worktreeRemovalFailed = removeResult?.succeeded != true || pathEntryExists(atPath: worktreePath)
+        return worktreeRemovalFailed || rollbackBranchDeleteFailed
     }
 
-    func rollbackBranchDeleteFailed(projectPath: String, rollbackBranch: String?) async throws -> Bool {
+    func rollbackBranchDeleteFailed(
+        projectPath: String,
+        rollbackBranch: String?,
+        rollbackBranchOID: String?,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity?
+    ) async -> Bool {
         guard let rollbackBranch else {
             return false
         }
+        guard let rollbackBranchOID else {
+            return true
+        }
 
-        let deleteResult = try? await shell.run(
-            executable: "/usr/bin/git",
-            args: ["branch", "-D", rollbackBranch],
-            in: projectPath
-        )
-        return deleteResult?.succeeded == false
+        do {
+            try await deleteBranchValidated(
+                projectPath: projectPath,
+                branch: rollbackBranch,
+                expectedOID: rollbackBranchOID,
+                expectedProjectIdentity: expectedProjectIdentity
+            )
+            return false
+        } catch {
+            return true
+        }
+    }
+
+    func requireCreationIdentities(
+        _ validation: WorktreeCreationIdentityValidation,
+        projectPath: String,
+        worktreePath: String
+    ) throws {
+        try requireProjectIdentity(validation.project, at: projectPath)
+        guard validation.validatesWorktree else {
+            return
+        }
+        guard let expectedWorktreeIdentity = validation.worktree,
+              CanonicalPath.normalize(worktreePath) == worktreePath,
+              currentDirectoryIdentity(at: worktreePath) == expectedWorktreeIdentity else {
+            throw WorktreeSourceValidationError.ownedWorktreeChanged(worktreePath)
+        }
     }
 
     func buildLifecycleScriptEnvironment(

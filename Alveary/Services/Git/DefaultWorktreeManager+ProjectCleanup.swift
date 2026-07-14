@@ -14,7 +14,7 @@ extension DefaultWorktreeManager {
         do {
             let worktrees = try await list(projectPath: projectPath)
             for worktree in worktrees where CanonicalPath.normalize(worktree.path) != canonicalProjectPath {
-                await runTeardownScriptIfNeeded(
+                try? await runTeardownScriptIfNeeded(
                     projectPath: projectPath,
                     worktreePath: worktree.path,
                     branch: worktree.branch
@@ -28,7 +28,13 @@ extension DefaultWorktreeManager {
                     throw Self.makeGitError(from: removeResult)
                 }
 
-                try await deleteBranch(projectPath: projectPath, branch: worktree.branch)
+                if let headOID = worktree.headOID {
+                    try await deleteBranch(
+                        projectPath: projectPath,
+                        branch: worktree.branch,
+                        expectedOID: headOID
+                    )
+                }
             }
         } catch let error as GitError {
             guard error == .notARepository else {

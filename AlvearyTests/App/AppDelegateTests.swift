@@ -110,6 +110,185 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedWorkspace.primaryRoot))
     }
 
+    func testStaleDraftCleanupRetainsPreparedPrivateWorkspaceBeforeRunRecovery() throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let run = ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "prepared-private-workspace",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+            triggerKind: .scheduled,
+            status: .preparing,
+            titleSnapshot: "Prepared private workspace",
+            promptSnapshot: "Run scheduled work.",
+            timeZoneIdentifierSnapshot: "UTC",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .privateWorkspace,
+            workspaceStrategySnapshot: .worktree
+        )
+        run.preparedWorkspaceRoot = workspace.primaryRoot
+        run.preparedWorkspaceOwnershipStrategy = .privateOwned
+        run.preparedWorkspaceMarkerID = workspace.ownershipMarkerID
+        context.insert(run)
+        try context.save()
+
+        _ = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+        XCTAssertNil(run.thread)
+    }
+
+    func testStaleDraftCleanupRetainsPreparedPrivateWorkspaceWithUnknownRunStatus() throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let run = ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "unknown-status-private-workspace",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+            triggerKind: .scheduled,
+            status: .failure,
+            titleSnapshot: "Unknown status private workspace",
+            promptSnapshot: "Run scheduled work.",
+            timeZoneIdentifierSnapshot: "UTC",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .privateWorkspace,
+            workspaceStrategySnapshot: .worktree
+        )
+        run.statusRawValue = "future-status"
+        run.preparedWorkspaceRoot = workspace.primaryRoot
+        run.preparedWorkspaceOwnershipStrategy = .privateOwned
+        run.preparedWorkspaceMarkerID = workspace.ownershipMarkerID
+        context.insert(run)
+        try context.save()
+
+        _ = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+        XCTAssertNil(run.thread)
+    }
+
+    func testStaleCleanupRetainsTerminalPreparedPrivateWorkspaceUntilTaskDeletion() throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let run = ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "terminal-private-workspace",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+            triggerKind: .scheduled,
+            status: .interrupted,
+            titleSnapshot: "Terminal private workspace",
+            promptSnapshot: "Run scheduled work.",
+            timeZoneIdentifierSnapshot: "UTC",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .privateWorkspace,
+            workspaceStrategySnapshot: .worktree
+        )
+        run.preparedWorkspaceRoot = workspace.primaryRoot
+        run.preparedWorkspaceOwnershipStrategy = .privateOwned
+        run.preparedWorkspaceMarkerID = workspace.ownershipMarkerID
+        let thread = AgentThread(name: "Interrupted scheduled task", mode: .task, scheduledTaskRun: run)
+        run.thread = thread
+        context.insert(run)
+        context.insert(thread)
+        try context.save()
+
+        _ = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+
+        context.delete(thread)
+        try context.save()
+        _ = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+    }
+
+    func testStaleCleanupRetainsPrivateWorkspaceForEffectiveTaskWithUnknownRawMode() throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let orphanedWorkspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let run = ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "unknown-thread-mode-private-workspace",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+            triggerKind: .scheduled,
+            status: .success,
+            titleSnapshot: "Unknown thread mode private workspace",
+            promptSnapshot: "Run scheduled work.",
+            timeZoneIdentifierSnapshot: "UTC",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .privateWorkspace,
+            workspaceStrategySnapshot: .worktree
+        )
+        let thread = AgentThread(
+            name: "Completed scheduled task",
+            mode: .task,
+            taskWorkspaceDescriptor: workspace,
+            scheduledTaskRun: run
+        )
+        run.thread = thread
+        context.insert(run)
+        context.insert(thread)
+        try context.save()
+        thread.modeRawValue = "future-mode"
+        try context.save()
+
+        XCTAssertEqual(thread.effectiveMode, .task)
+        XCTAssertNil(thread.taskWorkspaceDescriptor)
+
+        _ = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedWorkspace.primaryRoot))
+    }
+
+    func testStaleDraftCleanupDoesNotRetainMismatchedPreparedWorkspaceOwnership() throws {
+        let fixture = try AppDelegateTestFixture()
+        let context = fixture.modelContainer.mainContext
+        let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let run = ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "mismatched-private-workspace",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+            triggerKind: .scheduled,
+            status: .preparing,
+            titleSnapshot: "Mismatched private workspace",
+            promptSnapshot: "Run scheduled work.",
+            timeZoneIdentifierSnapshot: "UTC",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .privateWorkspace,
+            workspaceStrategySnapshot: .worktree
+        )
+        run.preparedWorkspaceRoot = workspace.primaryRoot
+        run.preparedWorkspaceOwnershipStrategy = .projectLocal
+        run.preparedWorkspaceMarkerID = workspace.ownershipMarkerID
+        context.insert(run)
+        try context.save()
+
+        _ = fixture.makeAppDelegate().removeStaleDraftThreads()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+    }
+
     func testStartupWarmupLoadsSessionsTerminatesOnlySessionMappedOrphansAndChecksProviders() async throws {
         let fixture = try AppDelegateTestFixture()
         try fixture.insertConversations(["conversation-1", "conversation-2"])

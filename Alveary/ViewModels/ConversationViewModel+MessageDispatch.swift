@@ -125,6 +125,7 @@ extension ConversationViewModel {
     }
 
     func steerQueuedMessage(id: UUID) async throws {
+        try ensureOrdinaryScheduledOutboundAvailable()
         guard !state.isNormalSteeringBlockedBySessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }
@@ -164,7 +165,7 @@ extension ConversationViewModel {
     }
 
     func performQueuedSteer(id: UUID, onLocalMessageInserted: (String) -> Void) async throws {
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             guard let queuedMessage = state.messageQueue.remove(id: id),
                   let dbConversation = dbConversation() else {
                 throw AgentError.spawnFailed("Conversation no longer exists")
@@ -215,7 +216,14 @@ extension ConversationViewModel {
 
 extension ConversationViewModel {
     func scheduleQueueDrainIfNeeded() {
-        scheduleQueueDrainIfNeeded(allowInactiveBeforeFirstActivation: false, allowInitialSetup: false)
+        scheduleQueueDrainIfNeeded(
+            allowInactiveBeforeFirstActivation: false,
+            allowInitialSetup: dbThread()?.scheduledTaskRun?.hasKnownTerminalStatus == true
+        )
+    }
+
+    func scheduleScheduledTerminalQueueDrainIfNeeded() {
+        scheduleQueueDrainIfNeeded()
     }
 
     func scheduleExitPlanModeFollowUpDrainIfNeeded() {
@@ -232,6 +240,7 @@ extension ConversationViewModel {
               state.messageQueue.peekNext() != nil,
               state.queuedMessagesPauseReason == nil,
               !state.turnState.isActive,
+              !defersOrdinaryScheduledOutbound,
               canDrainForCurrentLifecycle(allowInactiveBeforeFirstActivation: allowInactiveBeforeFirstActivation) else {
             return
         }
@@ -313,7 +322,8 @@ private extension ConversationViewModel {
             state.queuedMessagesPauseReason == nil &&
             state.lastTurnError == nil &&
             state.failedSessionHandoffMessage == nil &&
-            !state.isReconfiguringSession
+            !state.isReconfiguringSession &&
+            !defersOrdinaryScheduledOutbound
     }
 
     func canDrainForCurrentLifecycle(allowInactiveBeforeFirstActivation: Bool) -> Bool {
@@ -353,8 +363,9 @@ private extension ConversationViewModel {
 
     func sendNextQueuedMessage(_ next: QueuedMessage, in dbConversation: Conversation) async throws {
         var localMessageID: String?
+        try ensureOrdinaryScheduledOutboundAvailable()
         try await prepareQueuedMessageRequirements(next)
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             let sessionRecoveryContext = try await prepareRuntimeForQueuedMessage()
             guard sessionRecoveryContext.shouldContinue else {
                 return
@@ -442,6 +453,11 @@ private extension ConversationViewModel {
     }
 
     private func prepareRuntimeForQueuedMessage() async throws -> OutboundRuntimePreparation {
+        if state.liveSessionConfig?.isAutomatedScheduledTurn == true {
+            let recoveryContext = try await prepareRuntimeForOutbound(settingsSource: .nextTurn)
+            return .proceed(recoveryContext: recoveryContext)
+        }
+
         switch await agentsManager.outboundReadiness(conversationId: conversation.id) {
         case .ready:
             return .proceed(recoveryContext: nil)

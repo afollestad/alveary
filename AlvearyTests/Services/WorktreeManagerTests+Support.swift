@@ -4,6 +4,16 @@ import XCTest
 
 @testable import Alveary
 
+enum WorktreeTestObjectID {
+    static let main = String(repeating: "a", count: 40)
+    static let worktree = String(repeating: "b", count: 40)
+    static let owned = String(repeating: "c", count: 40)
+    static let replacement = String(repeating: "d", count: 40)
+    static let expected = String(repeating: "e", count: 40)
+    static let advanced = String(repeating: "f", count: 40)
+    static let sha256 = String(repeating: "1a", count: 32)
+}
+
 extension WorktreeManagerTests {
     func makeTemporaryProject() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -26,11 +36,11 @@ extension WorktreeManagerTests {
     func worktreeListOutput(projectPath: String, worktreePath: String, branch: String) -> String {
         """
         worktree \(projectPath)
-        HEAD abc123
+        HEAD \(WorktreeTestObjectID.main)
         branch refs/heads/main
 
         worktree \(worktreePath)
-        HEAD def456
+        HEAD \(WorktreeTestObjectID.worktree)
         branch refs/heads/\(branch)
         """
     }
@@ -43,13 +53,28 @@ extension WorktreeManagerTests {
         ShellResult(stdout: "", stderr: "", exitCode: 1, stdoutWasTruncated: false, stderrWasTruncated: false)
     }
 
+    static func worktreeListResult(
+        worktreePath: String,
+        branch: String,
+        headOID: String
+    ) -> ShellResult {
+        ShellResult(
+            stdout: "worktree \(worktreePath)\nHEAD \(headOID)\nbranch refs/heads/\(branch)\n\n",
+            stderr: "",
+            exitCode: 0,
+            stdoutWasTruncated: false,
+            stderrWasTruncated: false
+        )
+    }
+
     func assertSetupInvocations(_ invocations: [MockShellRunner.Invocation], branch: String, worktreePath: String) {
         XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/heads/af-fix-auth-bug-59c"])
         XCTAssertEqual(invocations[1].args, ["show-ref", "--verify", "--quiet", "refs/heads/af-fix-auth-bug-59c-2"])
         XCTAssertEqual(invocations[2].args, ["fetch", "origin", "main"])
         XCTAssertEqual(invocations[3].args, ["worktree", "add", "--no-track", "-b", branch, worktreePath, "origin/main"])
-        XCTAssertEqual(invocations[4].executable, "/bin/sh")
-        XCTAssertEqual(invocations[4].timeout, Duration.seconds(45))
+        XCTAssertEqual(invocations[4].args, ["worktree", "list", "--porcelain"])
+        XCTAssertEqual(invocations[5].executable, "/bin/sh")
+        XCTAssertEqual(invocations[5].timeout, Duration.seconds(45))
     }
 
     func assertLifecycleEnvironment(

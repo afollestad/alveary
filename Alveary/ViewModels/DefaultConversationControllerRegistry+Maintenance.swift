@@ -1,5 +1,13 @@
 import Foundation
 
+enum DeferredControllerFinalizationError: Error, LocalizedError {
+    case controllerNotQuiescent
+
+    var errorDescription: String? {
+        "The completed conversation is still active and cannot be suspended yet."
+    }
+}
+
 extension DefaultConversationControllerRegistry {
     func startTerminalFlush(
         for key: ConversationControllerKey,
@@ -34,6 +42,15 @@ extension DefaultConversationControllerRegistry {
             do {
                 try await flushTerminalRecords(entry.viewModel)
             } catch {
+                if entry.defersAutomaticSuspension {
+                    self.scheduleDeferredTerminalFlushRetry(
+                        error,
+                        boundarySequence: boundarySequence,
+                        for: key,
+                        entry: entry
+                    )
+                    return
+                }
                 self.finishTerminalFlushFailure(
                     error,
                     boundarySequence: boundarySequence,
@@ -49,6 +66,34 @@ extension DefaultConversationControllerRegistry {
                 entry: entry
             )
         }
+    }
+
+    func scheduleDeferredTerminalFlushRetry(
+        _ error: Error,
+        boundarySequence: UInt64,
+        for key: ConversationControllerKey,
+        entry: ControllerEntry
+    ) {
+        guard entries[key] === entry,
+              entry.pendingTerminals.first?.boundarySequence == boundarySequence else {
+            return
+        }
+        entry.pendingTerminals[0].status = .retryPending
+        entry.viewModel.lastTurnError = "Couldn't save the completed conversation: \(error.localizedDescription)"
+        let retryWait = terminalFlushRetryWait
+        entry.terminalMaintenanceTask = Task { @MainActor [weak self, weak entry] in
+            await retryWait()
+            guard !Task.isCancelled,
+                  let self,
+                  let entry,
+                  self.entries[key] === entry,
+                  entry.pendingTerminals.first?.boundarySequence == boundarySequence else {
+                return
+            }
+            entry.terminalMaintenanceTask = nil
+            self.reconcile(for: key, entry: entry)
+        }
+        reconcile(for: key, entry: entry)
     }
 
     func finishTerminalFlushFailure(
@@ -91,7 +136,6 @@ extension DefaultConversationControllerRegistry {
               pending.boundarySequence == boundarySequence else {
             return
         }
-        entry.terminalMaintenanceTask = nil
         entry.pendingTerminals.removeFirst()
         if !pending.terminalWasPublished {
             publish(
@@ -104,11 +148,19 @@ extension DefaultConversationControllerRegistry {
         entry.needsSuspension = true
         publishTrackedTurnIfUnblocked(for: key, entry: entry, hub: outcomeHub(for: key))
 
+        var runtimeWasSuspended = false
         if entry.pendingTerminals.isEmpty,
            canSuspend(entry) {
-            await suspendRuntime(entry.viewModel)
-            entry.needsSuspension = !canSuspend(entry)
+            runtimeWasSuspended = await suspendOrdinaryRuntimeUntilVerified(
+                entry,
+                for: key
+            )
         }
+        guard entries[key] === entry else {
+            return
+        }
+        entry.terminalMaintenanceTask = nil
+        entry.needsSuspension = !runtimeWasSuspended
         reconcile(for: key, entry: entry)
     }
 
@@ -140,18 +192,84 @@ extension DefaultConversationControllerRegistry {
             guard self.entries[key] === entry else {
                 return
             }
+            var runtimeWasSuspended = false
             if self.canSuspend(entry) {
-                await self.suspendRuntime(entry.viewModel)
+                runtimeWasSuspended = await self.suspendOrdinaryRuntimeUntilVerified(
+                    entry,
+                    for: key
+                )
+            }
+            guard self.entries[key] === entry else {
+                return
             }
             entry.terminalMaintenanceTask = nil
-            entry.needsSuspension = !self.canSuspend(entry)
+            entry.needsSuspension = !runtimeWasSuspended
             self.clearTerminalSaveErrorIfResolved(for: entry)
             self.reconcile(for: key, entry: entry)
         }
     }
 
+    func suspendOrdinaryRuntimeUntilVerified(
+        _ entry: ControllerEntry,
+        for key: ConversationControllerKey
+    ) async -> Bool {
+        while !Task.isCancelled {
+            guard entries[key] === entry,
+                  canSuspend(entry) else {
+                return false
+            }
+            await suspendRuntime(entry.viewModel)
+            guard !Task.isCancelled,
+                  entries[key] === entry,
+                  canSuspend(entry) else {
+                return false
+            }
+
+            let isSuspended = await runtimeIsSuspended(entry.viewModel)
+            guard !Task.isCancelled,
+                  entries[key] === entry,
+                  canSuspend(entry) else {
+                return false
+            }
+            if isSuspended {
+                return true
+            }
+
+            await terminalFlushRetryWait()
+        }
+        return false
+    }
+
+    func discardResolvedDeferredInteractionTurnIfNeeded(
+        _ entry: ControllerEntry,
+        for key: ConversationControllerKey
+    ) {
+        guard entry.controllerPhase == .idle,
+              !entry.hasActiveWork,
+              !entry.viewModel.hasPendingPersistence,
+              entry.pendingTerminals.isEmpty,
+              entry.terminalMaintenanceTask == nil,
+              let trackedTurn = entry.trackedTurn else {
+            return
+        }
+        switch trackedTurn.state {
+        case .waitingForApproval, .waitingForQuestion:
+            // A provider can deliver a final interaction after the scheduled turn's terminal
+            // boundary. Its owner has already superseded and flushed it before reaching here.
+            publish(
+                .init(turn: trackedTurn.turn, state: .interrupted),
+                for: key,
+                hub: outcomeHub(for: key)
+            )
+            entry.trackedTurn = nil
+        case .active, .terminal, .interrupted:
+            break
+        }
+    }
+
     func canSuspend(_ entry: ControllerEntry) -> Bool {
-        entry.controllerPhase == .idle &&
+        !entry.defersAutomaticSuspension &&
+            entry.controllerPhase == .idle &&
             !entry.hasActiveWork &&
             !entry.viewModel.hasPendingPersistence &&
             entry.trackedTurn == nil &&

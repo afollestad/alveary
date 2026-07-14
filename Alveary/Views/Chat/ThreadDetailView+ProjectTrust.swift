@@ -153,7 +153,7 @@ extension ThreadDetailView {
 
     func projectTrustContext(for conversation: Conversation) -> ProjectTrustPrompt? {
         guard let thread = conversation.thread,
-              thread.mode == .project,
+              thread.effectiveMode == .project,
               !thread.hasCompletedInitialSetup,
               let project = thread.project else {
             return nil

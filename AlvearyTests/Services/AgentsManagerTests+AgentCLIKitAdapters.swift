@@ -3,19 +3,55 @@ import Foundation
 
 @testable import Alveary
 
+actor PathResolvingLaunchRecorder {
+    struct Launch: Equatable, Sendable {
+        let resumedProviderSessionID: String?
+        let forksSession: Bool
+    }
+
+    private var launches: [Launch] = []
+
+    func record(
+        resumedSession: AgentCLIKit.AgentSessionRecord?,
+        spawnConfig: AgentCLIKit.AgentSpawnConfig
+    ) {
+        launches.append(Launch(
+            resumedProviderSessionID: resumedSession?.providerSessionId.rawValue,
+            forksSession: spawnConfig.forkSession
+        ))
+    }
+
+    func values() -> [Launch] {
+        launches
+    }
+}
+
 struct PathResolvingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     let executableName: String
+    let launchRecorder: PathResolvingLaunchRecorder?
     let definition = AgentCLIKit.AgentProviderDefinition(
         id: .claude,
         displayName: "Claude",
         executableNames: ["claude"]
     )
 
+    init(
+        executableName: String,
+        launchRecorder: PathResolvingLaunchRecorder? = nil
+    ) {
+        self.executableName = executableName
+        self.launchRecorder = launchRecorder
+    }
+
     func makeLaunchConfiguration(
         spawnConfig: AgentCLIKit.AgentSpawnConfig,
         resumedSession: AgentCLIKit.AgentSessionRecord?
     ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
-        AgentCLIKit.AgentLaunchConfiguration(
+        await launchRecorder?.record(
+            resumedSession: resumedSession,
+            spawnConfig: spawnConfig
+        )
+        return AgentCLIKit.AgentLaunchConfiguration(
             executable: "/usr/bin/env",
             arguments: [executableName],
             includesSpawnArguments: true

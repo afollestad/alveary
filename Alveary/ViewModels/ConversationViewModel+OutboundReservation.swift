@@ -43,4 +43,15 @@ extension ConversationViewModel {
         }
         return try await body()
     }
+
+    func withOrdinaryOutboundReservation<T>(_ body: () async throws -> T) async throws -> T {
+        try ensureOrdinaryScheduledOutboundAvailable()
+        return try await withOutboundReservation(body)
+    }
+
+    func ensureOrdinaryScheduledOutboundAvailable() throws {
+        guard !defersOrdinaryScheduledOutbound else {
+            throw AgentError.spawnFailed("Wait for the scheduled task's initial turn to finish")
+        }
+    }
 }

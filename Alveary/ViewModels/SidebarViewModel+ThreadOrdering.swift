@@ -43,7 +43,7 @@ struct SidebarPinnedItem: Identifiable {
         case .project(let project):
             .project(project.persistentModelID)
         case .thread(let thread):
-            switch thread.mode {
+            switch thread.effectiveMode {
             case .project:
                 .pinnedThread(thread.persistentModelID)
             case .task:
@@ -189,7 +189,7 @@ extension SidebarViewModel {
             }
         )
         return AgentThreadOrdering.sorted(
-            ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.mode == .task }
+            ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .task }
         )
     }
 
@@ -199,7 +199,7 @@ extension SidebarViewModel {
                 thread.archivedAt == nil && thread.isDraft == false
             }
         )
-        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.mode == .task }
+        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.effectiveMode == .task }
     }
 
     func activeThreads(for project: Project) -> [AgentThread] {
@@ -210,7 +210,7 @@ extension SidebarViewModel {
             }
         )
 
-        let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.mode == .project }
+        let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .project }
         return AgentThreadOrdering.sorted(threads.filter { project.isPinned || !$0.isPinned })
     }
 
@@ -221,7 +221,7 @@ extension SidebarViewModel {
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.mode == .project }
+        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.effectiveMode == .project }
     }
 
     func setProjectPinned(_ project: Project, isPinned: Bool) throws {
@@ -282,10 +282,10 @@ extension SidebarViewModel {
         guard let currentThread = modelContext.resolveThread(id: thread.persistentModelID),
               currentThread.archivedAt == nil,
               !currentThread.isDraft,
-              currentThread.mode == .task || currentThread.project != nil else {
+              currentThread.effectiveMode == .task || currentThread.project != nil else {
             throw SidebarViewModelError.threadMissing
         }
-        if isPinned, currentThread.mode == .project, currentThread.project?.isPinned == true {
+        if isPinned, currentThread.effectiveMode == .project, currentThread.project?.isPinned == true {
             return
         }
         try flushPendingSidebarPinChanges()
@@ -295,7 +295,7 @@ extension SidebarViewModel {
             guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID),
                   dbThread.archivedAt == nil,
                   !dbThread.isDraft,
-                  dbThread.mode == .task || dbThread.project != nil else {
+                  dbThread.effectiveMode == .task || dbThread.project != nil else {
                 throw SidebarViewModelError.threadMissing
             }
             let wasPinned = dbThread.isPinned
@@ -328,7 +328,7 @@ extension SidebarViewModel {
               thread.isPinned else {
             return false
         }
-        switch thread.mode {
+        switch thread.effectiveMode {
         case .project:
             return thread.project != nil && thread.project?.isPinned != true
         case .task:
@@ -340,7 +340,7 @@ extension SidebarViewModel {
 private extension SidebarViewModel {
     func latestVisibleThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
         threads
-            .filter { $0.mode == .project && $0.project?.path == project.path }
+            .filter { $0.effectiveMode == .project && $0.project?.path == project.path }
             .compactMap(\.modifiedAt)
             .max()
     }

@@ -9,6 +9,14 @@ extension ConversationViewModel {
             return nil
         }
 
+        if settingsSource == .nextTurn,
+           state.liveSessionConfig?.isAutomatedScheduledTurn == true {
+            await agentsManager.suspendRuntime(conversationId: conversation.id)
+            let recoveryContext = try await respawnRuntimeForOutbound(settingsSource: settingsSource)
+            state.respawnAttempts = 0
+            return recoveryContext
+        }
+
         switch await agentsManager.outboundReadiness(conversationId: conversation.id) {
         case .ready:
             return nil

@@ -26,6 +26,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Services/Notification/AGENTS.md`: notifications and badge routing.
 - `Alveary/Services/Onboarding/AGENTS.md`: dependency onboarding checks and installers.
 - `Alveary/Services/Power/AGENTS.md`: keep-awake power assertions.
+- `Alveary/Services/Scheduled/AGENTS.md`: scheduled-task claiming, locking, materialization, execution, and recovery.
 - `Alveary/Services/Session/AGENTS.md`: session persistence.
 - `Alveary/Services/Settings/AGENTS.md`: `.alveary.json`.
 - `Alveary/Services/Shell/AGENTS.md`: process execution and output draining.

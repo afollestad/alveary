@@ -241,18 +241,7 @@ func deleteProjectSettingsArchivedThread(
 
 private extension ProjectSettingsView {
     var archivedThreads: [AgentThread] {
-        let projectPath = project.path
-        let descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.archivedAt != nil && thread.project?.path == projectPath
-            }
-        )
-        let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.mode == .project }
-        return threads.sorted { lhs, rhs in
-            let leftDate = lhs.archivedAt ?? .distantPast
-            let rightDate = rhs.archivedAt ?? .distantPast
-            return leftDate > rightDate
-        }
+        archivedProjectThreads(projectPath: project.path, modelContext: modelContext)
     }
 
     var setupScriptBinding: Binding<String> {
@@ -420,6 +409,18 @@ private extension ProjectSettingsView {
     func deleteConfirmationMessage(for thread: AgentThread) -> String {
         threadDeleteConfirmationMessage(for: thread)
     }
+}
+
+@MainActor
+func archivedProjectThreads(projectPath: String, modelContext: ModelContext) -> [AgentThread] {
+    let descriptor = FetchDescriptor<AgentThread>(
+        predicate: #Predicate { thread in
+            thread.archivedAt != nil && thread.project?.path == projectPath
+        }
+    )
+    return ((try? modelContext.fetch(descriptor)) ?? [])
+        .filter { $0.effectiveMode == .project }
+        .sorted { ($0.archivedAt ?? .distantPast) > ($1.archivedAt ?? .distantPast) }
 }
 
 private struct ProjectSettingsEditorState {

@@ -94,7 +94,7 @@ extension SidebarViewModel {
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-        return try modelContext.fetch(descriptor).filter { $0.mode == .project }
+        return try modelContext.fetch(descriptor).filter { $0.effectiveMode == .project }
     }
 
     func compareRegularProjects(_ lhs: Project, _ rhs: Project) -> Bool {
@@ -297,7 +297,7 @@ private extension SidebarViewModel {
 
     func latestUnarchivedThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
         threads
-            .filter { $0.mode == .project && $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
+            .filter { $0.effectiveMode == .project && $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
             .compactMap(\.modifiedAt)
             .max()
     }
@@ -338,12 +338,12 @@ private extension SidebarViewModel {
             guard let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.mode == .project && isVisiblePinnedSidebarThread(thread)
+            return thread.effectiveMode == .project && isVisiblePinnedSidebarThread(thread)
         case .pinnedTask(let id):
             guard let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.mode == .task && isVisiblePinnedSidebarThread(thread)
+            return thread.effectiveMode == .task && isVisiblePinnedSidebarThread(thread)
         }
     }
 
@@ -359,13 +359,13 @@ private extension SidebarViewModel {
                   let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.mode == .project && isVisiblePinnedSidebarThread(thread)
+            return thread.effectiveMode == .project && isVisiblePinnedSidebarThread(thread)
         case .pinnedTask(let id):
             guard section == .pinned,
                   let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.mode == .task && isVisiblePinnedSidebarThread(thread)
+            return thread.effectiveMode == .task && isVisiblePinnedSidebarThread(thread)
         }
     }
 
@@ -467,7 +467,7 @@ private extension SidebarViewModel {
 
     func resolvePinnedThreadForOrdering(_ id: PersistentIdentifier, mode: AgentThreadMode) throws -> AgentThread {
         guard let thread = modelContext.resolveThread(id: id),
-              thread.mode == mode,
+              thread.effectiveMode == mode,
               isVisiblePinnedSidebarThread(thread) else {
             throw SidebarViewModelError.threadMissing
         }

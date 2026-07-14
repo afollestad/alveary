@@ -9,8 +9,12 @@ extension AgentsManagerTests {
     func testAgentCLIKitSuspendIdleRuntimePreservesResumableState() async throws {
         let executable = try makeScript(named: "suspend-idle-agent", body: "sleep 5\n")
         defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let launchRecorder = PathResolvingLaunchRecorder()
         let fixture = makeAgentCLIKitFixture(
-            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            adapter: PathResolvingAgentCLIKitAdapter(
+                executableName: executable.lastPathComponent,
+                launchRecorder: launchRecorder
+            ),
             detectedPath: executable.path,
             basePath: "/usr/bin:/bin"
         )
@@ -35,6 +39,10 @@ extension AgentsManagerTests {
         try await waitUntil("expected suspended AgentCLIKit runtime to resume") {
             await fixture.manager.isRunning(conversationId: context.conversationId)
         }
+        let recordedLaunches = await launchRecorder.values()
+        let resumedLaunch = try XCTUnwrap(recordedLaunches.last)
+        XCTAssertEqual(resumedLaunch.resumedProviderSessionID, "provider-session")
+        XCTAssertFalse(resumedLaunch.forksSession)
         await fixture.manager.kill(conversationId: context.conversationId)
     }
 
@@ -64,6 +72,59 @@ extension AgentsManagerTests {
         XCTAssertEqual(remainsActive, true)
         try await manager.sendMessage("finish", conversationId: conversationId)
         await manager.kill(conversationId: conversationId)
+    }
+
+    func testAgentCLIKitSuspendCanRetryAfterTerminalEventLeadsRuntimeStatus() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: TurnStatusAgentCLIKitAdapter(),
+            detectedPath: "/bin/sh",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-suspend-terminal-status-lag"
+        let runtimeConversationId = AgentCLIKit.AgentConversationID(rawValue: conversationId)
+
+        try await manager.spawn(
+            id: conversationId,
+            config: spawnConfig(workingDirectory: FileManager.default.temporaryDirectory.path)
+        )
+        try await manager.sendMessage("start", conversationId: conversationId)
+        try await waitUntil("expected AgentCLIKit runtime to report an active turn") {
+            await fixture.runtime.status(conversationId: runtimeConversationId)?.isTurnActive == true
+        }
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+        await manager.handleStreamEvent(
+            suspensionLagTerminalEvent(),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "claude",
+            runtimeEventIndex: Int.max
+        )
+        XCTAssertEqual(manager.status(for: conversationId), .idle)
+
+        await manager.suspendRuntime(conversationId: conversationId)
+
+        let hasTrackedLaggingProcess = await manager.hasTrackedProcess(conversationId: conversationId)
+        let laggingRuntimeIsSuspended = await manager.isRuntimeSuspended(conversationId: conversationId)
+        let laggingTurnIsActive = await fixture.runtime.status(conversationId: runtimeConversationId)?.isTurnActive
+        XCTAssertTrue(hasTrackedLaggingProcess)
+        XCTAssertFalse(laggingRuntimeIsSuspended)
+        XCTAssertEqual(
+            laggingTurnIsActive,
+            true
+        )
+
+        try await manager.sendMessage("finish", conversationId: conversationId)
+        try await waitUntil("expected raw AgentCLIKit status to catch up with the terminal event") {
+            await fixture.runtime.status(conversationId: runtimeConversationId)?.isTurnActive == false
+        }
+        await manager.suspendRuntime(conversationId: conversationId)
+
+        let hasTrackedSuspendedProcess = await manager.hasTrackedProcess(conversationId: conversationId)
+        let runtimeIsSuspended = await manager.isRuntimeSuspended(conversationId: conversationId)
+        XCTAssertFalse(hasTrackedSuspendedProcess)
+        XCTAssertTrue(runtimeIsSuspended)
     }
 
     func testAgentCLIKitSuspendDoesNotStopRuntimeWaitingForUser() async throws {
@@ -362,6 +423,20 @@ extension AgentsManagerTests {
         XCTAssertNil(readinessResult.withLock { $0 }, file: file, line: line)
         return (readiness, readinessResult)
     }
+}
+
+private func suspensionLagTerminalEvent() -> ConversationEvent {
+    .tokens(
+        input: 1,
+        output: 1,
+        cacheRead: 0,
+        isError: false,
+        stopReason: "end_turn",
+        durationMs: 1,
+        costUsd: 0,
+        permissionDenials: [],
+        isTerminal: true
+    )
 }
 
 private struct SuspensionTestContext {

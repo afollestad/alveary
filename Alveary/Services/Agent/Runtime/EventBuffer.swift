@@ -16,6 +16,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
     var deferredToolStopToolUseId: String?
     var currentTurnActivityVisibility: AgentTurnActivityVisibility = .hidden
     var terminalNotificationVisibility: AgentTurnActivityVisibility?
+    var defersScheduledTerminalNotifications: Bool
     var hasRecordedTerminalThreadActivity = false
     var lastKnownRuntimeTurnActive = false
     var latestTerminalRuntimeEventIndex: Int?
@@ -32,6 +33,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
         resolvedLiveToolApprovals: Set<ClaudeToolApprovalKey>,
         deferredToolStopSessionId: String?,
         deferredToolStopToolUseId: String?,
+        defersScheduledTerminalNotifications: Bool,
         buffer: EventBuffer
     ) {
         self.generation = generation
@@ -43,6 +45,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
         self.resolvedLiveToolApprovals = resolvedLiveToolApprovals
         self.deferredToolStopSessionId = deferredToolStopSessionId
         self.deferredToolStopToolUseId = deferredToolStopToolUseId
+        self.defersScheduledTerminalNotifications = defersScheduledTerminalNotifications
         self.buffer = buffer
     }
 

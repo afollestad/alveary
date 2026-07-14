@@ -22,7 +22,7 @@ The public backlog and roadmap are tracked in the [Alveary project board](https:
 
 ## Development
 
-Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, and SwiftTerm. AgentCLIKit owns provider processes and resumable sessions; Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
+Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, and SwiftTerm. AgentCLIKit owns provider processes and resumable sessions; Alveary owns provider-neutral scheduled-task persistence, execution, and recovery. Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
 
 ```sh
 ./scripts/setup.sh

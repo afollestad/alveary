@@ -30,7 +30,7 @@ extension DiffViewerSwitchTarget {
         let taskWorktreePath = thread.taskWorkspaceDescriptor?.ownershipStrategy == .projectWorktreeOwned
             ? thread.taskWorkspaceDescriptor?.primaryRoot
             : nil
-        let resolvedWorktreePath = thread.mode == .project ? thread.worktreePath : taskWorktreePath
+        let resolvedWorktreePath = thread.effectiveMode == .project ? thread.worktreePath : taskWorktreePath
         let worktreePath = resolvedWorktreePath == projectPath ? nil : resolvedWorktreePath
         return DiffViewerSwitchTarget(
             projectPath: projectPath,
@@ -55,7 +55,11 @@ extension DiffViewerSwitchTarget {
         let threads = candidateThreads ?? project.threads
         let conversationIds = candidateConversationIDs ?? Set(
             threads
-                .filter { $0.archivedAt == nil && ($0.worktreePath == nil || $0.worktreePath == project.path) }
+                .filter {
+                    $0.effectiveMode == .project &&
+                        $0.archivedAt == nil &&
+                        ($0.worktreePath == nil || $0.worktreePath == project.path)
+                }
                 .flatMap(\.conversations)
                 .map(\.id)
         )

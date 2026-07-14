@@ -54,6 +54,7 @@ enum DiffGitCommitTargetSnapshotResolver {
         appState: AppState
     ) -> DiffGitCommitTargetSnapshot? {
         guard let thread = modelContext.resolveThread(id: selectedThread.persistentModelID),
+              thread.effectiveMode == .project,
               let project = thread.project else {
             return nil
         }
@@ -105,6 +106,7 @@ extension ContentView {
     func activeDiffActionTarget() -> (thread: AgentThread, conversation: Conversation)? {
         guard case .thread(let selectedThread) = appState.selectedSidebarItem,
               let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID),
+              thread.effectiveMode == .project,
               !thread.isDraft,
               let conversation = selectedConversation(in: thread, modelContext: uiModelContext, appState: appState) else {
             return nil

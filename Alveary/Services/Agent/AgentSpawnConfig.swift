@@ -21,6 +21,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
     let additionalWorkspaceRoots: [String]
     let allowedDirectories: [String]
     let initialGoal: String?
+    let isAutomatedScheduledTurn: Bool
 
     init(
         providerId: String,
@@ -37,7 +38,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
         initialPromptMetadata: [String: AgentCLIKit.JSONValue] = [:],
         additionalWorkspaceRoots: [String] = [],
         allowedDirectories: [String] = [],
-        initialGoal: String? = nil
+        initialGoal: String? = nil,
+        isAutomatedScheduledTurn: Bool = false
     ) {
         self.providerId = providerId
         self.workingDirectory = workingDirectory
@@ -54,6 +56,7 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.additionalWorkspaceRoots = additionalWorkspaceRoots.map(CanonicalPath.normalize)
         self.allowedDirectories = allowedDirectories.map(CanonicalPath.normalize)
         self.initialGoal = initialGoal
+        self.isAutomatedScheduledTurn = isAutomatedScheduledTurn
     }
 }
 

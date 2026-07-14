@@ -222,7 +222,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(pendingRestoreContext?.contains("I found a stale observer during restore."), true)
     }
 
-    func testDeleteThreadDeletesModelAndCleansPendingBranchesAndWorktree() async throws {
+    func testDeleteThreadDeletesModelAndWorktreeWithoutDeletingUnprovenPendingBranch() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -242,9 +242,7 @@ final class SidebarViewModelTests: XCTestCase {
         let removeCalls = await fixture.worktreeManager.removeCalls()
 
         XCTAssertEqual(destroyCalls, ["main"])
-        XCTAssertEqual(deleteBranchCalls, [
-            .init(projectPath: "/tmp/alveary-project", branch: "alveary/stale")
-        ])
+        XCTAssertTrue(deleteBranchCalls.isEmpty)
         XCTAssertEqual(removeCalls, [
             .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
         ])
@@ -309,9 +307,7 @@ final class SidebarViewModelTests: XCTestCase {
         let removeAllCalls = await fixture.worktreeManager.removeAllCalls()
 
         XCTAssertEqual(destroyCalls, ["archived", "main", "side"])
-        XCTAssertEqual(deleteBranchCalls, [
-            .init(projectPath: "/tmp/alveary-project", branch: "alveary/stale")
-        ])
+        XCTAssertTrue(deleteBranchCalls.isEmpty)
         XCTAssertEqual(removeCalls, [
             .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
         ])

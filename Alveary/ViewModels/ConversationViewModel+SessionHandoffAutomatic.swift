@@ -2,6 +2,10 @@ import Foundation
 
 extension ConversationViewModel {
     func markAutomaticSessionHandoffPendingIfNeeded(for payload: TokenEventPayload) {
+        guard !defersOrdinaryScheduledOutbound else {
+            state.isAutomaticSessionHandoffPending = false
+            return
+        }
         let settings = settingsService.current
         guard settings.contextManagementEnabled else {
             state.isAutomaticSessionHandoffPending = false

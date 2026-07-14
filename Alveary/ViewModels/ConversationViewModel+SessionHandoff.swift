@@ -220,6 +220,12 @@ extension ConversationViewModel {
         retryingFailedHandoff: Bool
     ) -> Bool {
         guard canUseSessionHandoff(trigger: trigger) else { return false }
+        guard !defersOrdinaryScheduledOutbound else {
+            if trigger != .automatic && trigger != .debugAutomatic {
+                state.lastTurnError = "Wait for the scheduled task's initial turn to finish."
+            }
+            return false
+        }
         let hasBlockingHandoff = state.isHandingOffSession ||
             state.isAwaitingHandoffSteering ||
             state.pendingHandoffOutput != nil ||
@@ -306,7 +312,7 @@ private extension ConversationViewModel {
         do {
             let config = try makeSpawnConfig(settingsSource: .nextTurn)
             await flushPendingSaveIfNeeded()
-            await prepareForSpawn(config: config)
+            try await prepareForSpawn(config: config)
             try await agentsManager.startFreshSession(conversationId: conversation.id, config: config)
             finishFreshSessionSettingsApply(pending: pendingSettings, config: config)
             state.sessionContinuityNotice = nil

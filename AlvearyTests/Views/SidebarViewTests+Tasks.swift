@@ -1,3 +1,5 @@
+import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -136,6 +138,32 @@ extension SidebarViewTests {
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedTask(task.persistentModelID))
     }
 
+    func testLinkedScheduledRunWithFallbackModeUsesTaskSidebarBehavior() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/sidebar-fallback-task", name: "Project")
+        fixture.context.insert(project)
+        let (task, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "sidebar-fallback-task"
+        )
+        task.name = "Fallback scheduled task"
+        task.modeRawValue = "future-mode"
+        task.project = project
+        task.isPinned = true
+        try fixture.context.save()
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+
+        XCTAssertEqual(
+            view.archiveConfirmationMessage(for: task),
+            "This archives \"Fallback scheduled task\". You can find archived tasks in Settings > Threads > Archived Tasks."
+        )
+        XCTAssertTrue(threadDeleteConfirmationMessage(for: task).contains("Alveary-owned workspace or worktree"))
+        XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task))
+        XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedTask(task.persistentModelID))
+        XCTAssertFalse(sidebarItem(.thread(task), belongsToProjectPath: project.path) { _ in project.path })
+    }
+
     func testDeletingLastSelectedTaskRequestsBlankTaskComposerAfterSuccess() async throws {
         let fixture = try SidebarTestFixture()
         let task = makeSidebarTask(name: "Only task", modifiedAt: Date())
@@ -149,6 +177,32 @@ extension SidebarViewTests {
 
         XCTAssertNil(appState.selectedSidebarItem)
         assertPendingTaskComposerRequest(appState)
+        XCTAssertFalse(try fixture.threadExists(task))
+    }
+
+    func testDeletingSelectedTaskClearsConversationSelectionBeforePersistenceCommit() async throws {
+        let appState = AppState()
+        var deletingThreadID: PersistentIdentifier?
+        var selectedConversationIDAtCommit: PersistentIdentifier?
+        let fixture = try SidebarTestFixture(saveDeletionCommit: { context in
+            if let deletingThreadID {
+                selectedConversationIDAtCommit = appState.selectedConversationIDs[deletingThreadID]
+            }
+            try context.save()
+        })
+        let task = makeSidebarTask(name: "Selected task", modifiedAt: Date())
+        fixture.context.insert(task)
+        try fixture.context.save()
+        let conversationID = try XCTUnwrap(task.conversations.first?.persistentModelID)
+        deletingThreadID = task.persistentModelID
+        appState.selectedSidebarItem = .thread(task)
+        appState.selectedConversationIDs[task.persistentModelID] = conversationID
+        let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
+
+        await view.confirmDeleteThread(task)
+
+        XCTAssertNil(selectedConversationIDAtCommit)
+        XCTAssertNil(appState.selectedConversationIDs[task.persistentModelID])
         XCTAssertFalse(try fixture.threadExists(task))
     }
 
@@ -191,6 +245,63 @@ extension SidebarViewTests {
         XCTAssertFalse(try fixture.threadExists(task))
     }
 
+    func testPendingScheduledCleanupFailureKeepsSelectedTaskAndConversation() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-sidebar-pending-delete-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
+        let worktreeRoot = root.appendingPathComponent("Worktree", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let ownershipService = DefaultTaskWorkspaceOwnershipService(
+            privateWorkspacesRoot: root.appendingPathComponent("Private", isDirectory: true),
+            worktreeOwnershipRecordsRoot: root.appendingPathComponent("Records", isDirectory: true)
+        )
+        let fixture = try SidebarTestFixture(taskWorkspaceOwnershipService: ownershipService)
+        let workspace = try ownershipService.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        let branch = "alveary/sidebar-pending-delete"
+        let run = makeSidebarPendingCleanupRun()
+        run.setPendingWorktreeCleanup(try XCTUnwrap(ScheduledWorktreeCleanupProvenance(
+            sourceProjectPath: sourceRoot.path,
+            worktreePath: worktreeRoot.path,
+            branch: branch,
+            sourceProjectIdentity: ownershipService.directoryIdentity(at: sourceRoot.path),
+            worktreeIdentity: ownershipService.directoryIdentity(at: worktreeRoot.path),
+            ownershipMarkerID: workspace.ownershipMarkerID,
+            ownershipSourceProjectPath: workspace.sourceProjectPath
+        )))
+        let task = AgentThread(name: "Scheduled task", mode: .task, scheduledTaskRun: run)
+        let conversation = Conversation(id: "sidebar-pending-delete", provider: "codex", thread: task)
+        task.conversations = [conversation]
+        run.thread = task
+        fixture.context.insert(run)
+        fixture.context.insert(task)
+        try fixture.context.save()
+        await fixture.worktreeManager.setListResult([
+            WorktreeInfo(path: worktreeRoot.path, branch: branch, headOID: "owned-head")
+        ])
+        await fixture.worktreeManager.setDeleteBranchError(.deleteBranchFailed)
+
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(task)
+        appState.previousSelection = .threadId(task.persistentModelID)
+        appState.selectedConversationIDs[task.persistentModelID] = conversation.persistentModelID
+        let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
+
+        await view.confirmDeleteThread(task)
+
+        XCTAssertEqual(appState.selectedSidebarItem, .thread(task))
+        XCTAssertEqual(appState.previousSelection, .threadId(task.persistentModelID))
+        XCTAssertEqual(appState.selectedConversationIDs[task.persistentModelID], conversation.persistentModelID)
+        XCTAssertNil(appState.pendingCommand)
+        XCTAssertTrue(try fixture.threadExists(task))
+    }
+
     func testArchivingLastSelectedTaskRequestsBlankTaskComposerAfterPostCommitFailure() async throws {
         let fixture = try SidebarTestFixture()
         let task = makeSidebarTask(name: "Only task", modifiedAt: Date())
@@ -212,6 +323,35 @@ extension SidebarViewTests {
         }
         XCTAssertEqual(mode, .task)
         XCTAssertNotNil(try fixture.requireThread(task).archivedAt)
+    }
+
+    func testProjectDeletionPreservesSelectedLinkedRunTaskWithUnknownMode() async throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/sidebar-fallback-task-project", name: "Project")
+        fixture.context.insert(project)
+        let (task, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "project-delete-fallback-task"
+        )
+        task.modeRawValue = "future-mode"
+        task.project = project
+        try fixture.context.save()
+        let conversationID = try XCTUnwrap(task.conversations.first?.persistentModelID)
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(task)
+        appState.previousSelection = .threadId(task.persistentModelID)
+        appState.selectedConversationIDs[task.persistentModelID] = conversationID
+        let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
+
+        await view.confirmDeleteProject(project)
+
+        XCTAssertNil(fixture.context.resolveProject(id: project.persistentModelID))
+        XCTAssertNotNil(fixture.context.resolveThread(id: task.persistentModelID))
+        XCTAssertNil(task.project)
+        XCTAssertEqual(appState.selectedSidebarItem, .thread(task))
+        XCTAssertEqual(appState.previousSelection, .threadId(task.persistentModelID))
+        XCTAssertEqual(appState.selectedConversationIDs[task.persistentModelID], conversationID)
     }
 }
 
@@ -250,4 +390,24 @@ private func makeSidebarTask(
         thread: task
     )]
     return task
+}
+
+@MainActor
+private func makeSidebarPendingCleanupRun() -> ScheduledTaskRun {
+    ScheduledTaskRun(
+        occurrenceID: UUID().uuidString,
+        definitionID: "definition-\(UUID().uuidString)",
+        definitionRevision: 1,
+        occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
+        triggerKind: .scheduled,
+        status: .failure,
+        titleSnapshot: "Scheduled task",
+        promptSnapshot: "Run scheduled work.",
+        timeZoneIdentifierSnapshot: "America/Chicago",
+        providerIDSnapshot: "codex",
+        effortSnapshot: "high",
+        permissionModeSnapshot: "default",
+        workspaceKindSnapshot: .project,
+        workspaceStrategySnapshot: .worktree
+    )
 }

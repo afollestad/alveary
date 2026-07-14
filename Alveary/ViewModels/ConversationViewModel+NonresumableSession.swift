@@ -61,7 +61,7 @@ extension ConversationViewModel {
 
     func startFreshSessionAfterNonresumableResume(config: AgentSpawnConfig) async throws {
         await flushPendingSaveIfNeeded()
-        await prepareForSpawn(config: config)
+        try await prepareForSpawn(config: config)
         try await agentsManager.startFreshSession(conversationId: conversation.id, config: config)
         state.liveSessionConfig = config
         state.runtimeSpeedMode = config.speedMode

@@ -20,7 +20,7 @@ extension ConversationViewModel {
 
     func repairMissingWorktreeIfNeeded() throws {
         guard let thread = dbThread(),
-              thread.mode == .project,
+              thread.effectiveMode == .project,
               thread.useWorktree,
               thread.hasCompletedInitialSetup,
               let worktreePath = thread.worktreePath,
@@ -174,17 +174,37 @@ extension ConversationViewModel {
         }
     }
 
-    func prepareForSpawn(config: AgentSpawnConfig) async {
+    func prepareForSpawn(config: AgentSpawnConfig) async throws {
+        try Task.checkCancellation()
+        try validateAutomatedScheduledWorkspaceIfNeeded(
+            isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
+        )
         await providerSetup.prepareForSpawn(
             providerId: config.providerId,
             workingDirectory: config.workingDirectory,
-            autoTrust: shouldAutoTrustWorkspace(config.workingDirectory)
+            autoTrust: shouldAutoTrustWorkspace(
+                config.workingDirectory,
+                isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
+            )
+        )
+        try Task.checkCancellation()
+        try validateAutomatedScheduledWorkspaceIfNeeded(
+            isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
         )
     }
 
-    func startAgentReserved(config: AgentSpawnConfig) async throws {
-        await prepareForSpawn(config: config)
+    func startAgentReserved(
+        config: AgentSpawnConfig,
+        performsCancellationCleanup: Bool = true
+    ) async throws {
+        try await prepareForSpawn(config: config)
         try await agentsManager.spawn(id: conversation.id, config: config)
+        if Task.isCancelled {
+            if performsCancellationCleanup {
+                try await destroyRuntimeIgnoringTaskCancellation()
+            }
+            throw CancellationError()
+        }
         state.liveSessionConfig = config
         state.runtimeSpeedMode = config.speedMode
         subscribe()
@@ -207,7 +227,8 @@ extension ConversationViewModel {
         existingLocalUserMessageID: String? = nil,
         respawnSettingsSource: SessionSettingsConfigSource = .nextTurn,
         marksSessionHandoffSeedTurn: Bool = false,
-        failureHandling: LocalUserMessageFailureHandling = .retryable
+        failureHandling: LocalUserMessageFailureHandling = .retryable,
+        isAutomatedScheduledTurn: Bool = false
     ) async throws {
         try repairMissingWorktreeIfNeeded()
         let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(
@@ -252,7 +273,8 @@ extension ConversationViewModel {
                     stagedContextOverride: stagedContextOverride,
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
-                    snapshotStagedContext: attempt.stagedContext
+                    snapshotStagedContext: attempt.stagedContext,
+                    isAutomatedScheduledTurn: isAutomatedScheduledTurn
                 )
                 state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
                 state.markTranscriptFileAttachments(id: attempt.id, attachments: attempt.fileAttachments)
@@ -327,7 +349,8 @@ extension ConversationViewModel {
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
-        snapshotStagedContext: String? = nil
+        snapshotStagedContext: String? = nil,
+        isAutomatedScheduledTurn: Bool = false
     ) async throws {
         prepareInitialSetupStart()
 
@@ -355,15 +378,19 @@ extension ConversationViewModel {
             )
             let transportMessage = buildTransportMessage(message: payload.transportText ?? payload.message, stagedContext: snapshot.stagedContext)
             setupPhase = .startingAgent
-            try await startAgentReserved(config: makeSpawnConfig(
-                workingDirectory: workingDirectory,
-                initialPrompt: transportMessage,
-                initialPromptAttachments: payload.attachments,
-                initialPromptMetadata: payload.providerMetadata,
-                allowedDirectories: claudeAppShotDirectoriesIfNeeded(appShots: payload.appShots),
-                initialGoal: payload.initialGoal,
-                settingsSource: .nextTurn
-            ))
+            try await startAgentReserved(
+                config: makeSpawnConfig(
+                    workingDirectory: workingDirectory,
+                    initialPrompt: transportMessage,
+                    initialPromptAttachments: payload.attachments,
+                    initialPromptMetadata: payload.providerMetadata,
+                    allowedDirectories: claudeAppShotDirectoriesIfNeeded(appShots: payload.appShots),
+                    initialGoal: payload.initialGoal,
+                    isAutomatedScheduledTurn: isAutomatedScheduledTurn,
+                    settingsSource: .nextTurn
+                ),
+                performsCancellationCleanup: false
+            )
             try completeInitialPromptSetup(
                 thread: thread, stagedContext: snapshot.stagedContext, existingLocalUserMessageID: existingLocalUserMessageID
             )

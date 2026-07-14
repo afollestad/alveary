@@ -187,7 +187,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     }
 
     private func activityScope(for thread: AgentThread) -> ThreadActivityScope? {
-        switch thread.mode {
+        switch thread.effectiveMode {
         case .project:
             guard let projectPath = thread.project?.path else {
                 return nil
@@ -205,28 +205,26 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     private func activeThreads(scope: ThreadActivityScope) -> [AgentThread] {
         switch scope {
         case .project(let projectPath):
-            let projectMode = AgentThreadMode.project.rawValue
             let descriptor = FetchDescriptor<AgentThread>(
                 predicate: #Predicate { thread in
                     thread.archivedAt == nil &&
                         thread.isDraft == false &&
-                        thread.modeRawValue == projectMode &&
                         thread.project?.path == projectPath
                 }
             )
             let threads = (try? modelContext.fetch(descriptor)) ?? []
-            return threads.filter { !$0.isPinned || $0.project?.isPinned == true }
+            return threads.filter {
+                $0.effectiveMode == .project && (!$0.isPinned || $0.project?.isPinned == true)
+            }
         case .task:
-            let taskMode = AgentThreadMode.task.rawValue
             let descriptor = FetchDescriptor<AgentThread>(
                 predicate: #Predicate { thread in
                     thread.archivedAt == nil &&
                         thread.isDraft == false &&
-                        thread.modeRawValue == taskMode &&
                         thread.isPinned == false
                 }
             )
-            return (try? modelContext.fetch(descriptor)) ?? []
+            return ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .task }
         }
     }
 

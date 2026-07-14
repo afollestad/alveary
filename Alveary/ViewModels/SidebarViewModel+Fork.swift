@@ -47,7 +47,7 @@ private extension SidebarViewModel {
         guard !dbThread.isDraft else {
             throw SidebarViewModelError.threadForkUnavailable("Start the thread before forking it")
         }
-        guard dbThread.mode == .project else {
+        guard dbThread.effectiveMode == .project else {
             throw SidebarViewModelError.threadForkUnavailable("Task threads cannot be forked")
         }
         guard let project = dbThread.project else {
@@ -336,14 +336,7 @@ private extension SidebarViewModel {
     }
 
     func shouldCopyForkTranscriptRecord(_ record: ConversationEventRecord) -> Bool {
-        switch record.type {
-        case "session_init", ConversationEventRecord.contextWindowInvalidatedType, ConversationEventRecord.goalType:
-            return false
-        case "stop" where ConversationSessionFork.isDisplayMessage(record.content):
-            return false
-        default:
-            return true
-        }
+        ConversationForkTranscriptPolicy.shouldCopy(record)
     }
 
     func forkCopy(
@@ -462,5 +455,19 @@ private extension SidebarViewModel {
         return conversations.first(where: \.isMain) ?? conversations.sorted { lhs, rhs in
             lhs.displayOrder < rhs.displayOrder
         }.first
+    }
+}
+
+enum ConversationForkTranscriptPolicy {
+    static func shouldCopy(_ record: ConversationEventRecord) -> Bool {
+        switch record.type {
+        case "session_init", ConversationEventRecord.contextWindowInvalidatedType,
+             ConversationEventRecord.goalType, ConversationEventRecord.scheduledTaskNoteType:
+            return false
+        case "stop" where ConversationSessionFork.isDisplayMessage(record.content):
+            return false
+        default:
+            return true
+        }
     }
 }

@@ -31,15 +31,17 @@ struct SidebarTestFixture {
         providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
         attachmentStore: RecordingConversationAttachmentStore = RecordingConversationAttachmentStore(),
         taskWorkspaceOwnershipService: (any TaskWorkspaceOwnershipService)? = nil,
+        modelConfiguration: ModelConfiguration? = nil,
         saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
+        stopAndWaitForScheduledTaskRun: @escaping SidebarViewModel.ScheduledTaskRunQuiescence = { _ in },
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
     ) throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = modelConfiguration ?? ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
@@ -52,8 +54,7 @@ struct SidebarTestFixture {
         context = ModelContext(container)
         shell = MockShellRunner()
         gitHubCLI = SidebarMockGitHubCLIService(
-            installedVersion: gitHubInstalledVersion,
-            authenticated: gitHubAuthenticated
+            installedVersion: gitHubInstalledVersion, authenticated: gitHubAuthenticated
         )
         agentsManager = SidebarMockAgentsManager()
         worktreeManager = SidebarMockWorktreeManager()
@@ -81,6 +82,7 @@ struct SidebarTestFixture {
             attachmentStore: attachmentStore,
             taskWorkspaceOwnershipService: self.taskWorkspaceOwnershipService,
             invalidateConversationController: invalidateConversationController,
+            stopAndWaitForScheduledTaskRun: stopAndWaitForScheduledTaskRun,
             saveDraftProjectMove: saveDraftProjectMove,
             saveDeletionCommit: saveDeletionCommit,
             saveThreadCreation: saveThreadCreation,
@@ -201,7 +203,7 @@ actor SidebarMockAgentsManager: AgentsManager {
     private var spawnObserver: (@Sendable @MainActor (String) -> Void)?
     private var destroyFailures: [String: MockError] = [:]
     private var recordedDestroyCalls: [String] = []
-    private var destroyObserver: (@Sendable @MainActor (String) -> Void)?
+    private var destroyObserver: (@Sendable @MainActor (String) async -> Void)?
 
     func setSpawnError(_ error: MockError?) {
         spawnError = error
@@ -211,7 +213,7 @@ actor SidebarMockAgentsManager: AgentsManager {
         destroyFailures[conversationId] = error
     }
 
-    func setDestroyObserver(_ observer: (@Sendable @MainActor (String) -> Void)?) {
+    func setDestroyObserver(_ observer: (@Sendable @MainActor (String) async -> Void)?) {
         destroyObserver = observer
     }
 
@@ -324,145 +326,5 @@ actor SidebarMockAgentsManager: AgentsManager {
 
     func spawnCalls() -> [SpawnCall] {
         recordedSpawnCalls
-    }
-}
-actor SidebarMockWorktreeManager: WorktreeManager {
-    struct CreateCall: Sendable, Equatable {
-        let projectPath: String
-        let threadName: String
-        let baseRef: String?
-        let remoteName: String?
-    }
-
-    struct PrepareForkContextCall: Sendable, Equatable {
-        let sourcePath: String
-        let worktreePath: String
-    }
-
-    struct DeleteBranchCall: Sendable, Equatable {
-        let projectPath: String
-        let branch: String
-    }
-
-    struct RemoveCall: Sendable, Equatable {
-        let projectPath: String
-        let worktreePath: String
-        let branch: String?
-    }
-
-    private var recordedCreateCalls: [CreateCall] = []
-    private var recordedPrepareForkContextCalls: [PrepareForkContextCall] = []
-    private var recordedDeleteBranchCalls: [DeleteBranchCall] = []
-    private var recordedRemoveCalls: [RemoveCall] = []
-    private var recordedRemoveAllCalls: [String] = []
-    private var createInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread")
-    private var createError: MockError?
-    private var prepareForkContextError: MockError?
-    private var removeError: MockError?
-    private var removeAllError: MockError?
-    private var listResult: [WorktreeInfo] = []
-    private var listError: MockError?
-
-    func setCreateInfo(_ info: WorktreeInfo) {
-        createInfo = info
-    }
-
-    func setCreateError(_ error: MockError?) {
-        createError = error
-    }
-
-    func setPrepareForkContextError(_ error: MockError?) {
-        prepareForkContextError = error
-    }
-
-    func setRemoveError(_ error: MockError?) {
-        removeError = error
-    }
-
-    func setRemoveAllError(_ error: MockError?) {
-        removeAllError = error
-    }
-
-    func setListResult(_ result: [WorktreeInfo], error: MockError? = nil) {
-        listResult = result
-        listError = error
-    }
-
-    func create(
-        projectPath: String,
-        threadName: String,
-        baseRef: String?,
-        remoteName: String?
-    ) async throws -> WorktreeInfo {
-        recordedCreateCalls.append(CreateCall(projectPath: projectPath, threadName: threadName, baseRef: baseRef, remoteName: remoteName))
-        if let createError {
-            throw createError
-        }
-        return createInfo
-    }
-
-    func createFromBranch(
-        projectPath: String,
-        threadName: String,
-        branch: String,
-        remoteName: String?
-    ) async throws -> WorktreeInfo {
-        WorktreeInfo(path: "/tmp/worktree", branch: branch)
-    }
-
-    func prepareForkContext(sourcePath: String, worktreePath: String) async throws {
-        recordedPrepareForkContextCalls.append(PrepareForkContextCall(sourcePath: sourcePath, worktreePath: worktreePath))
-        if let prepareForkContextError {
-            throw prepareForkContextError
-        }
-    }
-
-    func remove(projectPath: String, worktreePath: String, branch: String?) async throws {
-        recordedRemoveCalls.append(
-            RemoveCall(projectPath: projectPath, worktreePath: worktreePath, branch: branch)
-        )
-        if let removeError {
-            throw removeError
-        }
-    }
-
-    func removeAll(projectPath: String) async throws {
-        recordedRemoveAllCalls.append(projectPath)
-        if let removeAllError {
-            throw removeAllError
-        }
-    }
-
-    func deleteBranch(projectPath: String, branch: String) async throws {
-        recordedDeleteBranchCalls.append(
-            DeleteBranchCall(projectPath: projectPath, branch: branch)
-        )
-    }
-
-    func list(projectPath: String) async throws -> [WorktreeInfo] {
-        if let listError {
-            throw listError
-        }
-        return listResult
-    }
-
-    func deleteBranchCalls() -> [DeleteBranchCall] {
-        recordedDeleteBranchCalls
-    }
-
-    func createCalls() -> [CreateCall] {
-        recordedCreateCalls
-    }
-
-    func prepareForkContextCalls() -> [PrepareForkContextCall] {
-        recordedPrepareForkContextCalls
-    }
-
-    func removeCalls() -> [RemoveCall] {
-        recordedRemoveCalls
-    }
-
-    func removeAllCalls() -> [String] {
-        recordedRemoveAllCalls
     }
 }

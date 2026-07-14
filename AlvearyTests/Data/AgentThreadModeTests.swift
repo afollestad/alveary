@@ -114,6 +114,40 @@ final class AgentThreadModeTests: XCTestCase {
         XCTAssertEqual(fetchedThread.sourceProjectCleanupPath, descriptor.sourceProjectPath)
     }
 
+    func testPersistedTaskSourcePathIsNotRenormalizedAfterSymlinkReplacement() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("task-source-path-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
+        let movedSourceRoot = root.appendingPathComponent("MovedSource", isDirectory: true)
+        let workspaceRoot = root.appendingPathComponent("Workspace", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let thread = AgentThread(
+            name: "Task thread",
+            mode: .task,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: workspaceRoot.path,
+                ownershipStrategy: .projectWorktreeOwned,
+                ownershipMarkerID: UUID().uuidString.lowercased(),
+                sourceProjectPath: sourceRoot.path
+            )
+        )
+        context.insert(thread)
+        try context.save()
+        try FileManager.default.moveItem(at: sourceRoot, to: movedSourceRoot)
+        try FileManager.default.createSymbolicLink(
+            atPath: sourceRoot.path,
+            withDestinationPath: movedSourceRoot.path
+        )
+
+        let fetchedThread = try XCTUnwrap(try context.fetch(FetchDescriptor<AgentThread>()).first)
+        XCTAssertEqual(fetchedThread.taskWorkspaceDescriptor?.sourceProjectPath, sourceRoot.path)
+        XCTAssertNotEqual(CanonicalPath.normalize(sourceRoot.path), sourceRoot.path)
+    }
+
     func testTaskSourceProjectPathDoesNotCreateProjectDeletionRelationship() throws {
         let container = try makeContainer()
         let context = ModelContext(container)
@@ -153,6 +187,28 @@ final class AgentThreadModeTests: XCTestCase {
         XCTAssertNil(thread.taskWorkspaceDescriptor)
     }
 
+    func testScheduledRunLinkOverridesEffectiveIdentityWithoutDecodingFallbackWorkspace() {
+        let project = Project(path: "/tmp/effective-mode-project", name: "Project")
+        let run = makeScheduledRun()
+        let thread = AgentThread(
+            name: "Scheduled task",
+            mode: .project,
+            taskWorkspaceDescriptor: TaskWorkspaceDescriptor(
+                primaryRoot: "/tmp/effective-mode-task",
+                ownershipStrategy: .privateOwned
+            ),
+            project: project,
+            scheduledTaskRun: run
+        )
+        run.thread = thread
+
+        XCTAssertEqual(thread.mode, .project)
+        XCTAssertEqual(thread.effectiveMode, .task)
+        XCTAssertNil(thread.taskWorkspaceDescriptor)
+        XCTAssertNil(thread.primaryWorkingDirectory)
+        XCTAssertNil(thread.sourceProjectCleanupPath)
+    }
+
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Project.self,
@@ -172,5 +228,24 @@ final class AgentThreadModeTests: XCTestCase {
         XCTAssertNil(thread.taskWorkspaceMarkerID)
         XCTAssertNil(thread.taskSourceProjectPath)
         XCTAssertNil(thread.taskWorkspaceDescriptor)
+    }
+
+    private func makeScheduledRun() -> ScheduledTaskRun {
+        ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "effective-mode-definition",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+            triggerKind: .scheduled,
+            status: .success,
+            titleSnapshot: "Scheduled task",
+            promptSnapshot: "Run scheduled work.",
+            timeZoneIdentifierSnapshot: "UTC",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .privateWorkspace,
+            workspaceStrategySnapshot: .worktree
+        )
     }
 }

@@ -165,6 +165,10 @@ final class TaskWorkspaceOwnershipServiceTests: XCTestCase {
 
         XCTAssertEqual(descriptor.ownershipStrategy, .projectWorktreeOwned)
         XCTAssertEqual(descriptor.sourceProjectPath, CanonicalPath.normalize(sourceRoot.path))
+        XCTAssertEqual(
+            try service.sourceProjectIdentity(forOwnedWorktree: descriptor),
+            try service.directoryIdentity(at: sourceRoot.path)
+        )
         XCTAssertNoThrow(try service.validateOwnedWorkspace(descriptor))
 
         try service.removeOwnedWorkspace(descriptor)
@@ -192,6 +196,37 @@ final class TaskWorkspaceOwnershipServiceTests: XCTestCase {
         }
     }
 
+    func testIdentityAwareRegistrationRejectsReplacementWithoutCreatingSidecar() throws {
+        let worktreeRoot = fixtureRoot.appendingPathComponent("IdentityWorktree", isDirectory: true)
+        let movedWorktreeRoot = fixtureRoot.appendingPathComponent("MovedIdentityWorktree", isDirectory: true)
+        let sourceRoot = fixtureRoot.appendingPathComponent("IdentitySource", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        let worktreeIdentity = try service.directoryIdentity(at: worktreeRoot.path)
+        let sourceIdentity = try service.directoryIdentity(at: sourceRoot.path)
+        try FileManager.default.moveItem(at: worktreeRoot, to: movedWorktreeRoot)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        let sentinel = worktreeRoot.appendingPathComponent("keep.txt")
+        try Data("keep".utf8).write(to: sentinel)
+
+        XCTAssertThrowsError(
+            try service.registerOwnedWorktree(
+                at: worktreeRoot.path,
+                sourceProjectPath: sourceRoot.path,
+                grantedRoots: [],
+                expectedWorktreeIdentity: worktreeIdentity,
+                expectedSourceProjectIdentity: sourceIdentity
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? TaskWorkspaceOwnershipError,
+                .workspaceIdentityMismatch(worktreeRoot.path)
+            )
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeRecordsRoot.path))
+    }
+
     func testRemoveOwnedWorktreeClearsSidecarAfterGitAlreadyRemovedDirectory() throws {
         let worktreeRoot = fixtureRoot.appendingPathComponent("Worktree", isDirectory: true)
         let sourceRoot = fixtureRoot.appendingPathComponent("Source", isDirectory: true)
@@ -208,6 +243,88 @@ final class TaskWorkspaceOwnershipServiceTests: XCTestCase {
         try service.removeOwnedWorkspace(descriptor)
 
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: worktreeRecordsRoot.path), [])
+    }
+
+    func testRemoveOwnedWorktreeIsIdempotentAfterDirectoryAndSidecarAreGone() throws {
+        let worktreeRoot = fixtureRoot.appendingPathComponent("Worktree", isDirectory: true)
+        let sourceRoot = fixtureRoot.appendingPathComponent("Source", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        let descriptor = try service.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+
+        try service.removeOwnedWorkspace(descriptor)
+
+        XCTAssertNoThrow(try service.removeOwnedWorkspace(descriptor))
+        XCTAssertNil(try service.ownedWorktreeIdentity(for: descriptor))
+    }
+
+    func testCompletedOwnedWorktreeRemovalRejectsMalformedDescriptor() throws {
+        let worktreeRoot = fixtureRoot.appendingPathComponent("Worktree", isDirectory: true)
+        let sourceRoot = fixtureRoot.appendingPathComponent("Source", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        let descriptor = try service.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        try service.removeOwnedWorkspace(descriptor)
+        let noncanonicalDescriptor = TaskWorkspaceDescriptor(
+            persistedPrimaryRoot: worktreeRoot.path + "/../Worktree",
+            persistedGrantedRoots: [],
+            ownershipStrategy: .projectWorktreeOwned,
+            ownershipMarkerID: descriptor.ownershipMarkerID,
+            persistedSourceProjectPath: descriptor.sourceProjectPath
+        )
+        let missingSourceDescriptor = TaskWorkspaceDescriptor(
+            persistedPrimaryRoot: descriptor.primaryRoot,
+            persistedGrantedRoots: [],
+            ownershipStrategy: .projectWorktreeOwned,
+            ownershipMarkerID: descriptor.ownershipMarkerID,
+            persistedSourceProjectPath: nil
+        )
+        let noncanonicalSourceDescriptor = TaskWorkspaceDescriptor(
+            persistedPrimaryRoot: descriptor.primaryRoot,
+            persistedGrantedRoots: [],
+            ownershipStrategy: .projectWorktreeOwned,
+            ownershipMarkerID: descriptor.ownershipMarkerID,
+            persistedSourceProjectPath: sourceRoot.path + "/../Source"
+        )
+
+        XCTAssertThrowsError(try service.removeOwnedWorkspace(noncanonicalDescriptor))
+        XCTAssertThrowsError(try service.ownedWorktreeIdentity(for: noncanonicalDescriptor))
+        XCTAssertThrowsError(try service.removeOwnedWorkspace(missingSourceDescriptor))
+        XCTAssertThrowsError(try service.ownedWorktreeIdentity(for: missingSourceDescriptor))
+        XCTAssertThrowsError(try service.removeOwnedWorkspace(noncanonicalSourceDescriptor))
+        XCTAssertThrowsError(try service.ownedWorktreeIdentity(for: noncanonicalSourceDescriptor))
+    }
+
+    func testRemoveOwnedWorktreeRejectsReplacementWhenSidecarIsGone() throws {
+        let worktreeRoot = fixtureRoot.appendingPathComponent("Worktree", isDirectory: true)
+        let sourceRoot = fixtureRoot.appendingPathComponent("Source", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        let descriptor = try service.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        try service.removeOwnedWorkspace(descriptor)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        let sentinelURL = worktreeRoot.appendingPathComponent("keep.txt")
+        try Data("user data".utf8).write(to: sentinelURL)
+
+        XCTAssertThrowsError(try service.removeOwnedWorkspace(descriptor)) { error in
+            guard case TaskWorkspaceOwnershipError.missingOwnershipMarker = error else {
+                return XCTFail("Expected a missing-ownership-marker error, got \(error)")
+            }
+        }
+        XCTAssertThrowsError(try service.ownedWorktreeIdentity(for: descriptor))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinelURL.path))
     }
 
     func testRemoveOwnedWorktreePreservesReplacementDirectoryAtSamePath() throws {
@@ -238,6 +355,86 @@ final class TaskWorkspaceOwnershipServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: sentinelURL.path))
     }
 
+}
+
+extension TaskWorkspaceOwnershipServiceTests {
+    func testBrokenWorktreeSymlinkNeverDiscardsOwnershipProof() throws {
+        let worktreeRoot = fixtureRoot.appendingPathComponent("BrokenWorktreeLink", isDirectory: true)
+        let sourceRoot = fixtureRoot.appendingPathComponent("BrokenWorktreeSource", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        let descriptor = try service.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        try FileManager.default.removeItem(at: worktreeRoot)
+        let missingTarget = fixtureRoot.appendingPathComponent("MissingTarget", isDirectory: true)
+        try FileManager.default.createSymbolicLink(
+            atPath: worktreeRoot.path,
+            withDestinationPath: missingTarget.path
+        )
+
+        XCTAssertThrowsError(try service.removeOwnedWorkspace(descriptor))
+        XCTAssertEqual(
+            try FileManager.default.destinationOfSymbolicLink(atPath: worktreeRoot.path),
+            missingTarget.path
+        )
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: worktreeRecordsRoot.path).count, 1)
+    }
+
+    func testProvisionalWorktreeWithoutSidecarIsRemovedOnlyWithMatchingIdentity() throws {
+        let worktreeRoot = fixtureRoot.appendingPathComponent("ProvisionalWorktree", isDirectory: true)
+        let sourceRoot = fixtureRoot.appendingPathComponent("ProvisionalSource", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        let identity = try service.directoryIdentity(at: worktreeRoot.path)
+        let descriptor = TaskWorkspaceDescriptor(
+            primaryRoot: worktreeRoot.path,
+            ownershipStrategy: .projectWorktreeOwned,
+            ownershipMarkerID: UUID().uuidString.lowercased(),
+            sourceProjectPath: sourceRoot.path
+        )
+
+        try service.removeProvisionalOwnedWorktree(
+            descriptor,
+            expectedWorktreeIdentity: identity
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeRoot.path))
+    }
+
+    func testProvisionalWorktreePreservesSamePathReplacement() throws {
+        let worktreeRoot = fixtureRoot.appendingPathComponent("ProvisionalReplacement", isDirectory: true)
+        let sourceRoot = fixtureRoot.appendingPathComponent("ProvisionalReplacementSource", isDirectory: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        let originalIdentity = try service.directoryIdentity(at: worktreeRoot.path)
+        try FileManager.default.removeItem(at: worktreeRoot)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        let sentinel = worktreeRoot.appendingPathComponent("keep.txt")
+        try Data("keep".utf8).write(to: sentinel)
+        let descriptor = TaskWorkspaceDescriptor(
+            primaryRoot: worktreeRoot.path,
+            ownershipStrategy: .projectWorktreeOwned,
+            ownershipMarkerID: UUID().uuidString.lowercased(),
+            sourceProjectPath: sourceRoot.path
+        )
+
+        XCTAssertThrowsError(try service.removeProvisionalOwnedWorktree(
+            descriptor,
+            expectedWorktreeIdentity: originalIdentity
+        )) { error in
+            guard case TaskWorkspaceOwnershipError.workspaceIdentityMismatch = error else {
+                return XCTFail("Expected an identity mismatch, got \(error)")
+            }
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
+    }
+
+}
+
+extension TaskWorkspaceOwnershipServiceTests {
     func testOwnedWorktreeRejectsTamperedSourceProjectPath() throws {
         let worktreeRoot = fixtureRoot.appendingPathComponent("Worktree", isDirectory: true)
         let sourceRoot = fixtureRoot.appendingPathComponent("Source", isDirectory: true)

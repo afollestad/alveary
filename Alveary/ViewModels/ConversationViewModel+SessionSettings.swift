@@ -19,6 +19,7 @@ extension ConversationViewModel {
         initialPromptMetadata: [String: AgentCLIKit.JSONValue] = [:],
         allowedDirectories: [String] = [],
         initialGoal: String? = nil,
+        isAutomatedScheduledTurn: Bool = false,
         settingsSource: SessionSettingsConfigSource = .nextTurn
     ) throws -> AgentSpawnConfig {
         guard let dbConversation = dbConversation() else {
@@ -42,6 +43,9 @@ extension ConversationViewModel {
         let additionalWorkspaceRoots = dbConversation.thread?.mode == .task
             ? dbConversation.thread?.taskWorkspaceDescriptor?.grantedRoots ?? []
             : []
+        let preservesAutomatedScheduledTurn = settingsSource == .currentContinuation
+            && settingsContext.liveConfig?.isAutomatedScheduledTurn == true
+            && defersOrdinaryScheduledOutbound
 
         return AgentSpawnConfig(
             providerId: providerId,
@@ -60,7 +64,8 @@ extension ConversationViewModel {
                 configured: settingsContext.liveConfig?.allowedDirectories ?? [],
                 additional: allowedDirectories
             ),
-            initialGoal: initialGoal
+            initialGoal: initialGoal,
+            isAutomatedScheduledTurn: isAutomatedScheduledTurn || preservesAutomatedScheduledTurn
         )
     }
 

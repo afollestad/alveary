@@ -28,4 +28,23 @@ final class MiddlePaneSelectionRestorationTests: XCTestCase {
 
         XCTAssertEqual(item, .project(try XCTUnwrap(thread.project)))
     }
+
+    func testResolveSidebarBookmarkDoesNotRouteArchivedLinkedRunFallbackIntoProject() throws {
+        let fixture = try SidebarTestFixture()
+        let (thread, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "archived-fallback-bookmark"
+        )
+        let project = Project(path: "/tmp/archived-fallback-bookmark", name: "Project")
+        fixture.context.insert(project)
+        thread.modeRawValue = "future-mode"
+        thread.project = project
+        thread.archivedAt = Date()
+        try fixture.context.save()
+
+        let item = resolveSidebarSelectionBookmark(.threadId(thread.persistentModelID), modelContext: fixture.context)
+
+        XCTAssertNil(item)
+    }
 }

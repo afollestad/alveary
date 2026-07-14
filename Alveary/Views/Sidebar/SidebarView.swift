@@ -331,7 +331,7 @@ struct SidebarView: View {
     }
 
     func archiveConfirmationMessage(for thread: AgentThread) -> String {
-        if thread.mode == .task {
+        if thread.effectiveMode == .task {
             return "This archives \"\(thread.displayName())\". "
                 + "You can find archived tasks in Settings > Threads > Archived Tasks."
         }
@@ -402,8 +402,8 @@ struct SidebarView: View {
             sidebarThreadContextMenuItems(
                 isPinned: thread.isPinned,
                 canRename: editingThreadID == nil,
-                allowsPinning: thread.mode == .task || thread.project?.isPinned != true,
-                allowsForking: thread.mode == .project
+                allowsPinning: thread.effectiveMode == .task || thread.project?.isPinned != true,
+                allowsForking: thread.effectiveMode == .project
             ),
             id: \.self
         ) { item in

@@ -46,7 +46,7 @@ extension SidebarView {
         case .project(let selectedProject):
             return selectedProject.path == project.path
         case .thread(let thread):
-            return thread.mode == .project && thread.isDraft && thread.project?.path == project.path
+            return thread.effectiveMode == .project && thread.isDraft && thread.project?.path == project.path
         default:
             return false
         }
@@ -165,7 +165,7 @@ func sidebarProjectPathToExpand(
         return project.path
     case .thread(let thread):
         guard let resolvedThread = resolveThread(thread.persistentModelID),
-              resolvedThread.mode == .project,
+              resolvedThread.effectiveMode == .project,
               !resolvedThread.isPinned || resolvedThread.project?.isPinned == true else {
             return nil
         }

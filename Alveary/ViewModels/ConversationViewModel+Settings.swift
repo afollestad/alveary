@@ -10,10 +10,12 @@ private struct PermissionRuntimeStateSnapshot {
 }
 
 extension ConversationViewModel {
-    // The model, effort, permission, and plan-mode controls stay editable during active turns.
-    // Those writes persist immediately but are staged for the next new turn.
+    // The model, effort, permission, and plan-mode controls stay editable during ordinary active turns.
+    // Automated scheduled turns keep their immutable snapshot until finalization; other writes persist
+    // immediately but are staged for the next new turn.
     var canApplySettingsChange: Bool {
-        !state.isSendingMessage &&
+        !defersOrdinaryScheduledOutbound &&
+            !state.isSendingMessage &&
             !state.hasActiveSessionHandoff &&
             !state.isReconfiguringSession &&
             !state.isCancellingInitialSetup &&

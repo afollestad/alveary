@@ -7,6 +7,24 @@ import XCTest
 final class ConversationControllerRegistryTests: XCTestCase {}
 
 extension ConversationControllerRegistryTests {
+    func testScheduledTerminalReconciliationDoesNotCreateAnUnmountedController() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        var factoryCallCount = 0
+        let registry = DefaultConversationControllerRegistry { _ in
+            factoryCallCount += 1
+            return fixture.viewModel
+        }
+
+        registry.reconcileScheduledTaskTerminalState(conversationID: fixture.conversation.id)
+
+        XCTAssertEqual(factoryCallCount, 0)
+        XCTAssertNil(
+            registry.controller(
+                for: ConversationControllerKey(conversationID: fixture.conversation.id)
+            )
+        )
+    }
+
     func testInactiveViewLeasesShareControllerWithoutActivatingLifecycle() throws {
         let fixture = try ConversationViewModelTestFixture()
         var factoryCallCount = 0
@@ -113,7 +131,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in },
-            suspendRuntime: { _ in }
+            suspendRuntime: { _ in },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         lease.activate()
@@ -148,7 +167,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in recorder.record("flush") },
-            suspendRuntime: { _ in recorder.record("suspend") }
+            suspendRuntime: { _ in recorder.record("suspend") },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         let key = lease.key
@@ -169,7 +189,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in try recorder.flush() },
-            suspendRuntime: { _ in recorder.record("suspend") }
+            suspendRuntime: { _ in recorder.record("suspend") },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         let key = lease.key
@@ -213,7 +234,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in recorder.record("flush") },
-            suspendRuntime: { _ in recorder.record("suspend") }
+            suspendRuntime: { _ in recorder.record("suspend") },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         let key = lease.key
@@ -257,7 +279,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in await gate.flush() },
-            suspendRuntime: { _ in }
+            suspendRuntime: { _ in },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         lease.activate()
@@ -280,7 +303,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in },
-            suspendRuntime: { _ in }
+            suspendRuntime: { _ in },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         lease.activate()
@@ -312,7 +336,8 @@ extension ConversationControllerRegistryTests {
                 await gate.flush()
                 recorder.record("flush")
             },
-            suspendRuntime: { _ in recorder.record("suspend") }
+            suspendRuntime: { _ in recorder.record("suspend") },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         lease.activate()
@@ -351,7 +376,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in recorder.record("flush") },
-            suspendRuntime: { _ in recorder.record("suspend") }
+            suspendRuntime: { _ in recorder.record("suspend") },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         let key = lease.key
@@ -428,7 +454,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in },
-            suspendRuntime: { _ in }
+            suspendRuntime: { _ in },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         lease.activate()

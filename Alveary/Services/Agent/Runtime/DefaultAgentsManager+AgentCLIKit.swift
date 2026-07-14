@@ -131,6 +131,11 @@ extension DefaultAgentsManager {
         }
     }
 
+    /// Drops a host-superseded deferred interaction without deleting its resumable provider session.
+    func discardInactiveDeferredInteractionRuntimeWithAgentCLIKit(conversationId: String) async {
+        await tearDownAgentCLIKitRuntime(conversationId: conversationId, removeSession: false)
+    }
+
     func performGoalActionWithAgentCLIKit(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws {
         let services = agentCLIKitServices
         try await services.runtime.performGoalAction(
@@ -374,15 +379,25 @@ extension DefaultAgentsManager {
             throw AgentError.cliNotInstalled(config.providerId)
         }
 
-        let arguments = try mergedArguments(
+        let configuredArguments = try mergedArguments(
             providerId: config.providerId,
             customArguments: parseExtraArgs(customConfig?.extraArgs ?? ""),
             allowedDirectories: config.allowedDirectories
         )
+        let arguments = AutomatedScheduledTurnLaunchPolicy.arguments(
+            providerID: config.providerId,
+            configuredArguments: configuredArguments,
+            isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
+        )
+        let environment = AutomatedScheduledTurnLaunchPolicy.environment(
+            providerID: config.providerId,
+            baseEnvironment: agentCLIKitEnvironment(detectedPath: detectedPath),
+            isAutomatedScheduledTurn: config.isAutomatedScheduledTurn
+        )
         return try services.hostAdapter.spawnConfig(
             from: config,
             arguments: arguments,
-            environment: agentCLIKitEnvironment(detectedPath: detectedPath),
+            environment: environment,
             forkSession: forkSession
         )
     }

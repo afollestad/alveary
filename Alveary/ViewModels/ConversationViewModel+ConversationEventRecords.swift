@@ -4,7 +4,7 @@ import SwiftData
 extension ConversationViewModel {
     func conversationEventRecords() -> [ConversationEventRecord] {
         let conversationID = conversation.id
-        return (try? modelContext.fetch(
+        let records = (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate { $0.conversationId == conversationID },
                 sortBy: [
@@ -13,5 +13,16 @@ extension ConversationViewModel {
                 ]
             )
         )) ?? []
+
+        let scheduledTaskNotes = records.filter {
+            $0.type == ConversationEventRecord.scheduledTaskNoteType
+        }
+        guard !scheduledTaskNotes.isEmpty else {
+            return records
+        }
+
+        return scheduledTaskNotes + records.filter {
+            $0.type != ConversationEventRecord.scheduledTaskNoteType
+        }
     }
 }

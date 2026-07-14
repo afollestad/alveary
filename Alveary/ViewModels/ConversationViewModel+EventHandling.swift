@@ -19,6 +19,10 @@ extension ConversationViewModel {
         }
         return activeRuntimeActivityTurnId != turnId
     }
+
+    func interruptRuntimeActivityForAutomatedScheduledStop() {
+        handleRuntimeActivityInterruptedTurn()
+    }
 }
 private extension ConversationViewModel {
     // swiftlint:disable:next cyclomatic_complexity

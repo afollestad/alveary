@@ -60,6 +60,11 @@ extension DefaultAgentsManager {
         markProviderErrorNotificationIfNeeded(for: event, conversationId: conversationId)
         clearProviderErrorNotificationFlagAfterTerminalTokenIfNeeded(for: event, conversationId: conversationId)
 
+        if isTerminalNotificationBoundary(event),
+           eventBuffers[conversationId]?.defersScheduledTerminalNotifications == true {
+            return false
+        }
+
         guard notificationEvent == event,
               let payload = TokenEventPayload(event),
               !payload.isError,

@@ -2,9 +2,23 @@ import Foundation
 import SwiftData
 
 extension ConversationViewModel {
-    func shouldAutoTrustWorkspace(_ workingDirectory: String) -> Bool {
-        guard dbThread()?.mode == .task else {
+    func shouldAutoTrustWorkspace(
+        _ workingDirectory: String,
+        isAutomatedScheduledTurn: Bool = false
+    ) -> Bool {
+        guard let thread = dbThread() else {
+            return false
+        }
+        switch thread.effectiveMode {
+        case .project:
             return settingsService.current.autoTrustProjects
+        case .task:
+            guard thread.mode == .task else {
+                return false
+            }
+        }
+        if isAutomatedScheduledTurn {
+            return isVerifiedOwnedAutomatedScheduledWorkspace(workingDirectory)
         }
         return isVerifiedPrivateTaskWorkspace(workingDirectory)
     }
@@ -15,6 +29,27 @@ extension ConversationViewModel {
               let descriptor = thread.taskWorkspaceDescriptor,
               descriptor.ownershipStrategy == .privateOwned,
               CanonicalPath.normalize(workingDirectory) == descriptor.primaryRoot else {
+            return false
+        }
+
+        do {
+            try taskWorkspaceOwnershipService.validateOwnedWorkspace(descriptor)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func isVerifiedOwnedAutomatedScheduledWorkspace(_ workingDirectory: String) -> Bool {
+        guard let thread = dbThread(),
+              thread.mode == .task,
+              let run = thread.scheduledTaskRun,
+              let descriptor = thread.taskWorkspaceDescriptor,
+              descriptor.ownershipStrategy == .privateOwned || descriptor.ownershipStrategy == .projectWorktreeOwned,
+              CanonicalPath.normalize(workingDirectory) == descriptor.primaryRoot,
+              descriptor.primaryRoot == run.preparedWorkspaceRoot,
+              descriptor.ownershipStrategy == run.preparedWorkspaceOwnershipStrategy,
+              descriptor.ownershipMarkerID == run.preparedWorkspaceMarkerID else {
             return false
         }
 

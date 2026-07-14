@@ -127,7 +127,7 @@ private extension EmptyThreadState {
 
     var newThreadHero: some View {
         Group {
-            if thread?.mode == .task {
+            if thread?.effectiveMode == .task {
                 taskThreadHero
             } else {
                 projectThreadHero

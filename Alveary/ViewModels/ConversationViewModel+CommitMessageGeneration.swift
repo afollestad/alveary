@@ -117,6 +117,7 @@ private extension ConversationViewModel {
         initialSetupTask == nil &&
             setupPhase == nil &&
             !state.isCancellingInitialSetup &&
+            !defersOrdinaryScheduledOutbound &&
             !isAgentActivelyWorking &&
             !state.isSendingMessage &&
             !state.isReconfiguringSession &&

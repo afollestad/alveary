@@ -89,12 +89,23 @@ final class ScheduledTaskModelTests: XCTestCase {
                 ownershipMarkerID: "marker"
             )
         )
+        let workspaceIdentities = ScheduledTaskWorkspaceIdentitySnapshot(
+            projectRoot: ScheduledTaskRootIdentitySnapshot(
+                path: CanonicalPath.normalize("/tmp/snapshot-project"),
+                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 2)
+            ),
+            grantedRoots: [ScheduledTaskRootIdentitySnapshot(
+                path: CanonicalPath.normalize("/tmp/snapshot-grant"),
+                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 3)
+            )]
+        )
         let run = ScheduledTaskRun(
             snapshotting: task,
             occurrenceID: "definition:1800000000",
             triggerID: "trigger-1",
             occurrenceAt: occurrence,
             triggerKind: .scheduled,
+            workspaceIdentitySnapshot: workspaceIdentities,
             thread: thread
         )
         task.runs = [run]
@@ -108,16 +119,82 @@ final class ScheduledTaskModelTests: XCTestCase {
         try context.save()
 
         let fetchedRun = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
+        assertSnapshotRun(fetchedRun, occurrence: occurrence, workspaceIdentities: workspaceIdentities)
+    }
+
+    func testRunSnapshotPreservesPersistedWorkspacePathSpelling() {
+        let project = Project(path: "/tmp/snapshot-project", name: "Snapshot Project")
+        let task = makeTask(project: project)
+        let persistedProjectPath = "/tmp/persisted-root/../snapshot-project"
+        let persistedGrantPath = "/tmp/persisted-root/../snapshot-grant"
+        project.path = persistedProjectPath
+        task.grantedRoots = [persistedGrantPath]
+        let workspaceIdentities = ScheduledTaskWorkspaceIdentitySnapshot(
+            projectRoot: ScheduledTaskRootIdentitySnapshot(
+                path: persistedProjectPath,
+                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 2)
+            ),
+            grantedRoots: [ScheduledTaskRootIdentitySnapshot(
+                path: persistedGrantPath,
+                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 3)
+            )]
+        )
+
+        let run = ScheduledTaskRun(
+            snapshotting: task,
+            occurrenceID: "literal-path-occurrence",
+            occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
+            triggerKind: .scheduled,
+            workspaceIdentitySnapshot: workspaceIdentities
+        )
+
+        XCTAssertEqual(run.projectPathSnapshot, persistedProjectPath)
+        XCTAssertEqual(run.grantedRootsSnapshot, [persistedGrantPath])
+        XCTAssertTrue(run.hasValidWorkspaceIdentityProvenance)
+    }
+
+    func testPendingCleanupPersistsExplicitBranchOwnership() throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let run = makeRun()
+        let provenance = try XCTUnwrap(ScheduledWorktreeCleanupProvenance(
+            sourceProjectPath: "/tmp/source",
+            worktreePath: "/tmp/worktree",
+            branch: "alveary/pending",
+            sourceProjectIdentity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 2),
+            branchIsOwned: false,
+            branchOID: "persisted-head",
+            ownershipMarkerID: nil,
+            ownershipSourceProjectPath: nil
+        ))
+        run.setPendingWorktreeCleanup(provenance)
+        context.insert(run)
+        try context.save()
+
+        let fetchedRun = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
+
+        XCTAssertFalse(try XCTUnwrap(fetchedRun.pendingWorktreeCleanup).branchIsOwned)
+        XCTAssertEqual(fetchedRun.pendingWorktreeCleanup?.branchOID, "persisted-head")
+    }
+
+    private func assertSnapshotRun(
+        _ fetchedRun: ScheduledTaskRun,
+        occurrence: Date,
+        workspaceIdentities: ScheduledTaskWorkspaceIdentitySnapshot
+    ) {
         XCTAssertEqual(fetchedRun.definitionID, "definition")
         XCTAssertEqual(fetchedRun.definitionRevision, 1)
         XCTAssertEqual(fetchedRun.titleSnapshot, "Scheduled definition")
         XCTAssertEqual(fetchedRun.promptSnapshot, "Perform the scheduled work.")
         XCTAssertEqual(fetchedRun.projectPathSnapshot, CanonicalPath.normalize("/tmp/snapshot-project"))
         XCTAssertEqual(fetchedRun.grantedRootsSnapshot, [CanonicalPath.normalize("/tmp/snapshot-grant")])
+        XCTAssertEqual(fetchedRun.workspaceIdentitySnapshot, workspaceIdentities)
+        XCTAssertTrue(fetchedRun.hasValidWorkspaceIdentityProvenance)
         XCTAssertEqual(fetchedRun.occurrenceAt, occurrence)
         XCTAssertEqual(fetchedRun.triggerKind, .scheduled)
         XCTAssertEqual(fetchedRun.status, .claimed)
         XCTAssertFalse(fetchedRun.status.isTerminal)
+        XCTAssertFalse(fetchedRun.requiresFinalizationRecovery)
         XCTAssertEqual(fetchedRun.scheduledTask?.id, "definition")
         XCTAssertEqual(fetchedRun.thread?.name, "Scheduled run")
         XCTAssertEqual(fetchedRun.thread?.scheduledTaskRun?.id, fetchedRun.id)
@@ -178,27 +255,7 @@ final class ScheduledTaskModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let configuration = ModelConfiguration(url: directory.appendingPathComponent("Alveary.store"))
 
-        try autoreleasepool {
-            let container = try makeContainer(configuration: configuration)
-            let context = container.mainContext
-            let project = Project(path: "/tmp/reopen-project", name: "Reopen Project")
-            let task = makeTask(id: "reopen-definition", project: project)
-            let thread = AgentThread(name: "Reopened scheduled run", mode: .task)
-            let run = ScheduledTaskRun(
-                snapshotting: task,
-                occurrenceID: "reopen-occurrence",
-                triggerID: "reopen-trigger",
-                occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
-                triggerKind: .scheduled,
-                status: .success,
-                thread: thread
-            )
-            project.scheduledTasks = [task]
-            task.runs = [run]
-            context.insert(project)
-            context.insert(thread)
-            try context.save()
-        }
+        try persistReopenFixture(configuration: configuration)
 
         try autoreleasepool {
             let container = try makeContainer(configuration: configuration)
@@ -210,12 +267,61 @@ final class ScheduledTaskModelTests: XCTestCase {
             XCTAssertEqual(task.runs.map(\.id), [run.id])
             XCTAssertEqual(run.occurrenceID, "reopen-occurrence")
             XCTAssertEqual(run.triggerID, "reopen-trigger")
+            XCTAssertEqual(
+                run.workspaceIdentitySnapshot?.projectRoot?.identity,
+                TaskWorkspaceFileSystemIdentity(systemNumber: 4, fileNumber: 5)
+            )
+            XCTAssertTrue(run.hasValidWorkspaceIdentityProvenance)
             XCTAssertEqual(run.status, .success)
             XCTAssertTrue(run.status.isTerminal)
             XCTAssertEqual(run.scheduledTask?.id, task.id)
             XCTAssertEqual(run.thread?.name, "Reopened scheduled run")
             XCTAssertEqual(run.thread?.scheduledTaskRun?.id, run.id)
         }
+    }
+
+    private func persistReopenFixture(configuration: ModelConfiguration) throws {
+        try autoreleasepool {
+            let container = try makeContainer(configuration: configuration)
+            let context = container.mainContext
+            let project = Project(path: "/tmp/reopen-project", name: "Reopen Project")
+            let task = makeTask(id: "reopen-definition", project: project)
+            let thread = AgentThread(name: "Reopened scheduled run", mode: .task)
+            let workspaceIdentities = ScheduledTaskWorkspaceIdentitySnapshot(
+                projectRoot: ScheduledTaskRootIdentitySnapshot(
+                    path: CanonicalPath.normalize("/tmp/reopen-project"),
+                    identity: TaskWorkspaceFileSystemIdentity(systemNumber: 4, fileNumber: 5)
+                ),
+                grantedRoots: []
+            )
+            let run = ScheduledTaskRun(
+                snapshotting: task,
+                occurrenceID: "reopen-occurrence",
+                triggerID: "reopen-trigger",
+                occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
+                triggerKind: .scheduled,
+                status: .success,
+                workspaceIdentitySnapshot: workspaceIdentities,
+                thread: thread
+            )
+            project.scheduledTasks = [task]
+            task.runs = [run]
+            context.insert(project)
+            context.insert(thread)
+            try context.save()
+        }
+    }
+
+    func testRunWorkspaceIdentityProvenanceFailsClosedWhenMissingOrMalformed() {
+        let run = makeRun()
+
+        XCTAssertNil(run.workspaceIdentitySnapshot)
+        XCTAssertFalse(run.hasValidWorkspaceIdentityProvenance)
+
+        run.workspaceIdentitySnapshotJSON = "not-json"
+
+        XCTAssertNil(run.workspaceIdentitySnapshot)
+        XCTAssertFalse(run.hasValidWorkspaceIdentityProvenance)
     }
 
     func testDeletingProjectNullifiesDefinitionButPreservesRunAndTaskThread() throws {
@@ -275,9 +381,10 @@ final class ScheduledTaskModelTests: XCTestCase {
         let run = makeRun()
         run.triggerKindRawValue = "future-trigger"
         run.statusRawValue = "future-status"
-        XCTAssertEqual(run.triggerKind, .scheduled)
+        XCTAssertNil(run.triggerKind)
+        XCTAssertNil(run.decodedStatus)
         XCTAssertEqual(run.status, .failure)
-        XCTAssertTrue(run.status.isTerminal)
+        XCTAssertFalse(run.hasKnownTerminalStatus)
     }
 
     private func makeContainer(

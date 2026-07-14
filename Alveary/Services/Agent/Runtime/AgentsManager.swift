@@ -63,6 +63,7 @@ protocol AgentsManager: Actor {
         sessionId: String
     ) async
     func cancelTurn(conversationId: String)
+    func discardInactiveDeferredInteractionRuntime(conversationId: String) async
     func suspendRuntime(conversationId: String) async
     func destroyRuntime(conversationId: String) async throws
     func destroyRuntimePreservingState(conversationId: String) async throws
@@ -72,6 +73,7 @@ protocol AgentsManager: Actor {
     func outboundReadiness(conversationId: String) async -> AgentOutboundReadiness
     func hasTrackedProcess(conversationId: String) -> Bool
     func hasInflightLifecycle(conversationId: String) -> Bool
+    func isRuntimeSuspended(conversationId: String) async -> Bool
     func startGoal(_ objective: String, conversationId: String) async throws
     func performGoalAction(_ action: AgentCLIKit.AgentGoalAction, conversationId: String) async throws
     @discardableResult
@@ -86,7 +88,18 @@ protocol AgentsManager: Actor {
 }
 
 extension AgentsManager {
+    func discardInactiveDeferredInteractionRuntime(conversationId: String) async {
+        cancelTurn(conversationId: conversationId)
+        await suspendRuntime(conversationId: conversationId)
+    }
+
     func suspendRuntime(conversationId: String) async {}
+
+    func isRuntimeSuspended(conversationId: String) async -> Bool {
+        !isRunning(conversationId: conversationId) &&
+            !hasTrackedProcess(conversationId: conversationId) &&
+            !hasInflightLifecycle(conversationId: conversationId)
+    }
 
     func destroyRuntimePreservingState(conversationId: String) async throws {
         try await destroyRuntime(conversationId: conversationId)

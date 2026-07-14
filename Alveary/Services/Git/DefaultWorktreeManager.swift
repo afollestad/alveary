@@ -3,177 +3,178 @@ import Darwin
 import Foundation
 
 actor DefaultWorktreeManager: WorktreeManager {
-    private struct WorktreeTarget {
-        let path: String
-        let branch: String
-    }
+    typealias DirectoryCreator = @Sendable (_ path: String) throws -> Void
+    typealias ProjectConfigLoader = @Sendable (String) async -> AlvearyProjectConfig
 
+    let directoryCreator: DirectoryCreator
     let settingsService: SettingsService
     let shell: ShellRunner
+    let projectConfigLoader: ProjectConfigLoader
 
-    init(settingsService: SettingsService, shell: ShellRunner) {
+    init(
+        settingsService: SettingsService,
+        shell: ShellRunner,
+        projectConfigLoader: @escaping ProjectConfigLoader = { projectPath in
+            await AlvearyProjectConfig(projectPath: projectPath)
+        },
+        directoryCreator: @escaping DirectoryCreator = { path in
+            try FileManager.default.createDirectory(
+                atPath: path,
+                withIntermediateDirectories: false
+            )
+        }
+    ) {
+        self.directoryCreator = directoryCreator
         self.settingsService = settingsService
         self.shell = shell
+        self.projectConfigLoader = projectConfigLoader
     }
 
-    func create(
-        projectPath: String,
-        threadName: String,
-        baseRef: String?,
-        remoteName: String?
-    ) async throws -> WorktreeInfo {
-        let settings = await MainActor.run { settingsService.current }
-        let target = try await resolveWorktreeTarget(
+    func deleteBranch(projectPath: String, branch: String, expectedOID: String) async throws {
+        try await deleteBranchValidated(
             projectPath: projectPath,
-            threadName: threadName,
-            branchPrefix: settings.branchPrefix,
-            worktreesBase: settings.expandedWorktreesBaseDirectory
+            branch: branch,
+            expectedOID: expectedOID,
+            expectedProjectIdentity: nil
         )
-        let resolvedBase = await resolveBaseRef(
-            projectPath: projectPath,
-            baseRef: baseRef,
-            remoteName: remoteName
-        )
-
-        try ensureWorktreeParentDirectoryExists(for: target.path)
-
-        // `git worktree add` itself can leave partial state — e.g. an empty target directory — if
-        // it is cancelled mid-run (Task cancellation sends SIGTERM to the git process). Wrap the
-        // whole add + post-setup sequence in cleanup so any failure, including interruption during
-        // `git worktree add`, removes the partial directory and rollback branch before rethrowing.
-        do {
-            let result = try await shell.run(
-                executable: "/usr/bin/git",
-                args: ["worktree", "add", "--no-track", "-b", target.branch, target.path, resolvedBase],
-                in: projectPath
-            )
-            guard result.succeeded else {
-                throw Self.makeGitError(from: result)
-            }
-
-            try await postCreateSetup(
-                projectPath: projectPath,
-                worktreePath: target.path,
-                threadName: threadName,
-                branch: target.branch,
-                rollbackBranch: target.branch
-            )
-
-            return WorktreeInfo(path: CanonicalPath.normalize(target.path), branch: target.branch)
-        } catch {
-            await detachedCleanupAfterFailedCreate(
-                projectPath: projectPath,
-                worktreePath: target.path,
-                rollbackBranch: target.branch
-            )
-            throw error
-        }
     }
 
-    func createFromBranch(
+    func deleteBranch(
         projectPath: String,
-        threadName: String,
         branch: String,
-        remoteName: String?
-    ) async throws -> WorktreeInfo {
-        let settings = await MainActor.run { settingsService.current }
-        let worktreePath = resolveUniqueWorktreePath(
+        expectedOID: String,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity
+    ) async throws {
+        try await deleteBranchValidated(
             projectPath: projectPath,
-            threadName: threadName,
-            worktreesBase: settings.expandedWorktreesBaseDirectory
+            branch: branch,
+            expectedOID: expectedOID,
+            expectedProjectIdentity: expectedProjectIdentity
         )
+    }
 
-        if let remoteName {
-            _ = try? await shell.run(
-                executable: "/usr/bin/git",
-                args: ["fetch", remoteName, branch],
-                in: projectPath,
-                timeout: .seconds(30)
+    func deleteBranchValidated(
+        projectPath: String,
+        branch: String,
+        expectedOID: String,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity?
+    ) async throws {
+        guard Self.isValidFullObjectID(expectedOID) else {
+            throw GitError.commandFailed(
+                "Refusing to delete branch \(branch) because its expected object ID is invalid"
             )
         }
-
-        try ensureWorktreeParentDirectoryExists(for: worktreePath)
-
-        // See the matching comment in `create()` — interrupting `git worktree add` can leave the
-        // target directory behind, so wrap the add + post-setup in cleanup. `rollbackBranch` is nil
-        // because the branch already existed before this call.
+        try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+        let result: ShellResult
         do {
-            let result = try await shell.run(
+            result = try await shell.run(
                 executable: "/usr/bin/git",
-                args: ["worktree", "add", worktreePath, branch],
+                args: ["update-ref", "-d", "--", "refs/heads/\(branch)", expectedOID],
                 in: projectPath
             )
-            guard result.succeeded else {
-                throw Self.makeGitError(from: result)
-            }
-
-            try await postCreateSetup(
-                projectPath: projectPath,
-                worktreePath: worktreePath,
-                threadName: threadName,
-                branch: branch,
-                rollbackBranch: nil
-            )
-
-            return WorktreeInfo(path: CanonicalPath.normalize(worktreePath), branch: branch)
         } catch {
-            await detachedCleanupAfterFailedCreate(
+            try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+            try await reconcileFailedBranchDeletion(
+                branch: branch,
+                expectedOID: expectedOID,
                 projectPath: projectPath,
-                worktreePath: worktreePath,
-                rollbackBranch: nil
+                expectedProjectIdentity: expectedProjectIdentity,
+                failure: error
             )
-            throw error
-        }
-    }
-
-    func remove(projectPath: String, worktreePath: String, branch: String?) async throws {
-        let listResult = try await shell.run(
-            executable: "/usr/bin/git",
-            args: ["worktree", "list", "--porcelain"],
-            in: projectPath
-        )
-        guard listResult.succeeded else {
-            throw Self.makeGitError(from: listResult)
-        }
-
-        let canonicalProjectPath = CanonicalPath.normalize(projectPath)
-        let canonicalWorktreePath = CanonicalPath.normalize(worktreePath)
-        let worktrees = parseWorktreeList(listResult.stdout)
-        let isWorktree = worktrees.contains { CanonicalPath.normalize($0.path) == canonicalWorktreePath }
-        let isMainRepository = canonicalProjectPath == canonicalWorktreePath
-
-        guard isWorktree, !isMainRepository else {
-            throw GitError.commandFailed("Refusing to remove: \(worktreePath) is not a removable worktree")
-        }
-
-        await runTeardownScriptIfNeeded(projectPath: projectPath, worktreePath: worktreePath, branch: branch)
-
-        let removeResult = try await removeWorktree(projectPath: projectPath, worktreePath: worktreePath)
-        guard removeResult.succeeded else {
-            throw Self.makeGitError(from: removeResult)
-        }
-
-        if let branch {
-            try await deleteBranch(projectPath: projectPath, branch: branch)
-        }
-    }
-
-    func deleteBranch(projectPath: String, branch: String) async throws {
-        let branchExists = try? await shell.run(
-            executable: "/usr/bin/git",
-            args: ["show-ref", "--verify", "--quiet", "refs/heads/\(branch)"],
-            in: projectPath
-        )
-        guard branchExists?.succeeded == true else {
             return
         }
-
-        let result = try await shell.run(
-            executable: "/usr/bin/git",
-            args: ["branch", "-D", branch],
-            in: projectPath
+        try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+        guard !result.succeeded else {
+            return
+        }
+        try await reconcileFailedBranchDeletion(
+            branch: branch,
+            expectedOID: expectedOID,
+            projectPath: projectPath,
+            expectedProjectIdentity: expectedProjectIdentity,
+            failure: Self.makeGitError(from: result)
         )
-        guard result.succeeded else {
+    }
+
+    func reconcileFailedBranchDeletion(
+        branch: String,
+        expectedOID: String,
+        projectPath: String,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity?,
+        failure: Error
+    ) async throws {
+        let currentOID = try await localBranchOID(
+            branch,
+            projectPath: projectPath,
+            expectedProjectIdentity: expectedProjectIdentity
+        )
+        guard let currentOID else {
+            return
+        }
+        guard currentOID == expectedOID else {
+            throw GitError.commandFailed(
+                "Refusing to delete branch \(branch) because its ref changed"
+            )
+        }
+        throw RetryableWorktreeBranchDeletionError(underlying: failure)
+    }
+
+    func localBranchOID(
+        _ branch: String,
+        projectPath: String,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity?
+    ) async throws -> String? {
+        try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+        let result: ShellResult
+        do {
+            result = try await shell.run(
+                executable: "/usr/bin/git",
+                args: ["show-ref", "--hash", "--verify", "refs/heads/\(branch)"],
+                in: projectPath
+            )
+        } catch {
+            try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+            throw error
+        }
+        try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+        switch result.exitCode {
+        case 0:
+            let oid = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !oid.isEmpty else {
+                throw GitError.commandFailed("Git returned an empty object ID for branch \(branch)")
+            }
+            return oid
+        case 1:
+            return nil
+        default:
+            throw Self.makeGitError(from: result)
+        }
+    }
+
+    func localBranchExists(
+        _ branch: String,
+        projectPath: String,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity?
+    ) async throws -> Bool {
+        try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+        let result: ShellResult
+        do {
+            result = try await shell.run(
+                executable: "/usr/bin/git",
+                args: ["show-ref", "--verify", "--quiet", "refs/heads/\(branch)"],
+                in: projectPath
+            )
+        } catch {
+            try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+            throw error
+        }
+        try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
+        switch result.exitCode {
+        case 0:
+            return true
+        case 1:
+            return false
+        default:
             throw Self.makeGitError(from: result)
         }
     }
@@ -192,6 +193,21 @@ actor DefaultWorktreeManager: WorktreeManager {
 }
 
 extension DefaultWorktreeManager {
+    private static func isValidFullObjectID(_ objectID: String) -> Bool {
+        let bytes = objectID.utf8
+        guard bytes.count == 40 || bytes.count == 64 else {
+            return false
+        }
+        return bytes.allSatisfy { byte in
+            switch byte {
+            case 48...57, 65...70, 97...102:
+                true
+            default:
+                false
+            }
+        } && bytes.contains { $0 != 48 }
+    }
+
     static func makeGitError(from result: ShellResult) -> GitError {
         let message = [result.stderr, result.stdout]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -220,19 +236,26 @@ extension DefaultWorktreeManager {
             "Original Git error: \(originalMessage)"
     }
 
-    func resolveBaseRef(projectPath: String, baseRef: String?, remoteName: String?) async -> String {
+    func resolveBaseRef(
+        projectPath: String,
+        baseRef: String?,
+        remoteName: String?,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity?
+    ) async throws -> String {
         let requestedBaseRef = baseRef ?? "HEAD"
         guard requestedBaseRef != "HEAD" else {
             return "HEAD"
         }
 
         if let remoteName {
+            try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
             let fetchResult = try? await shell.run(
                 executable: "/usr/bin/git",
                 args: ["fetch", remoteName, requestedBaseRef],
                 in: projectPath,
                 timeout: .seconds(30)
             )
+            try requireProjectIdentity(expectedProjectIdentity, at: projectPath)
             if fetchResult?.succeeded == true {
                 return "\(remoteName)/\(requestedBaseRef)"
             }
@@ -241,11 +264,12 @@ extension DefaultWorktreeManager {
         return requestedBaseRef
     }
 
-    private func resolveWorktreeTarget(
+    func resolveWorktreeTarget(
         projectPath: String,
         threadName: String,
         branchPrefix: String,
-        worktreesBase: String
+        worktreesBase: String,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity?
     ) async throws -> WorktreeTarget {
         let candidateBase = makeCandidateBase(
             projectPath: projectPath,
@@ -257,13 +281,13 @@ extension DefaultWorktreeManager {
             let candidateName = candidateName(baseName: candidateBase.baseName, suffix: suffix)
             let candidatePath = candidateBase.worktreesDirectory.appendingPathComponent(candidateName).path
             let candidateBranch = branchPrefix + candidateName
-            let branchExists = try? await shell.run(
-                executable: "/usr/bin/git",
-                args: ["show-ref", "--verify", "--quiet", "refs/heads/\(candidateBranch)"],
-                in: projectPath
+            let branchExists = try await localBranchExists(
+                candidateBranch,
+                projectPath: projectPath,
+                expectedProjectIdentity: expectedProjectIdentity
             )
 
-            if !FileManager.default.fileExists(atPath: candidatePath), branchExists?.succeeded != true {
+            if !pathEntryExists(atPath: candidatePath), !branchExists {
                 return WorktreeTarget(path: candidatePath, branch: candidateBranch)
             }
         }
@@ -318,21 +342,35 @@ extension DefaultWorktreeManager {
         return "\(slugify(projectName))-\(hash)"
     }
 
-    func removeWorktree(projectPath: String, worktreePath: String) async throws -> ShellResult {
+    func removeWorktree(
+        projectPath: String,
+        worktreePath: String,
+        identityValidation: WorktreeRemovalIdentityValidation = .unchecked
+    ) async throws -> ShellResult {
+        try requireProjectIdentity(identityValidation.project, at: projectPath)
+        try requireWorktreeIdentity(identityValidation, at: worktreePath)
         var removeResult = try await shell.run(
             executable: "/usr/bin/git",
             args: ["worktree", "remove", "--force", worktreePath],
             in: projectPath
         )
+        try requireProjectIdentity(identityValidation.project, at: projectPath)
+        try requireWorktreeIdentity(identityValidation, at: worktreePath)
 
         if !removeResult.succeeded,
            removeResult.stderr.localizedCaseInsensitiveContains("permission") {
+            try requireProjectIdentity(identityValidation.project, at: projectPath)
+            try requireWorktreeIdentity(identityValidation, at: worktreePath)
             _ = try? await shell.run(executable: "/bin/chmod", args: ["-R", "+w", worktreePath])
+            try requireProjectIdentity(identityValidation.project, at: projectPath)
+            try requireWorktreeIdentity(identityValidation, at: worktreePath)
             removeResult = try await shell.run(
                 executable: "/usr/bin/git",
                 args: ["worktree", "remove", "--force", worktreePath],
                 in: projectPath
             )
+            try requireProjectIdentity(identityValidation.project, at: projectPath)
+            try requireWorktreeIdentity(identityValidation, at: worktreePath)
         }
 
         // `git worktree remove` can leave the thread-specific directory itself in place (e.g. when
@@ -340,11 +378,21 @@ extension DefaultWorktreeManager {
         // registered the worktree (e.g. cancellation during `git worktree add`). Either way, if
         // the thread directory still exists we delete just that directory — never its parent,
         // which holds other threads' worktrees.
-        if FileManager.default.fileExists(atPath: worktreePath) {
-            try? FileManager.default.removeItem(atPath: worktreePath)
+        if pathEntryExists(atPath: worktreePath) {
+            try requireProjectIdentity(identityValidation.project, at: projectPath)
+            try requireWorktreeIdentity(identityValidation, at: worktreePath)
+            try FileManager.default.removeItem(atPath: worktreePath)
+            guard !pathEntryExists(atPath: worktreePath) else {
+                throw GitError.commandFailed("Worktree directory still exists after removal: \(worktreePath)")
+            }
         }
 
         return removeResult
+    }
+
+    func pathEntryExists(atPath path: String) -> Bool {
+        FileManager.default.fileExists(atPath: path) ||
+            (try? FileManager.default.destinationOfSymbolicLink(atPath: path)) != nil
     }
 
     func slugify(_ value: String) -> String {

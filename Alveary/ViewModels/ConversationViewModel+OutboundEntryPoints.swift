@@ -2,9 +2,10 @@ import Foundation
 
 extension ConversationViewModel {
     func setupAndStart(_ message: String, supportsLocalImageInput: Bool = true) async throws {
+        try ensureOrdinaryScheduledOutboundAvailable()
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await ensureAppShotProviderPrerequisites(appShots: state.stagedAppShots)
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             try await deliverNormalUserMessage(message, supportsLocalImageInput: supportsLocalImageInput)
         }
     }
@@ -14,13 +15,14 @@ extension ConversationViewModel {
         stagedContextOverride: String? = nil,
         supportsLocalImageInput: Bool = true
     ) async throws {
+        try ensureOrdinaryScheduledOutboundAvailable()
         guard state.messageQueue.peekNext() == nil else {
             throw AgentError.spawnFailed("Resolve the queued message at the head of the queue before sending a new one")
         }
 
         try await applyPendingSessionSettingsBeforeNextOutboundTurn()
         try await ensureAppShotProviderPrerequisites(appShots: state.stagedAppShots)
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             try await deliverNormalUserMessage(
                 message,
                 stagedContextOverride: stagedContextOverride,
@@ -43,7 +45,8 @@ extension ConversationViewModel {
             supportsLocalImageInput: supportsLocalImageInput
         )
 
-        guard !shouldQueueOutboundMessage else {
+        guard !shouldQueueOutboundMessage,
+              !defersOrdinaryScheduledOutbound else {
             enqueueOutboundMessage(
                 outbound,
                 requiredPlanModeEnabled: requiredPlanModeEnabled,
@@ -93,6 +96,7 @@ extension ConversationViewModel {
     }
 
     func retryFailedUserMessage(id: String) async throws {
+        try ensureOrdinaryScheduledOutboundAvailable()
         guard !isAgentActivelyWorking, !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn/send to finish before retrying the message")
         }
@@ -109,7 +113,7 @@ extension ConversationViewModel {
             let appShots = state.retryableFailedMessageAppShots[id] ?? []
             let fileAttachments = state.retryableFailedMessageFileAttachments[id] ?? []
             try await ensureAppShotProviderPrerequisites(appShots: appShots)
-            try await withOutboundReservation {
+            try await withOrdinaryOutboundReservation {
                 try await deliverMessageReserved(
                     message,
                     transportTextOverride: state.retryableFailedMessageTransportTexts[id],
@@ -226,6 +230,7 @@ private extension ConversationViewModel {
         requiredPlanModeEnabled: Bool?,
         requiredSpeedMode: AgentSpeedMode?
     ) async throws {
+        try ensureOrdinaryScheduledOutboundAvailable()
         do {
             try await ensureOutboundModes(
                 requiredPlanModeEnabled: requiredPlanModeEnabled,
@@ -237,7 +242,7 @@ private extension ConversationViewModel {
             restoreExitPlanModeRevisionGuidanceIfNeeded(outbound.consumedExitPlanModeRevisionGuidance)
             throw error
         }
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             try await deliverMessageReserved(
                 outbound.visibleText,
                 transportTextOverride: outbound.transportText,
@@ -281,6 +286,7 @@ private extension ConversationViewModel {
     }
 
     func sendBeforePausedQueueNow(_ outbound: OutboundMessageText) async throws {
+        try ensureOrdinaryScheduledOutboundAvailable()
         do {
             try await ensureOutboundModes(
                 requiredPlanModeEnabled: nil,
@@ -293,7 +299,7 @@ private extension ConversationViewModel {
             restoreExitPlanModeRevisionGuidanceIfNeeded(outbound.consumedExitPlanModeRevisionGuidance)
             throw error
         }
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             state.queuedMessagesPauseReason = nil
             state.pausedQueueSendConfirmation = nil
             try await deliverMessageReserved(

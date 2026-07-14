@@ -37,6 +37,9 @@ struct SelectableTabChip: View {
     /// the select button's accessibility element instead of the outer container,
     /// which otherwise hides the action from users navigating by individual element.
     var renameAccessibilityAction: (() -> Void)?
+    /// Hides the close affordance while retaining its reserved trailing width.
+    /// Scheduled-run provenance uses this to keep its original main conversation.
+    var showsCloseButton = true
     let onSelect: () -> Void
     let onClose: () -> Void
 
@@ -44,7 +47,8 @@ struct SelectableTabChip: View {
         selectButton.tabChipShell(
             closeAccessibilityLabel: closeAccessibilityLabel,
             closeHelpText: closeHelpText,
-            onClose: onClose
+            onClose: onClose,
+            showsCloseButton: showsCloseButton
         )
     }
 

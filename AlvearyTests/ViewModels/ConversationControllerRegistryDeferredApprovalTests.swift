@@ -9,7 +9,8 @@ extension ConversationControllerRegistryTests {
         let registry = DefaultConversationControllerRegistry(
             makeViewModel: { _ in fixture.viewModel },
             flushTerminalRecords: { _ in },
-            suspendRuntime: { _ in }
+            suspendRuntime: { _ in },
+            runtimeIsSuspended: { _ in true }
         )
         let lease = registry.makeBackgroundLease(for: fixture.conversation)
         lease.activate()

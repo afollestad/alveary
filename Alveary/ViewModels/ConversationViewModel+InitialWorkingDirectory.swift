@@ -7,7 +7,7 @@ extension ConversationViewModel {
         project: Project?,
         message: String
     ) async throws -> String {
-        if thread.mode == .task {
+        if thread.effectiveMode == .task {
             guard let workingDirectory = thread.primaryWorkingDirectory else {
                 throw AgentError.spawnFailed("Cannot start task: no workspace is available")
             }

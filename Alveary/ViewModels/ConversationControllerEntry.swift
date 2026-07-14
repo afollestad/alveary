@@ -87,8 +87,20 @@ final class ControllerEntry {
             !viewModel.hasPendingPersistence
     }
 
-    func registerLease(id: UUID, kind: ConversationControllerLeaseKind) {
-        leases[id] = LeaseState(kind: kind, isActive: false)
+    var defersAutomaticSuspension: Bool {
+        leases.values.contains(where: \.defersAutomaticSuspension)
+    }
+
+    func registerLease(
+        id: UUID,
+        kind: ConversationControllerLeaseKind,
+        defersAutomaticSuspension: Bool = false
+    ) {
+        leases[id] = LeaseState(
+            kind: kind,
+            isActive: false,
+            defersAutomaticSuspension: defersAutomaticSuspension
+        )
     }
 
     func setLease(id: UUID, active: Bool) {
@@ -101,6 +113,10 @@ final class ControllerEntry {
 
     func removeLease(id: UUID) {
         leases.removeValue(forKey: id)
+    }
+
+    func leaseDefersAutomaticSuspension(id: UUID) -> Bool {
+        leases[id]?.defersAutomaticSuspension == true
     }
 
     func reconcileLifecycles() {
@@ -161,6 +177,7 @@ struct PendingControllerTerminal {
 struct LeaseState {
     let kind: ConversationControllerLeaseKind
     var isActive: Bool
+    let defersAutomaticSuspension: Bool
 }
 
 struct ObservedControllerState: Equatable {

@@ -3,9 +3,9 @@ import Foundation
 final class DefaultTaskWorkspaceOwnershipService: TaskWorkspaceOwnershipService, @unchecked Sendable {
     private static let privateMarkerFileName = ".alveary-task-workspace.json"
 
-    private let privateWorkspacesRoot: URL
-    private let worktreeOwnershipRecordsRoot: URL
-    private let fileManager: FileManager
+    let privateWorkspacesRoot: URL
+    let worktreeOwnershipRecordsRoot: URL
+    let fileManager: FileManager
 
     init(
         privateWorkspacesRoot: URL = DefaultTaskWorkspaceOwnershipService.defaultPrivateWorkspacesRoot,
@@ -49,42 +49,6 @@ final class DefaultTaskWorkspaceOwnershipService: TaskWorkspaceOwnershipService,
         }
     }
 
-    func registerOwnedWorktree(
-        at path: String,
-        sourceProjectPath: String,
-        grantedRoots: [String] = []
-    ) throws -> TaskWorkspaceDescriptor {
-        guard NSString(string: path).isAbsolutePath else {
-            throw TaskWorkspaceOwnershipError.invalidAbsolutePath(path)
-        }
-        try rejectSymbolicLink(at: URL(fileURLWithPath: path, isDirectory: true))
-        let worktreeRoot = try existingDirectoryPath(path)
-        let canonicalGrantedRoots = try canonicalizeGrants(
-            grantedRoots,
-            excludingPrimaryRoot: worktreeRoot
-        )
-        let canonicalSourceProjectPath = try existingDirectoryPath(sourceProjectPath)
-        let markerID = UUID().uuidString.lowercased()
-        let descriptor = TaskWorkspaceDescriptor(
-            primaryRoot: worktreeRoot,
-            grantedRoots: canonicalGrantedRoots,
-            ownershipStrategy: .projectWorktreeOwned,
-            ownershipMarkerID: markerID,
-            sourceProjectPath: canonicalSourceProjectPath
-        )
-
-        try createControlDirectory(worktreeOwnershipRecordsRoot)
-        let recordURL = try worktreeRecordURL(markerID: markerID)
-        guard !fileManager.fileExists(atPath: recordURL.path) else {
-            throw TaskWorkspaceOwnershipError.fileOperationFailed(
-                path: recordURL.path,
-                reason: "An ownership record already exists."
-            )
-        }
-        try writeRecord(for: descriptor, to: recordURL)
-        return descriptor
-    }
-
     func canonicalizeGrants(
         _ paths: [String],
         excludingPrimaryRoot primaryRoot: String? = nil
@@ -118,66 +82,62 @@ final class DefaultTaskWorkspaceOwnershipService: TaskWorkspaceOwnershipService,
     func validateOwnedWorkspaceForRemoval(_ descriptor: TaskWorkspaceDescriptor) throws {
         switch descriptor.ownershipStrategy {
         case .privateOwned:
-            if fileManager.fileExists(atPath: descriptor.primaryRoot) {
+            if pathEntryExists(atPath: descriptor.primaryRoot) {
                 try validatePrivateWorkspace(descriptor)
             } else {
                 try validateMissingPrivateWorkspaceForRemoval(descriptor)
             }
         case .projectWorktreeOwned:
+            if try ownedWorktreeRemovalAlreadyCompleted(descriptor) {
+                return
+            }
             try validateOwnedWorktree(
                 descriptor,
-                requiresWorkspace: fileManager.fileExists(atPath: descriptor.primaryRoot)
+                requiresWorkspace: pathEntryExists(atPath: descriptor.primaryRoot)
             )
         case .projectLocal:
             throw TaskWorkspaceOwnershipError.workspaceNotOwned
         }
     }
 
-    func discardOwnedWorktreeRecord(_ descriptor: TaskWorkspaceDescriptor) throws {
-        guard descriptor.ownershipStrategy == .projectWorktreeOwned,
-              let markerID = validMarkerID(descriptor.ownershipMarkerID) else {
-            throw TaskWorkspaceOwnershipError.workspaceNotOwned
-        }
-        let recordURL = try worktreeRecordURL(markerID: markerID)
-        let record = try readRecord(at: recordURL)
-        try requireMatchingWorktreeRecord(record, descriptor: descriptor)
-        do {
-            try fileManager.removeItem(at: recordURL)
-        } catch {
-            throw mapFileError(error, path: recordURL.path)
-        }
-    }
-
     func removeOwnedWorkspace(_ descriptor: TaskWorkspaceDescriptor) throws {
         switch descriptor.ownershipStrategy {
         case .privateOwned:
-            let workspaceExists = fileManager.fileExists(atPath: descriptor.primaryRoot)
-            try validateOwnedWorkspaceForRemoval(descriptor)
-            guard workspaceExists else {
-                return
-            }
-            do {
-                try fileManager.removeItem(atPath: descriptor.primaryRoot)
-            } catch {
-                throw mapFileError(error, path: descriptor.primaryRoot)
-            }
+            try removePrivateOwnedWorkspace(descriptor)
         case .projectWorktreeOwned:
-            let workspaceExists = fileManager.fileExists(atPath: descriptor.primaryRoot)
-            try validateOwnedWorkspaceForRemoval(descriptor)
-            do {
-                if workspaceExists {
-                    try fileManager.removeItem(atPath: descriptor.primaryRoot)
-                }
-                guard let markerID = descriptor.ownershipMarkerID else {
-                    throw TaskWorkspaceOwnershipError.ownershipMarkerMismatch(descriptor.primaryRoot)
-                }
-                try fileManager.removeItem(at: try worktreeRecordURL(markerID: markerID))
-            } catch {
-                throw mapFileError(error, path: descriptor.primaryRoot)
-            }
+            try removeProjectWorktreeOwnedWorkspace(descriptor)
         case .projectLocal:
             throw TaskWorkspaceOwnershipError.workspaceNotOwned
         }
+    }
+
+    func directoryIdentity(at path: String) throws -> TaskWorkspaceFileSystemIdentity {
+        do {
+            let attributes = try fileManager.attributesOfItem(atPath: path)
+            guard let systemNumber = attributes[.systemNumber] as? NSNumber,
+                  let fileNumber = attributes[.systemFileNumber] as? NSNumber else {
+                throw TaskWorkspaceOwnershipError.fileOperationFailed(
+                    path: path,
+                    reason: "The directory identity could not be read."
+                )
+            }
+            return TaskWorkspaceFileSystemIdentity(
+                systemNumber: systemNumber.uint64Value,
+                fileNumber: fileNumber.uint64Value
+            )
+        } catch let error as TaskWorkspaceOwnershipError {
+            throw error
+        } catch {
+            throw mapFileError(error, path: path)
+        }
+    }
+
+    func ownedWorktreeRecord(for descriptor: TaskWorkspaceDescriptor) throws -> TaskWorkspaceOwnershipRecord {
+        guard descriptor.ownershipStrategy == .projectWorktreeOwned,
+              let markerID = validMarkerID(descriptor.ownershipMarkerID) else { throw TaskWorkspaceOwnershipError.workspaceNotOwned }
+        let record = try readRecord(at: try worktreeRecordURL(markerID: markerID))
+        try requireMatchingWorktreeRecord(record, descriptor: descriptor)
+        return record
     }
 
     func removeOrphanedPrivateWorkspaces(retainingMarkerIDs: Set<String>) throws {
@@ -222,7 +182,7 @@ final class DefaultTaskWorkspaceOwnershipService: TaskWorkspaceOwnershipService,
     }
 }
 
-private extension DefaultTaskWorkspaceOwnershipService {
+extension DefaultTaskWorkspaceOwnershipService {
     func validatePrivateWorkspace(_ descriptor: TaskWorkspaceDescriptor) throws {
         try validateControlDirectory(privateWorkspacesRoot)
         guard let markerID = validMarkerID(descriptor.ownershipMarkerID) else {
@@ -245,7 +205,8 @@ private extension DefaultTaskWorkspaceOwnershipService {
                 canonicalRoot: canonicalRoot,
                 ownershipStrategy: .privateOwned,
                 sourceProjectPath: nil,
-                fileSystemIdentity: nil
+                fileSystemIdentity: nil,
+                sourceProjectIdentity: nil
             ),
             markerPath: markerURL.path
         )
@@ -294,7 +255,7 @@ private extension DefaultTaskWorkspaceOwnershipService {
             throw TaskWorkspaceOwnershipError.ownershipMarkerMismatch(markerURL.path)
         }
         if requiresWorkspace,
-           try fileSystemIdentity(at: canonicalRoot) != recordedIdentity {
+           try directoryIdentity(at: canonicalRoot) != recordedIdentity {
             throw TaskWorkspaceOwnershipError.workspaceIdentityMismatch(canonicalRoot)
         }
     }
@@ -345,7 +306,7 @@ private extension DefaultTaskWorkspaceOwnershipService {
     }
 
     func createControlDirectory(_ url: URL) throws {
-        if fileManager.fileExists(atPath: url.path) {
+        if pathEntryExists(atPath: url.path) {
             try rejectSymbolicLink(at: url)
         }
         try createDirectory(url)
@@ -423,6 +384,22 @@ private extension DefaultTaskWorkspaceOwnershipService {
     }
 
     func writeRecord(for descriptor: TaskWorkspaceDescriptor, to url: URL) throws {
+        try writeRecord(
+            for: descriptor,
+            to: url,
+            worktreeIdentity: descriptor.ownershipStrategy == .projectWorktreeOwned
+                ? directoryIdentity(at: descriptor.primaryRoot)
+                : nil,
+            sourceProjectIdentity: try descriptor.sourceProjectPath.map(directoryIdentity(at:))
+        )
+    }
+
+    func writeRecord(
+        for descriptor: TaskWorkspaceDescriptor,
+        to url: URL,
+        worktreeIdentity: TaskWorkspaceFileSystemIdentity?,
+        sourceProjectIdentity: TaskWorkspaceFileSystemIdentity?
+    ) throws {
         guard let markerID = validMarkerID(descriptor.ownershipMarkerID) else {
             throw TaskWorkspaceOwnershipError.ownershipMarkerMismatch(url.path)
         }
@@ -432,9 +409,8 @@ private extension DefaultTaskWorkspaceOwnershipService {
             canonicalRoot: descriptor.primaryRoot,
             ownershipStrategy: descriptor.ownershipStrategy,
             sourceProjectPath: descriptor.sourceProjectPath,
-            fileSystemIdentity: descriptor.ownershipStrategy == .projectWorktreeOwned
-                ? try fileSystemIdentity(at: descriptor.primaryRoot)
-                : nil
+            fileSystemIdentity: worktreeIdentity,
+            sourceProjectIdentity: sourceProjectIdentity
         )
 
         do {
@@ -447,7 +423,7 @@ private extension DefaultTaskWorkspaceOwnershipService {
     }
 
     func readRecord(at url: URL) throws -> TaskWorkspaceOwnershipRecord {
-        guard fileManager.fileExists(atPath: url.path) else {
+        guard pathEntryExists(atPath: url.path) else {
             throw TaskWorkspaceOwnershipError.missingOwnershipMarker(url.path)
         }
         try rejectSymbolicLink(at: url)
@@ -456,27 +432,6 @@ private extension DefaultTaskWorkspaceOwnershipService {
             return try JSONDecoder().decode(TaskWorkspaceOwnershipRecord.self, from: Data(contentsOf: url))
         } catch {
             throw TaskWorkspaceOwnershipError.ownershipMarkerMismatch(url.path)
-        }
-    }
-
-    func fileSystemIdentity(at path: String) throws -> TaskWorkspaceFileSystemIdentity {
-        do {
-            let attributes = try fileManager.attributesOfItem(atPath: path)
-            guard let systemNumber = attributes[.systemNumber] as? NSNumber,
-                  let fileNumber = attributes[.systemFileNumber] as? NSNumber else {
-                throw TaskWorkspaceOwnershipError.fileOperationFailed(
-                    path: path,
-                    reason: "The directory identity could not be read."
-                )
-            }
-            return TaskWorkspaceFileSystemIdentity(
-                systemNumber: systemNumber.uint64Value,
-                fileNumber: fileNumber.uint64Value
-            )
-        } catch let error as TaskWorkspaceOwnershipError {
-            throw error
-        } catch {
-            throw mapFileError(error, path: path)
         }
     }
 

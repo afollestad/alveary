@@ -10,9 +10,20 @@ extension ConversationViewModel {
         needsFollowUpSave = false
     }
 
+    func destroyRuntimeIgnoringTaskCancellation() async throws {
+        let agentsManager = agentsManager
+        let conversationID = conversation.id
+        let cleanup = Task {
+            try await agentsManager.destroyRuntimePreservingState(conversationId: conversationID)
+        }
+        try await cleanup.value
+    }
+
     func destroyRuntimeAfterFailedInitialSetup(originalError: Error) async throws {
+        // Initial-setup cancellation reaches this path from an already-cancelled task. Destructive
+        // teardown must run in its own uncancelled task so provider cleanup can finish and be joined.
         do {
-            try await agentsManager.destroyRuntimePreservingState(conversationId: conversation.id)
+            try await destroyRuntimeIgnoringTaskCancellation()
         } catch let cleanupError {
             runtimeStore.bindConversationState(state, for: conversation.id)
             state.lastTurnError =
@@ -30,7 +41,9 @@ extension ConversationViewModel {
     ) {
         if restoresDraft {
             let appShotsStagedDuringSetup = state.stagedAppShots
-            replaceState(with: ConversationState())
+            let replacementState = ConversationState()
+            replacementState.isAutomatedScheduledRunActive = state.isAutomatedScheduledRunActive
+            replaceState(with: replacementState)
             replaceInputDraft(snapshot.draft, source: snapshot.draftSource)
             state.stagedContext = snapshot.stagedContext
             state.stagedImageAttachments = snapshot.stagedImageAttachments
@@ -52,7 +65,7 @@ extension ConversationViewModel {
     }
 
     func finishFailedInitialSetupRollback(project: Project?, thread: AgentThread) async {
-        guard thread.mode == .project,
+        guard thread.effectiveMode == .project,
               thread.useWorktree,
               let project,
               let path = thread.worktreePath else {

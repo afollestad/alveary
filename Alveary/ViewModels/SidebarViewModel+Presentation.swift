@@ -18,4 +18,11 @@ extension SidebarViewModel {
         return exists && isDirectory.boolValue
     }
 
+    func threadStatus(for thread: AgentThread) -> ThreadStatus {
+        if activeForkSourceThreadIDs.contains(thread.persistentModelID), thread.archivedAt == nil {
+            return .busy
+        }
+        return thread.displayStatus { agentsManager.status(for: $0.id) }
+    }
+
 }

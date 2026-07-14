@@ -10,6 +10,7 @@ struct KeepAwakeActivitySource: Hashable, Sendable {
     enum Kind: Hashable, Sendable {
         case runtimeActivity
         case outboundConversationWork
+        case scheduledTaskRun
     }
 
     let kind: Kind
@@ -19,6 +20,10 @@ struct KeepAwakeActivitySource: Hashable, Sendable {
 
     static func outboundConversationWork(conversationId: String) -> KeepAwakeActivitySource {
         KeepAwakeActivitySource(kind: .outboundConversationWork, id: conversationId)
+    }
+
+    static func scheduledTaskRun(runID: String) -> KeepAwakeActivitySource {
+        KeepAwakeActivitySource(kind: .scheduledTaskRun, id: runID)
     }
 }
 

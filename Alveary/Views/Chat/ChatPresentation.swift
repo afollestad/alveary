@@ -118,7 +118,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
         runtimePlanModeEnabled: Bool? = nil,
         pendingPlanModeEnabled: Bool? = nil
     ) {
-        mode = thread?.mode ?? .project
+        mode = thread?.effectiveMode ?? .project
         selectedModel = thread?.model ?? AppSettings.defaultModelValue
         selectedEffort = AppSettings.normalizedEffortLevel(thread?.effort)
         selectedSpeedMode = thread?.normalizedSpeedMode ?? .standard
@@ -131,7 +131,7 @@ struct ChatThreadPresentation: Equatable, Sendable {
         selectedUseWorktree = thread?.useWorktree ?? false
 
         if let thread,
-           thread.mode == .project,
+           thread.effectiveMode == .project,
            let project = thread.project,
            project.isGitRepository,
            !thread.hasCompletedInitialSetup {

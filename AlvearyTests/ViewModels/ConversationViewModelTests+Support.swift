@@ -118,8 +118,19 @@ actor MockAgentsManager: AgentsManager {
     private var queuedOutboundReadiness: [AgentOutboundReadiness] = []
     private var queuedRefreshStatuses: [ActivitySignal] = []
     private var failsSendWhenCurrentTaskIsCancelled = false
+    private var failsDestroyWhenCurrentTaskIsCancelled = false
+    private var pausesNextSpawn = false
+    private var spawnEntered = false
+    private var spawnCancellationObserved = false
+    private var spawnEntryContinuation: CheckedContinuation<Void, Never>?
+    private var spawnCancellationContinuation: CheckedContinuation<Void, Never>?
+    private var spawnReleaseContinuation: CheckedContinuation<Void, Never>?
     private var pausesNextRefreshStatus = false
     private var refreshStatusContinuation: CheckedContinuation<Void, Never>?
+    private var pausesNextDeferredDiscard = false
+    private var deferredDiscardEntered = false
+    private var deferredDiscardEntryContinuation: CheckedContinuation<Void, Never>?
+    private var deferredDiscardReleaseContinuation: CheckedContinuation<Void, Never>?
     private var recordedSentMessages: [String] = []
     private var recordedSentAttachments: [[LocalImageAttachment]] = []
     private var recordedSentMetadata: [[String: JSONValue]] = []
@@ -132,10 +143,12 @@ actor MockAgentsManager: AgentsManager {
     private var recordedReconfigureCalls: [ReconfigureCall] = []
     private var recordedFreshSessionCalls: [FreshSessionCall] = []
     private var recordedSubscribeCalls: [SubscribeCall] = []
+    private var recordedSuspendCalls: [String] = []
     private var recordedDestroyCalls: [String] = []
     private var recordedMarkPersistedCalls: [MarkPersistedCall] = []
     private var recordedApprovalCalls: [ApprovalCall] = []
     private var recordedCancelCalls: [String] = []
+    private var recordedDeferredDiscardCalls: [String] = []
     private var recordedRefreshStatusCalls: [String] = []
     private var toolApprovalSelectionStorage: [String: ToolApprovalSelection] = [:]
     private var pausesApprovalResolution = false
@@ -164,6 +177,19 @@ actor MockAgentsManager: AgentsManager {
 
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
         recordedSpawnCalls.append(SpawnCall(id: id, config: config, forkSession: forkSession))
+        if pausesNextSpawn {
+            pausesNextSpawn = false
+            spawnEntered = true
+            spawnEntryContinuation?.resume()
+            spawnEntryContinuation = nil
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    spawnReleaseContinuation = continuation
+                }
+            } onCancel: {
+                Task { await self.recordSpawnCancellation() }
+            }
+        }
         if !queuedSpawnErrors.isEmpty {
             throw queuedSpawnErrors.removeFirst()
         }
@@ -321,6 +347,37 @@ actor MockAgentsManager: AgentsManager {
 
     func failSendWhenCurrentTaskIsCancelled() { failsSendWhenCurrentTaskIsCancelled = true }
 
+    func failDestroyWhenCurrentTaskIsCancelled() { failsDestroyWhenCurrentTaskIsCancelled = true }
+
+    func pauseNextSpawn() {
+        pausesNextSpawn = true
+        spawnEntered = false
+        spawnCancellationObserved = false
+    }
+
+    func waitUntilSpawnEntered() async {
+        guard !spawnEntered else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            spawnEntryContinuation = continuation
+        }
+    }
+
+    func waitUntilSpawnCancellationObserved() async {
+        guard !spawnCancellationObserved else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            spawnCancellationContinuation = continuation
+        }
+    }
+
+    func resumePausedSpawn() {
+        spawnReleaseContinuation?.resume()
+        spawnReleaseContinuation = nil
+    }
+
     func pauseNextRefreshStatus() {
         pausesNextRefreshStatus = true
     }
@@ -329,6 +386,25 @@ actor MockAgentsManager: AgentsManager {
         pausesNextRefreshStatus = false
         refreshStatusContinuation?.resume()
         refreshStatusContinuation = nil
+    }
+
+    func pauseNextDeferredDiscard() {
+        pausesNextDeferredDiscard = true
+        deferredDiscardEntered = false
+    }
+
+    func waitUntilDeferredDiscardEntered() async {
+        guard !deferredDiscardEntered else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            deferredDiscardEntryContinuation = continuation
+        }
+    }
+
+    func resumeDeferredDiscard() {
+        deferredDiscardReleaseContinuation?.resume()
+        deferredDiscardReleaseContinuation = nil
     }
 
     func pauseApprovalResolution() {
@@ -370,7 +446,31 @@ actor MockAgentsManager: AgentsManager {
 
     func cancelTurn(conversationId: String) { recordedCancelCalls.append(conversationId) }
 
+    func discardInactiveDeferredInteractionRuntime(conversationId: String) async {
+        recordedDeferredDiscardCalls.append(conversationId)
+        if pausesNextDeferredDiscard {
+            pausesNextDeferredDiscard = false
+            deferredDiscardEntered = true
+            deferredDiscardEntryContinuation?.resume()
+            deferredDiscardEntryContinuation = nil
+            await withCheckedContinuation { continuation in
+                deferredDiscardReleaseContinuation = continuation
+            }
+        }
+        recordedCancelCalls.append(conversationId)
+        recordedSuspendCalls.append(conversationId)
+        isRunningValue = false
+    }
+
+    func suspendRuntime(conversationId: String) async {
+        recordedSuspendCalls.append(conversationId)
+        isRunningValue = false
+    }
+
     func destroyRuntime(conversationId: String) async throws {
+        if failsDestroyWhenCurrentTaskIsCancelled, Task.isCancelled {
+            throw CancellationError()
+        }
         recordedDestroyCalls.append(conversationId)
         isRunningValue = false
         if !queuedDestroyErrors.isEmpty {
@@ -494,10 +594,12 @@ actor MockAgentsManager: AgentsManager {
     func reconfigureCalls() -> [ReconfigureCall] { recordedReconfigureCalls }
     func freshSessionCalls() -> [FreshSessionCall] { recordedFreshSessionCalls }
     func subscribeCallsList() -> [SubscribeCall] { recordedSubscribeCalls }
+    func suspendCalls() -> [String] { recordedSuspendCalls }
     func destroyCalls() -> [String] { recordedDestroyCalls }
     func markPersistedCalls() -> [MarkPersistedCall] { recordedMarkPersistedCalls }
     func approvalCalls() -> [ApprovalCall] { recordedApprovalCalls }
     func cancelCalls() -> [String] { recordedCancelCalls }
+    func deferredDiscardCalls() -> [String] { recordedDeferredDiscardCalls }
     func refreshStatusCalls() -> [String] { recordedRefreshStatusCalls }
 
     private func toolApprovalSelectionKey(providerId: String, conversationId: String, sessionId: String) -> String {
@@ -507,6 +609,12 @@ actor MockAgentsManager: AgentsManager {
     private func recordSubscriptionTermination() {
         subscriptionContinuation = nil
         subscriptionTerminationCount += 1
+    }
+
+    private func recordSpawnCancellation() {
+        spawnCancellationObserved = true
+        spawnCancellationContinuation?.resume()
+        spawnCancellationContinuation = nil
     }
 
     private func waitForApprovalResolutionIfNeeded() async {
@@ -522,6 +630,7 @@ actor MockAgentsManager: AgentsManager {
 @MainActor
 final class MockConversationRuntimeStore: ConversationRuntimeStore {
     private var states: [String: ConversationState] = [:]
+    private var automatedScheduledRunIDs: Set<String> = []
 
     func conversationState(for conversationId: String) -> ConversationState {
         if let state = states[conversationId] {
@@ -535,6 +644,18 @@ final class MockConversationRuntimeStore: ConversationRuntimeStore {
 
     func bindConversationState(_ state: ConversationState, for conversationId: String) {
         states[conversationId] = state
+    }
+
+    func setAutomatedScheduledRunActive(_ active: Bool, runID: String) {
+        if active {
+            automatedScheduledRunIDs.insert(runID)
+        } else {
+            automatedScheduledRunIDs.remove(runID)
+        }
+    }
+
+    func isAutomatedScheduledRunActive(runID: String) -> Bool {
+        automatedScheduledRunIDs.contains(runID)
     }
 
     func removeState(for conversationId: String) {
@@ -563,6 +684,19 @@ actor MockWorktreeManager: WorktreeManager {
         self.worktreeInfo = worktreeInfo
         self.blocksCreateUntilCancelled = blocksCreateUntilCancelled
     }
+
+    func validateCreation(
+        projectPath: String,
+        baseRef: String?,
+        remoteName: String?
+    ) async throws {}
+
+    func validateCreation(
+        projectPath: String,
+        baseRef: String?,
+        remoteName: String?,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity
+    ) async throws {}
 
     func create(
         projectPath: String,
@@ -595,6 +729,34 @@ actor MockWorktreeManager: WorktreeManager {
         return worktreeInfo
     }
 
+    func create(
+        projectPath: String,
+        threadName: String,
+        baseRef: String?,
+        remoteName: String?,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity
+    ) async throws -> IdentityValidatedWorktreeInfo {
+        let info = try await create(
+            projectPath: projectPath,
+            threadName: threadName,
+            baseRef: baseRef,
+            remoteName: remoteName
+        )
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: info.path),
+              let systemNumber = attributes[.systemNumber] as? NSNumber,
+              let fileNumber = attributes[.systemFileNumber] as? NSNumber else {
+            throw MockError.createFailed
+        }
+        return IdentityValidatedWorktreeInfo(
+            info: info,
+            sourceProjectIdentity: expectedProjectIdentity,
+            worktreeIdentity: TaskWorkspaceFileSystemIdentity(
+                systemNumber: systemNumber.uint64Value,
+                fileNumber: fileNumber.uint64Value
+            )
+        )
+    }
+
     func createFromBranch(
         projectPath: String,
         threadName: String,
@@ -605,10 +767,23 @@ actor MockWorktreeManager: WorktreeManager {
     }
 
     func remove(projectPath: String, worktreePath: String, branch: String?) async throws {}
+    func remove(
+        projectPath: String,
+        worktreePath: String,
+        branch: String?,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity,
+        expectedWorktreeIdentity: TaskWorkspaceFileSystemIdentity?
+    ) async throws {}
 
     func removeAll(projectPath: String) async throws {}
 
-    func deleteBranch(projectPath: String, branch: String) async throws {}
+    func deleteBranch(projectPath: String, branch: String, expectedOID: String) async throws {}
+    func deleteBranch(
+        projectPath: String,
+        branch: String,
+        expectedOID: String,
+        expectedProjectIdentity: TaskWorkspaceFileSystemIdentity
+    ) async throws {}
 
     func list(projectPath: String) async throws -> [WorktreeInfo] {
         []

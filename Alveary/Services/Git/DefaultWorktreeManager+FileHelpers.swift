@@ -41,23 +41,39 @@ extension DefaultWorktreeManager {
         var worktrees: [WorktreeInfo] = []
         var currentPath: String?
         var currentBranch: String?
+        var currentHeadOID: String?
 
         for line in output.components(separatedBy: "\n") {
             if line.hasPrefix("worktree ") {
                 currentPath = String(line.dropFirst(9))
+            } else if line.hasPrefix("HEAD ") {
+                currentHeadOID = String(line.dropFirst(5))
             } else if line.hasPrefix("branch refs/heads/") {
                 currentBranch = String(line.dropFirst(18))
             } else if line.isEmpty {
                 if let currentPath, let currentBranch {
-                    worktrees.append(WorktreeInfo(path: currentPath, branch: currentBranch))
+                    worktrees.append(
+                        WorktreeInfo(
+                            path: currentPath,
+                            branch: currentBranch,
+                            headOID: currentHeadOID
+                        )
+                    )
                 }
                 currentPath = nil
                 currentBranch = nil
+                currentHeadOID = nil
             }
         }
 
         if let currentPath, let currentBranch {
-            worktrees.append(WorktreeInfo(path: currentPath, branch: currentBranch))
+            worktrees.append(
+                WorktreeInfo(
+                    path: currentPath,
+                    branch: currentBranch,
+                    headOID: currentHeadOID
+                )
+            )
         }
 
         return worktrees

@@ -5,6 +5,7 @@ import SwiftData
 final class ConversationEventRecord {
     static let contextWindowInvalidatedType = "context_window_invalidated"
     static let goalType = "goal"
+    static let scheduledTaskNoteType = "scheduled_task_note"
     static let subAgentCompletedType = "sub_agent_completed"
     static let taskListType = "task_list"
     static let steeredConversationType = "steered_conversation"

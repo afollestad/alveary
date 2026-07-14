@@ -32,6 +32,71 @@ struct ScheduledTaskRunNowRequest: Equatable, Sendable {
     var consumesScheduledOccurrence: Bool {
         occurrenceSource != .manual
     }
+
+    @MainActor
+    static func prepare(
+        definition: ScheduledTask,
+        triggeredAt: Date,
+        recurrenceCalculator: ScheduledTaskRecurrenceCalculator
+    ) -> Self {
+        let scheduledOccurrence = latestScheduledOccurrence(
+            definition: definition,
+            through: triggeredAt,
+            recurrenceCalculator: recurrenceCalculator
+        )
+        let pendingOccurrence = definition.pendingOccurrenceAt.flatMap { occurrence in
+            occurrence <= triggeredAt ? occurrence : nil
+        }
+
+        let occurrenceAt: Date
+        let occurrenceSource: ScheduledTaskRunNowOccurrenceSource
+        switch (scheduledOccurrence, pendingOccurrence) {
+        case let (scheduled?, pending?) where pending > scheduled:
+            occurrenceAt = pending
+            occurrenceSource = .pending
+        case let (scheduled?, _):
+            occurrenceAt = scheduled
+            occurrenceSource = .scheduled
+        case let (nil, pending?):
+            occurrenceAt = pending
+            occurrenceSource = .pending
+        case (nil, nil):
+            occurrenceAt = triggeredAt
+            occurrenceSource = .manual
+        }
+
+        return Self(
+            definitionID: definition.id,
+            definitionRevision: definition.revision,
+            occurrenceAt: occurrenceAt,
+            triggeredAt: triggeredAt,
+            occurrenceSource: occurrenceSource
+        )
+    }
+
+    @MainActor
+    private static func latestScheduledOccurrence(
+        definition: ScheduledTask,
+        through actionDate: Date,
+        recurrenceCalculator: ScheduledTaskRecurrenceCalculator
+    ) -> Date? {
+        guard let firstOccurrence = definition.nextOccurrenceAt,
+              firstOccurrence <= actionDate else {
+            return nil
+        }
+        guard let recurrence = definition.recurrence,
+              let window = try? recurrenceCalculator.coalescedOccurrences(
+                  startingAt: firstOccurrence,
+                  through: actionDate,
+                  recurrence: recurrence,
+                  timeZoneIdentifier: definition.timeZoneIdentifier
+              ) else {
+            // Let the scheduler preflight pause malformed definitions instead of
+            // turning Run now preparation into a separate validation path.
+            return firstOccurrence
+        }
+        return window.latestDueOccurrence ?? firstOccurrence
+    }
 }
 
 enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
@@ -214,26 +279,14 @@ final class ScheduledTaskMutationService {
             throw ScheduledTaskMutationError.definitionNotFound
         }
         try validateRevision(definition, expectedRevision: expectedRevision)
-        guard !definition.runs.contains(where: { !$0.status.isTerminal }) else {
+        guard !definition.runs.contains(where: { !$0.hasKnownTerminalStatus }) else {
             throw ScheduledTaskMutationError.runNowBlockedByActiveRun
         }
 
-        let dueOccurrences: [(source: ScheduledTaskRunNowOccurrenceSource, date: Date)] = [
-            definition.nextOccurrenceAt.map { (.scheduled, $0) },
-            definition.pendingOccurrenceAt.map { (.pending, $0) }
-        ]
-        .compactMap { $0 }
-        .filter { $0.date <= actionDate }
-        let selectedOccurrence = dueOccurrences.max { lhs, rhs in
-            lhs.date < rhs.date
-        }
-
-        return ScheduledTaskRunNowRequest(
-            definitionID: definition.id,
-            definitionRevision: definition.revision,
-            occurrenceAt: selectedOccurrence?.date ?? actionDate,
+        return ScheduledTaskRunNowRequest.prepare(
+            definition: definition,
             triggeredAt: actionDate,
-            occurrenceSource: selectedOccurrence?.source ?? .manual
+            recurrenceCalculator: recurrenceCalculator
         )
     }
 }

@@ -40,10 +40,13 @@ private extension ConversationViewModel {
                 message: thread.name
             )
             setupPhase = .startingAgent
-            try await startAgentReserved(config: makeSpawnConfig(
-                workingDirectory: workingDirectory,
-                settingsSource: .nextTurn
-            ))
+            try await startAgentReserved(
+                config: makeSpawnConfig(
+                    workingDirectory: workingDirectory,
+                    settingsSource: .nextTurn
+                ),
+                performsCancellationCleanup: false
+            )
             try completeHiddenInitialSetup(thread: thread)
         } catch {
             try await rollbackFailedInitialSetup(

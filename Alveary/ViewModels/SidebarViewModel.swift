@@ -17,6 +17,7 @@ final class SidebarViewModel {
     let attachmentStore: any ConversationAttachmentStore
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     private let invalidateConversationController: @MainActor (String) -> Void
+    let stopAndWaitForScheduledTaskRun: ScheduledTaskRunQuiescence
     let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
     let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
     let saveThreadCreation: @MainActor (ModelContext) throws -> Void
@@ -36,6 +37,7 @@ final class SidebarViewModel {
     var draftCreationTaskIDs: [AgentThreadMode: UUID] = [:]
     var pendingDraftProjectPaths: [AgentThreadMode: String] = [:]
     var cachedDraftThreadIDs: [AgentThreadMode: PersistentIdentifier] = [:]
+    var activeScheduledCleanupRunIDs: Set<PersistentIdentifier> = []
 
     init(
         agentsManager: any AgentsManager,
@@ -49,6 +51,7 @@ final class SidebarViewModel {
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
         taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
         invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
+        stopAndWaitForScheduledTaskRun: @escaping ScheduledTaskRunQuiescence = { _ in },
         saveDraftProjectMove: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveDeletionCommit: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
@@ -69,6 +72,7 @@ final class SidebarViewModel {
         self.attachmentStore = attachmentStore
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         self.invalidateConversationController = invalidateConversationController
+        self.stopAndWaitForScheduledTaskRun = stopAndWaitForScheduledTaskRun
         self.saveDraftProjectMove = saveDraftProjectMove
         self.saveDeletionCommit = saveDeletionCommit
         self.saveThreadCreation = saveThreadCreation
@@ -115,11 +119,15 @@ final class SidebarViewModel {
         }
     }
 
-    func archiveThread(_ thread: AgentThread) async throws {
-        let dbThread = try requireThread(thread)
+    func archiveThread(
+        _ thread: AgentThread,
+        onPersistenceCommit: @escaping @MainActor () -> Void = {}
+    ) async throws {
+        var dbThread = try requireThread(thread)
         guard !dbThread.isDraft else {
             throw SidebarViewModelError.threadMissing
         }
+        dbThread = try await quiesceScheduledTaskRunIfNeeded(for: dbThread)
         let snapshot = try makeThreadArchiveSnapshot(dbThread)
         let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
         try backfillProviderSessionBindings(from: providerSessionResolution.records)
@@ -135,6 +143,7 @@ final class SidebarViewModel {
                 dbThread.archivedAt = Date()
                 _ = try normalizeSidebarOrderingForLifecycle()
                 try modelContext.save()
+                onPersistenceCommit()
                 refreshThreadOrder(animated: true)
                 postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
             } catch {
@@ -177,11 +186,27 @@ final class SidebarViewModel {
         presentProviderSessionActionDiagnostics(diagnostics)
     }
 
-    func deleteThread(_ thread: AgentThread) async throws {
-        let snapshot = try makeThreadCleanupSnapshot(thread)
-        // Keep this commit before the first suspension so a draft cannot be reused
-        // or materialized while its teardown continues from the immutable snapshot.
+    func deleteThread(
+        _ thread: AgentThread,
+        onPersistenceCommit: @escaping @MainActor () -> Void = {}
+    ) async throws {
+        let dbThread = try await quiesceScheduledTaskRunIfNeeded(for: requireThread(thread))
+        var snapshot = try makeThreadCleanupSnapshot(dbThread)
+        if snapshot.pendingScheduledWorktreeCleanup != nil {
+            do {
+                try await cleanupPendingScheduledWorktreeBeforeThreadDeletion(snapshot)
+            } catch {
+                throw SidebarViewModelError.threadDeletePreparationFailed(error)
+            }
+            guard let currentThread = modelContext.resolveThread(id: snapshot.threadID) else {
+                throw SidebarViewModelError.threadMissing
+            }
+            snapshot = try makeThreadCleanupSnapshot(from: currentThread)
+        }
+        // Pending scheduled cleanup deliberately retains the Task row as its retry owner.
+        // Every other path commits before teardown suspends so a draft cannot be reused or materialized.
         try commitThreadDeletion(snapshot)
+        onPersistenceCommit()
         invalidateConversationControllers(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 
@@ -265,14 +290,7 @@ final class SidebarViewModel {
             return
         }
 
-        for pendingCleanupBranch in snapshot.pendingCleanupBranches
-        where pendingCleanupBranch != snapshot.branch {
-            try await worktreeManager.deleteBranch(
-                projectPath: projectPath,
-                branch: pendingCleanupBranch
-            )
-        }
-
+        // Legacy pending branch names have no ref OID, so deleting them by name would be unsafe.
         if snapshot.requiresCompletedWorktreeCleanup {
             guard let worktreePath = snapshot.worktreePath,
                   let branch = snapshot.branch else {
@@ -294,37 +312,9 @@ final class SidebarViewModel {
         }
     }
 
-    func threadStatus(for thread: AgentThread) -> ThreadStatus {
-        if activeForkSourceThreadIDs.contains(thread.persistentModelID), thread.archivedAt == nil {
-            return .busy
-        }
-        return thread.displayStatus { agentsManager.status(for: $0.id) }
-    }
-
 }
 
 extension SidebarViewModel {
-    func requireProject(_ project: Project) throws -> Project {
-        let path = project.path
-        let descriptor = FetchDescriptor<Project>(
-            predicate: #Predicate { candidate in
-                candidate.path == path
-            }
-        )
-
-        guard let dbProject = try modelContext.fetch(descriptor).first else {
-            throw SidebarViewModelError.projectMissing
-        }
-        return dbProject
-    }
-
-    func requireThread(_ thread: AgentThread) throws -> AgentThread {
-        guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID) else {
-            throw SidebarViewModelError.threadMissing
-        }
-        return dbThread
-    }
-
     private func beginConversationTeardowns(_ conversationIDs: [String]) async {
         for conversationId in uniqueConversationIDs(conversationIDs) {
             await agentsManager.kill(conversationId: conversationId)

@@ -270,7 +270,7 @@ enum SidebarItem: Hashable {
         case .project:
             return true
         case .thread(let thread):
-            return thread.mode == .project
+            return thread.effectiveMode == .project
         case .skills, .mcp, .settings:
             return false
         }

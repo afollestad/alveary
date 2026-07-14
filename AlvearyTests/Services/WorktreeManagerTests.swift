@@ -5,124 +5,9 @@ import XCTest
 
 @MainActor
 final class WorktreeManagerTests: XCTestCase {
-    func testCreateUsesSetupScriptEnvironmentAndCollisionSuffix() async throws {
-        let projectURL = try makeTemporaryProject()
-        let worktreesBaseURL = try makeTemporaryWorktreesBase()
-        try writeProjectConfig(
-            at: projectURL,
-            json: """
-            {
-              "scripts": {
-                "setup": "echo setup",
-                "setupTimeoutSeconds": 45
-              },
-              "preservePatterns": [".env.local", "config/*.json"]
-            }
-            """
-        )
-        try "API_KEY=1".write(to: projectURL.appendingPathComponent(".env.local"), atomically: true, encoding: .utf8)
-        try FileManager.default.createDirectory(at: projectURL.appendingPathComponent("config"), withIntermediateDirectories: true)
-        try "{}".write(to: projectURL.appendingPathComponent("config/dev.json"), atomically: true, encoding: .utf8)
-
-        let shell = MockShellRunner()
-        await shell.enqueue(.success(Self.emptyShellResult()))
-        await shell.enqueue(.success(Self.failingShellResult()))
-        await shell.enqueue(.success(Self.emptyShellResult()))
-        await shell.enqueue(.success(Self.emptyShellResult()))
-        await shell.enqueue(.success(Self.emptyShellResult()))
-
-        let settings = InMemorySettingsService(current: {
-            var settings = AppSettings()
-            settings.branchPrefix = "af-"
-            settings.worktreesBaseDirectory = worktreesBaseURL.path
-            return settings
-        }())
-        let manager = DefaultWorktreeManager(settingsService: settings, shell: shell)
-
-        let info = try await manager.create(
-            projectPath: projectURL.path,
-            threadName: "Fix auth bug",
-            baseRef: "main",
-            remoteName: "origin"
-        )
-
-        XCTAssertTrue(info.branch.hasPrefix("af-"))
-        XCTAssertTrue(info.branch.hasSuffix("-2"))
-        XCTAssertEqual(URL(fileURLWithPath: info.path).lastPathComponent, String(info.branch.dropFirst("af-".count)))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: URL(fileURLWithPath: info.path).appendingPathComponent(".env.local").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: URL(fileURLWithPath: info.path).appendingPathComponent("config/dev.json").path))
-
-        let invocations = await shell.invocations
-        assertSetupInvocations(invocations, branch: info.branch, worktreePath: info.path)
-        assertLifecycleEnvironment(
-            invocations[4].environment,
-            threadName: "Fix auth bug",
-            branch: info.branch,
-            projectPath: projectURL.path,
-            worktreePath: info.path
-        )
-    }
-
-    func testCreateRollsBackWorktreeAndBranchWhenSetupFails() async throws {
-        let projectURL = try makeTemporaryProject()
-        let worktreesBaseURL = try makeTemporaryWorktreesBase()
-        try writeProjectConfig(
-            at: projectURL,
-            json: """
-            {
-              "scripts": {
-                "setup": "exit 1"
-              }
-            }
-            """
-        )
-
-        let shell = MockShellRunner()
-        await shell.enqueue(.success(Self.failingShellResult()))
-        await shell.enqueue(.success(Self.emptyShellResult()))
-        await shell.enqueue(.success(Self.emptyShellResult()))
-        await shell.enqueue(
-            .success(
-                ShellResult(
-                    stdout: "",
-                    stderr: "boom",
-                    exitCode: 1,
-                    stdoutWasTruncated: false,
-                    stderrWasTruncated: false
-                )
-            )
-        )
-        await shell.enqueue(.success(Self.emptyShellResult()))
-        await shell.enqueue(.success(Self.emptyShellResult()))
-
-        var settings = AppSettings()
-        settings.worktreesBaseDirectory = worktreesBaseURL.path
-        let manager = DefaultWorktreeManager(
-            settingsService: InMemorySettingsService(current: settings),
-            shell: shell
-        )
-
-        do {
-            _ = try await manager.create(
-                projectPath: projectURL.path,
-                threadName: "Broken setup",
-                baseRef: "main",
-                remoteName: "origin"
-            )
-            XCTFail("Expected setup failure")
-        } catch let error as GitError {
-            XCTAssertEqual(error, .commandFailed("Setup script failed: boom"))
-        }
-
-        let invocations = await shell.invocations
-        XCTAssertEqual(Array(invocations[4].args.prefix(3)), ["worktree", "remove", "--force"])
-        XCTAssertEqual(invocations[5].args.first, "branch")
-        XCTAssertEqual(invocations[5].args[1], "-D")
-    }
-
     // Regression test for the case where the user cancels creation while `git worktree add` is
     // mid-run. Cancellation terminates git via SIGTERM, the add call fails, and the manager must
-    // still clean up any partial worktree and rollback branch before rethrowing.
+    // still clean up any partial worktree without deleting a branch whose ownership is unproven.
     func testCreateCleansUpWhenWorktreeAddFails() async throws {
         let projectURL = try makeTemporaryProject()
         let worktreesBaseURL = try makeTemporaryWorktreesBase()
@@ -152,8 +37,6 @@ final class WorktreeManagerTests: XCTestCase {
                 )
             )
         )
-        await shell.enqueue(.success(Self.failingShellResult()))
-
         var settings = AppSettings()
         settings.worktreesBaseDirectory = worktreesBaseURL.path
         let manager = DefaultWorktreeManager(
@@ -174,10 +57,10 @@ final class WorktreeManagerTests: XCTestCase {
         }
 
         let invocations = await shell.invocations
-        XCTAssertGreaterThanOrEqual(invocations.count, 5, "Expected cleanup invocations after failed add")
-        XCTAssertEqual(Array(invocations[3].args.prefix(3)), ["worktree", "remove", "--force"])
-        XCTAssertEqual(invocations[4].args.first, "branch")
-        XCTAssertEqual(invocations[4].args[1], "-D")
+        XCTAssertEqual(invocations.count, 4, "Expected worktree cleanup without branch deletion after failed add")
+        let cleanupInvocation = try XCTUnwrap(invocations.last)
+        XCTAssertEqual(Array(cleanupInvocation.args.prefix(3)), ["worktree", "remove", "--force"])
+        XCTAssertFalse(invocations.contains { Array($0.args.prefix(2)) == ["update-ref", "-d"] })
     }
 
     // Regression test for the "first empty folder, retry makes `-2`" bug: when `git worktree add`
@@ -216,11 +99,11 @@ final class WorktreeManagerTests: XCTestCase {
         let projectURL = try makeTemporaryProject()
         let listOutput = """
         worktree \(projectURL.path)
-        HEAD abc123
+        HEAD \(WorktreeTestObjectID.main)
         branch refs/heads/main
 
         worktree \(projectURL.deletingLastPathComponent().appendingPathComponent("worktrees/demo").path)
-        HEAD def456
+        HEAD \(WorktreeTestObjectID.worktree)
         branch refs/heads/alveary/demo
         """
 
@@ -296,8 +179,7 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertEqual(invocations[1].directory, worktreeURL.path)
         XCTAssertEqual(invocations[1].timeout, .seconds(60))
         XCTAssertEqual(invocations[2].args, ["worktree", "remove", "--force", worktreeURL.path])
-        XCTAssertEqual(invocations[3].args, ["show-ref", "--verify", "--quiet", "refs/heads/alveary/demo"])
-        XCTAssertEqual(invocations[4].args, ["branch", "-D", "alveary/demo"])
+        XCTAssertEqual(invocations[3].args, ["update-ref", "-d", "--", "refs/heads/alveary/demo", WorktreeTestObjectID.worktree])
         assertLifecycleEnvironment(
             invocations[1].environment,
             threadName: "demo",
@@ -355,11 +237,11 @@ final class WorktreeManagerTests: XCTestCase {
 
         let listOutput = """
         worktree \(projectURL.path)
-        HEAD abc123
+        HEAD \(WorktreeTestObjectID.main)
         branch refs/heads/main
 
         worktree \(worktreeURL.path)
-        HEAD def456
+        HEAD \(WorktreeTestObjectID.worktree)
         branch refs/heads/alveary/demo
         """
 
@@ -392,8 +274,7 @@ final class WorktreeManagerTests: XCTestCase {
         XCTAssertEqual(invocations.map(\.args), [
             ["worktree", "list", "--porcelain"],
             ["worktree", "remove", "--force", worktreeURL.path],
-            ["show-ref", "--verify", "--quiet", "refs/heads/alveary/demo"],
-            ["branch", "-D", "alveary/demo"]
+            ["update-ref", "-d", "--", "refs/heads/alveary/demo", WorktreeTestObjectID.worktree]
         ])
         XCTAssertTrue(FileManager.default.fileExists(atPath: projectURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: namespaceDirectory.path))

@@ -69,6 +69,24 @@ final class ControllerFailingFlushGate {
 }
 
 @MainActor
+final class ControllerMaintenanceWaitGate {
+    private(set) var waitCallCount = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        waitCallCount += 1
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func open() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+@MainActor
 final class ControllerOutcomeCollector {
     private(set) var values: [ConversationControllerOutcome] = []
     private var task: Task<Void, Never>?

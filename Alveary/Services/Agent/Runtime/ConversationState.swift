@@ -190,6 +190,7 @@ final class ConversationState {
     var runtimeSpeedMode: AgentSpeedMode?
     var lastNonPlanPermissionMode: String?
     var liveSessionConfig: AgentSpawnConfig?
+    var isAutomatedScheduledRunActive = false
     var pendingSessionSettingsChange: PendingSessionSettingsChange?
     var retryableFailedMessageIDs: Set<String> = []
     var retryableFailedMessageStagedContexts: [String: String] = [:]

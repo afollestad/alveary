@@ -52,7 +52,7 @@ enum NewThreadProjectResolver {
             return modelContext.resolveProject(id: project.persistentModelID)
         case .thread(let thread):
             guard let thread = modelContext.resolveThread(id: thread.persistentModelID),
-                  thread.mode == .project else {
+                  thread.effectiveMode == .project else {
                 return nil
             }
             return thread.project
@@ -66,7 +66,7 @@ enum NewThreadProjectResolver {
                 return project(path: path, modelContext: modelContext)
             case .threadId(let id):
                 guard let thread = modelContext.resolveThread(id: id),
-                      thread.mode == .project else {
+                      thread.effectiveMode == .project else {
                     return nil
                 }
                 return thread.project
@@ -191,7 +191,7 @@ extension ContentView {
             path = uiModelContext.resolveProject(id: project.persistentModelID)?.path
         case .thread(let thread):
             guard let liveThread = uiModelContext.resolveThread(id: thread.persistentModelID),
-                  liveThread.mode == .project else {
+                  liveThread.effectiveMode == .project else {
                 return
             }
             path = liveThread.project?.path

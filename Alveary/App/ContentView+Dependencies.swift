@@ -19,6 +19,7 @@ struct ContentViewDependencies {
     let keepAwakeService: KeepAwakeService
     let worktreeManager: WorktreeManager
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
+    let scheduledTaskSchedulerCoordinator: ScheduledTaskSchedulerCoordinator
     let providerSessionActions: any ProviderSessionActionService
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
@@ -52,6 +53,7 @@ struct ContentViewDependencies {
             keepAwakeService: component.keepAwakeService,
             worktreeManager: component.worktreeManager,
             taskWorkspaceOwnershipService: component.taskWorkspaceOwnershipService,
+            scheduledTaskSchedulerCoordinator: component.scheduledTaskSchedulerCoordinator,
             providerSessionActions: component.providerSessionActionService,
             providerSetup: component.providerSetupService,
             contextWindowCache: component.contextWindowCache,

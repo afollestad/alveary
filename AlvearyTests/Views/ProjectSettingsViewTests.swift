@@ -4,6 +4,29 @@ import XCTest
 
 @MainActor
 final class ProjectSettingsViewTests: XCTestCase {
+    func testArchivedProjectThreadsExcludeLinkedScheduledRunWithFallbackMode() throws {
+        let fixture = try SidebarTestFixture()
+        let projectThread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-project",
+            archivedAt: Date(timeIntervalSinceReferenceDate: 100)
+        )
+        let project = try XCTUnwrap(projectThread.project)
+        let (linkedTask, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "project-settings-fallback-task"
+        )
+        linkedTask.modeRawValue = "future-mode"
+        linkedTask.project = project
+        linkedTask.archivedAt = Date(timeIntervalSinceReferenceDate: 200)
+        try fixture.context.save()
+
+        let archivedThreads = archivedProjectThreads(projectPath: project.path, modelContext: fixture.context)
+
+        XCTAssertEqual(archivedThreads.map(\.persistentModelID), [projectThread.persistentModelID])
+    }
+
     func testRestoreProjectSettingsArchivedThreadClearsArchiveFlag() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
@@ -140,9 +163,7 @@ final class ProjectSettingsViewTests: XCTestCase {
         let removeCalls = await fixture.worktreeManager.removeCalls()
 
         XCTAssertEqual(destroyCalls.sorted(), ["main", "side"])
-        XCTAssertEqual(deleteBranchCalls, [
-            .init(projectPath: "/tmp/alveary-project", branch: "alveary/stale")
-        ])
+        XCTAssertTrue(deleteBranchCalls.isEmpty)
         XCTAssertEqual(removeCalls, [
             .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
         ])

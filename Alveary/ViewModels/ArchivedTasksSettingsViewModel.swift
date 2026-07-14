@@ -41,13 +41,12 @@ final class ArchivedTasksSettingsViewModel {
         self.appState = appState
         self.settingsService = settingsService
         self.fetchArchivedTasks = fetchArchivedTasks ?? {
-            let taskMode = AgentThreadMode.task.rawValue
             let descriptor = FetchDescriptor<AgentThread>(
                 predicate: #Predicate { thread in
-                    thread.modeRawValue == taskMode && thread.archivedAt != nil && thread.isDraft == false
+                    thread.archivedAt != nil && thread.isDraft == false
                 }
             )
-            return try modelContext.fetch(descriptor)
+            return try modelContext.fetch(descriptor).filter { $0.effectiveMode == .task }
         }
     }
 
@@ -145,7 +144,7 @@ private extension ArchivedTasksSettingsViewModel {
 
     func archivedTask(id: PersistentIdentifier) -> AgentThread? {
         guard let thread = modelContext.resolveThread(id: id),
-              thread.mode == .task,
+              thread.effectiveMode == .task,
               thread.archivedAt != nil,
               !thread.isDraft else {
             return nil
@@ -178,7 +177,12 @@ private extension ArchivedTasksSettingsViewModel {
         let conversationIDs = Set(thread.conversations.map(\.persistentModelID))
 
         do {
-            try await sidebarViewModel.deleteThread(thread)
+            try await sidebarViewModel.deleteThread(thread) { [self] in
+                self.sanitizeDeletedTaskState(
+                    threadID: item.id,
+                    conversationIDs: conversationIDs
+                )
+            }
             sanitizeDeletedTaskState(threadID: item.id, conversationIDs: conversationIDs)
             refresh()
         } catch {

@@ -170,7 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 threadIDs?.contains(thread.persistentModelID) ?? true
             }
             let draftIDs = Set(drafts.map(\.persistentModelID))
-            let retainedPrivateWorkspaceMarkerIDs = try retainedPrivateWorkspaceMarkerIDs(
+            let retainedMarkerIDs = try retainedPrivateWorkspaceMarkerIDs(
                 excluding: draftIDs,
                 modelContext: modelContext
             )
@@ -193,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             do {
                 try dependencies.taskWorkspaceOwnershipService.removeOrphanedPrivateWorkspaces(
-                    retainingMarkerIDs: retainedPrivateWorkspaceMarkerIDs
+                    retainingMarkerIDs: retainedMarkerIDs
                 )
             } catch {
                 print("[AppDelegate] Failed to sweep orphaned Task workspaces: \(error)")
@@ -204,22 +204,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print("[AppDelegate] Failed to remove stale draft threads: \(error)")
             return []
         }
-    }
-
-    private func retainedPrivateWorkspaceMarkerIDs(
-        excluding threadIDs: Set<PersistentIdentifier>,
-        modelContext: ModelContext
-    ) throws -> Set<String> {
-        Set(try modelContext.fetch(FetchDescriptor<AgentThread>()).compactMap { thread -> String? in
-            guard !threadIDs.contains(thread.persistentModelID),
-                  thread.mode == .task,
-                  let workspace = thread.taskWorkspaceDescriptor,
-                  workspace.ownershipStrategy == .privateOwned else {
-                return nil
-            }
-            return workspace.ownershipMarkerID
-                ?? URL(fileURLWithPath: workspace.primaryRoot, isDirectory: true).lastPathComponent
-        })
     }
 
     func applicationWillTerminate(_ notification: Notification) {

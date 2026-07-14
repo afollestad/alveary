@@ -25,6 +25,7 @@ extension ChatItemGrouper {
             handleError(event)
         case "stop",
              ConversationEventRecord.steeredConversationType,
+             ConversationEventRecord.scheduledTaskNoteType,
              ConversationContextCompaction.startedType,
              ConversationContextCompaction.completedType,
              ConversationContextCompaction.failedType:

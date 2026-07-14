@@ -2,8 +2,15 @@ import Foundation
 
 extension SidebarViewModel {
     func cleanupTaskWorkspace(_ snapshot: ThreadCleanupSnapshot) async throws {
+        if let pendingCleanup = snapshot.pendingScheduledWorktreeCleanup {
+            try await cleanupPendingScheduledWorktree(
+                pendingCleanup,
+                runID: snapshot.scheduledTaskRunID
+            )
+        }
+
         guard let workspace = snapshot.taskWorkspace else {
-            throw SidebarViewModelError.threadMissingTaskWorkspace
+            return
         }
 
         switch workspace.ownershipStrategy {
@@ -42,26 +49,64 @@ private extension SidebarViewModel {
               snapshot.sourceProjectPath == sourceProjectPath else {
             throw SidebarViewModelError.threadMissingDeletionMetadata
         }
-        guard directoryExists(at: sourceProjectPath) else {
+        guard let sourceProjectIdentity = currentSourceProjectIdentity(
+            for: workspace,
+            sourceProjectPath: sourceProjectPath
+        ) else {
             try taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
             return
+        }
+        guard let worktreeIdentity = try taskWorkspaceOwnershipService.ownedWorktreeIdentity(for: workspace) else {
+            throw SidebarViewModelError.threadMissingDeletionMetadata
         }
 
-        let isRegistered = try await taskWorktreeIsRegistered(workspace, sourceProjectPath: sourceProjectPath)
-        guard isRegistered else {
+        let registeredWorktree = try await registeredTaskWorktree(workspace, sourceProjectPath: sourceProjectPath)
+        guard currentDirectoryIdentity(at: sourceProjectPath) == sourceProjectIdentity else {
             try taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
             return
         }
-        try await removeRegisteredTaskWorktree(workspace, snapshot: snapshot, sourceProjectPath: sourceProjectPath)
+        guard let registeredWorktree else {
+            try taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
+            return
+        }
+        let branchToDelete = snapshot.branch.flatMap { originalBranch in
+            registeredWorktree.branch == originalBranch ? originalBranch : nil
+        }
+        try await removeRegisteredTaskWorktree(
+            workspace,
+            branch: branchToDelete,
+            sourceProjectPath: sourceProjectPath,
+            sourceProjectIdentity: sourceProjectIdentity,
+            worktreeIdentity: worktreeIdentity
+        )
     }
 
-    func taskWorktreeIsRegistered(
+    func currentSourceProjectIdentity(
+        for workspace: TaskWorkspaceDescriptor,
+        sourceProjectPath: String
+    ) -> TaskWorkspaceFileSystemIdentity? {
+        guard CanonicalPath.normalize(sourceProjectPath) == sourceProjectPath,
+              directoryExists(at: sourceProjectPath),
+              let expectedIdentity = try? taskWorkspaceOwnershipService.sourceProjectIdentity(
+                  forOwnedWorktree: workspace
+              ),
+              let currentIdentity = try? taskWorkspaceOwnershipService.directoryIdentity(at: sourceProjectPath) else {
+            return nil
+        }
+        return currentIdentity == expectedIdentity ? expectedIdentity : nil
+    }
+
+    func currentDirectoryIdentity(at path: String) -> TaskWorkspaceFileSystemIdentity? {
+        try? taskWorkspaceOwnershipService.directoryIdentity(at: path)
+    }
+
+    func registeredTaskWorktree(
         _ workspace: TaskWorkspaceDescriptor,
         sourceProjectPath: String
-    ) async throws -> Bool {
+    ) async throws -> WorktreeInfo? {
         do {
             let worktrees = try await worktreeManager.list(projectPath: sourceProjectPath)
-            return worktrees.contains { CanonicalPath.normalize($0.path) == workspace.primaryRoot }
+            return worktrees.first { CanonicalPath.normalize($0.path) == workspace.primaryRoot }
         } catch {
             try finalizeOwnedTaskWorkspace(
                 workspace,
@@ -69,20 +114,24 @@ private extension SidebarViewModel {
                 failure: TaskWorkspaceCleanupError.gitInspectionFailed,
                 combinedFailure: TaskWorkspaceCleanupError.gitInspectionAndFallbackFailed
             )
-            return false
+            return nil
         }
     }
 
     func removeRegisteredTaskWorktree(
         _ workspace: TaskWorkspaceDescriptor,
-        snapshot: ThreadCleanupSnapshot,
-        sourceProjectPath: String
+        branch: String?,
+        sourceProjectPath: String,
+        sourceProjectIdentity: TaskWorkspaceFileSystemIdentity,
+        worktreeIdentity: TaskWorkspaceFileSystemIdentity
     ) async throws {
         do {
             try await worktreeManager.remove(
                 projectPath: sourceProjectPath,
                 worktreePath: workspace.primaryRoot,
-                branch: snapshot.branch
+                branch: branch,
+                expectedProjectIdentity: sourceProjectIdentity,
+                expectedWorktreeIdentity: worktreeIdentity
             )
         } catch {
             try finalizeOwnedTaskWorkspace(
@@ -111,7 +160,11 @@ private extension SidebarViewModel {
     }
 }
 
-private enum TaskWorkspaceCleanupError: LocalizedError {
+enum TaskWorkspaceCleanupError: LocalizedError {
+    case pendingScheduledCleanupAlreadyInProgress
+    case sourceProjectChanged(String)
+    case pendingGitCleanupFailed(Error)
+    case pendingGitAndFallbackFailed(gitError: Error, fallbackError: Error)
     case gitInspectionFailed(Error)
     case gitInspectionAndFallbackFailed(gitError: Error, fallbackError: Error)
     case gitRemovalFailed(Error)
@@ -121,6 +174,15 @@ private enum TaskWorkspaceCleanupError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .pendingScheduledCleanupAlreadyInProgress:
+            return "The Task's pending worktree cleanup is already in progress."
+        case .sourceProjectChanged(let path):
+            return "Git cleanup was deferred because the Task's source Project directory changed: \(path)"
+        case .pendingGitCleanupFailed(let error):
+            return "The owned Task workspace was removed, but its pending Git cleanup failed: \(error.localizedDescription)"
+        case let .pendingGitAndFallbackFailed(gitError, fallbackError):
+            return "Pending Git cleanup failed (\(gitError.localizedDescription)), and exact owned-workspace cleanup also failed: " +
+                fallbackError.localizedDescription
         case .gitInspectionFailed(let error):
             return "The owned Task workspace was removed, but its Git worktree metadata could not be inspected: \(error.localizedDescription)"
         case let .gitInspectionAndFallbackFailed(gitError, fallbackError):

@@ -35,6 +35,37 @@ extension SidebarViewModelTests {
         XCTAssertNotNil(fixture.context.resolveThread(id: graph.completedTaskThreadID))
     }
 
+    func testProjectDeletionPreservesLinkedRunTaskWhenModeFallsBackToProject() throws {
+        let fixture = try SidebarTestFixture()
+        let graph = try ScheduledProjectDeletionGraph.insert(into: fixture.context)
+        let taskThread = try XCTUnwrap(graph.run.thread)
+        let taskThreadID = taskThread.persistentModelID
+        let runID = graph.run.persistentModelID
+        let taskPrimaryRoot = taskThread.taskPrimaryRoot
+        taskThread.modeRawValue = "future-mode"
+        taskThread.project = graph.project
+        try fixture.context.save()
+
+        let snapshot = try fixture.viewModel.makeProjectDeletionSnapshot(graph.project)
+
+        XCTAssertTrue(snapshot.detachedTaskThreadIDs.contains(taskThreadID))
+        XCTAssertFalse(snapshot.threadSnapshots.contains { $0.threadID == taskThreadID })
+
+        try fixture.viewModel.commitProjectDeletion(
+            snapshot,
+            at: Date(timeIntervalSince1970: 1_000)
+        )
+
+        let retainedThread = try XCTUnwrap(fixture.context.resolveThread(id: taskThreadID))
+        XCTAssertEqual(retainedThread.modeRawValue, "future-mode")
+        XCTAssertEqual(retainedThread.taskPrimaryRoot, taskPrimaryRoot)
+        XCTAssertNil(retainedThread.project)
+        XCTAssertEqual(
+            fixture.context.resolveScheduledTaskRun(id: runID)?.thread?.persistentModelID,
+            taskThreadID
+        )
+    }
+
     func testProjectDeletionRollsBackSchedulePauseAndDetachWhenCommitFails() throws {
         let fixture = try SidebarTestFixture(
             saveDeletionCommit: { _ in

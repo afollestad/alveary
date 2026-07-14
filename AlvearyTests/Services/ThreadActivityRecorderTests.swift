@@ -162,6 +162,44 @@ final class ThreadActivityRecorderTests: XCTestCase {
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
     }
 
+    func testLinkedScheduledRunUsesTaskActivityScopeWhenPersistedModeFallsBackToProject() async throws {
+        let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
+        let fixture = try ThreadActivityRecorderFixture(clock: clock)
+        let linkedTask = fixture.insertThread(
+            name: "Fallback scheduled task",
+            modifiedAt: Date(timeIntervalSince1970: 100),
+            conversationIDs: ["fallback-scheduled-task"]
+        )
+        linkedTask.modeRawValue = "future-mode"
+        let run = makeThreadActivityScheduledRun()
+        run.thread = linkedTask
+        linkedTask.scheduledTaskRun = run
+        fixture.context.insert(run)
+        try fixture.save()
+        let expectation = expectation(description: "fallback scheduled task activity notification")
+        let notificationPayload = NotificationPayloadRecorder()
+        let observer = NotificationCenter.default.addObserver(
+            forName: .threadActivityChanged,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard notification.userInfo?[ThreadActivityNotificationKey.conversationID] as? String == "fallback-scheduled-task" else {
+                return
+            }
+            notificationPayload.record(notification.userInfo)
+            expectation.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        fixture.recorder.recordVisibleOutbound(conversationId: "fallback-scheduled-task")
+
+        await fulfillment(of: [expectation], timeout: 1)
+        let payload = notificationPayload.payload()
+        XCTAssertEqual(linkedTask.modifiedAt, clock.now)
+        XCTAssertEqual(payload?[ThreadActivityNotificationKey.threadMode] as? String, AgentThreadMode.task.rawValue)
+        XCTAssertNil(payload?[ThreadActivityNotificationKey.projectPath])
+    }
+
     func testPinnedTaskActivityUpdatesTimestampWithoutChangingTaskOrder() async throws {
         let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
         let fixture = try ThreadActivityRecorderFixture(clock: clock)
@@ -400,4 +438,23 @@ private final class NotificationPayloadRecorder: @unchecked Sendable {
             recordedPayload
         }
     }
+}
+
+private func makeThreadActivityScheduledRun() -> ScheduledTaskRun {
+    ScheduledTaskRun(
+        occurrenceID: UUID().uuidString,
+        definitionID: "thread-activity-definition",
+        definitionRevision: 1,
+        occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000),
+        triggerKind: .scheduled,
+        status: .success,
+        titleSnapshot: "Scheduled task",
+        promptSnapshot: "Run scheduled work.",
+        timeZoneIdentifierSnapshot: "UTC",
+        providerIDSnapshot: "codex",
+        effortSnapshot: "high",
+        permissionModeSnapshot: "default",
+        workspaceKindSnapshot: .privateWorkspace,
+        workspaceStrategySnapshot: .worktree
+    )
 }

@@ -49,6 +49,10 @@ extension DefaultAgentsManager {
         cancelTurnWithAgentCLIKit(conversationId: conversationId)
     }
 
+    func discardInactiveDeferredInteractionRuntime(conversationId: String) async {
+        await discardInactiveDeferredInteractionRuntimeWithAgentCLIKit(conversationId: conversationId)
+    }
+
     func suspendRuntime(conversationId: String) async {
         await suspendRuntimeWithAgentCLIKit(conversationId: conversationId)
     }

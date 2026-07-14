@@ -11,6 +11,7 @@ actor MockProviderSetupService: ProviderSetupService {
 
     private var recordedCalls: [Call] = []
     private var trustedProjectPaths: Set<String> = []
+    private var prepareForSpawnHook: (@Sendable () async -> Void)?
     private nonisolated let cachedTrust = MockProviderSetupTrustCache()
 
     nonisolated func cachedProjectTrustStatus(providerId: String, workingDirectory: String) -> Bool? {
@@ -34,6 +35,9 @@ actor MockProviderSetupService: ProviderSetupService {
         if autoTrust {
             setTrustedProject(workingDirectory, isTrusted: true)
         }
+        let hook = prepareForSpawnHook
+        prepareForSpawnHook = nil
+        await hook?()
     }
 
     func isTrustedProject(providerId: String, workingDirectory: String) async -> Bool {
@@ -60,5 +64,9 @@ actor MockProviderSetupService: ProviderSetupService {
 
     func calls() -> [Call] {
         recordedCalls
+    }
+
+    func setPrepareForSpawnHook(_ hook: @escaping @Sendable () async -> Void) {
+        prepareForSpawnHook = hook
     }
 }

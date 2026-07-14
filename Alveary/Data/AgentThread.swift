@@ -107,6 +107,13 @@ extension AgentThread {
         set { modeRawValue = newValue.rawValue }
     }
 
+    /// Durable identity for lifecycle and presentation routing. A scheduled-run relationship
+    /// is definitive Task provenance even when a future or legacy raw mode falls back to Project.
+    /// Workspace decoding continues to use `mode` so malformed workspace state still fails closed.
+    var effectiveMode: AgentThreadMode {
+        scheduledTaskRun == nil ? mode : .task
+    }
+
     var taskWorkspaceDescriptor: TaskWorkspaceDescriptor? {
         get {
             guard mode == .task,
@@ -119,11 +126,11 @@ extension AgentThread {
             }
 
             return TaskWorkspaceDescriptor(
-                primaryRoot: taskPrimaryRoot,
-                grantedRoots: taskGrantedRoots,
+                persistedPrimaryRoot: taskPrimaryRoot,
+                persistedGrantedRoots: taskGrantedRoots,
                 ownershipStrategy: ownershipStrategy,
                 ownershipMarkerID: taskWorkspaceMarkerID,
-                sourceProjectPath: taskSourceProjectPath
+                persistedSourceProjectPath: taskSourceProjectPath
             )
         }
         set {
@@ -136,7 +143,7 @@ extension AgentThread {
     }
 
     var primaryWorkingDirectory: String? {
-        switch mode {
+        switch effectiveMode {
         case .project:
             worktreePath ?? project?.path
         case .task:
@@ -145,7 +152,7 @@ extension AgentThread {
     }
 
     var sourceProjectCleanupPath: String? {
-        switch mode {
+        switch effectiveMode {
         case .project:
             project?.path
         case .task:

@@ -42,6 +42,8 @@ final class ConversationViewModel {
     @ObservationIgnored var promptDismissalSuppressedApprovals: [ToolApprovalRequest] = []
     @ObservationIgnored var promptDismissalHandledApprovalKeys: Set<ClaudeToolApprovalKey> = []
     @ObservationIgnored var commitMessageGenerationContinuation: CheckedContinuation<String, Error>?
+    @ObservationIgnored var automatedScheduledUserStopRequest: AutomatedScheduledUserStopRequest?
+    @ObservationIgnored var automatedScheduledExecutionRunID: String?
     @ObservationIgnored var draftMaterializationSaver: () throws -> Void
 
     var streamingText: String? { state.streamingText }
@@ -63,7 +65,9 @@ final class ConversationViewModel {
     }
 
     var canSteerCurrentTurn: Bool {
-        !state.isNormalSteeringBlockedBySessionHandoff && providerCanSteerCurrentTurn
+        !state.isNormalSteeringBlockedBySessionHandoff &&
+            !defersOrdinaryScheduledOutbound &&
+            providerCanSteerCurrentTurn
     }
 
     var lastTurnError: String? {
@@ -161,86 +165,9 @@ final class ConversationViewModel {
     }
 
     func startAgent(config: AgentSpawnConfig) async throws {
-        try await withOutboundReservation {
+        try await withOrdinaryOutboundReservation {
             try await startAgentReserved(config: config)
         }
-    }
-
-    func steer(_ message: String, supportsLocalImageInput: Bool = true) async throws {
-        guard !state.isNormalSteeringBlockedBySessionHandoff else {
-            throw AgentError.spawnFailed("Session handoff is in progress")
-        }
-        guard providerCanSteerCurrentTurn else {
-            throw AgentError.spawnFailed("Wait for the agent to be actively working before steering")
-        }
-
-        let outbound = try OutboundMessageText(visibleText: message).resolvingImageAttachments(
-            state.stagedImageAttachments,
-            supportsLocalImageInput: supportsLocalImageInput,
-            fallbackText: fallbackText(visibleText:attachments:)
-        ).resolvingFileAttachments(
-            state.stagedFileAttachments,
-            fallbackText: fallbackText(visibleText:fileAttachments:)
-        ).resolvingAppShots(
-            state.stagedAppShots,
-            providerID: conversation.provider ?? settingsService.current.defaultProvider
-        )
-        try await ensureAppShotProviderPrerequisites(appShots: outbound.appShots)
-
-        try await withOutboundReservation {
-            guard let dbConversation = dbConversation() else {
-                throw AgentError.spawnFailed("Conversation no longer exists")
-            }
-
-            let localMessage = prepareVisibleSteeringAttempt(outbound, in: dbConversation)
-            do {
-                try await sendVisibleSteeringMessage(
-                    outbound.transportText ?? outbound.visibleText,
-                    steeringInputID: localMessage.id,
-                    attachments: outbound.attachments,
-                    providerMetadata: outbound.providerMetadata
-                )
-                markVisibleTurnStarted()
-                state.turnState.beginTurn()
-                state.clearRetryableFailedMessage(id: localMessage.id)
-                state.markTranscriptImageAttachments(id: localMessage.id, attachments: outbound.attachments)
-                state.markTranscriptFileAttachments(id: localMessage.id, attachments: outbound.consumedFileAttachments)
-                state.markTranscriptAppShots(id: localMessage.id, appShots: outbound.appShots)
-            } catch {
-                state.markRetryableFailedMessage(
-                    id: localMessage.id,
-                    stagedContext: nil,
-                    transportText: outbound.transportText,
-                    attachments: outbound.attachments,
-                    fileAttachments: outbound.consumedFileAttachments,
-                    appShots: outbound.appShots,
-                    providerMetadata: outbound.providerMetadata
-                )
-                state.lastTurnError = "Steer failed: \(error.localizedDescription)"
-                throw error
-            }
-        }
-    }
-
-    private func prepareVisibleSteeringAttempt(
-        _ outbound: OutboundMessageText,
-        in dbConversation: Conversation
-    ) -> ConversationEventRecord {
-        let localMessage = insertLocalUserMessage(
-            outbound.visibleText,
-            into: dbConversation,
-            imageAttachments: outbound.attachments,
-            fileAttachments: outbound.consumedFileAttachments,
-            appShots: outbound.appShots
-        )
-        clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
-        clearStagedFileAttachmentsIfTheyMatch(outbound.consumedFileAttachments)
-        clearStagedAppShotsIfTheyMatch(outbound.consumedAppShots)
-        state.lastTurnInterrupted = false
-        state.isCancellingTurn = false
-        state.lastTurnError = nil
-        state.activeRuntimeActivityTurnId = nil
-        return localMessage
     }
 
     func answerPrompt(promptId: String, answers: [(question: String, answer: String)]) async throws -> String {
@@ -386,6 +313,33 @@ final class ConversationViewModel {
     }
 
     func cancel() async {
+        if let stopRequest = takeAutomatedScheduledUserStopRequest() {
+            do {
+                try await stopRequest.handler()
+            } catch {
+                state.lastTurnError = error.localizedDescription
+            }
+            return
+        }
+
+        await cancelConversationActivity()
+    }
+
+    func cancelAutomatedScheduledConversationActivity() async {
+        guard state.isAutomatedScheduledRunActive else {
+            return
+        }
+        supersedeAutomatedScheduledPendingInteractions()
+        if await interruptInactiveAutomatedScheduledDeferredInteractionIfNeeded() {
+            return
+        }
+        guard state.isAutomatedScheduledRunActive else {
+            return
+        }
+        await cancelConversationActivity()
+    }
+
+    private func cancelConversationActivity() async {
         if let task = initialSetupTask {
             initialSetupTask = nil
             // Flip the UI into a dedicated cancelling state so the stop button is replaced
@@ -397,7 +351,6 @@ final class ConversationViewModel {
             // does not touch this flag, so clear it here on whichever state the view model now
             // observes — a no-op on a freshly replaced state, and the UI reset on the retained one.
             state.isCancellingInitialSetup = false
-            return
         }
 
         guard isAgentActivelyWorking else {

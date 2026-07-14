@@ -7,9 +7,10 @@ struct TaskWorkspaceOwnershipRecord: Codable, Equatable {
     let ownershipStrategy: TaskWorkspaceOwnershipStrategy
     let sourceProjectPath: String?
     let fileSystemIdentity: TaskWorkspaceFileSystemIdentity?
+    let sourceProjectIdentity: TaskWorkspaceFileSystemIdentity?
 }
 
-struct TaskWorkspaceFileSystemIdentity: Codable, Equatable {
+struct TaskWorkspaceFileSystemIdentity: Codable, Equatable, Sendable {
     let systemNumber: UInt64
     let fileNumber: UInt64
 }

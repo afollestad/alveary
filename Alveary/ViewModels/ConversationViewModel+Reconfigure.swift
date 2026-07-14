@@ -3,6 +3,7 @@ import Foundation
 extension ConversationViewModel {
     @discardableResult
     func reconfigureSession(config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
+        try ensureOrdinaryScheduledOutboundAvailable()
         guard !isAgentActivelyWorking, !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn/send to finish before applying session changes")
         }
@@ -17,7 +18,7 @@ extension ConversationViewModel {
         defer { state.isReconfiguringSession = false }
 
         await flushPendingSaveIfNeeded()
-        await prepareForSpawn(config: config)
+        try await prepareForSpawn(config: config)
         let result = try await performRuntimeReconfigure(config: config)
         applyReconfigureResult(result, config: config)
         return result

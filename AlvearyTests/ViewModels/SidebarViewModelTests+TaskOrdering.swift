@@ -71,6 +71,37 @@ extension SidebarViewModelTests {
         XCTAssertFalse(fixture.viewModel.hasAnyActiveTaskThreads())
     }
 
+    func testLinkedScheduledRunsWithFallbackModesRemainActiveTasksAndSuppressEmptyState() throws {
+        let fixture = try SidebarTestFixture()
+        let (projectModeTask, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "project-mode-active-task"
+        )
+        let (unknownModeTask, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "unknown-mode-active-task"
+        )
+        projectModeTask.modeRawValue = AgentThreadMode.project.rawValue
+        projectModeTask.modifiedAt = Date(timeIntervalSinceReferenceDate: 200)
+        unknownModeTask.modeRawValue = "future-mode"
+        unknownModeTask.modifiedAt = Date(timeIntervalSinceReferenceDate: 100)
+        try fixture.context.save()
+
+        let activeTasks = fixture.viewModel.activeTaskThreads()
+
+        XCTAssertEqual(activeTasks.map(\.persistentModelID), [
+            projectModeTask.persistentModelID,
+            unknownModeTask.persistentModelID
+        ])
+        XCTAssertTrue(fixture.viewModel.hasAnyActiveTaskThreads())
+        XCTAssertFalse(shouldShowNoTasksPlaceholder(
+            activeTaskThreads: activeTasks,
+            hasAnyActiveTaskThreads: fixture.viewModel.hasAnyActiveTaskThreads()
+        ))
+    }
+
     func testPinnedItemsIncludeTasksEvenWhenTheirBackingProjectIsPinned() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(
@@ -157,6 +188,37 @@ extension SidebarViewModelTests {
             fixture.viewModel.pinnedItems(projects: [project]).map(\.dragItem),
             [.project(project.persistentModelID), .pinnedTask(task.persistentModelID)]
         )
+    }
+
+    func testLinkedScheduledRunWithUnknownModeUsesPinnedTaskDomain() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(
+            path: "/tmp/pinned-fallback-task-owner",
+            name: "Pinned Project",
+            isPinned: true,
+            pinnedSortOrder: 0
+        )
+        fixture.context.insert(project)
+        let (task, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "unknown-mode-pinned-task"
+        )
+        task.modeRawValue = "future-mode"
+        task.project = project
+        try fixture.context.save()
+
+        try fixture.viewModel.setThreadPinned(task, isPinned: true)
+
+        XCTAssertTrue(task.isPinned)
+        XCTAssertEqual(
+            fixture.viewModel.pinnedItems(projects: [project]).map(\.dragItem),
+            [.project(project.persistentModelID), .pinnedTask(task.persistentModelID)]
+        )
+        XCTAssertFalse(try fixture.viewModel.commitSidebarDrop(
+            dragItem: .pinnedTask(task.persistentModelID),
+            target: SidebarDropTarget(section: .projects, placement: .end)
+        ))
     }
 
     func testCommitSidebarDropReordersPinnedTaskWithinMixedPinnedItems() throws {

@@ -183,7 +183,7 @@ private extension ConversationViewModel {
         config: AgentSpawnConfig
     ) async throws {
         if !isResolvingLiveHookApproval {
-            await prepareForSpawn(config: config)
+            try await prepareForSpawn(config: config)
         }
         await flushPendingSaveIfNeeded()
         if !isResolvingLiveHookApproval {

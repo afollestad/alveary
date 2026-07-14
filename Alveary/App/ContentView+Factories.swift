@@ -41,6 +41,9 @@ extension ContentView {
                     for: ConversationControllerKey(conversationID: conversationID)
                 )
             },
+            stopAndWaitForScheduledTaskRun: { runID in
+                try await dependencies.scheduledTaskSchedulerCoordinator.stopAndWait(runID: runID)
+            },
             presentUnexpectedError: { message in
                 appState.presentUnexpectedError(message: message)
             },
