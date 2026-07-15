@@ -53,6 +53,17 @@ final class SnapshotTests: XCTestCase {
         ))
     }
 
+    func testSnapshotHostTeardownSuspendsForQueuedMainActorWork() async {
+        let probe = SnapshotHostTeardownProbe()
+        Task { @MainActor [probe] in
+            probe.didRun = true
+        }
+
+        XCTAssertFalse(probe.didRun)
+        await awaitSnapshotHostTeardown(retaining: probe)
+        XCTAssertTrue(probe.didRun)
+    }
+
     func testAutomaticOneXSnapshotFallbackNormalizesUniformCornerBackground() {
         let reference = snapshotBackgroundNormalizationTestImage(
             background: SnapshotPixel(red: 64, green: 64, blue: 64, alpha: 255)
@@ -117,6 +128,11 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+}
+
+@MainActor
+private final class SnapshotHostTeardownProbe {
+    var didRun = false
 }
 
 private func snapshotBackgroundNormalizationTestImage(background: SnapshotPixel) -> NSImage {

@@ -103,6 +103,53 @@ extension AppUpdateManagerTests {
         XCTAssertEqual(manager.toolbarBadgeState, .readyToInstall)
     }
 
+    func testAutomaticChecksTreatMissingStagedUpdateAsIdleAndContinueToReleaseCheck() async throws {
+        let release = try makeManagerTestRelease(tagName: "v0.1.1")
+        let manager = AppUpdateManager(
+            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.1"),
+            stager: AppUpdateStagerFake()
+        )
+        defer { manager.stopAutomaticChecks() }
+
+        manager.startAutomaticChecks()
+        try await waitUntil("expected automatic check after staged update load") {
+            manager.status == .upToDate(
+                release,
+                currentVersion: AppUpdateVersion(string: "0.1.1")!
+            )
+        }
+
+        XCTAssertEqual(manager.downloadState, .idle)
+        XCTAssertNil(manager.stagedUpdate)
+        XCTAssertNil(manager.restartPrompt)
+        XCTAssertEqual(manager.toolbarBadgeState, .none)
+    }
+
+    func testAutomaticChecksPreserveRealStagedLoadFailure() async throws {
+        let release = try makeManagerTestRelease(tagName: "v0.1.1")
+        let failure = AppUpdateFailure(message: "The staged app signature is invalid.")
+        let manager = AppUpdateManager(
+            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.1"),
+            stager: AppUpdateStagerFake(loadError: failure)
+        )
+        defer { manager.stopAutomaticChecks() }
+
+        manager.startAutomaticChecks()
+        try await waitUntil("expected automatic check after staged load failure") {
+            manager.status == .upToDate(
+                release,
+                currentVersion: AppUpdateVersion(string: "0.1.1")!
+            )
+        }
+
+        XCTAssertEqual(manager.downloadState, .failed(failure))
+        XCTAssertNil(manager.stagedUpdate)
+        XCTAssertNil(manager.restartPrompt)
+        XCTAssertEqual(manager.toolbarBadgeState, .none)
+    }
+
     func testInstallDownloadedUpdateDelegatesToInstaller() async throws {
         let release = try makeManagerTestRelease(tagName: "v0.1.1")
         let stagedUpdate = try makeManagerTestStagedUpdate(release: release)
@@ -168,14 +215,17 @@ private actor AppUpdateStagerFake: AppUpdateStaging {
 
     private let stageResult: StagedAppUpdate?
     private let loadResult: StagedAppUpdate?
+    private let loadError: AppUpdateFailure?
     private var requests: [StageRequest] = []
 
     init(
         stageResult: StagedAppUpdate? = nil,
-        loadResult: StagedAppUpdate? = nil
+        loadResult: StagedAppUpdate? = nil,
+        loadError: AppUpdateFailure? = nil
     ) {
         self.stageResult = stageResult
         self.loadResult = loadResult
+        self.loadError = loadError
     }
 
     func stageDownloadedUpdate(
@@ -190,7 +240,10 @@ private actor AppUpdateStagerFake: AppUpdateStaging {
     }
 
     func loadValidatedStagedUpdate() async throws -> StagedAppUpdate? {
-        loadResult
+        if let loadError {
+            throw loadError
+        }
+        return loadResult
     }
 
     func stageRequests() -> [StageRequest] {

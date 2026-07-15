@@ -30,23 +30,25 @@ extension SnapshotTests {
         try sidebar.fixture.context.save()
         await sidebar.fixture.agentsManager.setStatus(.idle, for: conversation.id)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
             size: CGSize(width: 360, height: 720),
             named: "sidebar_mixed_pinned_project_thread_task"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
+        }
     }
 
     func testSidebarViewEmptyTasksWide() async throws {
         let sidebar = try await makeTaskSidebarSnapshotFixture()
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
             size: CGSize(width: 360, height: 720),
             named: "sidebar_tasks_empty_wide"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
+        }
     }
 
     func testSidebarViewAllTasksPinnedDark() async throws {
@@ -54,13 +56,14 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = sidebar.tasks.first.map(SidebarItem.thread)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_tasks_all_pinned_dark",
             colorScheme: .dark
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 
     func testSidebarViewMixedTasksNarrow() async throws {
@@ -69,12 +72,13 @@ extension SnapshotTests {
             activeNames: ["Newest task", "Older task"]
         )
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
             size: CGSize(width: 240, height: 720),
             named: "sidebar_tasks_mixed_narrow"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
+        }
     }
 
     func testSidebarViewLongTaskRowsWide() async throws {
@@ -82,11 +86,12 @@ extension SnapshotTests {
             "Review the extraordinarily long natural-language scheduled task configuration and workspace grants"
         ])
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
             size: CGSize(width: 360, height: 720),
             named: "sidebar_tasks_long_row_wide"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
+        }
     }
 }

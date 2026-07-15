@@ -266,10 +266,7 @@ extension SnapshotTests {
 
     func testThreadDetailViewSelectedConversationTabStatusUpdatesAfterNotification() async throws {
         let fixture = try ThreadDetailStatusFixture()
-        let host = MountedMacSnapshotHost(
-            fixture.view,
-            size: CGSize(width: 760, height: 72)
-        )
+        let host = MountedMacSnapshotHost(fixture.view, size: CGSize(width: 760, height: 72))
 
         host.assertSnapshot(named: "thread_detail_selected_tab_idle")
 
@@ -286,6 +283,8 @@ extension SnapshotTests {
         await Task.yield()
 
         host.assertSnapshot(named: "thread_detail_selected_tab_busy_after_notification")
+        host.close()
+        await awaitSnapshotHostTeardown(retaining: fixture)
     }
 }
 
@@ -495,4 +494,6 @@ private final class MountedMacSnapshotHost<Content: View> {
             line: line
         )
     }
+
+    func close() { closeSnapshotWindow(window, controller: controller) }
 }

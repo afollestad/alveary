@@ -2,6 +2,7 @@ import Foundation
 
 struct DefaultAppUpdateStager: AppUpdateStaging, @unchecked Sendable {
     private let updatesDirectory: URL
+    private let storagePaths: AppUpdateStoragePaths
     private let shellRunner: any ShellRunner
     private let fileManager: FileManager
     private let bundle: Bundle
@@ -15,6 +16,7 @@ struct DefaultAppUpdateStager: AppUpdateStaging, @unchecked Sendable {
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.updatesDirectory = updatesDirectory
+        self.storagePaths = AppUpdateStoragePaths(updatesDirectory: updatesDirectory)
         self.shellRunner = shellRunner
         self.fileManager = fileManager
         self.bundle = bundle
@@ -54,10 +56,8 @@ struct DefaultAppUpdateStager: AppUpdateStaging, @unchecked Sendable {
         let extractedAppURL = extractedDirectory.appendingPathComponent("Alveary.app", isDirectory: true)
         try await validateExtractedApp(extractedAppURL, release: release)
 
-        let stagedDirectory = updatesDirectory
-            .appendingPathComponent("Staged", isDirectory: true)
-            .appendingPathComponent(release.tagName.sanitizedForPathComponent, isDirectory: true)
-        let stagedAppURL = stagedDirectory.appendingPathComponent("Alveary.app", isDirectory: true)
+        let stagedAppURL = try storagePaths.stagedAppURL(directoryName: release.tagName.sanitizedForPathComponent)
+        let stagedDirectory = stagedAppURL.deletingLastPathComponent()
         try? fileManager.removeItem(at: stagedDirectory)
         try fileManager.createDirectory(
             at: stagedDirectory,
@@ -68,7 +68,7 @@ struct DefaultAppUpdateStager: AppUpdateStaging, @unchecked Sendable {
         let stagedUpdate = StagedAppUpdate(
             release: release,
             appBundleURL: stagedAppURL,
-            metadataURL: metadataURL,
+            metadataURL: storagePaths.metadataURL,
             stagedAt: now()
         )
         try writeMetadata(for: stagedUpdate)
@@ -76,27 +76,55 @@ struct DefaultAppUpdateStager: AppUpdateStaging, @unchecked Sendable {
     }
 
     func loadValidatedStagedUpdate() async throws -> StagedAppUpdate? {
-        guard fileManager.fileExists(atPath: metadataURL.path) else {
-            return nil
+        let metadataData: Data
+        do {
+            metadataData = try Data(contentsOf: storagePaths.metadataURL)
+        } catch {
+            guard !error.isMissingAppUpdateMetadata else {
+                return nil
+            }
+            try? fileManager.removeItem(at: storagePaths.metadataURL)
+            throw error
         }
 
+        let stagedUpdate: StagedAppUpdate
         do {
             let metadata = try JSONDecoder.appUpdateMetadata.decode(
                 AppUpdateStagedMetadata.self,
-                from: try Data(contentsOf: metadataURL)
+                from: metadataData
             )
-            let stagedUpdate = try metadata.stagedUpdate(metadataURL: metadataURL)
-            try validateCurrentInstallLocation()
-            try await validateExtractedApp(stagedUpdate.appBundleURL, release: stagedUpdate.release)
-            return stagedUpdate
-        } catch {
-            try? fileManager.removeItem(at: metadataURL)
-            throw error
-        }
-    }
+            let stagedDirectory = try storagePaths.validatedStagedDirectory(containing: metadata.appBundleURL)
+            let candidate = try metadata.stagedUpdate(metadataURL: storagePaths.metadataURL)
 
-    private var metadataURL: URL {
-        updatesDirectory.appendingPathComponent("staged-update.json")
+            // Helpers shipped before this fix relaunch the new app before deleting staged metadata.
+            // Treat that already-installed release as completed cleanup, not a failed download.
+            if isNotNewerThanRunningApp(candidate.release.version) {
+                try? fileManager.removeItem(at: storagePaths.metadataURL)
+                try? fileManager.removeItem(at: stagedDirectory)
+                return nil
+            }
+
+            try validateCurrentInstallLocation()
+            try await validateExtractedApp(candidate.appBundleURL, release: candidate.release)
+            stagedUpdate = candidate
+        } catch let loadError {
+            let metadataMatches: Bool
+            do {
+                metadataMatches = try stagedMetadataMatches(metadataData)
+            } catch {
+                throw loadError
+            }
+            guard metadataMatches else {
+                return nil
+            }
+            try? fileManager.removeItem(at: storagePaths.metadataURL)
+            throw loadError
+        }
+
+        guard try stagedMetadataMatches(metadataData) else {
+            return nil
+        }
+        return stagedUpdate
     }
 }
 
@@ -116,6 +144,25 @@ private extension DefaultAppUpdateStager {
         let parentDirectory = currentBundleURL.deletingLastPathComponent()
         guard fileManager.isWritableFile(atPath: parentDirectory.path) else {
             throw AppUpdateFailure(message: "Alveary's install location is not writable.")
+        }
+    }
+
+    func isNotNewerThanRunningApp(_ stagedVersion: AppUpdateVersion) -> Bool {
+        guard let currentVersionString = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+              let currentVersion = AppUpdateVersion(string: currentVersionString) else {
+            return false
+        }
+        return stagedVersion <= currentVersion
+    }
+
+    func stagedMetadataMatches(_ expectedData: Data) throws -> Bool {
+        do {
+            return try Data(contentsOf: storagePaths.metadataURL) == expectedData
+        } catch {
+            guard error.isMissingAppUpdateMetadata else {
+                throw error
+            }
+            return false
         }
     }
 
@@ -217,7 +264,7 @@ private extension DefaultAppUpdateStager {
         )
         try JSONEncoder.appUpdateMetadata
             .encode(metadata)
-            .write(to: metadataURL, options: [.atomic])
+            .write(to: storagePaths.metadataURL, options: [.atomic])
     }
 }
 
@@ -328,5 +375,13 @@ private extension String {
         contains("/DerivedData/")
             || contains("/Build/Products/")
             || contains("/.build/")
+    }
+}
+
+private extension Error {
+    var isMissingAppUpdateMetadata: Bool {
+        let cocoaError = self as NSError
+        return cocoaError.domain == NSCocoaErrorDomain
+            && cocoaError.code == CocoaError.Code.fileReadNoSuchFile.rawValue
     }
 }

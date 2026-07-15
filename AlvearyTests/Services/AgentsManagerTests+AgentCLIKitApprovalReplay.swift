@@ -13,6 +13,9 @@ extension AgentsManagerTests {
         )
         let manager = fixture.manager
         let conversationId = "agentclikit-fallback-approval-replay"
+        addTeardownBlock {
+            try? await manager.destroyRuntime(conversationId: conversationId)
+        }
 
         try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: "/tmp"))
         let maybeSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
@@ -44,7 +47,43 @@ extension AgentsManagerTests {
         )
 
         XCTAssertEqual(resumedEvent, .message(role: "assistant", content: "resumed", parentToolUseId: nil))
-        await manager.kill(conversationId: conversationId)
+    }
+
+    func testAgentCLIKitReplacementBufferDropsOnlyPreStartTerminalLifecycle() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: DeferredReplayAgentCLIKitAdapter(),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-replacement-buffer-lifecycle"
+        let upstream = AsyncStream<AgentCLIKit.AgentEventEnvelope>.makeStream()
+        defer { upstream.continuation.finish() }
+
+        await manager.installAgentCLIKitSubscriptionBuffer(
+            conversationId: conversationId,
+            config: spawnConfig(workingDirectory: "/tmp"),
+            subscription: AgentCLIKit.AgentEventSubscription(generation: 1, events: upstream.stream),
+            dropsPreStartTerminalLifecycle: true
+        )
+        let maybeSubscription = await awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+
+        yieldApprovalReplayLifecycleSequence(
+            to: upstream.continuation,
+            conversationId: conversationId
+        )
+
+        let received = try await events(
+            from: subscription.stream,
+            until: { $0.contains(.error(message: "replacement failed")) },
+            description: "replacement buffer lifecycle events"
+        )
+        XCTAssertEqual(received, [
+            .message(role: "assistant", content: "replayed content", parentToolUseId: nil),
+            .message(role: "assistant", content: "resumed", parentToolUseId: nil),
+            .error(message: "replacement failed")
+        ])
     }
 
     func testAgentCLIKitFallbackApprovalResumeDoesNotReplayDeltaBackedTranscript() async throws {
@@ -218,6 +257,57 @@ extension AgentsManagerTests {
             return try await group.next() ?? []
         }
     }
+}
+
+private func yieldApprovalReplayLifecycleSequence(
+    to continuation: AsyncStream<AgentCLIKit.AgentEventEnvelope>.Continuation,
+    conversationId: String
+) {
+    continuation.yield(approvalReplayEnvelope(
+        index: 1,
+        conversationId: conversationId,
+        event: .message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: "replayed content"))
+    ))
+    continuation.yield(approvalReplayEnvelope(
+        index: 2,
+        conversationId: conversationId,
+        source: .process,
+        event: .lifecycle(AgentCLIKit.AgentLifecycleEvent(state: .exited))
+    ))
+    continuation.yield(approvalReplayEnvelope(
+        index: 3,
+        conversationId: conversationId,
+        source: .process,
+        event: .lifecycle(AgentCLIKit.AgentLifecycleEvent(state: .starting))
+    ))
+    continuation.yield(approvalReplayEnvelope(
+        index: 4,
+        conversationId: conversationId,
+        event: .message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: "resumed"))
+    ))
+    continuation.yield(approvalReplayEnvelope(
+        index: 5,
+        conversationId: conversationId,
+        source: .process,
+        event: .lifecycle(AgentCLIKit.AgentLifecycleEvent(state: .failed, message: "replacement failed"))
+    ))
+}
+
+private func approvalReplayEnvelope(
+    index: Int,
+    conversationId: String,
+    source: AgentCLIKit.AgentEventSource = .stdout,
+    event: AgentCLIKit.AgentEvent
+) -> AgentCLIKit.AgentEventEnvelope {
+    AgentCLIKit.AgentEventEnvelope(
+        generation: 1,
+        index: index,
+        providerId: .claude,
+        conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
+        providerSessionId: nil,
+        source: source,
+        event: event
+    )
 }
 
 private struct PlanFileReplayAdapter: AgentCLIKit.AgentProviderAdapter {

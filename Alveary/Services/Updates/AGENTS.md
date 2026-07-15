@@ -10,3 +10,6 @@ These instructions cover update-checking, release metadata, download, staging, a
 - Keep the release artifact contract aligned with CI: GitHub Releases publish `Alveary.app.zip`, which contains `Alveary.app`.
 - Read the running app version from bundle metadata at runtime. `project.yml` is the build-time source only.
 - Store updater-owned downloads, staged metadata, helper logs, and failure markers under `SessionComponent.appSupportDirectory/Updates`.
+- Quarantine staged metadata before relaunching an installed update, and preserve it when rollback is required.
+- Treat equal or older managed staged state as completed cleanup so updates installed by older helpers do not surface a false download failure.
+- Resolve and validate staged bundle paths before cleanup; only remove the exact updater-owned child directory under `Updates/Staged`.

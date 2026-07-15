@@ -69,12 +69,13 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .scheduled
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_scheduled_selected"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 }
 

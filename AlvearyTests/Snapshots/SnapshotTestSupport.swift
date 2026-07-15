@@ -20,8 +20,8 @@ import XCTest
 /// channel-rounding drift tends to spread. Together they absorb sub-visible encoder
 /// noise without giving up coverage of anything a reviewer could actually see.
 /// Override per call site if a specific test wants stricter or looser matching.
-private let defaultPixelPrecision: Float = 0.99
-private let defaultPerceptualPrecision: Float = 0.99
+let defaultPixelPrecision: Float = 0.99
+let defaultPerceptualPrecision: Float = 0.99
 private let appKitSnapshotScale: CGFloat = 2
 // The environment override intentionally simulates this cross-renderer fallback.
 // Per-call `forceFixedScale` snapshots remain at their caller-provided precision.
@@ -256,12 +256,12 @@ private func configureSnapshotWindow(
 }
 
 @MainActor
-private func closeSnapshotWindow(
+func closeSnapshotWindow(
     _ window: NSWindow,
     controller: NSHostingController<AnyView>
 ) {
-    // Replacing the root while it is still window-attached makes SwiftUI tear down
-    // `@Query` observations synchronously. Detaching the controller alone can leave
+    // Replacing the root while it is still window-attached starts tearing down SwiftUI's
+    // `@Query` observations. Detaching the controller alone can leave
     // those observations registered until a later context save on macOS 26.
     controller.rootView = AnyView(EmptyView())
     controller.view.layoutSubtreeIfNeeded()
@@ -306,7 +306,7 @@ private func renderSnapshotRepresentation(
 
 @MainActor
 func assertMacSnapshot<V: View>(
-    _ view: V,
+    _ makeView: @autoclosure () -> V,
     size: CGSize,
     named: String? = nil,
     colorScheme: ColorScheme = .light,
@@ -318,7 +318,7 @@ func assertMacSnapshot<V: View>(
     line: UInt = #line
 ) {
     autoreleasepool {
-        let isRecordingSnapshots = ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1"
+        let view = makeView()
         let appearanceName: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
 
         let rootView = view
@@ -377,7 +377,7 @@ func assertMacSnapshot<V: View>(
                 forceFixedScale: forceFixedScale
             ),
             named: named,
-            record: isRecordingSnapshots ? true : nil,
+            record: ProcessInfo.processInfo.environment["RECORD_SNAPSHOTS"] == "1" ? true : nil,
             file: file,
             testName: testName,
             line: line

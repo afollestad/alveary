@@ -405,12 +405,12 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .thread(sidebar.activeThread)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_populated"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 
     func testSidebarViewProjectSelected() async throws {
@@ -419,12 +419,12 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .project(sidebar.project)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_project_selected"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 
     func testSidebarViewPinnedThread() async throws {
@@ -433,12 +433,12 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .project(sidebar.project)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_pinned_thread"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 
     func testSidebarViewSelectedPinnedThread() async throws {
@@ -448,12 +448,12 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .thread(pinnedThread)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_selected_pinned_thread"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 
     func testSidebarViewMixedPinnedProjectAndThread() async throws {
@@ -462,12 +462,12 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .project(sidebar.pinnedProject)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_mixed_pinned_project_and_thread"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 
     func testSidebarViewExpandedProjectWithoutThreads() async throws {
@@ -476,12 +476,12 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .project(sidebar.emptyProject)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_project_no_threads"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 
     func testSidebarViewSkillsSelected() async throws {
@@ -490,11 +490,11 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .skills
 
-        assertMacSnapshot(
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-                .modelContainer(sidebar.fixture.container),
+        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_skills_selected"
-        )
+        ) {
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+        }
     }
 }

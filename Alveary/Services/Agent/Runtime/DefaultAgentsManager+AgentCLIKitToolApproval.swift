@@ -61,7 +61,8 @@ extension DefaultAgentsManager {
                 id: request.conversationId,
                 config: request.config,
                 forkSession: false,
-                initialTurnActivityVisibility: .visible
+                initialTurnActivityVisibility: .visible,
+                dropsPreStartTerminalLifecycle: true
             )
             didSpawn = true
             // Transient hook decisions cover hook callbacks, but a deferred respawn can also leave the new

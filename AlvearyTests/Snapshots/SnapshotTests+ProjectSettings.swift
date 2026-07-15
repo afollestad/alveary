@@ -3,7 +3,7 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
-    func testProjectSettingsViewHidesGitHubForLocalProject() throws {
+    func testProjectSettingsViewHidesGitHubForLocalProject() async throws {
         let fixture = try SidebarTestFixture(gitHubInstalledVersion: "gh version 2.89.0", gitHubAuthenticated: false)
         let project = Project(path: "/tmp/local-project", name: "Local Project")
         let archivedThread = AgentThread(
@@ -16,7 +16,11 @@ extension SnapshotTests {
         try fixture.context.save()
         let config = AlvearyProjectConfig.empty
 
-        assertMacSnapshot(
+        await assertMacModelSnapshot(
+            modelContainer: fixture.container,
+            size: CGSize(width: 1100, height: 900),
+            named: "project_settings_local_project"
+        ) {
             ProjectSettingsView(
                 project: project,
                 appState: AppState(),
@@ -24,13 +28,10 @@ extension SnapshotTests {
                 initialConfig: config,
                 loadConfig: { _ in config }
             )
-                .modelContainer(fixture.container),
-            size: CGSize(width: 1100, height: 900),
-            named: "project_settings_local_project"
-        )
+        }
     }
 
-    func testProjectSettingsViewShowsGitHubRepoLink() throws {
+    func testProjectSettingsViewShowsGitHubRepoLink() async throws {
         let fixture = try SidebarTestFixture(gitHubInstalledVersion: "gh version 2.89.0", gitHubAuthenticated: false)
         let project = Project(
             path: "/tmp/github-project",
@@ -54,7 +55,11 @@ extension SnapshotTests {
             ]
         )
 
-        assertMacSnapshot(
+        await assertMacModelSnapshot(
+            modelContainer: fixture.container,
+            size: CGSize(width: 1100, height: 900),
+            named: "project_settings_github_project"
+        ) {
             ProjectSettingsView(
                 project: project,
                 appState: AppState(),
@@ -62,13 +67,10 @@ extension SnapshotTests {
                 initialConfig: config,
                 loadConfig: { _ in config }
             )
-                .modelContainer(fixture.container),
-            size: CGSize(width: 1100, height: 900),
-            named: "project_settings_github_project"
-        )
+        }
     }
 
-    func testProjectSettingsViewNarrowStacksSplitInputs() throws {
+    func testProjectSettingsViewNarrowStacksSplitInputs() async throws {
         let fixture = try SidebarTestFixture(gitHubInstalledVersion: "gh version 2.89.0", gitHubAuthenticated: false)
         let project = Project(
             path: "/tmp/github-project",
@@ -90,7 +92,11 @@ extension SnapshotTests {
             ]
         )
 
-        assertMacSnapshot(
+        await assertMacModelSnapshot(
+            modelContainer: fixture.container,
+            size: CGSize(width: 620, height: 900),
+            named: "project_settings_narrow_split_inputs"
+        ) {
             ProjectSettingsView(
                 project: project,
                 appState: AppState(),
@@ -98,9 +104,6 @@ extension SnapshotTests {
                 initialConfig: config,
                 loadConfig: { _ in config }
             )
-                .modelContainer(fixture.container),
-            size: CGSize(width: 620, height: 900),
-            named: "project_settings_narrow_split_inputs"
-        )
+        }
     }
 }

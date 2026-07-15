@@ -276,9 +276,11 @@ struct DeferredReplayAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
     ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
         let launch = await counter.next()
         let output = launch == 1 ? "approval:first" : "approval:second\nmessage:resumed"
+        // Keep the resumed mock alive so this test isolates replay ordering from process-exit scheduling.
+        let command = "printf '%s\\n' \"$1\"; cat > /dev/null"
         return AgentCLIKit.AgentLaunchConfiguration(
             executable: "/bin/sh",
-            arguments: ["-c", "printf '%s\\n' \"$1\"", "agent", output],
+            arguments: ["-c", command, "agent", output],
             includesSpawnArguments: true
         )
     }

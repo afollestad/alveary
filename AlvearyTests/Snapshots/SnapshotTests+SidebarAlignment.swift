@@ -26,18 +26,19 @@ extension SnapshotTests {
         )
     }
 
-    func testSidebarViewNoProjectsKeepsAddProjectActionAligned() throws {
+    func testSidebarViewNoProjectsKeepsAddProjectActionAligned() async throws {
         let fixture = try SidebarTestFixture()
 
-        assertMacSnapshot(
-            SidebarView(viewModel: fixture.viewModel, appState: AppState())
-                .modelContainer(fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: fixture.container,
             size: CGSize(width: 320, height: 720),
             named: "sidebar_no_projects"
-        )
+        ) {
+            SidebarView(viewModel: fixture.viewModel, appState: AppState())
+        }
     }
 
-    func testSidebarViewSingleProjectWithoutThreadsKeepsAddProjectActionAligned() throws {
+    func testSidebarViewSingleProjectWithoutThreadsKeepsAddProjectActionAligned() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/board-gridline-rush", name: "board-gridline-rush")
         fixture.context.insert(project)
@@ -46,15 +47,16 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .project(project)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: fixture.viewModel, appState: appState)
-                .modelContainer(fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: fixture.container,
             size: CGSize(width: 320, height: 260),
             named: "sidebar_single_project_no_threads"
-        )
+        ) {
+            SidebarView(viewModel: fixture.viewModel, appState: appState)
+        }
     }
 
-    func testSidebarViewTwoProjectsWithoutThreadsKeepsAddProjectActionAligned() throws {
+    func testSidebarViewTwoProjectsWithoutThreadsKeepsAddProjectActionAligned() async throws {
         let fixture = try SidebarTestFixture()
         let firstProject = Project(path: "/tmp/af.codes", name: "af.codes")
         let secondProject = Project(path: "/tmp/alveary", name: "alveary")
@@ -65,11 +67,12 @@ extension SnapshotTests {
         let appState = AppState()
         appState.selectedSidebarItem = .project(firstProject)
 
-        assertMacSnapshot(
-            SidebarView(viewModel: fixture.viewModel, appState: appState)
-                .modelContainer(fixture.container),
+        await assertMacModelSnapshot(
+            modelContainer: fixture.container,
             size: CGSize(width: 320, height: 340),
             named: "sidebar_two_projects_no_threads"
-        )
+        ) {
+            SidebarView(viewModel: fixture.viewModel, appState: appState)
+        }
     }
 }

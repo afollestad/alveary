@@ -6,7 +6,8 @@ extension DefaultAgentsManager {
         id: String,
         config: AgentSpawnConfig,
         forkSession: Bool,
-        initialTurnActivityVisibility: AgentTurnActivityVisibility? = nil
+        initialTurnActivityVisibility: AgentTurnActivityVisibility? = nil,
+        dropsPreStartTerminalLifecycle: Bool = false
     ) async throws {
         let services = agentCLIKitServices
         try assertAgentCLIKitSpawnPreflightAllowed(id: id)
@@ -29,6 +30,7 @@ extension DefaultAgentsManager {
             conversationId: id,
             config: config,
             subscription: subscription,
+            dropsPreStartTerminalLifecycle: dropsPreStartTerminalLifecycle,
             initialTurnActivityVisibility: initialTurnActivityVisibility
         )
         startAgentCLIKitStatusTask(conversationId: id, services: services)
