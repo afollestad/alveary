@@ -256,9 +256,15 @@ private func configureSnapshotWindow(
 }
 
 @MainActor
-private func closeSnapshotWindow(_ window: NSWindow) {
-    // AppKit retains an open window after the helper returns. Detach the SwiftUI
-    // tree so its SwiftData observations cannot receive later context saves.
+private func closeSnapshotWindow(
+    _ window: NSWindow,
+    controller: NSHostingController<AnyView>
+) {
+    // Replacing the root while it is still window-attached makes SwiftUI tear down
+    // `@Query` observations synchronously. Detaching the controller alone can leave
+    // those observations registered until a later context save on macOS 26.
+    controller.rootView = AnyView(EmptyView())
+    controller.view.layoutSubtreeIfNeeded()
     window.contentViewController = nil
     window.contentView = nil
     window.close()
@@ -328,7 +334,7 @@ func assertMacSnapshot<V: View>(
             .frame(width: size.width, height: size.height, alignment: .topLeading)
             .background(Color(nsColor: .windowBackgroundColor))
 
-        let controller = NSHostingController(rootView: rootView)
+        let controller = NSHostingController(rootView: AnyView(rootView))
         controller.view.frame = CGRect(origin: .zero, size: size)
         controller.view.appearance = NSAppearance(named: appearanceName)
         // Position the snapshot window far off-screen so the real cursor position cannot
@@ -344,7 +350,7 @@ func assertMacSnapshot<V: View>(
             defer: false
         )
         configureSnapshotWindow(window, controller: controller, appearanceName: appearanceName)
-        defer { closeSnapshotWindow(window) }
+        defer { closeSnapshotWindow(window, controller: controller) }
         // Explicitly clear first responder so no control in the hierarchy begins the
         // render with a focus ring. NSHostingController can settle on an initial first
         // responder during `layoutIfNeeded()`; flushing it before `displayIfNeeded()`

@@ -204,6 +204,7 @@ struct ContentView: View {
                 }
             }
             .clipped()
+            .overlay(alignment: .top) { if appState.selectedSidebarItem != nil { AppWindowTitlebarSeparatorHairline() } }
             .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
         }
         .environment(terminalManager)
@@ -218,6 +219,10 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom, content: errorToastOverlay)
         .appUpdateRestartAlert(updateManager: appUpdateManager)
+        .background {
+            // Native `.line` has the right weight when empty; child screens obscure it, so the detail pane draws theirs.
+            AppWindowTitlebarSeparatorConfigurator(style: appState.selectedSidebarItem == nil ? .line : .none).frame(width: 0, height: 0)
+        }
         .background {
             AppWindowModalOverlayPresenter(
                 modal: rootWindowModal,
