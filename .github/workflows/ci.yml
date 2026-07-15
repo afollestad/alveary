@@ -42,6 +42,9 @@ jobs:
       - name: Setup
         run: ./scripts/setup.sh
 
+      - name: Test release scripts
+        run: python3 scripts/ci/resolve_previous_release_tests.py
+
       - name: Lint
         run: ./scripts/lint.sh
 

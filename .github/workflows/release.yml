@@ -109,13 +109,9 @@ jobs:
       - name: Resolve previous release tag
         if: steps.version.outputs.should_release == 'true'
         id: previous_tag
-        run: |
-          previous_tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD)
-          if [[ ! "$previous_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "error: previous release tag must be vX.Y.Z, got '$previous_tag'" >&2
-            exit 1
-          fi
-          echo "tag=$previous_tag" >> "$GITHUB_OUTPUT"
+        env:
+          TAG_NAME: ${{ steps.version.outputs.tag }}
+        run: scripts/ci/resolve-previous-release.py
 
       - name: Set up Node.js
         if: steps.version.outputs.should_release == 'true'
@@ -132,6 +128,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PREVIOUS_TAG: ${{ steps.previous_tag.outputs.tag }}
+          RELEASE_NOTES_BASE: ${{ steps.previous_tag.outputs.notes_base }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
         run: |
           candidate_commit_count=$(git log \
@@ -139,9 +136,9 @@ jobs:
             --extended-regexp \
             --invert-grep \
             --grep='^Release Alveary v[0-9]+\.[0-9]+\.[0-9]+$' \
-            "$PREVIOUS_TAG..HEAD" | wc -l | tr -d '[:space:]')
+            "$RELEASE_NOTES_BASE..HEAD" | wc -l | tr -d '[:space:]')
           prompt=$(printf '%s\n' \
-            "Review the git log and commit diffs for this repository and write a concise Markdown bullet list summarizing all code changes made since tag ${PREVIOUS_TAG}." \
+            "Review the git log and commit diffs in range ${RELEASE_NOTES_BASE}..HEAD and write a concise Markdown bullet list summarizing all code changes made since release ${PREVIOUS_TAG}." \
             "Exclude version-release commits and any other commits that are not relevant to a user-facing changelog." \
             "End every bullet with the short commit hash as a Markdown link in parentheses, followed by the GitHub username of the commit author, using this exact suffix format: ([\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash)) by @username." \
             "Begin with exactly this Markdown header: ## What's changed" \
