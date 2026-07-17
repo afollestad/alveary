@@ -43,8 +43,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary
-        MARKETING_VERSION: 0.1.3
-        CURRENT_PROJECT_VERSION: 4
+        MARKETING_VERSION: 0.1.4
+        CURRENT_PROJECT_VERSION: 5
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: Config/CodeSigning/Alveary.entitlements
