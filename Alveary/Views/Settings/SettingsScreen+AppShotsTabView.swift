@@ -4,6 +4,7 @@ import SwiftUI
 struct AppShotsSettingsTabView: View {
     @Binding var appShotsEnabled: Bool
     @Binding var appShotShortcut: AppShotKeyboardShortcut
+    let voiceInputShortcut: PhysicalKeyboardShortcut?
     @State private var permissionSnapshot: AppShotPermissionSnapshot
 
     private let refreshesLivePermissions: Bool
@@ -11,12 +12,14 @@ struct AppShotsSettingsTabView: View {
     init(
         appShotsEnabled: Binding<Bool>,
         appShotShortcut: Binding<AppShotKeyboardShortcut>,
+        voiceInputShortcut: PhysicalKeyboardShortcut? = nil,
         accessibilityAllowed: Bool? = nil,
         keyboardMonitoringAllowed: Bool? = nil,
         screenRecordingAllowed: Bool? = nil
     ) {
         _appShotsEnabled = appShotsEnabled
         _appShotShortcut = appShotShortcut
+        self.voiceInputShortcut = voiceInputShortcut
         _permissionSnapshot = State(
             initialValue: AppShotPermissionSnapshot.makeCurrent(
                 accessibilityAllowed: accessibilityAllowed,
@@ -45,7 +48,8 @@ struct AppShotsSettingsTabView: View {
                         horizontalControlSizing: .fillsAvailableWidthFraction(0.62)
                     ) {
                         AppShotShortcutRecorder(
-                            shortcut: $appShotShortcut
+                            shortcut: $appShotShortcut,
+                            voiceInputShortcut: voiceInputShortcut
                         )
                     }
                 }

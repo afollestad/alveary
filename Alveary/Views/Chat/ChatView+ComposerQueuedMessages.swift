@@ -11,6 +11,7 @@ extension ChatView {
             supportsMidTurnSteering: composerCapabilities.supportsMidTurnSteering,
             isTurnActive: viewModel.canSteerCurrentTurn,
             inFlightQueuedMessageID: viewModel.state.inFlightQueuedMessageID,
+            isInteractionDisabled: voiceInputCoordinator.isDraftInteractionLocked,
             borderWidth: 1,
             pauseHeaderTitle: queuedMessagesPauseHeaderTitle,
             markdownBaseURL: workingDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) },
@@ -21,15 +22,19 @@ extension ChatView {
                 appState.presentImagePreview(.markdownImage(image, baseURL: baseURL))
             },
             onResume: {
+                guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
                 viewModel.resumeQueuedMessages()
             },
             onSteer: { messageID in
+                guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
                 Task { try? await viewModel.steerQueuedMessage(id: messageID) }
             },
             onEdit: { messageID in
+                guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
                 viewModel.editQueuedMessage(id: messageID)
             },
             onDismiss: { messageID in
+                guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
                 viewModel.removeQueuedMessage(id: messageID)
             }
         )

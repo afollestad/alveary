@@ -127,9 +127,11 @@ extension ThreadDetailView {
         } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
             appState.presentUnexpectedError(message: error.localizedDescription)
         } catch {
-            appState.selectedSidebarItem = previousSelectedItem
-            appState.previousSelection = previousBookmark
-            appState.selectedConversationIDs = previousConversationIDs
+            if !voiceInputLifecycleController.isModelPreparationModalPresented {
+                appState.selectedSidebarItem = previousSelectedItem
+                appState.previousSelection = previousBookmark
+                appState.selectedConversationIDs = previousConversationIDs
+            }
             projectTrustPrompt = prompt
             isCheckingProjectTrust = false
             conversationActionError = "Couldn't delete untrusted thread: \(error.localizedDescription)"

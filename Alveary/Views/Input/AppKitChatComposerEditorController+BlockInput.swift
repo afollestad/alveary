@@ -22,7 +22,7 @@ extension AppKitChatComposerEditorController {
             markdown: configuration.text,
             markdownRevision: configuration.inputDraftRevision,
             placeholder: presentation.placeholder,
-            isEditable: !presentation.isTextEditorDisabled,
+            isEditable: !presentation.isTextEditorDisabled && !configuration.isVoiceInteractionLocked,
             disabledCursor: configuration.isProjectTrustBlocked ? .operationNotAllowed : nil,
             imagePresentation: .textLinks,
             editorHorizontalInset: Self.editorHorizontalPadding,
@@ -42,7 +42,17 @@ extension AppKitChatComposerEditorController {
             modalOverlayProvider: { [weak self] context in
                 self?.blockInputModalOverlay(context: context)
             },
-            onDocumentMutation: { _, isEffectivelyEmpty in
+            onSelectionChange: { [weak self] selection in
+                guard self?.latestSelection != selection else { return }
+                self?.latestSelection = selection
+                configuration.onVoiceInputAvailabilityChange()
+            },
+            onEditorInteractionUIChange: { _ in
+                configuration.onVoiceInputAvailabilityChange()
+            },
+            onDocumentMutation: { [weak self] _, isEffectivelyEmpty in
+                self?.configuration?.voiceEditorHandle?.recordDraftMutation()
+                configuration.onVoiceInputAvailabilityChange()
                 configuration.onBlockInputMutation(isEffectivelyEmpty)
             },
             onDocumentChange: configuration.onBlockInputDocumentChange,
@@ -138,6 +148,9 @@ extension AppKitChatComposerEditorController {
         guard let configuration else {
             return .handled
         }
+        guard !configuration.isVoiceInteractionLocked else {
+            return .handled
+        }
         switch configuration.mode {
         case .progressOnly:
             return .handled
@@ -158,6 +171,9 @@ extension AppKitChatComposerEditorController {
         guard let configuration else {
             return .ignored
         }
+        if configuration.onVoiceEscape() {
+            return .handled
+        }
         guard presentation(for: configuration).canUseEscapeToStop else {
             return .ignored
         }
@@ -167,5 +183,34 @@ extension AppKitChatComposerEditorController {
             armStopConfirmation(configuration: configuration)
         }
         return .handled
+    }
+
+    func voiceInsertionContext() -> ComposerVoiceInsertionContext? {
+        guard let bridgeController else {
+            return nil
+        }
+        let document = bridgeController.documentStore.document
+        let target: (BlockInputBlockID, NSRange)?
+        switch latestSelection {
+        case .cursor(let cursor):
+            target = (cursor.blockID, NSRange(location: cursor.utf16Offset, length: 0))
+        case .text(let selection):
+            target = (selection.blockID, selection.range)
+        case .blocks, .mixed:
+            return nil
+        case nil:
+            let fallbackBlock = lastFocusedBlockID
+                .flatMap { id in document.blocks.first(where: { $0.id == id }) }
+                .flatMap { $0.kind.supportsVoiceInput ? $0 : nil }
+                ?? document.blocks.last(where: { $0.kind.supportsVoiceInput })
+            target = fallbackBlock.map { block in
+                (block.id, NSRange(location: block.utf16Length, length: 0))
+            }
+        }
+        guard let target,
+              let block = document.blocks.first(where: { $0.id == target.0 }) else {
+            return nil
+        }
+        return ComposerVoiceInsertionContext.capture(blockText: block.text, range: target.1)
     }
 }

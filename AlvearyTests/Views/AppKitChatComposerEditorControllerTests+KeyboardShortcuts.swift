@@ -128,6 +128,55 @@ extension AppKitChatComposerEditorControllerTests {
         XCTAssertTrue(editor.performKeyEquivalent(with: try commandReturnEvent()))
         XCTAssertEqual(alternateSteerCount, 1)
     }
+
+    func testHostedBlockInputViewConsumesReturnWithoutSubmittingWhileVoiceLocked() throws {
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 420, height: 160))
+        var submitCount = 0
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeConfiguration(
+                text: "Dictating",
+                mode: .idle,
+                isVoiceInteractionLocked: true,
+                onSubmit: { submitCount += 1 }
+            ),
+            showsTopDivider: false,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 20),
+                topContentSpacing: 0,
+                actionRowSpacing: 0
+            )
+        ))
+        panel.layoutSubtreeIfNeeded()
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
+
+        XCTAssertTrue(editor.performKeyEquivalent(with: try returnEvent()))
+        XCTAssertEqual(submitCount, 0)
+    }
+
+    func testHostedBlockInputViewConsumesCommandReturnWithoutSteeringWhileVoiceLocked() throws {
+        let panel = AppKitChatComposerPanelView(frame: NSRect(x: 0, y: 0, width: 420, height: 160))
+        var alternateSteerCount = 0
+        panel.configure(AppKitChatComposerPanelConfiguration(
+            bodyConfiguration: makeConfiguration(
+                text: "Dictating",
+                mode: .busy(canStop: true),
+                defaultEnterBehavior: .queue,
+                isVoiceInteractionLocked: true,
+                onAlternateSteer: { alternateSteerCount += 1 }
+            ),
+            showsTopDivider: false,
+            layout: AppKitChatComposerPanelView.Layout(
+                horizontalPadding: NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 20),
+                topContentSpacing: 0,
+                actionRowSpacing: 0
+            )
+        ))
+        panel.layoutSubtreeIfNeeded()
+        let editor = try XCTUnwrap(panel.editorControllerForTesting.view)
+
+        XCTAssertTrue(editor.performKeyEquivalent(with: try commandReturnEvent()))
+        XCTAssertEqual(alternateSteerCount, 0)
+    }
 }
 
 private let commandReturnShortcut = BlockInputKeyboardShortcut(key: .return, modifiers: .command)
@@ -143,10 +192,14 @@ private func shortcutContext(_ shortcut: BlockInputKeyboardShortcut) -> BlockInp
 }
 
 private func commandReturnEvent() throws -> NSEvent {
+    try returnEvent(modifiers: .command)
+}
+
+private func returnEvent(modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
     try XCTUnwrap(NSEvent.keyEvent(
         with: .keyDown,
         location: .zero,
-        modifierFlags: .command,
+        modifierFlags: modifiers,
         timestamp: 0,
         windowNumber: 0,
         context: nil,

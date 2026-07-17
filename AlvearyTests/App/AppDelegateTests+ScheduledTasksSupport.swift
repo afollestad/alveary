@@ -11,6 +11,12 @@ final class AppDelegateScheduledTaskLifecycleSpy {
     private(set) var terminationDates: [Date] = []
     var terminationPreparation: ScheduledTaskTerminationPreparation?
 
+    private let terminationOrderRecorder: AppDelegateShutdownOrderRecorder?
+
+    init(terminationOrderRecorder: AppDelegateShutdownOrderRecorder? = nil) {
+        self.terminationOrderRecorder = terminationOrderRecorder
+    }
+
     func recordActivation() {
         activationCount += 1
     }
@@ -20,6 +26,7 @@ final class AppDelegateScheduledTaskLifecycleSpy {
     }
 
     func prepareForTermination(at actionDate: Date) -> ScheduledTaskTerminationPreparation? {
+        terminationOrderRecorder?.record("scheduled-prepare")
         terminationDates.append(actionDate)
         return terminationPreparation
     }
@@ -53,6 +60,9 @@ extension AppDelegateTestFixture {
                 },
                 reconcileScheduledTasks: {
                     scheduledTaskLifecycle.recordReconciliation()
+                },
+                teardownVoiceInput: {
+                    recorder.record("voice-teardown")
                 },
                 prepareScheduledTasksForTermination: { actionDate in
                     scheduledTaskLifecycle.prepareForTermination(at: actionDate)

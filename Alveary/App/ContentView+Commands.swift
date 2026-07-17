@@ -88,24 +88,36 @@ enum NewThreadProjectResolver {
 
 extension ContentView {
     func handlePendingCommand(_ command: AppState.CommandRequest?) {
-        guard let command else {
+        guard let command,
+              !voiceInputLifecycleController.isModelPreparationModalPresented else {
             return
         }
 
         let commandID = command.id
         Task { @MainActor in
+            var shouldClearCommand = false
             defer {
-                if appState.pendingCommand?.id == commandID {
+                if shouldClearCommand,
+                   appState.pendingCommand?.id == commandID {
                     appState.pendingCommand = nil
                 }
+            }
+
+            guard pendingCommandCanProceed(
+                commandID: commandID,
+                currentCommandID: appState.pendingCommand?.id,
+                isModelPreparationModalPresented: voiceInputLifecycleController.isModelPreparationModalPresented
+            ) else {
+                return
             }
 
             switch command {
             case .newProject:
                 isAddProjectSheetPresented = true
+                shouldClearCommand = true
 
             case .newThread(_, let mode):
-                await handleNewThreadCommand(commandID: commandID, mode: mode)
+                shouldClearCommand = await handleNewThreadCommand(commandID: commandID, mode: mode)
             }
         }
     }
@@ -138,6 +150,27 @@ extension ContentView {
     }
 }
 
+@MainActor
+@discardableResult
+func performAppNavigationIfModelPreparationModalAbsent(
+    lifecycleController: VoiceInputLifecycleController,
+    operation: () -> Void
+) -> Bool {
+    guard !lifecycleController.isModelPreparationModalPresented else {
+        return false
+    }
+    operation()
+    return true
+}
+
+func pendingCommandCanProceed(
+    commandID: UUID,
+    currentCommandID: UUID?,
+    isModelPreparationModalPresented: Bool
+) -> Bool {
+    currentCommandID == commandID && !isModelPreparationModalPresented
+}
+
 extension ContentView {
     func resolveProject(path: String) -> Project? {
         let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
@@ -146,30 +179,41 @@ extension ContentView {
         return try? uiModelContext.fetch(descriptor).first
     }
 
-    func handleNewThreadCommand(commandID: UUID, mode: AgentThreadMode) async {
+    @discardableResult
+    func handleNewThreadCommand(commandID: UUID, mode: AgentThreadMode) async -> Bool {
         do {
             let createdThread: AgentThread
             switch mode {
             case .project:
                 guard let project = resolvedNewThreadProject() else {
                     appState.presentUnexpectedError(message: NewThreadCommandPresentation.noProjectMessage)
-                    return
+                    return true
                 }
                 createdThread = try await sidebarViewModel.openDraftThread(project: project)
             case .task:
                 createdThread = try await sidebarViewModel.openTaskDraft()
             }
-            guard appState.pendingCommand?.id == commandID else {
-                return
+            guard pendingCommandCanProceed(
+                commandID: commandID,
+                currentCommandID: appState.pendingCommand?.id,
+                isModelPreparationModalPresented: voiceInputLifecycleController.isModelPreparationModalPresented
+            ) else {
+                return false
             }
 
             appState.requestComposerFocus()
             appState.selectedSidebarItem = uiModelContext.resolveThread(id: createdThread.persistentModelID).map(SidebarItem.thread)
+            return true
         } catch {
-            guard appState.pendingCommand?.id == commandID else {
-                return
+            guard pendingCommandCanProceed(
+                commandID: commandID,
+                currentCommandID: appState.pendingCommand?.id,
+                isModelPreparationModalPresented: voiceInputLifecycleController.isModelPreparationModalPresented
+            ) else {
+                return false
             }
             sidebarViewModel.presentSidebarError(error)
+            return true
         }
     }
 
@@ -213,8 +257,12 @@ extension ContentView {
 
         do {
             let createdProject = try await sidebarViewModel.createProject(path: url.path)
-            appState.selectedSidebarItem = resolveProject(path: createdProject.path)
-                .map(SidebarItem.project)
+            performAppNavigationIfModelPreparationModalAbsent(
+                lifecycleController: voiceInputLifecycleController
+            ) {
+                appState.selectedSidebarItem = resolveProject(path: createdProject.path)
+                    .map(SidebarItem.project)
+            }
         } catch {
             sidebarViewModel.presentSidebarError(error)
         }

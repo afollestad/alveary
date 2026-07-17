@@ -10,6 +10,8 @@ struct ConversationView: View {
     let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
+    let voiceInputService: any VoiceInputService
+    let voiceInputLifecycleController: VoiceInputLifecycleController
     let runtimeStatus: ActivitySignal
     let projectTrustPrompt: ProjectTrustPrompt?
     let isProjectTrustBlocked: Bool
@@ -61,6 +63,8 @@ struct ConversationView: View {
         providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService,
         contextWindowCache: any ContextWindowCache,
         fileListManager: FileListManager,
+        voiceInputService: any VoiceInputService,
+        voiceInputLifecycleController: VoiceInputLifecycleController,
         runtimeStatus: ActivitySignal,
         projectTrustPrompt: ProjectTrustPrompt? = nil,
         isProjectTrustBlocked: Bool = false,
@@ -79,6 +83,8 @@ struct ConversationView: View {
         self.providerDiscovery = providerDiscovery
         self.contextWindowCache = contextWindowCache
         self.fileListManager = fileListManager
+        self.voiceInputService = voiceInputService
+        self.voiceInputLifecycleController = voiceInputLifecycleController
         self.runtimeStatus = runtimeStatus
         self.projectTrustPrompt = projectTrustPrompt
         self.isProjectTrustBlocked = isProjectTrustBlocked
@@ -130,6 +136,9 @@ struct ConversationView: View {
                 workingDirectory: activeWorkingDirectory
             ),
             loadSkillCompletions: loadSkillCompletions,
+            settingsService: settingsService,
+            voiceInputService: voiceInputService,
+            voiceInputLifecycleController: voiceInputLifecycleController,
             transcriptTypography: transcriptTypography,
             availableProjects: availableProjects,
             onSelectDraftProject: onSelectDraftProject,

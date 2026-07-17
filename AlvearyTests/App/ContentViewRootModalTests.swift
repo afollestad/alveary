@@ -89,4 +89,71 @@ final class ContentViewRootModalTests: XCTestCase {
         XCTAssertNotEqual(readyID, staleID)
         XCTAssertNotEqual(staleID, deletedID)
     }
+
+    func testVoiceInputLockDefersEveryRootModalCandidate() throws {
+        let requestID = try XCTUnwrap(UUID(uuidString: "F8A18B43-7E8E-4935-B095-A67A7F05AA64"))
+        let request = AppImagePreviewRequest(
+            id: requestID,
+            title: "Preview",
+            source: .fileURL(URL(fileURLWithPath: "/tmp/preview.png"))
+        )
+
+        let modalKind = ContentView.rootWindowModalKind(
+            isOnboardingPresented: true,
+            imagePreviewRequest: request,
+            scheduledTaskProposalID: "proposal-1",
+            isVoiceInputLocked: true
+        )
+
+        XCTAssertNil(modalKind)
+    }
+
+    func testDeferredRootModalResumesItsNormalPriorityAfterVoiceInputUnlocks() throws {
+        let requestID = try XCTUnwrap(UUID(uuidString: "5578216A-0EC8-4F90-863E-A9766466A4B5"))
+        let request = AppImagePreviewRequest(
+            id: requestID,
+            title: "Preview",
+            source: .fileURL(URL(fileURLWithPath: "/tmp/preview.png"))
+        )
+
+        let modalKind = ContentView.rootWindowModalKind(
+            isOnboardingPresented: false,
+            imagePreviewRequest: request,
+            scheduledTaskProposalID: "proposal-1",
+            isVoiceInputLocked: false
+        )
+
+        XCTAssertEqual(modalKind, .imagePreview(requestID))
+    }
+
+    func testAppUpdateRestartAlertIsDeferredWithoutDiscardingItsPrompt() {
+        XCTAssertFalse(AppUpdateRestartAlertPolicy.isPresented(
+            hasRestartPrompt: true,
+            isSuppressed: true
+        ))
+        XCTAssertFalse(AppUpdateRestartAlertPolicy.shouldDismissPrompt(
+            requestedPresentation: false,
+            isSuppressed: true
+        ))
+
+        XCTAssertTrue(AppUpdateRestartAlertPolicy.isPresented(
+            hasRestartPrompt: true,
+            isSuppressed: false
+        ))
+    }
+
+    func testAppUpdateRestartAlertDismissesOnlyFromVisibleUserDismissal() {
+        XCTAssertTrue(AppUpdateRestartAlertPolicy.shouldDismissPrompt(
+            requestedPresentation: false,
+            isSuppressed: false
+        ))
+        XCTAssertFalse(AppUpdateRestartAlertPolicy.shouldDismissPrompt(
+            requestedPresentation: true,
+            isSuppressed: false
+        ))
+        XCTAssertFalse(AppUpdateRestartAlertPolicy.isPresented(
+            hasRestartPrompt: false,
+            isSuppressed: false
+        ))
+    }
 }

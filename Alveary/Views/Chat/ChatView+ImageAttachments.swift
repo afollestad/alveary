@@ -26,6 +26,10 @@ extension ChatView {
     }
 
     func removeComposerAttachment(_ attachment: ComposerAttachment) {
+        guard !voiceInputCoordinator.isDraftInteractionLocked else {
+            return
+        }
+        voiceInputCoordinator.invalidatePendingActivationIntent()
         switch attachment {
         case .image(let image):
             viewModel.removeStagedImageAttachment(id: image.id)
@@ -37,13 +41,27 @@ extension ChatView {
     }
 
     func handleLocalFileURLsSelected(_ urls: [URL]) async -> LocalFileSelectionResult {
+        guard !voiceInputCoordinator.isDraftInteractionLocked else {
+            return .handled
+        }
+        if !urls.isEmpty {
+            voiceInputCoordinator.invalidatePendingActivationIntent()
+        }
         let imageURLs = urls.filter(DefaultConversationAttachmentStore.isSupportedImageURL(_:))
         let fileURLs = urls.filter { !DefaultConversationAttachmentStore.isSupportedImageURL($0) }
+        let existingImageIDs = Set(viewModel.stagedImageAttachments.map(\.id))
 
         do {
             try await viewModel.stageLocalImageAttachments(from: imageURLs)
         } catch {
             viewModel.lastTurnError = "Could not attach image: \(error.localizedDescription)"
+            return .handled
+        }
+
+        guard !voiceInputCoordinator.isDraftInteractionLocked else {
+            for attachment in viewModel.stagedImageAttachments where !existingImageIDs.contains(attachment.id) {
+                viewModel.removeStagedImageAttachment(id: attachment.id)
+            }
             return .handled
         }
 

@@ -4,8 +4,8 @@
 extension AppKitChatComposerPanelView {
     func configureAttachmentStrip(_ configuration: AppKitChatComposerBodyConfiguration) {
         attachmentStripView.configure(configuration.attachments)
-        attachmentStripView.onOpenAttachment = configuration.onOpenAttachment
-        attachmentStripView.onRemoveAttachment = configuration.onRemoveAttachment
+        attachmentStripView.onOpenAttachment = configuration.isVoiceInteractionLocked ? nil : configuration.onOpenAttachment
+        attachmentStripView.onRemoveAttachment = configuration.isVoiceInteractionLocked ? nil : configuration.onRemoveAttachment
         attachmentStripView.isHidden = configuration.attachments.isEmpty
     }
 

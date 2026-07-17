@@ -194,6 +194,22 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
         XCTAssertEqual(fixture.deleteRecorder.deletedThreadIDs, [fixture.thread.persistentModelID])
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
     }
+
+    func testDenyProjectTrustFailureDoesNotRestoreSelectionUnderVoiceModelModal() async throws {
+        let fixture = try ThreadDetailProjectTrustFixture(
+            deleteError: ThreadDetailProjectTrustError.cleanupFailed,
+            deletesBeforeThrowing: false
+        )
+        let modalSink = ThreadDetailVoiceModelModalSink()
+        fixture.view.voiceInputLifecycleController.setActiveComposerSink(modalSink)
+
+        await fixture.view.denyProjectTrust(fixture.prompt)
+
+        XCTAssertEqual(fixture.appState.selectedSidebarItem, .project(fixture.project))
+        XCTAssertEqual(fixture.appState.previousSelection, .threadId(fixture.thread.persistentModelID))
+        XCTAssertNil(fixture.appState.selectedConversationIDs[fixture.thread.persistentModelID])
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
+    }
 }
 
 @MainActor
@@ -389,6 +405,7 @@ private struct ThreadDetailProjectTrustFixture {
             worktreeInfo: WorktreeInfo(path: "/tmp/alveary-worktree", branch: "main")
         )
         let contextWindowCache = MockContextWindowCache()
+        let voiceInputService = DisabledVoiceInputService()
         let conversationControllerRegistry = DefaultConversationControllerRegistry { conversation in
             ConversationViewModel(
                 conversation: conversation,
@@ -415,6 +432,8 @@ private struct ThreadDetailProjectTrustFixture {
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: RecordingNotificationManager(),
+            voiceInputService: voiceInputService,
+            voiceInputLifecycleController: VoiceInputLifecycleController(service: voiceInputService),
             availableProjects: thread.project.map { [$0] } ?? [],
             selectDraftProject: { _, _ in },
             deleteThread: { thread in
@@ -470,13 +489,5 @@ private final class ThreadDetailDeleteRecorder {
         if let deleteError {
             throw deleteError
         }
-    }
-}
-
-private enum ThreadDetailProjectTrustError: LocalizedError {
-    case cleanupFailed
-
-    var errorDescription: String? {
-        "Cleanup failed"
     }
 }

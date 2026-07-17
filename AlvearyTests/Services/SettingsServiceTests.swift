@@ -8,7 +8,10 @@ import XCTest
 final class SettingsServiceTests: XCTestCase {
     func testUserDefaultsSettingsServiceLoadsDefaultValues() throws {
         let defaults = try makeDefaults()
-        let service = UserDefaultsSettingsService(defaults: defaults)
+        let service = UserDefaultsSettingsService(
+            defaults: defaults,
+            hasEnabledSystemConflict: { _ in false }
+        )
 
         XCTAssertEqual(service.current, AppSettings())
     }
@@ -139,6 +142,7 @@ final class SettingsServiceTests: XCTestCase {
         let defaults = try makeDefaults()
         let service = UserDefaultsSettingsService(
             defaults: defaults,
+            hasEnabledSystemConflict: { _ in false },
             encode: { _ in throw EncodingFailure.example }
         )
 
@@ -154,7 +158,10 @@ final class SettingsServiceTests: XCTestCase {
         let defaults = try makeDefaults()
         defaults.set(Data("not-json".utf8), forKey: UserDefaultsSettingsService.storageKey)
 
-        let service = UserDefaultsSettingsService(defaults: defaults)
+        let service = UserDefaultsSettingsService(
+            defaults: defaults,
+            hasEnabledSystemConflict: { _ in false }
+        )
 
         XCTAssertEqual(service.current, AppSettings())
     }

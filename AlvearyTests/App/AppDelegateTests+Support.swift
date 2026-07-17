@@ -58,6 +58,7 @@ struct AppDelegateTestFixture {
         wakeRefreshDelay: Duration = .milliseconds(10),
         shutdownPersistTimeout: TimeInterval = 0.05,
         flushConversationControllers: @escaping @MainActor () -> [ConversationControllerFlushFailure] = { [] },
+        teardownVoiceInput: @escaping @MainActor () -> Void = {},
         scheduledTaskLifecycle: AppDelegateScheduledTaskLifecycleSpy? = nil,
         disableSuddenTermination: @escaping () -> Void = {},
         enableSuddenTermination: @escaping () -> Void = {}
@@ -78,6 +79,7 @@ struct AppDelegateTestFixture {
                 reconcileScheduledTasks: {
                     scheduledTaskLifecycle?.recordReconciliation()
                 },
+                teardownVoiceInput: teardownVoiceInput,
                 prepareScheduledTasksForTermination: { actionDate in
                     scheduledTaskLifecycle?.prepareForTermination(at: actionDate)
                 },

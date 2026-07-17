@@ -13,6 +13,9 @@ extension SidebarView {
     func createThread(in project: Project) async {
         do {
             let createdThread = try await viewModel.openDraftThread(project: project)
+            guard voiceInputLifecycleController?.isModelPreparationModalPresented != true else {
+                return
+            }
             guard let resolvedThread = uiModelContext.resolveThread(id: createdThread.persistentModelID) else {
                 return
             }
@@ -39,6 +42,9 @@ extension SidebarView {
                 forkedThread = try await viewModel.forkThreadIntoWorktree(thread)
             }
 
+            guard voiceInputLifecycleController?.isModelPreparationModalPresented != true else {
+                return
+            }
             guard let resolvedThread = uiModelContext.resolveThread(id: forkedThread.persistentModelID) else {
                 return
             }
@@ -209,9 +215,11 @@ extension SidebarView {
             expandedProjects.remove(projectPath)
             viewModel.presentSidebarError(error)
         } catch {
-            appState.selectedSidebarItem = previousSelectedItem
-            appState.previousSelection = previousBookmark
-            appState.selectedConversationIDs = previousConversationIDs
+            if voiceInputLifecycleController?.isModelPreparationModalPresented != true {
+                appState.selectedSidebarItem = previousSelectedItem
+                appState.previousSelection = previousBookmark
+                appState.selectedConversationIDs = previousConversationIDs
+            }
             viewModel.presentSidebarError(error)
         }
     }
@@ -286,6 +294,7 @@ extension SidebarView {
 
     func completeTaskRemovalFallbackIfNeeded(_ shouldComplete: Bool) {
         guard shouldComplete,
+              voiceInputLifecycleController?.isModelPreparationModalPresented != true,
               appState.selectedSidebarItem == nil,
               appState.pendingCommand == nil else {
             return
@@ -335,6 +344,9 @@ extension SidebarView {
     }
 
     private func completeThreadRemovalRouting(_ routing: ThreadRemovalRoutingContext) {
+        guard voiceInputLifecycleController?.isModelPreparationModalPresented != true else {
+            return
+        }
         let selectionReturnedToTarget = sidebarSelectionToken(appState.selectedSidebarItem) == .thread(routing.threadID)
         if selectionReturnedToTarget {
             appState.selectedSidebarItem = routing.replacementItem
@@ -350,7 +362,8 @@ extension SidebarView {
     }
 
     private func restoreThreadRemovalRoutingIfUnchanged(_ routing: ThreadRemovalRoutingContext) {
-        guard appState.pendingCommand == routing.optimisticPendingCommand else {
+        guard voiceInputLifecycleController?.isModelPreparationModalPresented != true,
+              appState.pendingCommand == routing.optimisticPendingCommand else {
             return
         }
         let selectionRoutingIsUnchanged = sidebarSelectionToken(appState.selectedSidebarItem) == routing.optimisticSelectionToken

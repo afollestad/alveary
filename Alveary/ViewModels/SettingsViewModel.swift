@@ -152,6 +152,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.appShotShortcut = newValue } }
     }
 
+    var voiceInputShortcut: PhysicalKeyboardShortcut? {
+        get { settingsService.current.voiceInputShortcut }
+        set { settingsService.update { $0.voiceInputShortcut = newValue } }
+    }
+
     var contextManagementEnabled: Bool {
         get { settingsService.current.contextManagementEnabled }
         set { settingsService.update { $0.contextManagementEnabled = newValue } }

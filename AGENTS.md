@@ -32,6 +32,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Services/Shell/AGENTS.md`: process execution and output draining.
 - `Alveary/Services/Terminal/AGENTS.md`: terminal session state and pruning.
 - `Alveary/Services/Updates/AGENTS.md`: app update checks, release metadata, and updater-owned storage.
+- `Alveary/Services/VoiceInput/AGENTS.md`: voice permission, model cache, inference, audio, and lifecycle ownership.
 - `Alveary/ViewModels/AGENTS.md`: view-model coordination.
 - `Alveary/ViewModels/DiffViewer/AGENTS.md`: diff viewer coordination and workspace state.
 - `Alveary/Views/AGENTS.md`: shared SwiftUI, status colors, focus.

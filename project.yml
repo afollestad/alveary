@@ -30,11 +30,14 @@ targets:
         product: NeedleFoundation
       - package: BlockInputKit
         product: BlockInputKit
+      - package: FluidAudio
+        product: FluidAudio
       - package: AgentCLIKit
         product: AgentCLIKit
       - package: SwiftTerm
         product: SwiftTerm
       - sdk: Carbon.framework
+      - sdk: AVFoundation.framework
       - sdk: IOKit.framework
       - sdk: ScreenCaptureKit.framework
     settings:
@@ -44,6 +47,7 @@ targets:
         CURRENT_PROJECT_VERSION: 4
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: Config/CodeSigning/Alveary.entitlements
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
       configs:
         Debug:
@@ -110,7 +114,10 @@ packages:
     revision: "12a2860bd7c354d53e3ffba5c2ff2d531499fea1"
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
-    revision: "d96d9a7e48e4733ea078005f136f977f2960aed7"
+    revision: "5a6701872dd7ae649c27e1a75f564714db5c817f"
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio.git
+    exactVersion: "0.15.5"
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm.git
     revision: "d5ee56e1c74777120f3af688600d336de4201bd2"

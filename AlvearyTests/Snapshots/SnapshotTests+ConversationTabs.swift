@@ -361,9 +361,9 @@ private struct ThreadDetailStatusFixture {
             )
         }
     }
-
     var view: some View {
-        ThreadDetailView(
+        let voiceInputService = DisabledVoiceInputService()
+        return ThreadDetailView(
             thread: thread,
             appState: appState,
             modelContext: context,
@@ -376,6 +376,8 @@ private struct ThreadDetailStatusFixture {
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
+            voiceInputService: voiceInputService,
+            voiceInputLifecycleController: VoiceInputLifecycleController(service: voiceInputService),
             availableProjects: thread.project.map { [$0] } ?? [],
             selectDraftProject: { _, _ in },
             deleteThread: { _ in },
@@ -384,7 +386,6 @@ private struct ThreadDetailStatusFixture {
         )
         .environment(\.modelContext, context)
     }
-
     private static func makeSeededModel() throws -> SeededModel {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(

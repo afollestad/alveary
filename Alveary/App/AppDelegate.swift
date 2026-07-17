@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let flushConversationControllers: @MainActor () -> [ConversationControllerFlushFailure]
         let activateScheduledTasks: @MainActor () async -> Void
         let reconcileScheduledTasks: @MainActor () -> Void
+        let teardownVoiceInput: @MainActor () -> Void
         let prepareScheduledTasksForTermination: @MainActor (Date) throws -> ScheduledTaskTerminationPreparation?
         let notificationRouter: NotificationRouter
         let workspaceNotificationCenter: NotificationCenter
@@ -48,6 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 },
                 reconcileScheduledTasks: {
                     component.scheduledTaskLifecycleCoordinator.reconcileAfterSystemChange()
+                },
+                teardownVoiceInput: {
+                    component.voiceInputLifecycleController.teardownSynchronously()
                 },
                 prepareScheduledTasksForTermination: { actionDate in
                     try component.scheduledTaskLifecycleCoordinator.prepareForTermination(at: actionDate)
@@ -226,6 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         startupTask?.cancel()
         wakeRefreshTask?.cancel()
+        dependencies.teardownVoiceInput()
 
         let controllerFlushFailures: [ConversationControllerFlushFailure]
         do {

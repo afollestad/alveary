@@ -70,7 +70,9 @@ extension AppDelegateTests {
 
     func testApplicationWillTerminateUsesScheduledPreparationAsSynchronousControllerFlush() async throws {
         let fixture = try AppDelegateTestFixture()
-        let lifecycle = AppDelegateScheduledTaskLifecycleSpy()
+        let shutdownOrderRecorder = AppDelegateShutdownOrderRecorder()
+        fixture.agentsManager.setShutdownOrderRecorder(shutdownOrderRecorder)
+        let lifecycle = AppDelegateScheduledTaskLifecycleSpy(terminationOrderRecorder: shutdownOrderRecorder)
         lifecycle.terminationPreparation = ScheduledTaskTerminationPreparation(
             interruptedRunIDs: [],
             conversationIDsToTerminate: ["scheduled-conversation"],
@@ -82,6 +84,9 @@ extension AppDelegateTests {
                 fallbackFlushCalls.increment()
                 return []
             },
+            teardownVoiceInput: {
+                shutdownOrderRecorder.record("voice")
+            },
             scheduledTaskLifecycle: lifecycle
         )
 
@@ -91,5 +96,6 @@ extension AppDelegateTests {
         XCTAssertEqual(fallbackFlushCalls.value, 0)
         let shutdownCallCount = await fixture.agentsManager.beginShutdownCallCount()
         XCTAssertEqual(shutdownCallCount, 1)
+        XCTAssertEqual(shutdownOrderRecorder.values, ["voice", "scheduled-prepare", "shutdown"])
     }
 }

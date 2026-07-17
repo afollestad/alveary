@@ -14,6 +14,7 @@ enum SidebarProjectListMetrics {
 struct SidebarView: View {
     let viewModel: SidebarViewModel
     @Bindable var appState: AppState
+    let voiceInputLifecycleController: VoiceInputLifecycleController?
 
     @Environment(\.modelContext) var uiModelContext
     @Environment(\.accessibilityReduceMotion) var accessibilityReduceMotion
@@ -31,6 +32,16 @@ struct SidebarView: View {
     @State var sidebarDragGeometryMissToken: UUID?
     @FocusState var isKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) var chatComposerFocus
+
+    init(
+        viewModel: SidebarViewModel,
+        appState: AppState,
+        voiceInputLifecycleController: VoiceInputLifecycleController? = nil
+    ) {
+        self.viewModel = viewModel
+        self.appState = appState
+        self.voiceInputLifecycleController = voiceInputLifecycleController
+    }
 
     var projects: [Project] {
         viewModel.orderedProjects(from: queriedProjects)

@@ -59,6 +59,7 @@ struct EmptyThreadState: View {
     let isCancellingInitialSetup: Bool
     let thread: AgentThread?
     let projects: [Project]
+    let isProjectSelectionDisabled: Bool
     let onSelectProject: (String) -> Void
 
     init(
@@ -66,12 +67,14 @@ struct EmptyThreadState: View {
         isCancellingInitialSetup: Bool,
         thread: AgentThread? = nil,
         projects: [Project] = [],
+        isProjectSelectionDisabled: Bool = false,
         onSelectProject: @escaping (String) -> Void = { _ in }
     ) {
         self.setupPhase = setupPhase
         self.isCancellingInitialSetup = isCancellingInitialSetup
         self.thread = thread
         self.projects = projects
+        self.isProjectSelectionDisabled = isProjectSelectionDisabled
         self.onSelectProject = onSelectProject
     }
 
@@ -264,6 +267,7 @@ private extension EmptyThreadState {
             }
             .menuIndicator(.hidden)
             .buttonStyle(.plain)
+            .disabled(isProjectSelectionDisabled)
             .help(projectIdentityPresentation.helpText)
             .accessibilityLabel("Project")
             .accessibilityValue(projectIdentityPresentation.accessibilityValue)

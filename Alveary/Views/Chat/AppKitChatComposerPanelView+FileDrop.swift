@@ -31,6 +31,7 @@ extension AppKitChatComposerPanelView {
         }
         guard let fileURLs = readableFileURLs(from: sender),
               !fileURLs.isEmpty,
+              configuration?.bodyConfiguration.isVoiceInteractionLocked != true,
               isDraggingLocationInsideFileDropTarget(sender) else {
             return false
         }
@@ -42,6 +43,7 @@ extension AppKitChatComposerPanelView {
 
     func layoutFileDropOverlay(configuration: AppKitChatComposerPanelConfiguration) {
         guard configuration.interactionOverlayConfiguration == nil,
+              !configuration.bodyConfiguration.isVoiceInteractionLocked,
               let frame = fileDropTargetFrame() else {
             fileDropOverlayView.frame = .zero
             fileDropOverlayView.isHidden = true
@@ -70,6 +72,7 @@ extension AppKitChatComposerPanelView {
 
     private func updateFileDropOverlay(for sender: NSDraggingInfo) -> NSDragOperation {
         guard isDraggingLocationInsideFileDropTarget(sender),
+              configuration?.bodyConfiguration.isVoiceInteractionLocked != true,
               hasReadableFileURLs(in: sender) else {
             setFileDropOverlayActive(false)
             return []

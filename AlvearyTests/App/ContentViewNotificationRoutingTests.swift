@@ -102,6 +102,117 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         strongAppState = nil
         XCTAssertNil(provider())
     }
+
+    func testAppNavigationIsBlockedWhileVoiceModelModalIsPresented() {
+        let lifecycleController = VoiceInputLifecycleController(service: DisabledVoiceInputService())
+        let sink = NotificationRoutingVoiceInputSinkFake(isModelPreparationModalPresented: true)
+        lifecycleController.setActiveComposerSink(sink)
+        var actionCount = 0
+
+        let didPerform = performAppNavigationIfModelPreparationModalAbsent(
+            lifecycleController: lifecycleController
+        ) {
+            actionCount += 1
+        }
+
+        XCTAssertFalse(didPerform)
+        XCTAssertEqual(actionCount, 0)
+    }
+
+    func testRecordingLikeComposerLockDoesNotBlockAppNavigation() {
+        let lifecycleController = VoiceInputLifecycleController(service: DisabledVoiceInputService())
+        let sink = NotificationRoutingVoiceInputSinkFake(isModelPreparationModalPresented: false)
+        lifecycleController.setActiveComposerSink(sink)
+        var actionCount = 0
+
+        let didPerform = performAppNavigationIfModelPreparationModalAbsent(
+            lifecycleController: lifecycleController
+        ) {
+            actionCount += 1
+        }
+
+        XCTAssertTrue(lifecycleController.isComposerInteractionLocked)
+        XCTAssertFalse(lifecycleController.isModelPreparationModalPresented)
+        XCTAssertTrue(didPerform)
+        XCTAssertEqual(actionCount, 1)
+    }
+
+    func testDeferredNotificationRemainsPendingUntilVoiceModelModalCloses() {
+        let lifecycleController = VoiceInputLifecycleController(service: DisabledVoiceInputService())
+        let sink = NotificationRoutingVoiceInputSinkFake(isModelPreparationModalPresented: true)
+        let router = NotificationRouter()
+        router.requestOpen(conversationId: "pending-conversation")
+        lifecycleController.setActiveComposerSink(sink)
+
+        performAppNavigationIfModelPreparationModalAbsent(lifecycleController: lifecycleController) {
+            router.clearPendingIfMatches("pending-conversation")
+        }
+        XCTAssertEqual(router.pendingConversationId, "pending-conversation")
+
+        lifecycleController.clearActiveComposerSink(sink)
+        performAppNavigationIfModelPreparationModalAbsent(lifecycleController: lifecycleController) {
+            router.clearPendingIfMatches("pending-conversation")
+        }
+        XCTAssertNil(router.pendingConversationId)
+    }
+
+    func testPendingCommandWaitsWhenVoiceModelModalAppearsAfterAsyncWorkStarts() {
+        let commandID = UUID()
+
+        XCTAssertFalse(pendingCommandCanProceed(
+            commandID: commandID,
+            currentCommandID: commandID,
+            isModelPreparationModalPresented: true
+        ))
+        XCTAssertTrue(pendingCommandCanProceed(
+            commandID: commandID,
+            currentCommandID: commandID,
+            isModelPreparationModalPresented: false
+        ))
+    }
+
+    func testPendingCommandCannotCompleteAfterAReplacementCommandWins() {
+        XCTAssertFalse(pendingCommandCanProceed(
+            commandID: UUID(),
+            currentCommandID: UUID(),
+            isModelPreparationModalPresented: false
+        ))
+    }
+
+    func testVoiceModelCacheClearIsBlockedOnlyByModelPreparationModal() {
+        let lifecycleController = VoiceInputLifecycleController(service: DisabledVoiceInputService())
+        let modelModalSink = NotificationRoutingVoiceInputSinkFake(isModelPreparationModalPresented: true)
+        lifecycleController.setActiveComposerSink(modelModalSink)
+        var actionCount = 0
+
+        XCTAssertFalse(performVoiceModelCacheClearIfModelPreparationModalAbsent(
+            lifecycleController: lifecycleController
+        ) {
+            actionCount += 1
+        })
+        XCTAssertEqual(actionCount, 0)
+
+        lifecycleController.clearActiveComposerSink(modelModalSink)
+        let recordingLikeSink = NotificationRoutingVoiceInputSinkFake(isModelPreparationModalPresented: false)
+        lifecycleController.setActiveComposerSink(recordingLikeSink)
+        XCTAssertTrue(performVoiceModelCacheClearIfModelPreparationModalAbsent(
+            lifecycleController: lifecycleController
+        ) {
+            actionCount += 1
+        })
+        XCTAssertEqual(actionCount, 1)
+    }
+}
+
+@MainActor
+private final class NotificationRoutingVoiceInputSinkFake: VoiceInputComposerSink {
+    let isModelPreparationModalPresented: Bool
+
+    init(isModelPreparationModalPresented: Bool) {
+        self.isModelPreparationModalPresented = isModelPreparationModalPresented
+    }
+
+    func forceVoiceInputCommitSynchronously() {}
 }
 
 @MainActor

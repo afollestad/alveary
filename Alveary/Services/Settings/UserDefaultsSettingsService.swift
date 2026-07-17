@@ -13,6 +13,9 @@ final class UserDefaultsSettingsService: SettingsService {
 
     init(
         defaults: UserDefaults = .standard,
+        hasEnabledSystemConflict: @escaping (PhysicalKeyboardShortcut) -> Bool = {
+            PhysicalKeyboardShortcutValidation.hasEnabledSystemShortcut(matching: $0)
+        },
         encode: @escaping @Sendable (AppSettings) throws -> Data = { try JSONEncoder().encode($0) }
     ) {
         self.defaults = defaults
@@ -20,9 +23,29 @@ final class UserDefaultsSettingsService: SettingsService {
 
         if let data = defaults.data(forKey: Self.storageKey),
            let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
-            current = decoded.normalized()
+            let migrationState = Self.voiceInputShortcutMigrationState(data)
+            var loadedSettings = decoded.normalized()
+            if migrationState.needsDefaultSelection {
+                loadedSettings.voiceInputShortcut = AppSettings.migratedVoiceInputShortcut(
+                    appShotShortcut: loadedSettings.appShotShortcut,
+                    hasEnabledSystemConflict: hasEnabledSystemConflict
+                )
+            }
+            current = loadedSettings
+            if migrationState.needsPersistence,
+               let migratedData = try? encode(current) {
+                defaults.set(migratedData, forKey: Self.storageKey)
+            }
         } else {
-            current = AppSettings()
+            var initialSettings = AppSettings()
+            initialSettings.voiceInputShortcut = AppSettings.migratedVoiceInputShortcut(
+                appShotShortcut: initialSettings.appShotShortcut,
+                hasEnabledSystemConflict: hasEnabledSystemConflict
+            )
+            current = initialSettings
+            if let initialData = try? encode(initialSettings) {
+                defaults.set(initialData, forKey: Self.storageKey)
+            }
         }
     }
 
@@ -68,5 +91,16 @@ final class UserDefaultsSettingsService: SettingsService {
         } catch {
             print("[SettingsService] Failed to persist app settings: \(error)")
         }
+    }
+
+    private static func voiceInputShortcutMigrationState(
+        _ data: Data
+    ) -> (needsDefaultSelection: Bool, needsPersistence: Bool) {
+        guard let dictionary = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (false, false)
+        }
+        let needsPersistence = dictionary["voiceInputShortcutMigrationCompleted"] as? Bool != true
+        let needsDefaultSelection = needsPersistence && !dictionary.keys.contains("voiceInputShortcut")
+        return (needsDefaultSelection, needsPersistence)
     }
 }

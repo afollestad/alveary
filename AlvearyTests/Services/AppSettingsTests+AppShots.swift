@@ -63,6 +63,44 @@ extension AppSettingsTests {
         )
     }
 
+    func testDecodeAndNormalizePreserveLegacyModifierKeyAppShotShortcut() throws {
+        let json = Data(
+            #"""
+            {
+              "appShotShortcut": {
+                "kind": "keyChord",
+                "keyChord": {
+                  "keyCode": 55,
+                  "modifiers": 10,
+                  "keyEquivalent": "⌘"
+                }
+              }
+            }
+            """#.utf8
+        )
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json).normalized()
+
+        XCTAssertEqual(
+            settings.appShotShortcut,
+            AppShotKeyboardShortcut(
+                keyCode: UInt16(kVK_Command),
+                modifiers: [.control, .shift],
+                keyEquivalent: "⌘"
+            )
+        )
+    }
+
+    func testAppShotDisplayPreservesRecordedSpaceGlyph() {
+        let shortcut = AppShotKeyboardShortcut(
+            keyCode: UInt16(kVK_Space),
+            modifiers: [.control, .shift],
+            keyEquivalent: "␣"
+        )
+
+        XCTAssertEqual(shortcut.displayString, "⌃⇧␣")
+    }
+
     func testDecodeDefaultsAppShotShortcutWhenFieldIsInvalid() throws {
         let json = Data(#"{"appShotShortcut":"controlOptionA"}"#.utf8)
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
@@ -102,6 +140,19 @@ extension AppSettingsTests {
         XCTAssertEqual(
             AppShotKeyboardShortcut.validationMessage(for: shortcut, currentShortcut: .controlShiftS),
             "Use at least two modifier keys."
+        )
+    }
+
+    func testAppShotShortcutValidationPreservesSystemConflictPrecedence() {
+        let shortcut = AppShotKeyboardShortcut(
+            keyCode: UInt16(kVK_Space),
+            modifiers: .command,
+            keyEquivalent: "␣"
+        )
+
+        XCTAssertEqual(
+            AppShotKeyboardShortcut.validationMessage(for: shortcut, currentShortcut: .controlShiftS),
+            "⌘␣ conflicts with a macOS keyboard shortcut."
         )
     }
 

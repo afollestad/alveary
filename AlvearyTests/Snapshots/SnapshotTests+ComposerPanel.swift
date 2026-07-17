@@ -236,7 +236,6 @@ extension SnapshotTests {
         )
     }
 }
-
 // Shared with `SnapshotTests+ComposerQueuedMessages.swift`.
 struct AppKitComposerPanelNativeRowSnapshot: View {
     let topContentConfiguration: AppKitChatComposerTopContentView.Configuration
@@ -246,6 +245,9 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
     let isGoalModeChipVisible: Bool
     let isGoalModeChipEnabled: Bool
     let taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration?
+    let voiceInputPhase: ChatVoiceInputPhase?
+    let voiceInputReducesMotion: Bool
+    let voiceInputIncreasesContrast: Bool
     let usageSummary = ConversationUsageSummary(
         contextUsedTokens: 186_000,
         contextWindowSize: 200_000,
@@ -271,7 +273,10 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
         interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil,
         isGoalModeChipVisible: Bool = false,
         isGoalModeChipEnabled: Bool = false,
-        taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration? = nil
+        taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration? = nil,
+        voiceInputPhase: ChatVoiceInputPhase? = nil,
+        voiceInputReducesMotion: Bool = false,
+        voiceInputIncreasesContrast: Bool = false
     ) {
         self.topContentConfiguration = topContentConfiguration
         self.queuedMessages = queuedMessages
@@ -280,6 +285,9 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
         self.isGoalModeChipVisible = isGoalModeChipVisible
         self.isGoalModeChipEnabled = isGoalModeChipEnabled
         self.taskWorkspace = taskWorkspace
+        self.voiceInputPhase = voiceInputPhase
+        self.voiceInputReducesMotion = voiceInputReducesMotion
+        self.voiceInputIncreasesContrast = voiceInputIncreasesContrast
     }
 
     var body: some View {
@@ -308,6 +316,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             hasTopContent: !topContentConfiguration.items.isEmpty,
             workingDirectory: "/tmp/alveary",
             requestFirstResponder: focusRequestToken,
+            isVoiceInteractionLocked: voiceInputPhase?.locksDraftMutations == true,
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
             onSubmit: {},
@@ -382,7 +391,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             isGoalModeChipVisible: isGoalModeChipVisible,
             isGoalModeChipEnabled: isGoalModeChipEnabled,
             usageSummary: usageSummary,
-            areControlsDisabled: false,
+            areControlsDisabled: voiceInputPhase?.locksDraftMutations == true,
             mode: .idle,
             primaryActionTitle: "Send",
             primaryActionSystemImage: "paperplane.fill",
@@ -392,6 +401,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             onPermissionModeChange: { selectedPermissionMode = $0 },
             onUseWorktreeChange: { selectedUseWorktree = $0 },
             taskWorkspace: taskWorkspace,
+            voiceInput: voiceInputConfiguration,
             onSubmit: {},
             onStop: {}
         )

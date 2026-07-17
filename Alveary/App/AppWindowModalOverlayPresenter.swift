@@ -297,6 +297,26 @@ final class AppWindowModalOverlayPanel: NSPanel {
     var onDismiss: (() -> Void)?
     var dismissPolicy = AppWindowModalOverlayPresenter.DismissPolicy.dismissible
 
+    override init(
+        contentRect: NSRect,
+        styleMask style: NSWindow.StyleMask,
+        backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool
+    ) {
+        super.init(
+            contentRect: contentRect,
+            styleMask: style,
+            backing: backingStoreType,
+            defer: flag
+        )
+        setAccessibilityModal(true)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
     override var canBecomeKey: Bool {
         true
     }
@@ -306,6 +326,13 @@ final class AppWindowModalOverlayPanel: NSPanel {
     }
 
     override func cancelOperation(_ sender: Any?) {
+        guard dismissPolicy == .dismissible else {
+            return
+        }
+        onDismiss?()
+    }
+
+    override func performClose(_ sender: Any?) {
         guard dismissPolicy == .dismissible else {
             return
         }
@@ -336,6 +363,10 @@ final class AppWindowModalOverlayPanel: NSPanel {
         let screenPoint = convertPoint(toScreen: event.locationInWindow)
         guard let targetButton = trafficLightButton(at: screenPoint, in: parentModalWindow) else {
             return false
+        }
+
+        guard dismissPolicy == .dismissible else {
+            return true
         }
 
         if event.type == .leftMouseUp {

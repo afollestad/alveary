@@ -14,21 +14,53 @@ final class AppKitChatComposerEditorController {
     private var hasSeededInitialBlockInputHeight = false
     private var preferredHeightAnimationTimer: Timer?
     private var preferredHeightAnimationState: PreferredHeightAnimationState?
+    var latestSelection: BlockInputSelection? {
+        didSet {
+            switch latestSelection {
+            case .cursor(let cursor):
+                lastFocusedBlockID = cursor.blockID
+            case .text(let range):
+                lastFocusedBlockID = range.blockID
+            case .blocks(let blockIDs):
+                lastFocusedBlockID = blockIDs.first
+            case .mixed(let selection):
+                lastFocusedBlockID = selection.leadingTextRange?.blockID
+                    ?? selection.trailingTextRange?.blockID
+                    ?? selection.blockIDs.first
+            case nil:
+                break
+            }
+        }
+    }
+    var lastFocusedBlockID: BlockInputBlockID?
 
     func configure(_ configuration: AppKitChatComposerBodyConfiguration) {
         let previousConfiguration = self.configuration
-        previousConfiguration?.onDraftSnapshotProviderChange(nil)
+        if let previousConfiguration,
+           let previousHandle = previousConfiguration.voiceEditorHandle,
+           previousConfiguration.draftIdentity != configuration.draftIdentity ||
+            previousHandle !== configuration.voiceEditorHandle {
+            previousHandle.invalidateBinding(to: self)
+        }
         if let previousConfiguration,
            previousConfiguration.draftIdentity != configuration.draftIdentity {
             bridgeController?.view.removeFromSuperview()
             bridgeController = nil
+            latestSelection = nil
+            lastFocusedBlockID = nil
             lastConsumedFocusRequestToken = nil
             hasSeededInitialBlockInputHeight = false
             cancelPreferredHeightAnimation()
         }
+        previousConfiguration?.onDraftSnapshotProviderChange(nil)
         self.configuration = configuration
 
         let replacedDocument = configureBlockInput(configuration)
+        configuration.voiceEditorHandle?.bind(
+            self,
+            draftIdentity: configuration.draftIdentity,
+            inputDraftRevision: configuration.inputDraftRevision
+        )
         installDraftSnapshotProvider(configuration)
         consumeFocusRequestIfNeeded(
             configuration.requestFirstResponder,
@@ -38,6 +70,7 @@ final class AppKitChatComposerEditorController {
     }
 
     func detach() {
+        configuration?.voiceEditorHandle?.invalidateBinding(to: self)
         configuration?.onDraftSnapshotProviderChange(nil)
         cancelAsyncTasks()
     }

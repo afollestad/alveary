@@ -35,15 +35,6 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         XCTAssertTrue(secondInstalled)
     }
 
-    func testConfigureResetsBridgeWhenDraftIdentityChanges() {
-        let controller = AppKitChatComposerEditorController()
-
-        controller.configure(makeConfiguration(text: "First", draftIdentity: "one"))
-        controller.configure(makeConfiguration(text: "Second", draftIdentity: "two"))
-
-        XCTAssertEqual(controller.bridgeController?.currentMarkdown(), "Second")
-    }
-
     func testConfigureInvalidatesPreferredSizeWithSurfaceAnimationEnabled() {
         let controller = AppKitChatComposerEditorController()
         var invalidationAnimationFlags: [Bool] = []
@@ -424,6 +415,8 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
         supportsMidTurnSteering: Bool = true,
         canSteerCurrentTurn: Bool = true,
         isProjectTrustBlocked: Bool = false,
+        isVoiceInteractionLocked: Bool = false,
+        onVoiceInputAvailabilityChange: @escaping () -> Void = {},
         onDraftSnapshotProviderChange: @escaping (ComposerDraftSnapshotProvider?) -> Void = { _ in },
         onSubmit: @escaping () -> Void = {},
         onSteer: @escaping () -> Void = {},
@@ -449,6 +442,8 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
             hasTopContent: hasTopContent,
             workingDirectory: "/tmp/alveary",
             requestFirstResponder: requestFirstResponder,
+            isVoiceInteractionLocked: isVoiceInteractionLocked,
+            onVoiceInputAvailabilityChange: onVoiceInputAvailabilityChange,
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
             onDraftSnapshotProviderChange: onDraftSnapshotProviderChange,

@@ -4,5 +4,7 @@
 <dict>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Alveary uses the microphone to transcribe speech into thread drafts on your Mac.</string>
 </dict>
 </plist>

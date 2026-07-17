@@ -24,26 +24,44 @@ struct AlvearyApp: App {
 
             CommandGroup(replacing: .newItem) {
                 Button("Add Project...") {
-                    appState.openNewProjectFlow()
+                    performAppNavigationIfModelPreparationModalAbsent(
+                        lifecycleController: AppDI.component.voiceInputLifecycleController
+                    ) {
+                        appState.openNewProjectFlow()
+                    }
                 }
                 .keyboardShortcut(.addProject)
 
                 Button("New Thread") {
-                    appState.startNewThreadFlow()
+                    performAppNavigationIfModelPreparationModalAbsent(
+                        lifecycleController: AppDI.component.voiceInputLifecycleController
+                    ) {
+                        appState.startNewThreadFlow()
+                    }
                 }
                 .keyboardShortcut(.newThread)
 
-                NewConversationCommandButton()
+                NewConversationCommandButton(
+                    voiceInputLifecycleController: AppDI.component.voiceInputLifecycleController
+                )
             }
 
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
-                    appState.openSettings()
+                    performAppNavigationIfModelPreparationModalAbsent(
+                        lifecycleController: AppDI.component.voiceInputLifecycleController
+                    ) {
+                        appState.openSettings()
+                    }
                 }
                 .keyboardShortcut(.settings)
 
                 Button("Check for Updates...") {
-                    appState.openSettings(targetPage: .appUpdates)
+                    performAppNavigationIfModelPreparationModalAbsent(
+                        lifecycleController: AppDI.component.voiceInputLifecycleController
+                    ) {
+                        appState.openSettings(targetPage: .appUpdates)
+                    }
                 }
             }
 
@@ -62,6 +80,22 @@ struct AlvearyApp: App {
             CommandMenu("Developer") {
                 Button("Show Fake Error Toast") {
                     appState.presentUnexpectedError(message: "Developer test error toast")
+                }
+
+                Button("Clear Voice Model Cache") {
+                    performVoiceModelCacheClearIfModelPreparationModalAbsent(
+                        lifecycleController: AppDI.component.voiceInputLifecycleController
+                    ) {
+                        let service = AppDI.component.voiceInputService
+                        Task { @MainActor in
+                            do {
+                                try await service.clearModelCache()
+                                appState.presentSuccessFeedback(message: "Voice model cache cleared.")
+                            } catch {
+                                appState.presentUnexpectedError(message: error.localizedDescription)
+                            }
+                        }
+                    }
                 }
 
                 ViewRawTranscriptCommandButton()
@@ -94,7 +128,7 @@ struct AlvearyApp: App {
     }
 
     private static var aboutCredits: NSAttributedString {
-        let text = "\nMade with ❤️ by Aidan Follestad\n\nWebsite | Ko-fi"
+        let text = "\nMade with ❤️ by Aidan Follestad\n\nWebsite | Ko-fi | Voice Input Credits"
         let attributed = NSMutableAttributedString(string: text)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
@@ -110,14 +144,22 @@ struct AlvearyApp: App {
         )
         addLink(to: attributed, label: "Website", urlString: "https://af.codes")
         addLink(to: attributed, label: "Ko-fi", urlString: "https://ko-fi.com/aidan1995")
+        if let creditsURL = Bundle.main.url(forResource: "VoiceInputAttributions", withExtension: "txt") {
+            addLink(to: attributed, label: "Voice Input Credits", url: creditsURL)
+        }
         return attributed
     }
 
     private static func addLink(to attributed: NSMutableAttributedString, label: String, urlString: String) {
-        guard
-            let url = URL(string: urlString),
-            let range = attributed.string.range(of: label)
-        else {
+        guard let url = URL(string: urlString) else {
+            return
+        }
+
+        addLink(to: attributed, label: label, url: url)
+    }
+
+    private static func addLink(to attributed: NSMutableAttributedString, label: String, url: URL) {
+        guard let range = attributed.string.range(of: label) else {
             return
         }
 
@@ -132,16 +174,34 @@ struct AlvearyApp: App {
     }
 }
 
+@MainActor
+@discardableResult
+func performVoiceModelCacheClearIfModelPreparationModalAbsent(
+    lifecycleController: VoiceInputLifecycleController,
+    operation: () -> Void
+) -> Bool {
+    guard !lifecycleController.isModelPreparationModalPresented else {
+        return false
+    }
+    operation()
+    return true
+}
+
 /// Reads the thread-scoped `newConversationAction` focused value so the ⌘T
 /// menu item is automatically disabled when no `ThreadDetailView` is mounted.
 /// The binding lives here (rather than inline inside `commands`) so
 /// `@FocusedValue` can participate in view invalidation.
 private struct NewConversationCommandButton: View {
     @FocusedValue(\.newConversationAction) private var newConversationAction
+    let voiceInputLifecycleController: VoiceInputLifecycleController
 
     var body: some View {
         Button("New Conversation") {
-            newConversationAction?()
+            performAppNavigationIfModelPreparationModalAbsent(
+                lifecycleController: voiceInputLifecycleController
+            ) {
+                newConversationAction?()
+            }
         }
         .keyboardShortcut(.newConversation)
         .disabled(newConversationAction == nil)

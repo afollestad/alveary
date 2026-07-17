@@ -17,6 +17,13 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Slash-command argument hints are BlockInputKit inline hints backed by `Skill.argumentHint`; never insert them as draft text.
 - Composer selection background must stay visually distinct from composer chip fill; use a neutral non-accent token for selection chrome and keep chip fill/foreground tokens unchanged.
 
+## Voice Input
+
+- The app-local hold-to-dictate shortcut is the sole composer key-monitor exception: keep it on the mounted `AppKitChatComposerPanelView`, scoped to the visible supported composer in Alveary's key window, and synthesize a forced release when the monitor detaches or becomes invalid.
+- Keep one stable weak editor handle across routine composer reconfiguration. Draft identity replacement and detach must synchronously stop/commit before clearing the old editor or document store.
+- Dictation owns a BlockInputKit provisional-text transaction. Make the editor read-only while it is active, update only through its authorized token, finish with exactly one commit or a no-undo cancel, then synchronously call `flushDraftFromEditor()` before unlocking draft-mutating controls.
+- Mouse, shortcut, and accessibility activation must share the coordinator reducer. UI controls own only event tracking, visual state, and temporary focus restoration.
+
 ## Drafts And Sending
 
 - BlockInput Markdown is the sendable composer text. `ComposerDraft.messageText` returns the stored Markdown directly.

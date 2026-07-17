@@ -420,6 +420,7 @@ func makeActionRowConfiguration() -> ChatComposerActionRowView.Configuration {
         onPermissionModeChange: { _ in },
         onUseWorktreeChange: { _ in },
         taskWorkspace: nil,
+        voiceInput: nil,
         onSubmit: {},
         onStop: {}
     )

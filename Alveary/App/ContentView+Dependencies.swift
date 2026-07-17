@@ -33,6 +33,8 @@ struct ContentViewDependencies {
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
     let diffWorkspaceStore: DiffWorkspaceStore
+    let voiceInputService: any VoiceInputService
+    let voiceInputLifecycleController: VoiceInputLifecycleController
     let modelContainer: ModelContainer
 
     @MainActor
@@ -69,6 +71,8 @@ struct ContentViewDependencies {
             threadActivityRecorder: component.threadActivityRecorder,
             gitService: component.gitService,
             diffWorkspaceStore: component.diffWorkspaceStore,
+            voiceInputService: component.voiceInputService,
+            voiceInputLifecycleController: component.voiceInputLifecycleController,
             modelContainer: component.modelContainer
         )
     }

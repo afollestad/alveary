@@ -58,6 +58,7 @@ struct ProjectSettingsView: View {
 
     private let loadConfig: @Sendable (String) async -> AlvearyProjectConfig
     private let sidebarViewModel: SidebarViewModel
+    private let voiceInputLifecycleController: VoiceInputLifecycleController?
 
     @Environment(\.modelContext) private var modelContext
     @State private var config: AlvearyProjectConfig
@@ -74,6 +75,7 @@ struct ProjectSettingsView: View {
         project: Project,
         appState: AppState,
         sidebarViewModel: SidebarViewModel,
+        voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
         initialConfig: AlvearyProjectConfig = .empty,
         loadConfig: @escaping @Sendable (String) async -> AlvearyProjectConfig = { projectPath in
             await AlvearyProjectConfig(projectPath: projectPath)
@@ -82,6 +84,7 @@ struct ProjectSettingsView: View {
         self.project = project
         self.appState = appState
         self.sidebarViewModel = sidebarViewModel
+        self.voiceInputLifecycleController = voiceInputLifecycleController
         self.loadConfig = loadConfig
 
         let editorState = ProjectSettingsEditorState(config: initialConfig)
@@ -205,7 +208,8 @@ func projectSettingsRestoreConfirmationMessage(for thread: AgentThread) -> Strin
 func deleteProjectSettingsArchivedThread(
     _ thread: AgentThread,
     appState: AppState,
-    sidebarViewModel: SidebarViewModel
+    sidebarViewModel: SidebarViewModel,
+    voiceInputLifecycleController: VoiceInputLifecycleController? = nil
 ) async throws {
     let threadID = thread.persistentModelID
     let previousSelectedItem = appState.selectedSidebarItem
@@ -232,9 +236,11 @@ func deleteProjectSettingsArchivedThread(
     } catch let error as SidebarViewModelError where error.isPostCommitCleanupFailure {
         throw error
     } catch {
-        appState.selectedSidebarItem = previousSelectedItem
-        appState.previousSelection = previousBookmark
-        appState.selectedConversationIDs = previousConversationIDs
+        if voiceInputLifecycleController?.isModelPreparationModalPresented != true {
+            appState.selectedSidebarItem = previousSelectedItem
+            appState.previousSelection = previousBookmark
+            appState.selectedConversationIDs = previousConversationIDs
+        }
         throw error
     }
 }
@@ -395,7 +401,8 @@ private extension ProjectSettingsView {
             try await deleteProjectSettingsArchivedThread(
                 thread,
                 appState: appState,
-                sidebarViewModel: sidebarViewModel
+                sidebarViewModel: sidebarViewModel,
+                voiceInputLifecycleController: voiceInputLifecycleController
             )
         } catch {
             screenError = error.localizedDescription

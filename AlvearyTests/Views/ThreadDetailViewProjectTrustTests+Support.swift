@@ -56,3 +56,17 @@ actor PausingThreadDetailProjectTrustService: ProviderSetupService {
         trustedProjectPaths
     }
 }
+
+enum ThreadDetailProjectTrustError: LocalizedError {
+    case cleanupFailed
+
+    var errorDescription: String? {
+        "Cleanup failed"
+    }
+}
+
+final class ThreadDetailVoiceModelModalSink: VoiceInputComposerSink {
+    var isModelPreparationModalPresented: Bool { true }
+
+    func forceVoiceInputCommitSynchronously() {}
+}

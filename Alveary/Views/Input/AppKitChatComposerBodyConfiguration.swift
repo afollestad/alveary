@@ -37,6 +37,10 @@ struct AppKitChatComposerBodyConfiguration {
     let localCommands: ComposerLocalCommandAvailability
     let passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     let requestFirstResponder: UUID?
+    let isVoiceInteractionLocked: Bool
+    let voiceEditorHandle: AppKitChatComposerEditorHandle?
+    let onVoiceEscape: () -> Bool
+    let onVoiceInputAvailabilityChange: () -> Void
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let onOpenAttachment: (ComposerAttachment) -> Void
@@ -76,6 +80,10 @@ struct AppKitChatComposerBodyConfiguration {
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
         passthroughSlashCommands: [ComposerPassthroughSlashCommand] = [],
         requestFirstResponder: UUID?,
+        isVoiceInteractionLocked: Bool = false,
+        voiceEditorHandle: AppKitChatComposerEditorHandle? = nil,
+        onVoiceEscape: @escaping () -> Bool = { false },
+        onVoiceInputAvailabilityChange: @escaping () -> Void = {},
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         onOpenAttachment: @escaping (ComposerAttachment) -> Void = { _ in },
@@ -114,6 +122,10 @@ struct AppKitChatComposerBodyConfiguration {
         self.localCommands = localCommands
         self.passthroughSlashCommands = passthroughSlashCommands
         self.requestFirstResponder = requestFirstResponder
+        self.isVoiceInteractionLocked = isVoiceInteractionLocked
+        self.voiceEditorHandle = voiceEditorHandle
+        self.onVoiceEscape = onVoiceEscape
+        self.onVoiceInputAvailabilityChange = onVoiceInputAvailabilityChange
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
         self.onOpenAttachment = onOpenAttachment

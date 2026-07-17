@@ -14,6 +14,7 @@ final class AppShotCaptureControllerFixture {
     let prepareGate: AppShotRoutingPrepareGate
     let draftOpener: AppShotRoutingDraftOpener
     let feedback = AppShotRoutingFeedbackRecorder()
+    let voiceInputLock = AppShotVoiceInputLockFake()
     let controller: AppShotCaptureController
 
     init(
@@ -53,12 +54,14 @@ final class AppShotCaptureControllerFixture {
         let prepareGate = prepareGate
         let draftOpener = draftOpener
         let feedback = feedback
+        let voiceInputLock = voiceInputLock
         controller = AppShotCaptureController(
             appState: appState,
             modelContext: context,
             settingsService: settingsService,
             runtimeStore: runtimeStore,
             attachmentStore: attachmentStore,
+            isVoiceInputLocked: { voiceInputLock.isLocked },
             prepareCapture: { try await prepareGate.prepare() },
             openDraft: { try await draftOpener.open(projectID: $0) },
             stageAppShot: { state, appShot in
@@ -123,6 +126,11 @@ final class AppShotCaptureControllerFixture {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }
+}
+
+@MainActor
+final class AppShotVoiceInputLockFake {
+    var isLocked = false
 }
 
 @MainActor

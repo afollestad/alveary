@@ -9,6 +9,7 @@ struct AppKitChatComposerPanelConfiguration {
     let interactionOverlayConfiguration: AppKitComposerOverlayConfiguration?
     let showsTopDivider: Bool
     let layout: AppKitChatComposerPanelView.Layout
+    let voiceInputShortcutConfiguration: AppKitVoiceInputShortcutConfiguration?
 
     init(
         bodyConfiguration: AppKitChatComposerBodyConfiguration,
@@ -17,7 +18,8 @@ struct AppKitChatComposerPanelConfiguration {
         actionRowConfiguration: ChatComposerActionRowView.Configuration? = nil,
         interactionOverlayConfiguration: AppKitComposerOverlayConfiguration? = nil,
         showsTopDivider: Bool,
-        layout: AppKitChatComposerPanelView.Layout
+        layout: AppKitChatComposerPanelView.Layout,
+        voiceInputShortcutConfiguration: AppKitVoiceInputShortcutConfiguration? = nil
     ) {
         self.bodyConfiguration = bodyConfiguration
         self.topContentConfiguration = topContentConfiguration
@@ -26,6 +28,7 @@ struct AppKitChatComposerPanelConfiguration {
         self.interactionOverlayConfiguration = interactionOverlayConfiguration
         self.showsTopDivider = showsTopDivider
         self.layout = layout
+        self.voiceInputShortcutConfiguration = voiceInputShortcutConfiguration
     }
 }
 
@@ -35,35 +38,11 @@ struct AppKitChatComposerPanelConfiguration {
 /// messages, and action row live in one AppKit layout path.
 @MainActor
 final class AppKitChatComposerPanelView: NSView {
-    struct Layout {
-        let horizontalPadding: NSEdgeInsets
-        let topContentSpacing: CGFloat
-        let actionRowSpacing: CGFloat
-        let queuedMessagesTopPadding: CGFloat
-        /// Clearance below the native action row. Keep this out of the editor
-        /// body padding so the editor-to-controls gap stays at `actionRowSpacing`.
-        let bottomPadding: CGFloat
-
-        init(
-            horizontalPadding: NSEdgeInsets,
-            topContentSpacing: CGFloat,
-            actionRowSpacing: CGFloat,
-            queuedMessagesTopPadding: CGFloat = 16,
-            bottomPadding: CGFloat = 0
-        ) {
-            self.horizontalPadding = horizontalPadding
-            self.topContentSpacing = topContentSpacing
-            self.actionRowSpacing = actionRowSpacing
-            self.queuedMessagesTopPadding = queuedMessagesTopPadding
-            self.bottomPadding = bottomPadding
-        }
-    }
-
     let editorController = AppKitChatComposerEditorController()
     private let topContentView = AppKitChatComposerTopContentView()
     private let queuedMessagesView = AppKitChatQueuedMessagesView()
     let attachmentStripView = AppKitComposerAttachmentStripView()
-    private let actionRow = ChatComposerActionRowView()
+    let actionRow = ChatComposerActionRowView()
     private let dividerView = NSView()
     let fileDropOverlayView = AppKitComposerFileDropOverlayView()
     private let interactionOverlayView = AppKitComposerOverlayView()
@@ -73,14 +52,15 @@ final class AppKitChatComposerPanelView: NSView {
     var configuration: AppKitChatComposerPanelConfiguration?
     private var showsTopDivider = false
     private var deferredPreferredHeightAnimation: Bool?
+    var voiceInputKeyMonitor: Any?
+    var trackedVoiceInputKeyCode: UInt16?
+    var suppressedVoiceInputKeyUpCode: UInt16?
+    var isVoiceInputEscapeKeyHeld = false
+    var lifecycleObservers: [NSObjectProtocol] = []
 
-    override var isFlipped: Bool {
-        true
-    }
+    override var isFlipped: Bool { true }
 
-    override var isOpaque: Bool {
-        false
-    }
+    override var isOpaque: Bool { false }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let hit = super.hitTest(point)
@@ -114,6 +94,9 @@ final class AppKitChatComposerPanelView: NSView {
 
     func configure(_ configuration: AppKitChatComposerPanelConfiguration) {
         let previousEditorTopOffset = currentEditorTopOffset()
+        reconcileHeldVoiceShortcut(next: configuration.voiceInputShortcutConfiguration)
+        let voiceInputBecameBlocked = self.configuration.map { !isVoiceInteractionBlocked($0) } == true &&
+            isVoiceInteractionBlocked(configuration)
         deferredPreferredHeightAnimation = true
         self.configuration = configuration
         topContentView.configure(configuration.topContentConfiguration)
@@ -130,6 +113,9 @@ final class AppKitChatComposerPanelView: NSView {
         let animateSurfaceHeight = (deferredPreferredHeightAnimation ?? true) && !editorTopOffsetChanged
         deferredPreferredHeightAnimation = nil
         invalidatePreferredHeight(animateSurfaceHeight: animateSurfaceHeight)
+        if voiceInputBecameBlocked {
+            configuration.voiceInputShortcutConfiguration?.onForcedStop()
+        }
     }
 
     override func viewDidChangeEffectiveAppearance() {
@@ -191,11 +177,23 @@ final class AppKitChatComposerPanelView: NSView {
         updateColors()
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        removeVoiceInputEventInfrastructure()
+        guard window != nil else {
+            return
+        }
+        installVoiceInputEventInfrastructure()
+        notifyVoiceInputAvailabilityAfterMount()
+    }
+
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         super.viewWillMove(toWindow: newWindow)
         guard newWindow == nil else {
             return
         }
+        forceVoiceInputReleaseAndStop()
+        removeVoiceInputEventInfrastructure()
         editorController.detach()
     }
 
@@ -208,6 +206,13 @@ final class AppKitChatComposerPanelView: NSView {
         var actionRowConfiguration = configuration
         actionRowConfiguration.onAddPhotosAndFiles = { [weak self] in
             self?.presentPhotosAndFilesPicker()
+        }
+        if var voiceInput = actionRowConfiguration.voiceInput {
+            let upstreamCanActivate = voiceInput.canActivate
+            voiceInput.canActivate = { [weak self] in
+                upstreamCanActivate() && self?.canActivateVoiceInputControl == true
+            }
+            actionRowConfiguration.voiceInput = voiceInput
         }
         actionRowConfiguration.taskWorkspace = panelTaskWorkspaceConfiguration(configuration.taskWorkspace)
         actionRow.configure(actionRowConfiguration)
@@ -364,11 +369,36 @@ final class AppKitChatComposerPanelView: NSView {
         }
     }
 
-    private func contentWidth(for width: CGFloat, layout: Layout) -> CGFloat {
+    private func updateColors() {
+        dividerView.layer?.backgroundColor = NSColor.separatorColor.resolved(for: appKitRenderingAppearance).cgColor
+    }
+
+    private func handlePreferredSizeInvalidated(animateSurfaceHeight: Bool) {
+        guard let deferredPreferredHeightAnimation else {
+            invalidatePreferredHeight(animateSurfaceHeight: animateSurfaceHeight)
+            return
+        }
+        self.deferredPreferredHeightAnimation = deferredPreferredHeightAnimation && animateSurfaceHeight
+    }
+
+    private func invalidatePreferredHeight(animateSurfaceHeight: Bool = true) {
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+        if let surfaceView = superview as? AppKitChatSurfaceView {
+            surfaceView.layoutPreferredComposerHeightChange(animated: animateSurfaceHeight)
+        } else {
+            superview?.needsLayout = true
+        }
+    }
+
+}
+
+private extension AppKitChatComposerPanelView {
+    func contentWidth(for width: CGFloat, layout: Layout) -> CGFloat {
         max(0, width - layout.horizontalPadding.left - layout.horizontalPadding.right)
     }
 
-    private func topPadding(for configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
+    func topPadding(for configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
         if topContentView.hasContent {
             return configuration.layout.topContentSpacing
         }
@@ -379,14 +409,14 @@ final class AppKitChatComposerPanelView: NSView {
         return 0
     }
 
-    private func currentEditorTopOffset() -> CGFloat? {
+    func currentEditorTopOffset() -> CGFloat? {
         guard let configuration else {
             return nil
         }
         return editorTopOffset(for: bounds.width, configuration: configuration)
     }
 
-    private func editorTopOffset(for width: CGFloat, configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
+    func editorTopOffset(for width: CGFloat, configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
         let contentWidth = contentWidth(for: width, layout: configuration.layout)
         var offset = topPadding(for: configuration)
         if topContentView.hasContent {
@@ -405,7 +435,7 @@ final class AppKitChatComposerPanelView: NSView {
         return offset + editorController.topPadding
     }
 
-    private func didEditorTopOffsetChange(from previousOffset: CGFloat?) -> Bool {
+    func didEditorTopOffsetChange(from previousOffset: CGFloat?) -> Bool {
         guard let previousOffset,
               let currentOffset = currentEditorTopOffset() else {
             return false
@@ -413,11 +443,7 @@ final class AppKitChatComposerPanelView: NSView {
         return abs(previousOffset - currentOffset) > 0.5
     }
 
-    private func updateColors() {
-        dividerView.layer?.backgroundColor = NSColor.separatorColor.resolved(for: appKitRenderingAppearance).cgColor
-    }
-
-    private func measuredHeight(for width: CGFloat) -> CGFloat {
+    func measuredHeight(for width: CGFloat) -> CGFloat {
         guard let configuration else {
             return 0
         }
@@ -428,7 +454,7 @@ final class AppKitChatComposerPanelView: NSView {
         return ceil(interactionOverlayView.measuredHeight(width: width))
     }
 
-    private func normalMeasuredHeight(for width: CGFloat, configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
+    func normalMeasuredHeight(for width: CGFloat, configuration: AppKitChatComposerPanelConfiguration) -> CGFloat {
         let contentWidth = contentWidth(for: width, layout: configuration.layout)
         var height = topPadding(for: configuration)
         if topContentView.hasContent {
@@ -451,7 +477,7 @@ final class AppKitChatComposerPanelView: NSView {
         return ceil(height)
     }
 
-    private func measuredHeight(of view: NSView, width: CGFloat) -> CGFloat {
+    func measuredHeight(of view: NSView, width: CGFloat) -> CGFloat {
         guard width > 0 else {
             return max(0, ceil(view.fittingSize.height))
         }
@@ -462,25 +488,6 @@ final class AppKitChatComposerPanelView: NSView {
         view.layoutSubtreeIfNeeded()
         return max(0, ceil(view.fittingSize.height))
     }
-
-    private func handlePreferredSizeInvalidated(animateSurfaceHeight: Bool) {
-        guard let deferredPreferredHeightAnimation else {
-            invalidatePreferredHeight(animateSurfaceHeight: animateSurfaceHeight)
-            return
-        }
-        self.deferredPreferredHeightAnimation = deferredPreferredHeightAnimation && animateSurfaceHeight
-    }
-
-    private func invalidatePreferredHeight(animateSurfaceHeight: Bool = true) {
-        invalidateIntrinsicContentSize()
-        needsLayout = true
-        if let surfaceView = superview as? AppKitChatSurfaceView {
-            surfaceView.layoutPreferredComposerHeightChange(animated: animateSurfaceHeight)
-        } else {
-            superview?.needsLayout = true
-        }
-    }
-
 }
 
 #if DEBUG

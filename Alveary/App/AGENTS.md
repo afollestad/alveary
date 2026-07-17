@@ -46,6 +46,8 @@ These instructions cover the app entry point, `AppDelegate`, and the root `Conte
 
 `handlePendingCommand(_:)` in `ContentView+Commands.swift` wraps every `AppState.CommandRequest` branch in one `Task { @MainActor in … }` with a shared `defer` that clears `appState.pendingCommand` only if its id still matches the captured `commandID`. Do not clear `pendingCommand` inline inside a specific branch — even for synchronous work like presenting a sheet — or stale-id semantics diverge between command kinds and racing commands can nil out a newer one. When adding a new `CommandRequest` case, delegate any async work to a helper that accepts the captured `commandID` and checks it after each `await` before mutating `appState.selectedSidebarItem` or surfacing errors.
 
+- A voice-model preparation modal can appear while an app command is suspended. Re-check `isModelPreparationModalPresented` after every `await` before changing selection or presenting another modal; the blocking overlay must remain mounted until its own Cancel or Continue action closes it.
+
 ## Keyboard Shortcuts
 
 App-wide modifier-key shortcuts live in `KeyboardShortcut+Alveary.swift` as static extensions on `KeyboardShortcut`. The **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md` still owns the placement rule (menu registration beats toolbar-button registration because menu items dispatch through the scene responder chain and stay focus-independent); this section covers *how* to define and reference a shortcut so the binding and its tooltip cannot drift.

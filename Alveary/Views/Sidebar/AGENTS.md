@@ -19,6 +19,7 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
 - Sidebar project rows are single-line. Do not reintroduce branch/path/local subtitles under the project name; expanded thread lists and the project settings surface already carry that metadata.
 - Sidebar project rows share `SidebarRowMetrics.topLevelAndThreadContentHeight` with thread rows. Do not add extra vertical padding around project row content; selected and hovered project rows should match thread row height.
 - Provisional draft threads never render as sidebar rows, counts, or pinned items. While a draft is mounted, its project row is the effective selection for highlighting and keyboard navigation; every New Thread entry point reuses that draft and may reassign its project in place without replacing its conversation or composer state.
+- Async sidebar actions must re-check the voice-model modal after suspension before selecting, restoring, or falling back to another item. Work started before the blocking modal appeared must not navigate underneath it.
 - Pinned sidebar items render as a shared top-level group directly under `Scheduled` and above `Projects`:
     - **Show the conditional header.** Render the `Pinned` header when pinned projects or standalone pinned threads exist, and keep it visually matched with the `Projects` header styling and insets.
     - **Keep project ownership.** Thread pinning changes only sidebar placement. The `AgentThread.project` relationship still owns cleanup, diff actions, project deletion, and restore behavior.

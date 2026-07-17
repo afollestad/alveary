@@ -12,6 +12,7 @@ struct ThreadsSettingsTabView: View {
     @Binding var reopenLastThreadAndConversationOnLaunch: Bool
     @Binding var turnAwakeEnabled: Bool
     @Binding var turnAwakePreventDisplaySleep: Bool
+    @Binding var voiceInputShortcut: PhysicalKeyboardShortcut?
     @Binding var contextManagementEnabled: Bool
     @Binding var sessionHandoffWindowPercentage: Int
     @Binding var handoffSteeringEnabled: Bool
@@ -50,6 +51,22 @@ struct ThreadsSettingsTabView: View {
                     showsDivider: false,
                     isDisabled: !turnAwakeEnabled
                 )
+            }
+
+            SettingsFormSection("Voice Input") {
+                SettingsFormRow(showsDivider: false) {
+                    SettingsResponsiveControlRow(
+                        "Dictation shortcut",
+                        helpText: VoiceInputSettingsHelp.shortcut,
+                        horizontalControlSizing: .fillsAvailableWidthFraction(0.62)
+                    ) {
+                        VoiceInputShortcutRecorder(
+                            shortcut: $voiceInputShortcut,
+                            appShotShortcut: viewModel.appShotShortcut,
+                            supportsVoiceInput: VoiceInputPlatform.isSupported
+                        )
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

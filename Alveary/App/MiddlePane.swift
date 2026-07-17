@@ -15,6 +15,8 @@ struct MiddlePane: View {
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
+    let voiceInputService: any VoiceInputService
+    let voiceInputLifecycleController: VoiceInputLifecycleController
     let sidebarViewModel: SidebarViewModel
     let loadInstalledSkills: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
@@ -42,7 +44,8 @@ struct MiddlePane: View {
             ProjectSettingsView(
                 project: project,
                 appState: appState,
-                sidebarViewModel: sidebarViewModel
+                sidebarViewModel: sidebarViewModel,
+                voiceInputLifecycleController: voiceInputLifecycleController
             )
                 .id(project.path)
         case .thread(let thread):
@@ -59,10 +62,19 @@ struct MiddlePane: View {
                 contextWindowCache: contextWindowCache,
                 fileListManager: fileListManager,
                 notificationManager: notificationManager,
+                voiceInputService: voiceInputService,
+                voiceInputLifecycleController: voiceInputLifecycleController,
                 availableProjects: projects,
                 selectDraftProject: { threadID, projectPath in
                     do {
-                        let draft = try sidebarViewModel.moveDraftThread(id: threadID, toProjectPath: projectPath)
+                        guard let draft = try performDraftProjectMoveIfVoiceInputUnlocked(
+                            lifecycleController: voiceInputLifecycleController,
+                            operation: {
+                                try sidebarViewModel.moveDraftThread(id: threadID, toProjectPath: projectPath)
+                            }
+                        ) else {
+                            return
+                        }
                         guard case .thread(let selectedThread) = appState.selectedSidebarItem,
                               selectedThread.persistentModelID == threadID else {
                             return
@@ -117,6 +129,15 @@ struct MiddlePane: View {
             }
         }
     }
+}
+
+@MainActor
+func performDraftProjectMoveIfVoiceInputUnlocked<Result>(
+    lifecycleController: VoiceInputLifecycleController,
+    operation: () throws -> Result
+) rethrows -> Result? {
+    guard !lifecycleController.isComposerInteractionLocked else { return nil }
+    return try operation()
 }
 
 func resolveSidebarSelectionBookmark(

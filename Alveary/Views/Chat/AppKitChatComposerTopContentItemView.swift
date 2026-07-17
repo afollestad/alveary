@@ -146,7 +146,7 @@ final class AppKitChatComposerTopContentItemView: NSView {
         resumeButton.actionHandler = nil
         deleteButton.isHidden = true
         deleteButton.actionHandler = nil
-        dismissButton.isHidden = false
+        dismissButton.isHidden = configuration.onDismiss == nil
         dismissButton.actionHandler = configuration.onDismiss
         dismissButton.setAccessibilityLabel("Dismiss context")
         iconView.image = symbolImage(named: "paperclip", pointSize: 14, weight: .medium)

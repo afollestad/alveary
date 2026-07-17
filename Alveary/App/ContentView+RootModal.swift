@@ -8,10 +8,12 @@ enum ContentViewRootModalKind: Equatable {
 
 extension ContentView {
     var rootWindowModal: AppWindowModalOverlayPresenter.Modal? {
+        _ = voiceInputInteractionLockGeneration
         switch Self.rootWindowModalKind(
             isOnboardingPresented: onboardingViewModel.isPresented,
             imagePreviewRequest: appState.imagePreviewRequest,
-            scheduledTaskProposalID: scheduledTaskProposalQueueCoordinator.currentProposal?.id
+            scheduledTaskProposalID: scheduledTaskProposalQueueCoordinator.currentProposal?.id,
+            isVoiceInputLocked: voiceInputLifecycleController.isComposerInteractionLocked
         ) {
         case .onboarding:
             return AppWindowModalOverlayPresenter.Modal(
@@ -57,8 +59,12 @@ extension ContentView {
     static func rootWindowModalKind(
         isOnboardingPresented: Bool,
         imagePreviewRequest: AppImagePreviewRequest?,
-        scheduledTaskProposalID: String? = nil
+        scheduledTaskProposalID: String? = nil,
+        isVoiceInputLocked: Bool = false
     ) -> ContentViewRootModalKind? {
+        guard !isVoiceInputLocked else {
+            return nil
+        }
         if isOnboardingPresented {
             return .onboarding
         }
@@ -81,7 +87,8 @@ extension ContentView {
         switch Self.rootWindowModalKind(
             isOnboardingPresented: onboardingViewModel.isPresented,
             imagePreviewRequest: appState.imagePreviewRequest,
-            scheduledTaskProposalID: scheduledTaskProposalQueueCoordinator.currentProposal?.id
+            scheduledTaskProposalID: scheduledTaskProposalQueueCoordinator.currentProposal?.id,
+            isVoiceInputLocked: voiceInputLifecycleController.isComposerInteractionLocked
         ) {
         case .onboarding, nil:
             return

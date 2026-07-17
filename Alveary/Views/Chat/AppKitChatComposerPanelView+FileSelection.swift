@@ -22,6 +22,9 @@ extension AppKitChatComposerPanelView {
     }
 
     func presentTaskWorkspaceFolderPicker(onSelect: @escaping ([URL]) -> Void) {
+        guard configuration?.bodyConfiguration.isVoiceInteractionLocked != true else {
+            return
+        }
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -34,12 +37,16 @@ extension AppKitChatComposerPanelView {
             guard panel.runModal() == .OK else {
                 return
             }
+            guard configuration?.bodyConfiguration.isVoiceInteractionLocked != true else {
+                return
+            }
             onSelect(panel.urls)
             return
         }
 
-        panel.beginSheetModal(for: window) { response in
-            guard response == .OK else {
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK,
+                  self?.configuration?.bodyConfiguration.isVoiceInteractionLocked != true else {
                 return
             }
             onSelect(panel.urls)
@@ -47,6 +54,9 @@ extension AppKitChatComposerPanelView {
     }
 
     func presentPhotosAndFilesPicker() {
+        guard configuration?.bodyConfiguration.isVoiceInteractionLocked != true else {
+            return
+        }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -77,7 +87,8 @@ extension AppKitChatComposerPanelView {
     }
 
     func insertSelectedLocalFileURLs(_ urls: [URL]) async {
-        guard !urls.isEmpty else {
+        guard !urls.isEmpty,
+              configuration?.bodyConfiguration.isVoiceInteractionLocked != true else {
             return
         }
         switch await configuration?.bodyConfiguration.onLocalFileURLsSelected(urls) ?? .handled {

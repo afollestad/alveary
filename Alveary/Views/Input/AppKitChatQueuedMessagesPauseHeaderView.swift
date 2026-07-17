@@ -23,12 +23,13 @@ final class AppKitChatQueuedMessagesPauseHeaderView: NSView {
         setup()
     }
 
-    func configure(title: String, actionTitle: String, onResume: @escaping () -> Void) {
+    func configure(title: String, actionTitle: String, isEnabled: Bool = true, onResume: @escaping () -> Void) {
         titleField.stringValue = title
         titleField.setAccessibilityLabel(title)
         self.actionTitle = actionTitle
         resumeButton.title = actionTitle
         resumeButton.setAccessibilityLabel(actionTitle)
+        resumeButton.isEnabled = isEnabled
         self.onResume = onResume
         updateAppearance()
         needsLayout = true

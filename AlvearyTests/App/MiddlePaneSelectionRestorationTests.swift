@@ -56,4 +56,30 @@ final class MiddlePaneSelectionRestorationTests: XCTestCase {
 
         XCTAssertNil(item)
     }
+
+    func testQueuedDraftProjectMoveRechecksVoiceLockBeforeMutation() async {
+        let lifecycleController = VoiceInputLifecycleController(service: DisabledVoiceInputService())
+        let sink = MiddlePaneVoiceInputSinkFake()
+        var moveCount = 0
+
+        let queuedMove = Task { @MainActor in
+            performDraftProjectMoveIfVoiceInputUnlocked(
+                lifecycleController: lifecycleController,
+                operation: {
+                    moveCount += 1
+                    return true
+                }
+            )
+        }
+        lifecycleController.setActiveComposerSink(sink)
+
+        let result = await queuedMove.value
+        XCTAssertNil(result)
+        XCTAssertEqual(moveCount, 0)
+    }
+}
+
+@MainActor
+private final class MiddlePaneVoiceInputSinkFake: VoiceInputComposerSink {
+    func forceVoiceInputCommitSynchronously() {}
 }

@@ -15,6 +15,7 @@ struct AppKitChatQueuedMessagesConfiguration {
     let supportsMidTurnSteering: Bool
     let isTurnActive: Bool
     let inFlightQueuedMessageID: UUID?
+    let isInteractionDisabled: Bool
     let borderWidth: CGFloat
     let pauseHeaderTitle: String?
     let pauseHeaderActionTitle: String
@@ -31,6 +32,7 @@ struct AppKitChatQueuedMessagesConfiguration {
         supportsMidTurnSteering: false,
         isTurnActive: false,
         inFlightQueuedMessageID: nil,
+        isInteractionDisabled: false,
         borderWidth: 1,
         pauseHeaderTitle: nil,
         pauseHeaderActionTitle: "Resume",
@@ -45,6 +47,7 @@ struct AppKitChatQueuedMessagesConfiguration {
         supportsMidTurnSteering: Bool,
         isTurnActive: Bool,
         inFlightQueuedMessageID: UUID?,
+        isInteractionDisabled: Bool = false,
         borderWidth: CGFloat,
         pauseHeaderTitle: String? = nil,
         pauseHeaderActionTitle: String = "Resume",
@@ -60,6 +63,7 @@ struct AppKitChatQueuedMessagesConfiguration {
         self.supportsMidTurnSteering = supportsMidTurnSteering
         self.isTurnActive = isTurnActive
         self.inFlightQueuedMessageID = inFlightQueuedMessageID
+        self.isInteractionDisabled = isInteractionDisabled
         self.borderWidth = borderWidth
         self.pauseHeaderTitle = pauseHeaderTitle
         self.pauseHeaderActionTitle = pauseHeaderActionTitle
@@ -107,8 +111,9 @@ final class AppKitChatQueuedMessagesView: NSView {
                     showsDivider: index < configuration.queuedMessages.count - 1,
                     isSteerDisabled: !configuration.supportsMidTurnSteering ||
                         !configuration.isTurnActive ||
-                        configuration.inFlightQueuedMessageID != nil,
-                    areActionsDisabled: configuration.inFlightQueuedMessageID != nil,
+                        configuration.inFlightQueuedMessageID != nil ||
+                        configuration.isInteractionDisabled,
+                    areActionsDisabled: configuration.inFlightQueuedMessageID != nil || configuration.isInteractionDisabled,
                     markdownBaseURL: configuration.markdownBaseURL,
                     onOpenMarkdownLink: configuration.onOpenMarkdownLink,
                     onOpenMarkdownImage: configuration.onOpenMarkdownImage,
@@ -192,6 +197,7 @@ final class AppKitChatQueuedMessagesView: NSView {
         header.configure(
             title: title,
             actionTitle: configuration.pauseHeaderActionTitle,
+            isEnabled: !configuration.isInteractionDisabled,
             onResume: configuration.onResume
         )
     }

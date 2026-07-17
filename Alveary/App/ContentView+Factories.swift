@@ -39,6 +39,9 @@ extension ContentView {
             settingsService: dependencies.settingsService,
             runtimeStore: dependencies.runtimeStore,
             attachmentStore: dependencies.attachmentStore,
+            isVoiceInputLocked: {
+                dependencies.voiceInputLifecycleController.isComposerInteractionLocked
+            },
             prepareCapture: { try await appShotCoordinator.prepareCapture() },
             openDraft: { projectID in
                 guard let project = modelContext.resolveProject(id: projectID) else {

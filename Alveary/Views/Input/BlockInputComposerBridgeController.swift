@@ -24,6 +24,8 @@ struct BlockInputComposerBridgeConfiguration {
     var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler]
     var completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)?
     var modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)?
+    var onSelectionChange: (BlockInputSelection?) -> Void
+    var onEditorInteractionUIChange: (Bool) -> Void
     var onDocumentMutation: (BlockInputDocumentChange, Bool) -> Void
     var onDocumentChange: (BlockInputDocument) -> Void
     var onPreferredHeightTransition: @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void
@@ -48,6 +50,8 @@ struct BlockInputComposerBridgeConfiguration {
         keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:],
         completionPopupOverlayProvider: (@MainActor (BlockInputCompletionPopupOverlayContext) -> BlockInputCompletionPopupOverlay?)? = nil,
         modalOverlayProvider: (@MainActor (BlockInputModalOverlayContext) -> BlockInputModalOverlay?)? = nil,
+        onSelectionChange: @escaping (BlockInputSelection?) -> Void = { _ in },
+        onEditorInteractionUIChange: @escaping (Bool) -> Void = { _ in },
         onDocumentMutation: @escaping (BlockInputDocumentChange, Bool) -> Void = { _, _ in },
         onDocumentChange: @escaping (BlockInputDocument) -> Void = { _ in },
         onPreferredHeightTransition: @escaping @MainActor @Sendable (BlockInputEditorHeightTransition) -> Void = { _ in }
@@ -71,6 +75,8 @@ struct BlockInputComposerBridgeConfiguration {
         self.keyboardShortcuts = keyboardShortcuts
         self.completionPopupOverlayProvider = completionPopupOverlayProvider
         self.modalOverlayProvider = modalOverlayProvider
+        self.onSelectionChange = onSelectionChange
+        self.onEditorInteractionUIChange = onEditorInteractionUIChange
         self.onDocumentMutation = onDocumentMutation
         self.onDocumentChange = onDocumentChange
         self.onPreferredHeightTransition = onPreferredHeightTransition
@@ -194,16 +200,28 @@ final class BlockInputComposerBridgeController {
                 self?.currentConfiguration.modalOverlayProvider?(context)
             },
             completionPopupConfiguration: completionPopupConfiguration(),
-            onDocumentMutation: { [weak self] change in
-                guard let self else {
-                    return
-                }
-                currentConfiguration.onDocumentMutation(change, documentStore.document.isEffectivelyEmpty)
+            onEditorInteractionUIChange: { [weak self] isPresented in
+                self?.currentConfiguration.onEditorInteractionUIChange(isPresented)
             },
+            onDocumentMutation: documentMutationHandler(),
             onDocumentChange: { [weak self] document in
                 self?.currentConfiguration.onDocumentChange(document)
-            }
+            },
+            onSelectionChange: selectionChangeHandler()
         )
+    }
+
+    private func documentMutationHandler() -> (BlockInputDocumentChange) -> Void {
+        { [weak self] change in
+            guard let self else { return }
+            currentConfiguration.onDocumentMutation(change, documentStore.document.isEffectivelyEmpty)
+        }
+    }
+
+    private func selectionChangeHandler() -> (BlockInputSelection?) -> Void {
+        { [weak self] selection in
+            self?.currentConfiguration.onSelectionChange(selection)
+        }
     }
 
     private func heightSizing() -> BlockInputEditorHeightSizing {

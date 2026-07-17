@@ -29,6 +29,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedMaxTerminalSessionsRange = 1...50
     static let defaultMaxTerminalSessions = 10
     static let defaultAppShotShortcut = AppShotKeyboardShortcut.controlShiftS
+    static let defaultVoiceInputShortcut = PhysicalKeyboardShortcut.controlShiftSpace
+    static let fallbackVoiceInputShortcut = PhysicalKeyboardShortcut.controlCommandShiftSpace
     var settingsSchemaVersion = Self.currentSettingsSchemaVersion
     var hasCompletedOnboarding = false
     var lastSettingsPage = SettingsPage.agents
@@ -56,6 +58,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
     var appShotsEnabled = true
     var appShotShortcut = Self.defaultAppShotShortcut
+    var voiceInputShortcut: PhysicalKeyboardShortcut? = Self.defaultVoiceInputShortcut
     var contextManagementEnabled = false
     var sessionHandoffWindowPercentage = Self.defaultSessionHandoffWindowPercentage
     var handoffSteeringEnabled = true
@@ -73,6 +76,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var lastActiveProjectPath: String?
     var lastOpenThreadID: PersistentIdentifier?
     var lastOpenConversationID: PersistentIdentifier?
+    var voiceInputShortcutMigrationCompleted = true
+
     func normalized() -> AppSettings {
         var copy = self
 
@@ -82,6 +87,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         copy.normalizeAppearanceDefaults()
         copy.normalizeLayoutDefaults()
         copy.normalizeAppShotDefaults()
+        copy.normalizeVoiceInputShortcut()
         copy.normalizeContextManagement()
         copy.normalizeNotificationDefaults()
         copy.normalizeProviderConfigs()
@@ -207,15 +213,6 @@ struct AppSettings: Codable, Sendable, Equatable {
         )
     }
 
-    private mutating func normalizeAppShotDefaults() {
-        guard let normalizedShortcut = appShotShortcut.normalized,
-              normalizedShortcut != .bothCommand else {
-            appShotShortcut = Self.defaultAppShotShortcut
-            return
-        }
-        appShotShortcut = normalizedShortcut
-    }
-
     private mutating func normalizeContextManagement() {
         sessionHandoffWindowPercentage = Self.normalizedSessionHandoffWindowPercentage(sessionHandoffWindowPercentage)
         handoffSteeringCountdownSeconds = Self.normalizedHandoffSteeringCountdownSeconds(handoffSteeringCountdownSeconds)
@@ -303,6 +300,8 @@ extension AppSettings {
         case maxTerminalSessions
         case appShotsEnabled
         case appShotShortcut
+        case voiceInputShortcut
+        case voiceInputShortcutMigrationCompleted
         case contextManagementEnabled
         case sessionHandoffWindowPercentage
         case handoffSteeringEnabled
@@ -409,6 +408,7 @@ extension AppSettings {
         maxTerminalSessions = try container.decodeIfPresent(Int.self, forKey: .maxTerminalSessions) ?? maxTerminalSessions
         appShotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .appShotsEnabled) ?? appShotsEnabled
         appShotShortcut = Self.normalizedAppShotShortcut(from: container)
+        decodeVoiceInputShortcut(from: container)
     }
 
     private mutating func decodeContextManagement(from container: KeyedDecodingContainer<CodingKeys>) throws {
@@ -484,17 +484,5 @@ extension AppSettings {
             return defaultEnterBehavior
         }
         return behavior
-    }
-    private static func normalizedAppShotShortcut(
-        from container: KeyedDecodingContainer<CodingKeys>
-    ) -> AppShotKeyboardShortcut {
-        guard let shortcut = try? container.decodeIfPresent(
-            AppShotKeyboardShortcut.self,
-            forKey: .appShotShortcut
-        )?.normalized,
-            shortcut != .bothCommand else {
-            return defaultAppShotShortcut
-        }
-        return shortcut
     }
 }

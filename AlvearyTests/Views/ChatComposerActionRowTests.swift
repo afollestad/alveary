@@ -254,6 +254,33 @@ final class ChatComposerActionRowTests: XCTestCase {
         XCTAssertLessThan(reasoningFrame.maxX, actionFrame.minX)
     }
 
+    func testVoiceInputUsesCompactOpticalSpacingAfterReasoningControl() throws {
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 900, height: 30))
+        row.configure(makeConfiguration(
+            mode: .idle,
+            voiceInput: ComposerVoiceInputConfiguration(
+                phase: .ready,
+                isEnabled: true,
+                shortcutDisplay: "⌃⇧Space",
+                unavailableHelp: nil,
+                reducesMotion: false,
+                increasesContrast: false,
+                onPress: { true },
+                onRelease: { _ in true },
+                onAccessibilityToggle: {},
+                onAccessibilityCancel: { true }
+            )
+        ))
+
+        row.layoutSubtreeIfNeeded()
+
+        #if DEBUG
+        let reasoningFrame = row.visibleFrameForTesting(for: row.reasoningButton, in: row)
+        let voiceFrame = row.visibleFrameForTesting(for: row.voiceInputButton, in: row)
+        XCTAssertEqual(voiceFrame.minX - reasoningFrame.maxX, row.rowSpacing, accuracy: 1)
+        #endif
+    }
+
 }
 
 func makeConfiguration(
@@ -274,6 +301,7 @@ func makeConfiguration(
     areControlsDisabled: Bool = false,
     isPrimaryActionDisabled: Bool = false,
     isStopConfirmationArmed: Bool = false,
+    voiceInput: ComposerVoiceInputConfiguration? = nil,
     onPlanModeChange: @escaping (Bool) -> Void = { _ in },
     onGoalModeChipDismiss: @escaping () -> Void = {},
     taskWorkspace: ChatComposerActionRowView.TaskWorkspaceConfiguration? = nil,
@@ -316,6 +344,7 @@ func makeConfiguration(
         onPlanModeChange: onPlanModeChange,
         onGoalModeChipDismiss: onGoalModeChipDismiss,
         taskWorkspace: taskWorkspace,
+        voiceInput: voiceInput,
         onSubmit: onSubmit,
         onStop: onStop,
         onAddPhotosAndFiles: onAddPhotosAndFiles

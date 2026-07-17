@@ -162,6 +162,23 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         XCTAssertTrue(removedIDs.isEmpty)
     }
 
+    func testClearingInteractionHandlersDisablesAttachmentOpeningAndRemoval() throws {
+        let fileAttachment = try localFileAttachment(filename: "locked.pdf")
+        let mounted = configuredMountedStrip(attachments: [.file(fileAttachment)], width: 320)
+        let strip = mounted.strip
+        var interactionCount = 0
+        strip.onOpenAttachment = { _ in interactionCount += 1 }
+        strip.onRemoveAttachment = { _ in interactionCount += 1 }
+
+        strip.onOpenAttachment = nil
+        strip.onRemoveAttachment = nil
+        let chip = try XCTUnwrap(strip.fileChipViews.first)
+        chip.mouseUp(with: mouseEvent(at: chip.convert(center(of: chip.bounds), to: nil)))
+
+        XCTAssertEqual(interactionCount, 0)
+        XCTAssertEqual(chip.accessibilityRole(), .group)
+    }
+
     func testFilePreviewUsesStandaloneDocumentIconAndSmallerTitle() throws {
         let fileAttachment = try localFileAttachment(filename: "Home_Inspection_Report.pdf")
         let mounted = configuredMountedStrip(attachments: [.file(fileAttachment)], width: 320)

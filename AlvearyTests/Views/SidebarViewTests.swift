@@ -1,9 +1,69 @@
+import SwiftData
 import XCTest
 
 @testable import Alveary
 
 @MainActor
 final class SidebarViewTests: XCTestCase {
+    func testCreateThreadDoesNotNavigateUnderVoiceModelPreparationModal() async throws {
+        let fixture = try SidebarTestFixture()
+        let selectedThread = try fixture.insertThread(
+            projectName: "Selected",
+            projectPath: "/tmp/alveary-selected"
+        )
+        let destinationProject = try fixture.insertProject(
+            name: "Destination",
+            path: "/tmp/alveary-destination"
+        )
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(selectedThread)
+        let voiceInputService = DisabledVoiceInputService()
+        let lifecycleController = VoiceInputLifecycleController(service: voiceInputService)
+        let modalSink = SidebarVoiceModelModalSink()
+        lifecycleController.setActiveComposerSink(modalSink)
+        let view = SidebarView(
+            viewModel: fixture.viewModel,
+            appState: appState,
+            voiceInputLifecycleController: lifecycleController
+        )
+
+        await view.createThread(in: destinationProject)
+
+        XCTAssertEqual(appState.selectedSidebarItem, .thread(selectedThread))
+        XCTAssertNil(fixture.viewModel.sidebarError)
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<AgentThread>()).contains { $0.isDraft })
+    }
+
+    func testDeleteFailureDoesNotRestoreSelectionUnderVoiceModelPreparationModal() async throws {
+        let fixture = try SidebarTestFixture(saveDeletionCommit: { _ in
+            throw SidebarVoiceModelNavigationTestError.persistenceFailed
+        })
+        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        let alpha = makeThread(name: "Alpha", project: project)
+        let beta = makeThread(name: "Beta", project: project)
+        fixture.context.insert(project)
+        try fixture.context.save()
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(beta)
+        appState.previousSelection = .threadId(beta.persistentModelID)
+        let voiceInputService = DisabledVoiceInputService()
+        let lifecycleController = VoiceInputLifecycleController(service: voiceInputService)
+        let modalSink = SidebarVoiceModelModalSink()
+        lifecycleController.setActiveComposerSink(modalSink)
+        let view = SidebarView(
+            viewModel: fixture.viewModel,
+            appState: appState,
+            voiceInputLifecycleController: lifecycleController
+        )
+
+        await view.confirmDeleteThread(beta)
+
+        XCTAssertEqual(appState.selectedSidebarItem, .thread(alpha))
+        XCTAssertEqual(appState.previousSelection, .threadId(alpha.persistentModelID))
+        XCTAssertTrue(try fixture.threadExists(beta))
+        XCTAssertNotNil(fixture.viewModel.sidebarError)
+    }
+
     func testConfirmDeleteThreadSelectsPreviousThreadInSameProject() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/alveary-project", name: "Alveary")
@@ -367,4 +427,14 @@ final class SidebarViewTests: XCTestCase {
         project.threads.append(thread)
         return thread
     }
+}
+
+private final class SidebarVoiceModelModalSink: VoiceInputComposerSink {
+    var isModelPreparationModalPresented: Bool { true }
+
+    func forceVoiceInputCommitSynchronously() {}
+}
+
+private enum SidebarVoiceModelNavigationTestError: Error {
+    case persistenceFailed
 }

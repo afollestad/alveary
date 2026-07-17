@@ -19,6 +19,7 @@ struct ChatView: View {
     let onDenyProjectTrust: (ProjectTrustPrompt) -> Void
     let loadFileCompletions: @Sendable () async -> [String]
     let loadSkillCompletions: @Sendable () async -> [Skill]
+    let settingsService: SettingsService?
     let transcriptTypography: TranscriptTypography
     let availableProjects: [Project]
     let onSelectDraftProject: (String) -> Void
@@ -33,6 +34,9 @@ struct ChatView: View {
     @State private var isStopConfirmationArmed = false
     @State var askUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
     @State var exitPlanModeOverlayStates: [String: ExitPlanModeOverlayState] = [:]
+    @State var voiceInputCoordinator: ChatVoiceInputCoordinator
+    @State var voiceShortcutRevalidationToken = 0
+    @State var voiceSelectionRevalidationToken = 0
 
     private var hasVisibleChatContent: Bool {
         ChatPresentation.hasVisibleChatContent(
@@ -84,7 +88,10 @@ struct ChatView: View {
     private var selectedPermissionModeBinding: Binding<String> {
         Binding(
             get: { threadPresentation.selectedPermissionMode },
-            set: { viewModel.applyPermissionModeChange($0) }
+            set: {
+                guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
+                viewModel.applyPermissionModeChange($0)
+            }
         )
     }
 
@@ -104,6 +111,9 @@ struct ChatView: View {
         onDenyProjectTrust: @escaping (ProjectTrustPrompt) -> Void,
         loadFileCompletions: @escaping @Sendable () async -> [String],
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
+        settingsService: SettingsService? = nil,
+        voiceInputService: (any VoiceInputService)? = nil,
+        voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
         transcriptTypography: TranscriptTypography,
         availableProjects: [Project] = [],
         onSelectDraftProject: @escaping (String) -> Void = { _ in },
@@ -125,11 +135,22 @@ struct ChatView: View {
         self.onDenyProjectTrust = onDenyProjectTrust
         self.loadFileCompletions = loadFileCompletions
         self.loadSkillCompletions = loadSkillCompletions
+        self.settingsService = settingsService
         self.transcriptTypography = transcriptTypography
         self.availableProjects = availableProjects
         self.onSelectDraftProject = onSelectDraftProject
         self.appState = appState
         _askUserQuestionOverlayStates = State(initialValue: initialAskUserQuestionOverlayStates)
+        let resolvedVoiceService = voiceInputService ?? DisabledVoiceInputService()
+        let resolvedVoiceLifecycle = voiceInputLifecycleController ?? VoiceInputLifecycleController(service: resolvedVoiceService)
+        _voiceInputCoordinator = State(initialValue: ChatVoiceInputCoordinator(
+            service: resolvedVoiceService,
+            lifecycleController: resolvedVoiceLifecycle,
+            supportedArchitecture: voiceInputService != nil && VoiceInputPlatform.isSupported,
+            flushDraftFromEditor: {
+                _ = viewModel.flushDraftFromEditor()
+            }
+        ))
 
         let conversationID = conversation.id
         _events = Query(
@@ -188,8 +209,8 @@ struct ChatView: View {
         ))
         .background {
             AppWindowModalOverlayPresenter(
-                modal: pausedQueueSendModal,
-                onDismiss: dismissPausedQueueSendConfirmation
+                modal: chatWindowModal,
+                onDismiss: dismissChatWindowModal
             )
             .frame(width: 0, height: 0)
         }
@@ -198,12 +219,22 @@ struct ChatView: View {
                 return
             }
             _ = viewModel.flushDraftFromEditor()
+            voiceInputCoordinator.forceStopAndCommit(reason: "Dictation stopped because the composer became unavailable.")
+        }
+        .onChange(of: voiceInputComposerContext) { _, newContext in
+            voiceInputCoordinator.updateComposerContext(newContext)
+        }
+        .onChange(of: voiceInputCoordinator.modelModalState) { oldState, newState in
+            if oldState != nil, newState == nil {
+                appState.requestComposerFocus()
+            }
         }
         .onChange(of: providerID) { _, _ in
             viewModel.disarmGoalModeIfNeeded()
         }
         .onChange(of: isProjectTrustBlocked) { _, isBlocked in
             if isBlocked {
+                voiceInputCoordinator.forceStopAndCommit(reason: "Dictation stopped while project trust is required.")
                 viewModel.disarmGoalModeIfNeeded()
             }
         }
@@ -218,7 +249,14 @@ struct ChatView: View {
             }
         }
         .onDisappear {
+            voiceInputCoordinator.composerDidDisappear()
             viewModel.disarmGoalModeIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            voiceShortcutRevalidationToken &+= 1
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .appSettingsChanged)) { _ in
+            voiceShortcutRevalidationToken &+= 1
         }
     }
 }
@@ -252,7 +290,12 @@ extension ChatView {
                 isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
                 thread: conversation.thread,
                 projects: availableProjects,
-                onSelectProject: onSelectDraftProject
+                isProjectSelectionDisabled: voiceInputCoordinator.isDraftInteractionLocked,
+                onSelectProject: { path in
+                    guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
+                    voiceInputCoordinator.invalidatePendingActivationIntent()
+                    onSelectDraftProject(path)
+                }
             )
             .transition(.opacity)
         case .transcript:
@@ -283,7 +326,8 @@ extension ChatView {
                 topContentSpacing: ChatComposerPanelLayout.topContentSpacing,
                 actionRowSpacing: ChatComposerPanelLayout.actionRowSpacing,
                 bottomPadding: ChatComposerPanelLayout.nativeActionRowBottomPadding
-            )
+            ),
+            voiceInputShortcutConfiguration: voiceInputShortcutConfiguration
         )
     }
 
@@ -312,6 +356,13 @@ extension ChatView {
             localCommands: localCommandAvailability,
             passthroughSlashCommands: passthroughSlashCommands,
             requestFirstResponder: appState.pendingComposerFocusToken,
+            isVoiceInteractionLocked: voiceInputCoordinator.isDraftInteractionLocked,
+            voiceEditorHandle: voiceInputCoordinator.editorHandle,
+            onVoiceEscape: voiceInputCoordinator.cancelFromEscape,
+            onVoiceInputAvailabilityChange: {
+                voiceSelectionRevalidationToken &+= 1
+                voiceInputCoordinator.invalidatePendingActivationIntent()
+            },
             loadFileCompletions: loadFileCompletions,
             loadSkillCompletions: loadSkillCompletions,
             onOpenAttachment: openComposerAttachment(_:),
@@ -352,10 +403,16 @@ extension ChatView {
                 primaryRoot: workspace.primaryRoot,
                 grantedRoots: workspace.grantedRoots,
                 ownershipStrategy: workspace.ownershipStrategy,
-                canEdit: viewModel.canEditTaskWorkspaceConfiguration,
+                canEdit: viewModel.canEditTaskWorkspaceConfiguration && !voiceInputCoordinator.isDraftInteractionLocked,
                 disabledTooltip: viewModel.taskWorkspaceConfigurationDisabledReason,
-                onAddFolders: { viewModel.addTaskWorkspaceGrants($0) },
-                onRemoveGrant: { viewModel.removeTaskWorkspaceGrant($0) }
+                onAddFolders: { folders in
+                    guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
+                    viewModel.addTaskWorkspaceGrants(folders)
+                },
+                onRemoveGrant: { folder in
+                    guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
+                    viewModel.removeTaskWorkspaceGrant(folder)
+                }
             )
         }
         return ChatComposerActionRowView.Configuration(
@@ -376,11 +433,11 @@ extension ChatView {
             isGoalModeChipVisible: isGoalModeChipVisible,
             isGoalModeChipEnabled: isGoalModeChipEnabled,
             usageSummary: usageSummary,
-            areControlsDisabled: presentation.areControlsDisabled,
+            areControlsDisabled: presentation.areControlsDisabled || voiceInputCoordinator.isDraftInteractionLocked,
             mode: composerMode,
             primaryActionTitle: presentation.primaryActionTitle,
             primaryActionSystemImage: presentation.primaryActionSystemImage,
-            isPrimaryActionDisabled: presentation.isPrimaryActionDisabled,
+            isPrimaryActionDisabled: presentation.isPrimaryActionDisabled || voiceInputCoordinator.isDraftInteractionLocked,
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
@@ -391,8 +448,10 @@ extension ChatView {
                 dismissGoalModeFromComposerChip()
             },
             taskWorkspace: taskWorkspaceConfiguration,
+            voiceInput: voiceInputButtonConfiguration,
             onSubmit: {
-                guard presentation.canSubmit else {
+                guard presentation.canSubmit,
+                      !voiceInputCoordinator.isDraftInteractionLocked else {
                     return
                 }
                 sendDraft()

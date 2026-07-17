@@ -179,39 +179,43 @@ final class AppKitComposerAttachmentStripView: NSView {
 
     private func updateAttachmentHandlers() {
         imageTileViews.forEach { tileView in
-            tileView.onOpenAttachment = { [weak self] attachment in
-                self?.onOpenAttachment?(.image(attachment))
+            tileView.onOpenAttachment = onOpenAttachment.map { onOpenAttachment in
+                { attachment in onOpenAttachment(.image(attachment)) }
             }
-            tileView.onRemoveAttachment = { [weak self] attachment in
-                self?.onRemoveAttachment?(.image(attachment))
+            tileView.onRemoveAttachment = onRemoveAttachment.map { onRemoveAttachment in
+                { attachment in onRemoveAttachment(.image(attachment)) }
             }
         }
         fileChipViews.forEach { chipView in
-            chipView.onOpenAttachment = { [weak self] attachment in
-                self?.onOpenAttachment?(.file(attachment))
+            chipView.onOpenAttachment = onOpenAttachment.map { onOpenAttachment in
+                { attachment in onOpenAttachment(.file(attachment)) }
             }
-            chipView.onRemoveAttachment = { [weak self] attachment in
-                self?.onRemoveAttachment?(.file(attachment))
+            chipView.onRemoveAttachment = onRemoveAttachment.map { onRemoveAttachment in
+                { attachment in onRemoveAttachment(.file(attachment)) }
             }
         }
         appShotCardViews.forEach { cardView in
-            cardView.onOpenAttachment = { [weak self, weak cardView] in
-                guard let self,
-                      let cardView,
-                      let index = self.appShotCardViews.firstIndex(where: { $0 === cardView }),
-                      self.appShotAttachments.indices.contains(index) else {
-                    return
+            cardView.onOpenAttachment = onOpenAttachment.map { onOpenAttachment in
+                { [weak self, weak cardView] in
+                    guard let self,
+                          let cardView,
+                          let index = self.appShotCardViews.firstIndex(where: { $0 === cardView }),
+                          self.appShotAttachments.indices.contains(index) else {
+                        return
+                    }
+                    onOpenAttachment(.appShot(self.appShotAttachments[index]))
                 }
-                self.onOpenAttachment?(.appShot(self.appShotAttachments[index]))
             }
-            cardView.onRemoveAttachment = { [weak self, weak cardView] in
-                guard let self,
+            cardView.onRemoveAttachment = onRemoveAttachment.map { onRemoveAttachment in
+                { [weak self, weak cardView] in
+                    guard let self,
                       let cardView,
                       let index = self.appShotCardViews.firstIndex(where: { $0 === cardView }),
                       self.appShotAttachments.indices.contains(index) else {
-                    return
+                        return
+                    }
+                    onRemoveAttachment(.appShot(self.appShotAttachments[index]))
                 }
-                self.onRemoveAttachment?(.appShot(self.appShotAttachments[index]))
             }
         }
     }

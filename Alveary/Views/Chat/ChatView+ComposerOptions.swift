@@ -50,7 +50,7 @@ extension ChatView {
     }
 
     var canUseOutboundComposerActions: Bool {
-        if isProjectTrustBlocked {
+        if isProjectTrustBlocked || voiceInputCoordinator.isDraftInteractionLocked {
             return false
         }
         switch composerMode {
@@ -103,6 +103,9 @@ extension ChatView {
     }
 
     func dismissGoalModeFromComposerChip() {
+        guard !voiceInputCoordinator.isDraftInteractionLocked else {
+            return
+        }
         if viewModel.state.isGoalModeArmed {
             viewModel.setGoalModeArmed(false)
             return
@@ -117,6 +120,9 @@ extension ChatView {
     }
 
     func setPlanModeFromComposer(_ isEnabled: Bool) {
+        guard !voiceInputCoordinator.isDraftInteractionLocked else {
+            return
+        }
         if isEnabled,
            let unavailableMessage = planModeToggleDisabledTooltip {
             viewModel.lastTurnError = unavailableMessage
@@ -129,6 +135,9 @@ extension ChatView {
     }
 
     func setGoalModeFromComposer(_ isEnabled: Bool) {
+        guard !voiceInputCoordinator.isDraftInteractionLocked else {
+            return
+        }
         guard isEnabled else {
             viewModel.setGoalModeArmed(false)
             return

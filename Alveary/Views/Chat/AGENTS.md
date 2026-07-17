@@ -64,6 +64,8 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
 - Composer top separators that appear while the transcript is scrolled up should be the composer panel's own top overlay, not a parent overlay or a child inside the background fill. Keeping the divider overlaid avoids clipping when vertical panel padding is small.
 - Composer panel top/bottom clearance should have one owner per edge. Production editor-to-action-row spacing comes from `AppKitChatComposerPanelView.Layout.actionRowSpacing`; do not stack that padding with native panel spacing.
 - Native staged-context banner production rendering lives in `AppKitChatComposerTopContentView`. Keep staged context above the composer without introducing transcript rows.
+- Voice-model installation, update, repair, and failure states render through the chat window's shared `AppWindowModalOverlayPresenter`, not composer top content. Keep the window blocked, allow only Cancel until preparation finishes, and replace progress with a green success check plus Continue when the model is ready. Validated-cache warmup is the exception: keep it modal-free, show only the microphone spinner, and auto-start a still-valid activation when loading finishes.
+- Re-check the voice-model modal after every suspension in thread-level actions that can restore or replace selection. An operation started before preparation must not unmount the blocking modal when it later completes.
 - Do not reintroduce a changed-files strip above the composer. Diff status belongs in the main toolbar button that opens the Diff Viewer, so changed-file loading cannot alter transcript/composer height or leave stale transcript measurements.
 
 ## Interaction Contracts

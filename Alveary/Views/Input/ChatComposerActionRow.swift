@@ -74,6 +74,7 @@ struct ChatComposerActionRow: NSViewRepresentable {
             onGoalModeChange: { isGoalModeArmed = $0 },
             onGoalModeChipDismiss: { isGoalModeArmed = false },
             taskWorkspace: nil,
+            voiceInput: nil,
             onSubmit: onSubmit,
             onStop: onStop,
             onAddPhotosAndFiles: onAddPhotosAndFiles
@@ -178,6 +179,7 @@ final class ChatComposerActionRowView: NSView {
         var onGoalModeChange: (Bool) -> Void = { _ in }
         var onGoalModeChipDismiss: () -> Void = {}
         var taskWorkspace: TaskWorkspaceConfiguration?
+        var voiceInput: ComposerVoiceInputConfiguration?
         let onSubmit: () -> Void
         let onStop: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
@@ -193,6 +195,7 @@ final class ChatComposerActionRowView: NSView {
     // frame logic out of this already-large view type without widening behavior.
     let spacer = NSView()
     let contextIndicatorView = AppKitContextWindowIndicatorView()
+    let voiceInputButton = ComposerVoiceInputButton()
     private let primaryButton = ComposerActionButton(style: .primary)
     private let stopButton = ComposerActionButton(style: .destructive)
     let disabledSendSlot = ComposerActionButton(style: .primary)
@@ -222,6 +225,11 @@ final class ChatComposerActionRowView: NSView {
     let contextReasoningVisibleSpacing: CGFloat = 12
     let reasoningActionVisibleSpacing: CGFloat = 16
     let minimumSettingsControlWidth: CGFloat = 44
+
+    var hasPresentedPopover: Bool {
+        [plusPopover, reasoningPopover, permissionPopover, worktreePopover, taskWorkspacePopover]
+            .contains { $0?.isShown == true }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -286,11 +294,6 @@ final class ChatComposerActionRowView: NSView {
         planModeButton.setAccessibilityLabel("Exit plan mode")
         goalModeButton.setAccessibilityLabel("Disable goal mode")
         worktreeButton.setAccessibilityLabel("Thread location")
-    }
-
-    private func setupAccessoryViews() {
-        contextIndicatorView.translatesAutoresizingMaskIntoConstraints = false
-        contextIndicatorView.setContentHuggingPriority(.required, for: .horizontal)
     }
 
     private func setupActions() {
@@ -386,6 +389,7 @@ final class ChatComposerActionRowView: NSView {
         applyTaskWorkspaceConfiguration(configuration)
         applyPlusButtonConfiguration(configuration)
         applyAccessoryConfiguration(configuration)
+        applyVoiceInputConfiguration(configuration)
         applyActionConfiguration(configuration)
         rebuildArrangedSubviews(configuration)
         invalidateIntrinsicContentSize()
@@ -408,10 +412,6 @@ final class ChatComposerActionRowView: NSView {
             options: ChatComposerWorktreeLocationPresentation.options(),
             selectedValue: option.value
         )
-    }
-
-    private func applyAccessoryConfiguration(_ configuration: Configuration) {
-        contextIndicatorView.configure(summary: configuration.usageSummary)
     }
 
     private func applyActionConfiguration(_ configuration: Configuration) {
@@ -477,6 +477,7 @@ final class ChatComposerActionRowView: NSView {
         }
         // Keep reasoning pinned between optional context usage and the action slot.
         views.append(reasoningButton)
+        views.append(contentsOf: voiceInputViews(configuration))
         switch configuration.mode {
         case .idle:
             views.append(primaryButton)

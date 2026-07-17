@@ -25,6 +25,8 @@ struct ContentView: View {
     let notificationRouter: NotificationRouter
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
+    private let voiceInputService: any VoiceInputService
+    let voiceInputLifecycleController: VoiceInputLifecycleController
     @State var appUpdateManager: AppUpdateManager
 
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
@@ -57,6 +59,7 @@ struct ContentView: View {
     @State private var terminalToolbarResetTask: Task<Void, Never>?
     @State var didAttemptLaunchSelectionRestore = false
     @State var didStartThreadActivityBackfill = false
+    @State var voiceInputInteractionLockGeneration = 0
 
     init(component: AppComponent, appState: AppState) {
         self.init(dependencies: ContentViewDependencies.resolve(component), appState: appState)
@@ -82,6 +85,8 @@ struct ContentView: View {
         self.notificationRouter = dependencies.notificationRouter
         self.threadActivityRecorder = dependencies.threadActivityRecorder
         self.gitService = dependencies.gitService
+        self.voiceInputService = dependencies.voiceInputService
+        self.voiceInputLifecycleController = dependencies.voiceInputLifecycleController
         _appUpdateManager = State(initialValue: dependencies.appUpdateManager)
         let settings = dependencies.settingsService.current
         // Keep UI mutations on the container's main context so sidebar `@Query` reads
@@ -129,6 +134,8 @@ struct ContentView: View {
             contextWindowCache: contextWindowCache,
             fileListManager: fileListManager,
             notificationManager: notificationManager,
+            voiceInputService: voiceInputService,
+            voiceInputLifecycleController: voiceInputLifecycleController,
             sidebarViewModel: sidebarViewModel,
             loadInstalledSkills: { [skillsService] in
                 (try? await skillsService.loadInstalled()) ?? []
@@ -147,7 +154,11 @@ struct ContentView: View {
         )
 
         NavigationSplitView(columnVisibility: $splitVisibility) {
-            SidebarView(viewModel: sidebarViewModel, appState: appState)
+            SidebarView(
+                viewModel: sidebarViewModel,
+                appState: appState,
+                voiceInputLifecycleController: voiceInputLifecycleController
+            )
                 .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
         } detail: {
             ZStack(alignment: .bottom) {
@@ -218,7 +229,10 @@ struct ContentView: View {
             onboardingViewModel.start()
         }
         .overlay(alignment: .bottom, content: errorToastOverlay)
-        .appUpdateRestartAlert(updateManager: appUpdateManager)
+        .appUpdateRestartAlert(
+            updateManager: appUpdateManager,
+            isSuppressed: isVoiceInputInteractionLocked
+        )
         .background {
             // Native `.line` has the right weight when empty; child screens obscure it, so the detail pane draws theirs.
             AppWindowTitlebarSeparatorConfigurator(style: appState.selectedSidebarItem == nil ? .line : .none).frame(width: 0, height: 0)
@@ -299,20 +313,23 @@ struct ContentView: View {
             handlePendingCommand(command)
         }
         .onChange(of: notificationRouter.pendingConversationId) { _, newValue in
-            guard let newValue else { return }
-            openConversation(with: newValue)
-            notificationRouter.clearPendingIfMatches(newValue)
+            routePendingConversationIfModelPreparationAllows(newValue)
         }
         .onChange(of: notificationRouter.pendingScheduledTaskDefinitionId) { _, definitionID in
-            guard let definitionID else { return }
-            openScheduledTaskDefinition(with: definitionID)
-            notificationRouter.clearPendingScheduledTaskIfMatches(definitionID)
+            routePendingScheduledTaskIfModelPreparationAllows(definitionID)
         }
         .onChange(of: terminalManager.runningProjectActionSessionIDs, initial: true) { _, runningSessionIDs in
             handleTerminalRunningSessionIDsChange(runningSessionIDs)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             onboardingViewModel.handleAppDidBecomeActive()
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: .voiceInputComposerInteractionLockChanged,
+            object: voiceInputLifecycleController
+        )) { _ in
+            voiceInputInteractionLockGeneration &+= 1
+            replayModelPreparationDeferredRoutingIfAvailable()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             terminalManager.terminateAllSessions()
@@ -340,14 +357,7 @@ struct ContentView: View {
             restoreLastOpenThreadSelectionIfNeeded()
             updateDiffViewer(item: appState.selectedSidebarItem)
             diffViewModel.setWatchingEnabled(appState.isRightPaneVisible)
-            if let pending = notificationRouter.pendingConversationId {
-                openConversation(with: pending)
-                notificationRouter.clearPendingIfMatches(pending)
-            }
-            if let definitionID = notificationRouter.pendingScheduledTaskDefinitionId {
-                openScheduledTaskDefinition(with: definitionID)
-                notificationRouter.clearPendingScheduledTaskIfMatches(definitionID)
-            }
+            replayModelPreparationDeferredRoutingIfAvailable()
             // Mark-read of the active conversation is handled by `ThreadDetailView` once
             // the restored selection mounts; just sync the dock badge on launch.
             notificationManager.refreshBadgeCount()
@@ -362,9 +372,9 @@ struct ContentView: View {
 }
 
 private extension ContentView {
-    func openScheduledTaskDefinition(with definitionID: String) {
-        appState.selectedSidebarItem = .scheduled
-        scheduledTasksViewModel.requestEdit(definitionID: definitionID)
+    var isVoiceInputInteractionLocked: Bool {
+        _ = voiceInputInteractionLockGeneration
+        return voiceInputLifecycleController.isComposerInteractionLocked
     }
 
     var selectedThreadID: PersistentIdentifier? {
@@ -374,10 +384,6 @@ private extension ContentView {
         }
 
         return thread.persistentModelID
-    }
-
-    var visibleThreadID: PersistentIdentifier? {
-        selectedThreadID
     }
 
     var terminalToggleTitle: String {
@@ -443,26 +449,6 @@ private extension ContentView {
             terminalToolbarDisplayState = .idle
             terminalToolbarResetTask = nil
         }
-    }
-
-    func canViewThread(_ id: PersistentIdentifier) -> Bool {
-        guard visibleThreadID != id,
-              let thread = uiModelContext.resolveThread(id: id),
-              !thread.isDraft else {
-            return false
-        }
-
-        return thread.archivedAt == nil
-    }
-
-    func viewThread(_ id: PersistentIdentifier) {
-        guard let thread = uiModelContext.resolveThread(id: id),
-              thread.archivedAt == nil,
-              !thread.isDraft else {
-            return
-        }
-
-        appState.selectedSidebarItem = .thread(thread)
     }
 
     func refreshToolbarProjectActions() async {

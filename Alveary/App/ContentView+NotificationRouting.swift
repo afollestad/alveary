@@ -58,6 +58,44 @@ func makeActiveConversationProvider(for appState: AppState, modelContext: ModelC
 }
 
 extension ContentView {
+    func replayModelPreparationDeferredRoutingIfAvailable() {
+        guard !voiceInputLifecycleController.isModelPreparationModalPresented else {
+            return
+        }
+        handlePendingCommand(appState.pendingCommand)
+        routePendingConversationIfModelPreparationAllows(notificationRouter.pendingConversationId)
+        routePendingScheduledTaskIfModelPreparationAllows(notificationRouter.pendingScheduledTaskDefinitionId)
+    }
+
+    func routePendingConversationIfModelPreparationAllows(_ conversationID: String?) {
+        guard let conversationID else {
+            return
+        }
+        performAppNavigationIfModelPreparationModalAbsent(
+            lifecycleController: voiceInputLifecycleController
+        ) {
+            openConversation(with: conversationID)
+            notificationRouter.clearPendingIfMatches(conversationID)
+        }
+    }
+
+    func routePendingScheduledTaskIfModelPreparationAllows(_ definitionID: String?) {
+        guard let definitionID else {
+            return
+        }
+        performAppNavigationIfModelPreparationModalAbsent(
+            lifecycleController: voiceInputLifecycleController
+        ) {
+            openScheduledTaskDefinition(with: definitionID)
+            notificationRouter.clearPendingScheduledTaskIfMatches(definitionID)
+        }
+    }
+
+    func openScheduledTaskDefinition(with definitionID: String) {
+        appState.selectedSidebarItem = .scheduled
+        scheduledTasksViewModel.requestEdit(definitionID: definitionID)
+    }
+
     func openConversation(with conversationId: String) {
         openConversationInAppState(
             conversationId: conversationId,

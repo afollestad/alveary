@@ -9,7 +9,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStates() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 632, height: 76),
+            size: CGSize(width: 770, height: 76),
             named: "chat_composer_native_action_control_interaction_states"
         )
     }
@@ -17,7 +17,7 @@ extension SnapshotTests {
     func testChatComposerNativeActionControlInteractionStatesDark() {
         assertMacSnapshot(
             nativeActionControlInteractionStates,
-            size: CGSize(width: 632, height: 76),
+            size: CGSize(width: 770, height: 76),
             named: "chat_composer_native_action_control_interaction_states_dark",
             colorScheme: .dark
         )
@@ -47,6 +47,12 @@ extension SnapshotTests {
                 .frame(width: 132, height: 24)
             ComposerPermissionButtonSnapshot(state: .hovered)
                 .frame(width: 144, height: 24)
+            ComposerVoiceInputButtonSnapshot(state: .hovered)
+                .frame(width: 30, height: 30)
+            ComposerVoiceInputButtonSnapshot(state: .pressed)
+                .frame(width: 30, height: 30)
+            ComposerVoiceInputButtonSnapshot(state: .focused)
+                .frame(width: 30, height: 30)
             ComposerActionButtonSnapshot(style: .primary, title: "Send", symbolName: "paperplane.fill", state: .hovered)
                 .frame(width: 76, height: 30)
             ComposerActionButtonSnapshot(style: .primary, title: "Send", symbolName: "paperplane.fill", state: .pressed)
@@ -80,6 +86,64 @@ private enum ComposerControlSnapshotState {
     case idle
     case hovered
     case pressed
+}
+
+private enum ComposerVoiceInputSnapshotState {
+    case hovered
+    case pressed
+    case focused
+}
+
+private struct ComposerVoiceInputButtonSnapshot: NSViewRepresentable {
+    let state: ComposerVoiceInputSnapshotState
+
+    func makeNSView(context: Context) -> ComposerVoiceInputButton {
+        let view = ComposerVoiceInputButton()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ view: ComposerVoiceInputButton, context: Context) {
+        configure(view)
+    }
+
+    private func configure(_ view: ComposerVoiceInputButton) {
+        view.configure(ComposerVoiceInputConfiguration(
+            phase: .ready,
+            isEnabled: true,
+            shortcutDisplay: "⌃⇧Space",
+            unavailableHelp: nil,
+            onPress: { true },
+            onRelease: { _ in true },
+            onAccessibilityToggle: {},
+            onAccessibilityCancel: { true }
+        ))
+        switch state {
+        case .hovered:
+            view.mouseEntered(with: Self.event)
+        case .pressed:
+            view.isHighlighted = true
+            view.needsDisplay = true
+        case .focused:
+            #if DEBUG
+            view.debugSetFocusAppearance(true)
+            #endif
+        }
+    }
+
+    private static var event: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
 }
 
 private struct ComposerReasoningButtonSnapshot: NSViewRepresentable {

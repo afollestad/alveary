@@ -6,6 +6,7 @@ final class AppShotCaptureController {
     typealias PrepareCapture = @MainActor () async throws -> PreparedAppShotCapture
     typealias OpenDraft = @MainActor (PersistentIdentifier) async throws -> PersistentIdentifier
     typealias StageAppShot = @MainActor (ConversationState, AppShotAttachment) throws -> Void
+    typealias IsVoiceInputLocked = @MainActor () -> Bool
 
     nonisolated static let noProjectMessage = "Add a project before capturing an app shot."
 
@@ -14,6 +15,7 @@ final class AppShotCaptureController {
     private let settingsService: any SettingsService
     private let runtimeStore: any ConversationRuntimeStore
     private let attachmentStore: any ConversationAttachmentStore
+    private let isVoiceInputLocked: IsVoiceInputLocked
     private let prepareCapture: PrepareCapture
     private let openDraft: OpenDraft
     private let stageAppShot: StageAppShot
@@ -28,6 +30,7 @@ final class AppShotCaptureController {
         settingsService: any SettingsService,
         runtimeStore: any ConversationRuntimeStore,
         attachmentStore: any ConversationAttachmentStore,
+        isVoiceInputLocked: @escaping IsVoiceInputLocked = { false },
         prepareCapture: @escaping PrepareCapture,
         openDraft: @escaping OpenDraft,
         stageAppShot: @escaping StageAppShot = { state, appShot in state.stageAppShot(appShot) },
@@ -42,6 +45,7 @@ final class AppShotCaptureController {
         self.settingsService = settingsService
         self.runtimeStore = runtimeStore
         self.attachmentStore = attachmentStore
+        self.isVoiceInputLocked = isVoiceInputLocked
         self.prepareCapture = prepareCapture
         self.openDraft = openDraft
         self.stageAppShot = stageAppShot
@@ -52,7 +56,8 @@ final class AppShotCaptureController {
 
     @discardableResult
     func captureIfIdle() -> Task<Void, Never>? {
-        guard activeCaptureTask == nil else {
+        guard activeCaptureTask == nil,
+              !isVoiceInputLocked() else {
             return nil
         }
 
@@ -70,17 +75,20 @@ final class AppShotCaptureController {
 
 private extension AppShotCaptureController {
     func capture() async {
-        guard let intent = resolveIntent(),
+        guard !isVoiceInputLocked(),
+              let intent = resolveIntent(),
               let preparedCapture = await resolvePreparedCapture() else {
             return
         }
-        guard intent.isCurrent(appState: appState, modelContext: modelContext, settingsService: settingsService) else {
+        guard !isVoiceInputLocked(),
+              intent.isCurrent(appState: appState, modelContext: modelContext, settingsService: settingsService) else {
             return
         }
         guard let claim = await resolveClaim(for: intent) else {
             return
         }
-        guard intent.isCurrent(appState: appState, modelContext: modelContext, settingsService: settingsService) else {
+        guard !isVoiceInputLocked(),
+              intent.isCurrent(appState: appState, modelContext: modelContext, settingsService: settingsService) else {
             return
         }
         guard await storeAndStage(preparedCapture, claim: claim) else {
@@ -153,6 +161,11 @@ private extension AppShotCaptureController {
             return false
         }
 
+        guard !isVoiceInputLocked() else {
+            await removeStoredAttachmentSuppressedByVoiceInput(appShot, claim: claim)
+            return false
+        }
+
         do {
             try stageAppShot(state, appShot)
             return true
@@ -161,6 +174,23 @@ private extension AppShotCaptureController {
             let reportedError = await errorAfterRemovingStoredAttachment(appShot, originalError: error)
             presentStorageOrStagingError(reportedError, claim: claim)
             return false
+        }
+    }
+
+    func removeStoredAttachmentSuppressedByVoiceInput(
+        _ appShot: AppShotAttachment,
+        claim: AppShotDestinationClaim
+    ) async {
+        do {
+            try await attachmentStore.removeAttachment(at: appShot.screenshot.fileURL)
+        } catch {
+            presentStorageOrStagingError(
+                AppShotAttachmentCleanupError(
+                    originalError: "Voice input became active before the app shot could be attached.",
+                    cleanupError: error.localizedDescription
+                ),
+                claim: claim
+            )
         }
     }
 

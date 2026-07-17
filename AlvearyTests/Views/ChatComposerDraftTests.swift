@@ -32,6 +32,27 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertFalse(draft.isEffectivelyEmpty)
     }
 
+    func testVoiceShortcutRemainsEnabledToStopWhenBaseComposerBecomesUnavailable() throws {
+        #if arch(arm64)
+        let fixture = try ConversationViewModelTestFixture()
+        let service = FakeChatVoiceInputService()
+        let settings = InMemorySettingsService()
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: AppState(),
+            settingsService: settings,
+            voiceInputService: service,
+            voiceInputLifecycleController: VoiceInputLifecycleController(service: service)
+        )
+        XCTAssertFalse(chatView.isBaseVoiceInputComposerUsable)
+        XCTAssertNotNil(chatView.voiceInputShortcutAvailability.descriptor)
+
+        chatView.voiceInputCoordinator.phase = .recording
+
+        XCTAssertTrue(chatView.voiceInputShortcutConfiguration.isEnabled)
+        #endif
+    }
+
     func testSendDraftClearsDraftAndRequestsComposerFocus() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let appState = AppState()
@@ -398,7 +419,10 @@ final class ChatComposerDraftTests: XCTestCase {
         supportsPlanMode: Bool = false,
         supportsSpeedMode: Bool = false,
         supportsLocalImageInput: Bool = false,
-        providerID: String = "claude"
+        providerID: String = "claude",
+        settingsService: SettingsService? = nil,
+        voiceInputService: (any VoiceInputService)? = nil,
+        voiceInputLifecycleController: VoiceInputLifecycleController? = nil
     ) -> ChatView {
         ChatView(
             viewModel: fixture.viewModel,
@@ -433,6 +457,9 @@ final class ChatComposerDraftTests: XCTestCase {
             onDenyProjectTrust: { _ in },
             loadFileCompletions: { [] },
             loadSkillCompletions: { [] },
+            settingsService: settingsService,
+            voiceInputService: voiceInputService,
+            voiceInputLifecycleController: voiceInputLifecycleController,
             transcriptTypography: TranscriptTypography(),
             appState: appState
         )

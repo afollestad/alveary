@@ -134,7 +134,8 @@ struct SettingsScreen: View {
         case .appShots:
             AppShotsSettingsTabView(
                 appShotsEnabled: binding(for: \.appShotsEnabled),
-                appShotShortcut: binding(for: \.appShotShortcut)
+                appShotShortcut: binding(for: \.appShotShortcut),
+                voiceInputShortcut: viewModel.voiceInputShortcut
             )
         case .git:
             GitSettingsTabView(
@@ -177,6 +178,7 @@ struct SettingsScreen: View {
                 reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
                 turnAwakeEnabled: binding(for: \.turnAwakeEnabled),
                 turnAwakePreventDisplaySleep: binding(for: \.turnAwakePreventDisplaySleep),
+                voiceInputShortcut: binding(for: \.voiceInputShortcut),
                 contextManagementEnabled: binding(for: \.contextManagementEnabled),
                 sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
                 handoffSteeringEnabled: binding(for: \.handoffSteeringEnabled),

@@ -50,6 +50,9 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.gitHubCLIService, component.gitHubCLIService)
         assertSameInstance(component.skillsService, component.skillsService)
         assertSameInstance(component.mcpService, component.mcpService)
+        assertSameInstance(component.voiceInputService, component.voiceInputService)
+        XCTAssertTrue(component.voiceInputLifecycleController === component.voiceInputLifecycleController)
+        assertSameInstance(component.voiceInputLifecycleController.service, component.voiceInputService)
 
         let agentsManager = try XCTUnwrap(component.agentsManager as? DefaultAgentsManager)
         let runtimeStore = try XCTUnwrap(component.conversationRuntimeStore as? DefaultAgentsManager)
@@ -140,9 +143,15 @@ final class AppComponentTests: XCTestCase {
         _ = component.worktreeManager
         _ = component.fileListManager
         _ = component.diffWorkspaceStore
+        resolveAppScopedFeatureServices(component)
+    }
+
+    private func resolveAppScopedFeatureServices(_ component: AppComponent) {
         _ = component.gitHubCLIService
         _ = component.skillsService
         _ = component.mcpService
+        _ = component.voiceInputService
+        _ = component.voiceInputLifecycleController
     }
 
     func testAgentCLIKitProviderRegistryUsesAdapterSetDefinitions() async {

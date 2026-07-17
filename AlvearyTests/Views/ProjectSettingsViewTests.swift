@@ -245,4 +245,53 @@ final class ProjectSettingsViewTests: XCTestCase {
         XCTAssertNotEqual(appState.selectedSidebarItem, .thread(thread))
         XCTAssertNotEqual(appState.previousSelection, .threadId(thread.persistentModelID))
     }
+
+    func testArchivedThreadDeleteFailureDoesNotRestoreSelectionUnderVoiceModelModal() async throws {
+        let fixture = try SidebarTestFixture(saveDeletionCommit: { _ in
+            throw ProjectVoiceNavigationTestError.persistenceFailed
+        })
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-project",
+            conversationIDs: ["main"],
+            archivedAt: Date()
+        )
+        let project = try XCTUnwrap(thread.project)
+        let conversationID = try XCTUnwrap(try fixture.requireThread(thread).conversations.first?.persistentModelID)
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(thread)
+        appState.previousSelection = .threadId(thread.persistentModelID)
+        appState.selectedConversationIDs[thread.persistentModelID] = conversationID
+        let voiceInputService = DisabledVoiceInputService()
+        let lifecycleController = VoiceInputLifecycleController(service: voiceInputService)
+        let modalSink = ProjectSettingsVoiceModelModalSink()
+        lifecycleController.setActiveComposerSink(modalSink)
+
+        do {
+            try await deleteProjectSettingsArchivedThread(
+                thread,
+                appState: appState,
+                sidebarViewModel: fixture.viewModel,
+                voiceInputLifecycleController: lifecycleController
+            )
+            XCTFail("Expected delete to throw")
+        } catch ProjectVoiceNavigationTestError.persistenceFailed {
+            // Expected pre-commit failure.
+        }
+
+        XCTAssertEqual(appState.selectedSidebarItem, .project(project))
+        XCTAssertEqual(appState.previousSelection, .projectPath(project.path))
+        XCTAssertNil(appState.selectedConversationIDs[thread.persistentModelID])
+        XCTAssertTrue(try fixture.threadExists(thread))
+    }
+}
+
+private final class ProjectSettingsVoiceModelModalSink: VoiceInputComposerSink {
+    var isModelPreparationModalPresented: Bool { true }
+
+    func forceVoiceInputCommitSynchronously() {}
+}
+
+private enum ProjectVoiceNavigationTestError: Error {
+    case persistenceFailed
 }

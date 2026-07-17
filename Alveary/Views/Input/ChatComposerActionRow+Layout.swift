@@ -225,6 +225,11 @@ extension ChatComposerActionRowView {
         if previousView === contextIndicatorView, nextView === reasoningButton {
             return contextReasoningVisibleSpacing
         }
+        if nextView === voiceInputButton, previousView === reasoningButton {
+            // The microphone's circular footprint has its own icon inset, so
+            // the base control spacing is optically balanced with Send.
+            return rowSpacing
+        }
         if nextView is ComposerActionButton || nextView === disabledProgressContainer {
             if previousView === reasoningButton {
                 return reasoningActionVisibleSpacing

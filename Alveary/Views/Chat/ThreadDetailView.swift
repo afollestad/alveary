@@ -15,6 +15,8 @@ struct ThreadDetailView: View {
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
+    let voiceInputService: any VoiceInputService
+    let voiceInputLifecycleController: VoiceInputLifecycleController
     let availableProjects: [Project]
     let selectDraftProject: @MainActor (PersistentIdentifier, String) async -> Void
     let deleteThread: @MainActor (AgentThread) async throws -> Void
@@ -29,7 +31,7 @@ struct ThreadDetailView: View {
     @State var projectTrustPrompt: ProjectTrustPrompt?
     @State var isCheckingProjectTrust = false
 
-    private var conversations: [Conversation] {
+    var conversations: [Conversation] {
         ThreadDetailConversationResolver.resolve(
             thread: thread,
             selectedConversationID: appState.selectedConversationIDs[thread.persistentModelID],
@@ -100,6 +102,8 @@ struct ThreadDetailView: View {
                         providerDiscovery: providerDiscovery,
                         contextWindowCache: contextWindowCache,
                         fileListManager: fileListManager,
+                        voiceInputService: voiceInputService,
+                        voiceInputLifecycleController: voiceInputLifecycleController,
                         runtimeStatus: selectedRuntimeStatus,
                         projectTrustPrompt: visibleProjectTrustPrompt,
                         isProjectTrustBlocked: isProjectTrustBlocked,
@@ -475,25 +479,4 @@ private extension ThreadDetailView {
         )
     }
 
-    // Before deleting the selected tab, pick its visual neighbor (next, falling
-    // back to previous). `repairSelectedConversationIfNeeded` otherwise falls
-    // back to the main conversation via its main-preference sort, which jumps
-    // selection to the first tab rather than the adjacent one.
-    func selectNeighborIfClosingSelected(id: PersistentIdentifier, in dbThread: AgentThread) {
-        let order = conversations
-        guard appState.selectedConversation(in: dbThread, conversations: order)?.persistentModelID == id,
-              let removedIndex = order.firstIndex(where: { $0.persistentModelID == id }) else {
-            return
-        }
-        let neighbor: Conversation? = if removedIndex + 1 < order.count {
-            order[removedIndex + 1]
-        } else if removedIndex > 0 {
-            order[removedIndex - 1]
-        } else {
-            nil
-        }
-        if let neighbor {
-            appState.selectConversation(neighbor, in: dbThread)
-        }
-    }
 }

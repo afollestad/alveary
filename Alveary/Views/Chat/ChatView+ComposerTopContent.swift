@@ -5,10 +5,31 @@ extension ChatView {
     var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
         var items: [AppKitChatComposerTopContentView.Item] = []
         appendLastTurnError(to: &items)
+        appendVoiceInputNotice(to: &items)
         appendSessionContinuityNotice(to: &items)
         appendGoalStatus(to: &items)
         appendStagedContext(to: &items)
         return AppKitChatComposerTopContentView.Configuration(items: items)
+    }
+
+    private func appendVoiceInputNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard let notice = voiceInputCoordinator.notice else {
+            return
+        }
+        let severity: AppKitChatComposerTopContentSeverity = switch notice.severity {
+        case .info: .info
+        case .warning: .warning
+        case .error: .error
+        }
+        items.append(.inlineBanner(.init(
+            message: notice.message,
+            severity: severity,
+            actionTitle: notice.recovery == nil ? nil : "Open Microphone Settings",
+            onAction: notice.recovery.map { recovery in
+                { openVoiceInputRecovery(recovery) }
+            },
+            onDismiss: voiceInputCoordinator.dismissNotice
+        )))
     }
 
     private func appendLastTurnError(to items: inout [AppKitChatComposerTopContentView.Item]) {
@@ -19,8 +40,10 @@ extension ChatView {
             items.append(.inlineBanner(.init(
                 message: lastTurnError,
                 severity: .error,
-                actionTitle: "Retry",
-                onAction: { viewModel.retryFailedSessionHandoff() },
+                actionTitle: voiceInputCoordinator.isDraftInteractionLocked ? nil : "Retry",
+                onAction: voiceInputCoordinator.isDraftInteractionLocked ? nil : {
+                    viewModel.retryFailedSessionHandoff()
+                },
                 onDismiss: nil
             )))
         } else {
@@ -71,7 +94,8 @@ extension ChatView {
         isTerminal: Bool,
         goal: AgentGoalSnapshot
     ) -> (() -> Void)? {
-        guard !isTerminal,
+        guard !voiceInputCoordinator.isDraftInteractionLocked,
+              !isTerminal,
               goal.availableActions.contains(action),
               isGoalActionVisible(action, for: goal) else {
             return nil
@@ -91,7 +115,8 @@ extension ChatView {
     }
 
     private func terminalGoalRestartHandler(for goal: AgentGoalSnapshot) -> (() -> Void)? {
-        guard goal.status.isComposerRestartableTerminal,
+        guard !voiceInputCoordinator.isDraftInteractionLocked,
+              goal.status.isComposerRestartableTerminal,
               !viewModel.state.isGoalModeArmed else {
             return nil
         }
@@ -103,6 +128,9 @@ extension ChatView {
               !viewModel.state.isGoalModeArmed else {
             return nil
         }
+        if voiceInputCoordinator.isDraftInteractionLocked {
+            return "Finish dictation before restarting this goal."
+        }
         return goalModeStartUnavailableMessage()
     }
 
@@ -112,7 +140,9 @@ extension ChatView {
         }
         items.append(.stagedContext(.init(
             context: stagedContext,
-            onDismiss: { viewModel.dismissStagedContext() }
+            onDismiss: voiceInputCoordinator.isDraftInteractionLocked ? nil : {
+                viewModel.dismissStagedContext()
+            }
         )))
     }
 }

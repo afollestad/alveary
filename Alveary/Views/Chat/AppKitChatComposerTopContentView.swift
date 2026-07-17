@@ -78,7 +78,7 @@ final class AppKitChatComposerTopContentView: NSView {
 
     struct StagedContextConfiguration {
         let context: String
-        let onDismiss: () -> Void
+        let onDismiss: (() -> Void)?
     }
 
     private var itemViews: [AppKitChatComposerTopContentItemView] = []
