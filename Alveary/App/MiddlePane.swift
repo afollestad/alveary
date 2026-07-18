@@ -32,6 +32,9 @@ struct MiddlePane: View {
     @Environment(\.modelContext) private var uiModelContext
     @Query private var projects: [Project]
 
+    // Match the new-thread hero's optical center within the root selection pane.
+    private let selectionEmptyStateVerticalOffset: CGFloat = -86
+
     var body: some View {
         switch appState.selectedSidebarItem {
         case .skills:
@@ -126,6 +129,7 @@ struct MiddlePane: View {
                     subtext: "Choose something from the sidebar to continue.",
                     actions: []
                 )
+                .offset(y: selectionEmptyStateVerticalOffset)
             }
         }
     }
