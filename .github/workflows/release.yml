@@ -130,62 +130,7 @@ jobs:
           PREVIOUS_TAG: ${{ steps.previous_tag.outputs.tag }}
           RELEASE_NOTES_BASE: ${{ steps.previous_tag.outputs.notes_base }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
-        run: |
-          candidate_commit_count=$(git log \
-            --format='%s' \
-            --extended-regexp \
-            --invert-grep \
-            --grep='^Release Alveary v[0-9]+\.[0-9]+\.[0-9]+$' \
-            "$RELEASE_NOTES_BASE..HEAD" | wc -l | tr -d '[:space:]')
-          prompt=$(printf '%s\n' \
-            "Review the git log and commit diffs in range ${RELEASE_NOTES_BASE}..HEAD and write a concise Markdown bullet list summarizing all code changes made since release ${PREVIOUS_TAG}." \
-            "Exclude version-release commits and any other commits that are not relevant to a user-facing changelog." \
-            "End every bullet with the short commit hash as a Markdown link in parentheses, followed by the GitHub username of the commit author, using this exact suffix format: ([\`short-hash\`](https://github.com/${GITHUB_REPOSITORY}/commit/full-hash)) by @username." \
-            "Begin with exactly this Markdown header: ## What's changed" \
-            "Put the first bullet directly after the header with no introduction or other content between them, and keep every bullet on one line." \
-            "The final line must exactly equal the following text, with no trailing punctuation:" \
-            "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG_NAME}" \
-            "Use the write tool to write the complete final output directly to this Markdown file: ${RELEASE_NOTES_PATH}" \
-            "Write nothing to that file except the header, bullet list, and Full Changelog link. Do not use a code fence." \
-            "Do not modify any other files, and do not return the release notes in your response after writing the file.")
-
-          rm -f "$RELEASE_NOTES_PATH"
-          if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
-            echo "error: checkout is not clean before release-note generation" >&2
-            exit 1
-          fi
-
-          if (( candidate_commit_count > 0 )); then
-            copilot --silent --no-ask-user --no-custom-instructions \
-              --allow-tool='shell(git log:*)' \
-              --allow-tool='shell(git show:*)' \
-              --allow-tool=write \
-              -p "$prompt" > /dev/null
-          else
-            printf "## What's changed\n\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n" \
-              "$GITHUB_REPOSITORY" "$PREVIOUS_TAG" "$TAG_NAME" > "$RELEASE_NOTES_PATH"
-          fi
-
-          if [[ "$(git status --porcelain --untracked-files=all)" != "?? .release-notes.md" ]]; then
-            echo "error: release-note generation modified unexpected workspace files" >&2
-            exit 1
-          fi
-
-          expected_full_changelog="**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${TAG_NAME}"
-          actual_first_line=$(awk 'NF { print; exit }' "$RELEASE_NOTES_PATH")
-          actual_final_line=$(awk 'NF { line = $0 } END { print line }' "$RELEASE_NOTES_PATH")
-          invalid_body_line_count=$(awk \
-            -v expected_header="## What's changed" \
-            -v full_changelog="$expected_full_changelog" '
-            NF && $0 != expected_header && $0 != full_changelog && $0 !~ /^- / { count += 1 }
-            END { print count + 0 }
-          ' "$RELEASE_NOTES_PATH")
-          if [[ "$actual_first_line" != "## What's changed" ||
-                "$actual_final_line" != "$expected_full_changelog" ||
-                "$invalid_body_line_count" -ne 0 ]]; then
-            echo "error: Copilot generated release notes outside the required Markdown format" >&2
-            exit 1
-          fi
+        run: scripts/ci/generate-release-notes.sh
 
       - name: Create and push tag
         if: steps.version.outputs.should_release == 'true'

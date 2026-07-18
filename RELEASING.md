@@ -34,7 +34,8 @@ The workflow performs these high-level steps:
 6. Verify exported app metadata, signing, and Gatekeeper acceptance.
 7. Notarize and staple `Alveary.app`.
 8. Create `Alveary.app.zip` with `scripts/ci/create-release-zip.sh`.
-9. Upload a dry-run artifact or publish the GitHub Release with `scripts/ci/create-github-release.sh`.
+9. For push-triggered releases, generate header-free release notes with `scripts/ci/generate-release-notes.sh`.
+10. Upload a dry-run artifact or publish the GitHub Release with `scripts/ci/create-github-release.sh`.
 
 Keep release implementation logic in `scripts/ci/` and keep the workflow YAML focused on orchestration.
 
