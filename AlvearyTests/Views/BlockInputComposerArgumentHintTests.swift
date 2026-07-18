@@ -148,6 +148,101 @@ final class BlockInputComposerArgumentHintTests: XCTestCase {
         XCTAssertNil(provider.inlineHint(for: inlineHintContext(text: "/fast")))
     }
 
+    func testEffortHintUpdatesImmediatelyAndPreservesCachedSkillHints() async {
+        let loadedSkills = LockedState([
+            Self.skill(id: "review-github-pr", name: "review-github-pr", argumentHint: "[PR URL]")
+        ])
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(
+                supportedEffortOptions: ["low", "medium", "high", "xhigh", "max", "ultra"]
+            ),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { loadedSkills.withLock { $0 } }
+        )
+
+        _ = await provider.suggestions(for: completionContext(
+            trigger: .slashCommand,
+            query: "review",
+            rawQuery: "review"
+        ))
+
+        XCTAssertEqual(
+            provider.inlineHint(for: inlineHintContext(text: "/effort"))?.text,
+            " low|medium|high|xhigh|max|ultra"
+        )
+        XCTAssertEqual(provider.inlineHint(for: inlineHintContext(text: "/review-github-pr"))?.text, " [PR URL]")
+
+        provider.update(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(
+                supportedEffortOptions: ["low", "medium", "high", "xhigh", "max", "ultra"],
+                suppressesSlashCommandSuggestions: true
+            ),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { loadedSkills.withLock { $0 } }
+        )
+
+        XCTAssertNil(provider.inlineHint(for: inlineHintContext(text: "/effort")))
+        XCTAssertNil(provider.inlineHint(for: inlineHintContext(text: "/review-github-pr")))
+
+        provider.update(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(supportedEffortOptions: ["minimal", "standard"]),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { loadedSkills.withLock { $0 } }
+        )
+
+        XCTAssertEqual(provider.inlineHint(for: inlineHintContext(text: "/effort"))?.text, " minimal|standard")
+        XCTAssertEqual(provider.inlineHint(for: inlineHintContext(text: "/review-github-pr"))?.text, " [PR URL]")
+
+        provider.update(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { loadedSkills.withLock { $0 } }
+        )
+
+        XCTAssertNil(provider.inlineHint(for: inlineHintContext(text: "/effort")))
+        XCTAssertEqual(provider.inlineHint(for: inlineHintContext(text: "/review-github-pr"))?.text, " [PR URL]")
+    }
+
+    func testEffortHintOmitsVirtualSeparatorAfterLiteralSpace() {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(
+                supportedEffortOptions: ["low", "medium", "high", "xhigh", "max", "ultra"]
+            ),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] }
+        )
+
+        XCTAssertEqual(
+            provider.inlineHint(for: inlineHintContext(text: "/effort "))?.text,
+            "low|medium|high|xhigh|max|ultra"
+        )
+    }
+
+    func testEffortHintIsSuppressedWithSlashCommandSuggestions() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(
+                supportedEffortOptions: ["low", "high"],
+                suppressesSlashCommandSuggestions: true
+            ),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] }
+        )
+
+        XCTAssertNil(provider.inlineHint(for: inlineHintContext(text: "/effort")))
+        let suggestions = await provider.suggestions(for: completionContext(
+            trigger: .slashCommand,
+            query: "effort",
+            rawQuery: "effort"
+        ))
+        XCTAssertTrue(suggestions.isEmpty)
+    }
+
     func testPassthroughCompactCommandProvidesArgumentHint() async {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),

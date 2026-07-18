@@ -3,6 +3,25 @@
 extension ChatComposerActionRowView {
     static let reasoningPopoverPreferredEdge: NSRectEdge = .maxY
 
+    struct ReasoningModelSelectionRequest: Equatable {
+        let providerID: String
+        let modelID: String
+    }
+
+    enum ReasoningModelSelectionOutcome {
+        case rejected
+        case unchanged(ReasoningSelection)
+        case applied(selection: ReasoningSelection)
+    }
+
+    struct ReasoningConfiguration {
+        var selection: ReasoningSelection
+        var modelGroups: [ReasoningModelGroup]
+        var onEffortChange: (String) -> Bool
+        var onSpeedChange: (AgentSpeedMode) -> Bool
+        var onModelChange: (ReasoningModelSelectionRequest) -> ReasoningModelSelectionOutcome
+    }
+
     func toggleReasoningMenu() {
         guard let configuration,
               !configuration.areControlsDisabled else {
@@ -14,7 +33,30 @@ extension ChatComposerActionRowView {
                 closeReasoningMenu()
                 return
             }
+        }
+
+        presentReasoningMenuIfNeeded()
+    }
+
+    func presentReasoningMenuIfNeeded() {
+        guard let configuration,
+              !configuration.areControlsDisabled else {
+            closeReasoningMenu()
+            return
+        }
+        if reasoningMenuIsPresentedOverride?() == true {
+            return
+        }
+        if let reasoningPopover {
+            guard !reasoningPopover.isShown else {
+                return
+            }
             finishReasoningMenuClose(for: reasoningPopover)
+        }
+
+        if let reasoningMenuPresentationOverride {
+            reasoningMenuPresentationOverride()
+            return
         }
 
         let controller = ComposerReasoningMenuViewController(
@@ -45,6 +87,52 @@ extension ChatComposerActionRowView {
             preferredEdge: Self.reasoningPopoverPreferredEdge
         )
         controller.alignContentViewToPopoverHost()
+    }
+
+    func handleReasoningMenuPresentationRequestIfNeeded() {
+        guard let configuration,
+              let request = configuration.reasoningMenuPresentationRequest,
+              handledReasoningMenuPresentationRequest != request else {
+            return
+        }
+        if configuration.areControlsDisabled {
+            consumeReasoningMenuPresentationRequest(request, configuration: configuration)
+            return
+        }
+        guard window != nil else {
+            return
+        }
+
+        handledReasoningMenuPresentationRequest = request
+        window?.makeFirstResponder(reasoningButton)
+        presentReasoningMenuIfNeeded()
+        focusReasoningMenuEffortControl()
+        notifyReasoningMenuRequestConsumed(request, configuration: configuration)
+    }
+
+    private func focusReasoningMenuEffortControl() {
+        if let reasoningMenuEffortFocusOverride {
+            reasoningMenuEffortFocusOverride()
+            return
+        }
+        reasoningMenuController?.focusEffortControl()
+    }
+
+    private func consumeReasoningMenuPresentationRequest(
+        _ request: UUID,
+        configuration: Configuration
+    ) {
+        handledReasoningMenuPresentationRequest = request
+        notifyReasoningMenuRequestConsumed(request, configuration: configuration)
+    }
+
+    private func notifyReasoningMenuRequestConsumed(
+        _ request: UUID,
+        configuration: Configuration
+    ) {
+        Task { @MainActor in
+            configuration.onReasoningMenuRequestConsumed(request)
+        }
     }
 
     func closeReasoningMenu() {

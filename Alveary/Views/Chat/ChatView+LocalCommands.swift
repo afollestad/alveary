@@ -15,6 +15,8 @@ extension ChatView {
             handlePlanLocalCommand(command, draft: draft)
         case .fast:
             handleFastLocalCommand(command, draft: draft)
+        case .effort:
+            handleEffortLocalCommand(command, draft: draft)
         case .handoff:
             handleHandoffLocalCommand(command, draft: draft)
         }
@@ -321,6 +323,34 @@ extension ChatView {
                 }
             }
         }
+    }
+
+    private func handleEffortLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {
+        let supportedEffortOptions = localCommandAvailability.supportedEffortOptions
+        guard !supportedEffortOptions.isEmpty else {
+            return
+        }
+        guard !command.argument.isEmpty else {
+            viewModel.clearInputDraft(source: draft.source)
+            reasoningMenuRequestState.requestPresentation()
+            return
+        }
+
+        let requestedEffort = command.argument.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let canonicalEffort = supportedEffortOptions.first(where: {
+            $0.caseInsensitiveCompare(requestedEffort) == .orderedSame
+        }) else {
+            viewModel.lastTurnError = "Effort must be one of: \(supportedEffortOptions.joined(separator: "|"))."
+            return
+        }
+
+        guard reasoningConfiguration.onEffortChange(canonicalEffort) else {
+            if viewModel.lastTurnError == nil {
+                viewModel.lastTurnError = "Effort cannot be changed right now."
+            }
+            return
+        }
+        clearSubmittedDraftAndRequestFocus(source: draft.source)
     }
 
     private func handleHandoffLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {

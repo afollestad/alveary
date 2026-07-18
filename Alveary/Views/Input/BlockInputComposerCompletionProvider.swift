@@ -51,15 +51,10 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             return fileSuggestions(for: context, location: state.location, files: files)
         case .slashCommand:
             guard !state.localCommands.suppressesSlashCommandSuggestions else {
-                self.state.withLock { $0.skillArgumentHints = BlockInputSlashCommandArgumentHints(commandHints: []) }
                 return []
             }
             let skills = await state.loadSkillCompletions()
-            updateArgumentHints(
-                localCommands: state.localCommands,
-                passthroughCommands: state.passthroughSlashCommands,
-                skills: skills
-            )
+            updateCachedSkillArgumentHints(skills: skills)
             return slashCommandSuggestions(
                 for: context,
                 localCommands: state.localCommands,
@@ -70,54 +65,20 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
     }
 
     func inlineHint(for context: BlockInputInlineHintContext) -> BlockInputInlineHint? {
-        stateSnapshot().skillArgumentHints.inlineHint(for: context)
+        let state = stateSnapshot()
+        guard !state.localCommands.suppressesSlashCommandSuggestions else {
+            return nil
+        }
+        return Self.argumentHints(
+            localCommands: state.localCommands,
+            passthroughCommands: state.passthroughSlashCommands,
+            skillHints: state.cachedSkillArgumentHints
+        )
+        .inlineHint(for: context)
     }
 
     private func stateSnapshot() -> CompletionProviderState {
         state.withLock { $0 }
-    }
-
-    private func updateArgumentHints(
-        localCommands: ComposerLocalCommandAvailability,
-        passthroughCommands: [ComposerPassthroughSlashCommand],
-        skills: [Skill]
-    ) {
-        let skillArgumentHints = Self.argumentHints(
-            localCommands: localCommands,
-            passthroughCommands: passthroughCommands,
-            skills: skills
-        )
-        state.withLock { state in
-            state.skillArgumentHints = skillArgumentHints
-        }
-    }
-
-    private static func argumentHints(
-        localCommands: ComposerLocalCommandAvailability,
-        passthroughCommands: [ComposerPassthroughSlashCommand],
-        skills: [Skill]
-    ) -> BlockInputSlashCommandArgumentHints {
-        let localHints = localCommands.supportsSessionHandoff
-            ? [(command: ComposerLocalCommandKind.handoff.command, hint: "Optional steering prompt")]
-            : []
-        let passthroughHints = passthroughCommands.compactMap { command -> (command: String, hint: String)? in
-            guard let hint = command.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !hint.isEmpty else {
-                return nil
-            }
-            return (command: command.command, hint: hint)
-        }
-        let skillHints = skills.flatMap { skill in
-            guard let argumentHint = skill.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !argumentHint.isEmpty else {
-                return [(command: String, hint: String)]()
-            }
-            return [
-                (command: skill.name, hint: argumentHint),
-                (command: skill.id, hint: argumentHint)
-            ]
-        }
-        return BlockInputSlashCommandArgumentHints(commandHints: localHints + passthroughHints + skillHints)
     }
 
     private func fileSuggestions(
@@ -249,6 +210,8 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             "Toggle plan mode"
         case .fast:
             "Enable fast mode"
+        case .effort:
+            "Set reasoning effort"
         case .handoff:
             "Start session handoff"
         }
@@ -439,6 +402,51 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 }
 
 private extension BlockInputComposerCompletionProvider {
+    func updateCachedSkillArgumentHints(skills: [Skill]) {
+        let skillArgumentHints = Self.skillArgumentHints(skills: skills)
+        state.withLock { state in
+            state.cachedSkillArgumentHints = skillArgumentHints
+        }
+    }
+
+    static func argumentHints(
+        localCommands: ComposerLocalCommandAvailability,
+        passthroughCommands: [ComposerPassthroughSlashCommand],
+        skillHints: [(command: String, hint: String)]
+    ) -> BlockInputSlashCommandArgumentHints {
+        var localHints: [(command: String, hint: String)] = []
+        if localCommands.supportsSessionHandoff {
+            localHints.append((command: ComposerLocalCommandKind.handoff.command, hint: "Optional steering prompt"))
+        }
+        if localCommands.isEnabled(.effort) {
+            localHints.append((
+                command: ComposerLocalCommandKind.effort.command,
+                hint: localCommands.supportedEffortOptions.joined(separator: "|")
+            ))
+        }
+        let passthroughHints = passthroughCommands.compactMap { command -> (command: String, hint: String)? in
+            guard let hint = command.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !hint.isEmpty else {
+                return nil
+            }
+            return (command: command.command, hint: hint)
+        }
+        return BlockInputSlashCommandArgumentHints(commandHints: localHints + passthroughHints + skillHints)
+    }
+
+    static func skillArgumentHints(skills: [Skill]) -> [(command: String, hint: String)] {
+        skills.flatMap { skill in
+            guard let argumentHint = skill.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !argumentHint.isEmpty else {
+                return [(command: String, hint: String)]()
+            }
+            return [
+                (command: skill.name, hint: argumentHint),
+                (command: skill.id, hint: argumentHint)
+            ]
+        }
+    }
+
     func passthroughCommandSuggestions(
         query: String,
         commands: [ComposerPassthroughSlashCommand]
@@ -462,29 +470,25 @@ private extension BlockInputComposerCompletionProvider {
         }
     }
 }
-
 private struct CompletionProviderState {
     var location: BlockInputComposerLocation
     var localCommands: ComposerLocalCommandAvailability
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand]
     var loadFileCompletions: @Sendable () async -> [String]
     var loadSkillCompletions: @Sendable () async -> [Skill]
-    var skillArgumentHints = BlockInputSlashCommandArgumentHints(commandHints: [])
+    var cachedSkillArgumentHints: [(command: String, hint: String)] = []
 }
-
 private struct ComposerFileCompletionScope {
     var baseDirectory: URL
     var query: String
     var fileQuery: BlockInputCompletionFileQuery?
     var usesAbsoluteLabels: Bool
 }
-
 private struct ComposerFileCompletionCandidate {
     var url: URL
     var labelRelativePath: String
     var insertionDestination: String
 }
-
 private extension String {
     func replacingPrefix(_ prefix: String, with replacement: String) -> String {
         guard hasPrefix(prefix) else {

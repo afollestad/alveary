@@ -39,6 +39,24 @@ final class ComposerLocalCommandParserTests: XCTestCase {
         XCTAssertEqual(command, ComposerLocalCommand(kind: .fast, argument: "Fix the tests."))
     }
 
+    func testParsesEffortOnlyWhenOptionsAreAvailable() {
+        let supported = ComposerLocalCommandAvailability(supportedEffortOptions: ["low", "medium", "high"])
+
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/effort", availability: supported),
+            ComposerLocalCommand(kind: .effort, argument: "")
+        )
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/effort ", availability: supported),
+            ComposerLocalCommand(kind: .effort, argument: "")
+        )
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/EFFORT HIGH", availability: supported),
+            ComposerLocalCommand(kind: .effort, argument: "HIGH")
+        )
+        XCTAssertNil(ComposerLocalCommandParser.parse("/effort high", availability: ComposerLocalCommandAvailability()))
+    }
+
     func testGoalIsReservedEvenWhenUnavailable() {
         let noSupport = ComposerLocalCommandAvailability()
         let supported = ComposerLocalCommandAvailability(supportsGoalMode: true)
@@ -76,6 +94,7 @@ final class ComposerLocalCommandParserTests: XCTestCase {
         XCTAssertNotNil(ComposerLocalCommandParser.parse("/goal Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/plan Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/fast Fix it", availability: ComposerLocalCommandAvailability()))
+        XCTAssertNil(ComposerLocalCommandParser.parse("/effort high", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/handoff Focus", availability: ComposerLocalCommandAvailability()))
     }
 

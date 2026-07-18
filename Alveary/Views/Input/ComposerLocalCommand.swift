@@ -4,6 +4,7 @@ enum ComposerLocalCommandKind: String, CaseIterable, Sendable, Equatable {
     case goal
     case plan
     case fast
+    case effort
     case handoff
 
     var command: String { rawValue }
@@ -19,6 +20,7 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
     var supportsGoalMode = false
     var supportsPlanMode = false
     var supportsSpeedMode = false
+    var supportedEffortOptions: [String] = []
     var supportsSessionHandoff = false
     var suppressesSlashCommandSuggestions = false
 
@@ -38,6 +40,8 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
             supportsPlanMode
         case .fast:
             supportsSpeedMode
+        case .effort:
+            !supportedEffortOptions.isEmpty
         case .handoff:
             supportsSessionHandoff
         }

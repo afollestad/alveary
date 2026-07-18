@@ -132,25 +132,6 @@ final class ChatComposerActionRowView: NSView {
         let options: [ReasoningModelOption]
     }
 
-    struct ReasoningModelSelectionRequest: Equatable {
-        let providerID: String
-        let modelID: String
-    }
-
-    enum ReasoningModelSelectionOutcome {
-        case rejected
-        case unchanged(ReasoningSelection)
-        case applied(selection: ReasoningSelection)
-    }
-
-    struct ReasoningConfiguration {
-        var selection: ReasoningSelection
-        var modelGroups: [ReasoningModelGroup]
-        var onEffortChange: (String) -> Bool
-        var onSpeedChange: (AgentSpeedMode) -> Bool
-        var onModelChange: (ReasoningModelSelectionRequest) -> ReasoningModelSelectionOutcome
-    }
-
     struct Configuration {
         let reasoning: ReasoningConfiguration
         let supportedPermissionModes: [PermissionOptionPresentation]
@@ -180,6 +161,8 @@ final class ChatComposerActionRowView: NSView {
         var onGoalModeChipDismiss: () -> Void = {}
         var taskWorkspace: TaskWorkspaceConfiguration?
         var voiceInput: ComposerVoiceInputConfiguration?
+        var reasoningMenuPresentationRequest: UUID?
+        var onReasoningMenuRequestConsumed: (UUID) -> Void = { _ in }
         let onSubmit: () -> Void
         let onStop: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
@@ -213,12 +196,16 @@ final class ChatComposerActionRowView: NSView {
     var reasoningPopoverAnchorRect: NSRect?
     var reasoningMenuController: ComposerReasoningMenuViewController?
     var reasoningDisplaySelectionOverride: ReasoningSelection?
+    var reasoningMenuIsPresentedOverride: (() -> Bool)?
+    var reasoningMenuPresentationOverride: (() -> Void)?
+    var reasoningMenuEffortFocusOverride: (() -> Void)?
     var permissionPopover: NSPopover?
     var permissionMenuController: ComposerPermissionMenuViewController?
     var worktreePopover: NSPopover?
     var worktreeMenuController: ComposerWorktreeMenuViewController?
     var taskWorkspacePopover: NSPopover?
     var taskWorkspaceMenuController: ComposerTaskWorkspaceMenuViewController?
+    var handledReasoningMenuPresentationRequest: UUID?
     private var progressStackHeightConstraint: NSLayoutConstraint?
     let rowSpacing: CGFloat = 10
     let plusControlVisibleSpacing: CGFloat = 20
@@ -262,9 +249,15 @@ final class ChatComposerActionRowView: NSView {
         }
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        handleReasoningMenuPresentationRequestIfNeeded()
+    }
+
     func configure(_ configuration: Configuration) {
         self.configuration = configuration
         applyConfiguration()
+        handleReasoningMenuPresentationRequestIfNeeded()
     }
 
     private func setupViews() {

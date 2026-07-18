@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Observation
 import SwiftData
 import SwiftUI
 
@@ -37,6 +38,7 @@ struct ChatView: View {
     @State var voiceInputCoordinator: ChatVoiceInputCoordinator
     @State var voiceShortcutRevalidationToken = 0
     @State var voiceSelectionRevalidationToken = 0
+    @State var reasoningMenuRequestState = ReasoningMenuRequestState()
 
     private var hasVisibleChatContent: Bool {
         ChatPresentation.hasVisibleChatContent(
@@ -449,6 +451,10 @@ extension ChatView {
             },
             taskWorkspace: taskWorkspaceConfiguration,
             voiceInput: voiceInputButtonConfiguration,
+            reasoningMenuPresentationRequest: reasoningMenuRequestState.pendingRequest,
+            onReasoningMenuRequestConsumed: { consumedRequestID in
+                reasoningMenuRequestState.consume(consumedRequestID)
+            },
             onSubmit: {
                 guard presentation.canSubmit,
                       !voiceInputCoordinator.isDraftInteractionLocked else {
@@ -461,5 +467,22 @@ extension ChatView {
                 Task { await viewModel.cancel() }
             }
         )
+    }
+}
+
+@MainActor
+@Observable
+final class ReasoningMenuRequestState {
+    private(set) var pendingRequest: UUID?
+
+    func requestPresentation() {
+        pendingRequest = UUID()
+    }
+
+    func consume(_ request: UUID) {
+        guard pendingRequest == request else {
+            return
+        }
+        pendingRequest = nil
     }
 }

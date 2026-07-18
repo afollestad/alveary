@@ -27,6 +27,7 @@ extension ChatView {
             supportsGoalMode: composerCapabilities.supportsGoalMode,
             supportsPlanMode: composerCapabilities.supportsPlanMode,
             supportsSpeedMode: composerCapabilities.supportsSpeedMode,
+            supportedEffortOptions: reasoningConfiguration.selection.effortOptions.map(\.value),
             supportsSessionHandoff: true,
             suppressesSlashCommandSuggestions: viewModel.state.isGoalModeArmed
         )

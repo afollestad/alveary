@@ -14,7 +14,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Composer visible height must use BlockInputKit visible-line sizing. Keep Alveary-side layout as preferred-height invalidation only; do not reintroduce custom grow/shrink min/max-height logic.
 - File and image drops are composer-panel owned. Keep BlockInputKit editor drops disabled in production, route picked/dropped URLs through Alveary staging, and render the attachment strip outside BlockInputKit so the editor never owns the top preview row.
 - App-shot preview chips are host-owned composer attachments, but their AX tree and provider transport wrapper are hidden from the editor and transcript. Removing the preview should only unstage the app shot; it must not mutate composer Markdown.
-- Slash-command argument hints are BlockInputKit inline hints backed by `Skill.argumentHint`; never insert them as draft text.
+- Slash-command argument hints are BlockInputKit inline hints backed by current local-command metadata or cached `Skill.argumentHint` values. Keep local hints live across model/provider refreshes without replacing the completion provider, and never insert hints as draft text.
 - Composer selection background must stay visually distinct from composer chip fill; use a neutral non-accent token for selection chrome and keep chip fill/foreground tokens unchanged.
 
 ## Voice Input
@@ -55,6 +55,9 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
   - Render Fast as a separate toggle only when supported: use `bolt` with enablement help while off and accent-tinted `bolt.fill` with disablement help while on.
   - Keep the compact reasoning button's active-only `bolt` indicator.
 - `/fast` is an Alveary local command. Keep it enable-only: `/fast` selects Fast, `/fast <prompt>` selects Fast and sends or queues that prompt with a next-turn required speed. Do not add a special inline argument hint for it.
+- `/effort` is a model-scoped Alveary local command. Enable, reserve, suggest, and intercept it only while the selected model advertises effort options; preserve provider order and join every canonical value with `|` in its inline hint.
+  - Bare `/effort` clears only the command text, preserves attachments, sends nothing, does not request editor focus, and opens the existing reasoning popover.
+  - `/effort <value>` accepts exactly one case-insensitive canonical option through the existing effort-change callback. Clear and refocus only when accepted; otherwise retain the draft and attachments and surface the current dynamic options or the underlying setting error.
 - `ChatComposerActionRow` owns the bottom settings/action row; `ChatComposerActionRowView` owns native AppKit rendering inside the production panel.
 - The leading `+` button must remain square to the dropdown height, with default, hover, pressed, focused, and disabled states clipped to the same circular background.
 - Native controls that custom-draw dynamic `NSColor`s must resolve colors through `appKitRenderingAppearance` and invalidate display from `viewDidChangeEffectiveAppearance()`.

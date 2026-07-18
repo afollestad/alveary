@@ -217,6 +217,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     private(set) var showsEffortDragDirections = false
 
     var hasActiveEffortInteraction: Bool { effortSlider.isTrackingInteraction }
+    var preferredEffortFocusControl: NSView? { focusableControls.first }
 
     #if DEBUG
     var debugFasterLabel: NSTextField { fasterLabel }
@@ -451,6 +452,14 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
     }
 
     private func rebuildKeyViewLoop() {
+        let controls = focusableControls
+        guard let first = controls.first else { return }
+        for (index, control) in controls.enumerated() {
+            control.nextKeyView = controls[reasoningMenuSafe: index + 1] ?? first
+        }
+    }
+
+    private var focusableControls: [NSView] {
         var controls: [NSView] = []
         if effortSlider.acceptsFirstResponder {
             controls.append(effortSlider)
@@ -464,10 +473,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
         if isModelsExpanded {
             controls.append(contentsOf: modelList.focusableRows)
         }
-        guard let first = controls.first else { return }
-        for (index, control) in controls.enumerated() {
-            control.nextKeyView = controls[reasoningMenuSafe: index + 1] ?? first
-        }
+        return controls
     }
 
     private func setEffortDragDirectionsVisible(_ isVisible: Bool) {

@@ -419,6 +419,9 @@ final class ChatComposerDraftTests: XCTestCase {
         supportsPlanMode: Bool = false,
         supportsSpeedMode: Bool = false,
         supportsLocalImageInput: Bool = false,
+        effortOptions: [ChatComposerActionRowView.MenuOption] = [],
+        selectedEffort: String = AppSettings.defaultEffortLevel,
+        onEffortChange: @escaping (String) -> Bool = { _ in true },
         providerID: String = "claude",
         settingsService: SettingsService? = nil,
         voiceInputService: (any VoiceInputService)? = nil,
@@ -443,8 +446,10 @@ final class ChatComposerDraftTests: XCTestCase {
                         title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue)
                     )
                 ],
-                effortOptions: [],
-                selectedModel: AppSettings.defaultModelValue
+                effortOptions: effortOptions,
+                selectedModel: AppSettings.defaultModelValue,
+                selectedEffort: selectedEffort,
+                onEffortChange: onEffortChange
             ),
             defaultEnterBehavior: .queue,
             providerID: providerID,

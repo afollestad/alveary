@@ -112,6 +112,43 @@ extension BlockInputComposerBridgeControllerTests {
         XCTAssertEqual(fastSuggestions.first?.detailText, "Alveary")
     }
 
+    func testEffortCompletionSuppressesConflictingSkillWhenOptionsAreAvailable() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(supportedEffortOptions: ["low", "medium", "high"]),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: {
+                [
+                    Self.skill(id: "effort", name: "effort", description: "External effort skill")
+                ]
+            }
+        )
+
+        let suggestions = await provider.suggestions(for: Self.completionContext(query: "effort"))
+
+        XCTAssertEqual(suggestions.map(\.insertionText), ["/effort "])
+        XCTAssertEqual(suggestions.first?.subtitle, "Set reasoning effort")
+        XCTAssertEqual(suggestions.first?.detailText, "Alveary")
+    }
+
+    func testEffortCompletionDoesNotReserveCommandWithoutOptions() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: {
+                [
+                    Self.skill(id: "effort", name: "effort", description: "External effort skill")
+                ]
+            }
+        )
+
+        let suggestions = await provider.suggestions(for: Self.completionContext(query: "effort"))
+
+        XCTAssertEqual(suggestions.map(\.insertionText), ["/effort "])
+        XCTAssertEqual(suggestions.first?.subtitle, "External effort skill")
+    }
+
     func testPassthroughCommandCompletionSuppressesConflictingSkill() async {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
