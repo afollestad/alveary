@@ -5,6 +5,12 @@ import SwiftUI
 enum SidebarProjectListMetrics {
     static let subsequentProjectTopSpacing: CGFloat = 4
 
+    // Native list-section headers add more pre-header space than inline section rows.
+    static let listHeaderDividerYOffset: CGFloat = -6
+    static let listHeaderTopPaddingCorrection: CGFloat = 3.5
+    // The Projects header's top edge is the empty-Pinned drop boundary, so keep its divider inset measurable.
+    static let listHeaderDragTopInsetExclusion: CGFloat = 0
+
     // SwiftUI `List` section headers omit the real project row's trailing action column inset.
     @MainActor static var listSectionHeaderTrailingCorrection: CGFloat {
         SidebarSectionHeaderRow.actionButtonCenterTrailingInset
@@ -81,32 +87,6 @@ struct SidebarView: View {
             return count + activeThreads(for: project).count
         }
         return pinnedThreadCount + projectThreadCount + activeTaskThreads().count
-    }
-
-    private func projectsHeader(isListSectionHeader: Bool) -> some View {
-        SidebarSectionHeaderRow(title: "Projects") {
-            appState.openNewProjectFlow()
-        }
-        .padding(
-            .trailing,
-            isListSectionHeader ? SidebarProjectListMetrics.listSectionHeaderTrailingCorrection : 0
-        )
-        .sidebarDragGeometry(.projectsHeader)
-    }
-
-    private var pinnedHeader: some View {
-        SidebarSectionHeaderRow(title: "Pinned")
-            .sidebarDragGeometry(.pinnedHeader)
-    }
-
-    private var tasksHeader: some View {
-        SidebarSectionHeaderRow(
-            title: "Tasks",
-            actionSystemImage: "plus",
-            actionAccessibilityLabel: "New task",
-            actionHelp: "New task",
-            onAction: { startNewTaskFlowFromSidebar(appState: appState) }
-        )
     }
 
     var body: some View {
@@ -462,6 +442,40 @@ struct SidebarView: View {
         appState.pendingComposerFocusToken = nil
         chatComposerFocus?.release()
         isKeyboardFocused = true
+    }
+}
+
+private extension SidebarView {
+    func projectsHeader(isListSectionHeader: Bool) -> some View {
+        SidebarSectionHeaderRow(
+            title: "Projects",
+            showsTopDivider: isListSectionHeader,
+            isListSectionHeader: isListSectionHeader
+        ) {
+            appState.openNewProjectFlow()
+        }
+        .sidebarDragGeometry(
+            .projectsHeader,
+            excludingTopInset: SidebarProjectListMetrics.listHeaderDragTopInsetExclusion
+        )
+    }
+
+    var pinnedHeader: some View {
+        SidebarSectionHeaderRow(title: "Pinned", showsTopDivider: true)
+            .sidebarDragGeometry(
+                .pinnedHeader,
+                excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTopPaddingCorrection
+            )
+    }
+
+    var tasksHeader: some View {
+        SidebarSectionHeaderRow(
+            title: "Tasks", showsTopDivider: true,
+            actionSystemImage: "plus",
+            actionAccessibilityLabel: "New task",
+            actionHelp: "New task",
+            onAction: { startNewTaskFlowFromSidebar(appState: appState) }
+        )
     }
 }
 

@@ -161,16 +161,35 @@ struct SidebarDragGeometryPreferenceKey: PreferenceKey {
 }
 
 extension View {
-    func sidebarDragGeometry(_ role: SidebarDragGeometryRole) -> some View {
+    func sidebarDragGeometry(
+        _ role: SidebarDragGeometryRole,
+        excludingTopInset topInset: CGFloat = 0
+    ) -> some View {
         background {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: SidebarDragGeometryPreferenceKey.self,
-                    value: [role: [proxy.frame(in: .named(SidebarDragCoordinateSpace.name))]]
+                    value: [role: [sidebarDragGeometryFrame(
+                        proxy.frame(in: .named(SidebarDragCoordinateSpace.name)),
+                        excludingTopInset: topInset
+                    )]]
                 )
             }
         }
     }
+}
+
+func sidebarDragGeometryFrame(
+    _ frame: CGRect,
+    excludingTopInset topInset: CGFloat
+) -> CGRect {
+    let excludedTopInset = min(max(topInset, 0), frame.height)
+    return CGRect(
+        x: frame.minX,
+        y: frame.minY + excludedTopInset,
+        width: frame.width,
+        height: frame.height - excludedTopInset
+    )
 }
 
 extension SidebarView {

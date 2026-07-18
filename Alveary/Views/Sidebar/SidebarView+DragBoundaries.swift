@@ -90,9 +90,13 @@ private func sidebarVisualDropBoundary(
     guard boundary.insertionIndex >= 0, boundary.insertionIndex <= items.count else {
         return .unavailable
     }
-    let projectsHeaderFrame = geometry[.projectsHeader]?.sidebarUnion
+    let projectsHeaderFrame = sidebarProjectsHeaderFrame(
+        geometry: geometry,
+        viewport: viewport,
+        isSticky: logicalOrder.projectsHeaderIsSticky
+    )
     let stickyOcclusionMaxY: CGFloat? = boundary.section == .projects && logicalOrder.projectsHeaderIsSticky
-        ? projectsHeaderFrame?.intersection(viewport).maxY
+        ? projectsHeaderFrame?.maxY
         : nil
     let context = SidebarVisualDropBoundaryContext(
         geometry: geometry,

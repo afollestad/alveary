@@ -19,7 +19,7 @@ extension SidebarView {
         if showsNoTasksPlaceholder {
             Text("No tasks")
                 .foregroundStyle(.secondary)
-                .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
+                .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
         }
 
         ForEach(Array(tasks.enumerated()), id: \.element.persistentModelID) { index, task in

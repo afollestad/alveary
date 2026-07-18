@@ -66,13 +66,18 @@ func sidebarDropCandidates(
     viewport: CGRect,
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
-    let projectsHeaderFrame = geometry[.projectsHeader]?.sidebarUnion
+    let projectsHeaderFrame = sidebarProjectsHeaderFrame(
+        geometry: geometry,
+        viewport: viewport,
+        isSticky: logicalOrder.projectsHeaderIsSticky
+    )
     let stickyOcclusionMaxY: CGFloat? = logicalOrder.projectsHeaderIsSticky
-        ? projectsHeaderFrame?.intersection(viewport).maxY
+        ? projectsHeaderFrame?.maxY
         : nil
     var candidates = sidebarSectionDropCandidates(
         dragging: item,
         geometry: geometry,
+        projectsHeaderFrame: projectsHeaderFrame,
         viewport: viewport,
         pinnedSectionIsVisible: !logicalOrder.pinnedItems.isEmpty
     )
@@ -112,6 +117,7 @@ func sidebarDropCandidates(
 private func sidebarSectionDropCandidates(
     dragging item: SidebarDragItem,
     geometry: [SidebarDragGeometryRole: [CGRect]],
+    projectsHeaderFrame: CGRect?,
     viewport: CGRect,
     pinnedSectionIsVisible: Bool
 ) -> [SidebarDropCandidate] {
@@ -128,7 +134,7 @@ private func sidebarSectionDropCandidates(
         candidates.append(candidate)
     }
 
-    guard let projectsHeaderFrame = geometry[.projectsHeader]?.sidebarUnion else {
+    guard let projectsHeaderFrame else {
         return candidates
     }
     if let pinnedEnd = sidebarSectionCandidate(
@@ -151,6 +157,22 @@ private func sidebarSectionDropCandidates(
         candidates.append(projectsStart)
     }
     return candidates
+}
+
+func sidebarProjectsHeaderFrame(
+    geometry: [SidebarDragGeometryRole: [CGRect]],
+    viewport: CGRect,
+    isSticky: Bool
+) -> CGRect? {
+    guard let frame = geometry[.projectsHeader]?.sidebarUnion else {
+        return nil
+    }
+    guard isSticky else {
+        return frame
+    }
+    // A native List header can keep a layout origin above the viewport while its sticky presentation remains visible.
+    let visibleFrame = frame.intersection(viewport)
+    return visibleFrame.isNull || visibleFrame.isEmpty ? nil : visibleFrame
 }
 
 private func sidebarSectionCandidate(
