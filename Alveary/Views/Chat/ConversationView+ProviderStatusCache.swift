@@ -4,12 +4,13 @@ import Foundation
 extension ConversationView {
     static func composerProviderStatusCacheKey(
         projectURL: URL?,
-        activeProviderID: String,
+        activeProviderID _: String,
         settings: AppSettings
     ) -> String {
+        // Discovery returns every provider. Changing the active selection must not
+        // discard that loaded snapshot while an open model list updates in place.
         [
             projectURL?.path ?? "",
-            activeProviderID,
             settings.defaultProvider,
             settings.disabledProviderIDs.sorted().joined(separator: ",")
         ].joined(separator: "|")

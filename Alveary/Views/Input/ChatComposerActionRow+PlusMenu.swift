@@ -64,6 +64,14 @@ extension ChatComposerActionRowView {
 }
 
 extension ChatComposerActionRowView: NSPopoverDelegate {
+    func popoverWillClose(_ notification: Notification) {
+        guard let popover = notification.object as? NSPopover,
+              popover === reasoningPopover else {
+            return
+        }
+        popover.animates = false
+    }
+
     func popoverDidClose(_ notification: Notification) {
         guard let popover = notification.object as? NSPopover else {
             return

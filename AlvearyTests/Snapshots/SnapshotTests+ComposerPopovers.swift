@@ -6,74 +6,89 @@ import XCTest
 
 @MainActor
 extension SnapshotTests {
-    func testComposerReasoningMenuCompactContent() {
-        let configuration = makeSnapshotReasoningMenuConfiguration()
-        let size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+    func testComposerReasoningMenuCollapsedContent() {
+        let controller = makeSnapshotReasoningMenuController(
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleProviderReasoningModelGroups())
+        )
 
         assertMacSnapshot(
-            ComposerReasoningMenuSnapshot(configuration: configuration),
-            size: size,
-            named: "composer_reasoning_menu_compact_content",
+            ComposerReasoningMenuSnapshot(controller: controller),
+            size: controller.preferredContentSize,
+            named: "composer_reasoning_menu_collapsed_content",
             colorScheme: .dark
         )
     }
 
-    func testComposerReasoningMenuSpeedContent() {
-        let configuration = makeSnapshotReasoningMenuConfiguration(
-            selectedSpeedMode: .fast,
-            supportsSpeedMode: true
+    func testComposerReasoningMenuExpandedSingleProviderContent() {
+        let controller = makeSnapshotReasoningMenuController(
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleProviderReasoningModelGroups())
         )
-        let size = ComposerReasoningMenuMetrics.mainContentSize(for: configuration)
+        controller.setModelsExpanded(true, animated: false)
 
         assertMacSnapshot(
-            ComposerReasoningMenuSnapshot(configuration: configuration),
-            size: size,
-            named: "composer_reasoning_menu_speed_content",
+            ComposerReasoningMenuSnapshot(controller: controller),
+            size: controller.preferredContentSize,
+            named: "composer_reasoning_menu_expanded_single_provider_content",
             colorScheme: .dark
         )
     }
 
-    func testComposerReasoningSpeedMenuContent() {
-        let size = ComposerReasoningMenuMetrics.speedContentSize()
+    func testComposerReasoningMenuExpandedMultipleProvidersContent() {
+        let controller = makeSnapshotReasoningMenuController(
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeMultipleProviderReasoningModelGroups())
+        )
+        controller.setModelsExpanded(true, animated: false)
 
         assertMacSnapshot(
-            ComposerReasoningSpeedMenuSnapshot(selectedSpeedMode: .fast),
-            size: size,
-            named: "composer_reasoning_speed_menu_content",
+            ComposerReasoningMenuSnapshot(controller: controller),
+            size: controller.preferredContentSize,
+            named: "composer_reasoning_menu_expanded_multiple_providers_content",
             colorScheme: .dark
         )
     }
 
-    func testComposerReasoningModelMenuGroupedContent() {
-        let groups = makeGroupedReasoningModelGroups()
-        let size = ComposerReasoningMenuMetrics.modelContentSize(groups: groups, showsProviderHeaders: true)
+    func testComposerReasoningMenuFastEnabledContent() {
+        let controller = makeSnapshotReasoningMenuController(
+            configuration: makeSnapshotReasoningMenuConfiguration(
+                groups: makeSingleProviderReasoningModelGroups(),
+                selectedSpeedMode: .fast
+            )
+        )
 
         assertMacSnapshot(
-            ComposerReasoningModelMenuSnapshot(
-                groups: groups,
-                selectedProviderID: "claude",
-                selectedModelID: "sonnet",
-                showsProviderHeaders: true
-            ),
-            size: size,
-            named: "composer_reasoning_model_menu_grouped_content",
+            ComposerReasoningMenuSnapshot(controller: controller),
+            size: controller.preferredContentSize,
+            named: "composer_reasoning_menu_fast_enabled_content",
             colorScheme: .dark
         )
     }
 
-    func testComposerReasoningModelMenuHeaderlessContent() {
-        let groups = makeHeaderlessReasoningModelGroups()
-        let size = ComposerReasoningMenuMetrics.modelContentSize(groups: groups, showsProviderHeaders: false)
+    func testComposerReasoningMenuEffortDraggingContent() throws {
+        let controller = makeSnapshotReasoningMenuController(
+            configuration: makeSnapshotReasoningMenuConfiguration(groups: makeSingleProviderReasoningModelGroups())
+        )
+        let size = controller.preferredContentSize
+        let hostController = NSViewController()
+        hostController.view = NSView(frame: NSRect(origin: .zero, size: size))
+        hostController.addChild(controller)
+        controller.loadViewIfNeeded()
+        controller.view.frame = hostController.view.bounds
+        hostController.view.addSubview(controller.view)
+        controller.view.layoutSubtreeIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+        let sliderFrame = slider.frame
+        slider.beginTrackingInteraction(at: .zero)
+        slider.updateTrackingInteraction(
+            to: slider.displayedIndex,
+            trackingPoint: NSPoint(x: ComposerReasoningEffortSliderMetrics.dragDirectionRevealDistance, y: 0)
+        )
+        controller.view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(slider.frame, sliderFrame)
 
         assertMacSnapshot(
-            ComposerReasoningModelMenuSnapshot(
-                groups: groups,
-                selectedProviderID: "claude",
-                selectedModelID: "fable",
-                showsProviderHeaders: false
-            ),
+            ComposerReasoningMenuSnapshot(controller: hostController),
             size: size,
-            named: "composer_reasoning_model_menu_headerless_content",
+            named: "composer_reasoning_menu_effort_dragging_content",
             colorScheme: .dark
         )
     }
@@ -129,81 +144,83 @@ extension SnapshotTests {
 
 @MainActor
 private func makeSnapshotReasoningMenuConfiguration(
-    selectedSpeedMode: AgentSpeedMode = .standard,
-    supportsSpeedMode: Bool = false
+    groups: [ChatComposerActionRowView.ReasoningModelGroup],
+    selectedSpeedMode: AgentSpeedMode = .standard
 ) -> ChatComposerActionRowView.ReasoningConfiguration {
-    makeReasoningConfiguration(
-        modelOptions: [.init(value: "gpt-5.3-codex-spark", title: "GPT-5.3-Codex-Spark")],
+    let selectedGroup = groups.first
+    let selectedModel = selectedGroup?.options.first
+    return makeReasoningConfiguration(
+        modelGroups: groups,
         effortOptions: [
             .init(value: "low", title: "Low"),
             .init(value: "medium", title: "Medium"),
             .init(value: "high", title: "High"),
-            .init(value: "extra-high", title: "Extra High")
+            .init(value: "xhigh", title: "Extra High"),
+            .init(value: "max", title: "Max"),
+            .init(value: "ultra", title: "Ultra")
         ],
-        selectedModel: "gpt-5.3-codex-spark",
+        selectedProvider: selectedGroup?.providerID ?? "codex",
+        selectedModel: selectedModel?.value ?? "gpt-5.6-sol",
         selectedEffort: "medium",
         selectedSpeedMode: selectedSpeedMode,
-        supportsSpeedMode: supportsSpeedMode
+        supportsSpeedMode: true
     )
 }
 
 private struct ComposerReasoningMenuSnapshot: NSViewControllerRepresentable {
-    let configuration: ChatComposerActionRowView.ReasoningConfiguration
+    let controller: NSViewController
 
-    func makeNSViewController(context: Context) -> ComposerReasoningMenuViewController {
-        ComposerReasoningMenuViewController(configuration: configuration, onRequestCloseMainMenu: {})
+    func makeNSViewController(context: Context) -> NSViewController {
+        controller
     }
 
-    func updateNSViewController(_ controller: ComposerReasoningMenuViewController, context: Context) {}
-}
-
-private struct ComposerReasoningSpeedMenuSnapshot: NSViewControllerRepresentable {
-    let selectedSpeedMode: AgentSpeedMode
-
-    func makeNSViewController(context: Context) -> ComposerReasoningSpeedMenuViewController {
-        ComposerReasoningSpeedMenuViewController(
-            selectedSpeedMode: selectedSpeedMode,
-            onSpeedSelected: { _ in },
-            onHoverChanged: { _ in },
-            onCancel: {}
-        )
-    }
-
-    func updateNSViewController(_ controller: ComposerReasoningSpeedMenuViewController, context: Context) {}
-}
-
-private struct ComposerReasoningModelMenuSnapshot: NSViewControllerRepresentable {
-    let groups: [ChatComposerActionRowView.ReasoningModelGroup]
-    let selectedProviderID: String
-    let selectedModelID: String
-    let showsProviderHeaders: Bool
-
-    func makeNSViewController(context: Context) -> ComposerReasoningModelMenuViewController {
-        ComposerReasoningModelMenuViewController(
-            groups: groups,
-            selectedProviderID: selectedProviderID,
-            selectedModelID: selectedModelID,
-            showsProviderHeaders: showsProviderHeaders,
-            onModelSelected: { _ in },
-            onHoverChanged: { _ in },
-            onCancel: {}
-        )
-    }
-
-    func updateNSViewController(_ controller: ComposerReasoningModelMenuViewController, context: Context) {}
+    func updateNSViewController(_ controller: NSViewController, context: Context) {}
 }
 
 @MainActor
-private func makeHeaderlessReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+private func makeSnapshotReasoningMenuController(
+    configuration: ChatComposerActionRowView.ReasoningConfiguration
+) -> ComposerReasoningMenuViewController {
+    ComposerReasoningMenuViewController(configuration: configuration, onRequestCloseMainMenu: {})
+}
+
+@MainActor
+private func makeSingleProviderReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
+    [
+        .init(
+            providerID: "codex",
+            providerTitle: "Codex",
+            options: [
+                .init(providerID: "codex", value: "gpt-5.6-sol", title: "GPT-5.6-Sol"),
+                .init(providerID: "codex", value: "gpt-5.6-luna", title: "GPT-5.6-Luna"),
+                .init(providerID: "codex", value: "gpt-5.6-terra", title: "GPT-5.6-Terra"),
+                .init(providerID: "codex", value: "gpt-5.5", title: "GPT-5.5")
+            ]
+        )
+    ]
+}
+
+@MainActor
+private func makeMultipleProviderReasoningModelGroups() -> [ChatComposerActionRowView.ReasoningModelGroup] {
     [
         .init(
             providerID: "claude",
-            providerTitle: nil,
+            providerTitle: "Claude",
             options: [
                 .init(providerID: "claude", value: "sonnet", title: "Sonnet"),
                 .init(providerID: "claude", value: "fable", title: "Fable"),
                 .init(providerID: "claude", value: "opus", title: "Opus"),
                 .init(providerID: "claude", value: "haiku", title: "Haiku")
+            ]
+        ),
+        .init(
+            providerID: "codex",
+            providerTitle: "Codex",
+            options: [
+                .init(providerID: "codex", value: "gpt-5.6-sol", title: "GPT-5.6-Sol"),
+                .init(providerID: "codex", value: "gpt-5.6-luna", title: "GPT-5.6-Luna"),
+                .init(providerID: "codex", value: "gpt-5.6-terra", title: "GPT-5.6-Terra"),
+                .init(providerID: "codex", value: "gpt-5.5", title: "GPT-5.5")
             ]
         )
     ]

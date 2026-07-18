@@ -12,9 +12,9 @@ final class ComposerReasoningMenuRowView: NSView {
         let isSelected: Bool
         let isEnabled: Bool
         let isWarning: Bool
+        let showsFocusBackground: Bool
+        let activatesWithRightArrow: Bool
         let action: () -> Void
-        let hoverAction: (() -> Void)?
-        var exitAction: (() -> Void)?
         let cancelAction: () -> Void
 
         init(
@@ -27,9 +27,9 @@ final class ComposerReasoningMenuRowView: NSView {
             isSelected: Bool,
             isEnabled: Bool,
             isWarning: Bool = false,
+            showsFocusBackground: Bool = false,
+            activatesWithRightArrow: Bool = true,
             action: @escaping () -> Void,
-            hoverAction: (() -> Void)?,
-            exitAction: (() -> Void)? = nil,
             cancelAction: @escaping () -> Void
         ) {
             self.title = title
@@ -41,17 +41,16 @@ final class ComposerReasoningMenuRowView: NSView {
             self.isSelected = isSelected
             self.isEnabled = isEnabled
             self.isWarning = isWarning
+            self.showsFocusBackground = showsFocusBackground
+            self.activatesWithRightArrow = activatesWithRightArrow
             self.action = action
-            self.hoverAction = hoverAction
-            self.exitAction = exitAction
             self.cancelAction = cancelAction
         }
     }
 
-    var onHoverEntered: (() -> Void)?
-
     private var configuration: Configuration?
     private var trackingArea: NSTrackingArea?
+    private var focusStateIsVisible = false
     private var isHovering = false
     private var isPressed = false
 
@@ -75,6 +74,7 @@ final class ComposerReasoningMenuRowView: NSView {
     }
 
     func configure(_ configuration: Configuration) {
+        let previousSelection = self.configuration?.isSelected
         self.configuration = configuration
         setAccessibilityLabel(configuration.accessibilityLabel)
         setAccessibilityEnabled(configuration.isEnabled)
@@ -82,7 +82,11 @@ final class ComposerReasoningMenuRowView: NSView {
         setAccessibilitySelected(configuration.isSelected)
         alphaValue = configuration.isEnabled ? 1 : 0.55
         if !configuration.isEnabled {
+            focusStateIsVisible = false
             resetInteractionState()
+        }
+        if let previousSelection, previousSelection != configuration.isSelected {
+            NSAccessibility.post(element: self, notification: .valueChanged)
         }
         needsDisplay = true
     }
@@ -102,6 +106,22 @@ final class ComposerReasoningMenuRowView: NSView {
     var debugTitleLeading: CGFloat? {
         configuration.map { titleLeading(for: $0) }
     }
+    var debugTitleVisualFrame: NSRect? {
+        guard let configuration else {
+            return nil
+        }
+        let attributes = titleAttributes(for: configuration)
+        let titleSize = configuration.title.size(withAttributes: attributes)
+        let titleRect = titleTextRect(for: configuration, titleHeight: titleSize.height)
+        return NSRect(
+            x: titleRect.minX,
+            y: floor((bounds.height - titleRect.height) / 2),
+            width: ceil(titleSize.width),
+            height: titleRect.height
+        )
+    }
+    var debugTitleFont: NSFont { ComposerReasoningMenuMetrics.itemFont }
+    var debugInteractionBackgroundFrame: NSRect { interactionBackgroundFrame }
     #endif
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
@@ -127,19 +147,42 @@ final class ComposerReasoningMenuRowView: NSView {
         needsDisplay = true
     }
 
+    override func becomeFirstResponder() -> Bool {
+        guard configuration?.isEnabled == true else {
+            return false
+        }
+        focusStateIsVisible = ComposerReasoningMenuInteractiveControl.shouldRevealFocusState(for: NSApp.currentEvent)
+        if configuration?.showsFocusBackground == true {
+            scrollToVisible(bounds)
+        }
+        needsDisplay = true
+        return true
+    }
+
+    override func resignFirstResponder() -> Bool {
+        focusStateIsVisible = false
+        needsDisplay = true
+        return true
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            focusStateIsVisible = false
+            resetInteractionState()
+        }
+    }
+
     override func mouseEntered(with event: NSEvent) {
         guard configuration?.isEnabled == true else {
             return
         }
         isHovering = true
         needsDisplay = true
-        onHoverEntered?()
-        configuration?.hoverAction?()
     }
 
     override func mouseExited(with event: NSEvent) {
         resetInteractionState()
-        configuration?.exitAction?()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -147,6 +190,7 @@ final class ComposerReasoningMenuRowView: NSView {
             return
         }
         window?.makeFirstResponder(self)
+        focusStateIsVisible = false
         isPressed = true
         needsDisplay = true
     }
@@ -170,8 +214,12 @@ final class ComposerReasoningMenuRowView: NSView {
         guard configuration?.isEnabled == true else {
             return
         }
+        focusStateIsVisible = true
+        needsDisplay = true
         switch event.keyCode {
-        case 36, 49, 124:
+        case 36, 49:
+            configuration?.action()
+        case 124 where configuration?.activatesWithRightArrow == true:
             configuration?.action()
         case 53:
             configuration?.cancelAction()
@@ -204,7 +252,11 @@ final class ComposerReasoningMenuRowView: NSView {
             return
         }
         NSColor.labelColor.appKitResolvedColor(in: self, alpha: alpha).setFill()
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 7, yRadius: 7).fill()
+        NSBezierPath(roundedRect: interactionBackgroundFrame, xRadius: 7, yRadius: 7).fill()
+    }
+
+    private var interactionBackgroundFrame: NSRect {
+        bounds.insetBy(dx: 2, dy: 2)
     }
 
     private var interactionBackgroundAlpha: CGFloat? {
@@ -215,6 +267,11 @@ final class ComposerReasoningMenuRowView: NSView {
             return 0.14
         }
         if isHovering {
+            return 0.09
+        }
+        if configuration?.showsFocusBackground == true,
+           focusStateIsVisible,
+           window?.firstResponder === self {
             return 0.09
         }
         return nil
@@ -359,7 +416,10 @@ final class ComposerReasoningMenuRowView: NSView {
         )
     }
 
-    private func symbolImage(named name: String, pointSize: CGFloat, color: NSColor) -> NSImage? {
+}
+
+private extension ComposerReasoningMenuRowView {
+    func symbolImage(named name: String, pointSize: CGFloat, color: NSColor) -> NSImage? {
         let configuration = NSImage.SymbolConfiguration(
             pointSize: pointSize,
             weight: .semibold
@@ -368,12 +428,12 @@ final class ComposerReasoningMenuRowView: NSView {
             .withSymbolConfiguration(configuration)
     }
 
-    private func iconColor(for configuration: Configuration) -> NSColor {
+    func iconColor(for configuration: Configuration) -> NSColor {
         let color: NSColor = configuration.isWarning ? .systemOrange : .labelColor
         return color.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.72 : 0.32)
     }
 
-    private func titleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
+    func titleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
         let color: NSColor = configuration.isWarning ? .systemOrange : .labelColor
         return [
             .font: ComposerReasoningMenuMetrics.itemFont,
@@ -382,7 +442,7 @@ final class ComposerReasoningMenuRowView: NSView {
         ]
     }
 
-    private func subtitleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
+    func subtitleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
         [
             .font: ComposerReasoningMenuMetrics.subtitleFont,
             .foregroundColor: NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.68 : 0.32),
@@ -390,7 +450,7 @@ final class ComposerReasoningMenuRowView: NSView {
         ]
     }
 
-    private func symbolDrawingSize(for image: NSImage, maxSize: CGFloat) -> NSSize {
+    func symbolDrawingSize(for image: NSImage, maxSize: CGFloat) -> NSSize {
         let imageSize = image.size
         guard imageSize.width > 0, imageSize.height > 0 else {
             return NSSize(width: maxSize, height: maxSize)
@@ -399,7 +459,7 @@ final class ComposerReasoningMenuRowView: NSView {
         return NSSize(width: ceil(imageSize.width * scale), height: ceil(imageSize.height * scale))
     }
 
-    private func drawImage(_ image: NSImage, in rect: NSRect, rotationRadians: CGFloat) {
+    func drawImage(_ image: NSImage, in rect: NSRect, rotationRadians: CGFloat) {
         guard rotationRadians != 0 else {
             image.draw(
                 in: rect,
@@ -429,7 +489,7 @@ final class ComposerReasoningMenuRowView: NSView {
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    private func resetInteractionState() {
+    func resetInteractionState() {
         isHovering = false
         isPressed = false
         needsDisplay = true

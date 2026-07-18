@@ -9,8 +9,13 @@ extension ChatComposerActionRowView {
                 self?.togglePlusMenu()
             }
         )
+        if let reasoningMenuController {
+            reasoningMenuController.update(configuration: configuration.reasoning)
+        } else {
+            reasoningDisplaySelectionOverride = nil
+        }
         reasoningButton.configure(
-            selection: configuration.reasoning.selection,
+            selection: reasoningDisplaySelectionOverride ?? configuration.reasoning.selection,
             height: Self.defaultSettingsControlHeight,
             isEnabled: !configuration.areControlsDisabled,
             showsProgress: configuration.isReconfiguringSession,
@@ -37,7 +42,6 @@ extension ChatComposerActionRowView {
         applyModeChipConfiguration(configuration)
         // Keep open popovers tied to the persisted provider/model/effort and
         // permission state, including async reconfigure rollback updates.
-        reasoningMenuController?.update(configuration: configuration.reasoning)
         permissionMenuController?.update(
             options: configuration.supportedPermissionModes,
             selectedValue: configuration.selectedPermissionMode

@@ -363,7 +363,6 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
                 effortOptions: effortOptions,
                 selectedModel: selectedModel,
                 selectedEffort: selectedEffort,
-                hasStartedThread: true,
                 onEffortChange: {
                     selectedEffort = $0
                     return true
@@ -375,8 +374,7 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
                             modelOptions: modelOptions,
                             effortOptions: effortOptions,
                             selectedModel: request.modelID,
-                            selectedEffort: selectedEffort,
-                            hasStartedThread: true
+                            selectedEffort: selectedEffort
                         ).selection
                     )
                 }

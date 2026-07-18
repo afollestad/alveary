@@ -147,7 +147,6 @@ private final class ComposerPermissionMenuView: AppKitComposerPopoverSurfaceView
                 isEnabled: true,
                 isWarning: option.isWarning,
                 action: { [weak self] in self?.onPermissionSelected(option.value) },
-                hoverAction: nil,
                 cancelAction: { [weak self] in self?.onCancel() }
             ))
             addSubview(row)
@@ -159,7 +158,7 @@ private final class ComposerPermissionMenuView: AppKitComposerPopoverSurfaceView
 enum ComposerPermissionMenuMetrics {
     static let width: CGFloat = 480
     static let horizontalInset: CGFloat = ComposerReasoningMenuMetrics.horizontalInset
-    static let verticalInset: CGFloat = ComposerReasoningMenuMetrics.verticalInset
+    static let verticalInset: CGFloat = 8
     static let headerInset: CGFloat = ComposerReasoningMenuMetrics.headerInset
     static let headerHeight: CGFloat = ComposerReasoningMenuMetrics.headerHeight
     static let headerBottomSpacing: CGFloat = ComposerReasoningMenuMetrics.headerBottomSpacing

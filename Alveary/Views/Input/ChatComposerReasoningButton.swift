@@ -4,10 +4,11 @@ import AppKit
 final class ComposerReasoningButton: ComposerCompactDropdownButton {
     static let minWidth: CGFloat = 64
     static let maxWidth: CGFloat = 220
+    static let caretMaximumSize: CGFloat = 10
+    static let caretTextSpacing: CGFloat = ComposerIconTitleDropdownButton.iconTextSpacing
 
     private static let progressIndicatorSize: CGFloat = 12
     private static let modelEffortSpacing: CGFloat = 2
-    private static let effortChevronSpacing: CGFloat = ComposerIconTitleDropdownButton.iconTextSpacing
     private static let textFieldFittingReserve: CGFloat = 2
 
     private var selection: ChatComposerActionRowView.ReasoningSelection?
@@ -21,6 +22,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
 
     override var minimumDropdownWidth: CGFloat { Self.minWidth }
     override var maximumDropdownWidth: CGFloat { Self.maxWidth }
+    override var chevronMaxSize: CGFloat { Self.caretMaximumSize }
     override var reservesTrailingSlot: Bool { false }
     override var drawsChevron: Bool { false }
     override var measuredContentWidth: CGFloat { measuredSpeedIconWidth + measuredLabelWidth }
@@ -118,7 +120,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
         }
         let modelWidth = textWidth(selection.modelTitle, attributes: [.font: modelFont])
         let trailingWidth = max(Self.progressIndicatorSize, chevronDrawingWidth)
-        let trailingSpacing = Self.effortChevronSpacing + trailingWidth
+        let trailingSpacing = Self.caretTextSpacing + trailingWidth
         guard !selection.effortOptions.isEmpty else {
             return modelWidth + trailingSpacing
         }
@@ -209,7 +211,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
             : textWidth(selection.effortTitle, attributes: [.font: effortFont])
         let modelStartX = modelLeadingX(in: contentRect)
         let effortSpacing = selection.effortOptions.isEmpty ? 0 : Self.modelEffortSpacing
-        let fixedTrailingWidth = naturalEffortWidth + effortSpacing + Self.effortChevronSpacing + trailingWidth
+        let fixedTrailingWidth = naturalEffortWidth + effortSpacing + Self.caretTextSpacing + trailingWidth
         let modelMaxWidth = max(0, contentRect.maxX - modelStartX - fixedTrailingWidth)
         let displayedModelTitle = displayedModelTitle(for: selection.modelTitle, maxWidth: modelMaxWidth)
         let modelWidth = textWidth(displayedModelTitle, attributes: [.font: modelFont])
@@ -233,7 +235,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
             contentRect: contentRect
         )
 
-        layoutTrailingAccessory(at: nextX + Self.effortChevronSpacing, width: trailingWidth, in: contentRect)
+        layoutTrailingAccessory(at: nextX + Self.caretTextSpacing, width: trailingWidth, in: contentRect)
     }
 
     private var contentRowRect: NSRect {

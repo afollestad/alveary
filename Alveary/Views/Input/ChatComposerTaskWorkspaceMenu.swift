@@ -240,7 +240,6 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
             isSelected: false,
             isEnabled: false,
             action: {},
-            hoverAction: nil,
             cancelAction: onCancel
         ))
         return row
@@ -257,7 +256,6 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
             isSelected: false,
             isEnabled: configuration.canEdit,
             action: onAddFolders,
-            hoverAction: nil,
             cancelAction: onCancel
         ))
         return row
@@ -275,7 +273,6 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
             isSelected: false,
             isEnabled: configuration.canEdit,
             action: { [onRemoveGrant] in onRemoveGrant(path) },
-            hoverAction: nil,
             cancelAction: onCancel
         ))
         return row
@@ -296,7 +293,7 @@ enum ComposerTaskWorkspaceMenuMetrics {
     static let width: CGFloat = 360
     static let maxHeight: CGFloat = 360
     static let horizontalInset: CGFloat = ComposerReasoningMenuMetrics.horizontalInset
-    static let verticalInset: CGFloat = ComposerReasoningMenuMetrics.verticalInset
+    static let verticalInset: CGFloat = ComposerPermissionMenuMetrics.verticalInset
     static let headerInset: CGFloat = ComposerReasoningMenuMetrics.headerInset
     static let headerHeight: CGFloat = ComposerReasoningMenuMetrics.headerHeight
     static let headerBottomSpacing: CGFloat = ComposerReasoningMenuMetrics.headerBottomSpacing

@@ -147,7 +147,6 @@ private final class ComposerWorktreeMenuView: AppKitComposerPopoverSurfaceView {
                 isSelected: isSelected,
                 isEnabled: true,
                 action: { [weak self] in self?.onUseWorktreeSelected(option.usesWorktree) },
-                hoverAction: nil,
                 cancelAction: { [weak self] in self?.onCancel() }
             ))
             addSubview(row)

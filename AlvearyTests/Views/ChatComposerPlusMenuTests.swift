@@ -182,9 +182,10 @@ final class ChatComposerPlusMenuTests: XCTestCase {
         XCTAssertLessThanOrEqual(reasoningButton.intrinsicContentSize.width, ComposerReasoningButton.maxWidth)
     }
 
-    func testReasoningMenuEffortRowRoutesSelectionAndRequestsClose() throws {
+    func testReasoningSliderPreviewsThenCommitsOnceAndKeepsMenuOpen() throws {
         var selectedEffort: String?
         var closeCount = 0
+        var displayedEfforts: [String] = []
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(
                 effortOptions: [
@@ -192,27 +193,60 @@ final class ChatComposerPlusMenuTests: XCTestCase {
                     .init(value: "medium", title: "Medium"),
                     .init(value: "high", title: "High")
                 ],
+                selectedEffort: "ultra",
+                defaultEffort: "medium",
                 onEffortChange: {
                     selectedEffort = $0
                     return true
                 }
             ),
-            onRequestCloseMainMenu: { closeCount += 1 }
+            onRequestCloseMainMenu: { closeCount += 1 },
+            onDisplaySelectionChanged: { selection in
+                if let effort = selection?.effortValue {
+                    displayedEfforts.append(effort)
+                }
+            }
         )
         controller.loadViewIfNeeded()
 
-        let highRow = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "High"
-            }
-        )
-        XCTAssertTrue(highRow.accessibilityPerformPress())
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 1)
+        XCTAssertTrue(slider.endTrackingInteraction(commit: true))
 
-        XCTAssertEqual(selectedEffort, "high")
-        XCTAssertEqual(closeCount, 1)
+        XCTAssertEqual(selectedEffort, "medium")
+        XCTAssertEqual(displayedEfforts, ["medium", "medium"])
+        XCTAssertEqual(closeCount, 0)
     }
 
-    func testReasoningMenuUpdatePreselectsNewDefaultEffort() throws {
+    func testRejectedReasoningSliderCommitRollsBackAndCloses() throws {
+        var closeCount = 0
+        let controller = ComposerReasoningMenuViewController(
+            configuration: makeReasoningConfiguration(
+                effortOptions: [
+                    .init(value: "low", title: "Low"),
+                    .init(value: "medium", title: "Medium")
+                ],
+                selectedEffort: "ultra",
+                defaultEffort: "medium",
+                onEffortChange: { _ in false }
+            ),
+            onRequestCloseMainMenu: { closeCount += 1 }
+        )
+        controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 1)
+        XCTAssertTrue(slider.endTrackingInteraction(commit: true))
+
+        XCTAssertEqual(closeCount, 1)
+        XCTAssertEqual(slider.displayedIndex, 1)
+        XCTAssertEqual(slider.accessibilityValueDescription(), "Medium")
+        XCTAssertFalse(slider.debugCanonicalValueIsRepresented)
+    }
+
+    func testReasoningMenuUpdateSelectsAuthoritativeSliderEffort() throws {
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(
                 effortOptions: [
@@ -233,25 +267,12 @@ final class ChatComposerPlusMenuTests: XCTestCase {
             selectedEffort: "medium"
         ))
 
-        let mediumRow = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "Medium"
-            }
-        )
-        let lowRow = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "Low"
-            }
-        )
-        XCTAssertEqual(mediumRow.accessibilityValue() as? String, "Selected")
-        XCTAssertNil(lowRow.accessibilityValue())
-        #if DEBUG
-        XCTAssertNil(mediumRow.debugIconName)
-        XCTAssertEqual(mediumRow.debugTrailingIconName, "checkmark")
-        #endif
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+        XCTAssertEqual(slider.displayedIndex, 1)
+        XCTAssertEqual(slider.accessibilityValueDescription(), "Medium")
     }
 
-    func testReasoningMenuKeepsHeaderWhenModelHasNoEffortOptions() throws {
+    func testReasoningMenuWithNoEffortOptionsHasNoReasoningHeaderOrSlider() throws {
         let controller = ComposerReasoningMenuViewController(
             configuration: makeReasoningConfiguration(effortOptions: []),
             onRequestCloseMainMenu: {}
@@ -259,119 +280,97 @@ final class ChatComposerPlusMenuTests: XCTestCase {
         controller.loadViewIfNeeded()
         controller.view.layoutSubtreeIfNeeded()
 
-        let header = try XCTUnwrap(
-            controller.view.descendants(of: NSTextField.self).first {
-                $0.stringValue == "Reasoning"
-            }
-        )
-        XCTAssertFalse(header.isHidden)
-        XCTAssertGreaterThan(header.frame.height, 0)
-    }
-
-    func testReasoningMenuRowsAlignTextWithHeaderInsets() {
-        XCTAssertEqual(
-            ComposerReasoningMenuMetrics.horizontalInset + ComposerReasoningMenuMetrics.titleLeading,
-            ComposerReasoningMenuMetrics.headerInset
-        )
-        XCTAssertEqual(
-            ComposerReasoningMenuMetrics.horizontalInset + ComposerReasoningMenuMetrics.titleTrailing,
-            ComposerReasoningMenuMetrics.headerInset
-        )
-    }
-
-    func testReasoningModelSubmenuGroupsProvidersAndRoutesSelection() throws {
-        var selectedRequest: ChatComposerActionRowView.ReasoningModelSelectionRequest?
-        let controller = makeGroupedReasoningModelMenu { selectedRequest = $0 }
-        controller.loadViewIfNeeded()
-
-        let headers = controller.view.descendants(of: ComposerReasoningHeaderView.self).map(\.stringValue)
-        XCTAssertEqual(headers, ["Claude Code", "Codex"])
-
-        let selectedRow = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "Sonnet"
-            }
-        )
-        XCTAssertEqual(selectedRow.accessibilityValue() as? String, "Selected")
-        #if DEBUG
-        XCTAssertNil(selectedRow.debugIconName)
-        XCTAssertEqual(selectedRow.debugTrailingIconName, "checkmark")
-        #endif
-
-        let codexRow = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "GPT-5.5"
-            }
-        )
-        XCTAssertTrue(codexRow.accessibilityPerformPress())
-        XCTAssertEqual(selectedRequest, .init(providerID: "codex", modelID: "gpt-5.5"))
-    }
-
-    func testReasoningModelSubmenuPlacesHeadersAboveRowsAndDividersBetweenGroups() throws {
-        let controller = makeGroupedReasoningModelMenu()
-        controller.loadViewIfNeeded()
-        controller.view.layoutSubtreeIfNeeded()
-
-        let headerViews = controller.view.descendants(of: ComposerReasoningHeaderView.self)
-        let claudeHeader = try XCTUnwrap(headerViews.first { $0.stringValue == "Claude Code" })
-        let codexHeader = try XCTUnwrap(headerViews.first { $0.stringValue == "Codex" })
-        let selectedRow = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "Sonnet"
-            }
-        )
-        let codexRow = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "GPT-5.5"
-            }
-        )
-        let divider = try XCTUnwrap(controller.view.descendants(of: AppKitComposerPopoverDividerView.self).first)
-        XCTAssertEqual(claudeHeader.superview?.isFlipped, true)
-        XCTAssertLessThan(claudeHeader.frame.minY, selectedRow.frame.minY)
-        XCTAssertLessThan(selectedRow.frame.minY, divider.frame.minY)
-        XCTAssertLessThan(divider.frame.minY, codexHeader.frame.minY)
-        XCTAssertLessThan(codexHeader.frame.minY, codexRow.frame.minY)
-    }
-
-    func testReasoningModelSubmenuHidesProviderHeadersAfterThreadStart() {
-        let controller = ComposerReasoningModelMenuViewController(
-            groups: [
-                .init(
-                    providerID: "claude",
-                    providerTitle: nil,
-                    options: [.init(providerID: "claude", value: "sonnet", title: "Sonnet")]
-                )
-            ],
-            selectedProviderID: "claude",
-            selectedModelID: "sonnet",
-            showsProviderHeaders: false,
-            onModelSelected: { _ in },
-            onHoverChanged: { _ in },
-            onCancel: {}
-        )
-        controller.loadViewIfNeeded()
-
+        XCTAssertTrue(try XCTUnwrap(controller.debugEffortSlider).isHidden)
         XCTAssertTrue(controller.view.descendants(of: ComposerReasoningHeaderView.self).isEmpty)
     }
 
-    func testReasoningModelSubmenuShowsDisabledEmptyRow() throws {
-        let controller = ComposerReasoningModelMenuViewController(
-            groups: [],
-            selectedProviderID: "claude",
-            selectedModelID: AppSettings.defaultModelValue,
-            showsProviderHeaders: true,
-            onModelSelected: { _ in XCTFail("Empty row should not select a model") },
-            onHoverChanged: { _ in },
-            onCancel: {}
+    func testFastToggleAcceptedChangeUpdatesPresentationAndKeepsMenuOpen() throws {
+        var selectedSpeed: AgentSpeedMode?
+        var closeCount = 0
+        let controller = ComposerReasoningMenuViewController(
+            configuration: makeReasoningConfiguration(
+                supportsSpeedMode: true,
+                onSpeedChange: {
+                    selectedSpeed = $0
+                    return true
+                }
+            ),
+            onRequestCloseMainMenu: { closeCount += 1 }
         )
         controller.loadViewIfNeeded()
+        let fast = try XCTUnwrap(controller.debugFastToggle)
 
-        let row = try XCTUnwrap(
-            controller.view.descendants(of: ComposerReasoningMenuRowView.self).first {
-                $0.accessibilityLabel() == "No models available"
-            }
+        fast.performActivationForTesting()
+
+        XCTAssertEqual(selectedSpeed, .fast)
+        XCTAssertEqual(closeCount, 0)
+        XCTAssertEqual(fast.debugSymbolName, "bolt.fill")
+        XCTAssertEqual(fast.toolTip, "Disable fast mode")
+        XCTAssertEqual(fast.accessibilityValue() as? String, "On")
+    }
+
+    func testFastToggleRejectedChangeRollsBackAndCloses() throws {
+        var closeCount = 0
+        let controller = ComposerReasoningMenuViewController(
+            configuration: makeReasoningConfiguration(
+                supportsSpeedMode: true,
+                onSpeedChange: { _ in false }
+            ),
+            onRequestCloseMainMenu: { closeCount += 1 }
         )
-        XCTAssertFalse(row.accessibilityPerformPress())
+        controller.loadViewIfNeeded()
+        let fast = try XCTUnwrap(controller.debugFastToggle)
+
+        fast.performActivationForTesting()
+
+        XCTAssertEqual(closeCount, 1)
+        XCTAssertEqual(fast.debugSymbolName, "bolt")
+        XCTAssertEqual(fast.toolTip, "Enable fast mode")
+        XCTAssertEqual(fast.accessibilityValue() as? String, "Off")
+    }
+
+    func testFastToggleOffUsesNormalLabelTint() throws {
+        let fast = ComposerReasoningFastToggleControl(frame: NSRect(x: 0, y: 0, width: 30, height: 30))
+        fast.configure(isOn: false, isEnabled: true, onToggle: { _ in })
+        let tint = try XCTUnwrap(fast.debugSymbolTintColor.usingColorSpace(.deviceRGB))
+        let label = try XCTUnwrap(
+            NSColor.labelColor
+                .resolved(for: fast.appKitRenderingAppearance)
+                .usingColorSpace(.deviceRGB)
+        )
+
+        XCTAssertEqual(tint.redComponent, label.redComponent, accuracy: 0.001)
+        XCTAssertEqual(tint.greenComponent, label.greenComponent, accuracy: 0.001)
+        XCTAssertEqual(tint.blueComponent, label.blueComponent, accuracy: 0.001)
+        XCTAssertEqual(tint.alphaComponent, 0.80, accuracy: 0.001)
+    }
+
+    func testRejectedModelSelectionRestoresCanonicalMenuAndCloses() throws {
+        var closeCount = 0
+        var displayedModels: [String?] = []
+        let controller = ComposerReasoningMenuViewController(
+            configuration: makeGroupedReasoningConfiguration(
+                selectedSpeedMode: .fast,
+                supportsSpeedMode: true,
+                onModelChange: { _ in .rejected }
+            ),
+            onRequestCloseMainMenu: { closeCount += 1 },
+            onDisplaySelectionChanged: { displayedModels.append($0?.modelID) }
+        )
+        controller.loadViewIfNeeded()
+        controller.setModelsExpanded(true)
+        let list = try XCTUnwrap(controller.debugModelList)
+        let selectedIndex = try XCTUnwrap(list.debugModelRowIdentities.firstIndex(of: "claude:sonnet"))
+        let rejectedIndex = try XCTUnwrap(list.debugModelRowIdentities.firstIndex(of: "codex:gpt-5.5"))
+
+        XCTAssertTrue(list.focusableRows[rejectedIndex].accessibilityPerformPress())
+
+        XCTAssertEqual(closeCount, 1)
+        XCTAssertEqual(displayedModels, [nil])
+        XCTAssertEqual(list.focusableRows[selectedIndex].debugTrailingIconName, "checkmark")
+        XCTAssertNil(list.focusableRows[rejectedIndex].debugTrailingIconName)
+        XCTAssertEqual(try XCTUnwrap(controller.debugEffortSlider).accessibilityValueDescription(), "Medium")
+        XCTAssertEqual(try XCTUnwrap(controller.debugFastToggle).debugSymbolName, "bolt.fill")
     }
 
     func testReasoningPopoverDidCloseReleasesReasoningButtonFocus() throws {

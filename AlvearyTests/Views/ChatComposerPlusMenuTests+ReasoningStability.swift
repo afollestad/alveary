@@ -5,56 +5,267 @@ import XCTest
 
 @MainActor
 extension ChatComposerPlusMenuTests {
-    func testReasoningMenuUnchangedParentConfigureKeepsHoveredEffortRow() throws {
-        let configuration = makeConfiguration(mode: .idle, effortOptions: Self.reasoningStabilityEffortOptions)
+    func testReasoningSliderPreviewUpdatesAnchorAndSurvivesEquivalentParentConfigure() throws {
+        let options = Self.reasoningStabilityEffortOptions
+        let configuration = makeConfiguration(
+            mode: .idle,
+            effortOptions: options,
+            selectedEffort: "ultra",
+            defaultEffort: "medium"
+        )
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
         row.configure(configuration)
         let controller = ComposerReasoningMenuViewController(
             configuration: configuration.reasoning,
-            onRequestCloseMainMenu: {}
+            onRequestCloseMainMenu: {},
+            onDisplaySelectionChanged: { [weak row] in
+                row?.applyReasoningDisplaySelectionOverride($0)
+            }
         )
         row.reasoningMenuController = controller
         controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
 
-        let highRow = try XCTUnwrap(controller.row(label: "High"))
-        highRow.mouseEntered(with: mouseEvent(type: .mouseMoved))
-        #if DEBUG
-        XCTAssertTrue(highRow.debugShowsInteractionBackground)
-        #endif
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 2)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, High")
 
-        row.configure(makeConfiguration(mode: .idle, effortOptions: Self.reasoningStabilityEffortOptions))
+        row.configure(makeConfiguration(
+            mode: .idle,
+            effortOptions: options,
+            selectedEffort: "ultra",
+            defaultEffort: "medium"
+        ))
 
-        let currentHighRow = try XCTUnwrap(controller.row(label: "High"))
-        XCTAssertTrue(currentHighRow === highRow)
-        #if DEBUG
-        XCTAssertTrue(currentHighRow.debugShowsInteractionBackground)
-        #endif
+        XCTAssertTrue(slider.isTrackingInteraction)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, High")
     }
 
-    func testReasoningMenuUnchangedParentConfigureKeepsPressedEffortRow() throws {
-        let configuration = makeConfiguration(mode: .idle, effortOptions: Self.reasoningStabilityEffortOptions)
+    func testReasoningSliderPreviewClearsForAuthoritativeSelectionChange() throws {
+        let options = Self.reasoningStabilityEffortOptions
+        let configuration = makeConfiguration(mode: .idle, effortOptions: options)
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
         row.configure(configuration)
         let controller = ComposerReasoningMenuViewController(
             configuration: configuration.reasoning,
-            onRequestCloseMainMenu: {}
+            onRequestCloseMainMenu: {},
+            onDisplaySelectionChanged: { [weak row] in
+                row?.applyReasoningDisplaySelectionOverride($0)
+            }
         )
         row.reasoningMenuController = controller
         controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 2)
 
-        let highRow = try XCTUnwrap(controller.row(label: "High"))
-        highRow.mouseDown(with: mouseEvent(type: .leftMouseDown))
-        #if DEBUG
-        XCTAssertTrue(highRow.debugShowsInteractionBackground)
-        #endif
+        row.configure(makeConfiguration(
+            mode: .idle,
+            effortOptions: options,
+            selectedEffort: "low"
+        ))
 
-        row.configure(makeConfiguration(mode: .idle, effortOptions: Self.reasoningStabilityEffortOptions))
+        XCTAssertFalse(slider.isTrackingInteraction)
+        XCTAssertEqual(slider.displayedIndex, 0)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, Low")
+    }
 
-        let currentHighRow = try XCTUnwrap(controller.row(label: "High"))
-        XCTAssertTrue(currentHighRow === highRow)
-        #if DEBUG
-        XCTAssertTrue(currentHighRow.debugShowsInteractionBackground)
-        #endif
+    func testReasoningSliderPreviewClearsForAuthoritativeEffortOptionsChange() throws {
+        var committedEfforts: [String] = []
+        let options = Self.reasoningStabilityEffortOptions
+        let reorderedOptions = [options[1], options[0], options[2]]
+        let configuration = makeConfiguration(mode: .idle, effortOptions: options)
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(configuration)
+        let controller = ComposerReasoningMenuViewController(
+            configuration: configuration.reasoning,
+            onRequestCloseMainMenu: {},
+            onDisplaySelectionChanged: { [weak row] in row?.applyReasoningDisplaySelectionOverride($0) }
+        )
+        row.reasoningMenuController = controller
+        controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 2)
+
+        row.configure(makeConfiguration(
+            mode: .idle,
+            effortOptions: reorderedOptions,
+            onEffortChange: {
+                committedEfforts.append($0)
+                return true
+            }
+        ))
+
+        XCTAssertTrue(committedEfforts.isEmpty)
+        XCTAssertFalse(slider.isTrackingInteraction)
+        XCTAssertEqual(slider.effortTitles, ["Medium", "Low", "High"])
+        XCTAssertEqual(slider.displayedIndex, 0)
+        XCTAssertNil(row.reasoningDisplaySelectionOverride)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, Medium")
+    }
+
+    func testReasoningSliderPreviewClearsForAuthoritativeModelChange() throws {
+        var committedEfforts: [String] = []
+        let options = Self.reasoningStabilityEffortOptions
+        let configuration = makeConfiguration(mode: .idle, effortOptions: options)
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(configuration)
+        let controller = ComposerReasoningMenuViewController(
+            configuration: configuration.reasoning,
+            onRequestCloseMainMenu: {},
+            onDisplaySelectionChanged: { [weak row] in row?.applyReasoningDisplaySelectionOverride($0) }
+        )
+        row.reasoningMenuController = controller
+        controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 2)
+
+        row.configure(makeConfiguration(
+            mode: .idle,
+            modelOptions: [.init(value: "opus", title: "Opus")],
+            effortOptions: options,
+            onEffortChange: {
+                committedEfforts.append($0)
+                return true
+            }
+        ))
+
+        XCTAssertTrue(committedEfforts.isEmpty)
+        XCTAssertFalse(slider.isTrackingInteraction)
+        XCTAssertEqual(slider.displayedIndex, 1)
+        XCTAssertNil(row.reasoningDisplaySelectionOverride)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Opus, Medium")
+    }
+
+    func testAcceptedLocalEffortIsReplacedByLaterCanonicalConfiguration() throws {
+        let options = Self.reasoningStabilityEffortOptions
+        let configuration = makeConfiguration(mode: .idle, effortOptions: options)
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(configuration)
+        let controller = ComposerReasoningMenuViewController(
+            configuration: configuration.reasoning,
+            onRequestCloseMainMenu: {},
+            onDisplaySelectionChanged: { [weak row] in
+                row?.applyReasoningDisplaySelectionOverride($0)
+            }
+        )
+        row.reasoningMenuController = controller
+        controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 2)
+        XCTAssertTrue(slider.endTrackingInteraction(commit: true))
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, High")
+
+        row.configure(makeConfiguration(
+            mode: .idle,
+            effortOptions: options,
+            selectedEffort: "ultra",
+            defaultEffort: "medium"
+        ))
+
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, Ultra")
+        XCTAssertEqual(slider.displayedIndex, 1)
+        XCTAssertFalse(slider.debugCanonicalValueIsRepresented)
+    }
+
+    func testClosingReasoningMenuCancelsActivePreviewWithoutCommit() throws {
+        var committedEfforts: [String] = []
+        let options = Self.reasoningStabilityEffortOptions
+        let configuration = makeConfiguration(
+            mode: .idle,
+            effortOptions: options,
+            selectedEffort: "ultra",
+            defaultEffort: "medium",
+            onEffortChange: {
+                committedEfforts.append($0)
+                return true
+            }
+        )
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(configuration)
+        let controller = ComposerReasoningMenuViewController(
+            configuration: configuration.reasoning,
+            onRequestCloseMainMenu: { [weak row] in row?.closeReasoningMenu() },
+            onDisplaySelectionChanged: { [weak row] in
+                row?.applyReasoningDisplaySelectionOverride($0)
+            }
+        )
+        let popover = NSPopover()
+        row.reasoningMenuController = controller
+        row.reasoningPopover = popover
+        controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 2)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, High")
+
+        row.closeReasoningMenu()
+
+        XCTAssertTrue(committedEfforts.isEmpty)
+        XCTAssertFalse(slider.isTrackingInteraction)
+        XCTAssertEqual(slider.canonicalIndex, 1)
+        XCTAssertEqual(slider.displayedIndex, 1)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, Ultra")
+        XCTAssertFalse(slider.debugCanonicalValueIsRepresented)
+        XCTAssertNil(row.reasoningDisplaySelectionOverride)
+        XCTAssertNil(row.reasoningMenuController)
+        XCTAssertNil(row.reasoningPopover)
+        XCTAssertFalse(popover.isShown)
+    }
+
+    func testDisablingActionRowCancelsActivePreviewWithoutCommit() throws {
+        var committedEfforts: [String] = []
+        let options = Self.reasoningStabilityEffortOptions
+        let configuration = makeConfiguration(
+            mode: .idle,
+            effortOptions: options,
+            onEffortChange: {
+                committedEfforts.append($0)
+                return true
+            }
+        )
+        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+        row.configure(configuration)
+        let controller = ComposerReasoningMenuViewController(
+            configuration: configuration.reasoning,
+            onRequestCloseMainMenu: { [weak row] in row?.closeReasoningMenu() },
+            onDisplaySelectionChanged: { [weak row] in
+                row?.applyReasoningDisplaySelectionOverride($0)
+            }
+        )
+        let popover = NSPopover()
+        row.reasoningMenuController = controller
+        row.reasoningPopover = popover
+        controller.loadViewIfNeeded()
+        let slider = try XCTUnwrap(controller.debugEffortSlider)
+
+        slider.beginTrackingInteraction()
+        slider.updateTrackingInteraction(to: 2)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, High")
+
+        row.configure(makeConfiguration(
+            mode: .idle,
+            effortOptions: options,
+            areControlsDisabled: true,
+            onEffortChange: {
+                committedEfforts.append($0)
+                return true
+            }
+        ))
+
+        XCTAssertTrue(committedEfforts.isEmpty)
+        XCTAssertFalse(slider.isTrackingInteraction)
+        XCTAssertEqual(slider.canonicalIndex, 1)
+        XCTAssertEqual(slider.displayedIndex, 1)
+        XCTAssertEqual(row.reasoningButton.accessibilityValue() as? String, "Sonnet, Medium")
+        XCTAssertNil(row.reasoningDisplaySelectionOverride)
+        XCTAssertNil(row.reasoningMenuController)
+        XCTAssertNil(row.reasoningPopover)
+        XCTAssertFalse(popover.isShown)
     }
 
     private static var reasoningStabilityEffortOptions: [ChatComposerActionRowView.MenuOption] {
@@ -63,40 +274,5 @@ extension ChatComposerPlusMenuTests {
             .init(value: "medium", title: "Medium"),
             .init(value: "high", title: "High")
         ]
-    }
-}
-
-@MainActor
-private extension ComposerReasoningMenuViewController {
-    func row(label: String) -> ComposerReasoningMenuRowView? {
-        view.reasoningStabilityDescendants(of: ComposerReasoningMenuRowView.self).first {
-            $0.accessibilityLabel() == label
-        }
-    }
-}
-
-private func mouseEvent(type: NSEvent.EventType) -> NSEvent {
-    NSEvent.mouseEvent(
-        with: type,
-        location: NSPoint(x: 8, y: 8),
-        modifierFlags: [],
-        timestamp: 0,
-        windowNumber: 0,
-        context: nil,
-        eventNumber: 0,
-        clickCount: 1,
-        pressure: 0
-    ) ?? NSEvent()
-}
-
-private extension NSView {
-    func reasoningStabilityDescendants<ViewType: NSView>(of type: ViewType.Type) -> [ViewType] {
-        subviews.flatMap { child -> [ViewType] in
-            var matches = child.reasoningStabilityDescendants(of: type)
-            if let typed = child as? ViewType {
-                matches.insert(typed, at: 0)
-            }
-            return matches
-        }
     }
 }

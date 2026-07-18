@@ -1,197 +1,64 @@
 import AppKit
 
 @MainActor
-final class ComposerReasoningModelMenuViewController: NSViewController {
+final class ComposerReasoningModelListView: NSView {
     private var groups: [ChatComposerActionRowView.ReasoningModelGroup]
     private var selectedProviderID: String
     private var selectedModelID: String
-    private var showsProviderHeaders: Bool
     private let onModelSelected: (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void
-    private let onHoverChanged: (Bool) -> Void
-    private let onCancel: () -> Void
-    private let onContentSizeChanged: (NSSize) -> Void
-    private var modelView: ComposerReasoningModelMenuView?
-
-    init(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        selectedProviderID: String,
-        selectedModelID: String,
-        showsProviderHeaders: Bool,
-        onModelSelected: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void,
-        onHoverChanged: @escaping (Bool) -> Void,
-        onCancel: @escaping () -> Void,
-        onContentSizeChanged: @escaping (NSSize) -> Void = { _ in }
-    ) {
-        self.groups = groups
-        self.selectedProviderID = selectedProviderID
-        self.selectedModelID = selectedModelID
-        self.showsProviderHeaders = showsProviderHeaders
-        self.onModelSelected = onModelSelected
-        self.onHoverChanged = onHoverChanged
-        self.onCancel = onCancel
-        self.onContentSizeChanged = onContentSizeChanged
-        super.init(nibName: nil, bundle: nil)
-        preferredContentSize = ComposerReasoningMenuMetrics.modelContentSize(
-            groups: groups,
-            showsProviderHeaders: showsProviderHeaders
-        )
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func loadView() {
-        let modelView = ComposerReasoningModelMenuView(
-            groups: groups,
-            selectedProviderID: selectedProviderID,
-            selectedModelID: selectedModelID,
-            showsProviderHeaders: showsProviderHeaders,
-            onModelSelected: onModelSelected,
-            onHoverChanged: onHoverChanged,
-            onCancel: onCancel
-        )
-        self.modelView = modelView
-        view = modelView
-    }
-
-    func update(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        selectedProviderID: String,
-        selectedModelID: String,
-        showsProviderHeaders: Bool
-    ) {
-        let previousVisualState = ReasoningModelMenuVisualState(
-            groups: self.groups,
-            selectedProviderID: self.selectedProviderID,
-            selectedModelID: self.selectedModelID,
-            showsProviderHeaders: self.showsProviderHeaders
-        )
-        let visualState = ReasoningModelMenuVisualState(
-            groups: groups,
-            selectedProviderID: selectedProviderID,
-            selectedModelID: selectedModelID,
-            showsProviderHeaders: showsProviderHeaders
-        )
-        let previousGroups = self.groups
-        let previousShowsProviderHeaders = self.showsProviderHeaders
-        let previousContentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(
-            groups: self.groups,
-            showsProviderHeaders: self.showsProviderHeaders
-        )
-        let contentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(
-            groups: groups,
-            showsProviderHeaders: showsProviderHeaders
-        )
-        let shouldResetScrollPosition = previousGroups != groups ||
-            previousShowsProviderHeaders != showsProviderHeaders ||
-            previousContentHeight != contentHeight
-
-        self.groups = groups
-        self.selectedProviderID = selectedProviderID
-        self.selectedModelID = selectedModelID
-        self.showsProviderHeaders = showsProviderHeaders
-        guard previousVisualState != visualState else {
-            return
-        }
-        modelView?.update(
-            groups: groups,
-            selectedProviderID: selectedProviderID,
-            selectedModelID: selectedModelID,
-            showsProviderHeaders: showsProviderHeaders
-        )
-        applyContentSize(groups: groups, showsProviderHeaders: showsProviderHeaders)
-        if shouldResetScrollPosition {
-            modelView?.resetScrollPosition()
-        }
-    }
-
-    func alignContentViewToPopoverHost() {
-        applyLoadedContentFrame(size: preferredContentSize)
-    }
-
-    private func applyContentSize(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        showsProviderHeaders: Bool
-    ) {
-        let size = ComposerReasoningMenuMetrics.modelContentSize(
-            groups: groups,
-            showsProviderHeaders: showsProviderHeaders
-        )
-        preferredContentSize = size
-        onContentSizeChanged(size)
-        applyLoadedContentFrame(size: size)
-        Task { @MainActor [weak self] in
-            await Task.yield()
-            guard let self, preferredContentSize == size else { return }
-            applyLoadedContentFrame(size: size)
-        }
-    }
-
-    private func applyLoadedContentFrame(size: NSSize) {
-        guard isViewLoaded else { return }
-        view.frame = ComposerReasoningPopoverContentFrame.topAlignedFrame(for: view, size: size)
-        view.layoutSubtreeIfNeeded()
-    }
-}
-
-@MainActor
-private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurfaceView {
-    private var groups: [ChatComposerActionRowView.ReasoningModelGroup]
-    private var selectedProviderID: String
-    private var selectedModelID: String
-    private var showsProviderHeaders: Bool
-    private let onModelSelected: (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void
-    private let onHoverChanged: (Bool) -> Void
     private let onCancel: () -> Void
     private let scrollView = NSScrollView()
     private let documentView = ComposerReasoningModelDocumentView()
-    private var rowViews: [NSView] = []
-    private var trackingArea: NSTrackingArea?
+    private var structure: Structure
+    private var arrangedViews: [NSView] = []
+    private var rowsByIdentity: [String: ComposerReasoningMenuRowView] = [:]
+
+    override var isFlipped: Bool { true }
+
+    var focusableRows: [ComposerReasoningMenuRowView] {
+        arrangedViews.compactMap { $0 as? ComposerReasoningMenuRowView }.filter(\.acceptsFirstResponder)
+    }
 
     init(
         groups: [ChatComposerActionRowView.ReasoningModelGroup],
         selectedProviderID: String,
         selectedModelID: String,
-        showsProviderHeaders: Bool,
         onModelSelected: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest) -> Void,
-        onHoverChanged: @escaping (Bool) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.groups = groups
         self.selectedProviderID = selectedProviderID
         self.selectedModelID = selectedModelID
-        self.showsProviderHeaders = showsProviderHeaders
         self.onModelSelected = onModelSelected
-        self.onHoverChanged = onHoverChanged
         self.onCancel = onCancel
-        super.init(frame: NSRect(origin: .zero, size: ComposerReasoningMenuMetrics.modelContentSize(
-            groups: groups,
-            showsProviderHeaders: showsProviderHeaders
-        )))
+        structure = Structure(groups: groups)
+        super.init(frame: .zero)
         setup()
         rebuildRows()
     }
 
     required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        nil
     }
 
     func update(
         groups: [ChatComposerActionRowView.ReasoningModelGroup],
         selectedProviderID: String,
-        selectedModelID: String,
-        showsProviderHeaders: Bool
+        selectedModelID: String
     ) {
+        let nextStructure = Structure(groups: groups)
+        let structureChanged = structure != nextStructure
         self.groups = groups
         self.selectedProviderID = selectedProviderID
         self.selectedModelID = selectedModelID
-        self.showsProviderHeaders = showsProviderHeaders
-        frame.size = ComposerReasoningMenuMetrics.modelContentSize(
-            groups: groups,
-            showsProviderHeaders: showsProviderHeaders
-        )
-        rebuildRows()
+        structure = nextStructure
+
+        if structureChanged {
+            rebuildRows()
+            resetScrollPosition()
+        } else {
+            updateRowSelections()
+        }
         needsLayout = true
     }
 
@@ -206,39 +73,14 @@ private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurface
         layoutRows()
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
-            owner: self
-        )
-        trackingArea = area
-        addTrackingArea(area)
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        onHoverChanged(true)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        onHoverChanged(false)
-    }
-
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
-            onCancel()
-            return
-        }
-        super.keyDown(with: event)
-    }
+    #if DEBUG
+    var debugShowsProviderHeaders: Bool { structure.showsProviderHeaders }
+    var debugScrollOrigin: NSPoint { scrollView.contentView.bounds.origin }
+    var debugDocumentHeight: CGFloat { documentView.frame.height }
+    var debugModelRowIdentities: [String] { structure.options.map(\.identity) }
+    #endif
 
     private func setup() {
-        // Match the context-window tooltip surface; the scroll view stays clear
-        // so long model lists do not introduce a second fill color.
         scrollView.drawsBackground = false
         scrollView.contentView.drawsBackground = false
         scrollView.hasVerticalScroller = true
@@ -248,10 +90,12 @@ private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurface
     }
 
     private func rebuildRows() {
-        rowViews.forEach { $0.removeFromSuperview() }
-        rowViews = []
+        arrangedViews.forEach { $0.removeFromSuperview() }
+        arrangedViews = []
+        rowsByIdentity = [:]
 
-        if groups.flatMap(\.options).isEmpty {
+        let visibleGroups = structure.visibleGroups
+        guard !visibleGroups.isEmpty else {
             let row = ComposerReasoningMenuRowView()
             row.configure(.init(
                 title: "No models available",
@@ -261,54 +105,77 @@ private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurface
                 isSelected: false,
                 isEnabled: false,
                 action: {},
-                hoverAction: nil,
                 cancelAction: onCancel
             ))
-            rowViews.append(row)
-            documentView.addSubview(row)
+            append(row)
             return
         }
 
-        for (groupIndex, group) in groups.enumerated() {
-            if showsProviderHeaders, let providerTitle = group.providerTitle {
-                let header = ComposerReasoningHeaderView(title: providerTitle)
-                rowViews.append(header)
-                documentView.addSubview(header)
+        for (groupIndex, group) in visibleGroups.enumerated() {
+            if structure.showsProviderHeaders {
+                append(ComposerReasoningHeaderView(title: group.providerTitle ?? group.providerID.capitalized))
             }
 
             for option in group.options {
                 let row = ComposerReasoningMenuRowView()
-                let isSelected = option.providerID == selectedProviderID && option.value == selectedModelID
-                row.configure(.init(
-                    title: option.title,
-                    iconName: nil,
-                    trailingIconName: isSelected ? "checkmark" : nil,
-                    accessibilityLabel: option.title,
-                    isSelected: isSelected,
-                    isEnabled: true,
-                    action: { [weak self] in
-                        self?.onModelSelected(.init(providerID: option.providerID, modelID: option.value))
-                    },
-                    hoverAction: nil,
-                    cancelAction: onCancel
-                ))
-                rowViews.append(row)
-                documentView.addSubview(row)
+                configure(row: row, option: option)
+                rowsByIdentity[option.identity] = row
+                append(row)
             }
 
-            if showsProviderHeaders, groupIndex < groups.count - 1 {
-                let divider = AppKitComposerPopoverDividerView()
-                rowViews.append(divider)
-                documentView.addSubview(divider)
+            if structure.showsProviderHeaders, groupIndex < visibleGroups.count - 1 {
+                append(AppKitComposerPopoverDividerView())
             }
         }
     }
 
+    private func updateRowSelections() {
+        for option in structure.options {
+            guard let row = rowsByIdentity[option.identity] else { continue }
+            configure(row: row, option: option)
+        }
+    }
+
+    private func configure(
+        row: ComposerReasoningMenuRowView,
+        option: ChatComposerActionRowView.ReasoningModelOption
+    ) {
+        let isSelected = option.providerID == selectedProviderID && option.value == selectedModelID
+        row.configure(.init(
+            title: option.title,
+            iconName: nil,
+            trailingIconName: isSelected ? "checkmark" : nil,
+            accessibilityLabel: accessibilityLabel(for: option),
+            isSelected: isSelected,
+            isEnabled: true,
+            showsFocusBackground: true,
+            activatesWithRightArrow: false,
+            action: { [weak self] in
+                self?.onModelSelected(.init(providerID: option.providerID, modelID: option.value))
+            },
+            cancelAction: onCancel
+        ))
+    }
+
+    private func accessibilityLabel(
+        for option: ChatComposerActionRowView.ReasoningModelOption
+    ) -> String {
+        guard structure.showsProviderHeaders,
+              let group = structure.visibleGroups.first(where: { $0.providerID == option.providerID }) else {
+            return option.title
+        }
+        let trimmedTitle = group.providerTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let providerTitle = trimmedTitle.flatMap { $0.isEmpty ? nil : $0 } ?? group.providerID.capitalized
+        return "\(providerTitle), \(option.title)"
+    }
+
+    private func append(_ view: NSView) {
+        arrangedViews.append(view)
+        documentView.addSubview(view)
+    }
+
     private func layoutRows() {
-        let contentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(
-            groups: groups,
-            showsProviderHeaders: showsProviderHeaders
-        )
+        let contentHeight = ComposerReasoningMenuMetrics.modelDocumentHeight(groups: groups)
         documentView.frame = NSRect(
             x: 0,
             y: 0,
@@ -316,42 +183,69 @@ private final class ComposerReasoningModelMenuView: AppKitComposerPopoverSurface
             height: max(bounds.height, contentHeight)
         )
 
-        var nextY = ComposerReasoningMenuMetrics.modelMenuTopInset(showsProviderHeaders: showsProviderHeaders)
-        for rowView in rowViews {
-            let height: CGFloat
-            let originX: CGFloat
-            let width: CGFloat
-            if rowView is ComposerReasoningHeaderView {
-                height = ComposerReasoningMenuMetrics.headerHeight
-                originX = ComposerReasoningMenuMetrics.headerInset
-                width = documentView.bounds.width - ComposerReasoningMenuMetrics.headerInset * 2
-            } else if rowView is AppKitComposerPopoverDividerView {
-                height = AppKitComposerPopoverDividerView.height
-                originX = AppKitComposerPopoverDividerView.horizontalInset
-                width = documentView.bounds.width - AppKitComposerPopoverDividerView.horizontalInset * 2
-            } else {
-                height = ComposerReasoningMenuMetrics.rowHeight
-                originX = ComposerReasoningMenuMetrics.horizontalInset
-                width = documentView.bounds.width - ComposerReasoningMenuMetrics.horizontalInset * 2
-            }
-            rowView.frame = NSRect(x: originX, y: nextY, width: width, height: height)
-            if rowView is AppKitComposerPopoverDividerView {
-                rowView.frame.origin.y += ComposerReasoningMenuMetrics.dividerSpacing
-                nextY += height + ComposerReasoningMenuMetrics.dividerSpacing * 2
-            } else if rowView is ComposerReasoningHeaderView {
-                nextY += height + ComposerReasoningMenuMetrics.headerBottomSpacing
-            } else {
-                nextY += height
-            }
+        var nextY = ComposerReasoningMenuMetrics.modelMenuTopInset(
+            showsProviderHeaders: structure.showsProviderHeaders
+        )
+        for arrangedView in arrangedViews {
+            let layout = layoutMetrics(for: arrangedView)
+            arrangedView.frame = NSRect(
+                x: layout.originX,
+                y: nextY + layout.leadingSpacing,
+                width: documentView.bounds.width - layout.horizontalInsets,
+                height: layout.height
+            )
+            nextY += layout.leadingSpacing + layout.height + layout.trailingSpacing
         }
+    }
+
+    private func layoutMetrics(for view: NSView) -> LayoutMetrics {
+        if view is ComposerReasoningHeaderView {
+            return LayoutMetrics(
+                originX: ComposerReasoningMenuMetrics.headerInset,
+                horizontalInsets: ComposerReasoningMenuMetrics.headerInset * 2,
+                height: ComposerReasoningMenuMetrics.headerHeight,
+                leadingSpacing: 0,
+                trailingSpacing: ComposerReasoningMenuMetrics.headerBottomSpacing
+            )
+        }
+        if view is AppKitComposerPopoverDividerView {
+            return LayoutMetrics(
+                originX: AppKitComposerPopoverDividerView.horizontalInset,
+                horizontalInsets: AppKitComposerPopoverDividerView.horizontalInset * 2,
+                height: AppKitComposerPopoverDividerView.height,
+                leadingSpacing: ComposerReasoningMenuMetrics.dividerSpacing,
+                trailingSpacing: ComposerReasoningMenuMetrics.dividerSpacing
+            )
+        }
+        return LayoutMetrics(
+            originX: ComposerReasoningMenuMetrics.horizontalInset,
+            horizontalInsets: ComposerReasoningMenuMetrics.horizontalInset * 2,
+            height: ComposerReasoningMenuMetrics.rowHeight,
+            leadingSpacing: 0,
+            trailingSpacing: 0
+        )
     }
 }
 
-private struct ReasoningModelMenuVisualState: Equatable {
-    let groups: [ChatComposerActionRowView.ReasoningModelGroup]
-    let selectedProviderID: String
-    let selectedModelID: String
-    let showsProviderHeaders: Bool
+private extension ComposerReasoningModelListView {
+    struct Structure: Equatable {
+        let visibleGroups: [ChatComposerActionRowView.ReasoningModelGroup]
+
+        init(groups: [ChatComposerActionRowView.ReasoningModelGroup]) {
+            visibleGroups = groups.filter { !$0.options.isEmpty }
+        }
+
+        var showsProviderHeaders: Bool { visibleGroups.count > 1 }
+        var options: [ChatComposerActionRowView.ReasoningModelOption] { visibleGroups.flatMap(\.options) }
+    }
+
+    struct LayoutMetrics {
+        let originX: CGFloat
+        let horizontalInsets: CGFloat
+        let height: CGFloat
+        let leadingSpacing: CGFloat
+        let trailingSpacing: CGFloat
+    }
 }
 
 private final class ComposerReasoningModelDocumentView: NSView {

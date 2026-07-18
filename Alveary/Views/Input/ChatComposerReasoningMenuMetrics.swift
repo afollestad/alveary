@@ -55,19 +55,25 @@ final class ComposerReasoningHeaderView: NSTextField {
 }
 
 enum ComposerReasoningMenuMetrics {
-    static let width: CGFloat = 244
-    static let modelWidth: CGFloat = 260
-    static let speedWidth: CGFloat = 172
+    static let width: CGFloat = 260
     static let maxModelHeight: CGFloat = 360
+    static let disclosureAnimationDuration: TimeInterval = 0.16
     static let horizontalInset: CGFloat = 6
-    static let verticalInset: CGFloat = 8
-    static let headerlessModelMenuTopInset: CGFloat = 14
+    static let topInset: CGFloat = 14
+    static let bottomInset: CGFloat = 12
+    static let sliderHorizontalInset: CGFloat = 18
+    static let sliderHeight = ComposerReasoningEffortSliderMetrics.controlHeight
+    static let sliderBottomSpacing: CGFloat = 4
+    static let rowHeight: CGFloat = 32
+    static let controlsHeight: CGFloat = rowHeight
+    static let modelListBottomInset: CGFloat = 8
+    static let providerHeaderTopInset: CGFloat = 0
+    static let headerlessModelMenuTopInset: CGFloat = 8
     static let headerInset: CGFloat = 18
     // Headers bottom-align within their own rows; this spacing is the visual
     // inset before the selectable rows that follow.
     static let headerHeight: CGFloat = 18
     static let headerBottomSpacing: CGFloat = 4
-    static let rowHeight: CGFloat = 32
     static let permissionRowHeight: CGFloat = 50
     static let dividerSpacing: CGFloat = 7
     static let iconOpticalLeadingAdjustment: CGFloat = 3
@@ -92,61 +98,49 @@ enum ComposerReasoningMenuMetrics {
     }
 
     @MainActor
-    static func mainContentSize(for configuration: ChatComposerActionRowView.ReasoningConfiguration) -> NSSize {
-        let effortCount = configuration.selection.effortOptions.count
-        let variableHeight: CGFloat
-        if effortCount == 0 {
-            variableHeight = 0
-        } else {
-            variableHeight = rowHeight * CGFloat(effortCount) +
-                dividerSpacing + AppKitComposerPopoverDividerView.height + dividerSpacing
-        }
+    static func mainContentSize(
+        for configuration: ChatComposerActionRowView.ReasoningConfiguration,
+        isModelsExpanded: Bool = false
+    ) -> NSSize {
+        let sliderSectionHeight = configuration.selection.effortOptions.isEmpty
+            ? 0
+            : sliderHeight + sliderBottomSpacing
+        let expandedHeight = isModelsExpanded ? modelsSectionHeight(groups: configuration.modelGroups) : 0
         return NSSize(
             width: width,
-            height: verticalInset * 2 +
-                headerHeight + headerBottomSpacing +
-                variableHeight +
-                headerHeight + headerBottomSpacing +
-                rowHeight +
-                (configuration.selection.supportsSpeedMode ? rowHeight : 0)
-        )
-    }
-
-    static func speedContentSize() -> NSSize {
-        NSSize(
-            width: speedWidth,
-            height: verticalInset * 2 + rowHeight * CGFloat(AgentSpeedMode.allCases.count)
+            height: topInset + bottomInset +
+                sliderSectionHeight +
+                controlsHeight +
+                expandedHeight
         )
     }
 
     @MainActor
-    static func modelContentSize(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        showsProviderHeaders: Bool
-    ) -> NSSize {
-        NSSize(
-            width: modelWidth,
-            height: min(maxModelHeight, modelDocumentHeight(groups: groups, showsProviderHeaders: showsProviderHeaders))
-        )
+    static func modelsSectionHeight(groups: [ChatComposerActionRowView.ReasoningModelGroup]) -> CGFloat {
+        dividerSpacing + AppKitComposerPopoverDividerView.height + dividerSpacing + modelViewportHeight(groups: groups)
     }
 
     @MainActor
-    static func modelDocumentHeight(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup],
-        showsProviderHeaders: Bool
-    ) -> CGFloat {
-        let modelCount = max(1, groups.flatMap(\.options).count)
-        let headerCount = showsProviderHeaders ? groups.filter { $0.providerTitle != nil }.count : 0
-        let dividerCount = showsProviderHeaders ? max(0, groups.count - 1) : 0
+    static func modelViewportHeight(groups: [ChatComposerActionRowView.ReasoningModelGroup]) -> CGFloat {
+        min(maxModelHeight, modelDocumentHeight(groups: groups))
+    }
+
+    @MainActor
+    static func modelDocumentHeight(groups: [ChatComposerActionRowView.ReasoningModelGroup]) -> CGFloat {
+        let visibleGroups = groups.filter { !$0.options.isEmpty }
+        let modelCount = max(1, visibleGroups.flatMap(\.options).count)
+        let showsProviderHeaders = visibleGroups.count > 1
+        let headerCount = showsProviderHeaders ? visibleGroups.count : 0
+        let dividerCount = showsProviderHeaders ? max(0, visibleGroups.count - 1) : 0
         return modelMenuTopInset(showsProviderHeaders: showsProviderHeaders) +
-            verticalInset +
+            modelListBottomInset +
             rowHeight * CGFloat(modelCount) +
             (headerHeight + headerBottomSpacing) * CGFloat(headerCount) +
             (AppKitComposerPopoverDividerView.height + dividerSpacing * 2) * CGFloat(dividerCount)
     }
 
     static func modelMenuTopInset(showsProviderHeaders: Bool) -> CGFloat {
-        showsProviderHeaders ? verticalInset : headerlessModelMenuTopInset
+        showsProviderHeaders ? providerHeaderTopInset : headerlessModelMenuTopInset
     }
 }
 
@@ -181,7 +175,7 @@ enum ComposerReasoningPopoverContentFrame {
     private static func hostTopInset(for superview: NSView, contentSize: NSSize) -> CGFloat {
         min(
             max(0, superview.bounds.height - contentSize.height),
-            ComposerReasoningMenuMetrics.verticalInset
+            ComposerReasoningMenuMetrics.topInset
         )
     }
 }

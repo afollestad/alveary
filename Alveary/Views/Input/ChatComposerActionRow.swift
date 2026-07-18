@@ -102,6 +102,7 @@ final class ChatComposerActionRowView: NSView {
         let effortValue: String
         let effortTitle: String
         let effortOptions: [MenuOption]
+        let defaultEffortValue: String?
         let speedMode: AgentSpeedMode
         let supportsSpeedMode: Bool
 
@@ -145,7 +146,6 @@ final class ChatComposerActionRowView: NSView {
     struct ReasoningConfiguration {
         var selection: ReasoningSelection
         var modelGroups: [ReasoningModelGroup]
-        var hasStartedThread: Bool
         var onEffortChange: (String) -> Bool
         var onSpeedChange: (AgentSpeedMode) -> Bool
         var onModelChange: (ReasoningModelSelectionRequest) -> ReasoningModelSelectionOutcome
@@ -212,6 +212,7 @@ final class ChatComposerActionRowView: NSView {
     var reasoningPopover: NSPopover?
     var reasoningPopoverAnchorRect: NSRect?
     var reasoningMenuController: ComposerReasoningMenuViewController?
+    var reasoningDisplaySelectionOverride: ReasoningSelection?
     var permissionPopover: NSPopover?
     var permissionMenuController: ComposerPermissionMenuViewController?
     var worktreePopover: NSPopover?

@@ -1,6 +1,8 @@
 @preconcurrency import AppKit
 
 extension ChatComposerActionRowView {
+    static let reasoningPopoverPreferredEdge: NSRectEdge = .maxY
+
     func toggleReasoningMenu() {
         guard let configuration,
               !configuration.areControlsDisabled else {
@@ -20,6 +22,9 @@ extension ChatComposerActionRowView {
             onRequestCloseMainMenu: { [weak self] in
                 self?.closeReasoningMenu()
             },
+            onDisplaySelectionChanged: { [weak self] selection in
+                self?.applyReasoningDisplaySelectionOverride(selection)
+            },
             onContentSizeChanged: { [weak self] size in
                 self?.applyReasoningPopoverContentSize(size)
             }
@@ -34,15 +39,21 @@ extension ChatComposerActionRowView {
         reasoningPopover = popover
         let anchorRect = captureReasoningPopoverAnchorRect()
         reasoningPopoverAnchorRect = anchorRect
-        popover.show(relativeTo: anchorRect, of: self, preferredEdge: .minY)
+        popover.show(
+            relativeTo: anchorRect,
+            of: self,
+            preferredEdge: Self.reasoningPopoverPreferredEdge
+        )
         controller.alignContentViewToPopoverHost()
     }
 
     func closeReasoningMenu() {
         guard let popover = reasoningPopover else {
+            applyReasoningDisplaySelectionOverride(nil)
             reasoningButton.releaseMenuFocusIfNeeded()
             return
         }
+        popover.animates = false
         popover.performClose(nil)
         finishReasoningMenuClose(for: popover)
     }
@@ -51,12 +62,13 @@ extension ChatComposerActionRowView {
         guard reasoningPopover === popover else {
             return
         }
-        reasoningMenuController?.closeModelMenu()
-        reasoningMenuController?.closeSpeedMenu()
+        popover.animates = false
+        reasoningMenuController?.cancelEffortPreview()
         popover.delegate = nil
         reasoningPopover = nil
         reasoningPopoverAnchorRect = nil
         reasoningMenuController = nil
+        reasoningDisplaySelectionOverride = nil
         reasoningButton.releaseMenuFocusIfNeeded()
     }
 
@@ -70,8 +82,34 @@ extension ChatComposerActionRowView {
               popover.contentViewController === controller else {
             return
         }
-        controller.preferredContentSize = size
+        popover.animates = false
         popover.contentSize = size
+        if popover.isShown, let anchorRect = reasoningPopoverAnchorRect {
+            // Resizing a shown popover can make AppKit reconsider its edge. Reapply
+            // the captured anchor and original preference so collapse stays above
+            // the composer instead of flipping to the opposite side.
+            popover.show(
+                relativeTo: anchorRect,
+                of: self,
+                preferredEdge: Self.reasoningPopoverPreferredEdge
+            )
+        }
+        controller.alignContentViewToPopoverHost()
+    }
+
+    func applyReasoningDisplaySelectionOverride(_ selection: ReasoningSelection?) {
+        reasoningDisplaySelectionOverride = selection
+        guard let configuration else { return }
+        reasoningButton.configure(
+            selection: selection ?? configuration.reasoning.selection,
+            height: Self.defaultSettingsControlHeight,
+            isEnabled: !configuration.areControlsDisabled,
+            showsProgress: configuration.isReconfiguringSession,
+            actionHandler: { [weak self] in
+                self?.toggleReasoningMenu()
+            }
+        )
+        needsLayout = true
     }
 }
 

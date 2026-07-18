@@ -225,7 +225,6 @@ private extension ConversationView {
         ChatComposerActionRowView.ReasoningConfiguration(
             selection: composerReasoningSelection,
             modelGroups: composerReasoningModelGroups,
-            hasStartedThread: conversation.thread?.hasCompletedInitialSetup == true,
             onEffortChange: applyComposerReasoningEffortChange(_:),
             onSpeedChange: applyComposerReasoningSpeedChange(_:),
             onModelChange: applyComposerReasoningModelChange(_:)
@@ -241,6 +240,7 @@ private extension ConversationView {
             fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
         ).first { $0.value == selectedModel }?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel)
         let effortOptions = reasoningEffortOptions(for: activeAgentProviderID, selectedModel: selectedModel)
+        let defaultEffort = AgentModelOptionSelection.defaultEffortValue(in: options, selectedModel: selectedModel)
         let effortValue = conversation.thread?.effort ?? AppSettings.defaultEffortLevel
         let effortTitle = effortOptions.first { $0.value == effortValue }?.title
             ?? ChatComposerTextSupport.effortLabel(for: effortValue)
@@ -254,6 +254,7 @@ private extension ConversationView {
             effortValue: effortValue,
             effortTitle: effortTitle,
             effortOptions: effortOptions,
+            defaultEffortValue: effortOptions.contains { $0.value == defaultEffort } ? defaultEffort : effortOptions.first?.value,
             speedMode: speedMode,
             supportsSpeedMode: composerCapabilities.supportsSpeedMode
         )

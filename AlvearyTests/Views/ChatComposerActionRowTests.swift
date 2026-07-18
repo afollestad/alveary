@@ -288,6 +288,8 @@ func makeConfiguration(
     providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
     effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
+    selectedEffort: String = "medium",
+    defaultEffort: String? = nil,
     supportedPermissionModes: [ChatComposerActionRowView.PermissionOptionPresentation] = [.init(value: "default", title: "Default")],
     selectedPermissionMode: String = "default",
     showWorktreePicker: Bool = true,
@@ -318,6 +320,8 @@ func makeConfiguration(
             providerOptions: providerOptions,
             modelOptions: modelOptions,
             effortOptions: effortOptions,
+            selectedEffort: selectedEffort,
+            defaultEffort: defaultEffort,
             selectedSpeedMode: selectedSpeedMode,
             supportsSpeedMode: supportsSpeedMode,
             onEffortChange: onEffortChange,
@@ -354,47 +358,52 @@ func makeConfiguration(
 func makeReasoningConfiguration(
     providerOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "claude", title: "Claude Code")],
     modelOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "sonnet", title: "Sonnet")],
+    modelGroups: [ChatComposerActionRowView.ReasoningModelGroup]? = nil,
     effortOptions: [ChatComposerActionRowView.MenuOption] = [.init(value: "medium", title: "Medium")],
     selectedProvider: String = "claude",
     selectedModel: String = "sonnet",
     selectedEffort: String = "medium",
+    defaultEffort: String? = nil,
     selectedSpeedMode: AgentSpeedMode = .standard,
     supportsSpeedMode: Bool = false,
-    hasStartedThread: Bool = false,
     onEffortChange: @escaping (String) -> Bool = { _ in true },
     onSpeedChange: @escaping (AgentSpeedMode) -> Bool = { _ in true },
     onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
         -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected }
 ) -> ChatComposerActionRowView.ReasoningConfiguration {
-    let selectedProviderOption = providerOptions.first { $0.value == selectedProvider } ?? providerOptions.first
-    let selectedModelOption = modelOptions.first { $0.value == selectedModel } ?? modelOptions.first
-    let selectedEffortOption = effortOptions.first { $0.value == selectedEffort } ?? effortOptions.first
+    let resolvedModelGroups = modelGroups ?? providerOptions.map { provider in
+        ChatComposerActionRowView.ReasoningModelGroup(
+            providerID: provider.value,
+            providerTitle: provider.title,
+            options: modelOptions.map { model in
+                ChatComposerActionRowView.ReasoningModelOption(
+                    providerID: provider.value,
+                    value: model.value,
+                    title: model.title
+                )
+            }
+        )
+    }
+    let selectedGroup = resolvedModelGroups.first { $0.providerID == selectedProvider } ?? resolvedModelGroups.first
+    let selectedModelOption = selectedGroup?.options.first { $0.value == selectedModel } ?? selectedGroup?.options.first
+    let selectedEffortOption = effortOptions.first { $0.value == selectedEffort }
+    let defaultEffortOption = defaultEffort.flatMap { defaultEffort in
+        effortOptions.first { $0.value == defaultEffort }
+    } ?? effortOptions.first
     return ChatComposerActionRowView.ReasoningConfiguration(
         selection: .init(
-            providerID: selectedProviderOption?.value ?? selectedProvider,
-            providerTitle: selectedProviderOption?.title ?? selectedProvider.capitalized,
+            providerID: selectedGroup?.providerID ?? selectedProvider,
+            providerTitle: selectedGroup?.providerTitle ?? selectedProvider.capitalized,
             modelID: selectedModelOption?.value ?? selectedModel,
             modelTitle: selectedModelOption?.title ?? ChatComposerTextSupport.modelLabel(for: selectedModel),
-            effortValue: selectedEffortOption?.value ?? selectedEffort,
+            effortValue: selectedEffort,
             effortTitle: selectedEffortOption?.title ?? ChatComposerTextSupport.effortLabel(for: selectedEffort),
             effortOptions: effortOptions,
+            defaultEffortValue: defaultEffortOption?.value,
             speedMode: selectedSpeedMode,
             supportsSpeedMode: supportsSpeedMode
         ),
-        modelGroups: providerOptions.map { provider in
-            ChatComposerActionRowView.ReasoningModelGroup(
-                providerID: provider.value,
-                providerTitle: hasStartedThread ? nil : provider.title,
-                options: modelOptions.map { model in
-                    ChatComposerActionRowView.ReasoningModelOption(
-                        providerID: provider.value,
-                        value: model.value,
-                        title: model.title
-                    )
-                }
-            )
-        },
-        hasStartedThread: hasStartedThread,
+        modelGroups: resolvedModelGroups,
         onEffortChange: onEffortChange,
         onSpeedChange: onSpeedChange,
         onModelChange: onModelChange

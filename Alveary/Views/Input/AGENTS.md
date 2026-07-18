@@ -48,7 +48,12 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Keep the `+` menu presentation-only inside `ChatComposerActionRowView`. File picking, BlockInputKit insertion, and plan-mode mutation must remain callbacks owned by the composer panel or view model.
 - Task Workspace controls are mode-specific composer settings, not attachments. The native action row presents current grants, `AppKitChatComposerPanelView` owns the directory picker, and `ConversationViewModel` owns validation/persistence/reconfiguration.
 - Provider and model options are caller-owned inputs populated from `AgentProviderDiscoveryService`; the action row renders them but must not discover providers, refresh models, or read provider config directly.
-- Speed controls are caller-owned inputs too. Render the `Speed` submenu only when the active provider reports support; `Standard` has no leading icon, `Fast` uses SF Symbol `bolt`, selected rows use a trailing checkmark, and the composer reasoning button shows the same `bolt` with the permission dropdown's leading-icon metrics.
+- Reasoning controls are caller-owned inputs.
+  - Render effort as the oversized snapping slider.
+  - Render models as an inline disclosure list, grouped by provider only when multiple non-empty groups are present.
+  - Resize the inline model list and popover immediately when disclosure changes; do not animate the list expansion. Keep the rotating caret treatment and pinned controls.
+  - Render Fast as a separate toggle only when supported: use `bolt` with enablement help while off and accent-tinted `bolt.fill` with disablement help while on.
+  - Keep the compact reasoning button's active-only `bolt` indicator.
 - `/fast` is an Alveary local command. Keep it enable-only: `/fast` selects Fast, `/fast <prompt>` selects Fast and sends or queues that prompt with a next-turn required speed. Do not add a special inline argument hint for it.
 - `ChatComposerActionRow` owns the bottom settings/action row; `ChatComposerActionRowView` owns native AppKit rendering inside the production panel.
 - The leading `+` button must remain square to the dropdown height, with default, hover, pressed, focused, and disabled states clipped to the same circular background.
