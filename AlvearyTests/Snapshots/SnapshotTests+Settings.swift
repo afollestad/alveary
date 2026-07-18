@@ -274,22 +274,22 @@ extension SnapshotTests {
     }
 
     func testAppUpdatesSettingsTab() async throws {
-        let release = try snapshotAppUpdateRelease()
-        let manager = snapshotAppUpdateManager(result: .installable(release))
+        let feed = try snapshotAppUpdateFeed()
+        let manager = snapshotAppUpdateManager(result: .installable(feed))
         await manager.forceCheck()
         XCTAssertEqual(manager.lastCheckedAt, Date(timeIntervalSince1970: 1_783_468_800))
 
         assertMacSnapshot(
             AppUpdatesSettingsTabView(updateManager: manager)
                 .padding(24),
-            size: CGSize(width: 720, height: 560),
+            size: CGSize(width: 720, height: 680),
             named: "settings_app_updates_tab"
         )
     }
 
     func testAppUpdatesSettingsTabDownloadingNarrow() async throws {
-        let release = try snapshotAppUpdateRelease()
-        let manager = snapshotDownloadingAppUpdateManager(release: release)
+        let feed = try snapshotAppUpdateFeed()
+        let manager = snapshotDownloadingAppUpdateManager(feed: feed)
         let downloadTask = Task { @MainActor in
             await manager.downloadLatestUpdate()
         }
@@ -312,8 +312,8 @@ extension SnapshotTests {
     }
 
     func testAppUpdatesSettingsTabDownloadFailureNarrow() async throws {
-        let release = try snapshotAppUpdateRelease()
-        let manager = snapshotFailedDownloadAppUpdateManager(release: release)
+        let feed = try snapshotAppUpdateFeed()
+        let manager = snapshotFailedDownloadAppUpdateManager(feed: feed)
         await manager.downloadLatestUpdate()
 
         assertMacSnapshot(

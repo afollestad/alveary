@@ -48,6 +48,7 @@ final class AppUpdateManager {
     private(set) var status: AppUpdateStatus = .idle
     private(set) var isChecking = false
     private(set) var latestRelease: AppUpdateRelease?
+    private(set) var releaseNotes: [AppUpdateReleaseNote] = []
     private(set) var currentVersion: AppUpdateVersion?
     private(set) var lastCheckedAt: Date?
     private(set) var lastManualFailure: AppUpdateUnavailableReason?
@@ -139,7 +140,7 @@ final class AppUpdateManager {
 
         downloadState = .checkingLatestRelease
         let checkResult = await forceCheck()
-        guard case .updateAvailable(let release, _) = checkResult else {
+        guard case .updateAvailable(let snapshot) = checkResult else {
             downloadState = .failed(AppUpdateFailure(message: "No newer Alveary update is available to download."))
             return nil
         }
@@ -149,6 +150,7 @@ final class AppUpdateManager {
             return nil
         }
 
+        let release = snapshot.latestRelease
         downloadState = .downloading(release, progress: 0)
         let download = startDownloadTask(
             release: release,
@@ -286,16 +288,18 @@ private extension AppUpdateManager {
 
     func apply(_ result: AppUpdateCheckResult, trigger: AppUpdateCheckTrigger) {
         switch result {
-        case .updateAvailable(let release, let currentVersion):
-            latestRelease = release
-            self.currentVersion = currentVersion
+        case .updateAvailable(let snapshot):
+            latestRelease = snapshot.latestRelease
+            releaseNotes = snapshot.releaseNotes
+            currentVersion = snapshot.currentVersion
             lastManualFailure = nil
-            status = .updateAvailable(release, currentVersion: currentVersion)
-        case .upToDate(let release, let currentVersion):
-            latestRelease = release
-            self.currentVersion = currentVersion
+            status = .updateAvailable(snapshot.latestRelease, currentVersion: snapshot.currentVersion)
+        case .upToDate(let snapshot):
+            latestRelease = snapshot.latestRelease
+            releaseNotes = snapshot.releaseNotes
+            currentVersion = snapshot.currentVersion
             lastManualFailure = nil
-            status = .upToDate(release, currentVersion: currentVersion)
+            status = .upToDate(snapshot.latestRelease, currentVersion: snapshot.currentVersion)
         case .unavailable(let reason):
             guard trigger == .manual else {
                 return

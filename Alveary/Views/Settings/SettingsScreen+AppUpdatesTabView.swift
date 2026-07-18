@@ -216,18 +216,12 @@ private extension AppUpdatesSettingsTabView {
     @ViewBuilder
     var changelogContent: some View {
         if let release = displayedRelease {
-            let markdown = release.changelogMarkdown.trimmingCharacters(in: .whitespacesAndNewlines)
-            if markdown.isEmpty {
-                Text("No changelog was included with \(release.tagName).")
-                    .foregroundStyle(.secondary)
-            } else {
-                AppMarkdownText(
-                    markdown: release.changelogMarkdown,
-                    baseURL: release.repositoryHTMLURL,
-                    taskStateScope: "app-updates-\(release.tagName)"
-                )
-                .textSelection(.enabled)
-            }
+            AppMarkdownText(
+                markdown: combinedReleaseNotesMarkdown(fallbackRelease: release),
+                baseURL: release.repositoryHTMLURL,
+                taskStateScope: "app-updates-\(release.tagName)"
+            )
+            .textSelection(.enabled)
         } else if case .unavailable(let reason) = updateManager.status {
             Text(reason.settingsDescription)
                 .foregroundStyle(.secondary)
@@ -235,6 +229,18 @@ private extension AppUpdatesSettingsTabView {
             Text("Check for updates to load the latest release notes.")
                 .foregroundStyle(.secondary)
         }
+    }
+
+    func combinedReleaseNotesMarkdown(fallbackRelease: AppUpdateRelease) -> String {
+        let notes = updateManager.releaseNotes.isEmpty ? [fallbackRelease.releaseNote] : updateManager.releaseNotes
+        return notes.map { note in
+            let body = note.changelogMarkdown
+            let renderedBody = body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "No changelog was included with \(note.tagName)."
+                : body
+            return "# \(note.tagName)\n\n\(renderedBody)"
+        }
+        .joined(separator: "\n\n---\n\n")
     }
 
     func checkNow() {
@@ -457,7 +463,7 @@ private extension AppUpdateUnavailableReason {
         case .gitHubCLINotInstalled:
             return "Install the GitHub CLI to check for Alveary updates."
         case .gitHubCLINotAuthenticated:
-            return "Sign in to GitHub CLI to check private Alveary releases."
+            return "Sign in to GitHub CLI to check for Alveary updates."
         case .noRelease:
             return "No GitHub release is available."
         case .privateOrNotFound:

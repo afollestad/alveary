@@ -60,15 +60,15 @@ actor GitHubCLIAppUpdateReleaseClient: AppUpdateReleaseClient {
 
             let releaseResult = try await runGitHubCLI(
                 executable: ghExecutable,
-                args: ["api", "repos/\(owner)/\(repository)/releases/latest"],
+                args: ["api", "--paginate", "--slurp", "repos/\(owner)/\(repository)/releases?per_page=100"],
                 timeout: .seconds(30),
-                stdoutLimitBytes: 2 * 1024 * 1024
+                stdoutLimitBytes: 16 * 1024 * 1024
             )
             guard releaseResult.succeeded else {
                 return failureResult(for: releaseResult, notFoundReason: .noRelease)
             }
             guard !releaseResult.stdoutWasTruncated else {
-                return .unavailable(.decodingFailed("GitHub release response exceeded the 2 MB limit."))
+                return .unavailable(.decodingFailed("GitHub releases response exceeded the 16 MB limit."))
             }
 
             return decodeReleaseResponse(data: releaseResult.stdoutData)
@@ -95,23 +95,58 @@ private extension GitHubCLIAppUpdateReleaseClient {
     }
 
     func decodeReleaseResponse(data: Data) -> AppUpdateReleaseLookupResult {
-        let release: GitHubReleaseResponse
+        let pages: [[GitHubReleaseResponse]]
         do {
-            release = try decoder.decode(GitHubReleaseResponse.self, from: data)
+            pages = try decoder.decode([[GitHubReleaseResponse]].self, from: data)
         } catch {
             return .unavailable(.decodingFailed(error.localizedDescription))
         }
 
-        if release.draft {
-            return .unavailable(.draftRelease)
+        switch stableReleaseHistory(from: pages.flatMap { $0 }) {
+        case .success(let releases):
+            return makeReleaseFeed(from: releases)
+        case .failure(let reason):
+            return .unavailable(reason)
         }
-        if release.prerelease {
-            return .unavailable(.prerelease)
+    }
+
+    func stableReleaseHistory(from releases: [GitHubReleaseResponse]) -> StableReleaseHistoryResult {
+        guard !releases.isEmpty else {
+            return .failure(.noRelease)
         }
 
-        guard let version = AppUpdateVersion(string: release.tagName) else {
-            return .unavailable(.malformedVersion(release.tagName))
+        let nonDraftReleases = releases.filter { !$0.draft }
+        guard !nonDraftReleases.isEmpty else {
+            return .failure(.draftRelease)
         }
+
+        let stableReleases = nonDraftReleases.filter { !$0.prerelease }
+        guard !stableReleases.isEmpty else {
+            return .failure(.prerelease)
+        }
+
+        let versionedReleases = stableReleases.compactMap { release -> VersionedGitHubRelease? in
+            guard let version = AppUpdateVersion(string: release.tagName) else {
+                return nil
+            }
+            return VersionedGitHubRelease(release: release, version: version)
+        }
+        guard !versionedReleases.isEmpty else {
+            return .failure(.malformedVersion(stableReleases[0].tagName))
+        }
+
+        var seenVersions = Set<AppUpdateVersion>()
+        let sortedReleases = versionedReleases
+            .filter { seenVersions.insert($0.version).inserted }
+            .sorted { $0.version > $1.version }
+        return .success(sortedReleases)
+    }
+
+    func makeReleaseFeed(from sortedReleases: [VersionedGitHubRelease]) -> AppUpdateReleaseLookupResult {
+        guard let latest = sortedReleases.first else {
+            return .unavailable(.noRelease)
+        }
+        let release = latest.release
         guard let htmlURL = URL(string: release.htmlURL),
               htmlURL.scheme == "https" else {
             return .unavailable(.invalidReleaseURL(release.htmlURL))
@@ -133,13 +168,22 @@ private extension GitHubCLIAppUpdateReleaseClient {
         }
 
         return .installable(
-            AppUpdateRelease(
-                tagName: release.tagName,
-                version: version,
-                changelogMarkdown: release.body ?? "",
-                htmlURL: htmlURL,
-                repositoryHTMLURL: repositoryHTMLURL,
-                asset: releaseAsset
+            AppUpdateReleaseFeed(
+                latestRelease: AppUpdateRelease(
+                    tagName: release.tagName,
+                    version: latest.version,
+                    changelogMarkdown: release.body ?? "",
+                    htmlURL: htmlURL,
+                    repositoryHTMLURL: repositoryHTMLURL,
+                    asset: releaseAsset
+                ),
+                releaseNotes: sortedReleases.map { release in
+                    AppUpdateReleaseNote(
+                        tagName: release.release.tagName,
+                        version: release.version,
+                        changelogMarkdown: release.release.body ?? ""
+                    )
+                }
             )
         )
     }
@@ -250,6 +294,16 @@ private struct GitHubReleaseAssetResponse: Decodable {
         case size
         case digest
     }
+}
+
+private struct VersionedGitHubRelease {
+    let release: GitHubReleaseResponse
+    let version: AppUpdateVersion
+}
+
+private enum StableReleaseHistoryResult {
+    case success([VersionedGitHubRelease])
+    case failure(AppUpdateUnavailableReason)
 }
 
 private enum AppUpdateReleaseAssetValidationResult {

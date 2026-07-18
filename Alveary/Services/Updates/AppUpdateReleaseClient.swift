@@ -22,10 +22,19 @@ struct AppUpdateChecker: Sendable {
         }
 
         switch await releaseClient.latestRelease() {
-        case .installable(let release) where release.version > currentVersion:
-            return .updateAvailable(release, currentVersion: currentVersion)
-        case .installable(let release):
-            return .upToDate(release, currentVersion: currentVersion)
+        case .installable(let feed):
+            let newerReleaseNotes = feed.releaseNotes
+                .filter { $0.version > currentVersion }
+                .sorted { $0.version > $1.version }
+            let snapshot = AppUpdateCheckSnapshot(
+                latestRelease: feed.latestRelease,
+                currentVersion: currentVersion,
+                releaseNotes: newerReleaseNotes.isEmpty ? [feed.latestRelease.releaseNote] : newerReleaseNotes
+            )
+            if feed.latestRelease.version > currentVersion {
+                return .updateAvailable(snapshot)
+            }
+            return .upToDate(snapshot)
         case .unavailable(let reason):
             return .unavailable(reason)
         }

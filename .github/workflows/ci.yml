@@ -43,7 +43,7 @@ jobs:
         run: ./scripts/setup.sh
 
       - name: Test release scripts
-        run: python3 scripts/ci/resolve_previous_release_tests.py
+        run: python3 -m unittest discover -s scripts/ci -p '*_tests.py'
 
       - name: Lint
         run: ./scripts/lint.sh

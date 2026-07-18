@@ -3,6 +3,8 @@
 These instructions cover update-checking, release metadata, download, staging, and install helpers under `Alveary/Services/Updates/`.
 
 - Runtime update checks use the GitHub CLI so private GitHub Releases work through the user's existing `gh` auth.
+- Fetch release history with paginated GitHub CLI API calls, sort by parsed semantic version, and keep display-only historical notes separate from the installable latest release.
+- Historical releases do not need an install asset or digest to contribute notes; validate the release artifact contract only for the highest stable version selected for download.
 - Downloads use `gh auth token`, then stream the GitHub release asset API URL with authenticated `URLSession` requests so progress can be reported while private repositories still work.
 - Keep update ZIP downloads non-cached so progress reflects the current GitHub asset instead of a reused local response.
 - Require GitHub release asset SHA-256 digests for installable updates, and verify the downloaded ZIP digest before staging.

@@ -22,35 +22,53 @@ extension SnapshotTests {
         )
     }
 
-    func snapshotDownloadingAppUpdateManager(release: AppUpdateRelease) -> AppUpdateManager {
+    func snapshotDownloadingAppUpdateManager(feed: AppUpdateReleaseFeed) -> AppUpdateManager {
         snapshotAppUpdateManager(
-            result: .installable(release),
+            result: .installable(feed),
             downloader: SnapshotPendingAppUpdateDownloader(progress: 0.42),
             stager: SnapshotAppUpdateStager()
         )
     }
 
-    func snapshotFailedDownloadAppUpdateManager(release: AppUpdateRelease) -> AppUpdateManager {
+    func snapshotFailedDownloadAppUpdateManager(feed: AppUpdateReleaseFeed) -> AppUpdateManager {
         snapshotAppUpdateManager(
-            result: .installable(release),
+            result: .installable(feed),
             downloader: SnapshotFailingAppUpdateDownloader(),
             stager: SnapshotAppUpdateStager()
         )
     }
 
-    func snapshotAppUpdateRelease() throws -> AppUpdateRelease {
-        let downloadURL = "https://github.com/afollestad/alveary/releases/download/v0.1.1/Alveary.app.zip"
-        return AppUpdateRelease(
-            tagName: "v0.1.1",
-            version: try XCTUnwrap(AppUpdateVersion(string: "v0.1.1")),
-            changelogMarkdown: """
-            ## Changes
+    func snapshotAppUpdateFeed() throws -> AppUpdateReleaseFeed {
+        let latestRelease = try snapshotAppUpdateRelease()
+        return AppUpdateReleaseFeed(
+            latestRelease: latestRelease,
+            releaseNotes: [
+                latestRelease.releaseNote,
+                AppUpdateReleaseNote(
+                    tagName: "v0.1.2",
+                    version: try XCTUnwrap(AppUpdateVersion(string: "v0.1.2")),
+                    changelogMarkdown: ""
+                ),
+                AppUpdateReleaseNote(
+                    tagName: "v0.1.1",
+                    version: try XCTUnwrap(AppUpdateVersion(string: "v0.1.1")),
+                    changelogMarkdown: "- Added authenticated GitHub release checks."
+                )
+            ]
+        )
+    }
 
-            - Added **GitHub Releases** update checks.
-            - Rendered release notes with shared markdown.
-            - See [full release notes](/afollestad/alveary/releases/tag/v0.1.1).
+    private func snapshotAppUpdateRelease() throws -> AppUpdateRelease {
+        let tagName = "v0.1.3"
+        let downloadURL = "https://github.com/afollestad/alveary/releases/download/\(tagName)/Alveary.app.zip"
+        return AppUpdateRelease(
+            tagName: tagName,
+            version: try XCTUnwrap(AppUpdateVersion(string: tagName)),
+            changelogMarkdown: """
+            - Combined release notes for every newer version.
+            - Kept [repository-relative links](/afollestad/alveary/releases) interactive.
             """,
-            htmlURL: try XCTUnwrap(URL(string: "https://github.com/afollestad/alveary/releases/tag/v0.1.1")),
+            htmlURL: try XCTUnwrap(URL(string: "https://github.com/afollestad/alveary/releases/tag/\(tagName)")),
             repositoryHTMLURL: try XCTUnwrap(URL(string: "https://github.com/afollestad/alveary")),
             asset: AppUpdateReleaseAsset(
                 name: "Alveary.app.zip",

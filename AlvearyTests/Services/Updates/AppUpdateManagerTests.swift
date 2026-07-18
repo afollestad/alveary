@@ -8,7 +8,7 @@ final class AppUpdateManagerTests: XCTestCase {
         let release = try makeManagerTestRelease(tagName: "v0.1.1")
         let clock = AppUpdateTestClock(now: Date(timeIntervalSince1970: 100))
         let manager = AppUpdateManager(
-            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            releaseClient: AppUpdateReleaseClientFake(results: [.installable(makeManagerTestFeed(latestRelease: release))]),
             versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0"),
             scheduleTiming: clock.scheduleTiming
         )
@@ -16,9 +16,15 @@ final class AppUpdateManagerTests: XCTestCase {
         let result = await manager.forceCheck()
 
         let currentVersion = try XCTUnwrap(AppUpdateVersion(string: "0.1.0"))
-        XCTAssertEqual(result, .updateAvailable(release, currentVersion: currentVersion))
+        let expectedSnapshot = AppUpdateCheckSnapshot(
+            latestRelease: release,
+            currentVersion: currentVersion,
+            releaseNotes: [release.releaseNote]
+        )
+        XCTAssertEqual(result, .updateAvailable(expectedSnapshot))
         XCTAssertEqual(manager.status, .updateAvailable(release, currentVersion: currentVersion))
         XCTAssertEqual(manager.latestRelease, release)
+        XCTAssertEqual(manager.releaseNotes, [release.releaseNote])
         XCTAssertEqual(manager.currentVersion, currentVersion)
         XCTAssertEqual(manager.lastCheckedAt, Date(timeIntervalSince1970: 100))
         XCTAssertFalse(manager.isChecking)
@@ -53,6 +59,31 @@ final class AppUpdateManagerTests: XCTestCase {
         XCTAssertEqual(manager.toolbarBadgeState, .none)
     }
 
+    func testManualFailureRetainsLastSuccessfulReleaseNotes() async throws {
+        let release = try makeManagerTestRelease(tagName: "v0.1.2")
+        let olderNote = AppUpdateReleaseNote(
+            tagName: "v0.1.1",
+            version: try XCTUnwrap(AppUpdateVersion(string: "v0.1.1")),
+            changelogMarkdown: "Older changes"
+        )
+        let releaseNotes = [release.releaseNote, olderNote]
+        let manager = AppUpdateManager(
+            releaseClient: AppUpdateReleaseClientFake(results: [
+                .installable(makeManagerTestFeed(latestRelease: release, releaseNotes: releaseNotes)),
+                .unavailable(.rateLimited(resetDate: nil))
+            ]),
+            versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0")
+        )
+
+        await manager.forceCheck()
+        let result = await manager.forceCheck()
+
+        XCTAssertEqual(result, .unavailable(.rateLimited(resetDate: nil)))
+        XCTAssertEqual(manager.status, .unavailable(.rateLimited(resetDate: nil)))
+        XCTAssertEqual(manager.latestRelease, release)
+        XCTAssertEqual(manager.releaseNotes, releaseNotes)
+    }
+
     func testForceCheckCoalescesOverlappingChecks() async throws {
         let release = try makeManagerTestRelease(tagName: "v0.1.1")
         let client = AppUpdateReleaseClientFake()
@@ -71,10 +102,16 @@ final class AppUpdateManagerTests: XCTestCase {
         try await waitUntil("expected one coalesced release lookup") {
             await client.callCount() == 1
         }
-        await client.completeNext(with: .installable(release))
+        await client.completeNext(with: .installable(makeManagerTestFeed(latestRelease: release)))
 
         let currentVersion = try XCTUnwrap(AppUpdateVersion(string: "0.1.0"))
-        let expectedResult = AppUpdateCheckResult.updateAvailable(release, currentVersion: currentVersion)
+        let expectedResult = AppUpdateCheckResult.updateAvailable(
+            AppUpdateCheckSnapshot(
+                latestRelease: release,
+                currentVersion: currentVersion,
+                releaseNotes: [release.releaseNote]
+            )
+        )
         let firstResult = await firstCheck.value
         let secondResult = await secondCheck.value
         let callCount = await client.callCount()
@@ -89,8 +126,8 @@ final class AppUpdateManagerTests: XCTestCase {
         let firstRelease = try makeManagerTestRelease(tagName: "v0.1.1")
         let secondRelease = try makeManagerTestRelease(tagName: "v0.1.2")
         let client = AppUpdateReleaseClientFake(results: [
-            .installable(firstRelease),
-            .installable(secondRelease)
+            .installable(makeManagerTestFeed(latestRelease: firstRelease)),
+            .installable(makeManagerTestFeed(latestRelease: secondRelease))
         ])
         let clock = AppUpdateTestClock()
         let manager = AppUpdateManager(
@@ -123,8 +160,8 @@ final class AppUpdateManagerTests: XCTestCase {
         let launchRelease = try makeManagerTestRelease(tagName: "v0.1.1")
         let manualRelease = try makeManagerTestRelease(tagName: "v0.1.2")
         let client = AppUpdateReleaseClientFake(results: [
-            .installable(launchRelease),
-            .installable(manualRelease)
+            .installable(makeManagerTestFeed(latestRelease: launchRelease)),
+            .installable(makeManagerTestFeed(latestRelease: manualRelease))
         ])
         let clock = AppUpdateTestClock()
         let manager = AppUpdateManager(
@@ -333,6 +370,16 @@ func makeManagerTestRelease(tagName: String) throws -> AppUpdateRelease {
             size: 123,
             digest: try XCTUnwrap(AppUpdateReleaseAssetDigest(sha256HexDigest: String(repeating: "a", count: 64)))
         )
+    )
+}
+
+func makeManagerTestFeed(
+    latestRelease: AppUpdateRelease,
+    releaseNotes: [AppUpdateReleaseNote]? = nil
+) -> AppUpdateReleaseFeed {
+    AppUpdateReleaseFeed(
+        latestRelease: latestRelease,
+        releaseNotes: releaseNotes ?? [latestRelease.releaseNote]
     )
 }
 

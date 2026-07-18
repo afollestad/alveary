@@ -9,6 +9,23 @@ struct AppUpdateRelease: Equatable, Sendable {
     let asset: AppUpdateReleaseAsset
 }
 
+struct AppUpdateReleaseNote: Equatable, Sendable {
+    let tagName: String
+    let version: AppUpdateVersion
+    let changelogMarkdown: String
+}
+
+struct AppUpdateReleaseFeed: Equatable, Sendable {
+    let latestRelease: AppUpdateRelease
+    let releaseNotes: [AppUpdateReleaseNote]
+}
+
+struct AppUpdateCheckSnapshot: Equatable, Sendable {
+    let latestRelease: AppUpdateRelease
+    let currentVersion: AppUpdateVersion
+    let releaseNotes: [AppUpdateReleaseNote]
+}
+
 struct AppUpdateReleaseAsset: Equatable, Sendable {
     let name: String
     let apiURL: URL
@@ -52,7 +69,7 @@ struct AppUpdateReleaseAssetDigest: Equatable, Sendable {
 }
 
 enum AppUpdateReleaseLookupResult: Equatable, Sendable {
-    case installable(AppUpdateRelease)
+    case installable(AppUpdateReleaseFeed)
     case unavailable(AppUpdateUnavailableReason)
 }
 
@@ -76,7 +93,17 @@ enum AppUpdateUnavailableReason: Equatable, Sendable {
 }
 
 enum AppUpdateCheckResult: Equatable, Sendable {
-    case updateAvailable(AppUpdateRelease, currentVersion: AppUpdateVersion)
-    case upToDate(AppUpdateRelease, currentVersion: AppUpdateVersion)
+    case updateAvailable(AppUpdateCheckSnapshot)
+    case upToDate(AppUpdateCheckSnapshot)
     case unavailable(AppUpdateUnavailableReason)
+}
+
+extension AppUpdateRelease {
+    var releaseNote: AppUpdateReleaseNote {
+        AppUpdateReleaseNote(
+            tagName: tagName,
+            version: version,
+            changelogMarkdown: changelogMarkdown
+        )
+    }
 }
