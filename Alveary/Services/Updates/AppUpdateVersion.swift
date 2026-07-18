@@ -1,6 +1,6 @@
 import Foundation
 
-struct AppUpdateVersion: Comparable, Equatable, Sendable, CustomStringConvertible {
+struct AppUpdateVersion: Comparable, Equatable, Hashable, Sendable, CustomStringConvertible {
     let major: Int
     let minor: Int
     let patch: Int

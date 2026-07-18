@@ -6,12 +6,20 @@ import XCTest
 extension AppUpdateManagerTests {
     func testDownloadLatestUpdateChecksThenDownloadsAndStagesRelease() async throws {
         let release = try makeManagerTestRelease(tagName: "v0.1.1")
+        let historicalRelease = try makeManagerTestRelease(tagName: "v0.1.0")
         let downloadedZIPURL = try XCTUnwrap(URL(string: "file:///tmp/Alveary.zip"))
         let stagedUpdate = try makeManagerTestStagedUpdate(release: release)
         let downloader = AppUpdateDownloaderFake(mode: .immediate(downloadedZIPURL))
         let stager = AppUpdateStagerFake(stageResult: stagedUpdate)
         let manager = AppUpdateManager(
-            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            releaseClient: AppUpdateReleaseClientFake(results: [
+                .installable(
+                    makeManagerTestFeed(
+                        latestRelease: release,
+                        releaseNotes: [release.releaseNote, historicalRelease.releaseNote]
+                    )
+                )
+            ]),
             versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0"),
             downloader: downloader,
             stager: stager
@@ -61,7 +69,7 @@ extension AppUpdateManagerTests {
         let release = try makeManagerTestRelease(tagName: "v0.1.1")
         let downloader = AppUpdateDownloaderFake(mode: .sleepUntilCancelled)
         let manager = AppUpdateManager(
-            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            releaseClient: AppUpdateReleaseClientFake(results: [.installable(makeManagerTestFeed(latestRelease: release))]),
             versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0"),
             downloader: downloader,
             stager: AppUpdateStagerFake(stageResult: try makeManagerTestStagedUpdate(release: release))
@@ -106,7 +114,7 @@ extension AppUpdateManagerTests {
     func testAutomaticChecksTreatMissingStagedUpdateAsIdleAndContinueToReleaseCheck() async throws {
         let release = try makeManagerTestRelease(tagName: "v0.1.1")
         let manager = AppUpdateManager(
-            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            releaseClient: AppUpdateReleaseClientFake(results: [.installable(makeManagerTestFeed(latestRelease: release))]),
             versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.1"),
             stager: AppUpdateStagerFake()
         )
@@ -130,7 +138,7 @@ extension AppUpdateManagerTests {
         let release = try makeManagerTestRelease(tagName: "v0.1.1")
         let failure = AppUpdateFailure(message: "The staged app signature is invalid.")
         let manager = AppUpdateManager(
-            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            releaseClient: AppUpdateReleaseClientFake(results: [.installable(makeManagerTestFeed(latestRelease: release))]),
             versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.1"),
             stager: AppUpdateStagerFake(loadError: failure)
         )
@@ -155,7 +163,7 @@ extension AppUpdateManagerTests {
         let stagedUpdate = try makeManagerTestStagedUpdate(release: release)
         let installer = AppUpdateInstallerFake()
         let manager = AppUpdateManager(
-            releaseClient: AppUpdateReleaseClientFake(results: [.installable(release)]),
+            releaseClient: AppUpdateReleaseClientFake(results: [.installable(makeManagerTestFeed(latestRelease: release))]),
             versionProvider: AppUpdateVersionProviderFake(versionString: "0.1.0"),
             downloader: AppUpdateDownloaderFake(mode: .immediate(try XCTUnwrap(URL(string: "file:///tmp/Alveary.zip")))),
             stager: AppUpdateStagerFake(stageResult: stagedUpdate),

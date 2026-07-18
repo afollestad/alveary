@@ -3,17 +3,18 @@ import XCTest
 @testable import Alveary
 
 final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
-    func testFetchesLatestReleaseWithGitHubCLI() async throws {
+    func testFetchesReleaseFeedWithGitHubCLI() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(.success(shellResult(stdout: "gh version 2.89.0")))
         await shell.enqueue(.success(shellResult(stdout: "Logged in to github.com")))
         await shell.enqueue(.success(shellResult(stdout: "afollestad/alveary")))
-        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON())))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON())))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
-        let release = try XCTUnwrap(result.installableRelease)
+        let feed = try XCTUnwrap(result.installableFeed)
+        let release = feed.latestRelease
         XCTAssertEqual(release.tagName, "v0.1.1")
         XCTAssertEqual(release.version.description, "0.1.1")
         XCTAssertEqual(release.changelogMarkdown, "## Changes")
@@ -23,6 +24,7 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(release.asset.apiURL, URL(string: "https://api.github.com/repos/afollestad/alveary/releases/assets/123"))
         XCTAssertEqual(release.asset.downloadURL, URL(string: "https://github.com/afollestad/alveary/releases/download/v0.1.1/Alveary.app.zip"))
         XCTAssertEqual(release.asset.digest.gitHubDigest, validGitHubAssetDigest)
+        XCTAssertEqual(feed.releaseNotes, [release.releaseNote])
 
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.map(\.executable), Array(repeating: "/opt/homebrew/bin/gh", count: 4))
@@ -32,8 +34,37 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
             invocations[2].args,
             ["repo", "view", "afollestad/alveary", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]
         )
-        XCTAssertEqual(invocations[3].args, ["api", "repos/afollestad/alveary/releases/latest"])
-        XCTAssertEqual(invocations[3].stdoutLimitBytes, 2 * 1024 * 1024)
+        XCTAssertEqual(
+            invocations[3].args,
+            ["api", "--paginate", "--slurp", "repos/afollestad/alveary/releases?per_page=100"]
+        )
+        XCTAssertEqual(invocations[3].stdoutLimitBytes, 16 * 1024 * 1024)
+    }
+
+    func testFlattensPagesFiltersNonStableEntriesAndSortsSemanticVersions() async throws {
+        let shell = await repositoryAccessibleShell()
+        let pages = [
+            [
+                releaseResponse(tagName: "v0.1.2", body: "First 0.1.2"),
+                releaseResponse(tagName: "v0.2.0", prerelease: true),
+                releaseResponse(tagName: "nightly")
+            ],
+            [
+                releaseResponse(tagName: "v0.1.10", body: "Newest"),
+                releaseResponse(tagName: "0.1.2", body: "Duplicate 0.1.2"),
+                releaseResponse(tagName: "v0.1.1", body: "Old notes", assetName: nil),
+                releaseResponse(tagName: "v9.0.0", draft: true)
+            ]
+        ]
+        await shell.enqueue(.success(shellResult(stdoutData: try releasePagesJSON(pages))))
+        let client = makeClient(shell: shell)
+
+        let result = await client.latestRelease()
+
+        let feed = try XCTUnwrap(result.installableFeed)
+        XCTAssertEqual(feed.latestRelease.tagName, "v0.1.10")
+        XCTAssertEqual(feed.releaseNotes.map(\.tagName), ["v0.1.10", "v0.1.2", "v0.1.1"])
+        XCTAssertEqual(feed.releaseNotes.map(\.changelogMarkdown), ["Newest", "First 0.1.2", "Old notes"])
     }
 
     func testMissingGitHubCLIReturnsExplicitState() async {
@@ -70,7 +101,17 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.privateOrNotFound))
     }
 
-    func testNoReleaseReturnsExplicitState() async {
+    func testNoReleaseReturnsExplicitState() async throws {
+        let shell = await repositoryAccessibleShell()
+        await shell.enqueue(.success(shellResult(stdoutData: try releasePagesJSON([[]]))))
+        let client = makeClient(shell: shell)
+
+        let result = await client.latestRelease()
+
+        XCTAssertEqual(result, .unavailable(.noRelease))
+    }
+
+    func testReleaseRequestNotFoundReturnsExplicitState() async {
         let shell = await repositoryAccessibleShell()
         await shell.enqueue(.success(shellResult(stderr: "gh: Not Found (HTTP 404)", exitCode: 1)))
         let client = makeClient(shell: shell)
@@ -90,9 +131,9 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.rateLimited(resetDate: nil)))
     }
 
-    func testDraftReleaseIsRejected() async throws {
+    func testDraftOnlyHistoryIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(draft: true))))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(draft: true))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
@@ -100,9 +141,9 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.draftRelease))
     }
 
-    func testPrereleaseIsRejected() async throws {
+    func testPrereleaseOnlyHistoryIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(prerelease: true))))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(prerelease: true))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
@@ -110,9 +151,9 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.prerelease))
     }
 
-    func testMalformedTagIsRejected() async throws {
+    func testMalformedStableHistoryIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(tagName: "nightly"))))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(tagName: "nightly"))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
@@ -120,9 +161,9 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.malformedVersion("nightly")))
     }
 
-    func testMissingAssetIsRejected() async throws {
+    func testMissingLatestAssetIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(assetName: "Alveary.zip"))))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(assetName: "Alveary.zip"))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
@@ -130,9 +171,9 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.missingAsset(expectedName: "Alveary.app.zip")))
     }
 
-    func testMissingAssetDigestIsRejected() async throws {
+    func testMissingLatestAssetDigestIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(digest: nil))))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(digest: nil))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
@@ -140,9 +181,9 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.missingAssetDigest(expectedName: "Alveary.app.zip")))
     }
 
-    func testMalformedAssetDigestIsRejected() async throws {
+    func testMalformedLatestAssetDigestIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(shellResult(stdoutData: try releaseJSON(digest: "sha512:abc"))))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(digest: "sha512:abc"))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
@@ -150,9 +191,11 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.invalidAssetDigest("sha512:abc")))
     }
 
-    func testNonHTTPSAssetIsRejected() async throws {
+    func testNonHTTPSLatestAssetIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(try shellResult(apiURL: "http://api.github.com/repos/afollestad/alveary/releases/assets/123")))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(
+            apiURL: "http://api.github.com/repos/afollestad/alveary/releases/assets/123"
+        ))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
@@ -160,14 +203,42 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         XCTAssertEqual(result, .unavailable(.invalidAssetURL("http://api.github.com/repos/afollestad/alveary/releases/assets/123")))
     }
 
-    func testNonHTTPSBrowserDownloadAssetIsRejected() async throws {
+    func testNonHTTPSLatestBrowserDownloadAssetIsRejected() async throws {
         let shell = await repositoryAccessibleShell()
-        await shell.enqueue(.success(try shellResult(downloadURL: "http://example.com/Alveary.app.zip")))
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(downloadURL: "http://example.com/Alveary.app.zip"))))
         let client = makeClient(shell: shell)
 
         let result = await client.latestRelease()
 
         XCTAssertEqual(result, .unavailable(.invalidAssetURL("http://example.com/Alveary.app.zip")))
+    }
+
+    func testNonHTTPSLatestReleaseURLIsRejected() async throws {
+        let shell = await repositoryAccessibleShell()
+        await shell.enqueue(.success(shellResult(stdoutData: try singleReleaseJSON(
+            htmlURL: "http://github.com/afollestad/alveary/releases/tag/v0.1.1"
+        ))))
+        let client = makeClient(shell: shell)
+
+        let result = await client.latestRelease()
+
+        XCTAssertEqual(
+            result,
+            .unavailable(.invalidReleaseURL("http://github.com/afollestad/alveary/releases/tag/v0.1.1"))
+        )
+    }
+
+    func testTruncatedResponseIsExplicit() async throws {
+        let shell = await repositoryAccessibleShell()
+        await shell.enqueue(.success(shellResult(
+            stdoutData: try singleReleaseJSON(),
+            stdoutWasTruncated: true
+        )))
+        let client = makeClient(shell: shell)
+
+        let result = await client.latestRelease()
+
+        XCTAssertEqual(result, .unavailable(.decodingFailed("GitHub releases response exceeded the 16 MB limit.")))
     }
 
     func testDecodingFailureIsExplicit() async {
@@ -183,14 +254,28 @@ final class GitHubCLIAppUpdateReleaseClientTests: XCTestCase {
         }
         XCTAssertFalse(message.isEmpty)
     }
+
+    func testTransportFailureIsExplicit() async {
+        let shell = await repositoryAccessibleShell()
+        await shell.enqueue(.failure(.message("offline")))
+        let client = makeClient(shell: shell)
+
+        let result = await client.latestRelease()
+
+        guard case .unavailable(.transportFailed(let message)) = result else {
+            XCTFail("Expected transport failure, got \(result)")
+            return
+        }
+        XCTAssertFalse(message.isEmpty)
+    }
 }
 
 private extension AppUpdateReleaseLookupResult {
-    var installableRelease: AppUpdateRelease? {
-        guard case .installable(let release) = self else {
+    var installableFeed: AppUpdateReleaseFeed? {
+        guard case .installable(let feed) = self else {
             return nil
         }
-        return release
+        return feed
     }
 }
 
@@ -221,54 +306,84 @@ private func shellResult(
     stdout: String = "",
     stdoutData: Data? = nil,
     stderr: String = "",
-    exitCode: Int32 = 0
+    exitCode: Int32 = 0,
+    stdoutWasTruncated: Bool = false
 ) -> ShellResult {
     ShellResult(
         stdout: stdout,
         stdoutData: stdoutData,
         stderr: stderr,
         exitCode: exitCode,
-        stdoutWasTruncated: false,
+        stdoutWasTruncated: stdoutWasTruncated,
         stderrWasTruncated: false
     )
 }
 
-private func shellResult(downloadURL: String) throws -> ShellResult {
-    shellResult(stdoutData: try releaseJSON(downloadURL: downloadURL))
-}
-
-private func shellResult(apiURL: String) throws -> ShellResult {
-    shellResult(stdoutData: try releaseJSON(apiURL: apiURL))
-}
-
-private func releaseJSON(
+private func singleReleaseJSON(
     tagName: String = "v0.1.1",
     body: String? = "## Changes",
-    htmlURL: String = "https://github.com/afollestad/alveary/releases/tag/v0.1.1",
+    htmlURL: String? = nil,
     draft: Bool = false,
     prerelease: Bool = false,
-    assetName: String = "Alveary.app.zip",
+    assetName: String? = "Alveary.app.zip",
     apiURL: String = "https://api.github.com/repos/afollestad/alveary/releases/assets/123",
-    downloadURL: String = "https://github.com/afollestad/alveary/releases/download/v0.1.1/Alveary.app.zip",
+    downloadURL: String? = nil,
     digest: String? = validGitHubAssetDigest
 ) throws -> Data {
-    let release = StubGitHubReleaseResponse(
-        tagName: tagName,
-        body: body,
-        htmlURL: htmlURL,
-        draft: draft,
-        prerelease: prerelease,
-        assets: [
+    try releasePagesJSON([[
+        releaseResponse(
+            tagName: tagName,
+            body: body,
+            htmlURL: htmlURL,
+            draft: draft,
+            prerelease: prerelease,
+            assetName: assetName,
+            apiURL: apiURL,
+            downloadURL: downloadURL,
+            digest: digest
+        )
+    ]])
+}
+
+private func releasePagesJSON(_ pages: [[StubGitHubReleaseResponse]]) throws -> Data {
+    try JSONEncoder().encode(pages)
+}
+
+private func releaseResponse(
+    tagName: String,
+    body: String? = "Changes",
+    htmlURL: String? = nil,
+    draft: Bool = false,
+    prerelease: Bool = false,
+    assetName: String? = "Alveary.app.zip",
+    apiURL: String = "https://api.github.com/repos/afollestad/alveary/releases/assets/123",
+    downloadURL: String? = nil,
+    digest: String? = validGitHubAssetDigest
+) -> StubGitHubReleaseResponse {
+    let resolvedHTMLURL = htmlURL ?? "https://github.com/afollestad/alveary/releases/tag/\(tagName)"
+    let resolvedDownloadURL = downloadURL ?? "https://github.com/afollestad/alveary/releases/download/\(tagName)/Alveary.app.zip"
+    let assets: [StubGitHubReleaseAssetResponse]
+    if let assetName {
+        assets = [
             StubGitHubReleaseAssetResponse(
                 name: assetName,
                 url: apiURL,
-                browserDownloadURL: downloadURL,
+                browserDownloadURL: resolvedDownloadURL,
                 size: 456,
                 digest: digest
             )
         ]
+    } else {
+        assets = []
+    }
+    return StubGitHubReleaseResponse(
+        tagName: tagName,
+        body: body,
+        htmlURL: resolvedHTMLURL,
+        draft: draft,
+        prerelease: prerelease,
+        assets: assets
     )
-    return try JSONEncoder().encode(release)
 }
 
 private struct StubGitHubReleaseResponse: Encodable {
