@@ -3,6 +3,29 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
+    func testSkillsScreenPopulatedDark() async {
+        let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
+        await viewModel.load()
+
+        assertMacSnapshot(
+            SkillsScreen(viewModel: viewModel),
+            size: CGSize(width: 1_120, height: 900),
+            named: "skills_screen_populated_dark",
+            colorScheme: .dark
+        )
+    }
+
+    func testSkillsScreenPopulatedNarrow() async {
+        let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
+        await viewModel.load()
+
+        assertMacSnapshot(
+            SkillsScreen(viewModel: viewModel),
+            size: CGSize(width: 640, height: 900),
+            named: "skills_screen_populated_narrow"
+        )
+    }
+
     func testSkillsScreenNoInstalledSkills() async {
         let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService(installed: []))
         await viewModel.load()

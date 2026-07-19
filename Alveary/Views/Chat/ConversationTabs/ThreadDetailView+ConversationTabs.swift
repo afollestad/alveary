@@ -147,10 +147,7 @@ struct ThreadDetailConversationTabs: View {
         .padding(.vertical, 14)
         .background(.bar)
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color(nsColor: .separatorColor))
-                .frame(height: 1)
-                .accessibilityHidden(true)
+            AppSeparatorHairline(surface: .paneHeader)
         }
     }
 }

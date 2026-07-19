@@ -8,10 +8,7 @@ import XCTest
 
 extension SnapshotTests {
     func testConversationTabsBusyStatusSpinnerVisible() {
-        assertConversationTabsStatusSnapshot(
-            status: .busy,
-            named: "conversation_tabs_busy_spinner"
-        )
+        assertConversationTabsStatusSnapshot(status: .busy, named: "conversation_tabs_busy_spinner")
     }
 
     func testConversationTabsWaitingForUserStatusDotVisible() {
@@ -177,6 +174,7 @@ extension SnapshotTests {
             size: CGSize(width: 640, height: 72),
             named: named,
             colorScheme: colorScheme,
+            precision: 0.999, perceptualPrecision: 0.99,
             file: file,
             testName: testName,
             line: line

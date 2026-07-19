@@ -16,6 +16,7 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 - Do not allow switching rename targets mid-edit; SwiftUI can leave the new row stuck without a field.
 - Keep full-capsule press feedback and hit area. Do not hand-roll a status-dot + label + close capsule.
 - Keep the header's system `.bar` background and add separators as overlays.
+- Render the bottom header separator with `AppSeparatorHairline(surface: .paneHeader)` so its physical-pixel thickness and resolved tint match the titlebar separator.
 
 ## Shortcuts And Removal
 

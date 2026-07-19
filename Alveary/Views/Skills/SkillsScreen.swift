@@ -16,151 +16,154 @@ struct SkillsScreen: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                SkillsScreenHeader(
-                    searchQuery: Binding(
-                        get: { viewModel.searchQuery },
-                        set: { viewModel.searchQuery = $0 }
-                    ),
-                    onRefresh: {
-                        Task {
-                            await viewModel.refreshCatalog()
-                        }
-                    },
-                    onCreate: {
-                        isCreateSheetPresented = true
+        VStack(spacing: 0) {
+            SkillsScreenHeader(
+                searchQuery: Binding(
+                    get: { viewModel.searchQuery },
+                    set: { viewModel.searchQuery = $0 }
+                ),
+                onRefresh: {
+                    Task {
+                        await viewModel.refreshCatalog()
                     }
-                )
-
-                if let screenError {
-                    InlineBanner(
-                        message: screenError,
-                        severity: .error,
-                        autoDismissAfter: nil,
-                        onDismiss: { self.screenError = nil }
-                    )
+                },
+                onCreate: {
+                    isCreateSheetPresented = true
                 }
+            )
 
-                if viewModel.installed.isEmpty && !viewModel.catalog.isEmpty && !viewModel.hasActiveSearch {
-                    NoSkillsInstalledLabel()
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if let screenError {
+                        InlineBanner(
+                            message: screenError,
+                            severity: .error,
+                            autoDismissAfter: nil,
+                            onDismiss: { self.screenError = nil }
+                        )
+                    }
 
-                let filteredInstalled = viewModel.filteredInstalled
-                let filteredRecommended = viewModel.filteredRecommended
-                let combinedSearchResults = viewModel.searchDisplayResults
+                    if viewModel.installed.isEmpty && !viewModel.catalog.isEmpty && !viewModel.hasActiveSearch {
+                        NoSkillsInstalledLabel()
+                    }
 
-                if viewModel.hasActiveSearch {
-                    if combinedSearchResults.isEmpty {
-                        if viewModel.isSearchingSkillsSh {
-                            SearchingSkillsLabel()
-                        } else if hasLoaded {
-                            CenteredSkillsStatusLabel("No search results")
+                    let filteredInstalled = viewModel.filteredInstalled
+                    let filteredRecommended = viewModel.filteredRecommended
+                    let combinedSearchResults = viewModel.searchDisplayResults
+
+                    if viewModel.hasActiveSearch {
+                        if combinedSearchResults.isEmpty {
+                            if viewModel.isSearchingSkillsSh {
+                                SearchingSkillsLabel()
+                            } else if hasLoaded {
+                                CenteredSkillsStatusLabel("No search results")
+                            }
+                        } else {
+                            SkillsSection(
+                                title: "Results",
+                                skills: combinedSearchResults,
+                                columns: columns,
+                                onOpen: { skill in
+                                    selectedSkill = skill
+                                },
+                                onPrimaryAction: { skill in
+                                    if skill.isInstalled {
+                                        uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                            Task { await uninstall(skill) }
+                                        }
+                                    } else {
+                                        Task {
+                                            await install(skill)
+                                        }
+                                    }
+                                }
+                            )
+                            if viewModel.isSearchingSkillsSh {
+                                SearchingSkillsLabel()
+                            }
                         }
+                    } else if filteredInstalled.isEmpty && filteredRecommended.isEmpty && viewModel.searchResults.isEmpty && hasLoaded {
+                        EmptyStateView(
+                            icon: "puzzlepiece.extension",
+                            heading: "No skills available",
+                            subtext: "Install or create a skill once catalog data is available.",
+                            actions: [
+                                .init(title: "New Skill", systemImage: "plus", style: .primary) {
+                                    isCreateSheetPresented = true
+                                }
+                            ]
+                        )
                     } else {
-                        SkillsSection(
-                            title: "Results",
-                            skills: combinedSearchResults,
-                            columns: columns,
-                            onOpen: { skill in
-                                selectedSkill = skill
-                            },
-                            onPrimaryAction: { skill in
-                                if skill.isInstalled {
-                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
-                                        Task { await uninstall(skill) }
-                                    }
-                                } else {
-                                    Task {
-                                        await install(skill)
+                        if !filteredInstalled.isEmpty {
+                            SkillsSection(
+                                title: "Installed",
+                                skills: filteredInstalled,
+                                columns: columns,
+                                onOpen: { skill in
+                                    selectedSkill = skill
+                                },
+                                onPrimaryAction: { skill in
+                                    if skill.isInstalled {
+                                        uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                            Task { await uninstall(skill) }
+                                        }
+                                    } else {
+                                        Task {
+                                            await install(skill)
+                                        }
                                     }
                                 }
-                            }
-                        )
-                        if viewModel.isSearchingSkillsSh {
-                            SearchingSkillsLabel()
+                            )
+                        }
+
+                        if !filteredRecommended.isEmpty {
+                            SkillsSection(
+                                title: "Recommended",
+                                skills: filteredRecommended,
+                                columns: columns,
+                                onOpen: { skill in
+                                    selectedSkill = skill
+                                },
+                                onPrimaryAction: { skill in
+                                    if skill.isInstalled {
+                                        uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                            Task { await uninstall(skill) }
+                                        }
+                                    } else {
+                                        Task {
+                                            await install(skill)
+                                        }
+                                    }
+                                }
+                            )
+                        }
+
+                        if !viewModel.searchResults.isEmpty {
+                            SkillsSection(
+                                title: "skills.sh",
+                                skills: viewModel.searchResults,
+                                columns: columns,
+                                onOpen: { skill in
+                                    selectedSkill = skill
+                                },
+                                onPrimaryAction: { skill in
+                                    if skill.isInstalled {
+                                        uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
+                                            Task { await uninstall(skill) }
+                                        }
+                                    } else {
+                                        Task {
+                                            await install(skill)
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
-                } else if filteredInstalled.isEmpty && filteredRecommended.isEmpty && viewModel.searchResults.isEmpty && hasLoaded {
-                    EmptyStateView(
-                        icon: "puzzlepiece.extension",
-                        heading: "No skills available",
-                        subtext: "Install or create a skill once catalog data is available.",
-                        actions: [
-                            .init(title: "New Skill", systemImage: "plus", style: .primary) {
-                                isCreateSheetPresented = true
-                            }
-                        ]
-                    )
-                } else {
-                    if !filteredInstalled.isEmpty {
-                        SkillsSection(
-                            title: "Installed",
-                            skills: filteredInstalled,
-                            columns: columns,
-                            onOpen: { skill in
-                                selectedSkill = skill
-                            },
-                            onPrimaryAction: { skill in
-                                if skill.isInstalled {
-                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
-                                        Task { await uninstall(skill) }
-                                    }
-                                } else {
-                                    Task {
-                                        await install(skill)
-                                    }
-                                }
-                            }
-                        )
-                    }
-
-                    if !filteredRecommended.isEmpty {
-                        SkillsSection(
-                            title: "Recommended",
-                            skills: filteredRecommended,
-                            columns: columns,
-                            onOpen: { skill in
-                                selectedSkill = skill
-                            },
-                            onPrimaryAction: { skill in
-                                if skill.isInstalled {
-                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
-                                        Task { await uninstall(skill) }
-                                    }
-                                } else {
-                                    Task {
-                                        await install(skill)
-                                    }
-                                }
-                            }
-                        )
-                    }
-
-                    if !viewModel.searchResults.isEmpty {
-                        SkillsSection(
-                            title: "skills.sh",
-                            skills: viewModel.searchResults,
-                            columns: columns,
-                            onOpen: { skill in
-                                selectedSkill = skill
-                            },
-                            onPrimaryAction: { skill in
-                                if skill.isInstalled {
-                                    uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
-                                        Task { await uninstall(skill) }
-                                    }
-                                } else {
-                                    Task {
-                                        await install(skill)
-                                    }
-                                }
-                            }
-                        )
-                    }
                 }
+                .padding(EdgeInsets(top: 28, leading: 20, bottom: 28, trailing: 28))
             }
-            .padding(28)
+            .id(viewModel.searchQuery)
         }
         .task {
             guard !hasLoaded else {

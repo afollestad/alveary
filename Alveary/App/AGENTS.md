@@ -14,6 +14,7 @@ These instructions cover the app entry point, `AppDelegate`, and the root `Conte
 ## Layout And Launch Restore
 
 - The app layout uses a two-column `NavigationSplitView` with a conditional right-pane `HStack` detail split. Do not switch the diff pane back to native three-column `NavigationSplitViewVisibility` control on macOS 26; it does not behave correctly for programmatic right-pane toggling.
+- Keep the native titlebar separator disabled. Use `AppSeparatorHairline(surface: .titlebar)` to add only the contrast the system-managed edge lacks, and `.paneHeader` for fixed pane-header boundaries so both resolve to the same one-pixel tint in light and dark appearances.
 - **Clamp diff width to rendered space.** Keep `ContentView.effectiveDiffViewerBounds(availableWidth:)` reserving middle-pane width plus `ContentDiffViewerWidthPolicy.resizeHandleThickness`; otherwise dragging the diff pane can grow the window off screen.
 - The Diff Viewer toolbar button owns the visible changed-diff summary:
     - **Keep stats in the button.** Keep the green `+N` and red `-N` text inside that button instead of adding transcript or composer chrome for changed files; composer-height changes can invalidate lazy transcript row hit testing and leave stale bottom space.

@@ -1,24 +1,41 @@
 @preconcurrency import AppKit
 import SwiftUI
 
-struct AppWindowTitlebarSeparatorHairline: View {
+struct AppSeparatorHairline: View {
+    enum Surface {
+        case titlebar
+        case paneHeader
+    }
+
+    let surface: Surface
+
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
-        Canvas { context, size in
-            let hairlineHeight = 1 / max(displayScale, 1)
-            let separatorColor = colorScheme == .dark
-                ? Color.white.opacity(0.11)
-                : Color.black.opacity(0.04)
-            context.fill(
-                Path(CGRect(x: 0, y: 0, width: size.width, height: hairlineHeight)),
-                with: .color(separatorColor)
-            )
+        Rectangle()
+            .fill(separatorColor)
+            .frame(maxWidth: .infinity)
+            .frame(height: 1 / max(displayScale, 1))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private var separatorColor: Color {
+        // The system-managed titlebar edge contributes different pixels by appearance.
+        // These overlays are calibrated so both surfaces resolve to the same visible hairline.
+        switch (surface, colorScheme) {
+        case (.titlebar, .dark):
+            .clear
+        case (.titlebar, .light):
+            Color.black.opacity(0.05)
+        case (.paneHeader, .dark):
+            Color.white.opacity(0.08)
+        case (.paneHeader, .light):
+            Color.black.opacity(25.0 / 255.0)
+        @unknown default:
+            .clear
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 1)
-        .allowsHitTesting(false)
     }
 }
 

@@ -6,30 +6,24 @@ struct MCPScreenHeader: View {
     let onAddServer: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("MCP")
-                        .font(.largeTitle.weight(.semibold))
-
-                    Text("Connect your agents with external data sources and tools.")
-                        .foregroundStyle(.secondary)
+        CompactSearchPaneHeader("Search servers", searchQuery: $searchQuery) {
+            Button(action: onRefresh) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Refresh")
                 }
-
-                Spacer()
-
-                Button(action: onRefresh) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .secondaryActionButtonStyle()
-
-                Button(action: onAddServer) {
-                    Label("Add Server", systemImage: "plus")
-                }
-                .primaryActionButtonStyle()
             }
+            .secondaryActionButtonStyle()
+            .accessibilityLabel("Refresh")
 
-            AppTextField("Search servers", text: $searchQuery)
+            Button(action: onAddServer) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                    Text("Add Server")
+                }
+            }
+            .primaryActionButtonStyle()
+            .accessibilityLabel("Add Server")
         }
     }
 }

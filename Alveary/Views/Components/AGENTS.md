@@ -7,6 +7,7 @@ General shared controls live here. Narrower scopes:
 - `Markdown/AGENTS.md`: `AppMarkdown*`, inline labels, code palettes.
 - `TabChips/AGENTS.md`: `SelectableTabChip`, `TabChipButtonStyle`.
 - `TextInput/AGENTS.md`: `AppTextEditor`, `AppKitTextView`.
+- `CompactSearchPaneHeader` owns the fixed search/header chrome shared by Skills and MCP; screen wrappers own their action labels, callbacks, and primary/secondary emphasis.
 
 ## Status Spinners
 

@@ -14,84 +14,87 @@ struct MCPScreen: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                MCPScreenHeader(
-                    searchQuery: Binding(
-                        get: { viewModel.searchQuery },
-                        set: { viewModel.searchQuery = $0 }
-                    ),
-                    onRefresh: {
-                        Task { await viewModel.refreshProviders() }
-                    },
-                    onAddServer: {
-                        formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
+        VStack(spacing: 0) {
+            MCPScreenHeader(
+                searchQuery: Binding(
+                    get: { viewModel.searchQuery },
+                    set: { viewModel.searchQuery = $0 }
+                ),
+                onRefresh: {
+                    Task { await viewModel.refreshProviders() }
+                },
+                onAddServer: {
+                    formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
+                }
+            )
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if let screenError {
+                        InlineBanner(
+                            message: screenError,
+                            severity: .error,
+                            autoDismissAfter: nil,
+                            onDismiss: { self.screenError = nil }
+                        )
                     }
-                )
 
-                if let screenError {
-                    InlineBanner(
-                        message: screenError,
-                        severity: .error,
-                        autoDismissAfter: nil,
-                        onDismiss: { self.screenError = nil }
-                    )
-                }
+                    if viewModel.servers.isEmpty && !viewModel.recommended.isEmpty {
+                        NoMCPServersAddedLabel()
+                    }
 
-                if viewModel.servers.isEmpty && !viewModel.recommended.isEmpty {
-                    NoMCPServersAddedLabel()
-                }
+                    if !viewModel.filteredServers.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Added")
+                                .font(.title3.weight(.semibold))
 
-                if !viewModel.filteredServers.isEmpty {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Added")
-                            .font(.title3.weight(.semibold))
+                            ForEach(viewModel.filteredServers) { server in
+                                MCPServerRow(
+                                    server: server,
+                                    onEdit: {
+                                        formDraft = MCPServerDraft(server: server, availableAgents: viewModel.availableAgents)
+                                    },
+                                    onRemove: {
+                                        removalConfirmation = makeServerRemovalConfirmation(for: server) {
+                                            Task { await remove(server) }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
 
-                        ForEach(viewModel.filteredServers) { server in
-                            MCPServerRow(
-                                server: server,
-                                onEdit: {
-                                    formDraft = MCPServerDraft(server: server, availableAgents: viewModel.availableAgents)
-                                },
-                                onRemove: {
-                                    removalConfirmation = makeServerRemovalConfirmation(for: server) {
-                                        Task { await remove(server) }
+                    if !viewModel.filteredRecommended.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Recommended")
+                                .font(.title3.weight(.semibold))
+
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                                ForEach(viewModel.filteredRecommended) { server in
+                                    RecommendedMCPCard(server: server) {
+                                        formDraft = MCPServerDraft(recommended: server, availableAgents: viewModel.availableAgents)
                                     }
                                 }
-                            )
+                            }
                         }
                     }
-                }
 
-                if !viewModel.filteredRecommended.isEmpty {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("Recommended")
-                            .font(.title3.weight(.semibold))
-
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
-                            ForEach(viewModel.filteredRecommended) { server in
-                                RecommendedMCPCard(server: server) {
-                                    formDraft = MCPServerDraft(recommended: server, availableAgents: viewModel.availableAgents)
+                    if viewModel.servers.isEmpty && viewModel.recommended.isEmpty && hasLoaded {
+                        EmptyStateView(
+                            icon: "server.rack",
+                            heading: "No MCP servers available",
+                            subtext: "Recommended servers are unavailable right now, but you can still add a custom one.",
+                            actions: [
+                                .init(title: "Add Server", systemImage: "plus", style: .primary) {
+                                    formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
                                 }
-                            }
-                        }
+                            ]
+                        )
                     }
                 }
-
-                if viewModel.servers.isEmpty && viewModel.recommended.isEmpty && hasLoaded {
-                    EmptyStateView(
-                        icon: "server.rack",
-                        heading: "No MCP servers available",
-                        subtext: "Recommended servers are unavailable right now, but you can still add a custom one.",
-                        actions: [
-                            .init(title: "Add Server", systemImage: "plus", style: .primary) {
-                                formDraft = MCPServerDraft(availableAgents: viewModel.availableAgents)
-                            }
-                        ]
-                    )
-                }
+                .padding(EdgeInsets(top: 28, leading: 20, bottom: 28, trailing: 28))
             }
-            .padding(28)
+            .id(viewModel.searchQuery)
         }
         .task {
             guard !hasLoaded else {

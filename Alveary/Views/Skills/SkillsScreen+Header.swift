@@ -6,30 +6,24 @@ struct SkillsScreenHeader: View {
     let onCreate: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Skills")
-                        .font(.largeTitle.weight(.semibold))
-
-                    Text("Give your agents superpowers.")
-                        .foregroundStyle(.secondary)
+        CompactSearchPaneHeader("Search skills", searchQuery: $searchQuery) {
+            Button(action: onRefresh) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Refresh")
                 }
-
-                Spacer()
-
-                Button(action: onRefresh) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .secondaryActionButtonStyle()
-
-                Button(action: onCreate) {
-                    Label("New Skill", systemImage: "plus")
-                }
-                .primaryActionButtonStyle()
             }
+            .secondaryActionButtonStyle()
+            .accessibilityLabel("Refresh")
 
-            AppTextField("Search skills", text: $searchQuery)
+            Button(action: onCreate) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                    Text("New Skill")
+                }
+            }
+            .primaryActionButtonStyle()
+            .accessibilityLabel("New Skill")
         }
     }
 }

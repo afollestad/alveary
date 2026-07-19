@@ -1,4 +1,5 @@
 import SwiftData
+import SwiftUI
 import XCTest
 
 @testable import Alveary
@@ -42,6 +43,17 @@ extension SnapshotTests {
             ScheduledTasksScreen(viewModel: fixture.viewModel),
             size: CGSize(width: 640, height: 900),
             named: "scheduled_tasks_populated_narrow"
+        )
+    }
+
+    func testScheduledTasksFilterChipsActiveSelection() {
+        assertMacSnapshot(
+            ScheduledTasksScreenHeader(
+                selectedFilter: .constant(.active),
+                onCreate: {}
+            ),
+            size: CGSize(width: 640, height: 72),
+            named: "scheduled_tasks_filter_chips_active"
         )
     }
 
