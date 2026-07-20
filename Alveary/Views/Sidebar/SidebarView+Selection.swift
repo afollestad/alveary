@@ -4,6 +4,7 @@ import SwiftUI
 
 // SF Symbols include leading side bearings; compensate so visible icon ink aligns with the header text.
 private let topIconOpticalInset: CGFloat = 4
+private let topLevelIconColumnWidth: CGFloat = 19
 
 enum SidebarRowMetrics {
     private static let labelHeight: CGFloat = 16
@@ -102,6 +103,7 @@ extension SidebarView {
                 .symbolRenderingMode(.monochrome)
                 .renderingMode(.template)
                 .font(.system(size: 13, weight: .semibold))
+                .frame(width: topLevelIconColumnWidth, alignment: .center)
                 .foregroundColor(topLevelIconColor(isSelected: isSelected))
                 .accessibilityHidden(true)
 
