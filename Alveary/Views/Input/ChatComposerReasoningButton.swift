@@ -10,6 +10,7 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     private static let progressIndicatorSize: CGFloat = 12
     private static let modelEffortSpacing: CGFloat = 2
     private static let textFieldFittingReserve: CGFloat = 2
+    private static let fastIconSymbolName = "bolt.fill"
 
     private var selection: ChatComposerActionRowView.ReasoningSelection?
     private var showsProgress = false
@@ -56,6 +57,8 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     var debugShowsProgress: Bool { showsProgress && !progressIndicator.isHidden }
     var debugTextAlpha: CGFloat { reasoningTextAlpha }
     var debugShowsFastIcon: Bool { showsFastIcon }
+    var debugFastIconSymbolName: String { Self.fastIconSymbolName }
+    var debugFastIconTintColor: NSColor { fastIconTintColor }
     var debugFastIconSlotSize: CGFloat { ComposerIconTitleDropdownButton.iconSlotSize }
     var debugFastIconTextSpacing: CGFloat { ComposerIconTitleDropdownButton.iconTextSpacing }
     var debugFastIconFrame: NSRect? { fastIconView.isHidden ? nil : fastIconView.frame }
@@ -313,13 +316,17 @@ final class ComposerReasoningButton: ComposerCompactDropdownButton {
     }
 
     private func fastIconImage() -> NSImage? {
-        let color = NSColor.labelColor.appKitResolvedColor(in: self, alpha: reasoningTextAlpha)
         return symbolImage(
-            named: "bolt",
+            named: Self.fastIconSymbolName,
             pointSize: ComposerIconTitleDropdownButton.iconPointSize,
-            color: color,
+            color: fastIconTintColor,
             weight: .semibold
         )
+    }
+
+    private var fastIconTintColor: NSColor {
+        let alpha: CGFloat = controlIsEnabled ? 1 : reasoningTextAlpha
+        return AppAccentIcon.foregroundNSColor.appKitResolvedColor(in: self, alpha: alpha)
     }
 
     private var fastIconDrawingWidth: CGFloat {

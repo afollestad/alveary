@@ -251,6 +251,11 @@ extension ChatComposerActionRowTests {
         let fastIconFrame = try XCTUnwrap(button.debugFastIconFrame)
         let expectedLeading = fastIconFrame.maxX + button.debugFastIconTextSpacing
         XCTAssertTrue(button.debugShowsFastIcon)
+        XCTAssertEqual(button.debugFastIconSymbolName, "bolt.fill")
+        XCTAssertEqual(
+            button.debugFastIconTintColor,
+            AppAccentIcon.foregroundNSColor.appKitResolvedColor(in: button)
+        )
         XCTAssertEqual(fastIconFrame.minX, button.contentDrawingRect.minX, accuracy: 0.5)
         XCTAssertEqual(modelFrame.minX, expectedLeading, accuracy: 0.5)
         XCTAssertTrue(button.debugIsModelTruncated)
