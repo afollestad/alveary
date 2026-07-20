@@ -280,30 +280,6 @@ final class ChatComposerDraftTests: XCTestCase {
         XCTAssertNil(fixture.viewModel.state.pendingHandoffOutput)
     }
 
-    func testFastCommandWithArgumentEnablesFastAndSendsPrompt() async throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
-        let appState = AppState()
-        fixture.viewModel.state.runtimeSpeedMode = .standard
-        fixture.viewModel.replaceInputDraft("/fast Fix the tests", source: .blockInputMarkdown)
-        let chatView = makeChatView(
-            fixture: fixture,
-            appState: appState,
-            supportsSpeedMode: true,
-            providerID: "codex"
-        )
-
-        chatView.sendDraft()
-
-        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
-        XCTAssertNotNil(appState.pendingComposerFocusToken)
-        try await waitUntil("expected fast command prompt to send") {
-            await fixture.agentsManager.sentMessages() == ["Fix the tests"]
-        }
-        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
-        XCTAssertEqual(reconfigureCalls.first?.config.speedMode, .fast)
-        XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .fast)
-    }
-
     func testCompactCommandSendsAsNormalText() async throws {
         let fixture = try ConversationViewModelTestFixture(providerId: "claude")
         let appState = AppState()

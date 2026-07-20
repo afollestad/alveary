@@ -175,6 +175,67 @@ extension ConversationViewModelTests {
         XCTAssertEqual(reconfigureCalls.first?.config.speedMode, .fast)
     }
 
+    func testQueuedStandardIntentDoesNotAffectOlderQueuedMessages() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            hasCompletedInitialSetup: true,
+            initialAgentIsRunning: true,
+            providerId: "codex"
+        )
+        try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
+        try fixture.context.save()
+        fixture.viewModel.activateViewLifecycle()
+        fixture.viewModel.state.runtimeSpeedMode = .fast
+        fixture.viewModel.state.turnState.beginTurn()
+
+        try await fixture.viewModel.queueOrSend("Older queued")
+        try await fixture.viewModel.queueOrSend("Standard queued", requiredSpeedMode: .standard)
+
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["Older queued", "Standard queued"])
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.requiredSpeedMode), [nil, .standard])
+
+        fixture.viewModel.state.turnState.endTurn()
+        fixture.viewModel.handleTurnCompleted()
+
+        try await waitUntil("older queued message sent first") {
+            await fixture.agentsManager.sentMessages() == ["Older queued"]
+        }
+        var reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertTrue(reconfigureCalls.isEmpty)
+
+        fixture.viewModel.handleEvent(.tokens(
+            input: 1,
+            output: 1,
+            cacheRead: 0,
+            isError: false,
+            stopReason: "end_turn",
+            durationMs: 10,
+            costUsd: 0,
+            permissionDenials: []
+        ))
+
+        try await waitUntil("standard queued message sent") {
+            await fixture.agentsManager.sentMessages() == ["Older queued", "Standard queued"]
+        }
+        reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.count, 1)
+        XCTAssertEqual(reconfigureCalls.first?.config.speedMode, .standard)
+    }
+
+    func testEnsureStandardSpeedFailureUsesDisableFastModeError() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
+        try fixture.context.save()
+        fixture.viewModel.state.runtimeSpeedMode = .fast
+        fixture.viewModel.state.isSendingMessage = true
+
+        do {
+            try await fixture.viewModel.ensureSpeedModeForOutbound(.standard)
+            XCTFail("Expected disabling fast mode to fail while another send is active")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Failed to disable fast mode")
+        }
+    }
+
     func testSteerQueuedMessageRejectsSpeedIntent() async throws {
         let fixture = try ConversationViewModelTestFixture(providerId: "codex")
         fixture.viewModel.turnState.beginTurn()

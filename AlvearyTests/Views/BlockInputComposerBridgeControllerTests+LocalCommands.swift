@@ -109,6 +109,7 @@ extension BlockInputComposerBridgeControllerTests {
         XCTAssertEqual(handoffSuggestions.first?.insertionText, "/handoff ")
         XCTAssertEqual(handoffSuggestions.first?.detailText, "Alveary")
         XCTAssertEqual(fastSuggestions.first?.insertionText, "/fast ")
+        XCTAssertEqual(fastSuggestions.first?.subtitle, "Toggle fast mode")
         XCTAssertEqual(fastSuggestions.first?.detailText, "Alveary")
     }
 

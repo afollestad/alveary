@@ -44,14 +44,22 @@ extension ConversationViewModel {
         }
     }
 
-    func ensureSpeedModeEnabledForOutbound(supportsSpeedMode: Bool = true) async throws {
-        try await ensureSpeedModeForOutbound(.fast, supportsSpeedMode: supportsSpeedMode)
+    func toggleSpeedModeForOutbound(supportsSpeedMode: Bool = true) async throws -> AgentSpeedMode {
+        let target: AgentSpeedMode = switch pendingSpeedModeForDisplay() ?? dbThread()?.normalizedSpeedMode ?? .standard {
+        case .standard:
+            .fast
+        case .fast:
+            .standard
+        }
+        try await ensureSpeedModeForOutbound(target, supportsSpeedMode: supportsSpeedMode)
+        return target
     }
 
     func ensureSpeedModeForOutbound(_ speedMode: AgentSpeedMode, supportsSpeedMode: Bool = true) async throws {
         await applySpeedModeChange(speedMode, supportsSpeedMode: supportsSpeedMode).value
         guard (pendingSpeedModeForDisplay() ?? dbThread()?.normalizedSpeedMode ?? .standard) == speedMode else {
-            throw AgentError.spawnFailed(lastTurnError ?? "Failed to enable fast mode")
+            let action = speedMode == .fast ? "enable" : "disable"
+            throw AgentError.spawnFailed(lastTurnError ?? "Failed to \(action) fast mode")
         }
     }
 

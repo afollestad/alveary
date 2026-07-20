@@ -54,7 +54,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
   - Resize the inline model list and popover immediately when disclosure changes; do not animate the list expansion. Keep the rotating caret treatment and pinned controls.
   - Render Fast as a separate toggle only when supported: use `bolt` with enablement help while off and accent-tinted `bolt.fill` with disablement help while on.
   - Keep the compact reasoning button's active-only indicator as accent-tinted `bolt.fill`, preserving its compact sizing and spacing.
-- `/fast` is an Alveary local command. Keep it enable-only: `/fast` selects Fast, `/fast <prompt>` selects Fast and sends or queues that prompt with a next-turn required speed. Do not add a special inline argument hint for it.
+- `/fast` is an Alveary local command. Toggle the currently displayed or staged speed: `/fast` only toggles, while `/fast <prompt>` toggles first and sends or queues that prompt with the resulting speed as its next-turn requirement. Do not add a special inline argument hint for it.
 - `/effort` is a model-scoped Alveary local command. Enable, reserve, suggest, and intercept it only while the selected model advertises effort options; preserve provider order and join every canonical value with `|` in its inline hint.
   - Bare `/effort` clears only the command text, preserves attachments, sends nothing, does not request editor focus, and opens the existing reasoning popover.
   - `/effort <value>` accepts exactly one case-insensitive canonical option through the existing effort-change callback. Clear and refocus only when accepted; otherwise retain the draft and attachments and surface the current dynamic options or the underlying setting error.

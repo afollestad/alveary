@@ -301,21 +301,23 @@ extension ChatView {
     private func handleFastLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {
         clearSubmittedDraftAndRequestFocus(source: draft.source)
         Task {
-            var didEnableFastMode = false
+            var didToggleFastMode = false
             do {
-                try await viewModel.ensureSpeedModeEnabledForOutbound(supportsSpeedMode: composerCapabilities.supportsSpeedMode)
-                didEnableFastMode = true
+                let requiredSpeedMode = try await viewModel.toggleSpeedModeForOutbound(
+                    supportsSpeedMode: composerCapabilities.supportsSpeedMode
+                )
+                didToggleFastMode = true
                 if command.argument.isEmpty {
                     return
                 } else {
                     try await viewModel.queueOrSend(
                         command.argument,
-                        requiredSpeedMode: .fast,
+                        requiredSpeedMode: requiredSpeedMode,
                         supportsLocalImageInput: composerCapabilities.supportsLocalImageInput
                     )
                 }
             } catch {
-                let restoredText = didEnableFastMode && !command.argument.isEmpty ? command.argument : draft.text
+                let restoredText = didToggleFastMode && !command.argument.isEmpty ? command.argument : draft.text
                 viewModel.replaceInputDraft(restoredText, source: draft.source)
                 restoreLocalCommandDraftAttachmentsIfNeeded(draft)
                 if viewModel.lastTurnError == nil {

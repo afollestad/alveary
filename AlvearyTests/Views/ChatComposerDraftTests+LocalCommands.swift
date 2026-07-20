@@ -223,7 +223,125 @@ extension ChatComposerDraftTests {
         }
     }
 
-    func testFastCommandFailureRestoresStagedAppShotAttachment() async throws {
+    func testBareFastCommandTogglesSpeedWithoutSending() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let appState = AppState()
+        let attachment = LocalFileAttachment(
+            fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
+        )
+        fixture.viewModel.state.runtimeSpeedMode = .standard
+        fixture.viewModel.state.stagedFileAttachments = [attachment]
+        fixture.viewModel.replaceInputDraft("/fast", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: appState,
+            supportsSpeedMode: true,
+            providerID: "codex"
+        )
+
+        chatView.sendDraft()
+
+        try await waitUntil("expected bare fast command to enable fast mode") {
+            try fixture.dbThread().normalizedSpeedMode == .fast &&
+                !fixture.viewModel.state.isReconfiguringSession
+        }
+        XCTAssertEqual(fixture.viewModel.state.stagedFileAttachments, [attachment])
+        fixture.viewModel.replaceInputDraft("/fast", source: .blockInputMarkdown)
+
+        chatView.sendDraft()
+
+        try await waitUntil("expected bare fast command to disable fast mode") {
+            try fixture.dbThread().normalizedSpeedMode == .standard &&
+                !fixture.viewModel.state.isReconfiguringSession
+        }
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertEqual(fixture.viewModel.state.stagedFileAttachments, [attachment])
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.map(\.config.speedMode), [.fast, .standard])
+    }
+
+    func testFastCommandWithArgumentTogglesStandardToFastAndSendsPrompt() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let appState = AppState()
+        fixture.viewModel.state.runtimeSpeedMode = .standard
+        fixture.viewModel.replaceInputDraft("/fast Fix the tests", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: appState,
+            supportsSpeedMode: true,
+            providerID: "codex"
+        )
+
+        chatView.sendDraft()
+
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
+        XCTAssertNotNil(appState.pendingComposerFocusToken)
+        try await waitUntil("expected fast command prompt to send") {
+            await fixture.agentsManager.sentMessages() == ["Fix the tests"]
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.first?.config.speedMode, .fast)
+        XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .fast)
+    }
+
+    func testFastCommandWithArgumentTogglesFastToStandardAndSendsPrompt() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let appState = AppState()
+        try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
+        try fixture.context.save()
+        fixture.viewModel.state.runtimeSpeedMode = .fast
+        fixture.viewModel.replaceInputDraft("/fast Fix the tests", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: appState,
+            supportsSpeedMode: true,
+            providerID: "codex"
+        )
+
+        chatView.sendDraft()
+
+        try await waitUntil("expected standard command prompt to send") {
+            await fixture.agentsManager.sentMessages() == ["Fix the tests"]
+        }
+        let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
+        XCTAssertEqual(reconfigureCalls.first?.config.speedMode, .standard)
+        XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .standard)
+    }
+
+    func testFastCommandWithArgumentQueuesStandardRequirementWhileBusy() async throws {
+        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
+        let appState = AppState()
+        try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
+        try fixture.context.save()
+        fixture.viewModel.state.runtimeSpeedMode = .fast
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.replaceInputDraft("/fast Fix the tests", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: appState,
+            supportsSpeedMode: true,
+            providerID: "codex"
+        )
+
+        chatView.steerDraft()
+
+        try await waitUntil("expected standard command prompt to queue") {
+            fixture.viewModel.messageQueue.pending.count == 1
+        }
+        XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .standard)
+        XCTAssertEqual(fixture.viewModel.state.runtimeSpeedMode, .fast)
+        XCTAssertEqual(fixture.viewModel.pendingSpeedModeForDisplay(), .standard)
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.text), ["Fix the tests"])
+        XCTAssertEqual(fixture.viewModel.messageQueue.pending.map(\.requiredSpeedMode), [.standard])
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
+        let steeringCalls = await fixture.agentsManager.steeringCalls()
+        XCTAssertTrue(steeringCalls.isEmpty)
+    }
+
+    func testFastCommandSendFailureKeepsToggledSpeedAndRestoresPromptAndAppShot() async throws {
         let root = temporaryDirectory()
         defer {
             try? FileManager.default.removeItem(at: root)
@@ -267,6 +385,41 @@ extension ChatComposerDraftTests {
         }
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "Fix the tests")
         XCTAssertEqual(fixture.viewModel.state.stagedAppShots, [appShot])
+        XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .fast)
+    }
+
+    func testFastCommandToggleFailureRestoresFullCommandAndAttachmentsWithoutSending() async throws {
+        let fixture = try ConversationViewModelTestFixture(
+            reconfigureError: .reconfigureFailed,
+            providerId: "codex"
+        )
+        let appState = AppState()
+        let attachment = LocalFileAttachment(
+            fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("notes.txt")
+        )
+        try fixture.dbThread().speedMode = AgentSpeedMode.fast.rawValue
+        try fixture.context.save()
+        fixture.viewModel.state.runtimeSpeedMode = .fast
+        fixture.viewModel.state.stagedFileAttachments = [attachment]
+        fixture.viewModel.replaceInputDraft("/fast Fix the tests", source: .blockInputMarkdown)
+        let chatView = makeChatView(
+            fixture: fixture,
+            appState: appState,
+            supportsSpeedMode: true,
+            providerID: "codex"
+        )
+
+        chatView.sendDraft()
+
+        try await waitUntil("expected fast command toggle failure") {
+            fixture.viewModel.lastTurnError != nil
+        }
+        XCTAssertEqual(fixture.viewModel.state.inputDraft, "/fast Fix the tests")
+        XCTAssertEqual(fixture.viewModel.state.stagedFileAttachments, [attachment])
+        XCTAssertEqual(try fixture.dbThread().normalizedSpeedMode, .fast)
+        XCTAssertEqual(fixture.viewModel.state.runtimeSpeedMode, .fast)
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertTrue(sentMessages.isEmpty)
     }
 
     private var effortMenuOptions: [ChatComposerActionRowView.MenuOption] {

@@ -209,7 +209,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         case .plan:
             "Toggle plan mode"
         case .fast:
-            "Enable fast mode"
+            "Toggle fast mode"
         case .effort:
             "Set reasoning effort"
         case .handoff:
