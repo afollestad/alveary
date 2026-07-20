@@ -49,7 +49,7 @@ jobs:
         run: ./scripts/lint.sh
 
       - name: Build
-        run: ./scripts/build.sh
+        run: ./scripts/build.sh --no-xcsift
 
       - name: Test
         run: ./scripts/test.sh

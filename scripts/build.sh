@@ -6,8 +6,14 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+use_xcsift=true
+if [ "${1:-}" = "--no-xcsift" ]; then
+  use_xcsift=false
+  shift
+fi
+
 run_and_format() {
-  if command -v xcsift >/dev/null 2>&1; then
+  if [ "$use_xcsift" = true ] && command -v xcsift >/dev/null 2>&1; then
     # Tee the raw xcodebuild stream to a temp log and track whether xcsift
     # produced any output. On failure we only fall back to the raw log when
     # xcsift swallowed everything (e.g. plug-in load failures it doesn't
