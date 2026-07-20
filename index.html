@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Alveary is a native macOS app for orchestrating AI coding agents."
+    >
+    <meta name="theme-color" content="#f7f7f4" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0b0a" media="(prefers-color-scheme: dark)">
+    <title>Alveary</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f7f7f4;
+        color: #11110f;
+        --background: #f7f7f4;
+        --foreground: #11110f;
+        --secondary: #62625c;
+        --accent: #f6c755;
+        --accent-wash: rgb(246 199 85 / 12%);
+        --action-shadow: rgb(17 17 15 / 14%);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          background: #0b0b0a;
+          color: #f7f7f4;
+          --background: #0b0b0a;
+          --foreground: #f7f7f4;
+          --secondary: #aaa9a2;
+          --accent-wash: rgb(246 199 85 / 8%);
+          --action-shadow: rgb(0 0 0 / 45%);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 82% 18%, var(--accent-wash), transparent 26rem),
+          var(--background);
+        color: var(--foreground);
+      }
+
+      main {
+        width: min(72rem, 100%);
+        min-height: 100vh;
+        min-height: 100svh;
+        margin: 0 auto;
+        padding: clamp(1.5rem, 5vw, 4rem);
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .wordmark {
+        display: inline-flex;
+        gap: 0.65rem;
+        align-items: center;
+        margin: 0;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .mark {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 0.2rem;
+        background: var(--accent);
+      }
+
+      section {
+        max-width: 44rem;
+        padding: clamp(5rem, 14vh, 10rem) 0;
+        align-self: center;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(3.25rem, 9vw, 7.25rem);
+        font-weight: 720;
+        letter-spacing: -0.065em;
+        line-height: 0.92;
+      }
+
+      .description {
+        max-width: 35rem;
+        margin: 2rem 0 0;
+        color: var(--secondary);
+        font-size: clamp(1.05rem, 2vw, 1.3rem);
+        line-height: 1.6;
+      }
+
+      a {
+        display: inline-flex;
+        gap: 0.7rem;
+        align-items: center;
+        margin-top: 2.25rem;
+        padding: 0.9rem 1.1rem;
+        border-radius: 0.7rem;
+        background: var(--accent);
+        box-shadow: 0 0.35rem 1.2rem var(--action-shadow);
+        color: #11110f;
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      a:hover,
+      a:focus-visible {
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+      }
+
+      footer {
+        color: var(--secondary);
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="wordmark"><span class="mark" aria-hidden="true"></span>Alveary</p>
+      </header>
+      <section>
+        <h1>Your agents.<br>One native workspace.</h1>
+        <p class="description">
+          Alveary is a native macOS app for orchestrating AI coding agents. The full website is coming soon.
+        </p>
+        <a href="https://github.com/afollestad/alveary/releases/latest">
+          Download the latest release <span aria-hidden="true">→</span>
+        </a>
+      </section>
+      <footer>Built for macOS.</footer>
+    </main>
+  </body>
+</html>
