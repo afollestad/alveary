@@ -85,11 +85,22 @@ prepare_patched_xctestrun() {
   local records_snapshots=$2
   local forces_fixed_scale=$3
   local xctestrun_path
-  xctestrun_path=$(find .build/xcode/Build/Products \
-    -name '*.xctestrun' \
-    ! -name '*.record.xctestrun' \
-    ! -name '*.fixed-scale.xctestrun' \
-    | head -n 1)
+  # DerivedData can retain manifests from older generated schemes. Use the one
+  # most recently produced by `build-for-testing`, then verify its hosted marker below.
+  xctestrun_path=$(python3 <<'PY'
+from pathlib import Path
+
+products = Path('.build/xcode/Build/Products')
+candidates = [
+    path
+    for path in products.rglob('*.xctestrun')
+    if path.is_file()
+    and not path.name.endswith(('.record.xctestrun', '.fixed-scale.xctestrun'))
+]
+if candidates:
+    print(max(candidates, key=lambda path: (path.stat().st_mtime_ns, str(path))))
+PY
+)
   if [ -z "$xctestrun_path" ]; then
     echo "error: Unable to find generated .xctestrun file after build-for-testing." >&2
     exit 1
@@ -115,16 +126,36 @@ forces_fixed_scale = sys.argv[3] == 'true'
 with open(path, 'rb') as file:
     data = plistlib.load(file)
 
-for configuration in data.get('TestConfigurations', []):
-    for target in configuration.get('TestTargets', []):
-        values = {}
-        if records_snapshots:
-            values['RECORD_SNAPSHOTS'] = '1'
-        if forces_fixed_scale:
-            values['ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS'] = 'true'
+targets = [
+    target
+    for configuration in data.get('TestConfigurations', [])
+    for target in configuration.get('TestTargets', [])
+]
+targets.extend(
+    value
+    for key, value in data.items()
+    if key != '__xctestrun_metadata__'
+    and isinstance(value, dict)
+    and 'TestBundlePath' in value
+)
+if not targets:
+    raise RuntimeError('Unable to find test targets in the xctestrun file.')
+if not any(
+    target.get('EnvironmentVariables', {}).get('ALVEARY_HOSTED_UNIT_TEST') == '1'
+    or target.get('TestingEnvironmentVariables', {}).get('ALVEARY_HOSTED_UNIT_TEST') == '1'
+    for target in targets
+):
+    raise RuntimeError('Selected xctestrun is missing ALVEARY_HOSTED_UNIT_TEST=1.')
 
-        for key in ('EnvironmentVariables', 'TestingEnvironmentVariables'):
-            target.setdefault(key, {}).update(values)
+values = {}
+if records_snapshots:
+    values['RECORD_SNAPSHOTS'] = '1'
+if forces_fixed_scale:
+    values['ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS'] = 'true'
+
+for target in targets:
+    for key in ('EnvironmentVariables', 'TestingEnvironmentVariables'):
+        target.setdefault(key, {}).update(values)
 
 with open(path, 'wb') as file:
     plistlib.dump(data, file)

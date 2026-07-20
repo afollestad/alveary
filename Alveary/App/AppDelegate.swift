@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let reconcileScheduledTasks: @MainActor () -> Void
         let teardownVoiceInput: @MainActor () -> Void
         let prepareScheduledTasksForTermination: @MainActor (Date) throws -> ScheduledTaskTerminationPreparation?
+        let cleanupRuntimePreferences: @MainActor () -> Void
         let notificationRouter: NotificationRouter
         let workspaceNotificationCenter: NotificationCenter
         let notificationCenter: NotificationCenter
@@ -55,6 +56,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 },
                 prepareScheduledTasksForTermination: { actionDate in
                     try component.scheduledTaskLifecycleCoordinator.prepareForTermination(at: actionDate)
+                },
+                cleanupRuntimePreferences: {
+                    AppRuntimeProfile.current.storageProfile.cleanupSettingsDefaults()
                 },
                 notificationRouter: component.notificationRouter,
                 workspaceNotificationCenter: NSWorkspace.shared.notificationCenter,
@@ -278,6 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             dependencies.enableSuddenTermination()
             suddenTerminationDisabled = false
         }
+        dependencies.cleanupRuntimePreferences()
     }
 }
 

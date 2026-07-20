@@ -396,6 +396,9 @@ final class AppDelegateTests: XCTestCase {
             },
             teardownVoiceInput: {
                 shutdownOrderRecorder.record("voice")
+            },
+            cleanupRuntimePreferences: {
+                shutdownOrderRecorder.record("preferences")
             }
         )
 
@@ -418,7 +421,7 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertEqual(shutdownCallCount, 1)
         XCTAssertEqual(persistCount, 1)
         XCTAssertEqual(flushRecorder.value, 1)
-        XCTAssertEqual(shutdownOrderRecorder.values, ["voice", "flush", "shutdown"])
+        XCTAssertEqual(shutdownOrderRecorder.values, ["voice", "flush", "shutdown", "preferences"])
         XCTAssertEqual(appWillTerminateNotifications.value, 1)
     }
 

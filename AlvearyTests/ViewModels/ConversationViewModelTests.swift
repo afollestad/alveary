@@ -296,6 +296,9 @@ struct ConversationViewModelTestFixture {
     let providerSetup: MockProviderSetupService
     let contextWindowCache: MockContextWindowCache
     let settingsService: InMemorySettingsService
+    let fileBackedStorageRoot: URL
+    let attachmentStore: any ConversationAttachmentStore
+    let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     let viewModel: ConversationViewModel
 
     // swiftlint:disable:next function_body_length
@@ -366,6 +369,17 @@ struct ConversationViewModelTestFixture {
         )
         let providerSetup = MockProviderSetupService()
         let contextWindowCache = MockContextWindowCache()
+        let fileBackedStorageRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-conversation-view-model-\(UUID().uuidString)", isDirectory: true)
+        let resolvedAttachmentStore = attachmentStore ?? DefaultConversationAttachmentStore(
+            rootDirectory: fileBackedStorageRoot.appendingPathComponent("Attachments", isDirectory: true)
+        )
+        let resolvedTaskWorkspaceOwnershipService = taskWorkspaceOwnershipService ?? DefaultTaskWorkspaceOwnershipService(
+            privateWorkspacesRoot: fileBackedStorageRoot
+                .appendingPathComponent("TaskWorkspaces/Private", isDirectory: true),
+            worktreeOwnershipRecordsRoot: fileBackedStorageRoot
+                .appendingPathComponent("TaskWorkspaces/WorktreeOwnership", isDirectory: true)
+        )
         let viewModel = ConversationViewModel(
             conversation: conversation,
             agentsManager: agentsManager,
@@ -374,10 +388,10 @@ struct ConversationViewModelTestFixture {
             modelContext: context,
             settingsService: settingsService,
             worktreeManager: worktreeManager,
-            taskWorkspaceOwnershipService: taskWorkspaceOwnershipService ?? DefaultTaskWorkspaceOwnershipService(),
+            taskWorkspaceOwnershipService: resolvedTaskWorkspaceOwnershipService,
             providerSetup: providerSetup,
             contextWindowCache: contextWindowCache,
-            attachmentStore: attachmentStore ?? DefaultConversationAttachmentStore(),
+            attachmentStore: resolvedAttachmentStore,
             threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder(),
             draftMaterializationSaver: draftMaterializationSaver
         )
@@ -388,6 +402,8 @@ struct ConversationViewModelTestFixture {
         self.conversation = conversation; self.agentsManager = agentsManager; self.runtimeStore = runtimeStore
         self.keepAwakeService = keepAwakeService; self.worktreeManager = worktreeManager; self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache; self.settingsService = settingsService; self.viewModel = viewModel
+        self.fileBackedStorageRoot = fileBackedStorageRoot; self.attachmentStore = resolvedAttachmentStore
+        self.taskWorkspaceOwnershipService = resolvedTaskWorkspaceOwnershipService
     }
     private static func testSettings() -> AppSettings {
         var settings = AppSettings()

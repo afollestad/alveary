@@ -7,12 +7,10 @@ final class ShellComponent: Component<EmptyDependency> {}
 
 final class SessionComponent: Component<EmptyDependency> {
     static var appSupportDirectory: URL {
-        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
-        return baseURL.appendingPathComponent("com.afollestad.alveary", isDirectory: true)
+        AppRuntimeProfile.current.storageProfile.appSupportDirectory
     }
 
     static var agentCLIKitSupportDirectory: URL {
-        appSupportDirectory.appendingPathComponent("AgentCLIKit", isDirectory: true)
+        AppRuntimeProfile.current.storageProfile.agentCLIKitSupportDirectory
     }
 }

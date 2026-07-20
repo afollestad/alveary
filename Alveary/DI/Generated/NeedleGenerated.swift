@@ -116,8 +116,6 @@ private func registerProviderFactory(_ componentPath: String, _ factory: @escapi
     registerProviderFactory("^->AppComponent->SettingsComponent", factoryEmptyDependencyProvider)
     registerProviderFactory("^->AppComponent->ShellComponent", factoryEmptyDependencyProvider)
     registerProviderFactory("^->AppComponent->SessionComponent", factoryEmptyDependencyProvider)
-    registerProviderFactory("^->AppComponent->SessionComponent", factoryEmptyDependencyProvider)
-    registerProviderFactory("^->AppComponent->SessionComponent", factoryEmptyDependencyProvider)
 }
 #endif
 

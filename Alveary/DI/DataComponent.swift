@@ -5,9 +5,15 @@ import SwiftData
 final class DataComponent: Component<EmptyDependency> {}
 
 extension DataComponent {
-    static func makeModelContainer(isStoredInMemoryOnly: Bool) -> ModelContainer {
+    static func makeModelContainer(
+        isStoredInMemoryOnly: Bool,
+        persistentStoreURL: URL
+    ) -> ModelContainer {
         do {
-            let configuration = try makeModelConfiguration(isStoredInMemoryOnly: isStoredInMemoryOnly)
+            let configuration = try makeModelConfiguration(
+                isStoredInMemoryOnly: isStoredInMemoryOnly,
+                persistentStoreURL: persistentStoreURL
+            )
             return try ModelContainer(
                 for: Project.self,
                 AgentThread.self,
@@ -31,24 +37,19 @@ extension DataComponent {
 }
 
 private extension DataComponent {
-    static func makeModelConfiguration(isStoredInMemoryOnly: Bool) throws -> ModelConfiguration {
+    static func makeModelConfiguration(
+        isStoredInMemoryOnly: Bool,
+        persistentStoreURL: URL
+    ) throws -> ModelConfiguration {
         if isStoredInMemoryOnly {
             return ModelConfiguration(isStoredInMemoryOnly: true)
         }
 
-        let applicationSupportDirectory = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let storeURL = persistentStoreURL(in: applicationSupportDirectory)
-
         try FileManager.default.createDirectory(
-            at: storeURL.deletingLastPathComponent(),
+            at: persistentStoreURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
 
-        return ModelConfiguration(url: storeURL)
+        return ModelConfiguration(url: persistentStoreURL)
     }
 }

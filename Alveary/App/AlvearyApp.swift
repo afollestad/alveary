@@ -108,6 +108,8 @@ struct AlvearyApp: App {
             #endif
         }
         .modelContainer(AppDI.component.modelContainer)
+        .defaultLaunchBehavior(AppRuntimeProfile.current.isHostedUnitTest ? .suppressed : .automatic)
+        .restorationBehavior(AppRuntimeProfile.current.isHostedUnitTest ? .disabled : .automatic)
 
         #if DEBUG
         WindowGroup("Raw Transcript", id: RawTranscriptWindowRequest.sceneID, for: RawTranscriptWindowRequest.self) { request in
@@ -117,6 +119,7 @@ struct AlvearyApp: App {
         }
         .defaultSize(width: 760, height: 640)
         .modelContainer(AppDI.component.modelContainer)
+        .restorationBehavior(AppRuntimeProfile.current.isHostedUnitTest ? .disabled : .automatic)
         #endif
     }
 

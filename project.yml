@@ -12,6 +12,25 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "26.0"
     GENERATE_INFOPLIST_FILE: YES
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+schemes:
+  Alveary:
+    build:
+      targets:
+        Alveary: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - AlvearyTests
+      environmentVariables:
+        ALVEARY_HOSTED_UNIT_TEST: "1"
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
 fileGroups:
   - docs
 targets:

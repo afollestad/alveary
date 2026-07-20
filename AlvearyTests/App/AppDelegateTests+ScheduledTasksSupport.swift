@@ -67,6 +67,7 @@ extension AppDelegateTestFixture {
                 prepareScheduledTasksForTermination: { actionDate in
                     scheduledTaskLifecycle.prepareForTermination(at: actionDate)
                 },
+                cleanupRuntimePreferences: {},
                 notificationRouter: NotificationRouter(),
                 workspaceNotificationCenter: workspaceNotificationCenter,
                 notificationCenter: appNotificationCenter,

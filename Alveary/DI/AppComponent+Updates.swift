@@ -27,7 +27,7 @@ extension AppComponent {
     var appUpdateStager: any AppUpdateStaging {
         return shared {
             DefaultAppUpdateStager(
-                updatesDirectory: SessionComponent.appSupportDirectory.appendingPathComponent("Updates", isDirectory: true),
+                updatesDirectory: storageProfile.updatesDirectory,
                 shellRunner: shellRunner
             )
         }
@@ -36,7 +36,7 @@ extension AppComponent {
     var appUpdateInstaller: any AppUpdateInstalling {
         return shared {
             DefaultAppUpdateInstaller(
-                updatesDirectory: SessionComponent.appSupportDirectory.appendingPathComponent("Updates", isDirectory: true),
+                updatesDirectory: storageProfile.updatesDirectory,
                 shellRunner: shellRunner
             )
         }

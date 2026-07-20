@@ -2,12 +2,18 @@
 enum AppDI {
     static let component: AppComponent = {
         registerNeedleProviders()
-        return AppComponent()
+        return AppComponent(storageProfile: AppRuntimeProfile.current.storageProfile)
     }()
 
-    static func makeTestComponent(isStoredInMemoryOnly: Bool) -> AppComponent {
+    static func makeTestComponent(
+        isStoredInMemoryOnly: Bool,
+        storageProfile: AppStorageProfile? = nil
+    ) -> AppComponent {
         registerNeedleProviders()
-        return AppComponent(isStoredInMemoryOnly: isStoredInMemoryOnly)
+        return AppComponent(
+            storageProfile: storageProfile ?? AppRuntimeProfile.current.storageProfile,
+            isStoredInMemoryOnly: isStoredInMemoryOnly
+        )
     }
 
     private static func registerNeedleProviders() {

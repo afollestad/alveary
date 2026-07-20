@@ -60,6 +60,7 @@ struct AppDelegateTestFixture {
         flushConversationControllers: @escaping @MainActor () -> [ConversationControllerFlushFailure] = { [] },
         teardownVoiceInput: @escaping @MainActor () -> Void = {},
         scheduledTaskLifecycle: AppDelegateScheduledTaskLifecycleSpy? = nil,
+        cleanupRuntimePreferences: @escaping @MainActor () -> Void = {},
         disableSuddenTermination: @escaping () -> Void = {},
         enableSuddenTermination: @escaping () -> Void = {}
     ) -> AppDelegate {
@@ -83,6 +84,7 @@ struct AppDelegateTestFixture {
                 prepareScheduledTasksForTermination: { actionDate in
                     scheduledTaskLifecycle?.prepareForTermination(at: actionDate)
                 },
+                cleanupRuntimePreferences: cleanupRuntimePreferences,
                 notificationRouter: NotificationRouter(),
                 workspaceNotificationCenter: workspaceNotificationCenter,
                 notificationCenter: appNotificationCenter,

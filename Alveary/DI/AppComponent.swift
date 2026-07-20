@@ -4,9 +4,14 @@ import NeedleFoundation
 import SwiftData
 
 final class AppComponent: BootstrapComponent {
-    private let isStoredInMemoryOnly: Bool
+    let storageProfile: AppStorageProfile
+    let isStoredInMemoryOnly: Bool
 
-    init(isStoredInMemoryOnly: Bool = false) {
+    init(
+        storageProfile: AppStorageProfile,
+        isStoredInMemoryOnly: Bool = false
+    ) {
+        self.storageProfile = storageProfile
         self.isStoredInMemoryOnly = isStoredInMemoryOnly
         super.init()
     }
@@ -62,32 +67,12 @@ final class AppComponent: BootstrapComponent {
 
 @MainActor
 extension AppComponent {
-    var modelContainer: ModelContainer {
-        return shared { DataComponent.makeModelContainer(isStoredInMemoryOnly: isStoredInMemoryOnly) }
-    }
-
-    var modelContext: ModelContext {
-        return shared { ModelContext(modelContainer) }
-    }
-
-    var settingsService: SettingsService {
-        return shared { UserDefaultsSettingsService() }
-    }
-
     var shellRunner: ShellRunner {
         return shared { DefaultShellRunner() }
     }
 
     var executablePathResolver: any ExecutablePathResolving {
         return shared { DefaultExecutablePathResolver(shell: shellRunner) }
-    }
-
-    var sessionManager: SessionManager {
-        return shared { DefaultSessionManager(supportDirectory: SessionComponent.appSupportDirectory) }
-    }
-
-    var conversationAttachmentStore: any ConversationAttachmentStore {
-        return shared { DefaultConversationAttachmentStore() }
     }
 
     var notificationRouter: NotificationRouter {
@@ -145,10 +130,6 @@ extension AppComponent {
         }
     }
 
-    var contextWindowCache: ContextWindowCache {
-        return shared { JSONContextWindowCache() }
-    }
-
     var agentCLIKitShellRunner: AgentCLIKitShellRunnerAdapter {
         return shared { AgentCLIKitShellRunnerAdapter(shellRunner: shellRunner) }
     }
@@ -173,10 +154,7 @@ extension AppComponent {
         AgentCLIKit.ClaudeProviderAdapter.Configuration(
             interactionStore: agentCLIKitInteractionStore,
             approvalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
-            hookSupportDirectory: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent(
-                "ClaudeHooks",
-                isDirectory: true
-            ),
+            hookSupportDirectory: storageProfile.agentCLIKitHookSupportDirectory,
             hookDecisionProvider: agentCLIKitLiveHookDecisionProvider
         )
     }
@@ -289,7 +267,7 @@ extension AppComponent {
     var agentCLIKitContextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache {
         return shared {
             AgentCLIKit.JSONAgentModelContextWindowCache(
-                fileURL: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent("context-windows.json")
+                fileURL: storageProfile.agentCLIKitContextWindowCacheFileURL
             )
         }
     }
@@ -311,7 +289,7 @@ extension AppComponent {
     var agentCLIKitSessionStore: AgentCLIKit.JSONFileAgentSessionStore {
         return shared {
             AgentCLIKit.JSONFileAgentSessionStore(
-                fileURL: SessionComponent.agentCLIKitSupportDirectory.appendingPathComponent("sessions.json")
+                fileURL: storageProfile.agentCLIKitSessionStoreFileURL
             )
         }
     }
@@ -336,7 +314,7 @@ extension AppComponent {
     }
 
     var claudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
-        return shared { DefaultClaudeApprovalPersistenceStore() }
+        return shared { DefaultClaudeApprovalPersistenceStore(supportDirectory: storageProfile.approvalSupportDirectory) }
     }
 
     var defaultAgentsManager: DefaultAgentsManager {
@@ -391,7 +369,12 @@ extension AppComponent {
     }
 
     var taskWorkspaceOwnershipService: TaskWorkspaceOwnershipService {
-        return shared { DefaultTaskWorkspaceOwnershipService() }
+        return shared {
+            DefaultTaskWorkspaceOwnershipService(
+                privateWorkspacesRoot: storageProfile.privateTaskWorkspacesDirectory,
+                worktreeOwnershipRecordsRoot: storageProfile.worktreeOwnershipRecordsDirectory
+            )
+        }
     }
 
     var fileListManager: FileListManager {
