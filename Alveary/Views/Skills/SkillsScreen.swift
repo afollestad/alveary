@@ -6,14 +6,10 @@ struct SkillsScreen: View {
 
     @State private var hasLoaded = false
     @State private var screenError: String?
-    @State private var isCreateSheetPresented = false
-    @State private var selectedSkill: Skill?
     @State private var uninstallConfirmation: DestructiveConfirmationRequest?
-
-    private let columns = [
-        GridItem(.flexible(minimum: 240), spacing: 16),
-        GridItem(.flexible(minimum: 240), spacing: 16)
-    ]
+    @State private var lastPaneTriggerID = "skills-new"
+    @State private var gridColumnCount = 2
+    @FocusState private var focusedPaneTriggerID: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,9 +23,8 @@ struct SkillsScreen: View {
                         await viewModel.refreshCatalog()
                     }
                 },
-                onCreate: {
-                    isCreateSheetPresented = true
-                }
+                onCreate: openNewSkill,
+                createFocus: $focusedPaneTriggerID
             )
 
             ScrollView {
@@ -62,9 +57,10 @@ struct SkillsScreen: View {
                             SkillsSection(
                                 title: "Results",
                                 skills: combinedSearchResults,
-                                columns: columns,
+                                columns: gridColumns,
+                                focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
-                                    selectedSkill = skill
+                                    openDetails(skill)
                                 },
                                 onPrimaryAction: { skill in
                                     if skill.isInstalled {
@@ -89,7 +85,7 @@ struct SkillsScreen: View {
                             subtext: "Install or create a skill once catalog data is available.",
                             actions: [
                                 .init(title: "New Skill", systemImage: "plus", style: .primary) {
-                                    isCreateSheetPresented = true
+                                    openNewSkill()
                                 }
                             ]
                         )
@@ -98,9 +94,10 @@ struct SkillsScreen: View {
                             SkillsSection(
                                 title: "Installed",
                                 skills: filteredInstalled,
-                                columns: columns,
+                                columns: gridColumns,
+                                focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
-                                    selectedSkill = skill
+                                    openDetails(skill)
                                 },
                                 onPrimaryAction: { skill in
                                     if skill.isInstalled {
@@ -120,9 +117,10 @@ struct SkillsScreen: View {
                             SkillsSection(
                                 title: "Recommended",
                                 skills: filteredRecommended,
-                                columns: columns,
+                                columns: gridColumns,
+                                focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
-                                    selectedSkill = skill
+                                    openDetails(skill)
                                 },
                                 onPrimaryAction: { skill in
                                     if skill.isInstalled {
@@ -142,9 +140,10 @@ struct SkillsScreen: View {
                             SkillsSection(
                                 title: "skills.sh",
                                 skills: viewModel.searchResults,
-                                columns: columns,
+                                columns: gridColumns,
+                                focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
-                                    selectedSkill = skill
+                                    openDetails(skill)
                                 },
                                 onPrimaryAction: { skill in
                                     if skill.isInstalled {
@@ -164,6 +163,11 @@ struct SkillsScreen: View {
                 .padding(EdgeInsets(top: 28, leading: 20, bottom: 28, trailing: 28))
             }
             .id(viewModel.searchQuery)
+            .onGeometryChange(for: Int.self) { proxy in
+                proxy.size.width >= 544 ? 2 : 1
+            } action: { newValue in
+                gridColumnCount = newValue
+            }
         }
         .task {
             guard !hasLoaded else {
@@ -173,32 +177,8 @@ struct SkillsScreen: View {
             hasLoaded = true
             await viewModel.load()
         }
-        .sheet(item: $selectedSkill) { skill in
-            SkillDetailSheet(
-                viewModel: viewModel,
-                skill: skill,
-                onInstall: { skill in
-                    await install(skill)
-                },
-                onUninstall: { skill in
-                    await uninstall(skill)
-                },
-                onError: { error in
-                    screenError = error.localizedDescription
-                }
-            )
-        }
-        .sheet(isPresented: $isCreateSheetPresented) {
-            CreateSkillSheet { name, description, instructions in
-                Task {
-                    do {
-                        try await viewModel.create(name: name, description: description, instructions: instructions)
-                        isCreateSheetPresented = false
-                    } catch {
-                        screenError = error.localizedDescription
-                    }
-                }
-            }
+        .onChange(of: viewModel.paneDismissalGeneration) { _, _ in
+            focusedPaneTriggerID = lastPaneTriggerID
         }
         .destructiveConfirmation($uninstallConfirmation)
     }
@@ -236,6 +216,23 @@ private struct SearchingSkillsLabel: View {
 }
 
 private extension SkillsScreen {
+    var gridColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(minimum: 240), spacing: 16),
+            count: gridColumnCount
+        )
+    }
+
+    func openNewSkill() {
+        lastPaneTriggerID = "skills-new"
+        viewModel.requestNewSkill()
+    }
+
+    func openDetails(_ skill: Skill) {
+        lastPaneTriggerID = "skills-details-\(skill.id)"
+        viewModel.requestDetails(for: skill)
+    }
+
     func install(_ skill: Skill) async {
         do {
             try await viewModel.install(skill)
@@ -253,178 +250,7 @@ private extension SkillsScreen {
     }
 }
 
-private struct SkillDetailSheet: View {
-    let viewModel: SkillsViewModel
-    let skill: Skill
-    let onInstall: (Skill) async -> Void
-    let onUninstall: (Skill) async -> Void
-    let onError: (Error) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var markdown = ""
-    @State private var markdownBaseURL: URL?
-    @State private var resolvedGitHubURL: URL?
-    @State private var isLoading = true
-    @State private var uninstallConfirmation: DestructiveConfirmationRequest?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(skill.name)
-                        .font(.title2.weight(.semibold))
-
-                    Text(skill.description.isEmpty ? "No description available." : skill.description)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                ModalCloseButton("Close skill details") {
-                    dismiss()
-                }
-            }
-
-            SkillMarkdownContent(markdown: markdown, baseURL: markdownBaseURL, isLoading: isLoading)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            HStack {
-                if let url = resolvedGitHubURL ?? skill.githubURL {
-                    Button("View on GitHub") {
-                        UIApplicationShim.open(url: url)
-                    }
-                    .secondaryActionButtonStyle()
-                }
-
-                Spacer()
-
-                if skill.isInstalled {
-                    Button("Uninstall", role: .destructive) {
-                        uninstallConfirmation = makeSkillUninstallConfirmation(for: skill) {
-                            Task {
-                                await onUninstall(skill)
-                                dismiss()
-                            }
-                        }
-                    }
-                    .destructiveActionButtonStyle()
-                } else {
-                    Button("Install") {
-                        Task {
-                            await onInstall(skill)
-                            dismiss()
-                        }
-                    }
-                    .primaryActionButtonStyle()
-                }
-            }
-        }
-        .padding(24)
-        .frame(minWidth: 640, minHeight: 520)
-        .destructiveConfirmation($uninstallConfirmation)
-        .task {
-            do {
-                let document = try await viewModel.fetchSkillMarkdown(for: skill)
-                markdown = document.markdown
-                markdownBaseURL = document.baseURL
-                resolvedGitHubURL = document.browserURL ?? skill.githubURL
-            } catch {
-                onError(error)
-                markdown = skill.description
-                markdownBaseURL = nil
-                resolvedGitHubURL = skill.githubURL
-            }
-            isLoading = false
-        }
-    }
-}
-
-private struct SkillMarkdownContent: View {
-    let markdown: String
-    let baseURL: URL?
-    let isLoading: Bool
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-
-            Group {
-                if isLoading {
-                    ProgressView("Loading skill details...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        AppMarkdownText(markdown: markdown, baseURL: baseURL)
-                            .environment(\.openURL, OpenURLAction { url in
-                                UIApplicationShim.open(url: resolvedURL(for: url))
-                                return .handled
-                            })
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 18)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-            Divider()
-        }
-    }
-
-    private func resolvedURL(for url: URL) -> URL {
-        guard url.scheme == nil, let baseURL else {
-            return url
-        }
-        return URL(string: url.relativeString, relativeTo: baseURL)?.absoluteURL ?? url
-    }
-}
-
-private struct CreateSkillSheet: View {
-    let onCreate: (String, String, String) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var description = ""
-    @State private var instructions = ""
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top) {
-                Text("Create Skill")
-                    .font(.title2.weight(.semibold))
-
-                Spacer()
-
-                ModalCloseButton("Close create skill") {
-                    dismiss()
-                }
-            }
-
-            AppTextField("Name (kebab-case)", text: $name)
-            AppTextField("Description", text: $description)
-
-            AppTextEditor(text: $instructions, minHeight: 220)
-
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .secondaryActionButtonStyle()
-
-                Spacer()
-
-                Button("Create") {
-                    onCreate(name, description, instructions)
-                }
-                .primaryActionButtonStyle()
-                .disabled(name.isEmpty || description.isEmpty)
-            }
-        }
-        .padding(24)
-        .frame(minWidth: 560, minHeight: 420)
-    }
-}
-
-private func makeSkillUninstallConfirmation(
+func makeSkillUninstallConfirmation(
     for skill: Skill,
     confirm: @escaping () -> Void
 ) -> DestructiveConfirmationRequest {
@@ -443,7 +269,7 @@ private func makeSkillUninstallConfirmation(
     )
 }
 
-private enum UIApplicationShim {
+enum UIApplicationShim {
     static func open(url: URL) {
         #if os(macOS)
         NSWorkspace.shared.open(url)

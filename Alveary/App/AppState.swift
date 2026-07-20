@@ -8,7 +8,7 @@ final class AppState {
     private static let maxUnexpectedErrorToasts = 3
 
     var selectedSidebarItem: SidebarItem?
-    private(set) var isRightPaneVisible = false
+    private(set) var isDiffViewerRequested = false
     private(set) var isLeftPaneVisible = true
     private(set) var isTerminalPaneVisible = false
     private(set) var unexpectedErrorToasts: [UnexpectedErrorToast] = []
@@ -80,16 +80,16 @@ final class AppState {
         isTerminalPaneVisible = false
     }
 
-    func toggleRightPane() {
-        isRightPaneVisible.toggle()
+    func toggleDiffViewerRequest() {
+        isDiffViewerRequested.toggle()
     }
 
-    func showRightPane() {
-        isRightPaneVisible = true
+    func showDiffViewer() {
+        isDiffViewerRequested = true
     }
 
-    func hideRightPane() {
-        isRightPaneVisible = false
+    func hideDiffViewer() {
+        isDiffViewerRequested = false
     }
 
     func setLeftPaneVisible(_ isVisible: Bool) {

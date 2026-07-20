@@ -92,8 +92,11 @@ extension ContentView {
     }
 
     func openScheduledTaskDefinition(with definitionID: String) {
-        appState.selectedSidebarItem = .scheduled
-        scheduledTasksViewModel.requestEdit(definitionID: definitionID)
+        openScheduledTaskDefinitionInAppState(
+            definitionID: definitionID,
+            appState: appState,
+            viewModel: scheduledTasksViewModel
+        )
     }
 
     func openConversation(with conversationId: String) {
@@ -107,4 +110,14 @@ extension ContentView {
     func wireNotificationManager() {
         notificationManager.setActiveConversationProvider(makeActiveConversationProvider(for: appState, modelContext: uiModelContext))
     }
+}
+
+@MainActor
+func openScheduledTaskDefinitionInAppState(
+    definitionID: String,
+    appState: AppState,
+    viewModel: ScheduledTasksViewModel
+) {
+    appState.selectedSidebarItem = .scheduled
+    viewModel.requestEdit(definitionID: definitionID)
 }

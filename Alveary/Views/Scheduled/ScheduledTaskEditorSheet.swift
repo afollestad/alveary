@@ -1,79 +1,48 @@
 import SwiftUI
 
-struct ScheduledTaskEditorSheet: View {
+enum ScheduledTaskEditorSurface {
+    case pane
+    case modal
+}
+
+struct ScheduledTaskEditorContent: View {
     let viewModel: ScheduledTasksViewModel
+    @Binding var draft: ScheduledTaskEditorDraft
+    let title: String
+    let subtitle: String
+    let submitTitle: String
+    let errorMessage: String?
+    let isSubmitting: Bool
+    let surface: ScheduledTaskEditorSurface
+    let onDismissError: () -> Void
+    let onSubmit: () -> Void
     let onClose: () -> Void
-    private let titleOverride: String?
-    private let subtitleOverride: String?
-    private let submitTitleOverride: String?
-    private let errorMessageOverride: String?
-    private let onDismissErrorOverride: (() -> Void)?
-    private let onSubmit: (ScheduledTaskEditorDraft) -> Bool
-    private let minimumWidth: CGFloat
-    private let minimumHeight: CGFloat
 
-    @State private var draft: ScheduledTaskEditorDraft
-
-    init(
-        viewModel: ScheduledTasksViewModel,
-        initialDraft: ScheduledTaskEditorDraft,
-        onClose: @escaping () -> Void
-    ) {
-        self.viewModel = viewModel
-        self.onClose = onClose
-        self.titleOverride = nil
-        self.subtitleOverride = nil
-        self.submitTitleOverride = nil
-        self.errorMessageOverride = nil
-        self.onDismissErrorOverride = nil
-        self.onSubmit = { draft in viewModel.save(draft) }
-        self.minimumWidth = 640
-        self.minimumHeight = 620
-        _draft = State(initialValue: initialDraft)
-    }
-
-    init(
-        viewModel: ScheduledTasksViewModel,
-        initialDraft: ScheduledTaskEditorDraft,
-        title: String,
-        subtitle: String,
-        submitTitle: String,
-        errorMessage: String?,
-        onDismissError: @escaping () -> Void,
-        onSubmit: @escaping (ScheduledTaskEditorDraft) -> Bool,
-        onClose: @escaping () -> Void
-    ) {
-        self.viewModel = viewModel
-        self.onClose = onClose
-        self.titleOverride = title
-        self.subtitleOverride = subtitle
-        self.submitTitleOverride = submitTitle
-        self.errorMessageOverride = errorMessage
-        self.onDismissErrorOverride = onDismissError
-        self.onSubmit = onSubmit
-        self.minimumWidth = 0
-        self.minimumHeight = 0
-        _draft = State(initialValue: initialDraft)
-    }
+    @FocusState private var isTitleFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             header
 
-            Divider()
+            if surface == .modal {
+                Divider()
+            }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    if let errorMessage = errorMessageOverride ?? viewModel.editorErrorMessage {
+                    if let errorMessage {
                         InlineBanner(
                             message: errorMessage,
                             severity: .error,
                             autoDismissAfter: nil,
-                            onDismiss: dismissError
+                            onDismiss: onDismissError
                         )
                     }
 
-                    ScheduledTaskEditorDetailsSection(draft: $draft)
+                    ScheduledTaskEditorDetailsSection(
+                        draft: $draft,
+                        isTitleFocused: $isTitleFocused
+                    )
                     ScheduledTaskEditorRecurrenceSection(draft: $draft)
                     ScheduledTaskEditorAgentSection(viewModel: viewModel, draft: $draft)
                     ScheduledTaskEditorWorkspaceSection(
@@ -81,14 +50,18 @@ struct ScheduledTaskEditorSheet: View {
                         draft: $draft
                     )
                 }
-                .padding(24)
+                .padding(surface == .pane ? 20 : 24)
             }
 
-            Divider()
+            if surface == .modal {
+                Divider()
+            }
 
             footer
         }
-        .frame(minWidth: minimumWidth, idealWidth: 700, minHeight: minimumHeight, idealHeight: 760)
+        .onAppear {
+            isTitleFocused = true
+        }
         .onChange(of: draft.providerID) { _, _ in
             viewModel.normalizeProviderDependentFields(&draft)
         }
@@ -99,56 +72,153 @@ struct ScheduledTaskEditorSheet: View {
             guard wasLoading, !isLoading else { return }
             viewModel.normalizeProviderDependentFields(&draft)
         }
+        .onExitCommand(perform: onClose)
     }
 
+    @ViewBuilder
     private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(titleOverride ?? (draft.isEditing ? "Edit scheduled task" : "New scheduled task"))
-                    .font(.title2.weight(.semibold))
-                Text(subtitleOverride ?? "Changes apply only to future runs.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        switch surface {
+        case .pane:
+            ContextualPaneHeader(
+                title,
+                subtitle: subtitle,
+                closeAccessibilityLabel: "Close scheduled task editor",
+                onClose: onClose
+            )
+        case .modal:
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.title2.weight(.semibold))
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+                ModalCloseButton("Close scheduled task editor", action: onClose)
             }
-
-            Spacer()
-
-            ModalCloseButton("Close scheduled task editor", action: onClose)
+            .padding(24)
         }
-        .padding(24)
     }
 
+    @ViewBuilder
     private var footer: some View {
-        HStack(spacing: 12) {
-            Text("Alveary must be open and your Mac awake when a task is due.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        switch surface {
+        case .pane:
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    dueTimeNote
+                    Spacer()
+                    Button("Cancel", action: onClose)
+                        .secondaryActionButtonStyle()
+                    submitButton
+                }
 
-            Spacer()
-
-            Button("Cancel", action: onClose)
-                .secondaryActionButtonStyle()
-            Button(submitTitleOverride ?? (draft.isEditing ? "Save changes" : "Create task")) {
-                if onSubmit(draft) {
-                    onClose()
+                VStack(alignment: .leading, spacing: 10) {
+                    dueTimeNote
+                    submitButton
+                    Button("Cancel", action: onClose)
+                        .secondaryActionButtonStyle()
                 }
             }
-            .primaryActionButtonStyle()
+            .padding(16)
+            .background(.bar)
+            .overlay(alignment: .top) {
+                AppSeparatorHairline(surface: .paneHeader)
+            }
+        case .modal:
+            HStack(spacing: 12) {
+                dueTimeNote
+                Spacer()
+                Button("Cancel", action: onClose)
+                    .secondaryActionButtonStyle()
+                submitButton
+            }
+            .padding(20)
         }
-        .padding(20)
     }
 
-    private func dismissError() {
-        if let onDismissErrorOverride {
-            onDismissErrorOverride()
-        } else {
-            viewModel.clearEditorError()
+    private var dueTimeNote: some View {
+        Text("Alveary must be open and your Mac awake when a task is due.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    private var submitButton: some View {
+        Button(submitTitle, action: onSubmit)
+            .primaryActionButtonStyle()
+            .disabled(isSubmitting)
+    }
+}
+
+struct ScheduledTaskEditorPane: View {
+    let viewModel: ScheduledTasksViewModel
+
+    private var draft: Binding<ScheduledTaskEditorDraft> {
+        Binding(
+            get: { viewModel.activePaneSession?.draft ?? viewModel.makeNewDraft() },
+            set: { viewModel.updateActiveDraft($0) }
+        )
+    }
+
+    var body: some View {
+        if let session = viewModel.activePaneSession {
+            ScheduledTaskEditorContent(
+                viewModel: viewModel,
+                draft: draft,
+                title: session.draft.isEditing ? "Edit Scheduled Task" : "New Scheduled Task",
+                subtitle: "Changes apply only to future runs.",
+                submitTitle: session.draft.isEditing ? "Save changes" : "Create task",
+                errorMessage: session.errorMessage,
+                isSubmitting: session.isSubmitting,
+                surface: .pane,
+                onDismissError: viewModel.clearEditorError,
+                onSubmit: viewModel.submitActivePane,
+                onClose: viewModel.dismissActivePane
+            )
         }
+    }
+}
+
+// Retained as a lightweight modal host for focused editor snapshots. Production
+// proposal review uses the same `ScheduledTaskEditorContent` with proposal-local state.
+struct ScheduledTaskEditorSheet: View {
+    let viewModel: ScheduledTasksViewModel
+    let onClose: () -> Void
+    @State private var draft: ScheduledTaskEditorDraft
+
+    init(
+        viewModel: ScheduledTasksViewModel,
+        initialDraft: ScheduledTaskEditorDraft,
+        onClose: @escaping () -> Void
+    ) {
+        self.viewModel = viewModel
+        self.onClose = onClose
+        _draft = State(initialValue: initialDraft)
+    }
+
+    var body: some View {
+        ScheduledTaskEditorContent(
+            viewModel: viewModel,
+            draft: $draft,
+            title: draft.isEditing ? "Edit Scheduled Task" : "New Scheduled Task",
+            subtitle: "Changes apply only to future runs.",
+            submitTitle: draft.isEditing ? "Save changes" : "Create task",
+            errorMessage: nil,
+            isSubmitting: false,
+            surface: .modal,
+            onDismissError: {},
+            onSubmit: {},
+            onClose: onClose
+        )
+        .frame(minWidth: 640, idealWidth: 700, minHeight: 620, idealHeight: 760)
     }
 }
 
 private struct ScheduledTaskEditorDetailsSection: View {
     @Binding var draft: ScheduledTaskEditorDraft
+    @FocusState.Binding var isTitleFocused: Bool
 
     var body: some View {
         SettingsFormSection("Task") {
@@ -157,6 +227,7 @@ private struct ScheduledTaskEditorDetailsSection: View {
                     TextField("Daily project summary", text: $draft.title)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityLabel("Scheduled task title")
+                        .focused($isTitleFocused)
                 }
             }
 

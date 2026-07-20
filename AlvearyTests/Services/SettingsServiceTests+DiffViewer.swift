@@ -36,6 +36,9 @@ extension SettingsServiceTests {
 
         XCTAssertEqual(service.current.permissionMode, "default")
         XCTAssertEqual(service.current.diffViewerWidth, 520)
+        XCTAssertEqual(service.current.skillsPaneWidth, 380)
+        XCTAssertEqual(service.current.mcpPaneWidth, 380)
+        XCTAssertEqual(service.current.scheduledTasksPaneWidth, 380)
         XCTAssertEqual(service.current.diffViewerTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
         XCTAssertEqual(service.current.diffViewerCommitsTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
     }
@@ -54,5 +57,40 @@ extension SettingsServiceTests {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         XCTAssertEqual(service.current.diffViewerMode, AppSettings.defaultDiffViewerMode)
+    }
+
+    func testRightPaneWidthsRoundTripAndClampIndependently() throws {
+        let defaults = try makeDefaults()
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        service.update {
+            $0.diffViewerWidth = 410
+            $0.skillsPaneWidth = 100
+            $0.mcpPaneWidth = 640
+            $0.scheduledTasksPaneWidth = 2_000
+        }
+
+        XCTAssertEqual(service.current.diffViewerWidth, 410)
+        XCTAssertEqual(service.current.skillsPaneWidth, 320)
+        XCTAssertEqual(service.current.mcpPaneWidth, 640)
+        XCTAssertEqual(service.current.scheduledTasksPaneWidth, 960)
+
+        let reloaded = UserDefaultsSettingsService(defaults: defaults)
+        XCTAssertEqual(reloaded.current.diffViewerWidth, 410)
+        XCTAssertEqual(reloaded.current.skillsPaneWidth, 320)
+        XCTAssertEqual(reloaded.current.mcpPaneWidth, 640)
+        XCTAssertEqual(reloaded.current.scheduledTasksPaneWidth, 960)
+    }
+
+    func testUpdatingOneContextualPaneWidthLeavesOtherWidthsUnchanged() throws {
+        let defaults = try makeDefaults()
+        let service = UserDefaultsSettingsService(defaults: defaults)
+
+        service.update { $0.skillsPaneWidth = 512 }
+
+        XCTAssertEqual(service.current.skillsPaneWidth, 512)
+        XCTAssertEqual(service.current.diffViewerWidth, 380)
+        XCTAssertEqual(service.current.mcpPaneWidth, 380)
+        XCTAssertEqual(service.current.scheduledTasksPaneWidth, 380)
     }
 }

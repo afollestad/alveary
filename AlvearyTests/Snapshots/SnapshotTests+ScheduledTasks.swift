@@ -5,6 +5,29 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
+    func testScheduledTaskCreatePaneAtMinimumWidth() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+        fixture.viewModel.requestCreate()
+
+        assertMacSnapshot(
+            ScheduledTaskEditorPane(viewModel: fixture.viewModel),
+            size: CGSize(width: 320, height: 780),
+            named: "scheduled_task_create_pane_minimum_width"
+        )
+    }
+
+    func testScheduledTaskEditPaneAtMinimumWidth() throws {
+        let fixture = try ScheduledTasksSnapshotFixture()
+        let task = try XCTUnwrap(fixture.viewModel.tasks.first)
+        fixture.viewModel.requestEdit(definitionID: task.id)
+
+        assertMacSnapshot(
+            ScheduledTaskEditorPane(viewModel: fixture.viewModel),
+            size: CGSize(width: 320, height: 780),
+            named: "scheduled_task_edit_pane_minimum_width"
+        )
+    }
+
     func testScheduledTasksScreenEmpty() throws {
         let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
 

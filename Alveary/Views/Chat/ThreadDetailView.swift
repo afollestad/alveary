@@ -381,7 +381,7 @@ private extension ThreadDetailView {
                     baseRef: baseRef,
                     remoteName: remoteName,
                     conversationIds: conversationIds,
-                    scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+                    scope: appState.isDiffViewerRequested ? .full : .toolbarStatsOnly
                 )
             }
         } catch {
@@ -483,7 +483,7 @@ private extension ThreadDetailView {
             baseRef: baseRef,
             remoteName: remoteName,
             conversationIds: conversationIds,
-            scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+            scope: appState.isDiffViewerRequested ? .full : .toolbarStatsOnly
         )
     }
 

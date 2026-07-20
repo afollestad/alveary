@@ -158,6 +158,87 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         XCTAssertNil(fixture.viewModel.pendingEditorDraft)
     }
 
+    func testPerTargetPaneSessionsRestoreExactDrafts() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        try fixture.insertDefinition(id: "cached-edit", title: "Stored task", revision: 2)
+
+        fixture.viewModel.requestCreate()
+        var createDraft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
+        createDraft.title = "Unsaved create"
+        fixture.viewModel.updateActiveDraft(createDraft)
+
+        fixture.viewModel.requestEdit(definitionID: "cached-edit")
+        var editDraft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
+        editDraft.title = "Unsaved edit"
+        fixture.viewModel.updateActiveDraft(editDraft)
+
+        fixture.viewModel.requestCreate()
+        XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.title, "Unsaved create")
+        fixture.viewModel.requestEdit(definitionID: "cached-edit")
+        XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.title, "Unsaved edit")
+    }
+
+    func testDismissingAndReopeningPaneCreatesNewGeneration() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+
+        fixture.viewModel.requestCreate()
+        let firstGeneration = try XCTUnwrap(fixture.viewModel.activePaneSession?.generation)
+        fixture.viewModel.dismissActivePane()
+        fixture.viewModel.requestCreate()
+
+        XCTAssertNotEqual(fixture.viewModel.activePaneSession?.generation, firstGeneration)
+    }
+
+    func testProposalFailureDoesNotMutateManualPaneDraftOrError() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        fixture.viewModel.requestCreate()
+        var manualDraft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
+        manualDraft.title = "Keep this manual draft"
+        fixture.viewModel.updateActiveDraft(manualDraft)
+
+        var proposalDraft = fixture.viewModel.makeNewDraft()
+        proposalDraft.prompt = "Missing title"
+        let result = fixture.viewModel.saveProposal(
+            proposalDraft,
+            consumingProposalID: "missing-proposal"
+        )
+
+        guard case .failure = result else {
+            return XCTFail("Expected proposal validation to fail")
+        }
+        XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.title, "Keep this manual draft")
+        XCTAssertNil(fixture.viewModel.editorErrorMessage)
+    }
+
+    func testScheduledDefinitionRoutingSelectsScreenAndEditPane() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        try fixture.insertDefinition(id: "notification-target", title: "Notification target", revision: 3)
+        let appState = AppState()
+
+        openScheduledTaskDefinitionInAppState(
+            definitionID: "notification-target",
+            appState: appState,
+            viewModel: fixture.viewModel
+        )
+
+        XCTAssertEqual(appState.selectedSidebarItem, .scheduled)
+        XCTAssertEqual(fixture.viewModel.activePaneTarget, .edit("notification-target"))
+        XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.expectedRevision, 3)
+    }
+
+    func testDeleteDiscardsMatchingCachedEditSession() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        try fixture.insertDefinition(id: "delete-cached-edit", revision: 2)
+        fixture.viewModel.reload()
+        fixture.viewModel.requestEdit(definitionID: "delete-cached-edit")
+        let task = try XCTUnwrap(fixture.viewModel.tasks.first { $0.id == "delete-cached-edit" })
+
+        fixture.viewModel.delete(task)
+
+        XCTAssertNil(fixture.viewModel.paneSessions[.edit("delete-cached-edit")])
+        XCTAssertNil(fixture.viewModel.activePaneTarget)
+    }
+
     func testProviderSwitchNormalizesIncompatiblePermissionMode() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         var draft = fixture.viewModel.makeNewDraft()

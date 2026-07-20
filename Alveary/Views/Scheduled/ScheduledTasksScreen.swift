@@ -5,6 +5,8 @@ struct ScheduledTasksScreen: View {
 
     @State private var selectedFilter = ScheduledTasksFilter.all
     @State private var deleteConfirmation: ScheduledTaskRowPresentation?
+    @State private var lastPaneTriggerID = "scheduled-new"
+    @FocusState private var focusedPaneTriggerID: String?
 
     private let contentVerticalPadding: CGFloat = 28
     // Match the new-thread hero's optical center within the Scheduled pane.
@@ -14,7 +16,8 @@ struct ScheduledTasksScreen: View {
         VStack(spacing: 0) {
             ScheduledTasksScreenHeader(
                 selectedFilter: $selectedFilter,
-                onCreate: viewModel.requestCreate
+                onCreate: openCreatePane,
+                createFocus: $focusedPaneTriggerID
             )
 
             GeometryReader { proxy in
@@ -24,7 +27,7 @@ struct ScheduledTasksScreen: View {
                         if visibleTasks.isEmpty {
                             ScheduledTasksEmptyState(
                                 filter: selectedFilter,
-                                onCreate: viewModel.requestCreate
+                                onCreate: openCreatePane
                             )
                             .offset(y: emptyStateVerticalOffset)
                         }
@@ -47,12 +50,15 @@ struct ScheduledTasksScreen: View {
                                             providerName: viewModel.providerDisplayName(for: task.providerID),
                                             isRunNowPending: viewModel.pendingRunNowDefinitionIDs.contains(task.id),
                                             onEdit: {
+                                                lastPaneTriggerID = "scheduled-edit-\(task.id)"
                                                 viewModel.requestEdit(definitionID: task.id)
                                             },
                                             onPause: { viewModel.pause(task) },
                                             onResume: { viewModel.resume(task) },
                                             onRunNow: { viewModel.runNow(task) },
-                                            onDelete: { deleteConfirmation = task }
+                                            onDelete: { deleteConfirmation = task },
+                                            editFocus: $focusedPaneTriggerID,
+                                            editFocusID: "scheduled-edit-\(task.id)"
                                         )
                                     }
                                 }
@@ -76,10 +82,8 @@ struct ScheduledTasksScreen: View {
         .task {
             await viewModel.load()
         }
-        .sheet(item: editorDraftBinding) { draft in
-            ScheduledTaskEditorSheet(viewModel: viewModel, initialDraft: draft) {
-                viewModel.dismissEditor()
-            }
+        .onChange(of: viewModel.paneDismissalGeneration) { _, _ in
+            focusedPaneTriggerID = lastPaneTriggerID
         }
         .confirmationDialog(
             "Delete scheduled task?",
@@ -106,15 +110,9 @@ struct ScheduledTasksScreen: View {
         }
     }
 
-    private var editorDraftBinding: Binding<ScheduledTaskEditorDraft?> {
-        Binding(
-            get: { viewModel.pendingEditorDraft },
-            set: { draft in
-                if draft == nil {
-                    viewModel.dismissEditor()
-                }
-            }
-        )
+    private func openCreatePane() {
+        lastPaneTriggerID = "scheduled-new"
+        viewModel.requestCreate()
     }
 }
 

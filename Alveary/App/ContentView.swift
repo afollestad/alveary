@@ -36,13 +36,13 @@ struct ContentView: View {
     @State private var viewModelContext: ModelContext
     @State var sidebarViewModel: SidebarViewModel
     @State var diffViewModel: DiffViewerViewModel
-    @State var diffViewerWidth: CGFloat
+    @State var rightPaneWidths: RightPaneWidths
     @State var diffViewerTopSectionFraction: CGFloat
     @State var diffViewerCommitsTopSectionFraction: CGFloat
     @State var diffViewerMode: DiffViewerMode
     @State private var terminalPaneHeight: CGFloat
-    @State private var skillsViewModel: SkillsViewModel
-    @State private var mcpViewModel: MCPViewModel
+    @State var skillsViewModel: SkillsViewModel
+    @State var mcpViewModel: MCPViewModel
     @State var scheduledTasksViewModel: ScheduledTasksViewModel
     @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     @State private var settingsViewModel: SettingsViewModel
@@ -92,7 +92,7 @@ struct ContentView: View {
         let settings = dependencies.settingsService.current
         // Keep UI mutations on the main context so sidebar `@Query` reads and view-model saves stay in sync.
         _viewModelContext = State(initialValue: dependencies.modelContainer.mainContext)
-        _diffViewerWidth = State(initialValue: CGFloat(settings.diffViewerWidth))
+        _rightPaneWidths = State(initialValue: RightPaneWidths(settings: settings))
         _diffViewerTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerTopSectionFraction))
         _diffViewerCommitsTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerCommitsTopSectionFraction))
         _diffViewerMode = State(initialValue: settings.diffViewerMode)
@@ -121,6 +121,8 @@ struct ContentView: View {
     }
 
     var body: some View {
+        let resolvedRightPaneDestination = rightPaneDestination
+        let widthDomain = resolvedRightPaneDestination?.widthDomain ?? .diff
         let middlePane = MiddlePane(
             appState: appState,
             modelContext: viewModelContext,
@@ -153,7 +155,7 @@ struct ContentView: View {
             }
         )
 
-        NavigationSplitView(columnVisibility: $splitVisibility) {
+        let rootWindowView = NavigationSplitView(columnVisibility: $splitVisibility) {
             SidebarView(
                 viewModel: sidebarViewModel,
                 appState: appState,
@@ -162,42 +164,15 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
         } detail: {
             ZStack(alignment: .bottom) {
-                GeometryReader { proxy in
-                    let effectiveDiffViewerWidth = effectiveDiffViewerWidth(availableWidth: proxy.size.width)
-                    let diffViewerWidthBinding = Binding(
-                        get: { effectiveDiffViewerWidth },
-                        set: { diffViewerWidth = $0 }
-                    )
-                    let effectiveDiffViewerBounds = effectiveDiffViewerBounds(availableWidth: proxy.size.width)
-
-                    HStack(spacing: 0) {
-                        middlePane
-                            .frame(minWidth: 0, maxWidth: .infinity)
-                            .clipped()
-
-                        if appState.isRightPaneVisible {
-                            ContentDiffViewerResizeHandle(
-                                width: diffViewerWidthBinding,
-                                bounds: effectiveDiffViewerBounds,
-                                onCommit: persistDiffViewerWidth
-                            )
-                            DiffViewerPane(
-                                viewModel: diffViewModel,
-                                // Keep render-time gates observation-tracked; action handlers re-resolve backing rows.
-                                canCommit: appState.selectedSidebarItem?.canCommitDiffChanges == true,
-                                mode: $diffViewerMode,
-                                onModeCommit: persistDiffViewerMode,
-                                topSectionFraction: activeDiffViewerTopSectionFraction,
-                                onTopSectionFractionCommit: { fraction in
-                                    persistDiffViewerTopSectionFraction(fraction, mode: diffViewerMode)
-                                },
-                                onCommitRequested: presentGitCommitModal
-                            )
-                            .frame(width: effectiveDiffViewerWidth)
-                        }
-                    }
-                }
-                .animation(.easeInOut(duration: 0.25), value: appState.isRightPaneVisible)
+                ResizableRightPane(
+                    destination: resolvedRightPaneDestination,
+                    width: rightPaneWidthBinding(for: widthDomain),
+                    onWidthCommit: { width in
+                        persistRightPaneWidth(width, domain: widthDomain)
+                    },
+                    mainContent: { middlePane },
+                    paneContent: rightPaneContent
+                )
 
                 if appState.isTerminalPaneVisible {
                     TerminalPane(
@@ -267,16 +242,14 @@ struct ContentView: View {
                     diffDisplayState: diffViewerToolbarDisplayState,
                     diffHelpText: diffViewerToggleHelpText
                         + " (\(KeyboardShortcut.toggleDiffViewer.displayString))",
-                    diffAccessibilityLabel: appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer",
+                    diffAccessibilityLabel: isDiffViewerRendered ? "Hide Diff Viewer" : "Show Diff Viewer",
                     diffAccessibilityValue: diffViewerToggleAccessibilityValue,
                     settingsBadgeState: appUpdateManager.toolbarBadgeState,
                     onProjectAction: { threadID, action in
                         runProjectAction(threadID: threadID, action: action)
                     },
                     onToggleTerminal: toggleTerminalPane,
-                    onToggleDiffViewer: {
-                        appState.toggleRightPane()
-                    },
+                    onToggleDiffViewer: toggleDiffViewer,
                     onOpenSettings: {
                         appState.openSettings(targetPage: appUpdateManager.toolbarBadgeState.settingsTargetPage)
                     }
@@ -285,6 +258,8 @@ struct ContentView: View {
             }
             .sharedBackgroundVisibility(.hidden)
         }
+
+        let selectionObservedView = rootWindowView
         .onChange(of: appState.isLeftPaneVisible) { _, isVisible in
             splitVisibility = isVisible ? .all : .detailOnly
         }
@@ -293,6 +268,7 @@ struct ContentView: View {
         }
         .onChange(of: appState.selectedSidebarItem) { _, selection in
             recordLastActiveProject(for: selection)
+            synchronizeContextPaneWithDiffRequest()
             updateDiffViewer(item: selection)
             cancelPendingCommitMessageGenerationIfNeeded()
         }
@@ -313,14 +289,20 @@ struct ContentView: View {
             }
             updateDiffViewer(item: .settings)
         }
-        .onChange(of: appState.isRightPaneVisible) { _, isVisible in
-            diffViewModel.setWatchingEnabled(isVisible)
-            // Hiding keeps the loaded workspace so toolbar stats stay visible;
-            // showing upgrades a stats-only workspace to the full pane payload.
-            if isVisible {
-                updateDiffViewer(item: appState.selectedSidebarItem)
-            }
+        .onChange(of: resolvedRightPaneDestination) { _, destination in
+            handleRightPaneDestinationChange(destination)
         }
+        .onChange(of: skillsViewModel.activePaneTarget) { _, _ in
+            synchronizeContextPaneWithDiffRequest()
+        }
+        .onChange(of: mcpViewModel.activePaneTarget) { _, _ in
+            synchronizeContextPaneWithDiffRequest()
+        }
+        .onChange(of: scheduledTasksViewModel.activePaneTarget) { _, _ in
+            synchronizeContextPaneWithDiffRequest()
+        }
+
+        let activityObservedView = selectionObservedView
         .onChange(of: appState.pendingCommand) { _, command in
             handlePendingCommand(command)
         }
@@ -346,6 +328,8 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             terminalManager.terminateAllSessions()
         }
+
+        return activityObservedView
         .sheet(
             isPresented: $isAddProjectSheetPresented,
             // Wait for the sheet's dismissal to finish before opening the
@@ -368,7 +352,7 @@ struct ContentView: View {
             startThreadActivityBackfillIfNeeded()
             restoreLastOpenThreadSelectionIfNeeded()
             updateDiffViewer(item: appState.selectedSidebarItem)
-            diffViewModel.setWatchingEnabled(appState.isRightPaneVisible)
+            handleRightPaneDestinationChange(resolvedRightPaneDestination)
             replayModelPreparationDeferredRoutingIfAvailable()
             // Mark-read of the active conversation is handled by `ThreadDetailView` once
             // the restored selection mounts; just sync the dock badge on launch.
@@ -379,6 +363,7 @@ struct ContentView: View {
         // as the toolbar button — `terminalManager` is view-local `@State`, so
         // the menu needs a `FocusedValue` hop to reach it.
         .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
+        .focusedSceneValue(\.diffViewerCommand, diffViewerCommand)
     }
 }
 

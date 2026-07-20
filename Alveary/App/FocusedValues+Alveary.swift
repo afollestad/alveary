@@ -19,6 +19,19 @@ struct ToggleTerminalPaneActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }
 
+struct DiffViewerCommand: Equatable {
+    let title: String
+    let action: @MainActor () -> Void
+
+    static func == (lhs: DiffViewerCommand, rhs: DiffViewerCommand) -> Bool {
+        lhs.title == rhs.title
+    }
+}
+
+struct DiffViewerCommandKey: FocusedValueKey {
+    typealias Value = DiffViewerCommand
+}
+
 /// Published by `ChatView` so the debug-only Developer menu can trigger a
 /// session handoff with automatic-style steering behavior.
 struct TriggerSessionHandoffActionKey: FocusedValueKey {
@@ -48,6 +61,11 @@ extension FocusedValues {
     var toggleTerminalPaneAction: ToggleTerminalPaneActionKey.Value? {
         get { self[ToggleTerminalPaneActionKey.self] }
         set { self[ToggleTerminalPaneActionKey.self] = newValue }
+    }
+
+    var diffViewerCommand: DiffViewerCommandKey.Value? {
+        get { self[DiffViewerCommandKey.self] }
+        set { self[DiffViewerCommandKey.self] = newValue }
     }
 
     var triggerSessionHandoffAction: TriggerSessionHandoffActionKey.Value? {

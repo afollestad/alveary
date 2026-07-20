@@ -20,7 +20,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedCodeFontSizeRange = 10...24
     static let supportedChatFontSizeRange = 11...24
     static let defaultEnterBehavior = ThreadEnterDefaultBehavior.queue
-    static let supportedDiffViewerWidthRange = 320.0...960.0
+    static let supportedRightPaneWidthRange = 320.0...960.0
+    static let supportedDiffViewerWidthRange = supportedRightPaneWidthRange
     static let supportedDiffViewerSplitRange = 0.25...0.75
     static let defaultDiffViewerTopSectionFraction = 0.5
     static let defaultDiffViewerMode = DiffViewerMode.currentChanges
@@ -50,6 +51,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var codeFontSize = 12
     var chatFontSize = 13
     var diffViewerWidth = 380.0
+    var skillsPaneWidth = 380.0
+    var mcpPaneWidth = 380.0
+    var scheduledTasksPaneWidth = 380.0
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerCommitsTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerMode = Self.defaultDiffViewerMode
@@ -194,6 +198,9 @@ struct AppSettings: Codable, Sendable, Equatable {
             max(diffViewerWidth, Self.supportedDiffViewerWidthRange.lowerBound),
             Self.supportedDiffViewerWidthRange.upperBound
         )
+        skillsPaneWidth = Self.normalizedRightPaneWidth(skillsPaneWidth)
+        mcpPaneWidth = Self.normalizedRightPaneWidth(mcpPaneWidth)
+        scheduledTasksPaneWidth = Self.normalizedRightPaneWidth(scheduledTasksPaneWidth)
         diffViewerTopSectionFraction = min(
             max(diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
             Self.supportedDiffViewerSplitRange.upperBound
@@ -250,13 +257,6 @@ struct AppSettings: Codable, Sendable, Equatable {
             : trimmedWorktreesBase
     }
 
-    static func normalizedDiffViewerMode(_ rawValue: String?) -> DiffViewerMode {
-        guard let rawValue,
-              let mode = DiffViewerMode(rawValue: rawValue) else {
-            return defaultDiffViewerMode
-        }
-        return mode
-    }
 }
 
 extension AppSettings {
@@ -292,6 +292,9 @@ extension AppSettings {
         case codeFontSize
         case chatFontSize
         case diffViewerWidth
+        case skillsPaneWidth
+        case mcpPaneWidth
+        case scheduledTasksPaneWidth
         case diffViewerTopSectionFraction
         case diffViewerCommitsTopSectionFraction
         case diffViewerMode
@@ -389,6 +392,12 @@ extension AppSettings {
 
     private mutating func decodeLayout(from container: KeyedDecodingContainer<CodingKeys>) throws {
         diffViewerWidth = try container.decodeIfPresent(Double.self, forKey: .diffViewerWidth) ?? diffViewerWidth
+        skillsPaneWidth = try container.decodeIfPresent(Double.self, forKey: .skillsPaneWidth) ?? skillsPaneWidth
+        mcpPaneWidth = try container.decodeIfPresent(Double.self, forKey: .mcpPaneWidth) ?? mcpPaneWidth
+        scheduledTasksPaneWidth = try container.decodeIfPresent(
+            Double.self,
+            forKey: .scheduledTasksPaneWidth
+        ) ?? scheduledTasksPaneWidth
         diffViewerTopSectionFraction = try container.decodeIfPresent(
             Double.self,
             forKey: .diffViewerTopSectionFraction

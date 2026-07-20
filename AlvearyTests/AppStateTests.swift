@@ -292,22 +292,22 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(state.isTerminalPaneVisible)
     }
 
-    func testRightPaneVisibilityHelpersDriveProgrammaticDrawerState() {
+    func testDiffViewerRequestHelpersDriveProgrammaticPaneState() {
         let state = AppState()
 
-        XCTAssertFalse(state.isRightPaneVisible)
+        XCTAssertFalse(state.isDiffViewerRequested)
 
-        state.showRightPane()
-        XCTAssertTrue(state.isRightPaneVisible)
+        state.showDiffViewer()
+        XCTAssertTrue(state.isDiffViewerRequested)
 
-        state.toggleRightPane()
-        XCTAssertFalse(state.isRightPaneVisible)
+        state.toggleDiffViewerRequest()
+        XCTAssertFalse(state.isDiffViewerRequested)
 
-        state.toggleRightPane()
-        XCTAssertTrue(state.isRightPaneVisible)
+        state.toggleDiffViewerRequest()
+        XCTAssertTrue(state.isDiffViewerRequested)
 
-        state.hideRightPane()
-        XCTAssertFalse(state.isRightPaneVisible)
+        state.hideDiffViewer()
+        XCTAssertFalse(state.isDiffViewerRequested)
     }
 
     func testLeftPaneVisibilityHelperMirrorsProvidedBoolean() {

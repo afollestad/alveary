@@ -38,7 +38,7 @@ extension ContentView {
 
         // The toolbar diff summary must stay fresh even while the pane is
         // hidden; only the heavy pane payload waits for the pane to show.
-        let scope: DiffViewerSwitchScope = appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+        let scope: DiffViewerSwitchScope = isDiffViewerRendered ? .full : .toolbarStatsOnly
 
         Task {
             guard generation == diffViewerSwitchGeneration else {

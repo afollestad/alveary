@@ -19,12 +19,6 @@ extension ContentView {
         )
     }
 
-    func persistDiffViewerWidth(_ width: CGFloat) {
-        settingsService.update {
-            $0.diffViewerWidth = width
-        }
-    }
-
     func persistDiffViewerTopSectionFraction(_ fraction: CGFloat, mode: DiffViewerMode) {
         settingsService.update {
             switch mode {

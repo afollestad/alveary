@@ -66,10 +66,7 @@ struct AlvearyApp: App {
             }
 
             CommandGroup(after: .toolbar) {
-                Button(appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer") {
-                    appState.toggleRightPane()
-                }
-                .keyboardShortcut(.toggleDiffViewer)
+                DiffViewerCommandButton()
 
                 ToggleTerminalPaneCommandButton(appState: appState)
 
@@ -174,6 +171,18 @@ struct AlvearyApp: App {
             ],
             range: NSRange(range, in: attributed.string)
         )
+    }
+}
+
+private struct DiffViewerCommandButton: View {
+    @FocusedValue(\.diffViewerCommand) private var command
+
+    var body: some View {
+        Button(command?.title ?? "Show Diff Viewer") {
+            command?.action()
+        }
+        .keyboardShortcut(.toggleDiffViewer)
+        .disabled(command == nil)
     }
 }
 

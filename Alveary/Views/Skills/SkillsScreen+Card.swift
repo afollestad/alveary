@@ -4,6 +4,8 @@ struct SkillCard: View {
     let skill: Skill
     let onOpen: () -> Void
     let onPrimaryAction: () -> Void
+    let detailsFocus: FocusState<String?>.Binding
+    let detailsFocusID: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -51,6 +53,7 @@ struct SkillCard: View {
             HStack {
                 Button("Details", action: onOpen)
                     .secondaryActionButtonStyle()
+                    .focused(detailsFocus, equals: detailsFocusID)
                 Spacer()
                 if skill.isInstalled {
                     Button("Uninstall", role: .destructive, action: onPrimaryAction)

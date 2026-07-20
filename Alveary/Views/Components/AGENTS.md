@@ -8,6 +8,7 @@ General shared controls live here. Narrower scopes:
 - `TabChips/AGENTS.md`: `SelectableTabChip`, `TabChipButtonStyle`.
 - `TextInput/AGENTS.md`: `AppTextEditor`, `AppKitTextView`.
 - `CompactSearchPaneHeader` owns the fixed search/header chrome shared by Skills and MCP; screen wrappers own their action labels, callbacks, and primary/secondary emphasis.
+- `ResizableRightPane` owns the shared horizontal right-pane lane, width clamp, display-pixel snapping, cursor, accessibility adjustment, and drag-end persistence callback. Key its handle/content by destination so a route change cannot commit the previous width domain.
 
 ## Status Spinners
 

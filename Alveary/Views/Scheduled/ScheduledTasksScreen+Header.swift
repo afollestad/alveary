@@ -3,6 +3,20 @@ import SwiftUI
 struct ScheduledTasksScreenHeader: View {
     @Binding var selectedFilter: ScheduledTasksFilter
     let onCreate: () -> Void
+    var createFocus: FocusState<String?>.Binding?
+    var createFocusID: String
+
+    init(
+        selectedFilter: Binding<ScheduledTasksFilter>,
+        onCreate: @escaping () -> Void,
+        createFocus: FocusState<String?>.Binding? = nil,
+        createFocusID: String = "scheduled-new"
+    ) {
+        _selectedFilter = selectedFilter
+        self.onCreate = onCreate
+        self.createFocus = createFocus
+        self.createFocusID = createFocusID
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -22,15 +36,7 @@ struct ScheduledTasksScreenHeader: View {
 
             Spacer(minLength: 0)
 
-            Button(action: onCreate) {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                    Text("New scheduled task")
-                }
-            }
-            .primaryActionButtonStyle()
-            .accessibilityLabel("New scheduled task")
-            .padding(.leading, 12)
+            createButton
         }
         .padding(.trailing, 21)
         .padding(.vertical, 14)
@@ -38,6 +44,28 @@ struct ScheduledTasksScreenHeader: View {
         .overlay(alignment: .bottom) {
             AppSeparatorHairline(surface: .paneHeader)
         }
+    }
+
+    @ViewBuilder
+    private var createButton: some View {
+        if let createFocus {
+            createButtonContent
+                .focused(createFocus, equals: createFocusID)
+        } else {
+            createButtonContent
+        }
+    }
+
+    private var createButtonContent: some View {
+        Button(action: onCreate) {
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                Text("New Scheduled Task")
+            }
+        }
+        .primaryActionButtonStyle()
+        .accessibilityLabel("New Scheduled Task")
+        .padding(.leading, 12)
     }
 }
 

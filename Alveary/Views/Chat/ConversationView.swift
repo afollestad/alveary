@@ -197,7 +197,7 @@ struct ConversationView: View {
                             baseRef: baseRef,
                             remoteName: remoteName,
                             conversationIds: conversationIds,
-                            scope: appState.isRightPaneVisible ? .full : .toolbarStatsOnly
+                            scope: appState.isDiffViewerRequested ? .full : .toolbarStatsOnly
                         )
                     }
                 )

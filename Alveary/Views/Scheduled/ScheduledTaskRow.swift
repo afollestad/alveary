@@ -9,6 +9,8 @@ struct ScheduledTaskRow: View {
     let onResume: () -> Void
     let onRunNow: () -> Void
     let onDelete: () -> Void
+    let editFocus: FocusState<String?>.Binding
+    let editFocusID: String
 
     @Environment(\.locale) private var locale
 
@@ -75,7 +77,9 @@ struct ScheduledTaskRow: View {
                 onPause: onPause,
                 onResume: onResume,
                 onRunNow: onRunNow,
-                onDelete: onDelete
+                onDelete: onDelete,
+                editFocus: editFocus,
+                editFocusID: editFocusID
             )
         }
         .padding(14)
@@ -150,6 +154,8 @@ private struct ScheduledTaskRowActions: View {
     let onResume: () -> Void
     let onRunNow: () -> Void
     let onDelete: () -> Void
+    let editFocus: FocusState<String?>.Binding
+    let editFocusID: String
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -199,6 +205,7 @@ private struct ScheduledTaskRowActions: View {
     private var editButton: some View {
         Button("Edit", action: onEdit)
             .secondaryActionButtonStyle()
+            .focused(editFocus, equals: editFocusID)
     }
 
     @ViewBuilder private var stateButton: some View {

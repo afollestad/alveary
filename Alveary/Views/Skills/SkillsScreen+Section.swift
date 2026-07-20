@@ -4,6 +4,7 @@ struct SkillsSection: View {
     let title: String
     let skills: [Skill]
     let columns: [GridItem]
+    let focusedPaneTrigger: FocusState<String?>.Binding
     let onOpen: (Skill) -> Void
     let onPrimaryAction: (Skill) -> Void
 
@@ -21,7 +22,9 @@ struct SkillsSection: View {
                         },
                         onPrimaryAction: {
                             onPrimaryAction(skill)
-                        }
+                        },
+                        detailsFocus: focusedPaneTrigger,
+                        detailsFocusID: "skills-details-\(skill.id)"
                     )
                 }
             }

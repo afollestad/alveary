@@ -103,16 +103,13 @@ final class ScheduledTaskProposalQueueCoordinator {
     }
 
     @discardableResult
-    func reject(
-        proposalID: String,
-        clearingProposalErrorIn viewModel: ScheduledTasksViewModel? = nil
-    ) -> Bool {
+    func reject(proposalID: String) -> Bool {
         guard !isResolving else {
             return false
         }
         guard currentProposal?.id == proposalID else {
             reload()
-            return finishRejectedProposalIfAbsent(proposalID, viewModel: viewModel)
+            return finishRejectedProposalIfAbsent(proposalID)
         }
         isResolving = true
         defer { isResolving = false }
@@ -121,7 +118,6 @@ final class ScheduledTaskProposalQueueCoordinator {
             try flushPendingChanges()
             guard let proposal = try fetchProposal(id: proposalID) else {
                 reload()
-                viewModel?.clearEditorError()
                 return true
             }
             modelContext.delete(proposal)
@@ -129,7 +125,6 @@ final class ScheduledTaskProposalQueueCoordinator {
             notificationCenter.postScheduledTaskProposalsChanged(object: self)
             errorMessage = nil
             reload()
-            viewModel?.clearEditorError()
             return true
         } catch {
             modelContext.rollback()
@@ -158,14 +153,15 @@ final class ScheduledTaskProposalQueueCoordinator {
             return false
         }
 
-        let didSave = viewModel.save(draft, consumingProposalID: proposalID)
-        if didSave {
+        switch viewModel.saveProposal(draft, consumingProposalID: proposalID) {
+        case .success:
             errorMessage = nil
             reload()
-        } else {
-            errorMessage = viewModel.editorErrorMessage
+            return true
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+            return false
         }
-        return didSave
     }
 
     func confirmActionProposal(proposalID: String) {
@@ -377,15 +373,11 @@ private extension ScheduledTaskProposalQueueCoordinator {
         try saveModelContext(modelContext)
     }
 
-    func finishRejectedProposalIfAbsent(
-        _ proposalID: String,
-        viewModel: ScheduledTasksViewModel?
-    ) -> Bool {
+    func finishRejectedProposalIfAbsent(_ proposalID: String) -> Bool {
         do {
             guard try fetchProposal(id: proposalID) == nil else {
                 return false
             }
-            viewModel?.clearEditorError()
             return true
         } catch {
             errorMessage = error.localizedDescription

@@ -95,10 +95,7 @@ extension ContentView {
         case .imagePreview:
             appState.dismissImagePreview()
         case .scheduledTaskProposal(let proposalID):
-            scheduledTaskProposalQueueCoordinator.reject(
-                proposalID: proposalID,
-                clearingProposalErrorIn: scheduledTasksViewModel
-            )
+            scheduledTaskProposalQueueCoordinator.reject(proposalID: proposalID)
         }
     }
 }

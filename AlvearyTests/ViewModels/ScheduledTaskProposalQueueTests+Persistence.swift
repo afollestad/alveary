@@ -83,7 +83,7 @@ extension ScheduledTaskProposalQueueTests {
         XCTAssertFalse(fixture.context.hasChanges)
     }
 
-    func testSuccessfulRejectClearsSharedProposalEditorError() throws {
+    func testSuccessfulRejectDoesNotClearManualPaneError() throws {
         let fixture = try ScheduledTaskProposalQueueFixture()
         let proposal = try fixture.insertProposal(
             id: "reject-clears-editor-error",
@@ -98,14 +98,11 @@ extension ScheduledTaskProposalQueueTests {
         XCTAssertFalse(viewModel.save(draft))
         XCTAssertNotNil(viewModel.editorErrorMessage)
 
-        XCTAssertTrue(
-            coordinator.reject(
-                proposalID: proposalID,
-                clearingProposalErrorIn: viewModel
-            )
-        )
+        let expectedError = try XCTUnwrap(viewModel.editorErrorMessage)
 
-        XCTAssertNil(viewModel.editorErrorMessage)
+        XCTAssertTrue(coordinator.reject(proposalID: proposalID))
+
+        XCTAssertEqual(viewModel.editorErrorMessage, expectedError)
         XCTAssertNil(fixture.context.resolveScheduledTaskProposal(id: proposalID))
     }
 
@@ -125,12 +122,7 @@ extension ScheduledTaskProposalQueueTests {
         XCTAssertFalse(viewModel.save(draft))
         let expectedError = try XCTUnwrap(viewModel.editorErrorMessage)
 
-        XCTAssertFalse(
-            coordinator.reject(
-                proposalID: proposal.id,
-                clearingProposalErrorIn: viewModel
-            )
-        )
+        XCTAssertFalse(coordinator.reject(proposalID: proposal.id))
 
         XCTAssertEqual(viewModel.editorErrorMessage, expectedError)
         XCTAssertEqual(
@@ -163,12 +155,7 @@ extension ScheduledTaskProposalQueueTests {
         let expectedError = try XCTUnwrap(viewModel.editorErrorMessage)
 
         XCTAssertEqual(coordinator.currentProposal?.id, first.id)
-        XCTAssertFalse(
-            coordinator.reject(
-                proposalID: queued.id,
-                clearingProposalErrorIn: viewModel
-            )
-        )
+        XCTAssertFalse(coordinator.reject(proposalID: queued.id))
         XCTAssertNotNil(fixture.context.resolveScheduledTaskProposal(id: queued.id))
         XCTAssertEqual(viewModel.editorErrorMessage, expectedError)
     }

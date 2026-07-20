@@ -28,8 +28,6 @@ struct ScheduledTaskProposalOverlay: View {
         }
         .zIndex(1_000)
         .task(id: proposal.id) {
-            scheduledTasksViewModel.clearError()
-            scheduledTasksViewModel.clearEditorError()
             await scheduledTasksViewModel.load()
         }
     }
@@ -39,30 +37,11 @@ struct ScheduledTaskProposalOverlay: View {
         if proposal.isEditorProposal,
            proposal.conflictMessage == nil,
            let definitionDraft = proposal.definitionDraft {
-            let draft = scheduledTasksViewModel.makeProposalDraft(
-                definitionDraft,
-                definitionID: proposal.targetDefinitionID,
-                expectedRevision: proposal.expectedDefinitionRevision
-            )
-            ScheduledTaskEditorSheet(
-                viewModel: scheduledTasksViewModel,
-                initialDraft: draft,
-                title: "Review scheduled task proposal",
-                subtitle: "Review or adjust the details before Alveary applies anything.",
-                submitTitle: proposal.action == .create ? "Confirm and create" : "Confirm changes",
-                errorMessage: coordinator.errorMessage ?? scheduledTasksViewModel.editorErrorMessage,
-                onDismissError: {
-                    coordinator.clearError()
-                    scheduledTasksViewModel.clearEditorError()
-                },
-                onSubmit: { draft in
-                    coordinator.confirmEditorProposal(
-                        proposalID: proposal.id,
-                        draft: draft,
-                        viewModel: scheduledTasksViewModel
-                    )
-                },
-                onClose: rejectProposal
+            ScheduledTaskProposalEditorModal(
+                proposal: proposal,
+                definitionDraft: definitionDraft,
+                coordinator: coordinator,
+                viewModel: scheduledTasksViewModel
             )
             .background(Color(nsColor: .windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
@@ -195,10 +174,70 @@ struct ScheduledTaskProposalOverlay: View {
     }
 
     private func rejectProposal() {
-        coordinator.reject(
-            proposalID: proposal.id,
-            clearingProposalErrorIn: scheduledTasksViewModel
+        coordinator.reject(proposalID: proposal.id)
+    }
+}
+
+private struct ScheduledTaskProposalEditorModal: View {
+    let proposal: ScheduledTaskProposalPresentation
+    let coordinator: ScheduledTaskProposalQueueCoordinator
+    let viewModel: ScheduledTasksViewModel
+
+    @State private var draft: ScheduledTaskEditorDraft
+    @State private var localErrorMessage: String?
+
+    init(
+        proposal: ScheduledTaskProposalPresentation,
+        definitionDraft: ScheduledTaskProposalDefinitionDraft,
+        coordinator: ScheduledTaskProposalQueueCoordinator,
+        viewModel: ScheduledTasksViewModel
+    ) {
+        self.proposal = proposal
+        self.coordinator = coordinator
+        self.viewModel = viewModel
+        _draft = State(initialValue: viewModel.makeProposalDraft(
+            definitionDraft,
+            definitionID: proposal.targetDefinitionID,
+            expectedRevision: proposal.expectedDefinitionRevision
+        ))
+        _localErrorMessage = State(initialValue: coordinator.errorMessage)
+    }
+
+    var body: some View {
+        ScheduledTaskEditorContent(
+            viewModel: viewModel,
+            draft: $draft,
+            title: "Review scheduled task proposal",
+            subtitle: "Review or adjust the details before Alveary applies anything.",
+            submitTitle: proposal.action == .create ? "Confirm and create" : "Confirm changes",
+            errorMessage: localErrorMessage ?? coordinator.errorMessage,
+            isSubmitting: coordinator.isResolving,
+            surface: .modal,
+            onDismissError: {
+                localErrorMessage = nil
+                coordinator.clearError()
+            },
+            onSubmit: submit,
+            onClose: reject
         )
+    }
+
+    private func reject() {
+        guard !coordinator.reject(proposalID: proposal.id) else {
+            return
+        }
+        localErrorMessage = coordinator.errorMessage
+    }
+
+    private func submit() {
+        let didConfirm = coordinator.confirmEditorProposal(
+            proposalID: proposal.id,
+            draft: draft,
+            viewModel: viewModel
+        )
+        if !didConfirm {
+            localErrorMessage = coordinator.errorMessage
+        }
     }
 }
 

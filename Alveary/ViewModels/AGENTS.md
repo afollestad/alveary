@@ -14,6 +14,7 @@ These instructions apply to files under `Alveary/ViewModels/`.
 - A nonterminal provider goal remains controller-owned work even while its runtime is idle or paused. Keep its controller and resumable runtime until the goal reaches a terminal state.
 - **Own side effects.** View models own mutable runtime state, persistence, and side effects.
 - **Keep presentation derived.** Renderer-neutral `*Presentation` types may derive display/action values from view-model state, but must not replace view-model ownership or perform service/model mutations.
+- Contextual editor view models cache drafts by stable target and give each session a generation UUID. Closing discards only the active target; deactivation for another root pane preserves it; async completions may update only the same live generation.
 
 ### File Organization
 

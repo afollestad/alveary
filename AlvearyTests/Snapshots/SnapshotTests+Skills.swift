@@ -1,8 +1,57 @@
+import SwiftUI
 import XCTest
 
 @testable import Alveary
 
 extension SnapshotTests {
+    func testNewSkillPaneAtMinimumWidth() async {
+        let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
+        await viewModel.load()
+        viewModel.requestNewSkill()
+
+        assertMacSnapshot(
+            SkillsPane(viewModel: viewModel),
+            size: CGSize(width: 320, height: 780),
+            named: "new_skill_pane_minimum_width"
+        )
+    }
+
+    func testSkillDetailsPaneAtMinimumWidth() async throws {
+        let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
+        await viewModel.load()
+        viewModel.requestDetails(for: try XCTUnwrap(viewModel.installed.first))
+        try? await Task.sleep(for: .milliseconds(20))
+
+        assertMacSnapshot(
+            SkillsPane(viewModel: viewModel),
+            size: CGSize(width: 320, height: 780),
+            named: "skill_details_pane_minimum_width"
+        )
+    }
+
+    func testSharedRightPaneCompositeDark() async {
+        let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
+        await viewModel.load()
+        viewModel.requestNewSkill()
+
+        assertMacSnapshot(
+            ResizableRightPane(
+                destination: RightPaneDestination.skills(.newSkill),
+                width: .constant(380),
+                onWidthCommit: { _ in },
+                mainContent: {
+                    Text("Skills content")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                },
+                paneContent: { _ in SkillsPane(viewModel: viewModel) }
+            ),
+            size: CGSize(width: 1_000, height: 780),
+            named: "shared_right_pane_composite_dark",
+            colorScheme: .dark
+        )
+    }
+
     func testSkillsScreenPopulatedDark() async {
         let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
         await viewModel.load()

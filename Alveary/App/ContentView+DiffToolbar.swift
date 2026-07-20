@@ -16,7 +16,7 @@ extension ContentView {
     }
 
     var diffViewerToggleHelpText: String {
-        let action = appState.isRightPaneVisible ? "Hide Diff Viewer" : "Show Diff Viewer"
+        let action = isDiffViewerRendered ? "Hide Diff Viewer" : "Show Diff Viewer"
         guard !diffViewModel.isDiffToolbarLoading else {
             return "\(action), loading diffs"
         }
@@ -47,13 +47,5 @@ extension ContentView {
             isLoading: diffViewModel.isDiffToolbarLoading,
             paneMode: diffViewerMode
         )
-    }
-
-    func effectiveDiffViewerWidth(availableWidth: CGFloat) -> CGFloat {
-        ContentDiffViewerWidthPolicy.effectiveWidth(storedWidth: diffViewerWidth, availableWidth: availableWidth)
-    }
-
-    func effectiveDiffViewerBounds(availableWidth: CGFloat) -> ClosedRange<Double> {
-        ContentDiffViewerWidthPolicy.bounds(availableWidth: availableWidth)
     }
 }
