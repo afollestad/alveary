@@ -6,6 +6,8 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 
 ## Chips And Rename
 
+- Mount `ThreadDetailConversationTabs` only after initial setup and only for more than one resolved live conversation. The strip has no single-conversation label or creation control; additional conversations are created from the thread title toolbar action.
+- While mounted, the strip sits between the unconditional root toolbar hairline and its own bottom `.paneHeader` hairline.
 - Render tabs through `SelectableTabChip` in `Alveary/Views/Components/TabChips/`.
 - Keep chip fills `.standard` so inline-code color does not change on selection.
 - Use `TabChipStatusIndicator.spinner(.secondary)` for `.busy` in the same fixed 8x8 slot as dots.
@@ -20,7 +22,7 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 
 ## Shortcuts And Removal
 
-- Attach ⌘1 through ⌘9 to each visible select button in the multi-conversation branch.
+- Attach ⌘1 through ⌘9 to each visible select button in the conversation row.
 - Handle ⌘W with one invisible enabled `ConversationCloseShortcutSink` in
   `ThreadDetailView`'s background.
     - Mount it independently of the visual tab strip and guard internally for inline rename or one-tab states.
@@ -57,10 +59,8 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 - Keep divider tint and 18pt height matched with the terminal-pane divider.
 - Do not use `.contentMargins(.trailing, ...)`; macOS 26 did not reserve visible trailing space here.
 - Keep the multi-tab `ScrollView` greedy with `.frame(maxWidth: .infinity)`.
-- Use `Spacer()` only in the single-conversation label branch.
 - Keep the 20pt pane-edge inset inside scrollable content.
-    - Multi-tab HStack gets `.padding(.leading, 20)`.
-    - Single label branch pads the label directly; it may use a calibrated value when SwiftUI rendering measures one point off from the desired 20pt visual inset.
+    - The chip HStack gets `.padding(.leading, 20)`.
 - The 12pt pre-divider gap is the sentinel width, not a non-scrollable reserved band.
 - `testConversationTabsOverflow` guards the greedy-ScrollView layout.
 - The trailing divider is not captured in that baseline because geometry updates after snapshot display. Verify divider changes manually in the running app.

@@ -73,7 +73,7 @@ struct ThreadDetailView: View {
                         .padding(.top, 20)
                     }
 
-                    if shouldShowConversationStrip {
+                    if shouldShowConversationStrip(conversationCount: conversations.count) {
                         ThreadDetailConversationTabs(
                             conversations: conversations,
                             selectedConversation: conversation,
@@ -86,8 +86,6 @@ struct ThreadDetailView: View {
                                       ThreadDetailConversationDeletion.canRemove(conversation) else { return }
                                 pendingDeleteConversation = conversation
                             },
-                            onCreate: { Task { await createConversation() } },
-                            isCreateDisabled: isProjectTrustBlocked,
                             canRemove: ThreadDetailConversationDeletion.canRemove,
                             editingConversationID: $editingConversationID
                         )
@@ -234,8 +232,9 @@ struct ThreadDetailView: View {
             }
         }
         .background {
-            // The visual strip stays hidden until setup completes, but its ⌘W
-            // safety behavior must remain mounted for every thread state.
+            // The visual strip stays hidden until setup completes and while only
+            // one conversation exists, but its ⌘W safety behavior must remain
+            // mounted for every thread state.
             ConversationCloseShortcutSink(
                 conversations: conversations,
                 selectedConversation: selectedConversation,
@@ -275,8 +274,11 @@ struct ThreadDetailView: View {
 }
 
 extension ThreadDetailView {
-    var shouldShowConversationStrip: Bool {
-        thread.hasCompletedInitialSetup
+    func shouldShowConversationStrip(conversationCount: Int) -> Bool {
+        ConversationStripPresentation.shouldShow(
+            hasCompletedInitialSetup: thread.hasCompletedInitialSetup,
+            conversationCount: conversationCount
+        )
     }
 
     var canCreateConversationFromEmptyState: Bool {
@@ -285,6 +287,12 @@ extension ThreadDetailView {
 
     var canPersistEmptyConversationSelection: Bool {
         !thread.isDraft && thread.archivedAt == nil
+    }
+}
+
+enum ConversationStripPresentation {
+    static func shouldShow(hasCompletedInitialSetup: Bool, conversationCount: Int) -> Bool {
+        hasCompletedInitialSetup && conversationCount > 1
     }
 }
 

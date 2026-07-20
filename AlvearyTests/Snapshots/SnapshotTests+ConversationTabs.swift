@@ -46,8 +46,6 @@ extension SnapshotTests {
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
-                onCreate: {},
-                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
@@ -83,42 +81,10 @@ extension SnapshotTests {
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
-                onCreate: {},
-                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
             named: "conversation_tabs_mention"
-        )
-    }
-
-    func testConversationTabsSingleInlineCode() {
-        let thread = AgentThread(name: "Single Conversation Inline Code")
-        let onlyConversation = Conversation(
-            id: "only",
-            title: "Test `code block`",
-            provider: "claude",
-            isMain: true,
-            displayOrder: 0,
-            thread: thread
-        )
-        thread.conversations = [onlyConversation]
-
-        assertMacSnapshot(
-            ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: onlyConversation,
-                statusVersion: 0,
-                statusForConversation: { _ in .unread },
-                onSelect: { _ in },
-                onCommitRename: { _, _ in },
-                onRemove: { _ in },
-                onCreate: {},
-                isCreateDisabled: false,
-                editingConversationID: .constant(nil)
-            ),
-            size: CGSize(width: 640, height: 72),
-            named: "conversation_tabs_single_inline_code"
         )
     }
 
@@ -167,8 +133,6 @@ extension SnapshotTests {
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
-                onCreate: {},
-                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),
@@ -182,14 +146,13 @@ extension SnapshotTests {
     }
 
     // Covers the overflow state: enough conversation tabs at a narrow pane width that
-    // the row must scroll. Pins the greedy ScrollView + trailing `New Conversation`
-    // button layout so a regression (e.g. reintroducing a sibling `Spacer()` alongside
-    // the flexible ScrollView) is caught. The trailing-edge divider is not captured in
-    // the baseline — `onScrollGeometryChange` dispatches its action asynchronously,
+    // the row must scroll. Pins the greedy ScrollView layout so a regression that
+    // constrains the flexible row is caught. The trailing-edge divider is not captured
+    // in the baseline — `onScrollGeometryChange` dispatches its action asynchronously,
     // after the snapshot pass's `displayIfNeeded()`. Unlike the terminal pane's
     // equivalent test (which does capture its divider), the conversation-tab layout
     // timing doesn't stabilize in time; see the `testConversationTabsOverflow` bullet
-    // in `Alveary/Views/Chat/AGENTS.md` for the full story.
+    // in `Alveary/Views/Chat/ConversationTabs/AGENTS.md` for the full story.
     func testConversationTabsOverflow() {
         let thread = AgentThread(name: "Overflow Tab Coverage")
         var conversations: [Conversation] = []
@@ -216,8 +179,6 @@ extension SnapshotTests {
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
-                onCreate: {},
-                isCreateDisabled: false,
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 500, height: 72),
@@ -253,8 +214,6 @@ extension SnapshotTests {
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
-                onCreate: {},
-                isCreateDisabled: false,
                 editingConversationID: .constant(secondConversation.persistentModelID)
             ),
             size: CGSize(width: 640, height: 72),

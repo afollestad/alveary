@@ -10,7 +10,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
     func testUninitializedThreadHidesConversationStrip() throws {
         let fixture = try ThreadDetailProjectTrustFixture()
 
-        XCTAssertFalse(fixture.view.shouldShowConversationStrip)
+        XCTAssertFalse(fixture.view.shouldShowConversationStrip(conversationCount: fixture.view.conversations.count))
     }
 
     func testUninitializedThreadEmptyStateDoesNotOfferInertCreateAction() throws {

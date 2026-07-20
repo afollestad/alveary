@@ -312,8 +312,11 @@ struct PrimaryToolbarProgressSlot: View {
 }
 
 extension View {
-    func primaryToolbarIconButtonStyle(selector: PrimaryToolbarSelectorShape = .iconCircle) -> some View {
-        buttonStyle(PrimaryToolbarIconButtonStyle(selector: selector))
+    func primaryToolbarIconButtonStyle(
+        selector: PrimaryToolbarSelectorShape = .iconCircle,
+        imageScale: Image.Scale = .medium
+    ) -> some View {
+        buttonStyle(PrimaryToolbarIconButtonStyle(selector: selector, imageScale: imageScale))
     }
 }
 
@@ -326,12 +329,14 @@ private struct PrimaryToolbarIconButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     let selector: PrimaryToolbarSelectorShape
+    let imageScale: Image.Scale
 
     func makeBody(configuration: Configuration) -> some View {
         PrimaryToolbarIconButtonBody(
             configuration: configuration,
             isEnabled: isEnabled,
-            selector: selector
+            selector: selector,
+            imageScale: imageScale
         )
     }
 }
@@ -340,13 +345,14 @@ private struct PrimaryToolbarIconButtonBody: View {
     let configuration: ButtonStyle.Configuration
     let isEnabled: Bool
     let selector: PrimaryToolbarSelectorShape
+    let imageScale: Image.Scale
 
     @State private var isHovering = false
 
     var body: some View {
         configuration.label
             .font(PrimaryToolbarMetrics.iconFont)
-            .imageScale(.medium)
+            .imageScale(imageScale)
             .foregroundStyle(.primary.opacity(foregroundOpacity))
             .frame(
                 minWidth: PrimaryToolbarMetrics.iconButtonSize,

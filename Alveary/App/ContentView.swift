@@ -6,6 +6,7 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var appState: AppState
     @Environment(\.modelContext) var uiModelContext
+    @FocusedValue(\.newConversationAction) var newConversationAction
 
     let settingsService: SettingsService
     private let gitHubCLI: GitHubCLIService
@@ -89,8 +90,7 @@ struct ContentView: View {
         self.voiceInputLifecycleController = dependencies.voiceInputLifecycleController
         _appUpdateManager = State(initialValue: dependencies.appUpdateManager)
         let settings = dependencies.settingsService.current
-        // Keep UI mutations on the container's main context so sidebar `@Query` reads
-        // and imperative view-model saves stay in sync without requiring a relaunch.
+        // Keep UI mutations on the main context so sidebar `@Query` reads and view-model saves stay in sync.
         _viewModelContext = State(initialValue: dependencies.modelContainer.mainContext)
         _diffViewerWidth = State(initialValue: CGFloat(settings.diffViewerWidth))
         _diffViewerTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerTopSectionFraction))
@@ -215,7 +215,9 @@ struct ContentView: View {
                 }
             }
             .clipped()
-            .overlay(alignment: .top) { AppSeparatorHairline(surface: .titlebar) }
+            .overlay(alignment: .top) {
+                AppSeparatorHairline(surface: .titlebar)
+            }
             .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
         }
         .environment(terminalManager)
@@ -233,10 +235,7 @@ struct ContentView: View {
             updateManager: appUpdateManager,
             isSuppressed: isVoiceInputInteractionLocked
         )
-        .background {
-            AppWindowTitlebarSeparatorConfigurator(style: .none)
-                .frame(width: 0, height: 0)
-        }
+        .appWindowChromeConfigured()
         .background {
             AppWindowModalOverlayPresenter(
                 modal: rootWindowModal,
@@ -244,8 +243,20 @@ struct ContentView: View {
             )
             .frame(width: 0, height: 0)
         }
+        .toolbar(removing: .title)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(id: MainWindowToolbarItemID.header, placement: .navigation) {
+                MainPaneToolbarHeader(
+                    presentation: MainPaneHeaderPresentation(selection: appState.selectedSidebarItem),
+                    onNewConversation: headerNewConversationAction
+                )
+                .padding(.leading, MainPaneToolbarLayout.leadingPadding)
+            }
+            .sharedBackgroundVisibility(.hidden)
+
+            ToolbarSpacer(.flexible)
+
+            ToolbarItem(id: MainWindowToolbarItemID.actions, placement: .primaryAction) {
                 PrimaryToolbarButtonGroup(
                     selectedThreadID: selectedThreadID,
                     projectActions: toolbarProjectActions,
@@ -270,6 +281,7 @@ struct ContentView: View {
                         appState.openSettings(targetPage: appUpdateManager.toolbarBadgeState.settingsTargetPage)
                     }
                 )
+                .padding(.trailing, MainPaneToolbarLayout.trailingPadding)
             }
             .sharedBackgroundVisibility(.hidden)
         }
@@ -368,7 +380,6 @@ struct ContentView: View {
         // the menu needs a `FocusedValue` hop to reach it.
         .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
     }
-
 }
 
 private extension ContentView {

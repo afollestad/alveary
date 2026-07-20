@@ -22,16 +22,12 @@ struct AppSeparatorHairline: View {
     }
 
     private var separatorColor: Color {
-        // The system-managed titlebar edge contributes different pixels by appearance.
-        // These overlays are calibrated so both surfaces resolve to the same visible hairline.
-        switch (surface, colorScheme) {
-        case (.titlebar, .dark):
-            .clear
-        case (.titlebar, .light):
-            Color.black.opacity(0.05)
-        case (.paneHeader, .dark):
+        // The native separator is disabled, so both app-owned surfaces render
+        // the same explicit physical-pixel hairline in either appearance.
+        switch colorScheme {
+        case .dark:
             Color.white.opacity(0.08)
-        case (.paneHeader, .light):
+        case .light:
             Color.black.opacity(25.0 / 255.0)
         @unknown default:
             .clear

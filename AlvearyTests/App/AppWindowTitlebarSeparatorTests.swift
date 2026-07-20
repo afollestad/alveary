@@ -44,8 +44,7 @@ final class AppWindowTitlebarSeparatorTests: XCTestCase {
             let titlebar = try renderSeparatorSample(
                 surface: .titlebar,
                 colorScheme: colorScheme,
-                background: background,
-                systemEdge: measuredSystemTitlebarEdge(for: colorScheme)
+                background: background
             )
             let paneHeaderRows = try differingRows(baseline, paneHeader)
             let titlebarRows = try differingRows(baseline, titlebar)
@@ -67,7 +66,6 @@ final class AppWindowTitlebarSeparatorTests: XCTestCase {
         surface: AppSeparatorHairline.Surface?,
         colorScheme: ColorScheme,
         background: Color,
-        systemEdge: Color? = nil,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> NSBitmapImageRep {
@@ -75,8 +73,7 @@ final class AppWindowTitlebarSeparatorTests: XCTestCase {
         let appearanceName: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
         let rootView = SeparatorSample(
             surface: surface,
-            background: background,
-            systemEdge: systemEdge
+            background: background
         )
         .environment(\.colorScheme, colorScheme)
         .frame(width: size.width, height: size.height)
@@ -175,30 +172,14 @@ final class AppWindowTitlebarSeparatorTests: XCTestCase {
         return Color(.sRGB, red: component, green: component, blue: component)
     }
 
-    private func measuredSystemTitlebarEdge(for colorScheme: ColorScheme) -> Color {
-        // Models the one-pixel system edge beneath the app-owned titlebar overlay.
-        colorScheme == .light
-            ? Color.black.opacity(0.05)
-            : Color.white.opacity(0.08)
-    }
 }
 
 private struct SeparatorSample: View {
     let surface: AppSeparatorHairline.Surface?
     let background: Color
-    let systemEdge: Color?
-
-    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         background
-            .overlay(alignment: edgeAlignment) {
-                if let systemEdge {
-                    Rectangle()
-                        .fill(systemEdge)
-                        .frame(height: 1 / max(displayScale, 1))
-                }
-            }
             .overlay(alignment: edgeAlignment) {
                 if let surface {
                     AppSeparatorHairline(surface: surface)
