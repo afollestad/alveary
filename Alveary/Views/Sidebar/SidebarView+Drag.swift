@@ -161,18 +161,22 @@ struct SidebarDragGeometryPreferenceKey: PreferenceKey {
 }
 
 extension View {
+    /// Disabling suppresses preference emission without changing view structure, preserving identity during animations.
     func sidebarDragGeometry(
         _ role: SidebarDragGeometryRole,
+        isEnabled: Bool = true,
         excludingTopInset topInset: CGFloat = 0
     ) -> some View {
         background {
             GeometryReader { proxy in
                 Color.clear.preference(
                     key: SidebarDragGeometryPreferenceKey.self,
-                    value: [role: [sidebarDragGeometryFrame(
-                        proxy.frame(in: .named(SidebarDragCoordinateSpace.name)),
-                        excludingTopInset: topInset
-                    )]]
+                    value: isEnabled
+                        ? [role: [sidebarDragGeometryFrame(
+                            proxy.frame(in: .named(SidebarDragCoordinateSpace.name)),
+                            excludingTopInset: topInset
+                        )]]
+                        : [:]
                 )
             }
         }

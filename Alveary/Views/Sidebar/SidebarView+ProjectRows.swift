@@ -99,10 +99,7 @@ extension SidebarView {
         )
         // Measure visible content before the outer inter-project spacer used to center shared boundaries.
         .sidebarDragGeometry(configuration.headerRole)
-        .modifier(SidebarConditionalDragGeometryModifier(
-            role: configuration.terminalRole,
-            isEnabled: configuration.headerIsTerminal
-        ))
+        .sidebarDragGeometry(configuration.terminalRole, isEnabled: configuration.headerIsTerminal)
         .padding(.top, topSpacing)
         .opacity(configuration.opacity)
         .animation(sidebarDragAnimation, value: configuration.opacity)
@@ -158,10 +155,10 @@ extension SidebarView {
                 topSpacing: threadTopSpacing,
                 opacity: configuration.opacity
             )
-            .modifier(SidebarConditionalDragGeometryModifier(
-                role: configuration.terminalRole,
+            .sidebarDragGeometry(
+                configuration.terminalRole,
                 isEnabled: thread.persistentModelID == configuration.lastThreadID
-            ))
+            )
         }
         .transaction { transaction in
             if threadOrderAnimation == nil {
@@ -217,19 +214,5 @@ private struct SidebarProjectGroupConfiguration {
     var terminalRole: SidebarDragGeometryRole { .projectTerminal(section, project.persistentModelID) }
     var headerIsTerminal: Bool {
         !isExpanded || (!showsNoThreadsPlaceholder && activeThreads.isEmpty)
-    }
-}
-
-private struct SidebarConditionalDragGeometryModifier: ViewModifier {
-    let role: SidebarDragGeometryRole
-    let isEnabled: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content.sidebarDragGeometry(role)
-        } else {
-            content
-        }
     }
 }

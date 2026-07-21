@@ -6,6 +6,7 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
 
 - `SidebarProjectRow`'s leading icon `Button` is load-bearing for click-to-expand:
     - **Action:** Toggles expansion, never project activation. `onToggleExpanded` must remain the sole action; project activation lives on the sibling content affordance plus the row's transparent background tap target so dead space inside the selected-row chrome still opens the project.
+    - **Stationary animated toggle:** Keep the explicit expansion animation so child rows reflow and the inline caret rotates, while keeping drag-geometry modifiers structurally stable across expansion. Conditional geometry must change only its emitted preference value; applying or removing the modifier makes SwiftUI `List` transition the project header itself.
     - **Fixed icon:** Always render the folder glyph. Do not swap this leading icon to a disclosure chevron on hover or expansion changes.
     - **Inline disclosure:** On row hover, show a small, secondary-colored visual `chevron.right` immediately after the project title and rotate it for expanded state. Reserve its fixed slot even while hidden so hover does not shift title truncation.
     - **Caret hit testing:** Keep the inline disclosure visual-only. Row/text/caret-area clicks still route through `onActivate`; only the leading icon button routes through `onToggleExpanded`.

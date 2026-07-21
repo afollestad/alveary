@@ -122,8 +122,10 @@ final class VoiceInputCaptureSlotTests: XCTestCase {
             lease.release()
             terminationCompleted.signal()
         }
-        for _ in 0..<500 where !slot.terminationWasRequested {
-            await Task.yield()
+        let clock = ContinuousClock()
+        let terminationRequestDeadline = clock.now + .seconds(1)
+        while !slot.terminationWasRequested, clock.now < terminationRequestDeadline {
+            try await Task.sleep(for: .milliseconds(1))
         }
         XCTAssertTrue(slot.terminationWasRequested)
         XCTAssertEqual(terminationCompleted.wait(timeout: .now() + 0.25), .timedOut)
