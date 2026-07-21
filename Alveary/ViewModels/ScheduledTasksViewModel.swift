@@ -59,20 +59,11 @@ final class ScheduledTasksViewModel {
     private(set) var pendingRunNowDefinitionIDs = Set<String>()
     private(set) var activePaneTarget: ScheduledTaskPaneTarget?
     private(set) var paneSessions: [ScheduledTaskPaneTarget: ScheduledTaskPaneSession] = [:]
+    private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<ScheduledTaskPaneTarget>> = []
     private(set) var paneDismissalGeneration = 0
+    private(set) var paneFocusRestorationID = ScheduledTaskPaneTarget.create.defaultFocusRestorationID
+    private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<ScheduledTaskPaneTarget>> = []
     var errorMessage: String?
-
-    var activePaneSession: ScheduledTaskPaneSession? {
-        activePaneTarget.flatMap { paneSessions[$0] }
-    }
-
-    var pendingEditorDraft: ScheduledTaskEditorDraft? {
-        activePaneSession?.draft
-    }
-
-    var editorErrorMessage: String? {
-        activePaneSession?.errorMessage
-    }
 
     init(
         modelContext: ModelContext,
@@ -137,44 +128,82 @@ final class ScheduledTasksViewModel {
         }
     }
 
-    func requestCreate() {
+    func requestCreate(focusRestorationID: String? = nil) {
+        paneFocusRestorationID = focusRestorationID ?? ScheduledTaskPaneTarget.create.defaultFocusRestorationID
         errorMessage = nil
+        discardCompletedSessionIfNeeded(for: .create)
         if paneSessions[.create] == nil {
             paneSessions[.create] = ScheduledTaskPaneSession(
                 generation: UUID(),
                 draft: makeNewDraft()
             )
         }
+        if let generation = paneSessions[.create]?.generation {
+            deactivatedPaneDismissals.remove(.init(target: .create, generation: generation))
+        }
         activePaneTarget = .create
     }
 
-    func requestEdit(definitionID: String) {
+    func requestEdit(definitionID: String, focusRestorationID: String? = nil) {
         let target = ScheduledTaskPaneTarget.edit(definitionID)
+        discardCompletedSessionIfNeeded(for: target)
         if paneSessions[target] == nil {
             guard let draft = makeEditDraft(definitionID: definitionID) else {
                 return
             }
             paneSessions[target] = ScheduledTaskPaneSession(generation: UUID(), draft: draft)
         }
+        if let generation = paneSessions[target]?.generation {
+            deactivatedPaneDismissals.remove(.init(target: target, generation: generation))
+        }
+        paneFocusRestorationID = focusRestorationID ?? target.defaultFocusRestorationID
         errorMessage = nil
         activePaneTarget = target
-    }
-
-    func dismissEditor() {
-        dismissActivePane()
     }
 
     func deactivatePane() {
         activePaneTarget = nil
     }
 
-    func dismissActivePane() {
-        guard let target = activePaneTarget else {
+    func deactivatePane(_ target: ScheduledTaskPaneTarget, generation: UUID) {
+        guard activePaneTarget == target,
+              paneSessions[target]?.generation == generation else {
             return
         }
-        paneSessions.removeValue(forKey: target)
+        let request = PaneSessionDismissalRequest(target: target, generation: generation)
+        pendingPaneDismissals.insert(request)
+        deactivatedPaneDismissals.insert(request)
         activePaneTarget = nil
-        paneDismissalGeneration &+= 1
+    }
+
+    func dismissActivePane() {
+        guard let target = activePaneTarget, let generation = paneSessions[target]?.generation else {
+            return
+        }
+        dismissPane(target, generation: generation)
+    }
+
+    func dismissPane(
+        _ target: ScheduledTaskPaneTarget,
+        generation: UUID,
+        restoreFocus: Bool = true
+    ) {
+        let request = PaneSessionDismissalRequest(target: target, generation: generation)
+        guard paneSessions[target]?.generation == generation else {
+            pendingPaneDismissals.remove(request)
+            deactivatedPaneDismissals.remove(request)
+            return
+        }
+        pendingPaneDismissals.remove(request)
+        let ownedDeactivation = deactivatedPaneDismissals.remove(request) != nil
+        let shouldRestoreFocus = activePaneTarget == target || (ownedDeactivation && activePaneTarget == nil)
+        paneSessions.removeValue(forKey: target)
+        if activePaneTarget == target {
+            activePaneTarget = nil
+        }
+        if restoreFocus, shouldRestoreFocus {
+            paneDismissalGeneration &+= 1
+        }
     }
 
     func updateActiveDraft(_ draft: ScheduledTaskEditorDraft) {
@@ -212,11 +241,10 @@ final class ScheduledTasksViewModel {
             guard paneSessions[target]?.generation == generation else {
                 return
             }
-            paneSessions.removeValue(forKey: target)
-            if activePaneTarget == target {
-                activePaneTarget = nil
+            if target == .create {
+                paneFocusRestorationID = ScheduledTaskPaneTarget.create.defaultFocusRestorationID
             }
-            paneDismissalGeneration &+= 1
+            pendingPaneDismissals.insert(.init(target: target, generation: generation))
         } catch {
             guard var liveSession = paneSessions[target],
                   liveSession.generation == generation else {
@@ -358,10 +386,20 @@ private extension ScheduledTasksViewModel {
 
     func discardEditSession(definitionID: String) {
         let target = ScheduledTaskPaneTarget.edit(definitionID)
-        paneSessions.removeValue(forKey: target)
-        if activePaneTarget == target {
-            activePaneTarget = nil
+        if let generation = paneSessions[target]?.generation {
+            if activePaneTarget == target {
+                paneFocusRestorationID = ScheduledTaskPaneTarget.create.defaultFocusRestorationID
+            }
+            pendingPaneDismissals.insert(.init(target: target, generation: generation))
         }
+    }
+
+    func discardCompletedSessionIfNeeded(for target: ScheduledTaskPaneTarget) {
+        guard let request = pendingPaneDismissals.first(where: { $0.target == target }) else {
+            return
+        }
+        deactivatedPaneDismissals.remove(request)
+        dismissPane(target, generation: request.generation, restoreFocus: false)
     }
 
     func observeChanges() {
@@ -454,38 +492,4 @@ private extension ScheduledTasksViewModel {
         return try? modelContext.fetch(descriptor).first
     }
 
-    func makeRowPresentation(_ definition: ScheduledTask) -> ScheduledTaskRowPresentation {
-        let projectName = definition.project?.name
-        let workspaceSummary: String
-        switch definition.workspaceKind {
-        case .privateWorkspace:
-            let grantCount = definition.grantedRoots.count
-            if grantCount == 0 {
-                workspaceSummary = "Private workspace"
-            } else {
-                let grantLabel = grantCount == 1 ? "folder grant" : "folder grants"
-                workspaceSummary = "Private workspace + \(grantCount) \(grantLabel)"
-            }
-        case .project:
-            let strategy = definition.workspaceStrategy == .worktree ? "worktree" : "local checkout"
-            workspaceSummary = "\(projectName ?? "Missing project") · \(strategy)"
-        }
-
-        return ScheduledTaskRowPresentation(
-            id: definition.id,
-            revision: definition.revision,
-            title: definition.title,
-            prompt: definition.prompt,
-            state: definition.state,
-            recurrence: definition.recurrence,
-            timeZoneIdentifier: definition.timeZoneIdentifier,
-            providerID: definition.providerID,
-            workspaceSummary: workspaceSummary,
-            nextOccurrenceAt: definition.nextOccurrenceAt,
-            pauseReason: definition.pauseReason,
-            lastError: definition.lastError,
-            hasActiveRun: definition.runs.contains { !$0.hasKnownTerminalStatus },
-            modifiedAt: definition.modifiedAt
-        )
-    }
 }

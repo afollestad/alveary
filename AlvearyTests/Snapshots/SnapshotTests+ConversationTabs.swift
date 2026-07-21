@@ -339,7 +339,8 @@ private struct ThreadDetailStatusFixture {
             selectDraftProject: { _, _ in },
             deleteThread: { _ in },
             loadSkillCompletions: { [] },
-            diffViewModel: diffViewModel
+            diffViewModel: diffViewModel,
+            diffViewerSwitchScope: { .toolbarStatsOnly }
         )
         .environment(\.modelContext, context)
     }

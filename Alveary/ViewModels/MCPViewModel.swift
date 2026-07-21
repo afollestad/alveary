@@ -5,6 +5,17 @@ enum MCPPaneTarget: Hashable {
     case addCustom
     case addRecommended(String)
     case edit(String)
+
+    var defaultFocusRestorationID: String {
+        switch self {
+        case .addCustom:
+            "mcp-add"
+        case .addRecommended(let serverID):
+            "mcp-recommended-\(serverID)"
+        case .edit(let serverName):
+            "mcp-edit-\(serverName)"
+        }
+    }
 }
 
 struct MCPServerDraft: Equatable {
@@ -108,7 +119,10 @@ final class MCPViewModel {
     private(set) var availableAgents: [MCPAgentAvailability] = []
     private(set) var activePaneTarget: MCPPaneTarget?
     private(set) var paneSessions: [MCPPaneTarget: MCPPaneSession] = [:]
+    private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<MCPPaneTarget>> = []
     private(set) var paneDismissalGeneration = 0
+    private(set) var paneFocusRestorationID = MCPPaneTarget.addCustom.defaultFocusRestorationID
+    private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<MCPPaneTarget>> = []
     var searchQuery: String = ""
 
     init(mcpService: any MCPService) {
@@ -153,27 +167,38 @@ final class MCPViewModel {
     func removeServer(_ server: MCPServer) async throws {
         try await mcpService.removeServer(server)
         await load()
-        discardSession(for: .edit(server.name))
+        let target = MCPPaneTarget.edit(server.name)
+        if let generation = paneSessions[target]?.generation {
+            if activePaneTarget == target {
+                paneFocusRestorationID = MCPPaneTarget.addCustom.defaultFocusRestorationID
+            }
+            pendingPaneDismissals.insert(.init(target: target, generation: generation))
+        }
     }
 
     func refreshProviders() async {
         await load()
     }
 
-    func requestAddCustom() {
+    func requestAddCustom(focusRestorationID: String? = nil) {
+        paneFocusRestorationID = focusRestorationID ?? MCPPaneTarget.addCustom.defaultFocusRestorationID
         activate(.addCustom) {
             MCPServerDraft(availableAgents: availableAgents)
         }
     }
 
-    func requestAddRecommended(_ recommended: RecommendedMCPServer) {
-        activate(.addRecommended(recommended.id)) {
+    func requestAddRecommended(_ recommended: RecommendedMCPServer, focusRestorationID: String? = nil) {
+        let target = MCPPaneTarget.addRecommended(recommended.id)
+        paneFocusRestorationID = focusRestorationID ?? target.defaultFocusRestorationID
+        activate(target) {
             MCPServerDraft(recommended: recommended, availableAgents: availableAgents)
         }
     }
 
-    func requestEdit(_ server: MCPServer) {
-        activate(.edit(server.name)) {
+    func requestEdit(_ server: MCPServer, focusRestorationID: String? = nil) {
+        let target = MCPPaneTarget.edit(server.name)
+        paneFocusRestorationID = focusRestorationID ?? target.defaultFocusRestorationID
+        activate(target) {
             MCPServerDraft(server: server)
         }
     }
@@ -211,11 +236,17 @@ final class MCPViewModel {
             guard paneSessions[target]?.generation == generation else {
                 return
             }
-            paneSessions.removeValue(forKey: target)
             if activePaneTarget == target {
-                activePaneTarget = nil
-                paneDismissalGeneration &+= 1
+                switch target {
+                case .addCustom, .addRecommended:
+                    paneFocusRestorationID = MCPPaneTarget.addCustom.defaultFocusRestorationID
+                case .edit(let originalName):
+                    if !filteredServers.contains(where: { $0.name == originalName }) {
+                        paneFocusRestorationID = MCPPaneTarget.addCustom.defaultFocusRestorationID
+                    }
+                }
             }
+            pendingPaneDismissals.insert(.init(target: target, generation: generation))
         } catch {
             guard var liveSession = paneSessions[target],
                   liveSession.generation == generation else {
@@ -231,19 +262,57 @@ final class MCPViewModel {
         activePaneTarget = nil
     }
 
-    func dismissActivePane() {
-        guard let target = activePaneTarget else {
+    func deactivatePane(_ target: MCPPaneTarget, generation: UUID) {
+        guard activePaneTarget == target,
+              paneSessions[target]?.generation == generation else {
             return
         }
+        let request = PaneSessionDismissalRequest(target: target, generation: generation)
+        pendingPaneDismissals.insert(request)
+        deactivatedPaneDismissals.insert(request)
+        activePaneTarget = nil
+    }
+
+    func dismissActivePane() {
+        guard let target = activePaneTarget,
+              let generation = paneSessions[target]?.generation else {
+            return
+        }
+        dismissPane(target, generation: generation)
+    }
+
+    func dismissPane(
+        _ target: MCPPaneTarget,
+        generation: UUID,
+        restoreFocus: Bool = true
+    ) {
+        let request = PaneSessionDismissalRequest(target: target, generation: generation)
+        guard paneSessions[target]?.generation == generation else {
+            pendingPaneDismissals.remove(request)
+            deactivatedPaneDismissals.remove(request)
+            return
+        }
+        pendingPaneDismissals.remove(request)
+        let ownedDeactivation = deactivatedPaneDismissals.remove(request) != nil
+        let shouldRestoreFocus = activePaneTarget == target || (ownedDeactivation && activePaneTarget == nil)
         discardSession(for: target)
-        paneDismissalGeneration &+= 1
+        if restoreFocus, shouldRestoreFocus {
+            paneDismissalGeneration &+= 1
+        }
     }
 }
 
 private extension MCPViewModel {
     func activate(_ target: MCPPaneTarget, makeDraft: () -> MCPServerDraft) {
+        if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
+            deactivatedPaneDismissals.remove(request)
+            dismissPane(target, generation: request.generation, restoreFocus: false)
+        }
         if paneSessions[target] == nil {
             paneSessions[target] = MCPPaneSession(generation: UUID(), draft: makeDraft())
+        }
+        if let generation = paneSessions[target]?.generation {
+            deactivatedPaneDismissals.remove(.init(target: target, generation: generation))
         }
         activePaneTarget = target
     }

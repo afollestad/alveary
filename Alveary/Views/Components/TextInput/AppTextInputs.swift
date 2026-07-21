@@ -261,6 +261,7 @@ struct AppTextEditor: View {
                 text: $text,
                 selection: selection,
                 measuredTextHeight: $measuredTextHeight,
+                reportsMeasuredTextHeight: sizesToContent,
                 placeholder: placeholder,
                 horizontalPadding: horizontalPadding,
                 verticalPadding: verticalPadding,

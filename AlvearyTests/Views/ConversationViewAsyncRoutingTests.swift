@@ -170,6 +170,31 @@ final class ConversationViewAsyncRoutingTests: XCTestCase {
         XCTAssertTrue(state.switchedDirectories.isEmpty)
         withExtendedLifetime(fixture.container) {}
     }
+
+    func testDiffSwitchResolvesScopeAfterWorkingDirectoryWarmCompletes() async throws {
+        let fixture = try ConversationAsyncRoutingThreadFixture(threadCount: 1)
+        let thread = try XCTUnwrap(fixture.threads.first)
+        let fileListManager = PausingConversationFileListManager()
+        let state = ConversationAsyncRoutingTestState()
+        state.selectedSidebarItem = .thread(thread)
+        state.currentWorkingDirectory = "/tmp/scope-project"
+        state.diffViewerSwitchScope = .full
+
+        let task = diffSwitchTask(
+            thread: thread,
+            workingDirectory: "/tmp/scope-project",
+            fileListManager: fileListManager,
+            state: state
+        )
+        await fileListManager.waitUntilWarmRequested(for: "/tmp/scope-project")
+
+        state.diffViewerSwitchScope = .toolbarStatsOnly
+        await fileListManager.resumeWarm(for: "/tmp/scope-project")
+        await task.value
+
+        XCTAssertEqual(state.switchedScopes, [.toolbarStatsOnly])
+        withExtendedLifetime(fixture.container) {}
+    }
 }
 
 @MainActor
@@ -189,9 +214,15 @@ private extension ConversationViewAsyncRoutingTests {
                     allowsThreadScopedSwitch: allowsThreadScopedSwitch
                 ),
                 fileListManager: fileListManager,
-                selectedSidebarItem: { state.selectedSidebarItem },
-                currentWorkingDirectory: { state.currentWorkingDirectory },
-                performSwitch: { state.switchedDirectories.append(workingDirectory) }
+                liveState: .init(
+                    selectedSidebarItem: { state.selectedSidebarItem },
+                    currentWorkingDirectory: { state.currentWorkingDirectory },
+                    resolveScope: { state.diffViewerSwitchScope }
+                ),
+                performSwitch: { scope in
+                    state.switchedDirectories.append(workingDirectory)
+                    state.switchedScopes.append(scope)
+                }
             )
         }
     }
@@ -224,6 +255,8 @@ private final class ConversationAsyncRoutingTestState {
     var selectedSidebarItem: SidebarItem?
     var currentWorkingDirectory: String?
     var switchedDirectories: [String] = []
+    var diffViewerSwitchScope: DiffViewerSwitchScope = .toolbarStatsOnly
+    var switchedScopes: [DiffViewerSwitchScope] = []
 }
 
 private actor PausingProviderDiscovery: AgentCLIKit.AgentProviderDiscoveryService {

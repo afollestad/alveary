@@ -2,23 +2,24 @@ import SwiftUI
 
 struct SkillsPane: View {
     let viewModel: SkillsViewModel
+    let target: SkillsPaneTarget
+    let onDismiss: () -> Void
 
     var body: some View {
-        switch viewModel.activePaneTarget {
+        switch target {
         case .newSkill:
-            NewSkillPane(viewModel: viewModel)
+            NewSkillPane(viewModel: viewModel, onDismiss: onDismiss)
         case .details(let skillID):
             if let session = viewModel.detailSessions[skillID] {
-                SkillDetailsPane(viewModel: viewModel, session: session)
+                SkillDetailsPane(viewModel: viewModel, session: session, onDismiss: onDismiss)
             }
-        case nil:
-            EmptyView()
         }
     }
 }
 
 private struct NewSkillPane: View {
     let viewModel: SkillsViewModel
+    let onDismiss: () -> Void
 
     @FocusState private var isNameFocused: Bool
 
@@ -34,7 +35,7 @@ private struct NewSkillPane: View {
             ContextualPaneHeader(
                 "New Skill",
                 closeAccessibilityLabel: "Close new skill pane",
-                onClose: viewModel.dismissActivePane
+                onClose: onDismiss
             )
 
             ScrollView {
@@ -58,7 +59,7 @@ private struct NewSkillPane: View {
                         AppTextEditor(text: draft.instructions, minHeight: 260)
                     }
                 }
-                .padding(20)
+                .padding(ContextualPaneLayout.horizontalInset)
             }
 
             footer
@@ -66,28 +67,15 @@ private struct NewSkillPane: View {
         .onAppear {
             isNameFocused = true
         }
-        .onExitCommand(perform: viewModel.dismissActivePane)
+        .onExitCommand(perform: onDismiss)
     }
 
     private var footer: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                Button("Cancel", action: viewModel.dismissActivePane)
-                    .secondaryActionButtonStyle()
-                Spacer()
-                createButton
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                createButton
-                Button("Cancel", action: viewModel.dismissActivePane)
-                    .secondaryActionButtonStyle()
-            }
-        }
-        .padding(16)
-        .background(.bar)
-        .overlay(alignment: .top) {
-            AppSeparatorHairline(surface: .paneHeader)
+        ContextualPaneFooter {
+            Button("Cancel", action: onDismiss)
+                .secondaryActionButtonStyle(expandsHorizontally: true)
+        } trailingAction: {
+            createButton
         }
     }
 
@@ -95,7 +83,7 @@ private struct NewSkillPane: View {
         Button("Create") {
             Task { await viewModel.submitNewSkill() }
         }
-        .primaryActionButtonStyle()
+        .primaryActionButtonStyle(expandsHorizontally: true)
         .disabled(
             draft.wrappedValue.name.isEmpty
                 || draft.wrappedValue.description.isEmpty
@@ -107,6 +95,7 @@ private struct NewSkillPane: View {
 private struct SkillDetailsPane: View {
     let viewModel: SkillsViewModel
     let session: SkillDetailsPaneSession
+    let onDismiss: () -> Void
 
     @State private var uninstallConfirmation: DestructiveConfirmationRequest?
 
@@ -114,9 +103,8 @@ private struct SkillDetailsPane: View {
         VStack(spacing: 0) {
             ContextualPaneHeader(
                 session.skill.name,
-                subtitle: session.skill.description.isEmpty ? "No description available." : session.skill.description,
                 closeAccessibilityLabel: "Close skill details",
-                onClose: viewModel.dismissActivePane
+                onClose: onDismiss
             )
 
             if let errorMessage = session.errorMessage {
@@ -126,7 +114,7 @@ private struct SkillDetailsPane: View {
                     autoDismissAfter: nil,
                     onDismiss: viewModel.clearActivePaneError
                 )
-                .padding([.horizontal, .top], 16)
+                .padding([.horizontal, .top], ContextualPaneLayout.horizontalInset)
             }
 
             SkillMarkdownContent(
@@ -139,26 +127,14 @@ private struct SkillDetailsPane: View {
             footer
         }
         .destructiveConfirmation($uninstallConfirmation)
-        .onExitCommand(perform: viewModel.dismissActivePane)
+        .onExitCommand(perform: onDismiss)
     }
 
     private var footer: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                githubButton
-                Spacer()
-                mutationButton
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                mutationButton
-                githubButton
-            }
-        }
-        .padding(16)
-        .background(.bar)
-        .overlay(alignment: .top) {
-            AppSeparatorHairline(surface: .paneHeader)
+        ContextualPaneFooter {
+            githubButton
+        } trailingAction: {
+            mutationButton
         }
     }
 
@@ -168,7 +144,7 @@ private struct SkillDetailsPane: View {
             Button("View on GitHub") {
                 UIApplicationShim.open(url: url)
             }
-            .secondaryActionButtonStyle()
+            .secondaryActionButtonStyle(expandsHorizontally: true)
         }
     }
 
@@ -180,13 +156,13 @@ private struct SkillDetailsPane: View {
                     Task { await viewModel.uninstallActiveSkill() }
                 }
             }
-            .destructiveActionButtonStyle()
+            .destructiveActionButtonStyle(expandsHorizontally: true)
             .disabled(session.isSubmitting)
         } else {
             Button("Install") {
                 Task { await viewModel.installActiveSkill() }
             }
-            .primaryActionButtonStyle()
+            .primaryActionButtonStyle(expandsHorizontally: true)
             .disabled(session.isSubmitting)
         }
     }
@@ -210,7 +186,7 @@ private struct SkillMarkdownContent: View {
                             return .handled
                         })
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(20)
+                        .padding(ContextualPaneLayout.horizontalInset)
                 }
             }
         }

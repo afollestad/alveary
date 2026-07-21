@@ -23,6 +23,7 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
     - Keep delayed measurement guarded by the text value that was measured so stale async work cannot resize a newer draft.
 - Use `showsDisabledCursor` only for disabled editors that should show a blocked cursor; normal progress-only read-only editors should leave it false.
 - Command-key equivalents can arrive through `performKeyEquivalent(with:)` instead of `textView(_:doCommandBy:)`; keep `AppKitTextView.onKeyEquivalent` forwarding into `AppKitTextEditorCoordinator.handleKeyEquivalent(_:)` for shared text-input callers that opt into key handling.
+- Cache derived text-presentation outputs across identical SwiftUI updates; width-only layout may restyle chip geometry, but plain text should only recalculate internal AppKit height, and fixed-height editors must not publish unused measured-height state.
 
 ## Focus
 

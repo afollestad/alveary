@@ -341,7 +341,7 @@ final class SkillsViewModelTests: XCTestCase {
     }
 }
 
-private actor SkillsMockService: SkillsService {
+actor SkillsMockService: SkillsService {
     private let installed: [Skill]
     private let catalog: [Skill]
     private let searchResultsByQuery: [String: [Skill]]
@@ -456,7 +456,7 @@ private actor SkillsMockService: SkillsService {
     }
 }
 
-private func makeSkill(
+func makeSkill(
     id: String,
     source: Skill.Source = .local,
     isInstalled: Bool = true,

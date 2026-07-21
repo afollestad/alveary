@@ -4,6 +4,42 @@ import XCTest
 
 @MainActor
 final class MCPViewModelTests: XCTestCase {
+    func testPaneFocusRestorationIDUsesInvokingControlAndSurvivesDismissal() async {
+        let recommended = RecommendedMCPServer(
+            template: MCPServer(
+                name: "playwright",
+                transport: .stdio,
+                command: "npx",
+                args: nil,
+                url: nil,
+                headers: nil,
+                env: nil,
+                providers: []
+            ),
+            description: "Browser automation",
+            headerPrompts: []
+        )
+        let viewModel = MCPViewModel(
+            mcpService: MCPMockService(servers: [], recommended: [recommended], availableAgents: [])
+        )
+        await viewModel.load()
+
+        viewModel.requestAddCustom(focusRestorationID: "mcp-add-empty")
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-add-empty")
+        viewModel.dismissActivePane()
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-add-empty")
+
+        viewModel.requestAddRecommended(recommended)
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-recommended-playwright")
+        viewModel.dismissActivePane()
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-recommended-playwright")
+
+        viewModel.requestAddCustom()
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-add")
+        viewModel.dismissActivePane()
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-add")
+    }
+
     func testLoadPopulatesStateAndSearchFiltersLocally() async {
         let service = MCPMockService(
             servers: [
@@ -121,11 +157,20 @@ final class MCPViewModelTests: XCTestCase {
         )
         let viewModel = MCPViewModel(mcpService: service)
         viewModel.requestEdit(server)
+        let generation = try XCTUnwrap(viewModel.paneSessions[.edit(server.name)]?.generation)
 
         try await viewModel.removeServer(server)
 
+        let request = PaneSessionDismissalRequest(target: MCPPaneTarget.edit(server.name), generation: generation)
+        XCTAssertTrue(viewModel.pendingPaneDismissals.contains(request))
+        XCTAssertNotNil(viewModel.paneSessions[.edit(server.name)])
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-add")
+
+        viewModel.deactivatePane(.edit(server.name), generation: generation)
+        viewModel.dismissPane(.edit(server.name), generation: generation)
         XCTAssertNil(viewModel.paneSessions[.edit(server.name)])
         XCTAssertNil(viewModel.activePaneTarget)
+        XCTAssertFalse(viewModel.pendingPaneDismissals.contains(request))
     }
 
     func testPaneSessionsRestoreEachTargetDraft() async throws {
@@ -211,10 +256,141 @@ final class MCPViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft.name, "reopened")
         XCTAssertEqual(viewModel.paneDismissalGeneration, 1)
     }
+
+    func testDismissingCapturedTargetDoesNotCloseNewActiveTarget() async throws {
+        let recommended = RecommendedMCPServer(
+            template: MCPServer(
+                name: "playwright",
+                transport: .stdio,
+                command: "npx",
+                args: ["-y", "@anthropic/mcp-playwright"],
+                url: nil,
+                headers: nil,
+                env: nil,
+                providers: []
+            ),
+            description: "Browser automation",
+            headerPrompts: []
+        )
+        let service = MCPMockService(servers: [], recommended: [recommended], availableAgents: [])
+        let viewModel = MCPViewModel(mcpService: service)
+        await viewModel.load()
+        viewModel.requestAddCustom()
+        let capturedGeneration = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.generation)
+        viewModel.requestAddRecommended(recommended)
+
+        viewModel.dismissPane(.addCustom, generation: capturedGeneration)
+
+        XCTAssertNil(viewModel.paneSessions[.addCustom])
+        XCTAssertEqual(viewModel.activePaneTarget, .addRecommended(recommended.id))
+        XCTAssertNotNil(viewModel.paneSessions[.addRecommended(recommended.id)])
+        XCTAssertEqual(viewModel.paneDismissalGeneration, 0)
+    }
+
+    func testSuccessfulSaveRetainsSessionUntilAnimatedDismissalCompletes() async throws {
+        let service = MCPMockService(
+            servers: [],
+            recommended: [],
+            availableAgents: [
+                MCPAgentAvailability(agentId: "claude", name: "Claude", supportedTransports: [.stdio])
+            ]
+        )
+        let viewModel = MCPViewModel(mcpService: service)
+        await viewModel.load()
+        viewModel.requestAddCustom()
+        var draft = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.draft)
+        draft.name = "saved-server"
+        draft.command = "npx"
+        viewModel.updateActiveDraft(draft)
+        let generation = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.generation)
+
+        await viewModel.submitActivePane()
+
+        let request = PaneSessionDismissalRequest(target: MCPPaneTarget.addCustom, generation: generation)
+        XCTAssertTrue(viewModel.pendingPaneDismissals.contains(request))
+        XCTAssertEqual(viewModel.activePaneTarget, .addCustom)
+        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.generation, generation)
+
+        viewModel.deactivatePane(.addCustom, generation: generation)
+        viewModel.dismissPane(.addCustom, generation: generation)
+        XCTAssertNil(viewModel.paneSessions[.addCustom])
+        XCTAssertFalse(viewModel.pendingPaneDismissals.contains(request))
+        XCTAssertEqual(viewModel.paneDismissalGeneration, 1)
+    }
+
+    func testDismissalWithoutFocusRestorationDoesNotBumpGenerationWhenNoTargetIsActive() async throws {
+        let service = MCPMockService(
+            servers: [],
+            recommended: [],
+            availableAgents: [
+                MCPAgentAvailability(agentId: "claude", name: "Claude", supportedTransports: [.stdio])
+            ]
+        )
+        let viewModel = MCPViewModel(mcpService: service)
+        await viewModel.load()
+        viewModel.requestAddCustom()
+        let generation = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.generation)
+
+        viewModel.deactivatePane(.addCustom, generation: generation)
+        viewModel.dismissPane(.addCustom, generation: generation, restoreFocus: false)
+
+        XCTAssertNil(viewModel.activePaneTarget)
+        XCTAssertNil(viewModel.paneSessions[.addCustom])
+        XCTAssertEqual(viewModel.paneDismissalGeneration, 0)
+    }
+
+    func testRequestingPendingSuccessfulSaveStartsFreshDraftWithoutFocusBump() async throws {
+        let service = MCPMockService(
+            servers: [],
+            recommended: [],
+            availableAgents: [
+                MCPAgentAvailability(agentId: "claude", name: "Claude", supportedTransports: [.stdio])
+            ]
+        )
+        let viewModel = MCPViewModel(mcpService: service)
+        await viewModel.load()
+        viewModel.requestAddCustom(focusRestorationID: "mcp-add-empty")
+        var draft = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.draft)
+        draft.name = "saved-server"
+        draft.command = "npx"
+        viewModel.updateActiveDraft(draft)
+        let completedGeneration = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.generation)
+
+        await viewModel.submitActivePane()
+        let request = PaneSessionDismissalRequest(target: MCPPaneTarget.addCustom, generation: completedGeneration)
+        XCTAssertTrue(viewModel.pendingPaneDismissals.contains(request))
+        XCTAssertEqual(viewModel.paneFocusRestorationID, "mcp-add")
+
+        viewModel.requestAddCustom()
+
+        XCTAssertNotEqual(viewModel.paneSessions[.addCustom]?.generation, completedGeneration)
+        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft, MCPServerDraft(availableAgents: viewModel.availableAgents))
+        XCTAssertEqual(viewModel.activePaneTarget, .addCustom)
+        XCTAssertFalse(viewModel.pendingPaneDismissals.contains(request))
+        XCTAssertEqual(viewModel.paneDismissalGeneration, 0)
+    }
+
+    func testStaleDismissalCannotCloseReopenedSameTarget() async throws {
+        let service = MCPMockService(servers: [], recommended: [], availableAgents: [])
+        let viewModel = MCPViewModel(mcpService: service)
+        await viewModel.load()
+        viewModel.requestAddCustom()
+        let staleGeneration = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.generation)
+        viewModel.dismissActivePane()
+        viewModel.requestAddCustom()
+        let reopenedGeneration = try XCTUnwrap(viewModel.paneSessions[.addCustom]?.generation)
+
+        viewModel.dismissPane(.addCustom, generation: staleGeneration)
+
+        XCTAssertNotEqual(reopenedGeneration, staleGeneration)
+        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.generation, reopenedGeneration)
+        XCTAssertEqual(viewModel.activePaneTarget, .addCustom)
+        XCTAssertEqual(viewModel.paneDismissalGeneration, 1)
+    }
 }
 
 @MainActor
-private final class MCPMockService: MCPService {
+final class MCPMockService: MCPService {
     private var storedServers: [MCPServer]
     private var storedRecommended: [RecommendedMCPServer]
     private var storedAvailableAgents: [MCPAgentAvailability]

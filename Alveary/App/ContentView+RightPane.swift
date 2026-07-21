@@ -142,7 +142,10 @@ extension ContentView {
     }
 
     @ViewBuilder
-    func rightPaneContent(for destination: RightPaneDestination) -> some View {
+    func rightPaneContent(
+        for destination: RightPaneDestination,
+        onDismiss: @escaping () -> Void
+    ) -> some View {
         switch destination {
         case .diff:
             DiffViewerPane(
@@ -157,12 +160,85 @@ extension ContentView {
                 },
                 onCommitRequested: presentGitCommitModal
             )
-        case .skills:
-            SkillsPane(viewModel: skillsViewModel)
-        case .mcp:
-            MCPServerPane(viewModel: mcpViewModel)
-        case .scheduled:
-            ScheduledTaskEditorPane(viewModel: scheduledTasksViewModel)
+        case .skills(let target):
+            SkillsPane(viewModel: skillsViewModel, target: target, onDismiss: onDismiss)
+        case .mcp(let target):
+            MCPServerPane(viewModel: mcpViewModel, target: target, onDismiss: onDismiss)
+        case .scheduled(let target):
+            ScheduledTaskEditorPane(viewModel: scheduledTasksViewModel, target: target, onDismiss: onDismiss)
+        }
+    }
+
+    func rightPanePresentationGeneration(for destination: RightPaneDestination) -> UUID? {
+        switch destination {
+        case .diff:
+            appState.diffViewerRequestID
+        case .skills(.newSkill):
+            skillsViewModel.newSkillSession?.generation
+        case .skills(.details(let skillID)):
+            skillsViewModel.detailSessions[skillID]?.generation
+        case .mcp(let target):
+            mcpViewModel.paneSessions[target]?.generation
+        case .scheduled(let target):
+            scheduledTasksViewModel.paneSessions[target]?.generation
+        }
+    }
+
+    var rightPaneDismissalRequests: Set<RightPanePresentationIdentity<RightPaneDestination>> {
+        var requests = Set<RightPanePresentationIdentity<RightPaneDestination>>()
+        requests.formUnion(skillsViewModel.pendingPaneDismissals.map {
+            RightPanePresentationIdentity(destination: .skills($0.target), generation: $0.generation)
+        })
+        requests.formUnion(mcpViewModel.pendingPaneDismissals.map {
+            RightPanePresentationIdentity(destination: .mcp($0.target), generation: $0.generation)
+        })
+        requests.formUnion(scheduledTasksViewModel.pendingPaneDismissals.map {
+            RightPanePresentationIdentity(destination: .scheduled($0.target), generation: $0.generation)
+        })
+        return requests
+    }
+
+    func deactivateRightPane(_ destination: RightPaneDestination, generation: UUID) {
+        switch destination {
+        case .diff:
+            guard appState.diffViewerRequestID == generation else {
+                return
+            }
+            appState.hideDiffViewer()
+        case .skills(let target):
+            skillsViewModel.deactivatePane(target, generation: generation)
+        case .mcp(let target):
+            mcpViewModel.deactivatePane(target, generation: generation)
+        case .scheduled(let target):
+            scheduledTasksViewModel.deactivatePane(target, generation: generation)
+        }
+    }
+
+    func dismissRightPane(_ destination: RightPaneDestination, generation: UUID) {
+        switch destination {
+        case .diff:
+            guard appState.diffViewerRequestID == generation else {
+                return
+            }
+            appState.hideDiffViewer()
+        case .skills(let target):
+            skillsViewModel.dismissPane(
+                target,
+                generation: generation,
+                restoreFocus: rightPaneDestination == nil
+            )
+        case .mcp(let target):
+            mcpViewModel.dismissPane(
+                target,
+                generation: generation,
+                restoreFocus: rightPaneDestination == nil
+            )
+        case .scheduled(let target):
+            scheduledTasksViewModel.dismissPane(
+                target,
+                generation: generation,
+                restoreFocus: rightPaneDestination == nil
+            )
         }
     }
 
@@ -184,15 +260,6 @@ extension ContentView {
         case .deactivateContextAndShowDiff(.diff):
             assertionFailure("Diff is not a contextual pane")
         }
-    }
-
-    func synchronizeContextPaneWithDiffRequest() {
-        guard rightPaneDestination != .diff,
-              rightPaneDestination != nil,
-              appState.isDiffViewerRequested else {
-            return
-        }
-        appState.hideDiffViewer()
     }
 
     func handleRightPaneDestinationChange(_ destination: RightPaneDestination?) {

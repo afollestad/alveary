@@ -151,18 +151,78 @@ private struct AppMarkdownIntrinsicWidthLayoutKey: LayoutValueKey {
 private struct AppMarkdownBlockStackLayout: Layout {
     let spacing: CGFloat
 
+    func makeCache(subviews: Subviews) -> AppMarkdownBlockStackLayoutCache {
+        AppMarkdownBlockStackLayoutCache()
+    }
+
+    func updateCache(
+        _ cache: inout AppMarkdownBlockStackLayoutCache,
+        subviews: Subviews
+    ) {
+        cache = AppMarkdownBlockStackLayoutCache()
+    }
+
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache: inout AppMarkdownBlockStackLayoutCache
     ) -> CGSize {
-        let childProposal = ProposedViewSize(width: proposal.width, height: nil)
+        measurement(
+            proposalWidth: proposal.width,
+            subviews: subviews,
+            cache: &cache
+        ).size
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout AppMarkdownBlockStackLayoutCache
+    ) {
+        let measurement = measurement(
+            proposalWidth: bounds.width,
+            subviews: subviews,
+            cache: &cache
+        )
+        var currentY = bounds.minY
+        let childProposal = ProposedViewSize(width: bounds.width, height: nil)
+
+        for (index, subview) in subviews.enumerated() {
+            if index > 0 {
+                currentY += spacing
+            }
+            subview.place(
+                at: CGPoint(x: bounds.minX, y: currentY),
+                anchor: .topLeading,
+                proposal: childProposal
+            )
+            currentY += measurement.childSizes[index].height
+        }
+    }
+
+    private func measurement(
+        proposalWidth: CGFloat?,
+        subviews: Subviews,
+        cache: inout AppMarkdownBlockStackLayoutCache
+    ) -> AppMarkdownBlockStackLayoutMeasurement {
+        if let measurement = cache.measurement,
+           measurement.proposalWidth == proposalWidth,
+           measurement.spacing == spacing,
+           measurement.childSizes.count == subviews.count {
+            return measurement
+        }
+
+        let childProposal = ProposedViewSize(width: proposalWidth, height: nil)
+        var childSizes: [CGSize] = []
+        childSizes.reserveCapacity(subviews.count)
         var width: CGFloat = 0
         var height: CGFloat = 0
         var hasWidthContributingSubview = false
 
         for (index, subview) in subviews.enumerated() {
             let size = subview.sizeThatFits(childProposal)
+            childSizes.append(size)
             if index > 0 {
                 height += spacing
             }
@@ -172,43 +232,38 @@ private struct AppMarkdownBlockStackLayout: Layout {
                 continue
             }
             hasWidthContributingSubview = true
-            width = max(width, widthContribution(for: subview, measuredSize: size, proposal: proposal))
+            width = max(
+                width,
+                widthContribution(
+                    for: subview,
+                    at: index,
+                    measuredSize: size,
+                    proposalWidth: proposalWidth,
+                    cache: &cache
+                )
+            )
         }
 
         if !hasWidthContributingSubview {
-            width = min(proposal.width ?? appMarkdownFallbackThematicBreakWidth, appMarkdownFallbackThematicBreakWidth)
+            width = min(proposalWidth ?? appMarkdownFallbackThematicBreakWidth, appMarkdownFallbackThematicBreakWidth)
         }
 
-        return CGSize(width: width, height: height)
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        var currentY = bounds.minY
-        let childProposal = ProposedViewSize(width: bounds.width, height: nil)
-
-        for (index, subview) in subviews.enumerated() {
-            let size = subview.sizeThatFits(childProposal)
-            if index > 0 {
-                currentY += spacing
-            }
-            subview.place(
-                at: CGPoint(x: bounds.minX, y: currentY),
-                anchor: .topLeading,
-                proposal: childProposal
-            )
-            currentY += size.height
-        }
+        let measurement = AppMarkdownBlockStackLayoutMeasurement(
+            proposalWidth: proposalWidth,
+            spacing: spacing,
+            childSizes: childSizes,
+            size: CGSize(width: width, height: height)
+        )
+        cache.measurement = measurement
+        return measurement
     }
 
     private func widthContribution(
         for subview: LayoutSubview,
+        at index: Int,
         measuredSize: CGSize,
-        proposal: ProposedViewSize
+        proposalWidth: CGFloat?,
+        cache: inout AppMarkdownBlockStackLayoutCache
     ) -> CGFloat {
         guard subview[AppMarkdownIntrinsicWidthLayoutKey.self] else {
             return measuredSize.width
@@ -216,10 +271,28 @@ private struct AppMarkdownBlockStackLayout: Layout {
 
         // Code blocks fill the stack width like rules when placed, but report their
         // intrinsic code width here so they expand the bubble only when content needs it.
-        let intrinsicWidth = subview.sizeThatFits(ProposedViewSize(width: nil, height: nil)).width
-        guard let proposedWidth = proposal.width else {
+        let intrinsicWidth: CGFloat
+        if let cachedWidth = cache.intrinsicWidths[index] {
+            intrinsicWidth = cachedWidth
+        } else {
+            intrinsicWidth = subview.sizeThatFits(.unspecified).width
+            cache.intrinsicWidths[index] = intrinsicWidth
+        }
+        guard let proposalWidth else {
             return intrinsicWidth
         }
-        return min(intrinsicWidth, proposedWidth)
+        return min(intrinsicWidth, proposalWidth)
     }
+}
+
+private struct AppMarkdownBlockStackLayoutCache {
+    var measurement: AppMarkdownBlockStackLayoutMeasurement?
+    var intrinsicWidths: [Int: CGFloat] = [:]
+}
+
+private struct AppMarkdownBlockStackLayoutMeasurement {
+    let proposalWidth: CGFloat?
+    let spacing: CGFloat
+    let childSizes: [CGSize]
+    let size: CGSize
 }

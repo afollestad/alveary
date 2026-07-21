@@ -9,7 +9,7 @@ struct ScheduledTaskEditorContent: View {
     let viewModel: ScheduledTasksViewModel
     @Binding var draft: ScheduledTaskEditorDraft
     let title: String
-    let subtitle: String
+    let subtitle: String?
     let submitTitle: String
     let errorMessage: String?
     let isSubmitting: Bool
@@ -50,7 +50,7 @@ struct ScheduledTaskEditorContent: View {
                         draft: $draft
                     )
                 }
-                .padding(surface == .pane ? 20 : 24)
+                .padding(surface == .pane ? ContextualPaneLayout.horizontalInset : 24)
             }
 
             if surface == .modal {
@@ -69,7 +69,7 @@ struct ScheduledTaskEditorContent: View {
             viewModel.normalizeProviderDependentFields(&draft)
         }
         .onChange(of: viewModel.isLoadingProviders) { wasLoading, isLoading in
-            guard wasLoading, !isLoading else { return }
+            guard surface == .modal, wasLoading, !isLoading else { return }
             viewModel.normalizeProviderDependentFields(&draft)
         }
         .onExitCommand(perform: onClose)
@@ -81,7 +81,6 @@ struct ScheduledTaskEditorContent: View {
         case .pane:
             ContextualPaneHeader(
                 title,
-                subtitle: subtitle,
                 closeAccessibilityLabel: "Close scheduled task editor",
                 onClose: onClose
             )
@@ -90,9 +89,11 @@ struct ScheduledTaskEditorContent: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.title2.weight(.semibold))
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
@@ -106,27 +107,14 @@ struct ScheduledTaskEditorContent: View {
     private var footer: some View {
         switch surface {
         case .pane:
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    dueTimeNote
-                    Spacer()
+            ContextualPaneFooter(
+                note: { dueTimeNote },
+                leadingAction: {
                     Button("Cancel", action: onClose)
-                        .secondaryActionButtonStyle()
-                    submitButton
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    dueTimeNote
-                    submitButton
-                    Button("Cancel", action: onClose)
-                        .secondaryActionButtonStyle()
-                }
-            }
-            .padding(16)
-            .background(.bar)
-            .overlay(alignment: .top) {
-                AppSeparatorHairline(surface: .paneHeader)
-            }
+                        .secondaryActionButtonStyle(expandsHorizontally: true)
+                },
+                trailingAction: { submitButton }
+            )
         case .modal:
             HStack(spacing: 12) {
                 dueTimeNote
@@ -147,35 +135,37 @@ struct ScheduledTaskEditorContent: View {
 
     private var submitButton: some View {
         Button(submitTitle, action: onSubmit)
-            .primaryActionButtonStyle()
+            .primaryActionButtonStyle(expandsHorizontally: surface == .pane)
             .disabled(isSubmitting)
     }
 }
 
 struct ScheduledTaskEditorPane: View {
     let viewModel: ScheduledTasksViewModel
+    let target: ScheduledTaskPaneTarget
+    let onDismiss: () -> Void
 
     private var draft: Binding<ScheduledTaskEditorDraft> {
         Binding(
-            get: { viewModel.activePaneSession?.draft ?? viewModel.makeNewDraft() },
+            get: { viewModel.paneSessions[target]?.draft ?? viewModel.makeNewDraft() },
             set: { viewModel.updateActiveDraft($0) }
         )
     }
 
     var body: some View {
-        if let session = viewModel.activePaneSession {
+        if let session = viewModel.paneSessions[target] {
             ScheduledTaskEditorContent(
                 viewModel: viewModel,
                 draft: draft,
                 title: session.draft.isEditing ? "Edit Scheduled Task" : "New Scheduled Task",
-                subtitle: "Changes apply only to future runs.",
+                subtitle: nil,
                 submitTitle: session.draft.isEditing ? "Save changes" : "Create task",
                 errorMessage: session.errorMessage,
                 isSubmitting: session.isSubmitting,
                 surface: .pane,
                 onDismissError: viewModel.clearEditorError,
                 onSubmit: viewModel.submitActivePane,
-                onClose: viewModel.dismissActivePane
+                onClose: onDismiss
             )
         }
     }
@@ -203,7 +193,7 @@ struct ScheduledTaskEditorSheet: View {
             viewModel: viewModel,
             draft: $draft,
             title: draft.isEditing ? "Edit Scheduled Task" : "New Scheduled Task",
-            subtitle: "Changes apply only to future runs.",
+            subtitle: nil,
             submitTitle: draft.isEditing ? "Save changes" : "Create task",
             errorMessage: nil,
             isSubmitting: false,

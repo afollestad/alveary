@@ -5,153 +5,400 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
     let destination: Destination?
     @Binding var width: CGFloat
     let onWidthCommit: (CGFloat) -> Void
+    let presentationGeneration: (Destination) -> UUID?
+    let dismissalRequests: Set<RightPanePresentationIdentity<Destination>>
+    let onDeactivate: (Destination, UUID) -> Void
+    let onDismiss: (Destination, UUID) -> Void
     @ViewBuilder let mainContent: () -> MainContent
-    @ViewBuilder let paneContent: (Destination) -> PaneContent
+    @ViewBuilder let paneContent: (Destination, @escaping () -> Void) -> PaneContent
+
+    @State private var displayedPresentation: RightPanePresentationIdentity<Destination>?
+    @State private var displayedWidth: CGFloat?
+    @State private var liveResizeWidth: CGFloat?
+    @State private var presentationProgress: CGFloat
+    @State private var pendingDismissal: RightPanePresentationIdentity<Destination>?
+    @State private var hiddenPaneCleanup: UUID?
+    @State private var resizeHandleActivation: UUID?
+    @State private var isResizeHandleInteractive: Bool
+    @State private var didInitializePresentation = false
+
+    init(
+        destination: Destination?,
+        width: Binding<CGFloat>,
+        onWidthCommit: @escaping (CGFloat) -> Void,
+        presentationGeneration: @escaping (Destination) -> UUID?,
+        dismissalRequests: Set<RightPanePresentationIdentity<Destination>> = [],
+        onDeactivate: @escaping (Destination, UUID) -> Void = { _, _ in },
+        onDismiss: @escaping (Destination, UUID) -> Void,
+        @ViewBuilder mainContent: @escaping () -> MainContent,
+        @ViewBuilder paneContent: @escaping (Destination, @escaping () -> Void) -> PaneContent
+    ) {
+        self.destination = destination
+        _width = width
+        self.onWidthCommit = onWidthCommit
+        self.presentationGeneration = presentationGeneration
+        self.dismissalRequests = dismissalRequests
+        self.onDeactivate = onDeactivate
+        self.onDismiss = onDismiss
+        self.mainContent = mainContent
+        self.paneContent = paneContent
+        _displayedPresentation = State(initialValue: nil)
+        _presentationProgress = State(initialValue: 0)
+        _isResizeHandleInteractive = State(initialValue: false)
+    }
 
     var body: some View {
         GeometryReader { proxy in
+            let activePresentation = resolvedPresentation
+            // A new non-nil route renders under its own identity immediately. The
+            // stored presentation remains only long enough to animate an outgoing pane.
+            let renderedPresentation = activePresentation ?? displayedPresentation
+            let isRenderedPresentationSettled = activePresentation == renderedPresentation
+                && displayedPresentation == renderedPresentation
             let bounds = RightPaneWidthPolicy.bounds(availableWidth: proxy.size.width)
-            let effectiveWidth = RightPaneWidthPolicy.effectiveWidth(
+            let activeEffectiveWidth = RightPaneWidthPolicy.effectiveWidth(
                 storedWidth: width,
                 availableWidth: proxy.size.width
             )
-            let effectiveWidthBinding = Binding(
-                get: { effectiveWidth },
-                set: { width = $0 }
+            let routedPaneWidth = activePresentation == nil
+                ? displayedWidth ?? activeEffectiveWidth
+                : activeEffectiveWidth
+            let paneWidth = RightPaneWidthPolicy.effectiveWidth(
+                storedWidth: liveResizeWidth ?? routedPaneWidth,
+                availableWidth: proxy.size.width
             )
-
-            HStack(spacing: 0) {
+            RightPanePresentationLayout(
+                paneWidth: paneWidth,
+                presentationProgress: presentationProgress
+            ) {
                 mainContent()
                     .frame(minWidth: 0, maxWidth: .infinity)
                     .clipped()
 
-                if let destination {
-                    RightPaneResizeHandle(
-                        width: effectiveWidthBinding,
-                        bounds: bounds,
-                        onCommit: onWidthCommit
-                    )
-                    .id(destination)
+                if let renderedPresentation {
+                    HStack(spacing: 0) {
+                        RightPaneResizeHandle(
+                            width: resizeWidthBinding(
+                                paneWidth: paneWidth,
+                                presentation: renderedPresentation
+                            ),
+                            bounds: bounds,
+                            isInteractionEnabled: isResizeHandleInteractive && isRenderedPresentationSettled,
+                            onCommit: { committedWidth in
+                                commitLiveResize(committedWidth, presentation: renderedPresentation)
+                            }
+                        )
+                        .id(renderedPresentation)
 
-                    paneContent(destination)
-                        .id(destination)
-                        .frame(width: effectiveWidth)
-                }
-            }
-        }
-        .animation(.easeInOut(duration: 0.25), value: destination != nil)
-    }
-}
-
-struct RightPaneResizeHandle: View {
-    @Binding var width: CGFloat
-    @Environment(\.displayScale) private var displayScale
-
-    let bounds: ClosedRange<Double>
-    let onCommit: (CGFloat) -> Void
-
-    @State private var dragStartWidth: CGFloat?
-    @State private var isHovering = false
-    @State private var hasPushedCursor = false
-
-    var body: some View {
-        ZStack {
-            Rectangle()
-                .fill(isHovering ? Color.accentColor : Color(nsColor: .separatorColor))
-                .frame(width: 1)
-
-            Rectangle()
-                .fill(isHovering ? Color.accentColor.opacity(0.18) : Color.clear)
-                .frame(width: 6)
-        }
-        .frame(width: RightPaneWidthPolicy.resizeHandleThickness)
-        .contentShape(Rectangle())
-        .accessibilityElement()
-        .accessibilityLabel("Resize right pane")
-        .accessibilityValue("\(Int(width.rounded())) points")
-        .accessibilityHint("Adjusts the width of the right pane")
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment:
-                commitAdjustedWidth(width + RightPaneWidthPolicy.accessibilityStep)
-            case .decrement:
-                commitAdjustedWidth(width - RightPaneWidthPolicy.accessibilityStep)
-            @unknown default:
-                break
-            }
-        }
-        .onHover { hovering in
-            isHovering = hovering
-            if hovering, !hasPushedCursor {
-                NSCursor.resizeLeftRight.push()
-                hasPushedCursor = true
-            } else if !hovering, hasPushedCursor {
-                NSCursor.pop()
-                hasPushedCursor = false
-            }
-        }
-        .onDisappear {
-            guard hasPushedCursor else {
-                return
-            }
-
-            NSCursor.pop()
-            hasPushedCursor = false
-        }
-        .gesture(
-            // Global coordinates keep the delta stable while the handle itself moves.
-            DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                .onChanged { value in
-                    let startWidth = dragStartWidth ?? width
-                    if dragStartWidth == nil {
-                        dragStartWidth = startWidth
+                        paneContent(renderedPresentation.destination) {
+                            dismiss(renderedPresentation)
+                        }
+                        .id(renderedPresentation)
+                        .frame(width: paneWidth)
                     }
-                    width = snappedWidth(startWidth - value.translation.width)
+                    .frame(width: paneWidth + RightPaneWidthPolicy.resizeHandleThickness)
+                    .allowsHitTesting(isRenderedPresentationSettled && pendingDismissal != renderedPresentation)
+                    .accessibilityHidden(!isRenderedPresentationSettled || pendingDismissal == renderedPresentation)
+                } else {
+                    Color.clear
                 }
-                .onEnded { value in
-                    let startWidth = dragStartWidth ?? width
-                    let committedWidth = snappedWidth(startWidth - value.translation.width)
-                    width = committedWidth
-                    dragStartWidth = nil
-                    onCommit(committedWidth)
+            }
+            .clipped()
+            .onChange(of: activeEffectiveWidth, initial: true) { _, newWidth in
+                guard activePresentation != nil, liveResizeWidth == nil else {
+                    return
                 }
+                guard displayedWidth != newWidth else {
+                    return
+                }
+                displayedWidth = newWidth
+            }
+            .onChange(of: activePresentation, initial: true) { _, newPresentation in
+                if didInitializePresentation {
+                    updatePresentation(presentation: newPresentation, width: activeEffectiveWidth)
+                } else {
+                    initializePresentation(presentation: newPresentation, width: activeEffectiveWidth)
+                }
+            }
+            .onChange(of: dismissalRequests, initial: true) { _, requests in
+                handleDismissalRequests(requests)
+            }
+            .task(id: pendingDismissal) {
+                await completePendingDismissal()
+            }
+            .task(id: hiddenPaneCleanup) {
+                await completeHiddenPaneCleanup()
+            }
+            .task(id: resizeHandleActivation) {
+                await activateResizeHandleAfterPresentation()
+            }
+        }
+    }
+
+    private var resolvedPresentation: RightPanePresentationIdentity<Destination>? {
+        guard let destination,
+              let generation = presentationGeneration(destination) else {
+            return nil
+        }
+        return RightPanePresentationIdentity(destination: destination, generation: generation)
+    }
+
+    private func dismiss(_ presentation: RightPanePresentationIdentity<Destination>) {
+        guard resolvedPresentation == presentation,
+              displayedPresentation == presentation,
+              pendingDismissal != presentation else {
+            return
+        }
+
+        beginDismissal(presentation)
+    }
+
+    private func beginDismissal(_ presentation: RightPanePresentationIdentity<Destination>) {
+        guard displayedPresentation == presentation,
+              pendingDismissal != presentation else {
+            return
+        }
+
+        if let pendingDismissal {
+            onDismiss(pendingDismissal.destination, pendingDismissal.generation)
+        }
+        deactivateResizeHandle()
+        hiddenPaneCleanup = nil
+        pendingDismissal = presentation
+        onDeactivate(presentation.destination, presentation.generation)
+        withAnimation(RightPaneWidthPolicy.presentationAnimation) {
+            presentationProgress = 0
+        }
+    }
+
+    private func handleDismissalRequests(
+        _ requests: Set<RightPanePresentationIdentity<Destination>>
+    ) {
+        for request in requests {
+            if displayedPresentation == request {
+                beginDismissal(request)
+            } else if resolvedPresentation != request {
+                onDismiss(request.destination, request.generation)
+            }
+        }
+    }
+
+    private func resizeWidthBinding(
+        paneWidth: CGFloat,
+        presentation: RightPanePresentationIdentity<Destination>
+    ) -> Binding<CGFloat> {
+        Binding(
+            get: { paneWidth },
+            set: { newWidth in
+                guard isResizeHandleInteractive,
+                      RightPanePresentationPolicy.canResize(
+                          active: resolvedPresentation,
+                          displayed: displayedPresentation,
+                          captured: presentation
+                      ),
+                      liveResizeWidth != newWidth else {
+                    return
+                }
+                liveResizeWidth = newWidth
+            }
         )
     }
 
-    private func commitAdjustedWidth(_ candidate: CGFloat) {
-        let committedWidth = snappedWidth(candidate)
+    private func commitLiveResize(
+        _ committedWidth: CGFloat,
+        presentation: RightPanePresentationIdentity<Destination>
+    ) {
+        guard isResizeHandleInteractive,
+              RightPanePresentationPolicy.canResize(
+                  active: resolvedPresentation,
+                  displayed: displayedPresentation,
+                  captured: presentation
+              ) else {
+            liveResizeWidth = nil
+            return
+        }
+
+        // Keep high-frequency drag updates local to this layout. Publishing through
+        // ContentView on every mouse event rebuilds the full root view hierarchy.
         width = committedWidth
-        onCommit(committedWidth)
+        displayedWidth = committedWidth
+        liveResizeWidth = nil
+        onWidthCommit(committedWidth)
     }
 
-    private func snappedWidth(_ candidate: CGFloat) -> CGFloat {
-        let lowerBound = CGFloat(bounds.lowerBound)
-        let upperBound = CGFloat(bounds.upperBound)
-        let clamped = min(max(candidate, lowerBound), upperBound)
-        let step = max(1 / max(displayScale, 1), 0.5)
-        return (clamped / step).rounded() * step
+    private func updatePresentation(
+        presentation: RightPanePresentationIdentity<Destination>?,
+        width: CGFloat
+    ) {
+        liveResizeWidth = nil
+        guard let presentation else {
+            deactivateResizeHandle()
+            guard displayedPresentation != nil else {
+                hiddenPaneCleanup = nil
+                presentationProgress = 0
+                return
+            }
+            if pendingDismissal == displayedPresentation {
+                hiddenPaneCleanup = nil
+                return
+            }
+            hiddenPaneCleanup = UUID()
+            withAnimation(RightPaneWidthPolicy.presentationAnimation) {
+                presentationProgress = 0
+            }
+            return
+        }
+
+        let wasDismissing = hiddenPaneCleanup != nil
+            || pendingDismissal != nil
+            || presentationProgress < 1
+        hiddenPaneCleanup = nil
+        if RightPanePresentationPolicy.shouldCancelDismissal(
+            active: presentation,
+            pending: pendingDismissal
+        ) {
+            pendingDismissal = nil
+        }
+        let wasHidden = displayedPresentation == nil || presentationProgress == 0
+        let wasPresenting = resizeHandleActivation != nil
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedPresentation = presentation
+            displayedWidth = width
+        }
+
+        if dismissalRequests.contains(presentation) {
+            beginDismissal(presentation)
+            return
+        }
+
+        if wasHidden || wasPresenting || wasDismissing {
+            scheduleResizeHandleActivation()
+            withAnimation(RightPaneWidthPolicy.presentationAnimation) {
+                presentationProgress = 1
+            }
+        } else {
+            resizeHandleActivation = nil
+            isResizeHandleInteractive = true
+            presentationProgress = 1
+        }
     }
-}
 
-enum RightPaneWidthPolicy {
-    static let minimumMainPaneWidth: CGFloat = 420
-    static let resizeHandleThickness: CGFloat = 8
-    static let accessibilityStep: CGFloat = 20
+    private func initializePresentation(
+        presentation: RightPanePresentationIdentity<Destination>?,
+        width: CGFloat
+    ) {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedPresentation = presentation
+            displayedWidth = presentation == nil ? nil : width
+            presentationProgress = presentation == nil ? 0 : 1
+            isResizeHandleInteractive = presentation != nil
+            didInitializePresentation = true
+        }
 
-    static func effectiveWidth(storedWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {
-        let bounds = bounds(availableWidth: availableWidth)
-        return min(max(storedWidth, CGFloat(bounds.lowerBound)), CGFloat(bounds.upperBound))
+        if let presentation, dismissalRequests.contains(presentation) {
+            beginDismissal(presentation)
+        }
     }
 
-    static func bounds(
-        availableWidth: CGFloat,
-        supportedBounds: ClosedRange<Double> = AppSettings.supportedRightPaneWidthRange
-    ) -> ClosedRange<Double> {
-        let maximumAvailableWidth = Double(max(
-            availableWidth - minimumMainPaneWidth - resizeHandleThickness,
-            CGFloat(supportedBounds.lowerBound)
-        ))
-        let upperBound = min(supportedBounds.upperBound, maximumAvailableWidth)
-        return supportedBounds.lowerBound...upperBound
+    private func scheduleResizeHandleActivation() {
+        isResizeHandleInteractive = false
+        resizeHandleActivation = UUID()
+    }
+
+    private func deactivateResizeHandle() {
+        isResizeHandleInteractive = false
+        resizeHandleActivation = nil
+    }
+
+    private func activateResizeHandleAfterPresentation() async {
+        guard let activation = resizeHandleActivation else {
+            return
+        }
+
+        do {
+            try await Task.sleep(for: .seconds(RightPaneWidthPolicy.presentationDuration))
+        } catch {
+            return
+        }
+        guard !Task.isCancelled,
+              resizeHandleActivation == activation,
+              resolvedPresentation == displayedPresentation,
+              pendingDismissal != displayedPresentation,
+              displayedPresentation != nil else {
+            return
+        }
+
+        isResizeHandleInteractive = true
+        resizeHandleActivation = nil
+    }
+
+    private func completeHiddenPaneCleanup() async {
+        // External routing hides without discarding the feature session, but the
+        // rendered pane only needs to remain mounted until its slide-out completes.
+        guard let cleanup = hiddenPaneCleanup else {
+            return
+        }
+
+        do {
+            try await Task.sleep(for: .seconds(RightPaneWidthPolicy.presentationDuration))
+        } catch {
+            return
+        }
+        guard !Task.isCancelled,
+              hiddenPaneCleanup == cleanup,
+              resolvedPresentation == nil,
+              pendingDismissal != displayedPresentation else {
+            return
+        }
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedPresentation = nil
+            displayedWidth = nil
+            liveResizeWidth = nil
+            hiddenPaneCleanup = nil
+        }
+    }
+
+    private func completePendingDismissal() async {
+        guard let pendingDismissal else {
+            return
+        }
+
+        do {
+            try await Task.sleep(for: .seconds(RightPaneWidthPolicy.presentationDuration))
+        } catch {
+            return
+        }
+        guard !Task.isCancelled,
+              self.pendingDismissal == pendingDismissal else {
+            return
+        }
+
+        onDismiss(pendingDismissal.destination, pendingDismissal.generation)
+        guard RightPanePresentationPolicy.shouldTearDown(
+            displayed: displayedPresentation,
+            completedDismissal: pendingDismissal
+        ) else {
+            self.pendingDismissal = nil
+            return
+        }
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedPresentation = nil
+            displayedWidth = nil
+            liveResizeWidth = nil
+            hiddenPaneCleanup = nil
+            isResizeHandleInteractive = false
+            resizeHandleActivation = nil
+            self.pendingDismissal = nil
+        }
     }
 }

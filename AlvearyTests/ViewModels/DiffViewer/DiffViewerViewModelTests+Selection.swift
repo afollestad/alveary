@@ -447,6 +447,7 @@ extension DiffViewerViewModelTests {
         defer { fixture.viewModel.tearDown() }
 
         await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
+        fixture.viewModel.setWatchingEnabled(true)
         await fixture.viewModel.selectFile(unstagedFiles[0], in: fixture.directory)
         await fixture.viewModel.selectFile(unstagedFiles[1], in: fixture.directory, behavior: .toggle)
 

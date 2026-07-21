@@ -20,6 +20,7 @@ struct MiddlePane: View {
     let sidebarViewModel: SidebarViewModel
     let loadInstalledSkills: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
+    let diffViewerSwitchScope: @MainActor () -> DiffViewerSwitchScope
     let skillsViewModel: SkillsViewModel
     let mcpViewModel: MCPViewModel
     let scheduledTasksViewModel: ScheduledTasksViewModel
@@ -92,7 +93,8 @@ struct MiddlePane: View {
                     try await sidebarViewModel.deleteThread(thread)
                 },
                 loadSkillCompletions: loadInstalledSkills,
-                diffViewModel: diffViewModel
+                diffViewModel: diffViewModel,
+                diffViewerSwitchScope: diffViewerSwitchScope
             )
                 .id(thread.persistentModelID)
         case .settings:

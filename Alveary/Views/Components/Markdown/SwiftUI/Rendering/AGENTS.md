@@ -9,6 +9,7 @@ Rules for the SwiftUI-only markdown block renderer, tables, and code highlightin
 - **Keep highlighting lightweight.** Syntax rules are regex-based scan aids, not full language parsers or Prism parity.
 - **Render overflow internally.** Wide code blocks and tables should scroll horizontally inside the block instead of exceeding transcript row bounds.
 - **Measure code blocks by intrinsic width.** Fenced code may widen the markdown bubble up to the available cap, then scroll horizontally; thematic breaks stay width-neutral and only fill the width chosen by other blocks.
+- **Cache repeated layout measurements.** Reuse exact-width block measurements and proposal-independent code/table measurements across size and placement passes; reset typed layout caches when subviews change.
 - **Use markdown typography.** Body text inherits the caller's root font; explicit renderer variants must use `appMarkdownFont(...)`, never raw `.font(...)`. Transcript surfaces inject settings-backed `AppMarkdownTypography`.
 - **Use concise comments.** Add comments only where parsing, block grouping, or run-range conversion is non-obvious.
 

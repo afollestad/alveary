@@ -7,7 +7,6 @@ struct SkillsScreen: View {
     @State private var hasLoaded = false
     @State private var screenError: String?
     @State private var uninstallConfirmation: DestructiveConfirmationRequest?
-    @State private var lastPaneTriggerID = "skills-new"
     @State private var gridColumnCount = 2
     @FocusState private var focusedPaneTriggerID: String?
 
@@ -23,7 +22,7 @@ struct SkillsScreen: View {
                         await viewModel.refreshCatalog()
                     }
                 },
-                onCreate: openNewSkill,
+                onCreate: { openNewSkill() },
                 createFocus: $focusedPaneTriggerID
             )
 
@@ -84,10 +83,16 @@ struct SkillsScreen: View {
                             heading: "No skills available",
                             subtext: "Install or create a skill once catalog data is available.",
                             actions: [
-                                .init(title: "New Skill", systemImage: "plus", style: .primary) {
-                                    openNewSkill()
+                                .init(
+                                    title: "New Skill",
+                                    systemImage: "plus",
+                                    style: .primary,
+                                    focusID: "skills-new-empty"
+                                ) {
+                                    openNewSkill(focusRestorationID: "skills-new-empty")
                                 }
-                            ]
+                            ],
+                            actionFocus: $focusedPaneTriggerID
                         )
                     } else {
                         if !filteredInstalled.isEmpty {
@@ -178,7 +183,11 @@ struct SkillsScreen: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.paneDismissalGeneration) { _, _ in
-            focusedPaneTriggerID = lastPaneTriggerID
+            focusedPaneTriggerID = ContextualPaneFocusRestoration.resolve(
+                preferredID: viewModel.paneFocusRestorationID,
+                visibleTriggerIDs: visiblePaneTriggerFocusIDs,
+                fallbackID: SkillsPaneTarget.newSkill.defaultFocusRestorationID
+            )
         }
         .destructiveConfirmation($uninstallConfirmation)
     }
@@ -216,6 +225,21 @@ private struct SearchingSkillsLabel: View {
 }
 
 private extension SkillsScreen {
+    var visiblePaneTriggerFocusIDs: Set<String> {
+        var ids = Set([SkillsPaneTarget.newSkill.defaultFocusRestorationID])
+        ids.formUnion(viewModel.searchDisplayResults.map {
+            SkillsPaneTarget.details($0.id).defaultFocusRestorationID
+        })
+        if !viewModel.hasActiveSearch,
+           viewModel.filteredInstalled.isEmpty,
+           viewModel.filteredRecommended.isEmpty,
+           viewModel.searchResults.isEmpty,
+           hasLoaded {
+            ids.insert("skills-new-empty")
+        }
+        return ids
+    }
+
     var gridColumns: [GridItem] {
         Array(
             repeating: GridItem(.flexible(minimum: 240), spacing: 16),
@@ -223,13 +247,11 @@ private extension SkillsScreen {
         )
     }
 
-    func openNewSkill() {
-        lastPaneTriggerID = "skills-new"
-        viewModel.requestNewSkill()
+    func openNewSkill(focusRestorationID: String? = nil) {
+        viewModel.requestNewSkill(focusRestorationID: focusRestorationID)
     }
 
     func openDetails(_ skill: Skill) {
-        lastPaneTriggerID = "skills-details-\(skill.id)"
         viewModel.requestDetails(for: skill)
     }
 

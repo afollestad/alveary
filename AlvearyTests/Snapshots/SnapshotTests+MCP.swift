@@ -9,7 +9,7 @@ extension SnapshotTests {
         viewModel.requestAddCustom()
 
         assertMacSnapshot(
-            MCPServerPane(viewModel: viewModel),
+            MCPServerPane(viewModel: viewModel, target: .addCustom, onDismiss: {}),
             size: CGSize(width: 320, height: 780),
             named: "mcp_add_custom_pane_minimum_width"
         )
@@ -18,10 +18,11 @@ extension SnapshotTests {
     func testMCPAddRecommendedPaneAtMinimumWidth() async throws {
         let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
         await viewModel.load()
-        viewModel.requestAddRecommended(try XCTUnwrap(viewModel.recommended.first))
+        let recommended = try XCTUnwrap(viewModel.recommended.first)
+        viewModel.requestAddRecommended(recommended)
 
         assertMacSnapshot(
-            MCPServerPane(viewModel: viewModel),
+            MCPServerPane(viewModel: viewModel, target: .addRecommended(recommended.id), onDismiss: {}),
             size: CGSize(width: 320, height: 780),
             named: "mcp_add_recommended_pane_minimum_width"
         )
@@ -30,10 +31,11 @@ extension SnapshotTests {
     func testMCPEditPaneAtMinimumWidth() async throws {
         let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
         await viewModel.load()
-        viewModel.requestEdit(try XCTUnwrap(viewModel.servers.first))
+        let server = try XCTUnwrap(viewModel.servers.first)
+        viewModel.requestEdit(server)
 
         assertMacSnapshot(
-            MCPServerPane(viewModel: viewModel),
+            MCPServerPane(viewModel: viewModel, target: .edit(server.name), onDismiss: {}),
             size: CGSize(width: 320, height: 780),
             named: "mcp_edit_pane_minimum_width"
         )

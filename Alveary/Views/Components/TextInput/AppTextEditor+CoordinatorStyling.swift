@@ -1,7 +1,54 @@
 @preconcurrency import AppKit
+import SwiftUI
+
+struct AppKitTextPresentationConfiguration: Equatable {
+    let highlightRanges: [NSRange]
+    let textChips: [AppTextEditorChip]
+    let blockRanges: [NSRange]
+    let inlineCodeBackgroundRanges: [NSRange]
+    let inlineRanges: [NSRange]
+    let inlineDelimiterRanges: [NSRange]
+    let baseFont: NSFont
+    let baseColor: NSColor
+    let inlineCodeBackgroundColor: NSColor
+    let accentColor: NSColor
+    let colorScheme: ColorScheme
+}
 
 @MainActor
 extension AppKitTextEditorCoordinator {
+    @discardableResult
+    func applyViewConfiguration(to textView: AppKitTextView, from parent: AppKitTextEditorView) -> Bool {
+        let showsDisabledCursor = parent.isDisabled && parent.showsDisabledCursor
+        assignIfChanged(\.baseTextFont, on: textView, value: .preferredFont(forTextStyle: .body))
+        assignIfChanged(\.isEditable, on: textView, value: !parent.isDisabled)
+        assignIfChanged(\.isSelectable, on: textView, value: !showsDisabledCursor)
+        assignIfChanged(\.showsDisabledCursor, on: textView, value: showsDisabledCursor)
+        if let scrollView {
+            assignIfChanged(\.showsDisabledCursor, on: scrollView, value: showsDisabledCursor)
+        }
+        if let clipView = scrollView?.contentView as? AppKitTextEditorClipView {
+            assignIfChanged(\.showsDisabledCursor, on: clipView, value: showsDisabledCursor)
+        }
+        if let containerView {
+            assignIfChanged(\.showsDisabledCursor, on: containerView, value: showsDisabledCursor)
+        }
+        assignIfChanged(\.textColor, on: textView, value: .labelColor)
+        assignIfChanged(\.placeholder, on: textView, value: parent.placeholder ?? "")
+        assignIfChanged(\.inlineHint, on: textView, value: parent.inlineHint)
+        assignIfChanged(\.enablesCodeBlockEditing, on: textView, value: parent.codeBlockRanges != nil)
+        assignIfChanged(\.disablesAppKitDragDestination, on: textView, value: parent.disablesAppKitDragDestination)
+
+        let inset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
+        guard textView.textContainerInset != inset else {
+            return false
+        }
+
+        textView.textContainerInset = inset
+        textView.updateTextContainerForCurrentBounds()
+        return true
+    }
+
     func handleLayoutChange() {
         guard let textView,
               let scrollView else {
@@ -17,12 +64,38 @@ extension AppKitTextEditorCoordinator {
         }
 
         lastLaidOutTextWidth = availableWidth
-        applyTextHighlights()
+        if !textView.textChips.isEmpty {
+            refreshTextPresentationIfNeeded(for: textView, parent: parent, force: true)
+        }
         textView.needsDisplay = true
     }
 
-    func syncTextChipPresentation(for textView: AppKitTextView) {
-        textView.textChips = parent.textChips?(textView.string) ?? []
+    @discardableResult
+    func refreshTextPresentationIfNeeded(
+        for textView: AppKitTextView,
+        parent: AppKitTextEditorView,
+        force: Bool = false
+    ) -> Bool {
+        let configuration = textPresentationConfiguration(for: textView, parent: parent)
+        guard force || configuration != appliedTextPresentationConfiguration else {
+            return false
+        }
+
+        appliedTextPresentationConfiguration = configuration
+        textView.updateTextContainerForCurrentBounds()
+        if textView.textChips != configuration.textChips {
+            textView.textChips = configuration.textChips
+        }
+        if textView.inlineCodeBackgroundRanges != configuration.inlineCodeBackgroundRanges {
+            textView.inlineCodeBackgroundRanges = configuration.inlineCodeBackgroundRanges
+        }
+        if textView.inlineCodeBackgroundColor != configuration.inlineCodeBackgroundColor {
+            textView.inlineCodeBackgroundColor = configuration.inlineCodeBackgroundColor
+        }
+        applyTextHighlights(configuration: configuration)
+        textView.refreshInlineHintView()
+        textView.needsDisplay = true
+        return true
     }
 
     func refreshTypingAttributes() {
@@ -48,31 +121,33 @@ extension AppKitTextEditorCoordinator {
     }
 
     func applyTextHighlights() {
+        guard let textView else {
+            return
+        }
+
+        refreshTextPresentationIfNeeded(for: textView, parent: parent, force: true)
+    }
+
+    private func applyTextHighlights(configuration: AppKitTextPresentationConfiguration) {
         guard let textView,
               let textStorage = textView.textStorage else {
             return
         }
 
         let fullRange = NSRange(location: 0, length: textStorage.length)
-        let baseFont = textView.baseTextFont
-        let baseColor = NSColor.labelColor
-        let blockRanges = parent.codeBlockRanges?(textView.string) ?? []
         let blockContentRanges = AppMarkdownCodeBlockParser
-            .blockCodeRanges(in: textView.string, matching: blockRanges)
+            .blockCodeRanges(in: textView.string, matching: configuration.blockRanges)
             .map(\.contentRange)
-        let inlineRanges = parent.inlineCodeRanges?(textView.string) ?? []
-        let inlineDelimiterRanges = parent.inlineCodeDelimiterRanges?(textView.string) ?? []
         textView.codeBlockBackgroundRanges = blockContentRanges
         guard fullRange.length > 0 else {
             textView.typingAttributes = AppTextEditorCodeBlockStyling.baseTypingAttributes(
-                font: baseFont,
-                foregroundColor: baseColor
+                font: configuration.baseFont,
+                foregroundColor: configuration.baseColor
             )
             textView.primeTextLayoutForDrawing()
             return
         }
 
-        let highlightRanges = parent.textHighlightRanges?(textView.string) ?? []
         let compactDisplayChips = compactDisplayChips(for: textView)
 
         textView.markTextLayoutNeedsPriming()
@@ -81,13 +156,13 @@ extension AppKitTextEditorCoordinator {
             to: textStorage,
             fullRange: fullRange,
             ranges: .init(
-                highlightRanges: highlightRanges,
-                blockRanges: blockRanges,
-                inlineRanges: inlineRanges,
-                inlineDelimiterRanges: inlineDelimiterRanges
+                highlightRanges: configuration.highlightRanges,
+                blockRanges: configuration.blockRanges,
+                inlineRanges: configuration.inlineRanges,
+                inlineDelimiterRanges: configuration.inlineDelimiterRanges
             ),
-            baseFont: baseFont,
-            baseColor: baseColor
+            baseFont: configuration.baseFont,
+            baseColor: configuration.baseColor
         )
         applyTextChips(to: textStorage, textView: textView, fullRange: fullRange, compactDisplayChips: compactDisplayChips)
         textStorage.endEditing()
@@ -95,10 +170,41 @@ extension AppKitTextEditorCoordinator {
         updateTypingAttributes(
             for: textView,
             blockRanges: blockContentRanges,
-            inlineRanges: inlineRanges,
-            baseFont: baseFont,
-            baseColor: baseColor
+            inlineRanges: configuration.inlineRanges,
+            baseFont: configuration.baseFont,
+            baseColor: configuration.baseColor
         )
+    }
+
+    private func textPresentationConfiguration(
+        for textView: AppKitTextView,
+        parent: AppKitTextEditorView
+    ) -> AppKitTextPresentationConfiguration {
+        let text = textView.string
+        return AppKitTextPresentationConfiguration(
+            highlightRanges: parent.textHighlightRanges?(text) ?? [],
+            textChips: parent.textChips?(text) ?? [],
+            blockRanges: parent.codeBlockRanges?(text) ?? [],
+            inlineCodeBackgroundRanges: parent.inlineCodeBackgroundRanges?(text) ?? [],
+            inlineRanges: parent.inlineCodeRanges?(text) ?? [],
+            inlineDelimiterRanges: parent.inlineCodeDelimiterRanges?(text) ?? [],
+            baseFont: textView.baseTextFont,
+            baseColor: .labelColor,
+            inlineCodeBackgroundColor: AppMarkdownCodeBlockPalette.composerChipFillNSColor,
+            accentColor: .controlAccentColor,
+            colorScheme: parent.colorScheme
+        )
+    }
+
+    private func assignIfChanged<Root: AnyObject, Value: Equatable>(
+        _ keyPath: ReferenceWritableKeyPath<Root, Value>,
+        on root: Root,
+        value: Value
+    ) {
+        guard root[keyPath: keyPath] != value else {
+            return
+        }
+        root[keyPath: keyPath] = value
     }
 
     private struct HighlightRanges {

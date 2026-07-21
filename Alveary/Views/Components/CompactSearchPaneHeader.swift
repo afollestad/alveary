@@ -1,5 +1,9 @@
 import SwiftUI
 
+enum PaneHeaderLayout {
+    static let height: CGFloat = 64
+}
+
 struct CompactSearchPaneHeader<Actions: View>: View {
     @Binding private var searchQuery: String
 
@@ -31,6 +35,7 @@ struct CompactSearchPaneHeader<Actions: View>: View {
         .padding(.leading, 20)
         .padding(.trailing, 21)
         .padding(.vertical, 14)
+        .frame(height: PaneHeaderLayout.height)
         .background(.bar)
         .overlay(alignment: .bottom) {
             AppSeparatorHairline(surface: .paneHeader)

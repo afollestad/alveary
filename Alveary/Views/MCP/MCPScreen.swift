@@ -6,7 +6,6 @@ struct MCPScreen: View {
     @State private var hasLoaded = false
     @State private var screenError: String?
     @State private var removalConfirmation: DestructiveConfirmationRequest?
-    @State private var lastPaneTriggerID = "mcp-add"
     @State private var gridColumnCount = 2
     @FocusState private var focusedPaneTriggerID: String?
 
@@ -20,7 +19,7 @@ struct MCPScreen: View {
                 onRefresh: {
                     Task { await viewModel.refreshProviders() }
                 },
-                onAddServer: openCustomServer,
+                onAddServer: { openCustomServer() },
                 addFocus: $focusedPaneTriggerID
             )
 
@@ -48,7 +47,6 @@ struct MCPScreen: View {
                                 MCPServerRow(
                                     server: server,
                                     onEdit: {
-                                        lastPaneTriggerID = "mcp-edit-\(server.id)"
                                         viewModel.requestEdit(server)
                                     },
                                     onRemove: {
@@ -73,7 +71,6 @@ struct MCPScreen: View {
                                     RecommendedMCPCard(
                                         server: server,
                                         onAdd: {
-                                            lastPaneTriggerID = "mcp-recommended-\(server.id)"
                                             viewModel.requestAddRecommended(server)
                                         },
                                         addFocus: $focusedPaneTriggerID,
@@ -90,10 +87,16 @@ struct MCPScreen: View {
                             heading: "No MCP servers available",
                             subtext: "Recommended servers are unavailable right now, but you can still add a custom one.",
                             actions: [
-                                .init(title: "Add Server", systemImage: "plus", style: .primary) {
-                                    openCustomServer()
+                                .init(
+                                    title: "Add Server",
+                                    systemImage: "plus",
+                                    style: .primary,
+                                    focusID: "mcp-add-empty"
+                                ) {
+                                    openCustomServer(focusRestorationID: "mcp-add-empty")
                                 }
-                            ]
+                            ],
+                            actionFocus: $focusedPaneTriggerID
                         )
                     }
                 }
@@ -115,13 +118,31 @@ struct MCPScreen: View {
             await viewModel.load()
         }
         .onChange(of: viewModel.paneDismissalGeneration) { _, _ in
-            focusedPaneTriggerID = lastPaneTriggerID
+            focusedPaneTriggerID = ContextualPaneFocusRestoration.resolve(
+                preferredID: viewModel.paneFocusRestorationID,
+                visibleTriggerIDs: visiblePaneTriggerFocusIDs,
+                fallbackID: MCPPaneTarget.addCustom.defaultFocusRestorationID
+            )
         }
         .destructiveConfirmation($removalConfirmation)
     }
 }
 
 private extension MCPScreen {
+    var visiblePaneTriggerFocusIDs: Set<String> {
+        var ids = Set([MCPPaneTarget.addCustom.defaultFocusRestorationID])
+        ids.formUnion(viewModel.filteredServers.map {
+            MCPPaneTarget.edit($0.name).defaultFocusRestorationID
+        })
+        ids.formUnion(viewModel.filteredRecommended.map {
+            MCPPaneTarget.addRecommended($0.id).defaultFocusRestorationID
+        })
+        if viewModel.servers.isEmpty, viewModel.recommended.isEmpty, hasLoaded {
+            ids.insert("mcp-add-empty")
+        }
+        return ids
+    }
+
     var gridColumns: [GridItem] {
         Array(
             repeating: GridItem(.flexible(minimum: 240), spacing: 16),
@@ -129,9 +150,8 @@ private extension MCPScreen {
         )
     }
 
-    func openCustomServer() {
-        lastPaneTriggerID = "mcp-add"
-        viewModel.requestAddCustom()
+    func openCustomServer(focusRestorationID: String? = nil) {
+        viewModel.requestAddCustom(focusRestorationID: focusRestorationID)
     }
 
     func remove(_ server: MCPServer) async {

@@ -22,6 +22,7 @@ struct ThreadDetailView: View {
     let deleteThread: @MainActor (AgentThread) async throws -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
+    var diffViewerSwitchScope: @MainActor () -> DiffViewerSwitchScope = { .toolbarStatsOnly }
 
     @Environment(\.modelContext) var uiModelContext
     @State var conversationActionError: String?
@@ -113,6 +114,7 @@ struct ThreadDetailView: View {
                         },
                         loadSkillCompletions: loadSkillCompletions,
                         diffViewModel: diffViewModel,
+                        diffViewerSwitchScope: diffViewerSwitchScope,
                         availableProjects: availableProjects,
                         onSelectDraftProject: { projectPath in
                             Task { await selectDraftProject(thread.persistentModelID, projectPath) }
@@ -372,17 +374,12 @@ private extension ThreadDetailView {
 
             appState.selectConversation(conversation, in: dbThread)
 
-            if let path = dbThread.primaryWorkingDirectory {
-                let baseRef = dbThread.project?.baseRef ?? "main"
-                let remoteName = dbThread.project?.remoteName
-                let conversationIds = Set(existingConversations.map(\.id)).union([conversation.id])
-                await diffViewModel.switchToDirectory(
-                    path,
-                    baseRef: baseRef,
-                    remoteName: remoteName,
-                    conversationIds: conversationIds,
-                    scope: appState.isDiffViewerRequested ? .full : .toolbarStatsOnly
-                )
+            let conversationIds = Set(existingConversations.map(\.id)).union([conversation.id])
+            if let diffTarget = DiffViewerSwitchTarget.forThread(
+                dbThread,
+                candidateConversationIDs: conversationIds
+            ) {
+                await diffViewModel.switchToTarget(diffTarget, scope: diffViewerSwitchScope())
             }
         } catch {
             conversationActionError = "Couldn't create conversation: \(error.localizedDescription)"
@@ -471,20 +468,15 @@ private extension ThreadDetailView {
     }
 
     func refreshDiffAfterRemovingConversation(from thread: AgentThread, excluding conversationIDString: String) async {
-        guard let path = thread.primaryWorkingDirectory else {
+        let conversationIds = Set(conversations.map(\.id).filter { $0 != conversationIDString })
+        guard let diffTarget = DiffViewerSwitchTarget.forThread(
+            thread,
+            candidateConversationIDs: conversationIds
+        ) else {
             return
         }
 
-        let baseRef = thread.project?.baseRef ?? "main"
-        let remoteName = thread.project?.remoteName
-        let conversationIds = Set(conversations.map(\.id).filter { $0 != conversationIDString })
-        await diffViewModel.switchToDirectory(
-            path,
-            baseRef: baseRef,
-            remoteName: remoteName,
-            conversationIds: conversationIds,
-            scope: appState.isDiffViewerRequested ? .full : .toolbarStatsOnly
-        )
+        await diffViewModel.switchToTarget(diffTarget, scope: diffViewerSwitchScope())
     }
 
 }

@@ -296,18 +296,41 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
 
         XCTAssertFalse(state.isDiffViewerRequested)
+        XCTAssertNil(state.diffViewerRequestID)
 
         state.showDiffViewer()
         XCTAssertTrue(state.isDiffViewerRequested)
+        let firstRequestID = state.diffViewerRequestID
+        XCTAssertNotNil(firstRequestID)
+
+        state.showDiffViewer()
+        XCTAssertTrue(state.isDiffViewerRequested)
+        XCTAssertNotNil(state.diffViewerRequestID)
+        XCTAssertEqual(state.diffViewerRequestID, firstRequestID)
+
+        state.selectedSidebarItem = .project(Project(path: "/tmp/diff-project", name: "Project"))
+        XCTAssertTrue(state.isDiffViewerRequested)
+        XCTAssertEqual(state.diffViewerRequestID, firstRequestID)
+
+        state.selectedSidebarItem = .thread(AgentThread(name: "First thread"))
+        XCTAssertTrue(state.isDiffViewerRequested)
+        XCTAssertEqual(state.diffViewerRequestID, firstRequestID)
+
+        state.selectedSidebarItem = .thread(AgentThread(name: "Second thread"))
+        XCTAssertTrue(state.isDiffViewerRequested)
+        XCTAssertEqual(state.diffViewerRequestID, firstRequestID)
 
         state.toggleDiffViewerRequest()
         XCTAssertFalse(state.isDiffViewerRequested)
+        XCTAssertNil(state.diffViewerRequestID)
 
         state.toggleDiffViewerRequest()
         XCTAssertTrue(state.isDiffViewerRequested)
+        XCTAssertNotNil(state.diffViewerRequestID)
 
         state.hideDiffViewer()
         XCTAssertFalse(state.isDiffViewerRequested)
+        XCTAssertNil(state.diffViewerRequestID)
     }
 
     func testLeftPaneVisibilityHelperMirrorsProvidedBoolean() {

@@ -68,6 +68,12 @@ enum ConversationAsyncRouting {
         }
     }
 
+    struct DiffSwitchLiveState {
+        let selectedSidebarItem: @MainActor () -> SidebarItem?
+        let currentWorkingDirectory: @MainActor () -> String?
+        let resolveScope: @MainActor () -> DiffViewerSwitchScope
+    }
+
     @MainActor
     static func loadProviderStatuses(
         request: ProviderStatusRequest,
@@ -100,9 +106,8 @@ enum ConversationAsyncRouting {
     static func warmFileCacheForDiffSwitch(
         request: DiffSwitchRequest,
         fileListManager: FileListManager,
-        selectedSidebarItem: @escaping @MainActor () -> SidebarItem?,
-        currentWorkingDirectory: @escaping @MainActor () -> String?,
-        performSwitch: @escaping @MainActor () async -> Void
+        liveState: DiffSwitchLiveState,
+        performSwitch: @escaping @MainActor (DiffViewerSwitchScope) async -> Void
     ) async {
         await fileListManager.warmCache(for: request.workingDirectory)
 
@@ -110,11 +115,11 @@ enum ConversationAsyncRouting {
         // reassignment, so claim the diff target only while both inputs still match.
         guard request.allowsThreadScopedSwitch,
               !Task.isCancelled,
-              case .thread(let selectedThread) = selectedSidebarItem(),
+              case .thread(let selectedThread) = liveState.selectedSidebarItem(),
               selectedThread.persistentModelID == request.threadID,
-              currentWorkingDirectory() == request.workingDirectory else {
+              liveState.currentWorkingDirectory() == request.workingDirectory else {
             return
         }
-        await performSwitch()
+        await performSwitch(liveState.resolveScope())
     }
 }

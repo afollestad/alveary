@@ -150,7 +150,7 @@ extension DiffWorkspaceStore {
             || updatedSelection.status != selectedFile.status
 
         switch reason {
-        case .manual, .appBecameActive, .localGitMutation:
+        case .manual, .appBecameActive, .localGitMutation, .paneReveal:
             return true
         case .threadSwitch, .agentTurnCompleted, .idlePoll:
             return selectionChanged

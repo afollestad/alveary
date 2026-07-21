@@ -19,6 +19,7 @@ struct ConversationView: View {
     let onDenyProjectTrust: (ProjectTrustPrompt) -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
+    let diffViewerSwitchScope: @MainActor () -> DiffViewerSwitchScope
     let availableProjects: [Project]
     let onSelectDraftProject: (String) -> Void
     @Bindable var appState: AppState
@@ -72,6 +73,7 @@ struct ConversationView: View {
         onDenyProjectTrust: @escaping (ProjectTrustPrompt) -> Void = { _ in },
         loadSkillCompletions: @escaping @Sendable () async -> [Skill],
         diffViewModel: DiffViewerViewModel,
+        diffViewerSwitchScope: @escaping @MainActor () -> DiffViewerSwitchScope,
         availableProjects: [Project] = [],
         onSelectDraftProject: @escaping (String) -> Void = { _ in },
         appState: AppState
@@ -92,6 +94,7 @@ struct ConversationView: View {
         self.onDenyProjectTrust = onDenyProjectTrust
         self.loadSkillCompletions = loadSkillCompletions
         self.diffViewModel = diffViewModel
+        self.diffViewerSwitchScope = diffViewerSwitchScope
         self.availableProjects = availableProjects
         self.onSelectDraftProject = onSelectDraftProject
         self.appState = appState
@@ -176,10 +179,14 @@ struct ConversationView: View {
             }
 
             let threadID = thread.persistentModelID
-            let baseRef = thread.project?.baseRef ?? "main"
-            let remoteName = thread.project?.remoteName
             let allowsThreadScopedDiffSwitch = !thread.isDraft
             let conversationIds = allowsThreadScopedDiffSwitch ? liveConversationIDs(for: threadID) : []
+            guard let diffTarget = DiffViewerSwitchTarget.forThread(
+                thread,
+                candidateConversationIDs: conversationIds
+            ), diffTarget.directory == newPath else {
+                return
+            }
 
             Task {
                 await ConversationAsyncRouting.warmFileCacheForDiffSwitch(
@@ -189,16 +196,13 @@ struct ConversationView: View {
                         allowsThreadScopedSwitch: allowsThreadScopedDiffSwitch
                     ),
                     fileListManager: fileListManager,
-                    selectedSidebarItem: { appState.selectedSidebarItem },
-                    currentWorkingDirectory: { activeWorkingDirectory },
-                    performSwitch: {
-                        await diffViewModel.switchToDirectory(
-                            newPath,
-                            baseRef: baseRef,
-                            remoteName: remoteName,
-                            conversationIds: conversationIds,
-                            scope: appState.isDiffViewerRequested ? .full : .toolbarStatsOnly
-                        )
+                    liveState: .init(
+                        selectedSidebarItem: { appState.selectedSidebarItem },
+                        currentWorkingDirectory: { activeWorkingDirectory },
+                        resolveScope: diffViewerSwitchScope
+                    ),
+                    performSwitch: { scope in
+                        await diffViewModel.switchToTarget(diffTarget, scope: scope)
                     }
                 )
             }

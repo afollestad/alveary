@@ -24,6 +24,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
     @Binding var text: String
     let selection: Binding<TextSelection?>?
     @Binding var measuredTextHeight: CGFloat
+    let reportsMeasuredTextHeight: Bool
     let placeholder: String?
     let horizontalPadding: CGFloat
     let verticalPadding: CGFloat
@@ -66,6 +67,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         text: Binding<String>,
         selection: Binding<TextSelection?>? = nil,
         measuredTextHeight: Binding<CGFloat>,
+        reportsMeasuredTextHeight: Bool = true,
         placeholder: String?,
         horizontalPadding: CGFloat,
         verticalPadding: CGFloat,
@@ -89,6 +91,7 @@ struct AppKitTextEditorView: NSViewRepresentable {
         _text = text
         self.selection = selection
         _measuredTextHeight = measuredTextHeight
+        self.reportsMeasuredTextHeight = reportsMeasuredTextHeight
         self.placeholder = placeholder
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding

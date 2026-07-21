@@ -39,7 +39,8 @@ struct ScheduledTasksScreenHeader: View {
             createButton
         }
         .padding(.trailing, 21)
-        .padding(.vertical, 14)
+        .padding(.vertical, 16)
+        .frame(height: PaneHeaderLayout.height)
         .background(.bar)
         .overlay(alignment: .bottom) {
             AppSeparatorHairline(surface: .paneHeader)

@@ -8,7 +8,17 @@ General shared controls live here. Narrower scopes:
 - `TabChips/AGENTS.md`: `SelectableTabChip`, `TabChipButtonStyle`.
 - `TextInput/AGENTS.md`: `AppTextEditor`, `AppKitTextView`.
 - `CompactSearchPaneHeader` owns the fixed search/header chrome shared by Skills and MCP; screen wrappers own their action labels, callbacks, and primary/secondary emphasis.
-- `ResizableRightPane` owns the shared horizontal right-pane lane, width clamp, display-pixel snapping, cursor, accessibility adjustment, and drag-end persistence callback. Key its handle/content by destination so a route change cannot commit the previous width domain.
+- `ResizableRightPane` owns the shared horizontal right-pane lane, width clamp, display-pixel snapping, cursor, accessibility adjustment, and drag-end persistence callback. Key its handle/content by presentation identity (destination and generation) so a route change cannot commit the previous width domain or reuse local state after reopening. Carry the presentation generation through delayed closes so a stale collapse cannot discard a reopened target.
+  - Keep presentation in its animatable layout: one progress value must place a fixed-width pane and reserve the matching main-content width. Do not animate the pane's width or use a render offset for AppKit-backed controls.
+  - Keep pointer-drag width transient inside the shared component and publish the routed width binding only on commit. Root-level width writes on every mouse event rebuild the full `ContentView` hierarchy.
+  - Resolve observable presentation generations inside the component body, never its initializer, so draft mutations do not become root `ContentView` observation dependencies.
+  - Render a resolved non-nil presentation identity immediately; retain the stored identity only for exit animation. This prevents active target content from appearing under a stale route identity before `onChange` runs.
+  - Reverse an in-flight collapse through the same presentation progress animation when another destination appears; never snap the lane back to its full width.
+  - Disable resize-handle hover, cursor, hit-testing, and accessibility feedback while the pane is sliding. A moving handle can otherwise synthesize hover under a stationary pointer.
+  - Close actions deactivate their target, retain target-specific content through the slide-out, then discard that captured generation. External route changes may still hide a pane directly while preserving cached feature sessions.
+- `PaneHeaderLayout.height` keeps Skills, MCP, Scheduled, and single-line contextual headers at 64 points so their bottom hairlines align. `ContextualPaneLayout` owns the 12-point internal inset shared by contextual pane headers, scroll content, footers, and their inset hairlines; together with the 8-point resize lane it aligns content 20 points from the split boundary. Keep `ContextualPaneHeader` at 16 points of vertical padding. `ContextualPaneFooter` places its note above equal-width actions, falling back to full-width stacked actions only when the pane is too narrow.
+- When an `EmptyStateView` action can invoke a contextual pane, give it a distinct action focus ID and pass the screen's action-focus binding so dismissal returns focus to that exact button instead of its duplicate header action.
+- Before restoring contextual-pane focus, resolve the cached invoking ID against the screen's currently rendered triggers. Search, filtering, refreshes, or mutations can remove the original control while the nonmodal pane is open; fall back to the persistent header action instead of assigning an unmounted focus ID.
 
 ## Status Spinners
 

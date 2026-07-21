@@ -103,7 +103,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         XCTAssertNil(fixture.viewModel.errorMessage)
         XCTAssertTrue(try fixture.fetchDefinitions().isEmpty)
 
-        fixture.viewModel.dismissEditor()
+        fixture.viewModel.dismissActivePane()
 
         XCTAssertNil(fixture.viewModel.editorErrorMessage)
     }
@@ -154,7 +154,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.definitionID, "requested")
         XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.expectedRevision, 4)
         XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.title, "Requested task")
-        fixture.viewModel.dismissEditor()
+        fixture.viewModel.dismissActivePane()
         XCTAssertNil(fixture.viewModel.pendingEditorDraft)
     }
 
@@ -231,12 +231,26 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         try fixture.insertDefinition(id: "delete-cached-edit", revision: 2)
         fixture.viewModel.reload()
         fixture.viewModel.requestEdit(definitionID: "delete-cached-edit")
+        let generation = try XCTUnwrap(
+            fixture.viewModel.paneSessions[.edit("delete-cached-edit")]?.generation
+        )
         let task = try XCTUnwrap(fixture.viewModel.tasks.first { $0.id == "delete-cached-edit" })
 
         fixture.viewModel.delete(task)
 
+        let request = PaneSessionDismissalRequest(
+            target: ScheduledTaskPaneTarget.edit("delete-cached-edit"),
+            generation: generation
+        )
+        XCTAssertTrue(fixture.viewModel.pendingPaneDismissals.contains(request))
+        XCTAssertNotNil(fixture.viewModel.paneSessions[.edit("delete-cached-edit")])
+        XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-new")
+
+        fixture.viewModel.deactivatePane(.edit("delete-cached-edit"), generation: generation)
+        fixture.viewModel.dismissPane(.edit("delete-cached-edit"), generation: generation)
         XCTAssertNil(fixture.viewModel.paneSessions[.edit("delete-cached-edit")])
         XCTAssertNil(fixture.viewModel.activePaneTarget)
+        XCTAssertFalse(fixture.viewModel.pendingPaneDismissals.contains(request))
     }
 
     func testProviderSwitchNormalizesIncompatiblePermissionMode() throws {
@@ -376,7 +390,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
 }
 
 @MainActor
-private final class ScheduledTasksViewModelFixture {
+final class ScheduledTasksViewModelFixture {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let container: ModelContainer
     let context: ModelContext

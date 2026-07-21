@@ -111,27 +111,34 @@ private struct AppMarkdownTableGridLayout<Content: View>: View {
 private struct AppMarkdownTableMeasuredGridLayout: Layout {
     let columnCount: Int
 
+    func makeCache(subviews: Subviews) -> AppMarkdownTableGridLayoutCache {
+        AppMarkdownTableGridLayoutCache()
+    }
+
+    func updateCache(
+        _ cache: inout AppMarkdownTableGridLayoutCache,
+        subviews: Subviews
+    ) {
+        cache = AppMarkdownTableGridLayoutCache()
+    }
+
     func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache: inout AppMarkdownTableGridLayoutCache
     ) -> CGSize {
-        let columnWidths = measuredColumnWidths(subviews: subviews)
-        let rowHeights = measuredRowHeights(subviews: subviews, columnWidths: columnWidths)
-        return CGSize(
-            width: columnWidths.reduce(0, +),
-            height: rowHeights.reduce(0, +)
-        )
+        measurement(subviews: subviews, cache: &cache).size
     }
 
     func placeSubviews(
         in bounds: CGRect,
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout ()
+        cache: inout AppMarkdownTableGridLayoutCache
     ) {
-        let columnWidths = measuredColumnWidths(subviews: subviews)
-        let rowHeights = measuredRowHeights(subviews: subviews, columnWidths: columnWidths)
+        let measurement = measurement(subviews: subviews, cache: &cache)
+        let columnWidths = measurement.columnWidths
+        let rowHeights = measurement.rowHeights
         var currentY = bounds.minY
 
         for rowIndex in rowHeights.indices {
@@ -153,6 +160,32 @@ private struct AppMarkdownTableMeasuredGridLayout: Layout {
             }
             currentY += rowHeights[rowIndex]
         }
+    }
+
+    private func measurement(
+        subviews: Subviews,
+        cache: inout AppMarkdownTableGridLayoutCache
+    ) -> AppMarkdownTableGridLayoutMeasurement {
+        if let measurement = cache.measurement,
+           measurement.columnCount == columnCount,
+           measurement.subviewCount == subviews.count {
+            return measurement
+        }
+
+        let columnWidths = measuredColumnWidths(subviews: subviews)
+        let rowHeights = measuredRowHeights(subviews: subviews, columnWidths: columnWidths)
+        let measurement = AppMarkdownTableGridLayoutMeasurement(
+            columnCount: columnCount,
+            subviewCount: subviews.count,
+            columnWidths: columnWidths,
+            rowHeights: rowHeights,
+            size: CGSize(
+                width: columnWidths.reduce(0, +),
+                height: rowHeights.reduce(0, +)
+            )
+        )
+        cache.measurement = measurement
+        return measurement
     }
 
     private func measuredColumnWidths(subviews: Subviews) -> [CGFloat] {
@@ -190,6 +223,18 @@ private struct AppMarkdownTableMeasuredGridLayout: Layout {
             .max() ?? 0
         }
     }
+}
+
+private struct AppMarkdownTableGridLayoutCache {
+    var measurement: AppMarkdownTableGridLayoutMeasurement?
+}
+
+private struct AppMarkdownTableGridLayoutMeasurement {
+    let columnCount: Int
+    let subviewCount: Int
+    let columnWidths: [CGFloat]
+    let rowHeights: [CGFloat]
+    let size: CGSize
 }
 
 private struct AppMarkdownTableCell: View {

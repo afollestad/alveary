@@ -9,6 +9,7 @@ final class AppState {
 
     var selectedSidebarItem: SidebarItem?
     private(set) var isDiffViewerRequested = false
+    private(set) var diffViewerRequestID: UUID?
     private(set) var isLeftPaneVisible = true
     private(set) var isTerminalPaneVisible = false
     private(set) var unexpectedErrorToasts: [UnexpectedErrorToast] = []
@@ -81,15 +82,24 @@ final class AppState {
     }
 
     func toggleDiffViewerRequest() {
-        isDiffViewerRequested.toggle()
+        if isDiffViewerRequested {
+            hideDiffViewer()
+        } else {
+            showDiffViewer()
+        }
     }
 
     func showDiffViewer() {
+        guard !isDiffViewerRequested else {
+            return
+        }
         isDiffViewerRequested = true
+        diffViewerRequestID = UUID()
     }
 
     func hideDiffViewer() {
         isDiffViewerRequested = false
+        diffViewerRequestID = nil
     }
 
     func setLeftPaneVisible(_ isVisible: Bool) {

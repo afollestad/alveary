@@ -10,7 +10,7 @@ extension SnapshotTests {
         fixture.viewModel.requestCreate()
 
         assertMacSnapshot(
-            ScheduledTaskEditorPane(viewModel: fixture.viewModel),
+            ScheduledTaskEditorPane(viewModel: fixture.viewModel, target: .create, onDismiss: {}),
             size: CGSize(width: 320, height: 780),
             named: "scheduled_task_create_pane_minimum_width"
         )
@@ -22,7 +22,7 @@ extension SnapshotTests {
         fixture.viewModel.requestEdit(definitionID: task.id)
 
         assertMacSnapshot(
-            ScheduledTaskEditorPane(viewModel: fixture.viewModel),
+            ScheduledTaskEditorPane(viewModel: fixture.viewModel, target: .edit(task.id), onDismiss: {}),
             size: CGSize(width: 320, height: 780),
             named: "scheduled_task_edit_pane_minimum_width"
         )

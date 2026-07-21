@@ -59,6 +59,8 @@ final class DiffViewerViewModel {
     // True while the active target has only loaded toolbar stats; revealing the
     // pane must upgrade to a full refresh instead of deduping the same target.
     private var needsFullPaneRefresh = false
+    private var refreshEnqueueSequence: UInt64 = 0
+    private var latestStatsOnlyRefreshSequence: UInt64 = 0
     let gitService: GitService
     let diffStore: DiffWorkspaceStore
     private let fileListManager: FileListManager
@@ -83,13 +85,21 @@ final class DiffViewerViewModel {
             guard let self else {
                 return
             }
-            await self.refresh(in: directory, reason: .idlePoll)
+            await self.refresh(
+                in: directory,
+                reason: .idlePoll,
+                scope: self.automaticRefreshScope
+            )
         },
         onFSRefresh: { [weak self] directory, changedPaths in
             guard let self else {
                 return
             }
-            await self.refresh(in: directory, reason: .fsEvent(changedPaths: changedPaths))
+            await self.refresh(
+                in: directory,
+                reason: .fsEvent(changedPaths: changedPaths),
+                scope: self.automaticRefreshScope
+            )
         }
     )
     private var watchingEnabled = false
@@ -133,7 +143,11 @@ final class DiffViewerViewModel {
                     return
                 }
 
-                await self.refresh(in: directory, reason: .appBecameActive)
+                await self.refresh(
+                    in: directory,
+                    reason: .appBecameActive,
+                    scope: self.automaticRefreshScope
+                )
             }
         }
 
@@ -210,7 +224,7 @@ final class DiffViewerViewModel {
             guard scope == .full, needsFullPaneRefresh else {
                 return
             }
-            await refresh(in: target.directory, reason: .threadSwitch)
+            await refresh(in: target.directory, reason: .paneReveal)
             return
         }
 
@@ -220,10 +234,6 @@ final class DiffViewerViewModel {
         }
         contextualAction = .none
         clearCommitState()
-        // Set eagerly so a pane reveal that lands before the scheduled refresh
-        // completes still upgrades instead of deduping the same target.
-        needsFullPaneRefresh = scope == .toolbarStatsOnly
-
         refreshScheduler.clearPending()
 
         if watchingEnabled { watchController.startWatching(target.directory) }
@@ -264,25 +274,24 @@ final class DiffViewerViewModel {
     func presentGitError(_ message: String) { diffStore.presentGitError(message) }
 
     func refresh(in directory: String, reason: RefreshReason, scope: DiffViewerSwitchScope = .full) async {
-        await refreshScheduler.enqueue(
-            RefreshRequest(
-                directory: directory,
-                reason: reason,
-                invalidateFileListCache: false,
-                scope: scope
-            )
+        let request = makeRefreshRequest(
+            directory: directory,
+            reason: reason,
+            invalidateFileListCache: false,
+            scope: scope
         )
+        await refreshScheduler.enqueue(request)
     }
 
     func refreshAndInvalidateFileList(in directory: String, reason: RefreshReason) async {
-        await refreshScheduler.enqueue(
-            RefreshRequest(
-                directory: directory,
-                reason: reason,
-                invalidateFileListCache: true,
-                scope: .full
-            )
+        let scope = automaticRefreshScope
+        let request = makeRefreshRequest(
+            directory: directory,
+            reason: reason,
+            invalidateFileListCache: true,
+            scope: scope
         )
+        await refreshScheduler.enqueue(request)
     }
 
     func selectFile(
@@ -384,7 +393,41 @@ final class DiffViewerViewModel {
 }
 
 private extension DiffViewerViewModel {
+    var automaticRefreshScope: DiffViewerSwitchScope {
+        watchingEnabled ? .full : .toolbarStatsOnly
+    }
+    private func makeRefreshRequest(
+        directory: String, reason: RefreshReason, invalidateFileListCache: Bool, scope: DiffViewerSwitchScope
+    ) -> RefreshRequest {
+        refreshEnqueueSequence &+= 1
+        let sequence = refreshEnqueueSequence
+        if directory == activeDirectory {
+            switch scope {
+            case .toolbarStatsOnly:
+                latestStatsOnlyRefreshSequence = sequence
+                needsFullPaneRefresh = true
+            case .full:
+                needsFullPaneRefresh = false
+            }
+        }
+
+        return RefreshRequest(
+            directory: directory, reason: reason, invalidateFileListCache: invalidateFileListCache,
+            scope: scope, sequence: sequence
+        )
+    }
+
     private func performRefresh(_ request: RefreshRequest) async {
+        // A pending full request can absorb a newer stats-only request through
+        // scheduler merging. Clear the requirement only when this request's
+        // sequence proves it covers the newest hidden refresh; a newer enqueue
+        // must survive an older full request finishing later.
+        if request.scope == .full,
+           request.directory == activeDirectory,
+           request.sequence >= latestStatsOnlyRefreshSequence {
+            needsFullPaneRefresh = false
+        }
+
         if request.invalidateFileListCache {
             await fileListManager.invalidateCache(for: request.directory)
         }
@@ -392,7 +435,6 @@ private extension DiffViewerViewModel {
         guard let snapshot = await diffStore.refreshStatusAndStartStats(for: request.directory) else {
             return
         }
-        needsFullPaneRefresh = request.scope == .toolbarStatsOnly
         if shouldMarkCommitListStaleAfterInactiveRefresh(snapshot: snapshot, reason: request.reason) {
             isCommitListRefreshNeeded = true
         }

@@ -38,27 +38,36 @@ extension View {
         modifier(DestructiveConfirmationModifier(request: request))
     }
 
-    func primaryActionButtonStyle() -> some View {
+    func primaryActionButtonStyle(expandsHorizontally: Bool = false) -> some View {
         // Use `AppAccentFill.primary` (the muted accent token shared with
         // selected sidebar rows, conversation tabs, user bubbles, and the
         // scroll-to-latest button) so every prominent affordance in the app
         // speaks with one accent voice. `.primary` as foreground adapts to
         // both schemes against the muted fill.
-        buttonStyle(ProminentActionButtonStyle(fillColor: AppAccentFill.primary, foregroundColor: .primary))
+        buttonStyle(ProminentActionButtonStyle(
+            fillColor: AppAccentFill.primary,
+            foregroundColor: .primary,
+            expandsHorizontally: expandsHorizontally
+        ))
     }
 
-    func secondaryActionButtonStyle() -> some View {
+    func secondaryActionButtonStyle(expandsHorizontally: Bool = false) -> some View {
         buttonStyle(
             ProminentActionButtonStyle(
                 fillColor: secondaryActionTint,
                 foregroundColor: .primary,
-                borderColor: .primary
+                borderColor: .primary,
+                expandsHorizontally: expandsHorizontally
             )
         )
     }
 
-    func destructiveActionButtonStyle() -> some View {
-        buttonStyle(ProminentActionButtonStyle(fillColor: destructiveActionTint, foregroundColor: .white))
+    func destructiveActionButtonStyle(expandsHorizontally: Bool = false) -> some View {
+        buttonStyle(ProminentActionButtonStyle(
+            fillColor: destructiveActionTint,
+            foregroundColor: .white,
+            expandsHorizontally: expandsHorizontally
+        ))
     }
 
     func iconActionButtonStyle() -> some View {
@@ -79,11 +88,18 @@ private struct ProminentActionButtonStyle: ButtonStyle {
     let fillColor: Color
     let foregroundColor: Color
     let borderColor: Color?
+    let expandsHorizontally: Bool
 
-    init(fillColor: Color, foregroundColor: Color, borderColor: Color? = nil) {
+    init(
+        fillColor: Color,
+        foregroundColor: Color,
+        borderColor: Color? = nil,
+        expandsHorizontally: Bool = false
+    ) {
         self.fillColor = fillColor
         self.foregroundColor = foregroundColor
         self.borderColor = borderColor
+        self.expandsHorizontally = expandsHorizontally
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -91,7 +107,8 @@ private struct ProminentActionButtonStyle: ButtonStyle {
             configuration: configuration,
             fillColor: fillColor,
             foregroundColor: foregroundColor,
-            borderColor: borderColor
+            borderColor: borderColor,
+            expandsHorizontally: expandsHorizontally
         )
     }
 }
@@ -110,6 +127,7 @@ private struct ProminentActionButtonBody: View {
     let fillColor: Color
     let foregroundColor: Color
     let borderColor: Color?
+    let expandsHorizontally: Bool
 
     @Environment(\.controlSize) private var controlSize
     @Environment(\.isEnabled) private var isEnabled
@@ -122,6 +140,7 @@ private struct ProminentActionButtonBody: View {
             .imageScale(.small)
             .lineLimit(1)
             .padding(.horizontal, horizontalPadding)
+            .frame(maxWidth: expandsHorizontally ? .infinity : nil)
             .frame(height: controlHeight)
             .background(
                 ZStack {

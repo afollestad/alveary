@@ -143,6 +143,9 @@ struct ContentView: View {
                 (try? await skillsService.loadInstalled()) ?? []
             },
             diffViewModel: diffViewModel,
+            diffViewerSwitchScope: {
+                rightPaneDestination == .diff ? .full : .toolbarStatsOnly
+            },
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
             scheduledTasksViewModel: scheduledTasksViewModel,
@@ -170,6 +173,10 @@ struct ContentView: View {
                     onWidthCommit: { width in
                         persistRightPaneWidth(width, domain: widthDomain)
                     },
+                    presentationGeneration: rightPanePresentationGeneration,
+                    dismissalRequests: rightPaneDismissalRequests,
+                    onDeactivate: deactivateRightPane,
+                    onDismiss: dismissRightPane,
                     mainContent: { middlePane },
                     paneContent: rightPaneContent
                 )
@@ -268,7 +275,6 @@ struct ContentView: View {
         }
         .onChange(of: appState.selectedSidebarItem) { _, selection in
             recordLastActiveProject(for: selection)
-            synchronizeContextPaneWithDiffRequest()
             updateDiffViewer(item: selection)
             cancelPendingCommitMessageGenerationIfNeeded()
         }
@@ -291,15 +297,6 @@ struct ContentView: View {
         }
         .onChange(of: resolvedRightPaneDestination) { _, destination in
             handleRightPaneDestinationChange(destination)
-        }
-        .onChange(of: skillsViewModel.activePaneTarget) { _, _ in
-            synchronizeContextPaneWithDiffRequest()
-        }
-        .onChange(of: mcpViewModel.activePaneTarget) { _, _ in
-            synchronizeContextPaneWithDiffRequest()
-        }
-        .onChange(of: scheduledTasksViewModel.activePaneTarget) { _, _ in
-            synchronizeContextPaneWithDiffRequest()
         }
 
         let activityObservedView = selectionObservedView

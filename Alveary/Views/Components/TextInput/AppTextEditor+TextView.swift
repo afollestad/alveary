@@ -11,6 +11,7 @@ final class AppKitTextView: NSTextView {
 
     var baseTextFont: NSFont = .preferredFont(forTextStyle: .body) {
         didSet {
+            guard oldValue != baseTextFont else { return }
             needsDisplay = true
         }
     }
@@ -50,18 +51,21 @@ final class AppKitTextView: NSTextView {
 
     var textChips: [AppTextEditorChip] = [] {
         didSet {
+            guard oldValue != textChips else { return }
             needsDisplay = true
         }
     }
 
     var inlineCodeBackgroundRanges: [NSRange] = [] {
         didSet {
+            guard oldValue != inlineCodeBackgroundRanges else { return }
             needsDisplay = true
         }
     }
 
     var codeBlockBackgroundRanges: [NSRange] = [] {
         didSet {
+            guard oldValue != codeBlockBackgroundRanges else { return }
             needsDisplay = true
         }
     }
@@ -70,6 +74,7 @@ final class AppKitTextView: NSTextView {
 
     var inlineCodeBackgroundColor: NSColor = .clear {
         didSet {
+            guard oldValue != inlineCodeBackgroundColor else { return }
             needsDisplay = true
         }
     }
@@ -83,11 +88,13 @@ final class AppKitTextView: NSTextView {
     var onFocusChange: ((Bool) -> Void)?
     var placeholder = "" {
         didSet {
+            guard oldValue != placeholder else { return }
             needsDisplay = true
         }
     }
     var inlineHint: AppTextEditorInlineHint? {
         didSet {
+            guard oldValue != inlineHint else { return }
             updateInlineHintView()
         }
     }

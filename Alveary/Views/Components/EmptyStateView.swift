@@ -5,6 +5,7 @@ struct EmptyStateView: View {
     let heading: String
     let subtext: String
     let actions: [EmptyStateAction]
+    var actionFocus: FocusState<String?>.Binding?
     let iconToHeadingSpacing: CGFloat
 
     init(
@@ -12,12 +13,14 @@ struct EmptyStateView: View {
         heading: String,
         subtext: String,
         actions: [EmptyStateAction],
+        actionFocus: FocusState<String?>.Binding? = nil,
         iconToHeadingSpacing: CGFloat = 24
     ) {
         self.icon = icon
         self.heading = heading
         self.subtext = subtext
         self.actions = actions
+        self.actionFocus = actionFocus
         self.iconToHeadingSpacing = iconToHeadingSpacing
     }
 
@@ -26,6 +29,7 @@ struct EmptyStateView: View {
         let systemImage: String?
         let style: EmptyStateActionStyle
         let helpText: String?
+        let focusID: String?
         let action: () -> Void
 
         init(
@@ -33,12 +37,14 @@ struct EmptyStateView: View {
             systemImage: String? = nil,
             style: EmptyStateActionStyle,
             helpText: String? = nil,
+            focusID: String? = nil,
             action: @escaping () -> Void
         ) {
             self.title = title
             self.systemImage = systemImage
             self.style = style
             self.helpText = helpText
+            self.focusID = focusID
             self.action = action
         }
     }
@@ -84,10 +90,18 @@ struct EmptyStateView: View {
                             }
                         }
 
+                        let focusable = Group {
+                            if let actionFocus, let focusID = action.focusID {
+                                styled.focused(actionFocus, equals: focusID)
+                            } else {
+                                styled
+                            }
+                        }
+
                         if let helpText = action.helpText {
-                            styled.help(helpText)
+                            focusable.help(helpText)
                         } else {
-                            styled
+                            focusable
                         }
                     }
                 }

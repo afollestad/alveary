@@ -4,6 +4,15 @@ import Observation
 enum SkillsPaneTarget: Hashable {
     case newSkill
     case details(String)
+
+    var defaultFocusRestorationID: String {
+        switch self {
+        case .newSkill:
+            "skills-new"
+        case .details(let skillID):
+            "skills-details-\(skillID)"
+        }
+    }
 }
 
 struct NewSkillDraft: Equatable {
@@ -44,7 +53,10 @@ final class SkillsViewModel {
     private(set) var activePaneTarget: SkillsPaneTarget?
     private(set) var newSkillSession: NewSkillPaneSession?
     private(set) var detailSessions: [String: SkillDetailsPaneSession] = [:]
+    private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<SkillsPaneTarget>> = []
     private(set) var paneDismissalGeneration = 0
+    private(set) var paneFocusRestorationID = SkillsPaneTarget.newSkill.defaultFocusRestorationID
+    private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<SkillsPaneTarget>> = []
 
     var searchQuery: String = "" {
         didSet {
@@ -134,22 +146,31 @@ final class SkillsViewModel {
         await reloadAfterMutation(refreshCatalog: false)
     }
 
-    func requestNewSkill() {
+    func requestNewSkill(focusRestorationID: String? = nil) {
+        paneFocusRestorationID = focusRestorationID ?? SkillsPaneTarget.newSkill.defaultFocusRestorationID
+        discardCompletedSessionIfNeeded(for: .newSkill)
         if newSkillSession == nil {
             newSkillSession = NewSkillPaneSession(generation: UUID())
+        }
+        if let generation = newSkillSession?.generation {
+            deactivatedPaneDismissals.remove(.init(target: .newSkill, generation: generation))
         }
         activePaneTarget = .newSkill
     }
 
-    func requestDetails(for skill: Skill) {
+    func requestDetails(for skill: Skill, focusRestorationID: String? = nil) {
         let target = SkillsPaneTarget.details(skill.id)
-        activePaneTarget = target
-        guard detailSessions[skill.id] == nil else {
+        paneFocusRestorationID = focusRestorationID ?? target.defaultFocusRestorationID
+        discardCompletedSessionIfNeeded(for: target)
+        if let generation = detailSessions[skill.id]?.generation {
+            deactivatedPaneDismissals.remove(.init(target: target, generation: generation))
+            activePaneTarget = target
             return
         }
 
         let session = SkillDetailsPaneSession(generation: UUID(), skill: skill)
         detailSessions[skill.id] = session
+        activePaneTarget = target
         let generation = session.generation
         Task { [weak self] in
             await self?.loadDetails(for: skill, generation: generation)
@@ -185,11 +206,10 @@ final class SkillsViewModel {
             guard newSkillSession?.generation == generation else {
                 return
             }
-            newSkillSession = nil
             if activePaneTarget == .newSkill {
-                activePaneTarget = nil
-                paneDismissalGeneration &+= 1
+                paneFocusRestorationID = SkillsPaneTarget.newSkill.defaultFocusRestorationID
             }
+            pendingPaneDismissals.insert(.init(target: .newSkill, generation: generation))
         } catch {
             guard var liveSession = newSkillSession,
                   liveSession.generation == generation else {
@@ -224,18 +244,60 @@ final class SkillsViewModel {
         activePaneTarget = nil
     }
 
-    func dismissActivePane() {
-        guard let activePaneTarget else {
+    func deactivatePane(_ target: SkillsPaneTarget, generation: UUID) {
+        guard activePaneTarget == target,
+              paneGeneration(for: target) == generation else {
             return
         }
-        switch activePaneTarget {
+        let request = PaneSessionDismissalRequest(target: target, generation: generation)
+        pendingPaneDismissals.insert(request)
+        deactivatedPaneDismissals.insert(request)
+        activePaneTarget = nil
+    }
+
+    func dismissActivePane() {
+        guard let target = activePaneTarget,
+              let generation = paneGeneration(for: target) else {
+            return
+        }
+        dismissPane(target, generation: generation)
+    }
+
+    func dismissPane(
+        _ target: SkillsPaneTarget,
+        generation: UUID,
+        restoreFocus: Bool = true
+    ) {
+        let request = PaneSessionDismissalRequest(target: target, generation: generation)
+        guard paneGeneration(for: target) == generation else {
+            pendingPaneDismissals.remove(request)
+            deactivatedPaneDismissals.remove(request)
+            return
+        }
+        pendingPaneDismissals.remove(request)
+        let ownedDeactivation = deactivatedPaneDismissals.remove(request) != nil
+        let shouldRestoreFocus = activePaneTarget == target || (ownedDeactivation && activePaneTarget == nil)
+        switch target {
         case .newSkill:
             newSkillSession = nil
         case .details(let skillID):
             detailSessions.removeValue(forKey: skillID)
         }
-        self.activePaneTarget = nil
-        paneDismissalGeneration &+= 1
+        if activePaneTarget == target {
+            activePaneTarget = nil
+        }
+        if restoreFocus, shouldRestoreFocus {
+            paneDismissalGeneration &+= 1
+        }
+    }
+
+    func paneGeneration(for target: SkillsPaneTarget) -> UUID? {
+        switch target {
+        case .newSkill:
+            newSkillSession?.generation
+        case .details(let skillID):
+            detailSessions[skillID]?.generation
+        }
     }
 
     func fetchSkillMarkdown(for skill: Skill) async throws -> SkillMarkdownDocument {
@@ -302,11 +364,11 @@ private extension SkillsViewModel {
             guard detailSessions[skillID]?.generation == generation else {
                 return
             }
-            detailSessions.removeValue(forKey: skillID)
-            if activePaneTarget == .details(skillID) {
-                activePaneTarget = nil
-                paneDismissalGeneration &+= 1
+            if activePaneTarget == .details(skillID),
+               !searchDisplayResults.contains(where: { $0.id == skillID }) {
+                paneFocusRestorationID = SkillsPaneTarget.newSkill.defaultFocusRestorationID
             }
+            pendingPaneDismissals.insert(.init(target: .details(skillID), generation: generation))
         } catch {
             guard var liveSession = detailSessions[skillID],
                   liveSession.generation == generation else {
@@ -351,6 +413,14 @@ private extension SkillsViewModel {
 
     func filterVisibleSearchResults() {
         searchResults = uniqueSkills(searchResults.filter { !visibleIDs.contains($0.id) })
+    }
+
+    func discardCompletedSessionIfNeeded(for target: SkillsPaneTarget) {
+        guard let request = pendingPaneDismissals.first(where: { $0.target == target }) else {
+            return
+        }
+        deactivatedPaneDismissals.remove(request)
+        dismissPane(target, generation: request.generation, restoreFocus: false)
     }
 
     func uniqueSkills(_ skills: [Skill]) -> [Skill] {

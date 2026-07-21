@@ -9,6 +9,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     weak var scrollView: AppKitTextEditorScrollView?
     var suppressCallbacks = false
     var lastLaidOutTextWidth: CGFloat = 0
+    var appliedTextPresentationConfiguration: AppKitTextPresentationConfiguration?
     private var selectionRestyleScheduled = false
     private var needsFullTextLayoutForMeasurement = false
     private var lastConsumedFocusRequestToken: UUID?
@@ -33,34 +34,12 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
             return
         }
 
-        let showsDisabledCursor = parent.isDisabled && parent.showsDisabledCursor
-        textView.baseTextFont = .preferredFont(forTextStyle: .body)
-        textView.isEditable = !parent.isDisabled
-        textView.isSelectable = !showsDisabledCursor
-        textView.showsDisabledCursor = showsDisabledCursor
-        scrollView?.showsDisabledCursor = showsDisabledCursor
-        (scrollView?.contentView as? AppKitTextEditorClipView)?.showsDisabledCursor = showsDisabledCursor
-        containerView?.showsDisabledCursor = showsDisabledCursor
-        textView.textColor = .labelColor
-        textView.placeholder = parent.placeholder ?? ""
-        textView.inlineHint = parent.inlineHint
-        textView.enablesCodeBlockEditing = parent.codeBlockRanges != nil
-        textView.disablesAppKitDragDestination = parent.disablesAppKitDragDestination
-        textView.textContainerInset = NSSize(width: parent.horizontalPadding, height: parent.verticalPadding)
-        textView.updateTextContainerForCurrentBounds()
-        syncInlineCodePresentation(for: textView)
-        syncTextChipPresentation(for: textView)
-        applyTextHighlights()
-        textView.refreshInlineHintView()
-        textView.needsDisplay = true
+        let didChangeTextGeometry = applyViewConfiguration(to: textView, from: parent)
+        refreshTextPresentationIfNeeded(for: textView, parent: parent, force: didChangeTextGeometry)
     }
 
     func syncTextIfNeeded() {
         guard let textView, textView.string != parent.text else {
-            if let textView {
-                syncInlineCodePresentation(for: textView)
-            }
-            applyTextHighlights()
             return
         }
 
@@ -75,9 +54,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         }
         needsFullTextLayoutForMeasurement = true
         suppressCallbacks = false
-        syncInlineCodePresentation(for: textView)
-        syncTextChipPresentation(for: textView)
-        applyTextHighlights()
+        refreshTextPresentationIfNeeded(for: textView, parent: parent, force: true)
         textView.refreshInlineHintView()
         textView.needsDisplay = true
         scheduleHeightRecalculation(measuredText: parent.text)
@@ -101,6 +78,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         suppressCallbacks = true
         textView.setSelectedRange(nsRange)
         suppressCallbacks = false
+        refreshTextPresentationIfNeeded(for: textView, parent: parent, force: true)
     }
 
     func syncFocusIfNeeded() {
@@ -197,17 +175,10 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
             parent.text = textView.string
         }
         if let textView = textView as? AppKitTextView {
-            syncInlineCodePresentation(for: textView)
-            syncTextChipPresentation(for: textView)
+            refreshTextPresentationIfNeeded(for: textView, parent: parent, force: true)
         }
-        applyTextHighlights()
         recalculateHeight()
         updateSelection(from: textView)
-    }
-
-    private func syncInlineCodePresentation(for textView: AppKitTextView) {
-        textView.inlineCodeBackgroundRanges = parent.inlineCodeBackgroundRanges?(textView.string) ?? []
-        textView.inlineCodeBackgroundColor = AppMarkdownCodeBlockPalette.composerChipFillNSColor
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
@@ -306,6 +277,10 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
         measuredText: String,
         deferInitialUpdate: Bool
     ) {
+        guard parent.reportsMeasuredTextHeight else {
+            return
+        }
+
         guard abs(parent.measuredTextHeight - height) > 0.5 else {
             return
         }
@@ -321,6 +296,7 @@ final class AppKitTextEditorCoordinator: NSObject, NSTextViewDelegate {
     private func scheduleMeasuredTextHeightUpdate(_ height: CGFloat, measuredText: String) {
         Task { @MainActor [weak self] in
             guard let self,
+                  self.parent.reportsMeasuredTextHeight,
                   self.parent.text == measuredText,
                   abs(self.parent.measuredTextHeight - height) > 0.5 else {
                 return

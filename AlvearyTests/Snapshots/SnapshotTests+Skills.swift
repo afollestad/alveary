@@ -10,7 +10,7 @@ extension SnapshotTests {
         viewModel.requestNewSkill()
 
         assertMacSnapshot(
-            SkillsPane(viewModel: viewModel),
+            SkillsPane(viewModel: viewModel, target: .newSkill, onDismiss: {}),
             size: CGSize(width: 320, height: 780),
             named: "new_skill_pane_minimum_width"
         )
@@ -19,11 +19,12 @@ extension SnapshotTests {
     func testSkillDetailsPaneAtMinimumWidth() async throws {
         let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
         await viewModel.load()
-        viewModel.requestDetails(for: try XCTUnwrap(viewModel.installed.first))
+        let skill = try XCTUnwrap(viewModel.installed.first)
+        viewModel.requestDetails(for: skill)
         try? await Task.sleep(for: .milliseconds(20))
 
         assertMacSnapshot(
-            SkillsPane(viewModel: viewModel),
+            SkillsPane(viewModel: viewModel, target: .details(skill.id), onDismiss: {}),
             size: CGSize(width: 320, height: 780),
             named: "skill_details_pane_minimum_width"
         )
@@ -39,12 +40,12 @@ extension SnapshotTests {
                 destination: RightPaneDestination.skills(.newSkill),
                 width: .constant(380),
                 onWidthCommit: { _ in },
+                presentationGeneration: { _ in UUID(uuidString: "CBE9D1A7-47AE-412D-BC80-6C95F234A638") },
+                onDismiss: { _, _ in },
                 mainContent: {
-                    Text("Skills content")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(nsColor: .windowBackgroundColor))
+                    SkillsScreen(viewModel: viewModel)
                 },
-                paneContent: { _ in SkillsPane(viewModel: viewModel) }
+                paneContent: { _, _ in SkillsPane(viewModel: viewModel, target: .newSkill, onDismiss: {}) }
             ),
             size: CGSize(width: 1_000, height: 780),
             named: "shared_right_pane_composite_dark",

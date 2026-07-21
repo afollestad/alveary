@@ -5,7 +5,6 @@ struct ScheduledTasksScreen: View {
 
     @State private var selectedFilter = ScheduledTasksFilter.all
     @State private var deleteConfirmation: ScheduledTaskRowPresentation?
-    @State private var lastPaneTriggerID = "scheduled-new"
     @FocusState private var focusedPaneTriggerID: String?
 
     private let contentVerticalPadding: CGFloat = 28
@@ -16,7 +15,7 @@ struct ScheduledTasksScreen: View {
         VStack(spacing: 0) {
             ScheduledTasksScreenHeader(
                 selectedFilter: $selectedFilter,
-                onCreate: openCreatePane,
+                onCreate: { openCreatePane() },
                 createFocus: $focusedPaneTriggerID
             )
 
@@ -27,7 +26,10 @@ struct ScheduledTasksScreen: View {
                         if visibleTasks.isEmpty {
                             ScheduledTasksEmptyState(
                                 filter: selectedFilter,
-                                onCreate: openCreatePane
+                                onCreate: {
+                                    openCreatePane(focusRestorationID: "scheduled-new-empty")
+                                },
+                                createFocus: $focusedPaneTriggerID
                             )
                             .offset(y: emptyStateVerticalOffset)
                         }
@@ -50,7 +52,6 @@ struct ScheduledTasksScreen: View {
                                             providerName: viewModel.providerDisplayName(for: task.providerID),
                                             isRunNowPending: viewModel.pendingRunNowDefinitionIDs.contains(task.id),
                                             onEdit: {
-                                                lastPaneTriggerID = "scheduled-edit-\(task.id)"
                                                 viewModel.requestEdit(definitionID: task.id)
                                             },
                                             onPause: { viewModel.pause(task) },
@@ -80,10 +81,14 @@ struct ScheduledTasksScreen: View {
             }
         }
         .task {
-            await viewModel.load()
+            await viewModel.loadForScreen()
         }
         .onChange(of: viewModel.paneDismissalGeneration) { _, _ in
-            focusedPaneTriggerID = lastPaneTriggerID
+            focusedPaneTriggerID = ContextualPaneFocusRestoration.resolve(
+                preferredID: viewModel.paneFocusRestorationID,
+                visibleTriggerIDs: visiblePaneTriggerFocusIDs,
+                fallbackID: ScheduledTaskPaneTarget.create.defaultFocusRestorationID
+            )
         }
         .confirmationDialog(
             "Delete scheduled task?",
@@ -110,15 +115,27 @@ struct ScheduledTasksScreen: View {
         }
     }
 
-    private func openCreatePane() {
-        lastPaneTriggerID = "scheduled-new"
-        viewModel.requestCreate()
+    private func openCreatePane(focusRestorationID: String? = nil) {
+        viewModel.requestCreate(focusRestorationID: focusRestorationID)
+    }
+
+    private var visiblePaneTriggerFocusIDs: Set<String> {
+        let visibleTasks = viewModel.tasks(for: selectedFilter)
+        var ids = Set([ScheduledTaskPaneTarget.create.defaultFocusRestorationID])
+        ids.formUnion(visibleTasks.map {
+            ScheduledTaskPaneTarget.edit($0.id).defaultFocusRestorationID
+        })
+        if selectedFilter == .all, visibleTasks.isEmpty {
+            ids.insert("scheduled-new-empty")
+        }
+        return ids
     }
 }
 
 private struct ScheduledTasksEmptyState: View {
     let filter: ScheduledTasksFilter
     let onCreate: () -> Void
+    let createFocus: FocusState<String?>.Binding
 
     var body: some View {
         EmptyStateView(
@@ -126,8 +143,17 @@ private struct ScheduledTasksEmptyState: View {
             heading: heading,
             subtext: subtext,
             actions: filter == .all
-                ? [.init(title: "New Scheduled Task", systemImage: "plus", style: .primary, action: onCreate)]
+                ? [
+                    .init(
+                        title: "New Scheduled Task",
+                        systemImage: "plus",
+                        style: .primary,
+                        focusID: "scheduled-new-empty",
+                        action: onCreate
+                    )
+                ]
                 : [],
+            actionFocus: createFocus,
             iconToHeadingSpacing: 16
         )
         .frame(minHeight: 360)

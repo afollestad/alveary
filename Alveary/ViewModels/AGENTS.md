@@ -14,7 +14,10 @@ These instructions apply to files under `Alveary/ViewModels/`.
 - A nonterminal provider goal remains controller-owned work even while its runtime is idle or paused. Keep its controller and resumable runtime until the goal reaches a terminal state.
 - **Own side effects.** View models own mutable runtime state, persistence, and side effects.
 - **Keep presentation derived.** Renderer-neutral `*Presentation` types may derive display/action values from view-model state, but must not replace view-model ownership or perform service/model mutations.
-- Contextual editor view models cache drafts by stable target and give each session a generation UUID. Closing discards only the active target; deactivation for another root pane preserves it; async completions may update only the same live generation.
+- Contextual editor view models cache drafts by stable target and give each session a generation UUID. Route-only `deactivatePane()` preserves the session for another root pane; generation-specific deactivation is phase one of closing and schedules that captured session for discard after the slide. Async completions may update only the same live generation.
+- Final pane discard accepts root-level focus-restoration intent. A replacement root destination and same-target session replacement must pass `restoreFocus: false`; only an actually closed pane may return focus to its invoking screen control.
+- Keep the invoking contextual-pane control ID in the root-lived feature view model, not screen-local state, so dismissal can restore the same control after the screen unmounts and remounts.
+    - When a successful mutation removes that control, retarget focus to the screen's persistent header action only while the captured pane target remains active; a delayed completion for an inactive session must not overwrite the newer target's focus owner.
 
 ### File Organization
 

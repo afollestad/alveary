@@ -14,9 +14,12 @@ These instructions cover the app entry point, `AppDelegate`, and the root `Conte
 ## Layout And Launch Restore
 
 - The app layout uses a two-column `NavigationSplitView` with one shared contextual right-pane lane. `RightPaneDestination` gives matching Skills, MCP, or Scheduled targets precedence over a requested Diff Viewer; never mount two right panes or switch back to native three-column `NavigationSplitViewVisibility` control on macOS 26.
+- Keep the Diff Viewer request and its single persisted width root-scoped across project and thread selection changes. Repeated show requests are idempotent so navigation cannot replace the active pane presentation identity or replay its entrance animation.
+    - Re-evaluate Diff Viewer routing when the root selection identity changes. Observe a mounted conversation's live working directory separately so a changed worktree on the same selected thread also switches targets without dereferencing a SwiftData selection token during body evaluation.
 - Keep the native titlebar separator disabled. `AppSeparatorHairline` surfaces render the same explicit one-physical-pixel tint; do not rely on a separate system-managed edge.
     - **Keep the root divider unconditional.** The root toolbar hairline stays visible for every selection. A mounted multi-conversation tab strip also draws its own bottom `.paneHeader` hairline, producing two horizontal separators around the strip.
 - **Clamp right-pane width to rendered space.** Keep `RightPaneWidthPolicy` reserving main-pane width plus its resize handle; every width domain uses the shared component and persists only on resize completion.
+- **Restore focus only when the lane closes.** Root dismissal completion decides whether the captured contextual pane may restore its invoking control; a Diff Viewer or contextual replacement keeps focus ownership.
 - The Diff Viewer toolbar button owns the visible changed-diff summary:
     - **Keep stats in the button.** Keep the green `+N` and red `-N` text inside that button instead of adding transcript or composer chrome for changed files; composer-height changes can invalidate lazy transcript row hit testing and leave stale bottom space.
     - **Drive width from the status slot.** Animate the diff button's trailing status slot and individual stat-label widths directly; the primary toolbar group must derive its width from that child width instead of running a separate parent-width animation.
@@ -25,6 +28,7 @@ These instructions cover the app entry point, `AppDelegate`, and the root `Conte
     - **Keep pane modes independent.** The diff-viewer pane may switch between modes such as current changes and commits, but the toolbar button's stats, loading state, and visibility must continue to summarize working-tree changes only.
     - **Keep stats alive while the pane is hidden.** Hidden-pane selection changes must still switch the diff view model with `scope: .toolbarStatsOnly` so the button's stats stay fresh; do not clear the view model on hide. Full pane payloads (contextual action, selected diff) load when the pane shows.
     - **Use the resolved route for lifecycle.** Only a rendered `.diff` route enables filesystem watching or `.full` loads. The raw Diff Viewer request may be masked by a contextual pane and must not drive labels, animation, or heavy loading.
+      - Async child flows must call a root-lived scope resolver immediately before switching diff targets; a render-time visibility Bool can become stale while cache warming or mutations suspend.
 - The top-right toolbar uses one custom SwiftUI `ToolbarItem` for project actions, terminal, diff viewer, and settings:
     - **Hide shared toolbar chrome.** Keep `.sharedBackgroundVisibility(.hidden)` on the custom toolbar item so AppKit does not draw one large hover/background pill around the whole group.
     - **Own the container background.** `PrimaryToolbarButtonGroup` must draw the theme-aware capsule fill and border itself, after the container inset, so the background follows the SwiftUI-owned group bounds.

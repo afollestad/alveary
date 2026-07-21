@@ -2,14 +2,15 @@ import SwiftUI
 
 struct MCPServerPane: View {
     let viewModel: MCPViewModel
+    let target: MCPPaneTarget
+    let onDismiss: () -> Void
 
     @FocusState private var isNameFocused: Bool
 
     private var draft: Binding<MCPServerDraft> {
         Binding(
             get: {
-                guard let target = viewModel.activePaneTarget,
-                      let session = viewModel.paneSessions[target] else {
+                guard let session = viewModel.paneSessions[target] else {
                     return MCPServerDraft(availableAgents: viewModel.availableAgents)
                 }
                 return session.draft
@@ -19,16 +20,14 @@ struct MCPServerPane: View {
     }
 
     private var session: MCPPaneSession? {
-        viewModel.activePaneTarget.flatMap { viewModel.paneSessions[$0] }
+        viewModel.paneSessions[target]
     }
 
     private var title: String {
-        switch viewModel.activePaneTarget {
+        switch target {
         case .edit:
             session?.draft.name.isEmpty == false ? session?.draft.name ?? "Edit Server" : "Edit Server"
         case .addCustom, .addRecommended:
-            "Add Server"
-        case nil:
             "Add Server"
         }
     }
@@ -38,7 +37,7 @@ struct MCPServerPane: View {
             ContextualPaneHeader(
                 title,
                 closeAccessibilityLabel: "Close MCP server pane",
-                onClose: viewModel.dismissActivePane
+                onClose: onDismiss
             )
 
             ScrollView {
@@ -100,7 +99,7 @@ struct MCPServerPane: View {
                         }
                     }
                 }
-                .padding(20)
+                .padding(ContextualPaneLayout.horizontalInset)
             }
 
             footer
@@ -108,28 +107,15 @@ struct MCPServerPane: View {
         .onAppear {
             isNameFocused = true
         }
-        .onExitCommand(perform: viewModel.dismissActivePane)
+        .onExitCommand(perform: onDismiss)
     }
 
     private var footer: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                Button("Cancel", action: viewModel.dismissActivePane)
-                    .secondaryActionButtonStyle()
-                Spacer()
-                saveButton
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                saveButton
-                Button("Cancel", action: viewModel.dismissActivePane)
-                    .secondaryActionButtonStyle()
-            }
-        }
-        .padding(16)
-        .background(.bar)
-        .overlay(alignment: .top) {
-            AppSeparatorHairline(surface: .paneHeader)
+        ContextualPaneFooter {
+            Button("Cancel", action: onDismiss)
+                .secondaryActionButtonStyle(expandsHorizontally: true)
+        } trailingAction: {
+            saveButton
         }
     }
 
@@ -137,7 +123,7 @@ struct MCPServerPane: View {
         Button("Save") {
             Task { await viewModel.submitActivePane() }
         }
-        .primaryActionButtonStyle()
+        .primaryActionButtonStyle(expandsHorizontally: true)
         .disabled(!isValid || session?.isSubmitting == true)
     }
 

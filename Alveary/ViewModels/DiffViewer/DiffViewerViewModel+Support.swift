@@ -67,6 +67,7 @@ enum DiffViewerRefreshReason: Equatable {
     case agentTurnCompleted
     case appBecameActive
     case localGitMutation
+    case paneReveal
     case manual
     case idlePoll
     case threadSwitch
@@ -83,8 +84,10 @@ enum DiffViewerRefreshReason: Equatable {
     private var priority: Int {
         switch self {
         case .manual:
-            return 6
+            return 7
         case .localGitMutation:
+            return 6
+        case .paneReveal:
             return 5
         case .appBecameActive:
             return 4
@@ -103,7 +106,7 @@ enum DiffViewerRefreshReason: Equatable {
 // How much of the diff workspace a target switch or refresh should load.
 // `.toolbarStatsOnly` keeps the toolbar diff summary fresh while the pane is
 // hidden, skipping selected-diff work until the pane is revealed.
-enum DiffViewerSwitchScope {
+enum DiffViewerSwitchScope: Equatable {
     case full
     case toolbarStatsOnly
 }
@@ -113,6 +116,7 @@ struct DiffViewerRefreshRequest {
     let reason: DiffViewerRefreshReason
     let invalidateFileListCache: Bool
     let scope: DiffViewerSwitchScope
+    let sequence: UInt64
 
     func merged(with newer: DiffViewerRefreshRequest) -> DiffViewerRefreshRequest {
         guard directory == newer.directory else {
@@ -123,7 +127,8 @@ struct DiffViewerRefreshRequest {
             directory: directory,
             reason: reason.merged(with: newer.reason),
             invalidateFileListCache: invalidateFileListCache || newer.invalidateFileListCache,
-            scope: scope == .full || newer.scope == .full ? .full : .toolbarStatsOnly
+            scope: scope == .full || newer.scope == .full ? .full : .toolbarStatsOnly,
+            sequence: max(sequence, newer.sequence)
         )
     }
 }
