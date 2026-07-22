@@ -1,3 +1,5 @@
+import Foundation
+
 extension ConversationViewModel {
     func handleEvent(_ event: ConversationEvent) {
         if handleProviderSessionMetadataChanged(event) {
@@ -125,6 +127,7 @@ private extension ConversationViewModel {
         let mainConversation = thread.conversations.first { $0.isMain }
         if previousThreadDisplayName != providerTitle {
             thread.name = providerTitle
+            NotificationCenter.default.post(name: .threadPresentationChanged, object: thread)
         }
         if let mainConversation,
            mainConversation.shouldFollowThreadRename(previousThreadDisplayName: previousThreadDisplayName) {

@@ -4,12 +4,16 @@ import SwiftData
 struct ScheduledTaskRunSnapshot {
     let title: String
     let prompt: String
+    let destination: ScheduledTaskDestination
+    let targetConversationID: String?
     let occurrenceAt: Date
     let timeZone: TimeZone
     let providerID: String
     let model: String?
     let effort: String
     let permissionMode: String
+    let planModeEnabled: Bool?
+    let speedMode: String?
     let workspaceKind: ScheduledTaskWorkspaceKind
     let workspaceStrategy: ScheduledTaskWorkspaceStrategy
     let projectPath: String?
@@ -35,6 +39,11 @@ extension DefaultScheduledTaskRunMaterializer {
     }
 
     func makeSnapshot(_ run: ScheduledTaskRun) throws -> ScheduledTaskRunSnapshot {
+        guard let destination = run.decodedDestinationSnapshot else {
+            throw ScheduledTaskRunMaterializationError.invalidDestination(
+                run.destinationRawValueSnapshot
+            )
+        }
         guard let timeZone = TimeZone(identifier: run.timeZoneIdentifierSnapshot) else {
             throw ScheduledTaskRunMaterializationError.invalidTimeZone(run.timeZoneIdentifierSnapshot)
         }
@@ -47,6 +56,7 @@ extension DefaultScheduledTaskRunMaterializer {
         }
         return makeSnapshot(
             run,
+            destination: destination,
             timeZone: timeZone,
             workspaceKind: workspaceKind,
             workspaceStrategy: workspaceStrategy
@@ -55,6 +65,7 @@ extension DefaultScheduledTaskRunMaterializer {
 
     func makeSnapshot(
         _ run: ScheduledTaskRun,
+        destination: ScheduledTaskDestination,
         timeZone: TimeZone,
         workspaceKind: ScheduledTaskWorkspaceKind,
         workspaceStrategy: ScheduledTaskWorkspaceStrategy
@@ -62,12 +73,16 @@ extension DefaultScheduledTaskRunMaterializer {
         ScheduledTaskRunSnapshot(
             title: run.titleSnapshot,
             prompt: run.promptSnapshot,
+            destination: destination,
+            targetConversationID: run.targetConversationIDSnapshot,
             occurrenceAt: run.occurrenceAt,
             timeZone: timeZone,
             providerID: run.providerIDSnapshot,
             model: run.modelSnapshot,
             effort: run.effortSnapshot,
             permissionMode: run.permissionModeSnapshot,
+            planModeEnabled: run.planModeEnabledSnapshot,
+            speedMode: run.speedModeSnapshot,
             workspaceKind: workspaceKind,
             workspaceStrategy: workspaceStrategy,
             projectPath: run.projectPathSnapshot,
@@ -86,11 +101,15 @@ extension DefaultScheduledTaskRunMaterializer {
               run.status == .claimed else {
             throw ScheduledTaskRunMaterializationError.runChangedDuringPreparation
         }
+        guard run.decodedDestinationSnapshot == .newThread else {
+            return
+        }
         let fallbackTimeZone = TimeZone(identifier: run.timeZoneIdentifierSnapshot)
             ?? TimeZone(secondsFromGMT: 0)
             ?? .current
         let snapshot = makeSnapshot(
             run,
+            destination: .newThread,
             timeZone: fallbackTimeZone,
             workspaceKind: run.workspaceKindSnapshot ?? .privateWorkspace,
             workspaceStrategy: run.workspaceStrategySnapshot ?? .localCheckout

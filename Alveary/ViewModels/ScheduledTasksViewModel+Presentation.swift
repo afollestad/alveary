@@ -30,20 +30,35 @@ extension ScheduledTasksViewModel {
     }
 
     func makeRowPresentation(_ definition: ScheduledTask) -> ScheduledTaskRowPresentation {
-        let projectName = definition.project?.name
         let workspaceSummary: String
-        switch definition.workspaceKind {
-        case .privateWorkspace:
-            let grantCount = definition.grantedRoots.count
-            if grantCount == 0 {
-                workspaceSummary = "Private workspace"
-            } else {
-                let grantLabel = grantCount == 1 ? "folder grant" : "folder grants"
-                workspaceSummary = "Private workspace + \(grantCount) \(grantLabel)"
+        let targetThreadName: String?
+        let providerID: String
+        let destination = definition.decodedDestination
+        switch destination {
+        case .some(.existingThread):
+            targetThreadName = definition.targetThread?.displayName()
+            workspaceSummary = "Existing thread · \(targetThreadName ?? "Unavailable thread")"
+            providerID = existingThreadProviderID(for: definition)
+        case .some(.newThread):
+            targetThreadName = nil
+            providerID = definition.providerID
+            switch definition.workspaceKind {
+            case .privateWorkspace:
+                let grantCount = definition.grantedRoots.count
+                if grantCount == 0 {
+                    workspaceSummary = "New Task · Private workspace"
+                } else {
+                    let grantLabel = grantCount == 1 ? "folder grant" : "folder grants"
+                    workspaceSummary = "New Task · Private workspace + \(grantCount) \(grantLabel)"
+                }
+            case .project:
+                let strategy = definition.workspaceStrategy == .worktree ? "worktree" : "local"
+                workspaceSummary = "New thread · \(definition.project?.name ?? "Missing project") · \(strategy)"
             }
-        case .project:
-            let strategy = definition.workspaceStrategy == .worktree ? "worktree" : "local checkout"
-            workspaceSummary = "\(projectName ?? "Missing project") · \(strategy)"
+        case nil:
+            targetThreadName = nil
+            providerID = definition.providerID
+            workspaceSummary = "Invalid destination"
         }
 
         return ScheduledTaskRowPresentation(
@@ -53,14 +68,25 @@ extension ScheduledTasksViewModel {
             prompt: definition.prompt,
             state: definition.state,
             recurrence: definition.recurrence,
-            timeZoneIdentifier: definition.timeZoneIdentifier,
-            providerID: definition.providerID,
+            timeZoneIdentifier: currentTimeZone().identifier,
+            providerID: providerID,
             workspaceSummary: workspaceSummary,
+            destination: destination,
+            targetThreadName: targetThreadName,
+            isWaitingForTarget: definition.targetWaitStartedAt != nil,
             nextOccurrenceAt: definition.nextOccurrenceAt,
             pauseReason: definition.pauseReason,
             lastError: definition.lastError,
             hasActiveRun: definition.runs.contains { !$0.hasKnownTerminalStatus },
             modifiedAt: definition.modifiedAt
         )
+    }
+}
+
+private extension ScheduledTasksViewModel {
+    func existingThreadProviderID(for definition: ScheduledTask) -> String {
+        let mainConversations = definition.targetThread?.conversations.filter(\.isMain) ?? []
+        guard mainConversations.count == 1 else { return definition.providerID }
+        return mainConversations.first?.provider ?? definition.providerID
     }
 }

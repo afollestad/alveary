@@ -8,17 +8,52 @@ extension SidebarViewModel {
         guard let cleanup = snapshot.pendingScheduledWorktreeCleanup else {
             return
         }
-        try await cleanupPendingScheduledWorktree(cleanup, runID: snapshot.scheduledTaskRunID)
+        try await cleanupPendingScheduledWorktree(
+            cleanup,
+            runID: snapshot.scheduledTaskRunID,
+            retainsCompletionFence: true
+        )
+    }
+
+    func clearCompletedPendingWorktreeCleanupBeforeThreadDeletion(
+        _ snapshot: ThreadCleanupSnapshot
+    ) throws {
+        guard let cleanup = snapshot.pendingScheduledWorktreeCleanup,
+              let runID = snapshot.scheduledTaskRunID,
+              let run = modelContext.resolveScheduledTaskRun(id: runID),
+              let currentCleanup = run.pendingWorktreeCleanup,
+              currentCleanup.identifiesSameBranchCleanup(as: cleanup),
+              !currentCleanup.branchIsOwned else {
+            if snapshot.pendingScheduledWorktreeCleanup != nil {
+                throw SidebarViewModelError.threadMissingDeletionMetadata
+            }
+            return
+        }
+        let worktreeIdentity = try pendingWorktreeIdentity(currentCleanup)
+        try removePendingWorktreePath(currentCleanup, worktreeIdentity: worktreeIdentity)
+        guard let cleanupAfterRemoval = run.pendingWorktreeCleanup,
+              cleanupAfterRemoval.identifiesSameBranchCleanup(as: currentCleanup),
+              !cleanupAfterRemoval.branchIsOwned else {
+            throw SidebarViewModelError.threadMissingDeletionMetadata
+        }
+        run.clearPendingWorktreeCleanup()
     }
 }
 
 extension SidebarViewModel {
     func cleanupPendingScheduledWorktree(
         _ cleanup: ScheduledWorktreeCleanupProvenance,
-        runID: PersistentIdentifier?
+        runID: PersistentIdentifier?,
+        retainsCompletionFence: Bool = false
     ) async throws {
         guard let runID else {
             throw SidebarViewModelError.threadMissingDeletionMetadata
+        }
+        guard let run = modelContext.resolveScheduledTaskRun(id: runID) else {
+            throw SidebarViewModelError.threadMissingDeletionMetadata
+        }
+        guard run.hasPendingWorktreeCleanupMetadata else {
+            return
         }
         guard activeScheduledCleanupRunIDs.insert(runID).inserted else {
             throw TaskWorkspaceCleanupError.pendingScheduledCleanupAlreadyInProgress
@@ -27,7 +62,8 @@ extension SidebarViewModel {
 
         if try completeRetiredPendingWorktreeCleanup(
             cleanup,
-            runID: runID
+            runID: runID,
+            clearsMetadata: !retainsCompletionFence
         ) {
             return
         }
@@ -49,7 +85,8 @@ extension SidebarViewModel {
             cleanup,
             runID: runID,
             worktreeIdentity: worktreeIdentity,
-            branchCleanupError: branchCleanupError
+            branchCleanupError: branchCleanupError,
+            retainsCompletionFence: retainsCompletionFence
         )
     }
 
@@ -57,13 +94,18 @@ extension SidebarViewModel {
         _ cleanup: ScheduledWorktreeCleanupProvenance,
         runID: PersistentIdentifier,
         worktreeIdentity: TaskWorkspaceFileSystemIdentity?,
-        branchCleanupError: Error?
+        branchCleanupError: Error?,
+        retainsCompletionFence: Bool
     ) throws {
         do {
             try removePendingWorktreePath(cleanup, worktreeIdentity: worktreeIdentity)
             if branchCleanupError == nil {
-                try updatePendingWorktreeCleanupRun(runID: runID) { run in
-                    run.clearPendingWorktreeCleanup()
+                // Thread deletion keeps the identity-bearing provenance until its commit so
+                // target attachment stays blocked and a same-path replacement stays protected.
+                if !retainsCompletionFence {
+                    try updatePendingWorktreeCleanupRun(runID: runID) { run in
+                        run.clearPendingWorktreeCleanup()
+                    }
                 }
             } else {
                 try updatePendingWorktreeCleanupRun(runID: runID) { run in
@@ -261,7 +303,8 @@ extension SidebarViewModel {
 
     private func completeRetiredPendingWorktreeCleanup(
         _ cleanup: ScheduledWorktreeCleanupProvenance,
-        runID: PersistentIdentifier
+        runID: PersistentIdentifier,
+        clearsMetadata: Bool
     ) throws -> Bool {
         guard let run = modelContext.resolveScheduledTaskRun(id: runID),
               let currentCleanup = run.pendingWorktreeCleanup,
@@ -278,8 +321,10 @@ extension SidebarViewModel {
               !cleanupAfterRemoval.branchIsOwned else {
             throw SidebarViewModelError.threadMissingDeletionMetadata
         }
-        try updatePendingWorktreeCleanupRun(runID: runID) { run in
-            run.clearPendingWorktreeCleanup()
+        if clearsMetadata {
+            try updatePendingWorktreeCleanupRun(runID: runID) { run in
+                run.clearPendingWorktreeCleanup()
+            }
         }
         return true
     }

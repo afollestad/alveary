@@ -1,10 +1,70 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
 
 @MainActor
 extension ScheduledTaskRunMaterializerTests {
+    func testMalformedDestinationFailsClosedWithoutCreatingTaskShell() async throws {
+        let fixture = try ScheduledTaskRunMaterializerFixture()
+        defer { fixture.removeFiles() }
+        let run = try fixture.insertRun(
+            id: "malformed-destination",
+            occurrenceID: "malformed-destination-occurrence"
+        )
+        run.destinationRawValueSnapshot = "future-destination"
+        try fixture.context.save()
+
+        await XCTAssertThrowsErrorAsync {
+            _ = try await fixture.makeMaterializer().materialize(runID: run.persistentModelID)
+        }
+
+        XCTAssertNil(run.decodedDestinationSnapshot)
+        XCTAssertEqual(run.status, .claimed)
+        XCTAssertNil(run.thread)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
+    }
+
+    func testExistingPrivateTargetValidatesLiveOwnershipMarker() throws {
+        let fixture = try ScheduledTaskRunMaterializerFixture()
+        defer { fixture.removeFiles() }
+        let workspace = try fixture.workspaceOwnershipService.createPrivateWorkspace()
+        let target = AgentThread(
+            name: "Private target",
+            isPinned: true,
+            mode: .task,
+            taskWorkspaceDescriptor: workspace
+        )
+        let conversation = Conversation(id: "private-target-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        fixture.context.insert(target)
+        fixture.context.insert(conversation)
+        try fixture.context.save()
+        let run = try fixture.insertRun(
+            id: "private-existing-target",
+            occurrenceID: "private-existing-target-occurrence",
+            workspaceKind: .project,
+            workspaceStrategy: .localCheckout,
+            projectPath: workspace.primaryRoot,
+            destination: .existingThread,
+            targetThread: target,
+            targetConversationID: conversation.id
+        )
+        let validator = ScheduledTaskAutomatedWorkspaceValidator(
+            workspaceOwnershipService: fixture.workspaceOwnershipService
+        )
+
+        XCTAssertNoThrow(try validator.validateExistingTarget(thread: target, run: run))
+
+        target.taskWorkspaceDescriptor = TaskWorkspaceDescriptor(
+            primaryRoot: workspace.primaryRoot,
+            ownershipStrategy: .privateOwned,
+            ownershipMarkerID: UUID().uuidString.lowercased()
+        )
+        XCTAssertThrowsError(try validator.validateExistingTarget(thread: target, run: run))
+    }
+
     func testAutomatedWorkspaceValidationRejectsADifferentOwnedWorkspace() async throws {
         let fixture = try ScheduledTaskRunMaterializerFixture()
         defer { fixture.removeFiles() }

@@ -183,12 +183,40 @@ protocol ConversationControllerRegistry: AnyObject {
     ) -> ConversationControllerLease
     func controller(for key: ConversationControllerKey) -> ConversationViewModel?
     func outcomes(for key: ConversationControllerKey) -> AsyncStream<ConversationControllerOutcome>
+    func currentOutcome(for key: ConversationControllerKey) -> ConversationControllerOutcome?
+    func isReadyForScheduledTask(conversationID: String) -> Bool
+    func isReadyForScheduledTaskRecovery(conversationID: String) -> Bool
+    func supersedeScheduledTaskPendingInteractions(
+        conversationID: String,
+        interactionIDs: Set<String>
+    )
+    func reconcileScheduledTaskTerminalState(conversationID: String)
     func flushForTermination() -> [ConversationControllerFlushFailure]
     func invalidate(for key: ConversationControllerKey)
     func invalidateAll()
 }
 
 extension ConversationControllerRegistry {
+    func currentOutcome(for key: ConversationControllerKey) -> ConversationControllerOutcome? {
+        nil
+    }
+
+    func isReadyForScheduledTask(conversationID: String) -> Bool {
+        controller(for: ConversationControllerKey(conversationID: conversationID))?.isReadyForExistingScheduledTask ?? true
+    }
+
+    func isReadyForScheduledTaskRecovery(conversationID: String) -> Bool {
+        controller(for: ConversationControllerKey(conversationID: conversationID))?.isReadyForExistingScheduledTask ?? true
+    }
+
+    func supersedeScheduledTaskPendingInteractions(
+        conversationID: String,
+        interactionIDs: Set<String>
+    ) {
+        controller(for: ConversationControllerKey(conversationID: conversationID))?
+            .supersedeAutomatedScheduledPendingInteractions(interactionIDs: interactionIDs)
+    }
+
     func reconcileScheduledTaskTerminalState(conversationID: String) {
         controller(for: ConversationControllerKey(conversationID: conversationID))?
             .reconcileScheduledTaskTerminalState()

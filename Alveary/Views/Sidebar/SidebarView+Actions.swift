@@ -101,6 +101,7 @@ extension SidebarView {
 
         do {
             try uiModelContext.save()
+            NotificationCenter.default.post(name: .threadPresentationChanged, object: dbThread)
         } catch {
             viewModel.presentSidebarError(SidebarThreadActionError.renameFailed(error))
         }

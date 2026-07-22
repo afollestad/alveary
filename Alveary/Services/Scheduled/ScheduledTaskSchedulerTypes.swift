@@ -17,6 +17,61 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
     let projectBaseRef: String?
     let projectRemoteName: String?
     let grantedRoots: [String]
+    let destination: ScheduledTaskDestination
+    let target: ScheduledTaskTargetSnapshot?
+
+    init(
+        definitionID: String,
+        definitionRevision: Int,
+        scheduledOccurrenceAt: Date,
+        recurrence: ScheduledTaskRecurrence,
+        timeZoneIdentifier: String,
+        providerID: String,
+        model: String?,
+        effort: String,
+        permissionMode: String,
+        workspaceKind: ScheduledTaskWorkspaceKind,
+        workspaceStrategy: ScheduledTaskWorkspaceStrategy,
+        projectPath: String?,
+        projectBaseRef: String?,
+        projectRemoteName: String?,
+        grantedRoots: [String],
+        destination: ScheduledTaskDestination = .newThread,
+        target: ScheduledTaskTargetSnapshot? = nil
+    ) {
+        self.definitionID = definitionID
+        self.definitionRevision = definitionRevision
+        self.scheduledOccurrenceAt = scheduledOccurrenceAt
+        self.recurrence = recurrence
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.providerID = providerID
+        self.model = model
+        self.effort = effort
+        self.permissionMode = permissionMode
+        self.workspaceKind = workspaceKind
+        self.workspaceStrategy = workspaceStrategy
+        self.projectPath = projectPath
+        self.projectBaseRef = projectBaseRef
+        self.projectRemoteName = projectRemoteName
+        self.grantedRoots = grantedRoots
+        self.destination = destination
+        self.target = target
+    }
+}
+
+struct ScheduledTaskTargetSnapshot: Equatable, Sendable {
+    let conversationID: String
+    let threadName: String
+    let providerID: String
+    let model: String?
+    let effort: String
+    let permissionMode: String
+    let planModeEnabled: Bool
+    let speedMode: String
+    let workspaceKind: ScheduledTaskWorkspaceKind
+    let workspaceStrategy: ScheduledTaskWorkspaceStrategy
+    let projectPath: String?
+    let grantedRoots: [String]
 }
 
 struct ScheduledTaskRootIdentitySnapshot: Codable, Equatable, Sendable {
@@ -84,6 +139,7 @@ struct ScheduledTaskWorkspaceIdentitySnapshot: Codable, Equatable, Sendable {
 
 enum ScheduledTaskPreflightOutcome: Equatable, Sendable {
     case ready(ScheduledTaskWorkspaceIdentitySnapshot)
+    case targetBusy
     case invalid(reason: String)
 }
 
@@ -96,6 +152,7 @@ enum ScheduledTaskClaimResult {
     case alreadyClaimed(runID: PersistentIdentifier)
     case skipped(runID: PersistentIdentifier)
     case overlapped(pendingOccurrenceAt: Date)
+    case waitingForTarget(pendingOccurrenceAt: Date)
     case paused(reason: String)
     case changedDuringPreflight
     case activeRunExists
@@ -115,6 +172,7 @@ struct ScheduledTaskClaimRecheck {
     let expectedNextOccurrenceAt: Date?
     let expectedPendingOccurrenceAt: Date?
     let expectedProjectConfiguration: ScheduledProjectConfigSnapshot?
+    let expectedTarget: ScheduledTaskTargetSnapshot?
     let occurrenceAt: Date
 }
 
@@ -124,4 +182,5 @@ struct ScheduledTaskRunNowRecheck {
     let expectedNextOccurrenceAt: Date?
     let expectedPendingOccurrenceAt: Date?
     let expectedProjectConfiguration: ScheduledProjectConfigSnapshot?
+    let expectedTarget: ScheduledTaskTargetSnapshot?
 }

@@ -38,23 +38,40 @@ final class MiddlePaneSelectionRestorationTests: XCTestCase {
         XCTAssertEqual(item, .project(try XCTUnwrap(thread.project)))
     }
 
-    func testResolveSidebarBookmarkDoesNotRouteArchivedLinkedRunFallbackIntoProject() throws {
+    func testResolveSidebarBookmarkUsesWorkspaceSnapshotForArchivedLinkedRunFallback() throws {
         let fixture = try SidebarTestFixture()
-        let (thread, _) = try insertScheduledTaskThread(
-            fixture: fixture,
-            status: .success,
-            conversationID: "archived-fallback-bookmark"
-        )
         let project = Project(path: "/tmp/archived-fallback-bookmark", name: "Project")
         fixture.context.insert(project)
-        thread.modeRawValue = "future-mode"
-        thread.project = project
-        thread.archivedAt = Date()
+        let (projectThread, _) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "archived-project-fallback-bookmark"
+        )
+        let (privateThread, privateRun) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "archived-private-fallback-bookmark"
+        )
+        projectThread.modeRawValue = "future-mode"
+        projectThread.project = project
+        projectThread.archivedAt = Date()
+        privateThread.modeRawValue = "future-mode"
+        privateThread.project = project
+        privateThread.archivedAt = Date()
+        privateRun.workspaceKindRawValueSnapshot = ScheduledTaskWorkspaceKind.privateWorkspace.rawValue
         try fixture.context.save()
 
-        let item = resolveSidebarSelectionBookmark(.threadId(thread.persistentModelID), modelContext: fixture.context)
+        let projectItem = resolveSidebarSelectionBookmark(
+            .threadId(projectThread.persistentModelID),
+            modelContext: fixture.context
+        )
+        let privateItem = resolveSidebarSelectionBookmark(
+            .threadId(privateThread.persistentModelID),
+            modelContext: fixture.context
+        )
 
-        XCTAssertNil(item)
+        XCTAssertEqual(projectItem, .project(project))
+        XCTAssertNil(privateItem)
     }
 
     func testQueuedDraftProjectMoveRechecksVoiceLockBeforeMutation() async {

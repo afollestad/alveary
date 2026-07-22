@@ -1,19 +1,17 @@
 import Foundation
 import SwiftData
-
 @MainActor
 final class ScheduledTaskRunRecoveryCoordinator {
     typealias ResumeSafetyCheck = @MainActor (ScheduledTaskRun) -> Bool
     typealias StateSaver = @MainActor (ModelContext) throws -> Void
 
-    private let modelContext: ModelContext
-    private let controllerRegistry: any ConversationControllerRegistry
-    private let notificationManager: any NotificationManager
+    let modelContext: ModelContext
+    let controllerRegistry: any ConversationControllerRegistry
+    let notificationManager: any NotificationManager
     private let workspaceOwnershipService: any TaskWorkspaceOwnershipService
     private let policy: ScheduledTaskRecoveryPolicy
-    private let noteFormatter: ScheduledTaskOccurrenceNoteFormatter
+    let noteFormatter: ScheduledTaskOccurrenceNoteFormatter
     private let saveChanges: StateSaver
-
     init(
         modelContext: ModelContext,
         controllerRegistry: any ConversationControllerRegistry,
@@ -31,9 +29,8 @@ final class ScheduledTaskRunRecoveryCoordinator {
         self.noteFormatter = noteFormatter
         self.saveChanges = saveChanges
     }
-
-    /// Reconciles persisted state only. The caller materializes and launches the returned claimed
-    /// runs after the rest of startup recovery has completed.
+    /// Reconciles persisted and already-loaded presentation state without launching work. The caller
+    /// materializes and launches returned claims after the rest of startup recovery has completed.
     func recoverPersistedRuns(
         at actionDate: Date,
         isSafeToResume: ResumeSafetyCheck
@@ -42,36 +39,20 @@ final class ScheduledTaskRunRecoveryCoordinator {
         let runs = try modelContext.fetch(FetchDescriptor<ScheduledTaskRun>())
         var resumedRunIDs: [PersistentIdentifier] = []
         var interruptedRunIDs: [PersistentIdentifier] = []
+        var finalizedRunIDs: [PersistentIdentifier] = []
         var didMutateRecoveryState = false
 
         for run in runs {
-            guard let status = run.decodedStatus else {
-                interrupt(
-                    run,
-                    at: actionDate,
-                    reason: "The scheduled task run has an invalid persisted status."
-                )
-                interruptedRunIDs.append(run.persistentModelID)
-                didMutateRecoveryState = true
-                continue
-            }
-            let decision = policy.decision(
-                status: status,
-                recoveryReferenceAt: recoveryReferenceDate(for: run),
-                at: actionDate,
-                isSafeToResume: resumeSafetyAllows(
-                    run,
-                    status: status,
-                    externalCheck: isSafeToResume
-                )
-            )
-            switch decision {
-            case .ignoreTerminal:
-                didMutateRecoveryState = reconcileTerminalRunIfNeeded(run) || didMutateRecoveryState
-            case .resumeClaimed:
+            switch recoveryAction(for: run, at: actionDate, isSafeToResume: isSafeToResume) {
+            case .reconcileTerminal:
+                if reconcileTerminalRunIfNeeded(run) {
+                    finalizedRunIDs.append(run.persistentModelID)
+                    didMutateRecoveryState = true
+                }
+            case .resume:
                 resumedRunIDs.append(run.persistentModelID)
-            case .interrupt(let reason):
-                interrupt(run, at: actionDate, reason: reason.message)
+            case .interrupt(let message):
+                interrupt(run, at: actionDate, reason: message)
                 interruptedRunIDs.append(run.persistentModelID)
                 didMutateRecoveryState = true
             }
@@ -80,8 +61,12 @@ final class ScheduledTaskRunRecoveryCoordinator {
         if didMutateRecoveryState {
             try saveIsolatedRecoveryChanges()
         }
-        if !interruptedRunIDs.isEmpty {
-            publishInterruptedConversationChanges(for: interruptedRunIDs)
+        let publishedRunIDs = interruptedRunIDs + finalizedRunIDs
+        if !publishedRunIDs.isEmpty {
+            publishRecoveredConversationChanges(
+                for: publishedRunIDs,
+                refreshBadgeCount: !interruptedRunIDs.isEmpty
+            )
         }
         return ScheduledTaskRunRecoveryResult(
             resumedRunIDs: resumedRunIDs,
@@ -101,7 +86,7 @@ final class ScheduledTaskRunRecoveryCoordinator {
         }
         let runIDs = runs.map(\.persistentModelID)
         let conversationIDs = runs.compactMap { run in
-            run.thread?.conversations.first(where: \.isMain)?.id
+            presentationConversation(for: run)?.id
         }
 
         for run in runs {
@@ -116,7 +101,7 @@ final class ScheduledTaskRunRecoveryCoordinator {
         }
         let flushFailures = controllerRegistry.flushForTermination()
         if !runIDs.isEmpty {
-            publishInterruptedConversationChanges(for: runIDs)
+            publishRecoveredConversationChanges(for: runIDs, refreshBadgeCount: true)
         }
         return ScheduledTaskTerminationPreparation(
             interruptedRunIDs: runIDs,
@@ -151,13 +136,59 @@ private extension ScheduledTaskRunRecoveryCoordinator {
         run.triggerKind == .runNow ? run.triggeredAt : run.occurrenceAt
     }
 
+    func recoveryAction(
+        for run: ScheduledTaskRun,
+        at actionDate: Date,
+        isSafeToResume: ResumeSafetyCheck
+    ) -> ScheduledTaskPersistedRunRecoveryAction {
+        guard let status = run.decodedStatus else {
+            return .interrupt("The scheduled task run has an invalid persisted status.")
+        }
+        guard !status.isTerminal else {
+            return .reconcileTerminal
+        }
+        guard run.decodedDestinationSnapshot != nil else {
+            return .interrupt("The scheduled task run has an invalid persisted destination.")
+        }
+        let decision = policy.decision(
+            status: status,
+            recoveryReferenceAt: recoveryReferenceDate(for: run),
+            at: actionDate,
+            isSafeToResume: resumeSafetyAllows(
+                run,
+                status: status,
+                externalCheck: isSafeToResume
+            )
+        )
+        switch decision {
+        case .ignoreTerminal:
+            return .reconcileTerminal
+        case .resumeClaimed:
+            return .resume
+        case .interrupt(let reason):
+            return .interrupt(reason.message)
+        }
+    }
+
     func resumeSafetyAllows(
         _ run: ScheduledTaskRun,
         status: ScheduledTaskRunStatus,
         externalCheck: ResumeSafetyCheck
     ) -> Bool {
-        status == .claimed &&
+        let targetIsValid: Bool
+        switch run.decodedDestinationSnapshot {
+        case .newThread:
+            targetIsValid = true
+        case .existingThread:
+            targetIsValid = run.targetThread?.isPinned == true &&
+                run.targetThread?.archivedAt == nil &&
+                presentationConversation(for: run) != nil
+        case nil:
+            targetIsValid = false
+        }
+        return status == .claimed &&
             run.triggerKind != nil &&
+            targetIsValid &&
             run.hasValidWorkspaceIdentityProvenance &&
             run.workspaceIdentitySnapshot.map(workspaceIdentitiesAreCurrent) == true &&
             externalCheck(run)
@@ -167,7 +198,7 @@ private extension ScheduledTaskRunRecoveryCoordinator {
         guard run.requiresFinalizationRecovery else {
             return false
         }
-        _ = supersedePendingInteractions(in: run.thread)
+        _ = supersedePendingInteractions(for: run)
         run.requiresFinalizationRecovery = false
         return true
     }
@@ -177,18 +208,25 @@ private extension ScheduledTaskRunRecoveryCoordinator {
         at actionDate: Date,
         reason: String
     ) {
-        if run.thread == nil {
+        switch run.decodedDestinationSnapshot {
+        case .newThread where run.thread == nil:
             createInterruptedTaskShell(for: run, at: actionDate)
-        } else {
+        case .newThread:
             sanitizeExistingWorkspace(for: run)
+        case .existingThread:
+            insertInterruptedOccurrenceNoteIfNeeded(for: run, at: actionDate)
+        case nil:
+            break
         }
         run.status = .interrupted
         run.finishedAt = actionDate
         run.lastError = reason
         run.requiresFinalizationRecovery = false
-        run.thread?.modifiedAt = actionDate
-        run.thread?.conversations.first(where: \.isMain)?.isUnread = true
-        supersedePendingInteractions(in: run.thread)
+        let presentationConversation = presentationConversation(for: run)
+        let presentationThread = presentationConversation?.thread
+        presentationThread?.modifiedAt = actionDate
+        presentationConversation?.isUnread = true
+        supersedePendingInteractions(for: run)
     }
 
     func createInterruptedTaskShell(
@@ -203,19 +241,27 @@ private extension ScheduledTaskRunRecoveryCoordinator {
             workspace = recoveredWorkspaceDescriptor(for: run)
         }
         let isWorktree = workspace?.ownershipStrategy == .projectWorktreeOwned
+        let project = run.projectPathSnapshot.flatMap(modelContext.resolveProject(path:))
+        let isProjectThread = run.workspaceKindSnapshot == .project && project != nil
         let thread = AgentThread(
             name: run.titleSnapshot,
             hasCustomName: true,
             worktreePath: isWorktree ? workspace?.primaryRoot : nil,
             permissionMode: run.permissionModeSnapshot,
+            planModeEnabled: run.planModeEnabledSnapshot ?? false,
             effort: run.effortSnapshot,
             model: run.modelSnapshot,
+            speedMode: run.speedModeSnapshot,
             useWorktree: isWorktree,
             modifiedAt: actionDate,
-            mode: .task,
-            taskWorkspaceDescriptor: workspace,
+            mode: isProjectThread ? .project : .task,
+            taskWorkspaceDescriptor: !isProjectThread || isWorktree ? workspace : nil,
+            project: project,
             scheduledTaskRun: run
         )
+        if isProjectThread && !isWorktree {
+            thread.taskGrantedRoots = workspace?.grantedRoots ?? []
+        }
         let conversation = Conversation(
             provider: run.providerIDSnapshot,
             isMain: true,
@@ -223,18 +269,7 @@ private extension ScheduledTaskRunRecoveryCoordinator {
             isUnread: true,
             thread: thread
         )
-        let timeZone = TimeZone(identifier: run.timeZoneIdentifierSnapshot) ?? TimeZone(secondsFromGMT: 0) ?? .current
-        let note = ConversationEventRecord(
-            id: "scheduled-task-\(run.id)",
-            conversationId: conversation.id,
-            type: ConversationEventRecord.scheduledTaskNoteType,
-            content: noteFormatter.text(
-                occurrenceAt: run.occurrenceAt,
-                timeZone: timeZone
-            ),
-            timestamp: actionDate,
-            conversation: conversation
-        )
+        let note = makeInterruptedOccurrenceNote(for: run, conversation: conversation, at: actionDate)
         thread.conversations = [conversation]
         conversation.events = [note]
         run.thread = thread
@@ -455,43 +490,10 @@ private extension ScheduledTaskRunRecoveryCoordinator {
         return uuid.uuidString.lowercased()
     }
 
-    @discardableResult
-    func supersedePendingInteractions(in thread: AgentThread?) -> Bool {
-        guard let thread else {
-            return false
-        }
-        var didChange = false
-        for conversation in thread.conversations {
-            for record in conversation.events {
-                if record.type == "tool_approval", record.toolApprovalStatus == nil {
-                    record.toolApprovalStatus = ToolApprovalStatus.superseded.rawValue
-                    didChange = true
-                }
-                if record.type == "tool_call",
-                   record.toolName == "AskUserQuestion",
-                   record.content?.isEmpty != false {
-                    record.content = ChatItemGrouper.handledPromptSummary
-                    didChange = true
-                }
-            }
-        }
-        return didChange
-    }
+}
 
-    func publishInterruptedConversationChanges(for runIDs: [PersistentIdentifier]) {
-        let runIDSet = Set(runIDs)
-        let conversationIDs = (try? modelContext.fetch(FetchDescriptor<ScheduledTaskRun>()))?
-            .filter { runIDSet.contains($0.persistentModelID) }
-            .flatMap { $0.thread?.conversations.map(\.id) ?? [] } ?? []
-        if !conversationIDs.isEmpty {
-            notificationManager.refreshBadgeCount()
-        }
-        for conversationID in Set(conversationIDs) {
-            NotificationCenter.default.post(
-                name: .agentStatusChanged,
-                object: nil,
-                userInfo: ["conversationId": conversationID]
-            )
-        }
-    }
+private enum ScheduledTaskPersistedRunRecoveryAction {
+    case reconcileTerminal
+    case resume
+    case interrupt(String)
 }

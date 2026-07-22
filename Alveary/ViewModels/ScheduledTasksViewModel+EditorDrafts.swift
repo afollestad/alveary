@@ -19,7 +19,9 @@ extension ScheduledTasksViewModel {
             : permissionModes.first?.value ?? settings.permissionMode
         let actionDate = now()
         let suggestedOccurrence = actionDate.addingTimeInterval(60 * 60)
-        let calendar = Calendar.current
+        var calendar = Calendar(identifier: .gregorian)
+        let timeZone = currentTimeZone()
+        calendar.timeZone = timeZone
 
         return ScheduledTaskEditorDraft(
             id: UUID(),
@@ -27,6 +29,8 @@ extension ScheduledTasksViewModel {
             expectedRevision: nil,
             title: "",
             prompt: "",
+            destination: .newThread,
+            targetConversationID: nil,
             recurrenceKind: .daily,
             onceOccurrenceAt: suggestedOccurrence,
             intervalAnchorAt: startOfMinute(actionDate),
@@ -36,7 +40,7 @@ extension ScheduledTasksViewModel {
             selectedWeekdays: Set(ScheduledTaskRecurrence.standardWeekdays),
             weeklyWeekday: calendar.component(.weekday, from: suggestedOccurrence),
             monthlyDay: calendar.component(.day, from: suggestedOccurrence),
-            timeZoneIdentifier: TimeZone.current.identifier,
+            timeZoneIdentifier: timeZone.identifier,
             providerID: providerID,
             modelSelection: modelSelection,
             effort: effort,
@@ -52,6 +56,10 @@ extension ScheduledTasksViewModel {
         guard let definition = modelContext.resolveScheduledTask(id: definitionID) else {
             errorMessage = ScheduledTaskMutationError.definitionNotFound.localizedDescription
             reload()
+            return nil
+        }
+        guard let destination = definition.decodedDestination else {
+            errorMessage = ScheduledTasksViewModelError.invalidPersistedDestination.localizedDescription
             return nil
         }
 
@@ -73,6 +81,8 @@ extension ScheduledTasksViewModel {
             expectedRevision: definition.revision,
             title: definition.title,
             prompt: definition.prompt,
+            destination: destination,
+            targetConversationID: definition.targetThread?.conversations.first(where: \.isMain)?.id,
             recurrenceKind: recurrence?.kind ?? .once,
             onceOccurrenceAt: recurrenceFields?.onceOccurrenceAt ?? fallbackDate,
             intervalAnchorAt: recurrenceFields?.intervalAnchorAt ?? fallbackIntervalAnchor,
@@ -82,7 +92,7 @@ extension ScheduledTasksViewModel {
             selectedWeekdays: Set(recurrence?.selectedWeekdays ?? ScheduledTaskRecurrence.standardWeekdays),
             weeklyWeekday: definition.weeklyWeekday ?? 2,
             monthlyDay: definition.monthlyDay ?? 1,
-            timeZoneIdentifier: definition.timeZoneIdentifier,
+            timeZoneIdentifier: currentTimeZone().identifier,
             providerID: definition.providerID,
             modelSelection: AgentModelOptionSelection.pickerValue(in: modelOptions, matching: definition.model),
             effort: definition.effort,
@@ -113,6 +123,8 @@ extension ScheduledTasksViewModel {
             expectedRevision: expectedRevision,
             title: definitionDraft.title,
             prompt: definitionDraft.prompt,
+            destination: definitionDraft.destination,
+            targetConversationID: definitionDraft.targetConversationID,
             recurrenceKind: recurrence.kind,
             onceOccurrenceAt: recurrenceFields.onceOccurrenceAt,
             intervalAnchorAt: recurrenceFields.intervalAnchorAt,
@@ -122,7 +134,7 @@ extension ScheduledTasksViewModel {
             selectedWeekdays: recurrenceFields.selectedWeekdays,
             weeklyWeekday: recurrenceFields.weeklyWeekday,
             monthlyDay: recurrenceFields.monthlyDay,
-            timeZoneIdentifier: definitionDraft.timeZoneIdentifier,
+            timeZoneIdentifier: currentTimeZone().identifier,
             providerID: definitionDraft.providerID,
             modelSelection: AgentModelOptionSelection.pickerValue(
                 in: modelOptions,
@@ -138,6 +150,10 @@ extension ScheduledTasksViewModel {
     }
 }
 
-private func startOfMinute(_ date: Date) -> Date {
-    Calendar.current.dateInterval(of: .minute, for: date)?.start ?? date
+private extension ScheduledTasksViewModel {
+    func startOfMinute(_ date: Date) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = currentTimeZone()
+        return calendar.dateInterval(of: .minute, for: date)?.start ?? date
+    }
 }

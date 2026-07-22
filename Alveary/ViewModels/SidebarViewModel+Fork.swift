@@ -26,6 +26,7 @@ extension SidebarViewModel {
                 id: target.conversationID,
                 config: target.spawnConfig
             )
+            try completeForkBootstrap(target)
         } catch {
             try await rollbackFailedFork(target: target, originalError: error)
             throw SidebarViewModelError.threadForkFailed(error)
@@ -246,13 +247,14 @@ private extension SidebarViewModel {
             hasCustomName: false,
             branch: worktree?.info.branch,
             worktreePath: worktree?.info.path,
-            hasCompletedInitialSetup: true,
+            hasCompletedInitialSetup: false,
             permissionMode: source.permissionMode,
             planModeEnabled: source.planModeEnabled,
             effort: source.effort,
             model: source.model,
             speedMode: source.speedMode.rawValue,
             useWorktree: worktree != nil,
+            isForkBootstrapPending: true,
             modifiedAt: Date(),
             project: project
         )
@@ -379,61 +381,6 @@ private extension SidebarViewModel {
             stopReason: record.stopReason,
             conversation: targetConversation
         )
-    }
-
-    func rollbackFailedFork(
-        target: ThreadForkTargetSnapshot,
-        originalError: Error
-    ) async throws {
-        do {
-            let resolution = await providerSessionActionService.resolveSessions(matching: target.providerSessionActionSnapshot)
-            let diagnostics = await providerSessionActionService.deleteSessions(ProviderSessionActionResolution(
-                snapshot: resolution.snapshot,
-                records: resolution.records,
-                missingBindings: []
-            ))
-            presentProviderSessionActionDiagnostics(diagnostics)
-
-            if let dbThread = modelContext.resolveThread(id: target.threadID) {
-                modelContext.delete(dbThread)
-                try modelContext.save()
-            }
-
-            try await removeForkWorktreeIfUnclaimed(target.worktree, projectPath: target.projectPath)
-        } catch {
-            throw SidebarViewModelError.threadForkRollbackFailed(original: originalError, cleanup: error)
-        }
-    }
-
-    func removeForkWorktreeIfUnclaimed(
-        _ worktree: ForkCreatedWorktree?,
-        projectPath: String
-    ) async throws {
-        guard let worktree else {
-            return
-        }
-        guard let expectedStatus = worktree.expectedStatus,
-              await gitStatusSnapshot(in: worktree.info.path) == expectedStatus else {
-            return
-        }
-
-        try await worktreeManager.remove(
-            projectPath: projectPath,
-            worktreePath: worktree.info.path,
-            branch: worktree.info.branch
-        )
-    }
-
-    func gitStatusSnapshot(in directory: String) async -> String? {
-        let result = try? await shell.run(
-            executable: "/usr/bin/git",
-            args: ["status", "--porcelain=v1", "--untracked-files=all"],
-            in: directory
-        )
-        guard result?.succeeded == true else {
-            return nil
-        }
-        return result?.stdout
     }
 
     func conversationIDs(for thread: AgentThread) -> [String] {

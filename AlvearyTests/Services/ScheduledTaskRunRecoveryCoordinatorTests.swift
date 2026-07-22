@@ -1,7 +1,6 @@
 import Foundation
 import SwiftData
 import XCTest
-
 @testable import Alveary
 
 @MainActor
@@ -156,6 +155,7 @@ final class ScheduledTaskRunRecoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(run.preparedWorkspaceRoot, ownedRoot)
         XCTAssertEqual(run.preparedWorkspaceMarkerID, markerID)
     }
+
 }
 
 @MainActor
@@ -168,7 +168,7 @@ private extension ScheduledTaskRunRecoveryCoordinatorTests {
             stale.thread?.conversations.first(where: \.isMain)?.events.first {
                 $0.type == ConversationEventRecord.scheduledTaskNoteType
             }?.content,
-            "Scheduled task for Jan 5, 2001 at 7:46\u{202F}AM"
+            "Scheduled task \"Scheduled task\" for Jan 5, 2001 at 7:46\u{202F}AM"
         )
         XCTAssertEqual(
             running.thread?.conversations.first?.events.first(where: { $0.type == "tool_approval" })?.toolApprovalStatus,

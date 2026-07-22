@@ -18,6 +18,7 @@ final class ScheduledTaskLifecycleCoordinator {
     typealias Sleeper = @Sendable (Duration) async throws -> Void
     typealias ErrorHandler = @MainActor (Error) -> Void
     typealias RecoveryStateChangePublisher = @MainActor () -> Void
+    typealias LocalTimeZoneRebaser = @MainActor (Date) throws -> Bool
 
     private let notificationCenter: NotificationCenter
     private let now: @MainActor () -> Date
@@ -32,12 +33,14 @@ final class ScheduledTaskLifecycleCoordinator {
     private let beginSchedulerShutdown: ShutdownBeginner
     private let prepareRunsForTermination: TerminationPreparer
     private let publishRecoveryStateChange: RecoveryStateChangePublisher
+    private let rebaseLocalTimeZone: LocalTimeZoneRebaser
     private let handleError: ErrorHandler
     private let retryDelay: TimeInterval
     private let minimumRescanDelay: TimeInterval
     private var definitionChangeObserver: NSObjectProtocol?
     private var clockChangeObserver: NSObjectProtocol?
     private var timeZoneChangeObserver: NSObjectProtocol?
+    private var agentStatusChangeObserver: NSObjectProtocol?
     private var deadlineTask: Task<Void, Never>?
     private var deadlineGeneration = UUID()
     private var isActivated = false
@@ -61,10 +64,12 @@ final class ScheduledTaskLifecycleCoordinator {
             print("[ScheduledTasks] Lifecycle reconciliation failed: \($0)")
         }
     ) {
-        let publishSchedulerStateChange: @MainActor (String) -> Void = { definitionID in
+        let localTimeZoneRebaser = ScheduledTaskLocalTimeZoneRebaser(modelContext: modelContext)
+        let publishSchedulerStateChange: @MainActor (String, String?) -> Void = { definitionID, errorMessage in
             notificationCenter.postScheduledTasksChanged(
                 definitionID: definitionID,
-                schedulerClaimResolved: true
+                schedulerClaimResolved: true,
+                schedulerClaimErrorMessage: errorMessage
             )
         }
         self.init(
@@ -97,6 +102,7 @@ final class ScheduledTaskLifecycleCoordinator {
             publishRecoveryStateChange: {
                 notificationCenter.postScheduledTasksChanged(object: recoveryCoordinator)
             },
+            rebaseLocalTimeZone: localTimeZoneRebaser.rebaseAll,
             handleError: handleError
         )
         schedulerCoordinator.setSchedulingStateDidChange(publishSchedulerStateChange)
@@ -116,6 +122,7 @@ final class ScheduledTaskLifecycleCoordinator {
         beginSchedulerShutdown: @escaping ShutdownBeginner,
         prepareRunsForTermination: @escaping TerminationPreparer,
         publishRecoveryStateChange: @escaping RecoveryStateChangePublisher = {},
+        rebaseLocalTimeZone: @escaping LocalTimeZoneRebaser = { _ in false },
         retryDelay: TimeInterval = 30,
         minimumRescanDelay: TimeInterval = 1,
         handleError: @escaping ErrorHandler = { _ in }
@@ -133,6 +140,7 @@ final class ScheduledTaskLifecycleCoordinator {
         self.beginSchedulerShutdown = beginSchedulerShutdown
         self.prepareRunsForTermination = prepareRunsForTermination
         self.publishRecoveryStateChange = publishRecoveryStateChange
+        self.rebaseLocalTimeZone = rebaseLocalTimeZone
         self.retryDelay = retryDelay
         self.minimumRescanDelay = minimumRescanDelay
         self.handleError = handleError
@@ -151,6 +159,9 @@ final class ScheduledTaskLifecycleCoordinator {
             if let timeZoneChangeObserver {
                 notificationCenter.removeObserver(timeZoneChangeObserver)
             }
+            if let agentStatusChangeObserver {
+                notificationCenter.removeObserver(agentStatusChangeObserver)
+            }
         }
     }
 
@@ -165,8 +176,10 @@ final class ScheduledTaskLifecycleCoordinator {
             guard !isTerminating else {
                 return
             }
-            let recovery = try recoverPersistedRuns(now(), safeRunIDs)
-            if !recovery.interruptedRunIDs.isEmpty {
+            let actionDate = now()
+            let recovery = try recoverPersistedRuns(actionDate, safeRunIDs)
+            let didRebaseTimeZone = try rebaseLocalTimeZone(actionDate)
+            if !recovery.interruptedRunIDs.isEmpty || didRebaseTimeZone {
                 publishRecoveryStateChange()
             }
             _ = resumeRecoveredRuns(recovery.resumedRunIDs)
@@ -185,6 +198,22 @@ final class ScheduledTaskLifecycleCoordinator {
             return
         }
         reconcileDueTasks()
+    }
+
+    func reconcileAfterTimeZoneChange() {
+        guard isActivated, !isTerminating else {
+            return
+        }
+        do {
+            let didRebase = try rebaseLocalTimeZone(now())
+            reconcileDueTasks()
+            if didRebase {
+                publishRecoveryStateChange()
+            }
+        } catch {
+            handleError(error)
+            scheduleRetry()
+        }
     }
 
     func scheduleDefinitionsChanged() {
@@ -221,7 +250,10 @@ final class ScheduledTaskLifecycleCoordinator {
             let hasActiveRun = definition.runs.contains { !$0.hasKnownTerminalStatus }
             var candidates = [definition.nextOccurrenceAt].compactMap { $0 }
             if !hasActiveRun, let pendingOccurrenceAt = definition.pendingOccurrenceAt {
-                candidates.append(pendingOccurrenceAt)
+                let candidate = definition.targetWaitStartedAt == nil
+                    ? pendingOccurrenceAt
+                    : max(pendingOccurrenceAt, actionDate.addingTimeInterval(30))
+                candidates.append(candidate)
             }
             let hasPersistedOccurrence = definition.nextOccurrenceAt != nil || definition.pendingOccurrenceAt != nil
             let needsValidation = ScheduledTaskState(rawValue: definition.stateRawValue) == nil || (
@@ -264,6 +296,16 @@ private extension ScheduledTaskLifecycleCoordinator {
             forName: NSNotification.Name.NSSystemTimeZoneDidChange,
             object: nil,
             queue: .main,
+            using: { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.reconcileAfterTimeZoneChange()
+                }
+            }
+        )
+        agentStatusChangeObserver = notificationCenter.addObserver(
+            forName: .agentStatusChanged,
+            object: nil,
+            queue: .main,
             using: reconcile
         )
     }
@@ -272,10 +314,25 @@ private extension ScheduledTaskLifecycleCoordinator {
         from snapshots: [ScheduledTaskRecoveryReadinessSnapshot]
     ) async -> Set<String> {
         var safeRunIDs = Set<String>()
-        for snapshot in snapshots where await validateRecoveryReadiness(snapshot) {
+        for snapshot in selectedRecoverySnapshots(from: snapshots) {
+            guard await validateRecoveryReadiness(snapshot) else {
+                continue
+            }
             safeRunIDs.insert(snapshot.runID)
         }
         return safeRunIDs
+    }
+
+    func selectedRecoverySnapshots(
+        from snapshots: [ScheduledTaskRecoveryReadinessSnapshot]
+    ) -> [ScheduledTaskRecoveryReadinessSnapshot] {
+        var selectedTargetConversationIDs = Set<String>()
+        return snapshots.sorted(by: ScheduledTaskRecoveryReadinessSnapshot.recoveryPrecedes).filter { snapshot in
+            guard let targetConversationID = snapshot.existingTargetConversationID else {
+                return true
+            }
+            return selectedTargetConversationIDs.insert(targetConversationID).inserted
+        }
     }
 
     func reconcileDueTasks() {
@@ -350,14 +407,36 @@ private enum ScheduledTaskDeadlineAction: Sendable {
 }
 
 private extension ScheduledTaskRecoveryReadinessSnapshot {
+    static func recoveryPrecedes(
+        _ lhs: ScheduledTaskRecoveryReadinessSnapshot,
+        _ rhs: ScheduledTaskRecoveryReadinessSnapshot
+    ) -> Bool {
+        if lhs.claimedAt != rhs.claimedAt {
+            return lhs.claimedAt < rhs.claimedAt
+        }
+        if lhs.preflight.scheduledOccurrenceAt != rhs.preflight.scheduledOccurrenceAt {
+            return lhs.preflight.scheduledOccurrenceAt < rhs.preflight.scheduledOccurrenceAt
+        }
+        return lhs.runID < rhs.runID
+    }
+
+    var existingTargetConversationID: String? {
+        guard preflight.destination == .existingThread else {
+            return nil
+        }
+        return preflight.target?.conversationID
+    }
+
     @MainActor
     init?(_ run: ScheduledTaskRun) {
-        guard let workspaceKind = run.workspaceKindSnapshot,
+        guard let destination = run.decodedDestinationSnapshot,
+              let workspaceKind = run.workspaceKindSnapshot,
               let workspaceStrategy = run.workspaceStrategySnapshot,
               let claimedWorkspaceIdentities = run.workspaceIdentitySnapshot else {
             return nil
         }
         runID = run.id
+        claimedAt = run.claimedAt
         preflight = ScheduledTaskPreflightSnapshot(
             definitionID: run.definitionID,
             definitionRevision: run.definitionRevision,
@@ -373,8 +452,34 @@ private extension ScheduledTaskRecoveryReadinessSnapshot {
             projectPath: run.projectPathSnapshot,
             projectBaseRef: run.projectBaseRefSnapshot,
             projectRemoteName: run.projectRemoteNameSnapshot,
-            grantedRoots: run.grantedRootsSnapshot
+            grantedRoots: run.grantedRootsSnapshot,
+            destination: destination,
+            target: run.recoveryTargetSnapshot
         )
         self.claimedWorkspaceIdentities = claimedWorkspaceIdentities
+    }
+}
+
+private extension ScheduledTaskRun {
+    @MainActor
+    var recoveryTargetSnapshot: ScheduledTaskTargetSnapshot? {
+        guard decodedDestinationSnapshot == .existingThread,
+              let conversationID = targetConversationIDSnapshot else {
+            return nil
+        }
+        return ScheduledTaskTargetSnapshot(
+            conversationID: conversationID,
+            threadName: targetThreadNameSnapshot ?? targetThread?.displayName() ?? "Existing thread",
+            providerID: providerIDSnapshot,
+            model: modelSnapshot,
+            effort: effortSnapshot,
+            permissionMode: permissionModeSnapshot,
+            planModeEnabled: planModeEnabledSnapshot ?? false,
+            speedMode: speedModeSnapshot ?? AgentSpeedMode.standard.rawValue,
+            workspaceKind: workspaceKindSnapshot ?? .project,
+            workspaceStrategy: workspaceStrategySnapshot ?? .localCheckout,
+            projectPath: projectPathSnapshot,
+            grantedRoots: grantedRootsSnapshot
+        )
     }
 }

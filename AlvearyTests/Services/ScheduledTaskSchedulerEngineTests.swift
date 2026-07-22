@@ -391,11 +391,13 @@ struct ScheduledTaskSchedulerFixture {
         preflight: @escaping ScheduledTaskPreflightValidator = { snapshot in
             scheduledTaskReadyOutcome(for: snapshot)
         },
+        targetIsReady: @escaping @MainActor (String) -> Bool = { _ in true },
         saveState: @escaping ScheduledTaskSchedulerEngine.StateSaver = { try $0.save() }
     ) -> ScheduledTaskSchedulerEngine {
         ScheduledTaskSchedulerEngine(
             modelContext: context,
             preflightValidator: preflight,
+            targetIsReady: targetIsReady,
             saveState: saveState
         )
     }

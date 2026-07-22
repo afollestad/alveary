@@ -7,6 +7,15 @@ extension SidebarViewModel {
                 pendingCleanup,
                 runID: snapshot.scheduledTaskRunID
             )
+            return
+        }
+
+        if let scheduledCleanup = snapshot.scheduledWorktreeCleanup {
+            try await cleanupPendingScheduledWorktree(
+                scheduledCleanup,
+                runID: snapshot.scheduledTaskRunID
+            )
+            return
         }
 
         guard let workspace = snapshot.taskWorkspace else {

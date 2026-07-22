@@ -272,36 +272,37 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.items.map(\.id), [task.persistentModelID])
     }
 
-    func testArchivedLinkedScheduledRunsUseTaskIdentityForFallbackModes() async throws {
+    func testArchivedLinkedScheduledRunsUseWorkspaceSnapshotForFallbackModes() async throws {
         let fixture = try SidebarTestFixture()
-        let (projectModeTask, _) = try insertScheduledTaskThread(
+        let (unknownProjectModeTask, _) = try insertScheduledTaskThread(
             fixture: fixture,
             status: .success,
-            conversationID: "archived-project-mode-task"
+            conversationID: "archived-unknown-project-mode-task"
         )
-        let (unknownModeTask, _) = try insertScheduledTaskThread(
+        let (unknownPrivateModeTask, unknownPrivateRun) = try insertScheduledTaskThread(
             fixture: fixture,
             status: .success,
-            conversationID: "archived-unknown-mode-task"
+            conversationID: "archived-unknown-private-mode-task"
         )
-        projectModeTask.modeRawValue = AgentThreadMode.project.rawValue
-        projectModeTask.archivedAt = Date(timeIntervalSinceReferenceDate: 100)
-        unknownModeTask.modeRawValue = "future-mode"
-        unknownModeTask.archivedAt = Date(timeIntervalSinceReferenceDate: 200)
+        unknownProjectModeTask.modeRawValue = "future-mode"
+        unknownProjectModeTask.archivedAt = Date(timeIntervalSinceReferenceDate: 100)
+        unknownPrivateModeTask.modeRawValue = "future-mode"
+        unknownPrivateModeTask.archivedAt = Date(timeIntervalSinceReferenceDate: 200)
+        unknownPrivateRun.workspaceKindRawValueSnapshot = ScheduledTaskWorkspaceKind.privateWorkspace.rawValue
         try fixture.context.save()
         let viewModel = makeViewModel(fixture: fixture).viewModel
 
         viewModel.refresh()
 
-        XCTAssertEqual(viewModel.items.map(\.id), [
-            unknownModeTask.persistentModelID,
-            projectModeTask.persistentModelID
-        ])
+        XCTAssertEqual(unknownProjectModeTask.effectiveMode, .project)
+        XCTAssertEqual(unknownPrivateModeTask.effectiveMode, .task)
+        XCTAssertEqual(viewModel.items.map(\.id), [unknownPrivateModeTask.persistentModelID])
 
         await viewModel.restore(try XCTUnwrap(viewModel.items.first))
 
-        XCTAssertNil(unknownModeTask.archivedAt)
-        XCTAssertEqual(viewModel.items.map(\.id), [projectModeTask.persistentModelID])
+        XCTAssertNotNil(unknownProjectModeTask.archivedAt)
+        XCTAssertNil(unknownPrivateModeTask.archivedAt)
+        XCTAssertTrue(viewModel.items.isEmpty)
     }
 }
 

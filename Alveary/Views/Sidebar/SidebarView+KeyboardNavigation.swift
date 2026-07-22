@@ -79,9 +79,9 @@ extension SidebarView {
 
         switch confirmation {
         case .archive(let thread):
-            pendingArchiveThread = thread
+            requestArchive(thread)
         case .delete(let thread):
-            pendingDeleteThread = thread
+            requestDelete(thread)
         }
         return .handled
     }

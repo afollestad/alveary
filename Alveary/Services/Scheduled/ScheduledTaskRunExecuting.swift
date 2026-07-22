@@ -13,6 +13,7 @@ enum ScheduledTaskRunExecutionError: Error, Equatable, LocalizedError {
     case conversationDoesNotBelongToRun
     case invalidRunStatus(ScheduledTaskRunStatus)
     case alreadyExecuting
+    case existingTargetBusy
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +27,8 @@ enum ScheduledTaskRunExecutionError: Error, Equatable, LocalizedError {
             return "The scheduled task run cannot start from its current status: \(status.rawValue)."
         case .alreadyExecuting:
             return "The scheduled task run is already executing."
+        case .existingTargetBusy:
+            return "The pinned thread became busy before scheduled execution could start."
         }
     }
 }

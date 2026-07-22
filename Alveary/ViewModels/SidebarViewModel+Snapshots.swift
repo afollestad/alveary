@@ -15,6 +15,7 @@ struct ThreadCleanupSnapshot {
     let taskWorkspace: TaskWorkspaceDescriptor?
     let scheduledTaskRunID: PersistentIdentifier?
     let pendingScheduledWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
+    let scheduledWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
     let conversationIDs: [String]
     let providerSessionAction: ProviderSessionActionSnapshot
     let pendingCleanupBranches: [String]
@@ -45,8 +46,11 @@ enum SidebarViewModelError: LocalizedError {
     case threadMissingTaskWorkspace
     case threadMissingDeletionMetadata
     case scheduledTaskRunStillActive
+    case scheduledTaskAttachment(String)
+    case activeScheduledTaskRunAttachment
     case threadForkUnavailable(String)
     case threadForkFailed(Error)
+    case forkRollbackBlockedBySchedule
     case threadForkRollbackFailed(original: Error, cleanup: Error)
     case archiveCleanupFailed(Error)
     case threadDeletePreparationFailed(Error)
@@ -68,10 +72,16 @@ enum SidebarViewModelError: LocalizedError {
             return "Thread is missing worktree cleanup metadata needed for deletion"
         case .scheduledTaskRunStillActive:
             return "The scheduled Task is still stopping. Try again after its run finishes."
+        case .scheduledTaskAttachment(let taskTitle):
+            return "This thread is attached to the scheduled task \"\(taskTitle)\". Remove or retarget that schedule first."
+        case .activeScheduledTaskRunAttachment:
+            return "This thread has an active scheduled task run. Wait for it to finish before archiving, deleting, or unpinning this thread."
         case .threadForkUnavailable(let reason):
             return reason
         case .threadForkFailed(let error):
             return "Thread fork failed: \(error.localizedDescription)"
+        case .forkRollbackBlockedBySchedule:
+            return "The forked thread became attached to a scheduled task, so rollback preserved it."
         case .threadForkRollbackFailed(let original, let cleanup):
             return "Thread fork failed: \(original.localizedDescription). Rollback cleanup also failed: \(cleanup.localizedDescription)"
         case .archiveCleanupFailed(let error):
@@ -92,8 +102,8 @@ enum SidebarViewModelError: LocalizedError {
         case .archiveCleanupFailed, .threadDeleteCleanupFailed, .projectDeleteCleanupFailed:
             return true
         case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingTaskWorkspace, .threadMissingDeletionMetadata,
-             .scheduledTaskRunStillActive,
-             .threadForkUnavailable, .threadForkFailed, .threadForkRollbackFailed,
+             .scheduledTaskRunStillActive, .scheduledTaskAttachment, .activeScheduledTaskRunAttachment,
+             .threadForkUnavailable, .threadForkFailed, .forkRollbackBlockedBySchedule, .threadForkRollbackFailed,
              .threadDeletePreparationFailed, .noReadyThreadDefaultProvider:
             return false
         }
@@ -151,21 +161,25 @@ extension SidebarViewModel {
         let taskWorkspace: TaskWorkspaceDescriptor?
         let scheduledTaskRunID: PersistentIdentifier?
         let pendingScheduledWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
+        let scheduledWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
         switch cleanupMode {
         case .project:
             guard let projectPath = thread.project?.path else {
                 throw SidebarViewModelError.threadMissingParentProject
             }
             sourceProjectPath = projectPath
+            let scheduledCleanup = try scheduledProjectThreadCleanupMetadata(thread)
             taskWorkspace = nil
-            scheduledTaskRunID = nil
-            pendingScheduledWorktreeCleanup = nil
+            scheduledTaskRunID = scheduledCleanup?.runID
+            pendingScheduledWorktreeCleanup = scheduledCleanup?.pendingWorktreeCleanup
+            scheduledWorktreeCleanup = scheduledCleanup?.workspaceCleanup
         case .task:
             let metadata = try taskThreadCleanupMetadata(thread)
             sourceProjectPath = metadata.sourceProjectPath
             taskWorkspace = metadata.workspace
             scheduledTaskRunID = metadata.runID
             pendingScheduledWorktreeCleanup = metadata.pendingWorktreeCleanup
+            scheduledWorktreeCleanup = metadata.workspaceCleanup
         }
 
         let threadID = thread.persistentModelID
@@ -176,6 +190,7 @@ extension SidebarViewModel {
             taskWorkspace: taskWorkspace,
             scheduledTaskRunID: scheduledTaskRunID,
             pendingScheduledWorktreeCleanup: pendingScheduledWorktreeCleanup,
+            scheduledWorktreeCleanup: scheduledWorktreeCleanup,
             conversationIDs: liveConversationIDs(for: threadID),
             providerSessionAction: providerSessionActionSnapshot(for: thread),
             pendingCleanupBranches: thread.pendingCleanupBranches,
@@ -187,6 +202,7 @@ extension SidebarViewModel {
 
     func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
         let dbProject = try requireProject(project)
+        try requireNoScheduledTaskAttachments(in: dbProject)
         let projectPath = dbProject.path
         let attachedThreads = liveThreads(forProjectPath: projectPath)
         let taskThreads = attachedThreads.filter {
@@ -206,7 +222,7 @@ extension SidebarViewModel {
         )
     }
 
-    private func liveThreads(forProjectPath projectPath: String) -> [AgentThread] {
+    func liveThreads(forProjectPath projectPath: String) -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
                 thread.project?.path == projectPath
@@ -218,15 +234,18 @@ extension SidebarViewModel {
     private func taskThreadCleanupMetadata(_ thread: AgentThread) throws -> TaskThreadCleanupMetadata {
         let run = thread.scheduledTaskRun
         let pendingCleanup = run?.pendingWorktreeCleanup
+        let workspaceCleanup = try scheduledWorkspaceCleanupProvenance(for: thread)
         if let workspace = persistedTaskWorkspaceDescriptor(thread) {
-            guard run?.hasPendingWorktreeCleanupMetadata != true else {
+            guard run?.hasPendingWorktreeCleanupMetadata != true || pendingCleanup != nil,
+                  pendingCleanup == nil || workspaceCleanup == nil else {
                 throw SidebarViewModelError.threadMissingDeletionMetadata
             }
             return TaskThreadCleanupMetadata(
                 sourceProjectPath: workspace.sourceProjectPath,
                 workspace: workspace,
                 runID: run?.persistentModelID,
-                pendingWorktreeCleanup: nil
+                pendingWorktreeCleanup: pendingCleanup,
+                workspaceCleanup: workspaceCleanup
             )
         }
         guard let run,
@@ -252,8 +271,61 @@ extension SidebarViewModel {
             sourceProjectPath: pendingCleanup?.sourceProjectPath,
             workspace: nil,
             runID: run.persistentModelID,
-            pendingWorktreeCleanup: pendingCleanup
+            pendingWorktreeCleanup: pendingCleanup,
+            workspaceCleanup: nil
         )
+    }
+
+    private func scheduledProjectThreadCleanupMetadata(
+        _ thread: AgentThread
+    ) throws -> TaskThreadCleanupMetadata? {
+        guard let run = thread.scheduledTaskRun else {
+            return nil
+        }
+        let pendingCleanup = run.pendingWorktreeCleanup
+        let workspaceCleanup = try scheduledWorkspaceCleanupProvenance(for: thread)
+        guard !run.hasPendingWorktreeCleanupMetadata || pendingCleanup != nil,
+              pendingCleanup == nil || workspaceCleanup == nil else {
+            throw SidebarViewModelError.threadMissingDeletionMetadata
+        }
+        return TaskThreadCleanupMetadata(
+            sourceProjectPath: thread.project?.path,
+            workspace: nil,
+            runID: run.persistentModelID,
+            pendingWorktreeCleanup: pendingCleanup,
+            workspaceCleanup: workspaceCleanup
+        )
+    }
+
+    private func scheduledWorkspaceCleanupProvenance(
+        for thread: AgentThread
+    ) throws -> ScheduledWorktreeCleanupProvenance? {
+        guard let run = thread.scheduledTaskRun else {
+            return nil
+        }
+        guard let cleanup = run.workspaceCleanupProvenance else {
+            if run.workspaceCleanupProvenanceJSON != nil ||
+                (run.preparedWorkspaceOwnershipStrategy == .projectWorktreeOwned &&
+                    thread.useWorktree &&
+                    !run.hasPendingWorktreeCleanupMetadata) {
+                throw SidebarViewModelError.threadMissingDeletionMetadata
+            }
+            return nil
+        }
+        guard cleanup.branchIsOwned,
+              cleanup.sourceProjectPath == run.projectPathSnapshot,
+              cleanup.worktreePath == run.preparedWorkspaceRoot,
+              cleanup.branch == thread.branch,
+              cleanup.worktreePath == thread.worktreePath,
+              cleanup.ownershipMarkerID == run.preparedWorkspaceMarkerID,
+              cleanup.ownershipMarkerID == thread.taskWorkspaceMarkerID,
+              cleanup.ownershipSourceProjectPath == thread.taskSourceProjectPath,
+              thread.taskPrimaryRoot == cleanup.worktreePath,
+              thread.taskWorkspaceOwnershipStrategyRawValue == TaskWorkspaceOwnershipStrategy.projectWorktreeOwned.rawValue,
+              thread.useWorktree else {
+            throw SidebarViewModelError.threadMissingDeletionMetadata
+        }
+        return cleanup
     }
 
     private func persistedTaskWorkspaceDescriptor(_ thread: AgentThread) -> TaskWorkspaceDescriptor? {
@@ -291,7 +363,8 @@ extension SidebarViewModel {
                 sourceProjectPath: nil,
                 workspace: nil,
                 runID: run.persistentModelID,
-                pendingWorktreeCleanup: nil
+                pendingWorktreeCleanup: nil,
+                workspaceCleanup: nil
             )
         case .privateOwned, .projectWorktreeOwned:
             let sourceProjectPath = ownershipStrategy == .projectWorktreeOwned
@@ -316,7 +389,8 @@ extension SidebarViewModel {
                 sourceProjectPath: sourceProjectPath,
                 workspace: workspace,
                 runID: run.persistentModelID,
-                pendingWorktreeCleanup: nil
+                pendingWorktreeCleanup: nil,
+                workspaceCleanup: nil
             )
         }
     }
@@ -404,4 +478,5 @@ private struct TaskThreadCleanupMetadata {
     let workspace: TaskWorkspaceDescriptor?
     let runID: PersistentIdentifier?
     let pendingWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
+    let workspaceCleanup: ScheduledWorktreeCleanupProvenance?
 }

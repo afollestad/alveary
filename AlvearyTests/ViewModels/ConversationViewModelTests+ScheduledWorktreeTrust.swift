@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testLinkedScheduledRunWithFallbackModeDoesNotInheritProjectAutoTrust() throws {
+    func testLinkedProjectScheduledRunWithFallbackModeUsesProjectAutoTrust() throws {
         let fixture = try ConversationViewModelTestFixture(
             threadMode: .project,
             autoTrustProjects: true
@@ -30,8 +30,8 @@ extension ConversationViewModelTests {
         fixture.context.insert(run)
         try fixture.context.save()
 
-        XCTAssertEqual(fixture.thread.effectiveMode, .task)
-        XCTAssertFalse(fixture.viewModel.shouldAutoTrustWorkspace(fixture.project.path))
+        XCTAssertEqual(fixture.thread.effectiveMode, .project)
+        XCTAssertTrue(fixture.viewModel.shouldAutoTrustWorkspace(fixture.project.path))
     }
 
     func testAutomatedScheduledOwnedWorktreeIsTrustedAfterValidation() async throws {

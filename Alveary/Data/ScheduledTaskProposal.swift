@@ -65,6 +65,8 @@ struct ScheduledTaskProposalReceipt: Codable, Equatable, Sendable {
 struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
     let title: String
     let prompt: String
+    let destination: ScheduledTaskDestination
+    let targetConversationID: String?
     let recurrence: ScheduledTaskRecurrence
     let timeZoneIdentifier: String
     let providerID: String
@@ -75,6 +77,73 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
     let workspaceStrategy: ScheduledTaskWorkspaceStrategy
     let grantedRoots: [String]
     let projectPath: String?
+
+    init(
+        title: String,
+        prompt: String,
+        destination: ScheduledTaskDestination = .newThread,
+        targetConversationID: String? = nil,
+        recurrence: ScheduledTaskRecurrence,
+        timeZoneIdentifier: String,
+        providerID: String,
+        model: String?,
+        effort: String,
+        permissionMode: String,
+        workspaceKind: ScheduledTaskWorkspaceKind,
+        workspaceStrategy: ScheduledTaskWorkspaceStrategy,
+        grantedRoots: [String],
+        projectPath: String?
+    ) {
+        self.title = title
+        self.prompt = prompt
+        self.destination = destination
+        self.targetConversationID = targetConversationID
+        self.recurrence = recurrence
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.providerID = providerID
+        self.model = model
+        self.effort = effort
+        self.permissionMode = permissionMode
+        self.workspaceKind = workspaceKind
+        self.workspaceStrategy = workspaceStrategy
+        self.grantedRoots = grantedRoots
+        self.projectPath = projectPath
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case title
+        case prompt
+        case destination
+        case targetConversationID
+        case recurrence
+        case timeZoneIdentifier
+        case providerID
+        case model
+        case effort
+        case permissionMode
+        case workspaceKind
+        case workspaceStrategy
+        case grantedRoots
+        case projectPath
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decode(String.self, forKey: .title)
+        prompt = try container.decode(String.self, forKey: .prompt)
+        destination = try container.decodeIfPresent(ScheduledTaskDestination.self, forKey: .destination) ?? .newThread
+        targetConversationID = try container.decodeIfPresent(String.self, forKey: .targetConversationID)
+        recurrence = try container.decode(ScheduledTaskRecurrence.self, forKey: .recurrence)
+        timeZoneIdentifier = try container.decode(String.self, forKey: .timeZoneIdentifier)
+        providerID = try container.decode(String.self, forKey: .providerID)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        effort = try container.decode(String.self, forKey: .effort)
+        permissionMode = try container.decode(String.self, forKey: .permissionMode)
+        workspaceKind = try container.decode(ScheduledTaskWorkspaceKind.self, forKey: .workspaceKind)
+        workspaceStrategy = try container.decode(ScheduledTaskWorkspaceStrategy.self, forKey: .workspaceStrategy)
+        grantedRoots = try container.decode([String].self, forKey: .grantedRoots)
+        projectPath = try container.decodeIfPresent(String.self, forKey: .projectPath)
+    }
 }
 
 @Model
@@ -174,11 +243,17 @@ extension ScheduledTaskProposal {
         }
         let draft = definitionDraft
         let hasValidDraftWorkspace = draft.map { draft in
-            switch draft.workspaceKind {
-            case .privateWorkspace:
-                draft.projectPath == nil
-            case .project:
-                draft.projectPath != nil
+            switch draft.destination {
+            case .newThread:
+                guard draft.targetConversationID == nil else { return false }
+                switch draft.workspaceKind {
+                case .privateWorkspace:
+                    return draft.projectPath == nil
+                case .project:
+                    return draft.projectPath != nil
+                }
+            case .existingThread:
+                return draft.projectPath == nil && draft.targetConversationID?.isEmpty == false
             }
         } ?? false
         switch action {

@@ -180,7 +180,7 @@ final class AgentThreadModeTests: XCTestCase {
         XCTAssertNil(thread.taskWorkspaceDescriptor)
     }
 
-    func testScheduledRunLinkOverridesEffectiveIdentityWithoutDecodingFallbackWorkspace() {
+    func testScheduledProjectRunKeepsPersistedProjectIdentity() {
         let project = Project(path: "/tmp/effective-mode-project", name: "Project")
         let run = makeScheduledRun()
         let thread = AgentThread(
@@ -196,10 +196,10 @@ final class AgentThreadModeTests: XCTestCase {
         run.thread = thread
 
         XCTAssertEqual(thread.mode, .project)
-        XCTAssertEqual(thread.effectiveMode, .task)
+        XCTAssertEqual(thread.effectiveMode, .project)
         XCTAssertNil(thread.taskWorkspaceDescriptor)
-        XCTAssertNil(thread.primaryWorkingDirectory)
-        XCTAssertNil(thread.sourceProjectCleanupPath)
+        XCTAssertEqual(thread.primaryWorkingDirectory, project.path)
+        XCTAssertEqual(thread.sourceProjectCleanupPath, project.path)
     }
 
     private func makeContainer() throws -> ModelContainer {

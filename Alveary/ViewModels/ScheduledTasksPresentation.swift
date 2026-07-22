@@ -15,6 +15,13 @@ struct ScheduledTaskProjectOption: Identifiable, Equatable {
     var id: String { path }
 }
 
+struct ScheduledTaskThreadOption: Identifiable, Equatable {
+    let conversationID: String
+    let label: String
+
+    var id: String { conversationID }
+}
+
 struct ScheduledTaskPickerOption: Identifiable, Equatable {
     let value: String
     let label: String
@@ -32,6 +39,9 @@ struct ScheduledTaskRowPresentation: Identifiable, Equatable {
     let timeZoneIdentifier: String
     let providerID: String
     let workspaceSummary: String
+    let destination: ScheduledTaskDestination?
+    let targetThreadName: String?
+    let isWaitingForTarget: Bool
     let nextOccurrenceAt: Date?
     let pauseReason: String?
     let lastError: String?
@@ -47,7 +57,7 @@ struct ScheduledTaskRowPresentation: Identifiable, Equatable {
     }
 
     var canRunNow: Bool {
-        !hasActiveRun
+        !hasActiveRun && !isWaitingForTarget
     }
 
     var blockedReason: String? {
@@ -61,6 +71,8 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     let expectedRevision: Int?
     var title: String
     var prompt: String
+    var destination: ScheduledTaskDestination = .newThread
+    var targetConversationID: String?
     var recurrenceKind: ScheduledTaskRecurrence.Kind
     var onceOccurrenceAt: Date
     var intervalAnchorAt: Date

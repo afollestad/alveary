@@ -277,9 +277,28 @@ final class ChatPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.showWorktreePicker)
     }
 
-    func testLinkedScheduledRunUsesTaskPresentationWhenPersistedModeFallsBackToProject() {
+    func testLinkedProjectScheduledRunUsesProjectPresentationWhenPersistedModeIsUnknown() {
         let sourceProject = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
-        let run = makeChatPresentationScheduledRun()
+        let run = makeChatPresentationScheduledRun(workspaceKind: .project)
+        let thread = AgentThread(
+            name: "Fallback scheduled task",
+            hasCompletedInitialSetup: false,
+            useWorktree: true,
+            project: sourceProject,
+            scheduledTaskRun: run
+        )
+        thread.modeRawValue = "future-mode"
+        run.thread = thread
+
+        let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
+
+        XCTAssertEqual(presentation.mode, .project)
+        XCTAssertTrue(presentation.showWorktreePicker)
+    }
+
+    func testLinkedPrivateScheduledRunUsesTaskPresentationWhenPersistedModeIsUnknown() {
+        let sourceProject = Project(path: "/tmp/alveary", name: "Alveary", gitRemote: "git@github.com:test/alveary.git")
+        let run = makeChatPresentationScheduledRun(workspaceKind: .privateWorkspace)
         let thread = AgentThread(
             name: "Fallback scheduled task",
             hasCompletedInitialSetup: false,
@@ -297,7 +316,7 @@ final class ChatPresentationTests: XCTestCase {
     }
 }
 
-private func makeChatPresentationScheduledRun() -> ScheduledTaskRun {
+private func makeChatPresentationScheduledRun(workspaceKind: ScheduledTaskWorkspaceKind) -> ScheduledTaskRun {
     ScheduledTaskRun(
         occurrenceID: UUID().uuidString,
         definitionID: "chat-presentation-definition",
@@ -311,7 +330,7 @@ private func makeChatPresentationScheduledRun() -> ScheduledTaskRun {
         providerIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
-        workspaceKindSnapshot: .project,
+        workspaceKindSnapshot: workspaceKind,
         workspaceStrategySnapshot: .worktree
     )
 }

@@ -145,12 +145,14 @@ private final class ScheduledTaskProposalSaveRecorder: @unchecked Sendable {
 @MainActor
 final class ScheduledTaskProposalQueueFixture {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let currentTimeZone = TimeZone(identifier: "Etc/UTC") ?? .current
     let container: ModelContainer
     let context: ModelContext
     let notificationCenter = NotificationCenter()
     let mutationService: ScheduledTaskMutationService
 
     init() throws {
+        let fixtureTimeZone = currentTimeZone
         container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
@@ -164,7 +166,8 @@ final class ScheduledTaskProposalQueueFixture {
         context = ModelContext(container)
         mutationService = ScheduledTaskMutationService(
             modelContext: context,
-            notificationCenter: notificationCenter
+            notificationCenter: notificationCenter,
+            currentTimeZone: { fixtureTimeZone }
         )
     }
 
@@ -189,7 +192,8 @@ final class ScheduledTaskProposalQueueFixture {
             settingsService: InMemorySettingsService(),
             notificationCenter: notificationCenter,
             runNow: { _ in true },
-            now: { self.now }
+            now: { self.now },
+            currentTimeZone: { self.currentTimeZone }
         )
     }
 
@@ -206,7 +210,7 @@ final class ScheduledTaskProposalQueueFixture {
             revision: revision,
             state: state,
             recurrence: .daily(hour: 8, minute: 0),
-            timeZoneIdentifier: "UTC",
+            timeZoneIdentifier: currentTimeZone.identifier,
             providerID: "codex",
             effort: "medium",
             permissionMode: "on-request",
@@ -288,7 +292,7 @@ final class ScheduledTaskProposalQueueFixture {
             title: title,
             prompt: prompt,
             recurrence: recurrence,
-            timeZoneIdentifier: "UTC",
+            timeZoneIdentifier: currentTimeZone.identifier,
             providerID: "codex",
             model: nil,
             effort: "medium",

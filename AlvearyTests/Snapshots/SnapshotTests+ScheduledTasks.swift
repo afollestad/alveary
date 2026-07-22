@@ -96,6 +96,114 @@ extension SnapshotTests {
         )
     }
 
+    func testScheduledTaskEditorOneTimeDatePicker() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.recurrenceKind = .once
+
+        assertMacSnapshot(
+            ScheduledTaskEditorRecurrenceSection(draft: .constant(draft))
+                .padding(24),
+            size: CGSize(width: 760, height: 220),
+            named: "scheduled_task_editor_one_time_date_picker"
+        )
+    }
+
+    func testScheduledTaskEditorNewThreadWorkspace() throws {
+        let fixture = try ScheduledTasksSnapshotFixture()
+        let draft = fixture.viewModel.makeNewDraft()
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: fixture.viewModel.pinnedThreads,
+                draft: .constant(draft)
+            )
+            .padding(24),
+            size: CGSize(width: 760, height: 330),
+            named: "scheduled_task_editor_new_thread_workspace"
+        )
+    }
+
+    func testScheduledTaskEditorExistingThreadWithoutPinnedTasks() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.destination = .existingThread
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: fixture.viewModel.pinnedThreads,
+                draft: .constant(draft)
+            )
+            .padding(24),
+            size: CGSize(width: 760, height: 220),
+            named: "scheduled_task_editor_existing_thread_empty"
+        )
+    }
+
+    func testScheduledTaskEditorProjectWorkspace() throws {
+        let fixture = try ScheduledTasksSnapshotFixture()
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.workspaceKind = .project
+        draft.workspaceStrategy = .worktree
+        draft.projectPath = fixture.viewModel.projects.first?.path
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: fixture.viewModel.pinnedThreads,
+                draft: .constant(draft)
+            )
+            .padding(24),
+            size: CGSize(width: 760, height: 390),
+            named: "scheduled_task_editor_project_workspace"
+        )
+    }
+
+    func testScheduledTaskEditorPinnedExistingThread() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.destination = .existingThread
+        draft.targetConversationID = "pinned-main"
+        let threads = [ScheduledTaskThreadOption(conversationID: "pinned-main", label: "Pinned release chat")]
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: threads,
+                draft: .constant(draft)
+            )
+            .padding(24),
+            size: CGSize(width: 760, height: 220),
+            named: "scheduled_task_editor_existing_thread_selected"
+        )
+    }
+
+    func testScheduledTaskEditorLongPinnedThreadAtMinimumWidth() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.destination = .existingThread
+        draft.targetConversationID = "long-pinned-main"
+        let threads = [
+            ScheduledTaskThreadOption(
+                conversationID: "long-pinned-main",
+                label: "Pinned release thread with a deliberately long name that must remain inside the pane"
+            )
+        ]
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: threads,
+                draft: .constant(draft)
+            )
+            .padding(24),
+            size: CGSize(width: 320, height: 220),
+            named: "scheduled_task_editor_existing_thread_long_name_minimum_width"
+        )
+    }
+
     func testScheduledTaskDeleteProposalOverlay() throws {
         let fixture = try ScheduledTaskProposalSnapshotFixture()
 

@@ -58,6 +58,7 @@ extension DefaultScheduledTaskRunMaterializer {
         run.preparedWorkspaceRoot = nil
         run.preparedWorkspaceOwnershipStrategy = nil
         run.preparedWorkspaceMarkerID = nil
+        run.workspaceCleanupProvenance = nil
     }
 
     func applyPreparedWorkspaceMetadata(
@@ -69,7 +70,15 @@ extension DefaultScheduledTaskRunMaterializer {
         thread.branch = preparedWorkspace.branch
         thread.worktreePath = workspace.ownershipStrategy == .projectWorktreeOwned ? workspace.primaryRoot : nil
         thread.useWorktree = workspace.ownershipStrategy == .projectWorktreeOwned
-        thread.taskWorkspaceDescriptor = workspace
+        if thread.mode == .task {
+            thread.taskWorkspaceDescriptor = workspace
+        } else if workspace.ownershipStrategy == .projectWorktreeOwned {
+            // Project-mode scheduled threads still need the owned-worktree marker
+            // for identity-safe cleanup without changing where they are presented.
+            thread.taskWorkspaceDescriptor = workspace
+        } else {
+            thread.taskGrantedRoots = workspace.grantedRoots
+        }
         run.preparedWorkspaceRoot = workspace.primaryRoot
         run.preparedWorkspaceOwnershipStrategy = workspace.ownershipStrategy
         run.preparedWorkspaceMarkerID = workspace.ownershipMarkerID

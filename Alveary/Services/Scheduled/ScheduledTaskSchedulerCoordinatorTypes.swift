@@ -1,6 +1,63 @@
 import Foundation
 import SwiftData
 
+extension ScheduledTaskSchedulerCoordinator {
+    typealias PendingOccurrenceClearer = @MainActor (PersistentIdentifier) throws -> Void
+    typealias PendingOccurrenceStateSaver = @MainActor () throws -> Void
+    typealias TerminalStateSaver = @MainActor () throws -> Void
+    typealias TerminalConversationReconciliation = @MainActor (_ conversationID: String) -> Void
+    typealias DefinitionFailureNotification = @MainActor (String, String, String) -> Void
+    typealias PersistenceRetryWait = @MainActor () async -> Void
+    typealias SchedulingStateDidChange = @MainActor (String, String?) -> Void
+
+    var activeRunIDs: Set<PersistentIdentifier> {
+        Set(launchIDsByRunID.keys)
+    }
+
+    var definitionIDsBeingClaimed: Set<String> {
+        definitionsBeingClaimed
+    }
+
+    func setSchedulingStateDidChange(_ handler: @escaping SchedulingStateDidChange) {
+        schedulingStateDidChange = handler
+    }
+
+    func isActive(runID: PersistentIdentifier) -> Bool {
+        launchIDsByRunID[runID] != nil
+    }
+
+    func runnableRunID(from result: ScheduledTaskClaimResult) -> PersistentIdentifier? {
+        switch result {
+        case .claimed(let runID), .alreadyClaimed(let runID):
+            return runID
+        case .skipped, .overlapped, .waitingForTarget, .paused, .changedDuringPreflight,
+             .activeRunExists, .inactive, .notDue, .definitionNotFound:
+            return nil
+        }
+    }
+
+    func runNowClaimErrorMessage(for result: ScheduledTaskClaimResult) -> String? {
+        switch result {
+        case .waitingForTarget:
+            "This scheduled task couldn't start because its pinned target thread is busy. Try again when the thread is idle."
+        case .activeRunExists:
+            "This scheduled task already has a run in progress."
+        case .changedDuringPreflight:
+            "This scheduled task changed before Run now could start. Try again."
+        case .paused(let reason):
+            reason
+        case .inactive:
+            "This scheduled task is no longer active."
+        case .definitionNotFound:
+            "This scheduled task no longer exists."
+        case .notDue:
+            "This scheduled task could not be started now."
+        case .claimed, .alreadyClaimed, .skipped, .overlapped:
+            nil
+        }
+    }
+}
+
 enum ScheduledTaskCoordinatorLifecycleState {
     case running
     case shuttingDown
@@ -18,6 +75,7 @@ final class ScheduledTaskActiveLaunch {
 
     let id = UUID()
     let definitionID: String
+    let reportsClaimErrors: Bool
     var runID: PersistentIdentifier?
     var stage = Stage.claiming
     var stopRequested = false
@@ -26,8 +84,9 @@ final class ScheduledTaskActiveLaunch {
     private var stopCompleted = false
     private var stopCompletionWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init(definitionID: String) {
+    init(definitionID: String, reportsClaimErrors: Bool) {
         self.definitionID = definitionID
+        self.reportsClaimErrors = reportsClaimErrors
     }
 
     func waitForStopCompletionIfNeeded() async {

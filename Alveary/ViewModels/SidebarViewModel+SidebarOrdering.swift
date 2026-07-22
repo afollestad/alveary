@@ -172,12 +172,14 @@ extension SidebarViewModel {
     func refreshThreadOrder(animated: Bool) {
         guard animated else {
             threadOrderVersion += 1
+            NotificationCenter.default.post(name: .threadPresentationChanged, object: self)
             return
         }
 
         withAnimation(.easeInOut(duration: 0.15)) {
             threadOrderVersion += 1
         }
+        NotificationCenter.default.post(name: .threadPresentationChanged, object: self)
     }
 }
 
@@ -453,6 +455,7 @@ private extension SidebarViewModel {
     func clearUnarchivedChildPins(_ project: Project) throws {
         for child in try unarchivedThreadsForOrdering(projectPath: project.path)
         where child.isPinned || child.pinnedSortOrder != nil {
+            try requireNoScheduledTaskAttachment(child)
             child.isPinned = false
             child.pinnedSortOrder = nil
         }

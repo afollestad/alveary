@@ -273,6 +273,42 @@ final class SidebarViewTests: XCTestCase {
         ])
     }
 
+    func testScheduledTaskAttachmentDisablesUnpinArchiveAndDeleteWithoutRemovingThem() {
+        let reason = "This task is attached to a scheduled task."
+        let items = sidebarThreadContextMenuItems(isPinned: true, canRename: true)
+
+        XCTAssertEqual(items, [
+            .forkLocal,
+            .forkWorktree,
+            .divider,
+            .unpin,
+            .rename,
+            .archive,
+            .delete
+        ])
+        XCTAssertNil(
+            sidebarThreadContextMenuDisabledReason(
+                for: .forkLocal,
+                scheduledTaskAttachmentReason: reason
+            )
+        )
+        XCTAssertNil(
+            sidebarThreadContextMenuDisabledReason(
+                for: .rename,
+                scheduledTaskAttachmentReason: reason
+            )
+        )
+        for item in [SidebarThreadContextMenuItem.unpin, .archive, .delete] {
+            XCTAssertEqual(
+                sidebarThreadContextMenuDisabledReason(
+                    for: item,
+                    scheduledTaskAttachmentReason: reason
+                ),
+                reason
+            )
+        }
+    }
+
     func testThreadContextMenuSuppressesPinActionsWhenPinningUnavailable() {
         XCTAssertEqual(sidebarThreadContextMenuItems(isPinned: false, canRename: true, allowsPinning: false), [
             .forkLocal,

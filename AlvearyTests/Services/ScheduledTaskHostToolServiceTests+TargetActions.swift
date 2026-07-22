@@ -37,8 +37,7 @@ extension ScheduledTaskHostToolServiceTests {
                             "kind": .string("monthly"),
                             "day": .number(31),
                             "hour": .number(10),
-                            "minute": .number(30),
-                            "time_zone": .string("America/Chicago")
+                            "minute": .number(30)
                         ])
                     ])
                 ]
@@ -54,7 +53,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(draft.title, "New title")
         XCTAssertEqual(draft.prompt, "Old prompt")
         XCTAssertEqual(draft.recurrence, .monthly(day: 31, hour: 10, minute: 30))
-        XCTAssertEqual(draft.timeZoneIdentifier, "America/Chicago")
+        XCTAssertEqual(draft.timeZoneIdentifier, "Etc/UTC")
         XCTAssertEqual(draft.providerID, "claude")
         XCTAssertEqual(draft.model, "target-model")
         XCTAssertEqual(draft.permissionMode, "acceptEdits")

@@ -631,6 +631,7 @@ actor MockAgentsManager: AgentsManager {
 final class MockConversationRuntimeStore: ConversationRuntimeStore {
     private var states: [String: ConversationState] = [:]
     private var automatedScheduledRunIDs: Set<String> = []
+    private var automatedScheduledRunsByThreadKey: [String: String] = [:]
 
     func conversationState(for conversationId: String) -> ConversationState {
         if let state = states[conversationId] {
@@ -656,6 +657,19 @@ final class MockConversationRuntimeStore: ConversationRuntimeStore {
 
     func isAutomatedScheduledRunActive(runID: String) -> Bool {
         automatedScheduledRunIDs.contains(runID)
+    }
+
+    func setAutomatedScheduledThreadActive(_ active: Bool, threadKey: String, runID: String) {
+        setAutomatedScheduledRunActive(active, runID: runID)
+        if active {
+            automatedScheduledRunsByThreadKey[threadKey] = runID
+        } else if automatedScheduledRunsByThreadKey[threadKey] == runID {
+            automatedScheduledRunsByThreadKey.removeValue(forKey: threadKey)
+        }
+    }
+
+    func automatedScheduledRunID(threadKey: String) -> String? {
+        automatedScheduledRunsByThreadKey[threadKey]
     }
 
     func removeState(for conversationId: String) {

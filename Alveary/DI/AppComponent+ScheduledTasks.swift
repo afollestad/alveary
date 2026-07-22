@@ -43,7 +43,12 @@ extension AppComponent {
             ScheduledTaskRecoveryReadinessValidator(
                 providerDiscovery: agentCLIKitProviderDiscoveryService,
                 workspaceOwnershipService: taskWorkspaceOwnershipService,
-                worktreeManager: worktreeManager
+                worktreeManager: worktreeManager,
+                targetIsReady: { conversationID in
+                    self.conversationControllerRegistry.isReadyForScheduledTaskRecovery(
+                        conversationID: conversationID
+                    )
+                }
             )
         }
     }
@@ -52,7 +57,12 @@ extension AppComponent {
         return shared {
             ScheduledTaskSchedulerEngine(
                 modelContext: modelContainer.mainContext,
-                preflightValidator: scheduledTaskPreflightValidator.validate
+                preflightValidator: scheduledTaskPreflightValidator.validate,
+                targetIsReady: { conversationID in
+                    self.conversationControllerRegistry.isReadyForScheduledTask(
+                        conversationID: conversationID
+                    )
+                }
             )
         }
     }

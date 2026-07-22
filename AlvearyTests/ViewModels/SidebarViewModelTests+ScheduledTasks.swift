@@ -6,6 +6,144 @@ import XCTest
 
 @MainActor
 extension SidebarViewModelTests {
+    func testCompletedScheduleStillPreventsAttachedPinnedThreadLifecycleChanges() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/attached-project", name: "Attached Project")
+        let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
+        let conversation = Conversation(id: "attached-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        project.threads = [target]
+        let definition = ScheduledTask(
+            title: "Attached schedule",
+            prompt: "Continue in the pinned task.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            createdAt: Date(timeIntervalSince1970: 200),
+            targetThread: target
+        )
+        definition.state = .completed
+        let earlierDefinition = ScheduledTask(
+            id: "earlier-completed-schedule",
+            title: "Earlier completed schedule",
+            prompt: "Continue in the pinned task.",
+            destination: .existingThread,
+            state: .completed,
+            recurrence: .daily(hour: 10, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            createdAt: Date(timeIntervalSince1970: 100),
+            targetThread: target
+        )
+        fixture.context.insert(project)
+        fixture.context.insert(definition)
+        fixture.context.insert(earlierDefinition)
+        try fixture.context.save()
+
+        XCTAssertThrowsError(try fixture.viewModel.setThreadPinned(target, isPinned: false)) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                "This thread is attached to the scheduled task \"Earlier completed schedule\". Remove or retarget that schedule first."
+            )
+        }
+        XCTAssertThrowsError(try fixture.viewModel.requireNoScheduledTaskAttachment(target))
+        XCTAssertThrowsError(try fixture.viewModel.makeProjectDeletionSnapshot(project))
+        XCTAssertTrue(target.isPinned)
+        XCTAssertNil(target.archivedAt)
+    }
+
+    func testUnpinningPinnedProjectDoesNotIndirectlyUnpinAttachedThread() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/pinned-attached-project", name: "Pinned Project", isPinned: true)
+        project.pinnedSortOrder = 4
+        let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
+        target.pinnedSortOrder = 5
+        target.conversations = [Conversation(id: "pinned-project-main", provider: "codex", thread: target)]
+        project.threads = [target]
+        let definition = ScheduledTask(
+            title: "Attached schedule",
+            prompt: "Continue in the pinned task.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            targetThread: target
+        )
+        fixture.context.insert(project)
+        fixture.context.insert(definition)
+        try fixture.context.save()
+
+        XCTAssertThrowsError(try fixture.viewModel.setProjectPinned(project, isPinned: false))
+        XCTAssertTrue(project.isPinned)
+        XCTAssertEqual(project.pinnedSortOrder, 4)
+        XCTAssertTrue(target.isPinned)
+        XCTAssertEqual(target.pinnedSortOrder, 5)
+        XCTAssertFalse(fixture.context.hasChanges)
+    }
+
+    func testActiveTargetRunUsesDistinctAttachmentReason() throws {
+        let fixture = try SidebarTestFixture()
+        let target = AgentThread(name: "Pinned target", isPinned: true, mode: .task)
+        let run = ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "active-target-definition",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
+            triggerKind: .scheduled,
+            status: .running,
+            titleSnapshot: "Active target run",
+            promptSnapshot: "Continue work.",
+            destinationSnapshot: .existingThread,
+            timeZoneIdentifierSnapshot: "America/Chicago",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .project,
+            workspaceStrategySnapshot: .localCheckout,
+            targetThread: target
+        )
+        target.targetedScheduledTaskRuns = [run]
+        fixture.context.insert(target)
+        fixture.context.insert(run)
+        try fixture.context.save()
+
+        XCTAssertEqual(
+            fixture.viewModel.scheduledTaskAttachmentReason(for: target),
+            "This thread has an active scheduled task run. Wait for it to finish before archiving, deleting, or unpinning this thread."
+        )
+        XCTAssertThrowsError(try fixture.viewModel.requireNoScheduledTaskAttachment(target)) { error in
+            guard case .activeScheduledTaskRunAttachment = error as? SidebarViewModelError else {
+                return XCTFail("Expected activeScheduledTaskRunAttachment, got \(error)")
+            }
+        }
+    }
+
+    func testThreadDeletionCommitRejectsScheduleAttachedAfterSnapshot() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/late-delete-attachment", name: "Late attachment")
+        let thread = AgentThread(name: "Pinned target", isPinned: true, project: project)
+        thread.conversations = [Conversation(id: "late-delete-main", provider: "codex", thread: thread)]
+        project.threads = [thread]
+        fixture.context.insert(project)
+        try fixture.context.save()
+        let snapshot = try fixture.viewModel.makeThreadCleanupSnapshot(thread)
+        let definition = ScheduledTask(
+            title: "Attached after snapshot",
+            prompt: "Continue work.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            targetThread: thread
+        )
+        fixture.context.insert(definition)
+        try fixture.context.save()
+
+        XCTAssertThrowsError(try fixture.viewModel.commitThreadDeletion(snapshot))
+        XCTAssertNotNil(fixture.context.resolveThread(id: thread.persistentModelID))
+    }
+
     func testProjectDeletionPausesAndDetachesSchedulesWhilePreservingRunTask() throws {
         let fixture = try SidebarTestFixture()
         let actionDate = Date(timeIntervalSince1970: 1_000)
@@ -39,35 +177,28 @@ extension SidebarViewModelTests {
         XCTAssertEqual(changeRecorder.recorder.definitionIDs, [graph.definition.id])
     }
 
-    func testProjectDeletionPreservesLinkedRunTaskWhenModeFallsBackToProject() throws {
+    func testProjectDeletionTreatsUnknownProjectBackedScheduledModeAsProject() throws {
         let fixture = try SidebarTestFixture()
         let graph = try ScheduledProjectDeletionGraph.insert(into: fixture.context)
         let taskThread = try XCTUnwrap(graph.run.thread)
         let taskThreadID = taskThread.persistentModelID
         let runID = graph.run.persistentModelID
-        let taskPrimaryRoot = taskThread.taskPrimaryRoot
         taskThread.modeRawValue = "future-mode"
         taskThread.project = graph.project
         try fixture.context.save()
 
         let snapshot = try fixture.viewModel.makeProjectDeletionSnapshot(graph.project)
 
-        XCTAssertTrue(snapshot.detachedTaskThreadIDs.contains(taskThreadID))
-        XCTAssertFalse(snapshot.threadSnapshots.contains { $0.threadID == taskThreadID })
+        XCTAssertFalse(snapshot.detachedTaskThreadIDs.contains(taskThreadID))
+        XCTAssertTrue(snapshot.threadSnapshots.contains { $0.threadID == taskThreadID })
 
         try fixture.viewModel.commitProjectDeletion(
             snapshot,
             at: Date(timeIntervalSince1970: 1_000)
         )
 
-        let retainedThread = try XCTUnwrap(fixture.context.resolveThread(id: taskThreadID))
-        XCTAssertEqual(retainedThread.modeRawValue, "future-mode")
-        XCTAssertEqual(retainedThread.taskPrimaryRoot, taskPrimaryRoot)
-        XCTAssertNil(retainedThread.project)
-        XCTAssertEqual(
-            fixture.context.resolveScheduledTaskRun(id: runID)?.thread?.persistentModelID,
-            taskThreadID
-        )
+        XCTAssertNil(fixture.context.resolveThread(id: taskThreadID))
+        XCTAssertNil(fixture.context.resolveScheduledTaskRun(id: runID)?.thread)
     }
 
     func testProjectDeletionRollsBackSchedulePauseAndDetachWhenCommitFails() throws {

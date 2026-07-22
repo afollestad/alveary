@@ -64,6 +64,47 @@ extension SnapshotTests {
         )
     }
 
+    func testSidebarThreadRowAttachedScheduleDisablesCleanupWithoutHidingIt() {
+        let thread = scheduledSidebarThread()
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                cleanupAction: .archive,
+                cleanupDisabledReason: "This thread is attached to the scheduled task \"Scheduled review\".",
+                initialRowHover: true,
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 280, height: 52),
+            named: "thread_row_scheduled_attachment_disabled_cleanup"
+        )
+    }
+
+    func testSidebarThreadRowAttachedScheduleShowsNoSignOnDirectCleanupHover() {
+        let thread = scheduledSidebarThread()
+
+        assertMacSnapshot(
+            SidebarThreadRow(
+                thread: thread,
+                status: .stopped,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                cleanupAction: .archive,
+                cleanupDisabledReason: "This thread is attached to the scheduled task \"Scheduled review\".",
+                initialRowHover: true,
+                initialCleanupButtonHover: true,
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14),
+            size: CGSize(width: 280, height: 52),
+            named: "thread_row_scheduled_attachment_direct_cleanup_hover"
+        )
+    }
+
     func testSidebarViewScheduledSelected() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
         let appState = AppState()

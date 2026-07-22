@@ -18,7 +18,7 @@ struct ScheduledTaskHostToolRequestParser: Sendable {
     private let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
 
     init(
-        defaultTimeZoneIdentifierProvider: @escaping @Sendable () -> String = { TimeZone.current.identifier },
+        defaultTimeZoneIdentifierProvider: @escaping @Sendable () -> String = { TimeZone.autoupdatingCurrent.identifier },
         recurrenceCalculator: ScheduledTaskRecurrenceCalculator = ScheduledTaskRecurrenceCalculator()
     ) {
         self.defaultTimeZoneIdentifierProvider = defaultTimeZoneIdentifierProvider
@@ -36,28 +36,49 @@ struct ScheduledTaskHostToolRequestParser: Sendable {
     }
 
     func parse(arguments: [String: AgentCLIKit.JSONValue]) throws -> ScheduledTaskParsedProposalRequest {
+        try parse(arguments: arguments, validatesExplicitTimeZone: true)
+    }
+
+    func parseRetryIdentity(arguments: [String: AgentCLIKit.JSONValue]) throws -> ScheduledTaskParsedProposalRequest {
+        try parse(arguments: arguments, validatesExplicitTimeZone: false)
+    }
+}
+
+private extension ScheduledTaskHostToolRequestParser {
+    func parse(
+        arguments: [String: AgentCLIKit.JSONValue],
+        validatesExplicitTimeZone: Bool
+    ) throws -> ScheduledTaskParsedProposalRequest {
         let object = StrictHostToolObject(arguments, path: "arguments")
-        let actionValue = try object.requiredString("action")
-        guard let action = ScheduledTaskProposalAction(rawValue: actionValue) else {
-            throw invalid("arguments.action must be one of create, edit, pause, resume, delete, or run_now.")
-        }
+        let action = try proposalAction(in: object)
 
         let request: ScheduledTaskProposalRequest
+        var canonicalTimeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity?
         switch action {
         case .create:
             try object.requireOnly(["action", "title", "prompt", "schedule"])
+            let parsedSchedule = try parseSchedule(
+                object.requiredObject("schedule"),
+                validatesExplicitTimeZone: validatesExplicitTimeZone
+            )
             request = .create(
                 title: try object.requiredNonEmptyString("title"),
                 prompt: try object.requiredNonEmptyString("prompt"),
-                schedule: try parseSchedule(object.requiredObject("schedule"))
+                schedule: parsedSchedule.schedule
             )
+            canonicalTimeZoneIdentity = parsedSchedule.canonicalTimeZoneIdentity
         case .edit:
             try object.requireOnly(["action", "task_id", "revision", "changes"])
+            let parsedChanges = try parseChanges(
+                object.requiredObject("changes"),
+                validatesExplicitTimeZone: validatesExplicitTimeZone
+            )
             request = .edit(
                 definitionID: try object.requiredNonEmptyString("task_id"),
                 expectedRevision: try object.requiredPositiveInteger("revision"),
-                changes: try parseChanges(object.requiredObject("changes"))
+                changes: parsedChanges.changes
             )
+            canonicalTimeZoneIdentity = parsedChanges.canonicalTimeZoneIdentity
         case .pause, .resume, .delete, .runNow:
             try object.requireOnly(["action", "task_id", "revision"])
             let definitionID = try object.requiredNonEmptyString("task_id")
@@ -76,68 +97,96 @@ struct ScheduledTaskHostToolRequestParser: Sendable {
             }
         }
 
-        let canonicalValue = canonicalValue(for: request)
-        let canonicalJSON = try Self.canonicalJSON(canonicalValue)
-        return ScheduledTaskParsedProposalRequest(
-            request: request,
-            canonicalPayloadJSON: canonicalJSON,
-            canonicalPayloadHash: Self.sha256(canonicalJSON)
-        )
+        return try parsedProposalRequest(request, timeZoneIdentity: canonicalTimeZoneIdentity)
     }
 }
 
 private extension ScheduledTaskHostToolRequestParser {
-    func parseChanges(_ values: [String: AgentCLIKit.JSONValue]) throws -> ScheduledTaskProposalEditChanges {
+    func parseChanges(
+        _ values: [String: AgentCLIKit.JSONValue],
+        validatesExplicitTimeZone: Bool
+    ) throws -> ScheduledTaskParsedProposalEditChanges {
         let object = StrictHostToolObject(values, path: "arguments.changes")
         try object.requireOnly(["title", "prompt", "schedule"])
         guard !values.isEmpty else {
             throw invalid("arguments.changes must contain title, prompt, or schedule.")
         }
-        return ScheduledTaskProposalEditChanges(
-            title: try object.optionalNonEmptyString("title"),
-            prompt: try object.optionalNonEmptyString("prompt"),
-            schedule: try object.optionalObject("schedule").map(parseSchedule)
+        let parsedSchedule = try object.optionalObject("schedule").map {
+            try parseSchedule($0, validatesExplicitTimeZone: validatesExplicitTimeZone)
+        }
+        return ScheduledTaskParsedProposalEditChanges(
+            changes: ScheduledTaskProposalEditChanges(
+                title: try object.optionalNonEmptyString("title"),
+                prompt: try object.optionalNonEmptyString("prompt"),
+                schedule: parsedSchedule?.schedule
+            ),
+            canonicalTimeZoneIdentity: parsedSchedule?.canonicalTimeZoneIdentity
         )
     }
 
-    func parseSchedule(_ values: [String: AgentCLIKit.JSONValue]) throws -> ScheduledTaskProposalSchedule {
+    func parseSchedule(
+        _ values: [String: AgentCLIKit.JSONValue],
+        validatesExplicitTimeZone: Bool
+    ) throws -> ScheduledTaskParsedProposalSchedule {
         let object = StrictHostToolObject(values, path: "arguments.schedule")
         let kind = try object.requiredString("kind")
-        let timeZoneIdentifier = try object.optionalNonEmptyString("time_zone") ?? defaultTimeZoneIdentifierProvider()
-        let recurrence: ScheduledTaskRecurrence
+        let timeZone = try localTimeZone(
+            in: object,
+            validatesExplicitTimeZone: validatesExplicitTimeZone
+        )
+        let recurrence = try parseRecurrence(kind: kind, object: object)
 
+        do {
+            try recurrenceCalculator.validate(recurrence, timeZoneIdentifier: timeZone.identifier)
+        } catch {
+            throw invalid(error.localizedDescription)
+        }
+        return ScheduledTaskParsedProposalSchedule(
+            schedule: ScheduledTaskProposalSchedule(
+                recurrence: recurrence,
+                timeZoneIdentifier: timeZone.identifier
+            ),
+            canonicalTimeZoneIdentity: timeZone.canonicalIdentity
+        )
+    }
+
+    func parseRecurrence(
+        kind: String,
+        object: StrictHostToolObject
+    ) throws -> ScheduledTaskRecurrence {
         switch kind {
         case "once":
             try object.requireOnly(["kind", "at", "time_zone"])
-            recurrence = .once(try parseDate(object.requiredNonEmptyString("at"), field: "at"))
+            return .once(try parseDate(object.requiredNonEmptyString("at"), field: "at"))
         case "interval":
             try object.requireOnly(["kind", "minutes", "anchor_at", "time_zone"])
-            recurrence = .interval(
+            return .interval(
                 minutes: try object.requiredPositiveInteger("minutes"),
                 anchor: try parseDate(object.requiredNonEmptyString("anchor_at"), field: "anchor_at")
             )
         case "daily":
             try object.requireOnly(["kind", "hour", "minute", "time_zone"])
-            let hour = try object.requiredInteger("hour")
-            let minute = try object.requiredInteger("minute")
-            recurrence = .daily(hour: hour, minute: minute)
+            return .daily(
+                hour: try object.requiredInteger("hour"),
+                minute: try object.requiredInteger("minute")
+            )
         case "weekdays":
             try object.requireOnly(["kind", "days", "hour", "minute", "time_zone"])
-            recurrence = .weekdays(
+            return .weekdays(
                 days: try weekdayNumbers(object.requiredArray("days")),
                 hour: try object.requiredInteger("hour"),
                 minute: try object.requiredInteger("minute")
             )
         case "weekly":
             try object.requireOnly(["kind", "weekday", "hour", "minute", "time_zone"])
-            recurrence = .weekly(
+            return .weekly(
                 weekday: try weekdayNumber(object.requiredNonEmptyString("weekday")),
                 hour: try object.requiredInteger("hour"),
                 minute: try object.requiredInteger("minute")
             )
         case "monthly":
             try object.requireOnly(["kind", "day", "hour", "minute", "time_zone"])
-            recurrence = .monthly(
+            return .monthly(
                 day: try object.requiredInteger("day"),
                 hour: try object.requiredInteger("hour"),
                 minute: try object.requiredInteger("minute")
@@ -145,13 +194,23 @@ private extension ScheduledTaskHostToolRequestParser {
         default:
             throw invalid("arguments.schedule.kind is not supported.")
         }
+    }
 
-        do {
-            try recurrenceCalculator.validate(recurrence, timeZoneIdentifier: timeZoneIdentifier)
-        } catch {
-            throw invalid(error.localizedDescription)
+    func localTimeZone(
+        in object: StrictHostToolObject,
+        validatesExplicitTimeZone: Bool
+    ) throws -> (identifier: String, canonicalIdentity: ScheduledTaskCanonicalTimeZoneIdentity) {
+        let identifier = defaultTimeZoneIdentifierProvider()
+        let explicitTimeZone = try object.optionalNonEmptyString("time_zone")
+        if validatesExplicitTimeZone,
+           let explicitTimeZone,
+           explicitTimeZone != identifier {
+            throw invalid("arguments.schedule.time_zone must match the Mac's current local time zone.")
         }
-        return ScheduledTaskProposalSchedule(recurrence: recurrence, timeZoneIdentifier: timeZoneIdentifier)
+        return (
+            identifier,
+            explicitTimeZone.map(ScheduledTaskCanonicalTimeZoneIdentity.explicit) ?? .local
+        )
     }
 
     func parseDate(_ value: String, field: String) throws -> Date {
@@ -163,6 +222,27 @@ private extension ScheduledTaskHostToolRequestParser {
             throw invalid("arguments.schedule.\(field) must be an RFC 3339 date-time with an offset.")
         }
         return date
+    }
+
+    func proposalAction(in object: StrictHostToolObject) throws -> ScheduledTaskProposalAction {
+        let actionValue = try object.requiredString("action")
+        guard let action = ScheduledTaskProposalAction(rawValue: actionValue) else {
+            throw invalid("arguments.action must be one of create, edit, pause, resume, delete, or run_now.")
+        }
+        return action
+    }
+
+    func parsedProposalRequest(
+        _ request: ScheduledTaskProposalRequest,
+        timeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity?
+    ) throws -> ScheduledTaskParsedProposalRequest {
+        let canonicalValue = canonicalValue(for: request, timeZoneIdentity: timeZoneIdentity)
+        let canonicalJSON = try Self.canonicalJSON(canonicalValue)
+        return ScheduledTaskParsedProposalRequest(
+            request: request,
+            canonicalPayloadJSON: canonicalJSON,
+            canonicalPayloadHash: Self.sha256(canonicalJSON)
+        )
     }
 
     func weekdayNumber(_ value: String, field: String = "weekday") throws -> Int {
@@ -191,13 +271,19 @@ private extension ScheduledTaskHostToolRequestParser {
         }.sorted()
     }
 
-    func canonicalValue(for request: ScheduledTaskProposalRequest) -> AgentCLIKit.JSONValue {
+    func canonicalValue(
+        for request: ScheduledTaskProposalRequest,
+        timeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity?
+    ) -> AgentCLIKit.JSONValue {
         var object: [String: AgentCLIKit.JSONValue] = ["action": .string(request.action.rawValue)]
         switch request {
         case let .create(title, prompt, schedule):
             object["title"] = .string(title)
             object["prompt"] = .string(prompt)
-            object["schedule"] = canonicalValue(for: schedule)
+            guard let timeZoneIdentity else {
+                preconditionFailure("Create requests must include a schedule time-zone identity")
+            }
+            object["schedule"] = canonicalValue(for: schedule, timeZoneIdentity: timeZoneIdentity)
         case let .edit(definitionID, expectedRevision, changes):
             object["task_id"] = .string(definitionID)
             object["revision"] = .number(Double(expectedRevision))
@@ -209,7 +295,10 @@ private extension ScheduledTaskHostToolRequestParser {
                 changeValues["prompt"] = .string(prompt)
             }
             if let schedule = changes.schedule {
-                changeValues["schedule"] = canonicalValue(for: schedule)
+                guard let timeZoneIdentity else {
+                    preconditionFailure("Schedule edits must include a time-zone identity")
+                }
+                changeValues["schedule"] = canonicalValue(for: schedule, timeZoneIdentity: timeZoneIdentity)
             }
             object["changes"] = .object(changeValues)
         case let .pause(definitionID, expectedRevision),
@@ -222,11 +311,17 @@ private extension ScheduledTaskHostToolRequestParser {
         return .object(object)
     }
 
-    func canonicalValue(for schedule: ScheduledTaskProposalSchedule) -> AgentCLIKit.JSONValue {
+    func canonicalValue(
+        for schedule: ScheduledTaskProposalSchedule,
+        timeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity
+    ) -> AgentCLIKit.JSONValue {
         var object: [String: AgentCLIKit.JSONValue] = [
             "kind": .string(schedule.recurrence.kind.rawValue),
-            "time_zone": .string(schedule.timeZoneIdentifier)
+            "time_zone_source": .string(timeZoneIdentity.source)
         ]
+        if case .explicit(let identifier) = timeZoneIdentity {
+            object["time_zone"] = .string(identifier)
+        }
         switch schedule.recurrence {
         case .once(let date):
             object["at"] = .string(Self.canonicalDate(date))
@@ -277,6 +372,30 @@ private extension ScheduledTaskHostToolRequestParser {
 
     func invalid(_ message: String) -> ScheduledTaskHostToolRequestError {
         .invalidArguments(message)
+    }
+}
+
+private struct ScheduledTaskParsedProposalEditChanges {
+    let changes: ScheduledTaskProposalEditChanges
+    let canonicalTimeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity?
+}
+
+private struct ScheduledTaskParsedProposalSchedule {
+    let schedule: ScheduledTaskProposalSchedule
+    let canonicalTimeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity
+}
+
+private enum ScheduledTaskCanonicalTimeZoneIdentity {
+    case local
+    case explicit(String)
+
+    var source: String {
+        switch self {
+        case .local:
+            "local"
+        case .explicit:
+            "explicit"
+        }
     }
 }
 

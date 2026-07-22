@@ -44,11 +44,14 @@ struct ScheduledTaskEditorContent: View {
                         isTitleFocused: $isTitleFocused
                     )
                     ScheduledTaskEditorRecurrenceSection(draft: $draft)
-                    ScheduledTaskEditorAgentSection(viewModel: viewModel, draft: $draft)
                     ScheduledTaskEditorWorkspaceSection(
                         projects: viewModel.projects,
+                        threads: viewModel.pinnedThreads,
                         draft: $draft
                     )
+                    if draft.destination == .newThread {
+                        ScheduledTaskEditorAgentSection(viewModel: viewModel, draft: $draft)
+                    }
                 }
                 .padding(surface == .pane ? ContextualPaneLayout.horizontalInset : 24)
             }
@@ -67,6 +70,14 @@ struct ScheduledTaskEditorContent: View {
         }
         .onChange(of: draft.modelSelection) { _, _ in
             viewModel.normalizeProviderDependentFields(&draft)
+        }
+        .onChange(of: viewModel.pinnedThreads) { _, options in
+            guard draft.destination == .existingThread,
+                  let targetConversationID = draft.targetConversationID,
+                  !options.contains(where: { $0.conversationID == targetConversationID }) else {
+                return
+            }
+            draft.targetConversationID = nil
         }
         .onChange(of: viewModel.isLoadingProviders) { wasLoading, isLoading in
             guard surface == .modal, wasLoading, !isLoading else { return }

@@ -31,6 +31,10 @@ extension ScheduledTaskRunRecoveryCoordinatorTests {
         XCTAssertEqual(approval.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)
         XCTAssertEqual(question.content, ChatItemGrouper.handledPromptSummary)
         XCTAssertEqual(fixture.notificationManager.refreshBadgeCountCalls, 0)
+        XCTAssertEqual(
+            fixture.controllerRegistry.supersededConversationIDs,
+            completed.thread?.conversations.first.map { [$0.id] } ?? []
+        )
     }
 
     func testRecoveryPreservesManualInteractionsOnFinalizedTerminalRuns() throws {
@@ -189,6 +193,9 @@ private final class ScheduledTaskRecoverySaveProbe {
 @MainActor
 final class RecordingRecoveryControllerRegistry: ConversationControllerRegistry {
     private(set) var flushForTerminationCalls = 0
+    private(set) var reconciledConversationIDs: [String] = []
+    private(set) var supersededConversationIDs: [String] = []
+    private(set) var supersededInteractionIDsByConversationID: [String: Set<String>] = [:]
 
     func makeViewLease(for conversation: Conversation) -> ConversationControllerLease {
         preconditionFailure("Recovery tests do not create live controllers")
@@ -216,6 +223,18 @@ final class RecordingRecoveryControllerRegistry: ConversationControllerRegistry 
     func flushForTermination() -> [ConversationControllerFlushFailure] {
         flushForTerminationCalls += 1
         return []
+    }
+
+    func reconcileScheduledTaskTerminalState(conversationID: String) {
+        reconciledConversationIDs.append(conversationID)
+    }
+
+    func supersedeScheduledTaskPendingInteractions(
+        conversationID: String,
+        interactionIDs: Set<String>
+    ) {
+        supersededConversationIDs.append(conversationID)
+        supersededInteractionIDsByConversationID[conversationID, default: []].formUnion(interactionIDs)
     }
 
     func invalidate(for key: ConversationControllerKey) {}

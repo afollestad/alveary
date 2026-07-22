@@ -44,6 +44,7 @@ final class ConversationViewModel {
     @ObservationIgnored var commitMessageGenerationContinuation: CheckedContinuation<String, Error>?
     @ObservationIgnored var automatedScheduledUserStopRequest: AutomatedScheduledUserStopRequest?
     @ObservationIgnored var automatedScheduledExecutionRunID: String?
+    @ObservationIgnored var automatedScheduledExecutionThreadKey: String?
     @ObservationIgnored var draftMaterializationSaver: () throws -> Void
 
     var streamingText: String? { state.streamingText }

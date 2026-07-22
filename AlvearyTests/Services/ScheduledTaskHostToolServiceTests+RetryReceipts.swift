@@ -54,6 +54,37 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertNotNil(fixture.conversation.scheduledTaskProposalReceiptsJSON)
     }
 
+    func testExactRetryAfterProposalRejectionSurvivesMacTimeZoneChange() throws {
+        let fixture = try ScheduledTaskHostToolFixture.project()
+        let timeZone = ScheduledTaskHostToolRetryTimeZoneBox("UTC")
+        let service = ScheduledTaskHostToolService(
+            modelContext: fixture.modelContext,
+            notificationCenter: fixture.notificationCenter,
+            requestParser: ScheduledTaskHostToolRequestParser(
+                defaultTimeZoneIdentifierProvider: { timeZone.identifier }
+            ),
+            now: { Date(timeIntervalSince1970: 1_000) }
+        )
+        let call = AgentCLIKit.AgentHostToolCall(
+            name: ScheduledTaskHostToolCatalog.proposeToolName,
+            arguments: createArgumentsOmittingTimeZone()
+        )
+        let context = fixture.agentContext(requestID: "string:rejected-cross-zone-retry")
+        let first = service.handle(context: context, call: call)
+        let firstProposalID = try proposalID(first)
+        let proposal = try XCTUnwrap(fixture.modelContext.resolveScheduledTaskProposal(id: firstProposalID))
+        fixture.modelContext.delete(proposal)
+        try fixture.modelContext.save()
+        timeZone.identifier = "America/Chicago"
+
+        let retry = service.handle(context: context, call: call)
+
+        XCTAssertFalse(retry.isError)
+        XCTAssertEqual(try proposalID(retry), firstProposalID)
+        XCTAssertEqual(retry.text, first.text)
+        XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
+    }
+
     func testExactRetryAfterProposalConfirmationDoesNotCreateDuplicateDefinitionOrProposal() throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let call = AgentCLIKit.AgentHostToolCall(
@@ -99,6 +130,60 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTask>()), 1)
     }
 
+    func testExactLegacyRetryAfterProposalConfirmationSurvivesMacTimeZoneChange() throws {
+        let fixture = try ScheduledTaskHostToolFixture.project()
+        let timeZone = ScheduledTaskHostToolRetryTimeZoneBox("UTC")
+        let service = ScheduledTaskHostToolService(
+            modelContext: fixture.modelContext,
+            notificationCenter: fixture.notificationCenter,
+            requestParser: ScheduledTaskHostToolRequestParser(
+                defaultTimeZoneIdentifierProvider: { timeZone.identifier }
+            ),
+            now: { Date(timeIntervalSince1970: 1_000) }
+        )
+        let call = AgentCLIKit.AgentHostToolCall(
+            name: ScheduledTaskHostToolCatalog.proposeToolName,
+            arguments: createArguments(legacyTimeZoneIdentifier: "UTC")
+        )
+        let context = fixture.agentContext(requestID: "string:confirmed-legacy-cross-zone-retry")
+        let first = service.handle(context: context, call: call)
+        let firstProposalID = try proposalID(first)
+        let proposal = try XCTUnwrap(fixture.modelContext.resolveScheduledTaskProposal(id: firstProposalID))
+        let draft = try XCTUnwrap(proposal.definitionDraft)
+        let edit = ScheduledTaskDefinitionEdit(
+            title: draft.title,
+            prompt: draft.prompt,
+            recurrence: draft.recurrence,
+            timeZoneIdentifier: draft.timeZoneIdentifier,
+            providerID: draft.providerID,
+            model: draft.model,
+            effort: draft.effort,
+            permissionMode: draft.permissionMode,
+            workspaceKind: draft.workspaceKind,
+            workspaceStrategy: draft.workspaceStrategy,
+            grantedRoots: draft.grantedRoots,
+            project: proposal.project
+        )
+        let mutationService = ScheduledTaskMutationService(
+            modelContext: fixture.modelContext,
+            notificationCenter: fixture.notificationCenter
+        )
+        try mutationService.create(
+            edit: edit,
+            at: Date(timeIntervalSince1970: 1_000),
+            consumingProposalID: firstProposalID
+        )
+        timeZone.identifier = "America/Chicago"
+
+        let retry = service.handle(context: context, call: call)
+
+        XCTAssertFalse(retry.isError)
+        XCTAssertEqual(try proposalID(retry), firstProposalID)
+        XCTAssertEqual(retry.text, first.text)
+        XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
+        XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTask>()), 1)
+    }
+
     func testExactRetryReceiptSurvivesStoreReopenAfterProposalRejection() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScheduledTaskReceiptReopen-\(UUID().uuidString)", isDirectory: true)
@@ -129,6 +214,7 @@ extension ScheduledTaskHostToolServiceTests {
             let modelContext = container.mainContext
             let service = ScheduledTaskHostToolService(
                 modelContext: modelContext,
+                requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC"),
                 now: { Date(timeIntervalSince1970: 1_001) }
             )
 
@@ -159,6 +245,7 @@ extension ScheduledTaskHostToolServiceTests {
             try modelContext.save()
             let service = ScheduledTaskHostToolService(
                 modelContext: modelContext,
+                requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC"),
                 now: { Date(timeIntervalSince1970: 1_000) }
             )
 
@@ -187,7 +274,27 @@ extension ScheduledTaskHostToolServiceTests {
     }
 }
 
+private extension ScheduledTaskHostToolServiceTests {
+    func createArgumentsOmittingTimeZone() -> [String: AgentCLIKit.JSONValue] {
+        var arguments = createArguments()
+        guard case .object(var schedule)? = arguments["schedule"] else {
+            return arguments
+        }
+        schedule.removeValue(forKey: "time_zone")
+        arguments["schedule"] = .object(schedule)
+        return arguments
+    }
+}
+
 private struct ScheduledTaskHostToolStoredResponse {
     let proposalID: String
     let message: String
+}
+
+private final class ScheduledTaskHostToolRetryTimeZoneBox: @unchecked Sendable {
+    var identifier: String
+
+    init(_ identifier: String) {
+        self.identifier = identifier
+    }
 }

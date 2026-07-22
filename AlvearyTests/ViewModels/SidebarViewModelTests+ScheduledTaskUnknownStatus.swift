@@ -25,7 +25,7 @@ extension SidebarViewModelTests {
             fixture: fixture,
             modeRawValue: AgentThreadMode.project.rawValue
         )
-        XCTAssertEqual(try fixture.viewModel.makeThreadArchiveSnapshot(thread).mode, .task)
+        XCTAssertEqual(try fixture.viewModel.makeThreadArchiveSnapshot(thread).mode, .project)
         observation.inspectUncommittedState = {
             fixture.context.resolveThread(id: threadID)?.archivedAt == nil
         }

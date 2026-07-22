@@ -11,6 +11,7 @@ final class ScheduledTaskHostToolService {
     private let notificationCenter: NotificationCenter
     private let requestParser: ScheduledTaskHostToolRequestParser
     let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
+    let currentTimeZone: @MainActor () -> TimeZone
     private let now: () -> Date
 
     init(
@@ -18,12 +19,14 @@ final class ScheduledTaskHostToolService {
         notificationCenter: NotificationCenter = .default,
         requestParser: ScheduledTaskHostToolRequestParser = ScheduledTaskHostToolRequestParser(),
         recurrenceCalculator: ScheduledTaskRecurrenceCalculator = ScheduledTaskRecurrenceCalculator(),
+        currentTimeZone: @escaping @MainActor () -> TimeZone = { .autoupdatingCurrent },
         now: @escaping () -> Date = Date.init
     ) {
         self.modelContext = modelContext
         self.notificationCenter = notificationCenter
         self.requestParser = requestParser
         self.recurrenceCalculator = recurrenceCalculator
+        self.currentTimeZone = currentTimeZone
         self.now = now
     }
 
@@ -75,7 +78,10 @@ private extension ScheduledTaskHostToolService {
                 "revision": .number(Double(definition.revision)),
                 "title": .string(definition.title),
                 "state": .string(definition.state.rawValue),
-                "schedule_summary": .string(ScheduledTaskHostToolSupport.scheduleSummary(for: definition))
+                "schedule_summary": .string(ScheduledTaskHostToolSupport.scheduleSummary(
+                    for: definition,
+                    timeZoneIdentifier: currentTimeZone().identifier
+                ))
             ])
         }
         let countDescription = definitions.count == 1 ? "1 scheduled task" : "\(definitions.count) scheduled tasks"
@@ -100,12 +106,12 @@ private extension ScheduledTaskHostToolService {
         let source = try resolveSource(context: context)
         let sourceConversation = source.conversation
 
-        let parsedRequest = try requestParser.parse(arguments: arguments)
+        let retryIdentity = try requestParser.parseRetryIdentity(arguments: arguments)
         let deduplicationKey = ScheduledTaskHostToolSupport.deduplicationKey(
             sourceConversationID: sourceConversationID,
             processToken: context.processToken,
             requestID: requestID,
-            canonicalPayloadHash: parsedRequest.canonicalPayloadHash
+            canonicalPayloadHash: retryIdentity.canonicalPayloadHash
         )
 
         let receipt = try sourceConversation.scheduledTaskProposalReceipt(
@@ -117,6 +123,8 @@ private extension ScheduledTaskHostToolService {
         if let receipt {
             return pendingResult(receipt: receipt)
         }
+
+        let parsedRequest = try requestParser.parse(arguments: arguments)
 
         if let existingResult = try pendingResultForExistingProposal(
             sourceConversation: sourceConversation,

@@ -5,6 +5,98 @@ import XCTest
 
 @MainActor
 extension SidebarViewModelTests {
+    // swiftlint:disable:next function_body_length
+    func testProjectDeletionUsesDurableScheduledWorktreeCleanupProvenance() async throws {
+        let fixture = try SidebarTestFixture()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-project-scheduled-worktree-\(UUID().uuidString)", isDirectory: true)
+        let sourceRoot = root.appendingPathComponent("Source", isDirectory: true)
+        let worktreeRoot = root.appendingPathComponent("Worktree", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktreeRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try fixture.taskWorkspaceOwnershipService.registerOwnedWorktree(
+            at: worktreeRoot.path,
+            sourceProjectPath: sourceRoot.path,
+            grantedRoots: []
+        )
+        let sourceIdentity = try fixture.taskWorkspaceOwnershipService.directoryIdentity(at: sourceRoot.path)
+        let worktreeIdentity = try fixture.taskWorkspaceOwnershipService.directoryIdentity(at: worktreeRoot.path)
+        let branch = "alveary/scheduled-project"
+        let currentHead = "current-scheduled-head"
+        let cleanup = try XCTUnwrap(ScheduledWorktreeCleanupProvenance(
+            sourceProjectPath: sourceRoot.path,
+            worktreePath: worktreeRoot.path,
+            branch: branch,
+            sourceProjectIdentity: sourceIdentity,
+            worktreeIdentity: worktreeIdentity,
+            branchIsOwned: true,
+            branchOID: "initial-head",
+            ownershipMarkerID: workspace.ownershipMarkerID,
+            ownershipSourceProjectPath: workspace.sourceProjectPath
+        ))
+        let project = Project(path: sourceRoot.path, name: "Scheduled source")
+        let run = ScheduledTaskRun(
+            occurrenceID: UUID().uuidString,
+            definitionID: "scheduled-project-definition",
+            definitionRevision: 1,
+            occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
+            triggerKind: .scheduled,
+            status: .success,
+            titleSnapshot: "Scheduled task",
+            promptSnapshot: "Run scheduled work.",
+            timeZoneIdentifierSnapshot: "America/Chicago",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "default",
+            workspaceKindSnapshot: .project,
+            workspaceStrategySnapshot: .worktree,
+            projectPathSnapshot: sourceRoot.path,
+            workspaceCleanupProvenance: cleanup,
+            preparedWorkspaceRoot: worktreeRoot.path,
+            preparedWorkspaceOwnershipStrategy: .projectWorktreeOwned,
+            preparedWorkspaceMarkerID: workspace.ownershipMarkerID
+        )
+        let thread = AgentThread(
+            name: "Scheduled project thread",
+            branch: branch,
+            worktreePath: worktreeRoot.path,
+            useWorktree: true,
+            mode: .project,
+            project: project,
+            scheduledTaskRun: run
+        )
+        thread.taskWorkspaceDescriptor = workspace
+        thread.conversations = [Conversation(id: "scheduled-project-main", provider: "codex", thread: thread)]
+        project.threads = [thread]
+        run.thread = thread
+        fixture.context.insert(project)
+        fixture.context.insert(run)
+        try fixture.context.save()
+        let projectID = project.persistentModelID
+        let threadID = thread.persistentModelID
+        let runID = run.persistentModelID
+        await fixture.worktreeManager.setValidatesRemovalIdentities(true)
+        await fixture.worktreeManager.setListResult([
+            WorktreeInfo(path: worktreeRoot.path, branch: branch, headOID: currentHead)
+        ])
+
+        let currentProject = try XCTUnwrap(fixture.context.resolveProject(id: projectID))
+        try await fixture.viewModel.deleteProject(currentProject)
+
+        XCTAssertNil(fixture.context.resolveThread(id: threadID))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreeRoot.path))
+        let removeCalls = await fixture.worktreeManager.removeCalls()
+        let removeCall = try XCTUnwrap(removeCalls.first)
+        XCTAssertNil(removeCall.branch)
+        let branchCalls = await fixture.worktreeManager.deleteBranchCalls()
+        let branchCall = try XCTUnwrap(branchCalls.first)
+        XCTAssertEqual(branchCall.expectedOID, currentHead)
+        let retainedRun = try XCTUnwrap(fixture.context.resolveScheduledTaskRun(id: runID))
+        XCTAssertNil(retainedRun.workspaceCleanupProvenance)
+        XCTAssertNil(retainedRun.pendingWorktreeCleanup)
+    }
+
     func testDeleteOwnedTaskWorktreeRejectsCanonicalSourceAlias() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("alveary-task-source-alias-\(UUID().uuidString)", isDirectory: true)

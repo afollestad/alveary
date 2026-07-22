@@ -13,6 +13,7 @@ struct ScheduledTaskTerminalMutationSnapshot {
     let lastError: String?
     let finishedAt: Date?
     let requiresFinalizationRecovery: Bool
+    let presentationThread: AgentThread?
     let threadModifiedAt: Date?
     let conversationWasUnread: Bool
 
@@ -21,7 +22,8 @@ struct ScheduledTaskTerminalMutationSnapshot {
         lastError = run.lastError
         finishedAt = run.finishedAt
         requiresFinalizationRecovery = run.requiresFinalizationRecovery
-        threadModifiedAt = run.thread?.modifiedAt
+        presentationThread = run.thread ?? run.targetThread
+        threadModifiedAt = presentationThread?.modifiedAt
         conversationWasUnread = conversation.isUnread
     }
 
@@ -30,7 +32,7 @@ struct ScheduledTaskTerminalMutationSnapshot {
         run.lastError = lastError
         run.finishedAt = finishedAt
         run.requiresFinalizationRecovery = requiresFinalizationRecovery
-        run.thread?.modifiedAt = threadModifiedAt
+        presentationThread?.modifiedAt = threadModifiedAt
         conversation.isUnread = conversationWasUnread
     }
 }

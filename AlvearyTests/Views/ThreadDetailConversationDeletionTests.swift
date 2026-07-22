@@ -41,6 +41,27 @@ final class ThreadDetailConversationDeletionTests: XCTestCase {
         try assertScheduledTaskMainConversationCannotBeRemoved(status: .success)
     }
 
+    func testMainConversationAttachedToScheduledTaskCannotBeRemoved() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.thread.isPinned = true
+        let definition = ScheduledTask(
+            title: "Attached schedule",
+            prompt: "Continue here.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "UTC",
+            providerID: "codex",
+            targetThread: fixture.thread
+        )
+        fixture.context.insert(definition)
+        try fixture.context.save()
+
+        XCTAssertFalse(ThreadDetailConversationDeletion.canRemove(fixture.conversation))
+        XCTAssertThrowsError(try ThreadDetailConversationDeletion.requireRemovable(fixture.conversation)) { error in
+            XCTAssertEqual(error as? ThreadDetailConversationDeletionError, .scheduledTaskAttachment)
+        }
+    }
+
     func testScheduledTaskMainConversationCloseShortcutIsConsumedWithoutRemoval() throws {
         let fixture = try scheduledTaskFixture(status: .running)
         let conversations = try fixture.context.fetch(FetchDescriptor<Conversation>())

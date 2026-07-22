@@ -48,7 +48,7 @@ extension ScheduledTaskHostToolService {
             title: title,
             prompt: prompt,
             recurrence: schedule.recurrence,
-            timeZoneIdentifier: schedule.timeZoneIdentifier,
+            timeZoneIdentifier: currentTimeZone().identifier,
             providerID: sourceProviderID,
             model: sourceThread.model,
             effort: sourceThread.effort,
@@ -96,7 +96,13 @@ extension ScheduledTaskHostToolService {
         guard definition.state == .paused else {
             throw ScheduledTaskHostToolServiceError.resumeRequiresPausedDefinition
         }
+        guard let destination = definition.decodedDestination else {
+            throw ScheduledTaskHostToolServiceError.invalidStoredSchedule
+        }
         if definition.workspaceKind == .project, definition.project == nil {
+            if destination == .existingThread {
+                return targetResolution(definition)
+            }
             throw ScheduledTaskHostToolServiceError.workspaceUnavailable
         }
         return targetResolution(definition)
@@ -107,7 +113,13 @@ extension ScheduledTaskHostToolService {
         expectedRevision: Int
     ) throws -> ScheduledTaskHostToolProposalResolution {
         let definition = try resolveTargetDefinition(id: definitionID, expectedRevision: expectedRevision)
+        guard definition.decodedDestination != nil else {
+            throw ScheduledTaskHostToolServiceError.invalidStoredSchedule
+        }
         guard !definition.runs.contains(where: { !$0.hasKnownTerminalStatus }) else {
+            throw ScheduledTaskHostToolServiceError.runNowBlockedByActiveRun
+        }
+        guard definition.targetWaitStartedAt == nil else {
             throw ScheduledTaskHostToolServiceError.runNowBlockedByActiveRun
         }
         return targetResolution(definition)
@@ -136,8 +148,11 @@ extension ScheduledTaskHostToolService {
         guard let storedRecurrence = definition.recurrence else {
             throw ScheduledTaskHostToolServiceError.invalidStoredSchedule
         }
+        guard let destination = definition.decodedDestination else {
+            throw ScheduledTaskHostToolServiceError.invalidStoredSchedule
+        }
         let recurrence = changes.schedule?.recurrence ?? storedRecurrence
-        let timeZoneIdentifier = changes.schedule?.timeZoneIdentifier ?? definition.timeZoneIdentifier
+        let timeZoneIdentifier = currentTimeZone().identifier
         do {
             try recurrenceCalculator.validate(
                 recurrence,
@@ -149,7 +164,7 @@ extension ScheduledTaskHostToolService {
 
         let grantedRoots = try ScheduledTaskHostToolSupport.validatedStoredGrantedRoots(definition.grantedRoots)
         let project: Project?
-        if definition.workspaceKind == .project {
+        if destination == .newThread, definition.workspaceKind == .project {
             guard let resolvedProject = definition.project else {
                 throw ScheduledTaskHostToolServiceError.workspaceUnavailable
             }
@@ -161,6 +176,8 @@ extension ScheduledTaskHostToolService {
         return ScheduledTaskProposalDefinitionDraft(
             title: changes.title ?? definition.title,
             prompt: changes.prompt ?? definition.prompt,
+            destination: destination,
+            targetConversationID: definition.targetThread?.conversations.first(where: \.isMain)?.id,
             recurrence: recurrence,
             timeZoneIdentifier: timeZoneIdentifier,
             providerID: definition.providerID,
@@ -227,7 +244,10 @@ extension ScheduledTaskHostToolService {
             targetDefinitionID: definition.id,
             expectedDefinitionRevision: definition.revision,
             targetTitleSnapshot: definition.title,
-            targetScheduleSummarySnapshot: ScheduledTaskHostToolSupport.scheduleSummary(for: definition),
+            targetScheduleSummarySnapshot: ScheduledTaskHostToolSupport.scheduleSummary(
+                for: definition,
+                timeZoneIdentifier: currentTimeZone().identifier
+            ),
             definitionDraft: definitionDraft,
             project: definition.project
         )
@@ -249,6 +269,9 @@ extension ScheduledTaskHostToolService {
         }
         if let scheduledRun = thread.scheduledTaskRun,
            !scheduledRun.hasKnownTerminalStatus {
+            throw ScheduledTaskHostToolServiceError.automatedRunCannotSchedule
+        }
+        if thread.hasBlockingScheduledTaskRunAttachment {
             throw ScheduledTaskHostToolServiceError.automatedRunCannotSchedule
         }
         return ScheduledTaskHostToolSource(

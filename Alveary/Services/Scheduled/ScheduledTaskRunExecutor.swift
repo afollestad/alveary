@@ -4,6 +4,12 @@ import SwiftData
 @MainActor
 final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
     typealias AutomatedTurnStarter = @MainActor (ConversationViewModel, String) async throws -> Void
+    typealias ScheduledStartBoundary = @MainActor @Sendable () throws -> Void
+    typealias RuntimeAwareAutomatedTurnStarter = @MainActor (
+        ConversationViewModel,
+        String,
+        ScheduledStartBoundary
+    ) async throws -> Void
     typealias DateProvider = @MainActor () -> Date
     typealias TerminalStateSaver = @MainActor () throws -> Void
     typealias FinalizationStateSaver = @MainActor () throws -> Void
@@ -14,23 +20,21 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
     let modelContext: ModelContext
     private let controllerRegistry: any ConversationControllerRegistry
     private let notificationManager: any NotificationManager
-    private let startAutomatedTurn: AutomatedTurnStarter
-    private let saveExecutionState: TerminalStateSaver
+    private let startAutomatedTurn: RuntimeAwareAutomatedTurnStarter
+    let saveExecutionState: TerminalStateSaver
     private let saveTerminalState: TerminalStateSaver
     let saveFinalizationState: FinalizationStateSaver
     private let persistenceRetryWait: PersistenceRetryWait
     private let conversationCancellationAction: ConversationCancellationAction
     private let cancellationHandlerAction: CancellationHandlerAction
-    private let now: DateProvider
+    let now: DateProvider
     private var activeExecutions: [PersistentIdentifier: ActiveScheduledTaskExecution] = [:]
 
     init(
         modelContext: ModelContext,
         controllerRegistry: any ConversationControllerRegistry,
         notificationManager: any NotificationManager,
-        startAutomatedTurn: @escaping AutomatedTurnStarter = { viewModel, prompt in
-            try await viewModel.startAutomatedScheduledTurn(prompt)
-        },
+        startAutomatedTurn: AutomatedTurnStarter? = nil,
         saveExecutionState: TerminalStateSaver? = nil,
         saveTerminalState: TerminalStateSaver? = nil,
         saveFinalizationState: FinalizationStateSaver? = nil,
@@ -46,7 +50,19 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
         self.modelContext = modelContext
         self.controllerRegistry = controllerRegistry
         self.notificationManager = notificationManager
-        self.startAutomatedTurn = startAutomatedTurn
+        if let startAutomatedTurn {
+            self.startAutomatedTurn = { viewModel, prompt, markStarted in
+                try markStarted()
+                try await startAutomatedTurn(viewModel, prompt)
+            }
+        } else {
+            self.startAutomatedTurn = { viewModel, prompt, markStarted in
+                try await viewModel.startAutomatedScheduledTurn(
+                    prompt,
+                    onRuntimePrepared: markStarted
+                )
+            }
+        }
         self.saveExecutionState = saveExecutionState ?? { try modelContext.save() }
         self.saveTerminalState = saveTerminalState ?? { try modelContext.save() }
         self.saveFinalizationState = saveFinalizationState ?? { try modelContext.save() }
@@ -68,10 +84,13 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
         let runID = run.persistentModelID
         let conversationID = conversation.id
         let prompt = materialization.prompt
+        let controllerKey = ConversationControllerKey(conversationID: conversationID)
+        let baselineEpoch = controllerRegistry.currentOutcome(for: controllerKey)?.turn.epoch
         let lease = controllerRegistry.makeBackgroundLease(
             for: conversation,
             defersAutomaticSuspension: true
         )
+        try activateLeaseIfTargetIsReady(lease, for: run)
         let execution = ActiveScheduledTaskExecution(
             runID: runID,
             lease: lease,
@@ -81,14 +100,13 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
         let userStopToken = lease.viewModel.installAutomatedScheduledUserStopHandler(onUserStop)
         defer { lease.viewModel.removeAutomatedScheduledUserStopHandler(token: userStopToken) }
         lease.viewModel.beginAutomatedScheduledRunExecution(runID: run.id)
-        lease.activate()
         let outcomes = lease.outcomes()
 
         do {
-            try markStarted(runID: runID)
             let providerResult = try await providerExecutionResult(
                 execution: execution,
                 outcomes: outcomes,
+                baselineEpoch: baselineEpoch,
                 prompt: prompt
             )
             let terminalRequest = ScheduledTaskTerminalPersistenceRequest(
@@ -172,27 +190,27 @@ private extension DefaultScheduledTaskRunExecutor {
         guard let conversation = modelContext.resolveConversation(conversationID: materialization.conversationID) else {
             throw ScheduledTaskRunExecutionError.conversationMissing
         }
-        guard conversation.thread?.scheduledTaskRun?.persistentModelID == runID else {
+        guard let destination = run.decodedDestinationSnapshot else {
             throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
         }
-        return (run, conversation)
-    }
-
-    func markStarted(runID: PersistentIdentifier) throws {
-        guard let run = modelContext.resolveScheduledTaskRun(id: runID) else {
-            throw ScheduledTaskRunExecutionError.runMissing
+        switch destination {
+        case .newThread:
+            guard conversation.thread?.scheduledTaskRun?.persistentModelID == runID else {
+                throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
+            }
+        case .existingThread:
+            guard run.targetThread?.persistentModelID == conversation.thread?.persistentModelID,
+                  run.targetConversationIDSnapshot == conversation.id else {
+                throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
+            }
         }
-        run.status = .running
-        run.startedAt = now()
-        run.waitingAt = nil
-        run.finishedAt = nil
-        run.lastError = nil
-        try saveExecutionState()
+        return (run, conversation)
     }
 
     func providerExecutionResult(
         execution: ActiveScheduledTaskExecution,
         outcomes: AsyncStream<ConversationControllerOutcome>,
+        baselineEpoch: UInt64?,
         prompt: String
     ) async throws -> ScheduledTaskRunExecutionResult {
         let viewModel = execution.lease.viewModel
@@ -217,7 +235,11 @@ private extension DefaultScheduledTaskRunExecutor {
                 return .interrupted
             }
             let result = try await execution.runProviderOutcomeConsumer {
-                try await self.consumeOutcomes(outcomes, runID: execution.runID)
+                try await self.consumeOutcomes(
+                    outcomes,
+                    runID: execution.runID,
+                    after: baselineEpoch
+                )
             }
             if Task.isCancelled {
                 await execution.cancelConversationActivity()
@@ -244,10 +266,13 @@ private extension DefaultScheduledTaskRunExecutor {
     ) async throws {
         try Task.checkCancellation()
         let startAutomatedTurn = self.startAutomatedTurn
+        let markStarted: ScheduledStartBoundary = {
+            try self.markStarted(runID: execution.runID)
+        }
         let token = UUID()
         let task = Task { @MainActor in
             try Task.checkCancellation()
-            try await startAutomatedTurn(viewModel, prompt)
+            try await startAutomatedTurn(viewModel, prompt, markStarted)
         }
         execution.registerProviderStart(task, token: token)
         do {
@@ -261,10 +286,15 @@ private extension DefaultScheduledTaskRunExecutor {
 
     func consumeOutcomes(
         _ outcomes: AsyncStream<ConversationControllerOutcome>,
-        runID: PersistentIdentifier
+        runID: PersistentIdentifier,
+        after baselineEpoch: UInt64?
     ) async throws -> ScheduledTaskRunExecutionResult {
         var turn: ConversationControllerTurn?
         for await outcome in outcomes {
+            if let baselineEpoch,
+               outcome.turn.epoch <= baselineEpoch {
+                continue
+            }
             if turn == nil {
                 turn = outcome.turn
             }
@@ -422,25 +452,8 @@ private extension DefaultScheduledTaskRunExecutor {
             run.lastError = nil
         }
         run.finishedAt = finishedAt
-        run.thread?.modifiedAt = finishedAt
+        (run.thread ?? run.targetThread)?.modifiedAt = finishedAt
         run.requiresFinalizationRecovery = true
-    }
-
-    func persistedExecutionResult(
-        for run: ScheduledTaskRun
-    ) -> ScheduledTaskRunExecutionResult {
-        switch run.decodedStatus {
-        case .success:
-            return .succeeded
-        case .failure:
-            return .failed(message: run.lastError)
-        case .interrupted, .skipped:
-            return .interrupted
-        case .claimed, .preparing, .running, .waiting:
-            preconditionFailure("Expected a terminal scheduled task run")
-        case nil:
-            preconditionFailure("Expected a known scheduled task run status")
-        }
     }
 
     func finalizeExecutionDurably(_ execution: ActiveScheduledTaskExecution) async {
@@ -482,13 +495,4 @@ private extension DefaultScheduledTaskRunExecutor {
         )
     }
 
-    func persistenceRetryMessage(for error: Error) -> String {
-        "Couldn't save the completed scheduled task: \(error.localizedDescription). Retrying."
-    }
-
-    func clearPersistenceRetryError(from viewModel: ConversationViewModel) {
-        if viewModel.lastTurnError?.hasPrefix("Couldn't save the completed scheduled task:") == true {
-            viewModel.lastTurnError = nil
-        }
-    }
 }

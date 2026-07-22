@@ -41,13 +41,25 @@ extension SidebarThreadRow {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             if showsIcon {
-                Image(systemName: cleanupAction.systemImage)
+                Image(systemName: sidebarThreadCleanupSystemImage(
+                    action: cleanupAction,
+                    disabledReason: cleanupDisabledReason,
+                    isCleanupButtonHovered: isHoveringCleanupButton
+                ))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(iconForegroundColor)
                     .frame(width: Self.cleanupButtonSize, height: Self.cleanupButtonSize)
             }
         }
     }
+}
+
+func sidebarThreadCleanupSystemImage(
+    action: ThreadCleanupAction,
+    disabledReason: String?,
+    isCleanupButtonHovered: Bool
+) -> String {
+    disabledReason != nil && isCleanupButtonHovered ? "nosign" : action.systemImage
 }
 
 /// Returns the trimmed name to commit, or `nil` when the submission is empty or unchanged from

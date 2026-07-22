@@ -218,7 +218,7 @@ private func worktreeForkSetup(
 }
 
 @MainActor
-private func projectForkSetup(
+func projectForkSetup(
     providerId: AgentCLIKit.AgentProviderID,
     sessionId: AgentCLIKit.AgentSessionID,
     sourceWorktreePath: String? = nil,
@@ -268,6 +268,7 @@ private func assertLocalForkThread(
     XCTAssertFalse(forkedThread.useWorktree)
     XCTAssertFalse(forkedThread.isPinned)
     XCTAssertTrue(forkedThread.hasCompletedInitialSetup)
+    XCTAssertFalse(forkedThread.isForkBootstrapPending)
     XCTAssertEqual(conversation.title, "Thread")
     XCTAssertEqual(conversation.provider, "codex")
     XCTAssertEqual(spawnCall.id, conversation.id)
@@ -438,7 +439,7 @@ private func forkProviderSessionRecord(
     )
 }
 
-private struct ForkTestSetup {
+struct ForkTestSetup {
     let fixture: SidebarTestFixture
     let thread: AgentThread
 }

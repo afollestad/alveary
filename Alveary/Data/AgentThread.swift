@@ -18,6 +18,7 @@ final class AgentThread {
     var isPinned: Bool = false
     var pinnedSortOrder: Int?
     var isDraft: Bool = false
+    var isForkBootstrapPending: Bool = false
     var modifiedAt: Date?
     var archivedAt: Date?
     var modeRawValue: String = AgentThreadMode.project.rawValue
@@ -28,6 +29,10 @@ final class AgentThread {
     var taskSourceProjectPath: String?
     var project: Project?
     var scheduledTaskRun: ScheduledTaskRun?
+    @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.targetThread)
+    var targetedScheduledTasks: [ScheduledTask] = []
+    @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskRun.targetThread)
+    var targetedScheduledTaskRuns: [ScheduledTaskRun] = []
     @Relationship(deleteRule: .cascade, inverse: \Conversation.thread) var conversations: [Conversation]
 
     init(
@@ -46,6 +51,7 @@ final class AgentThread {
         isPinned: Bool = false,
         pinnedSortOrder: Int? = nil,
         isDraft: Bool = false,
+        isForkBootstrapPending: Bool = false,
         modifiedAt: Date? = nil,
         archivedAt: Date? = nil,
         mode: AgentThreadMode = .project,
@@ -69,6 +75,7 @@ final class AgentThread {
         self.isPinned = isPinned
         self.pinnedSortOrder = pinnedSortOrder
         self.isDraft = isDraft
+        self.isForkBootstrapPending = isForkBootstrapPending
         self.modifiedAt = modifiedAt
         self.archivedAt = archivedAt
         self.modeRawValue = mode.rawValue
@@ -99,19 +106,42 @@ extension Notification.Name {
     static let threadDraftMaterialized = Notification.Name("threadDraftMaterialized")
     static let threadDraftProjectChanged = Notification.Name("threadDraftProjectChanged")
     static let threadLifecycleChanged = Notification.Name("threadLifecycleChanged")
+    static let threadPresentationChanged = Notification.Name("threadPresentationChanged")
 }
 
 extension AgentThread {
+    var blockingScheduledTaskAttachment: ScheduledTask? {
+        targetedScheduledTasks.min {
+            if $0.createdAt != $1.createdAt {
+                return $0.createdAt < $1.createdAt
+            }
+            return $0.id < $1.id
+        }
+    }
+
+    var hasBlockingScheduledTaskRunAttachment: Bool {
+        targetedScheduledTaskRuns.contains {
+            !$0.hasKnownTerminalStatus || $0.requiresFinalizationRecovery
+        }
+    }
+
+    var hasPendingScheduledTaskWorktreeCleanup: Bool {
+        scheduledTaskRun?.hasPendingWorktreeCleanupMetadata == true
+    }
+
     var mode: AgentThreadMode {
         get { AgentThreadMode(rawValue: modeRawValue) ?? .project }
         set { modeRawValue = newValue.rawValue }
     }
 
-    /// Durable identity for lifecycle and presentation routing. A scheduled-run relationship
-    /// is definitive Task provenance even when a future or legacy raw mode falls back to Project.
-    /// Workspace decoding continues to use `mode` so malformed workspace state still fails closed.
     var effectiveMode: AgentThreadMode {
-        scheduledTaskRun == nil ? mode : .task
+        if let persistedMode = AgentThreadMode(rawValue: modeRawValue) {
+            return persistedMode
+        }
+        guard let scheduledTaskRun else {
+            return .project
+        }
+        return scheduledTaskRun.workspaceKindSnapshot == .privateWorkspace ? .task : .project
     }
 
     var taskWorkspaceDescriptor: TaskWorkspaceDescriptor? {

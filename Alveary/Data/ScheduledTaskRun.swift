@@ -26,7 +26,7 @@ enum ScheduledTaskRunStatus: String, Codable, CaseIterable, Sendable {
     }
 }
 
-struct ScheduledWorktreeCleanupProvenance: Equatable, Sendable {
+struct ScheduledWorktreeCleanupProvenance: Codable, Equatable, Sendable {
     let sourceProjectPath: String
     let worktreePath: String
     let branch: String
@@ -165,11 +165,16 @@ final class ScheduledTaskRun {
     var statusRawValue: String
     var titleSnapshot: String
     var promptSnapshot: String
+    var destinationRawValueSnapshot: String = ScheduledTaskDestination.newThread.rawValue
+    var targetConversationIDSnapshot: String?
+    var targetThreadNameSnapshot: String?
     var timeZoneIdentifierSnapshot: String
     var providerIDSnapshot: String
     var modelSnapshot: String?
     var effortSnapshot: String
     var permissionModeSnapshot: String
+    var planModeEnabledSnapshot: Bool?
+    var speedModeSnapshot: String?
     var workspaceKindRawValueSnapshot: String
     var workspaceStrategyRawValueSnapshot: String
     var projectPathSnapshot: String?
@@ -177,6 +182,7 @@ final class ScheduledTaskRun {
     var projectRemoteNameSnapshot: String?
     var grantedRootsSnapshot: [String]
     var workspaceIdentitySnapshotJSON: String?
+    var workspaceCleanupProvenanceJSON: String?
     var preparedWorkspaceRoot: String?
     var preparedOwnershipStrategyRawValue: String?
     var preparedWorkspaceMarkerID: String?
@@ -200,7 +206,9 @@ final class ScheduledTaskRun {
     var requiresFinalizationRecovery: Bool = false
     var scheduledTask: ScheduledTask?
     @Relationship(deleteRule: .nullify, inverse: \AgentThread.scheduledTaskRun) var thread: AgentThread?
+    var targetThread: AgentThread?
 
+    // swiftlint:disable:next function_body_length
     init(
         id: String = UUID().uuidString,
         occurrenceID: String,
@@ -213,11 +221,16 @@ final class ScheduledTaskRun {
         status: ScheduledTaskRunStatus = .claimed,
         titleSnapshot: String,
         promptSnapshot: String,
+        destinationSnapshot: ScheduledTaskDestination = .newThread,
+        targetConversationIDSnapshot: String? = nil,
+        targetThreadNameSnapshot: String? = nil,
         timeZoneIdentifierSnapshot: String,
         providerIDSnapshot: String,
         modelSnapshot: String? = nil,
         effortSnapshot: String,
         permissionModeSnapshot: String,
+        planModeEnabledSnapshot: Bool? = nil,
+        speedModeSnapshot: String? = nil,
         workspaceKindSnapshot: ScheduledTaskWorkspaceKind,
         workspaceStrategySnapshot: ScheduledTaskWorkspaceStrategy,
         projectPathSnapshot: String? = nil,
@@ -225,6 +238,7 @@ final class ScheduledTaskRun {
         projectRemoteNameSnapshot: String? = nil,
         grantedRootsSnapshot: [String] = [],
         workspaceIdentitySnapshot: ScheduledTaskWorkspaceIdentitySnapshot? = nil,
+        workspaceCleanupProvenance: ScheduledWorktreeCleanupProvenance? = nil,
         preparedWorkspaceRoot: String? = nil,
         preparedWorkspaceOwnershipStrategy: TaskWorkspaceOwnershipStrategy? = nil,
         preparedWorkspaceMarkerID: String? = nil,
@@ -247,7 +261,8 @@ final class ScheduledTaskRun {
         lastError: String? = nil,
         requiresFinalizationRecovery: Bool = false,
         scheduledTask: ScheduledTask? = nil,
-        thread: AgentThread? = nil
+        thread: AgentThread? = nil,
+        targetThread: AgentThread? = nil
     ) {
         self.id = id
         self.occurrenceID = occurrenceID
@@ -260,11 +275,16 @@ final class ScheduledTaskRun {
         self.statusRawValue = status.rawValue
         self.titleSnapshot = titleSnapshot
         self.promptSnapshot = promptSnapshot
+        self.destinationRawValueSnapshot = destinationSnapshot.rawValue
+        self.targetConversationIDSnapshot = targetConversationIDSnapshot
+        self.targetThreadNameSnapshot = targetThreadNameSnapshot
         self.timeZoneIdentifierSnapshot = timeZoneIdentifierSnapshot
         self.providerIDSnapshot = providerIDSnapshot
         self.modelSnapshot = modelSnapshot
         self.effortSnapshot = effortSnapshot
         self.permissionModeSnapshot = permissionModeSnapshot
+        self.planModeEnabledSnapshot = planModeEnabledSnapshot
+        self.speedModeSnapshot = speedModeSnapshot
         self.workspaceKindRawValueSnapshot = workspaceKindSnapshot.rawValue
         self.workspaceStrategyRawValueSnapshot = workspaceStrategySnapshot.rawValue
         self.projectPathSnapshot = projectPathSnapshot.map(CanonicalPath.normalize)
@@ -272,6 +292,7 @@ final class ScheduledTaskRun {
         self.projectRemoteNameSnapshot = projectRemoteNameSnapshot
         self.grantedRootsSnapshot = ScheduledTask.normalizedUniquePaths(grantedRootsSnapshot)
         self.workspaceIdentitySnapshotJSON = Self.encodeWorkspaceIdentitySnapshot(workspaceIdentitySnapshot)
+        self.workspaceCleanupProvenanceJSON = Self.encodeWorkspaceCleanupProvenance(workspaceCleanupProvenance)
         self.preparedWorkspaceRoot = preparedWorkspaceRoot.map(CanonicalPath.normalize)
         self.preparedOwnershipStrategyRawValue = preparedWorkspaceOwnershipStrategy?.rawValue
         self.preparedWorkspaceMarkerID = preparedWorkspaceMarkerID
@@ -295,6 +316,7 @@ final class ScheduledTaskRun {
         self.requiresFinalizationRecovery = requiresFinalizationRecovery
         self.scheduledTask = scheduledTask
         self.thread = thread
+        self.targetThread = targetThread
     }
 }
 
@@ -308,8 +330,12 @@ extension ScheduledTaskRun {
         triggerKind: ScheduledTaskRunTriggerKind,
         status: ScheduledTaskRunStatus = .claimed,
         workspaceIdentitySnapshot: ScheduledTaskWorkspaceIdentitySnapshot? = nil,
+        targetSnapshot: ScheduledTaskTargetSnapshot? = nil,
         thread: AgentThread? = nil
     ) {
+        guard let destination = definition.decodedDestination else {
+            preconditionFailure("Cannot snapshot a scheduled task with an unknown destination")
+        }
         self.init(
             occurrenceID: occurrenceID,
             triggerID: triggerID,
@@ -321,23 +347,29 @@ extension ScheduledTaskRun {
             status: status,
             titleSnapshot: definition.title,
             promptSnapshot: definition.prompt,
+            destinationSnapshot: destination,
+            targetConversationIDSnapshot: targetSnapshot?.conversationID,
+            targetThreadNameSnapshot: targetSnapshot?.threadName,
             timeZoneIdentifierSnapshot: definition.timeZoneIdentifier,
-            providerIDSnapshot: definition.providerID,
-            modelSnapshot: definition.model,
-            effortSnapshot: definition.effort,
-            permissionModeSnapshot: definition.permissionMode,
-            workspaceKindSnapshot: definition.workspaceKind,
-            workspaceStrategySnapshot: definition.workspaceStrategy,
-            projectPathSnapshot: definition.project?.path,
+            providerIDSnapshot: targetSnapshot?.providerID ?? definition.providerID,
+            modelSnapshot: targetSnapshot == nil ? definition.model : targetSnapshot?.model,
+            effortSnapshot: targetSnapshot?.effort ?? definition.effort,
+            permissionModeSnapshot: targetSnapshot?.permissionMode ?? definition.permissionMode,
+            planModeEnabledSnapshot: targetSnapshot?.planModeEnabled,
+            speedModeSnapshot: targetSnapshot?.speedMode,
+            workspaceKindSnapshot: targetSnapshot?.workspaceKind ?? definition.workspaceKind,
+            workspaceStrategySnapshot: targetSnapshot?.workspaceStrategy ?? definition.workspaceStrategy,
+            projectPathSnapshot: targetSnapshot?.projectPath ?? definition.project?.path,
             projectBaseRefSnapshot: definition.project?.baseRef,
             projectRemoteNameSnapshot: definition.project?.remoteName,
-            grantedRootsSnapshot: definition.grantedRoots,
+            grantedRootsSnapshot: targetSnapshot?.grantedRoots ?? definition.grantedRoots,
             workspaceIdentitySnapshot: workspaceIdentitySnapshot,
             scheduledTask: definition,
-            thread: thread
+            thread: thread,
+            targetThread: definition.targetThread
         )
-        projectPathSnapshot = definition.project?.path
-        grantedRootsSnapshot = definition.grantedRoots
+        projectPathSnapshot = targetSnapshot?.projectPath ?? definition.project?.path
+        grantedRootsSnapshot = targetSnapshot?.grantedRoots ?? definition.grantedRoots
     }
 
     var triggerKind: ScheduledTaskRunTriggerKind? {
@@ -347,6 +379,19 @@ extension ScheduledTaskRun {
                 triggerKindRawValue = newValue.rawValue
             }
         }
+    }
+
+    var destinationSnapshot: ScheduledTaskDestination? {
+        get { decodedDestinationSnapshot }
+        set {
+            if let newValue {
+                destinationRawValueSnapshot = newValue.rawValue
+            }
+        }
+    }
+
+    var decodedDestinationSnapshot: ScheduledTaskDestination? {
+        ScheduledTaskDestination(rawValue: destinationRawValueSnapshot)
     }
 
     var status: ScheduledTaskRunStatus {
@@ -379,101 +424,4 @@ extension ScheduledTaskRun {
         }
     }
 
-    var pendingWorktreeCleanup: ScheduledWorktreeCleanupProvenance? {
-        ScheduledWorktreeCleanupProvenance(
-            sourceProjectPath: pendingWorktreeCleanupSourceProjectPath,
-            worktreePath: pendingWorktreeCleanupPath,
-            branch: pendingWorktreeCleanupBranch,
-            sourceProjectIdentitySystemNumber: pendingCleanupSourceIdentitySystemNumber,
-            sourceProjectIdentityFileNumber: pendingCleanupSourceIdentityFileNumber,
-            worktreeIdentitySystemNumber: pendingCleanupWorktreeSystemNumber,
-            worktreeIdentityFileNumber: pendingCleanupWorktreeFileNumber,
-            branchIsOwned: pendingWorktreeCleanupBranchIsOwned,
-            branchOID: pendingWorktreeCleanupBranchOID,
-            ownershipMarkerID: pendingWorktreeCleanupOwnershipMarkerID,
-            ownershipSourceProjectPath: pendingCleanupOwnershipSourceProjectPath
-        )
-    }
-
-    var workspaceIdentitySnapshot: ScheduledTaskWorkspaceIdentitySnapshot? {
-        get {
-            guard let workspaceIdentitySnapshotJSON,
-                  let data = workspaceIdentitySnapshotJSON.data(using: .utf8) else {
-                return nil
-            }
-            return try? JSONDecoder().decode(ScheduledTaskWorkspaceIdentitySnapshot.self, from: data)
-        }
-        set {
-            workspaceIdentitySnapshotJSON = Self.encodeWorkspaceIdentitySnapshot(newValue)
-        }
-    }
-
-    var hasValidWorkspaceIdentityProvenance: Bool {
-        guard let workspaceKindSnapshot,
-              workspaceStrategySnapshot != nil,
-              let workspaceIdentitySnapshot else {
-            return false
-        }
-        return workspaceIdentitySnapshot.matchesConfiguration(
-            workspaceKind: workspaceKindSnapshot,
-            projectPath: projectPathSnapshot,
-            grantedRootPaths: grantedRootsSnapshot
-        )
-    }
-
-    var hasPendingWorktreeCleanupMetadata: Bool {
-        pendingWorktreeCleanupSourceProjectPath != nil ||
-            pendingWorktreeCleanupPath != nil ||
-            pendingWorktreeCleanupBranch != nil ||
-            pendingCleanupSourceIdentitySystemNumber != nil ||
-            pendingCleanupSourceIdentityFileNumber != nil ||
-            pendingCleanupWorktreeSystemNumber != nil ||
-            pendingCleanupWorktreeFileNumber != nil ||
-            pendingWorktreeCleanupBranchIsOwned != nil ||
-            pendingWorktreeCleanupBranchOID != nil ||
-            pendingWorktreeCleanupOwnershipMarkerID != nil ||
-            pendingCleanupOwnershipSourceProjectPath != nil
-    }
-
-    func setPendingWorktreeCleanup(_ provenance: ScheduledWorktreeCleanupProvenance) {
-        pendingWorktreeCleanupSourceProjectPath = provenance.sourceProjectPath
-        pendingWorktreeCleanupPath = provenance.worktreePath
-        pendingWorktreeCleanupBranch = provenance.branch
-        pendingCleanupSourceIdentitySystemNumber = String(provenance.sourceProjectIdentity.systemNumber)
-        pendingCleanupSourceIdentityFileNumber = String(provenance.sourceProjectIdentity.fileNumber)
-        pendingCleanupWorktreeSystemNumber = provenance.worktreeIdentity.map { String($0.systemNumber) }
-        pendingCleanupWorktreeFileNumber = provenance.worktreeIdentity.map { String($0.fileNumber) }
-        pendingWorktreeCleanupBranchIsOwned = provenance.branchIsOwned
-        pendingWorktreeCleanupBranchOID = provenance.branchOID
-        pendingWorktreeCleanupOwnershipMarkerID = provenance.ownershipMarkerID
-        pendingCleanupOwnershipSourceProjectPath = provenance.ownershipSourceProjectPath
-    }
-
-    func clearPendingWorktreeOwnershipCleanup() {
-        pendingCleanupWorktreeSystemNumber = nil
-        pendingCleanupWorktreeFileNumber = nil
-        pendingWorktreeCleanupOwnershipMarkerID = nil
-        pendingCleanupOwnershipSourceProjectPath = nil
-    }
-
-    func clearPendingWorktreeCleanup() {
-        pendingWorktreeCleanupSourceProjectPath = nil
-        pendingWorktreeCleanupPath = nil
-        pendingWorktreeCleanupBranch = nil
-        pendingCleanupSourceIdentitySystemNumber = nil
-        pendingCleanupSourceIdentityFileNumber = nil
-        pendingWorktreeCleanupBranchIsOwned = nil
-        pendingWorktreeCleanupBranchOID = nil
-        clearPendingWorktreeOwnershipCleanup()
-    }
-
-    private static func encodeWorkspaceIdentitySnapshot(
-        _ snapshot: ScheduledTaskWorkspaceIdentitySnapshot?
-    ) -> String? {
-        guard let snapshot,
-              let data = try? JSONEncoder().encode(snapshot) else {
-            return nil
-        }
-        return String(data: data, encoding: .utf8)
-    }
 }

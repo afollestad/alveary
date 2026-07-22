@@ -1,3 +1,5 @@
+import SwiftUI
+
 enum SidebarThreadContextMenuItem: Equatable, Hashable {
     case forkLocal
     case forkWorktree
@@ -30,6 +32,19 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
     }
 }
 
+func sidebarThreadContextMenuDisabledReason(
+    for item: SidebarThreadContextMenuItem,
+    scheduledTaskAttachmentReason: String?
+) -> String? {
+    guard let scheduledTaskAttachmentReason else { return nil }
+    switch item {
+    case .unpin, .archive, .delete:
+        return scheduledTaskAttachmentReason
+    case .forkLocal, .forkWorktree, .divider, .pin, .rename:
+        return nil
+    }
+}
+
 func sidebarThreadContextMenuItems(
     isPinned: Bool,
     canRename: Bool,
@@ -52,4 +67,37 @@ func sidebarThreadContextMenuItems(
 
 func sidebarProjectPinContextMenuTitle(isPinned: Bool) -> String {
     isPinned ? "Unpin Project" : "Pin Project"
+}
+
+struct SidebarThreadContextMenuActionButton: View {
+    let title: String
+    let role: ButtonRole?
+    let disabledReason: String?
+    let action: () -> Void
+
+    init(
+        _ title: String,
+        role: ButtonRole? = nil,
+        disabledReason: String? = nil,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.role = role
+        self.disabledReason = disabledReason
+        self.action = action
+    }
+
+    var body: some View {
+        Button(role: role, action: action) {
+            HStack(spacing: 6) {
+                Text(title)
+
+                if let disabledReason {
+                    AppHoverInfoIcon(text: disabledReason)
+                }
+            }
+        }
+        .disabled(disabledReason != nil)
+        .accessibilityHint(disabledReason ?? "")
+    }
 }

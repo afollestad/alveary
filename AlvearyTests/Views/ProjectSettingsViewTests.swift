@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class ProjectSettingsViewTests: XCTestCase {
-    func testArchivedProjectThreadsExcludeLinkedScheduledRunWithFallbackMode() throws {
+    func testArchivedProjectThreadsUseWorkspaceSnapshotForLinkedRunFallbackMode() throws {
         let fixture = try SidebarTestFixture()
         let projectThread = try fixture.insertThread(
             projectName: "Alveary",
@@ -12,19 +12,31 @@ final class ProjectSettingsViewTests: XCTestCase {
             archivedAt: Date(timeIntervalSinceReferenceDate: 100)
         )
         let project = try XCTUnwrap(projectThread.project)
-        let (linkedTask, _) = try insertScheduledTaskThread(
+        let (projectFallback, _) = try insertScheduledTaskThread(
             fixture: fixture,
             status: .success,
-            conversationID: "project-settings-fallback-task"
+            conversationID: "project-settings-project-fallback"
         )
-        linkedTask.modeRawValue = "future-mode"
-        linkedTask.project = project
-        linkedTask.archivedAt = Date(timeIntervalSinceReferenceDate: 200)
+        let (privateFallback, privateRun) = try insertScheduledTaskThread(
+            fixture: fixture,
+            status: .success,
+            conversationID: "project-settings-private-fallback"
+        )
+        projectFallback.modeRawValue = "future-mode"
+        projectFallback.project = project
+        projectFallback.archivedAt = Date(timeIntervalSinceReferenceDate: 200)
+        privateFallback.modeRawValue = "future-mode"
+        privateFallback.project = project
+        privateFallback.archivedAt = Date(timeIntervalSinceReferenceDate: 300)
+        privateRun.workspaceKindRawValueSnapshot = ScheduledTaskWorkspaceKind.privateWorkspace.rawValue
         try fixture.context.save()
 
         let archivedThreads = archivedProjectThreads(projectPath: project.path, modelContext: fixture.context)
 
-        XCTAssertEqual(archivedThreads.map(\.persistentModelID), [projectThread.persistentModelID])
+        XCTAssertEqual(archivedThreads.map(\.persistentModelID), [
+            projectFallback.persistentModelID,
+            projectThread.persistentModelID
+        ])
     }
 
     func testRestoreProjectSettingsArchivedThreadClearsArchiveFlag() async throws {

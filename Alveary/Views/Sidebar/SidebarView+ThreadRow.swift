@@ -32,6 +32,7 @@ struct SidebarThreadRow: View {
     let layout: SidebarThreadRowLayout
     @Binding var editingThreadID: PersistentIdentifier?
     let cleanupAction: ThreadCleanupAction
+    let cleanupDisabledReason: String?
     let suppressHoverAffordances: Bool
     let dragConfiguration: SidebarRowDragConfiguration?
     let onCommitRename: (String) -> Void
@@ -45,7 +46,7 @@ struct SidebarThreadRow: View {
     @State private var isCleanupControlCollapsing = false
     // Timeout collapse hides the affordance by shrinking to zero; hover collapse lands back on the icon.
     @State private var isCleanupControlCollapsingToHidden = false
-    @State private var isHoveringCleanupButton = false
+    @State var isHoveringCleanupButton = false
     @State private var isCleanupButtonPressed = false
     @State private var cleanupConfirmationDeadline: Date?
     @State private var cleanupConfirmationRemainingNanoseconds: UInt64?
@@ -60,9 +61,11 @@ struct SidebarThreadRow: View {
         layout: SidebarThreadRowLayout = .project,
         editingThreadID: Binding<PersistentIdentifier?>,
         cleanupAction: ThreadCleanupAction = .archive,
+        cleanupDisabledReason: String? = nil,
         suppressHoverAffordances: Bool = false,
         dragConfiguration: SidebarRowDragConfiguration? = nil,
         initialRowHover: Bool = false,
+        initialCleanupButtonHover: Bool = false,
         initialCleanupConfirmationArmed: Bool = false,
         onCommitRename: @escaping (String) -> Void,
         onConfirmCleanup: @escaping () -> Void = {}
@@ -73,11 +76,13 @@ struct SidebarThreadRow: View {
         self.layout = layout
         _editingThreadID = editingThreadID
         self.cleanupAction = cleanupAction
+        self.cleanupDisabledReason = cleanupDisabledReason
         self.suppressHoverAffordances = suppressHoverAffordances
         self.dragConfiguration = dragConfiguration
         self.onCommitRename = onCommitRename
         self.onConfirmCleanup = onConfirmCleanup
         _isHovering = State(initialValue: initialRowHover)
+        _isHoveringCleanupButton = State(initialValue: initialCleanupButtonHover)
         _isCleanupConfirmationArmed = State(initialValue: initialCleanupConfirmationArmed)
         _isCleanupConfirmationChromeVisible = State(initialValue: initialCleanupConfirmationArmed)
     }
@@ -243,8 +248,9 @@ struct SidebarThreadRow: View {
 
     private var cleanupButton: some View {
         let showsConfirm = isCleanupConfirmationChromeVisible
+        let showsIcon = !showsConfirm && !isCleanupControlCollapsingToHidden
 
-        return cleanupButtonContent(showsConfirm: showsConfirm, showsIcon: !showsConfirm && !isCleanupControlCollapsingToHidden)
+        return cleanupButtonContent(showsConfirm: showsConfirm, showsIcon: showsIcon)
             .frame(width: cleanupControlWidth, height: Self.cleanupButtonSize, alignment: .trailing)
             .background(
                 RoundedRectangle(cornerRadius: Self.cleanupButtonSize / 2, style: .continuous)
@@ -255,21 +261,27 @@ struct SidebarThreadRow: View {
             .gesture(cleanupPressGesture(width: cleanupControlWidth))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction {
-                handleCleanupButtonClick()
-            }
-            .allowsHitTesting(cleanupControlIsInteractive)
-            .onHover { isHovering in
-                isHoveringCleanupButton = isHovering
-
-                if isHovering {
-                    pauseCleanupConfirmation()
-                } else if !isCleanupButtonPressed {
-                    resumeCleanupConfirmation()
+                if cleanupDisabledReason == nil {
+                    handleCleanupButtonClick()
                 }
             }
+            .allowsHitTesting(cleanupControlIsInteractive && cleanupDisabledReason == nil)
             .accessibilityLabel(showsConfirm ? "Confirm \(cleanupAction.label.lowercased()) thread" : "\(cleanupAction.label) thread")
             .accessibilityHidden(!cleanupControlIsInteractive)
-            .help(cleanupAction.label)
+            .accessibilityHint(cleanupDisabledReason ?? "")
+            .disabled(cleanupDisabledReason != nil)
+            .opacity(cleanupDisabledReason == nil ? 1 : 0.45)
+            .help(cleanupDisabledReason == nil ? cleanupAction.label : "")
+            .overlay {
+                AppHoverTooltipAnchor(text: cleanupDisabledReason) { isHovering in
+                    isHoveringCleanupButton = isHovering
+                    if isHovering {
+                        pauseCleanupConfirmation()
+                    } else if !isCleanupButtonPressed {
+                        resumeCleanupConfirmation()
+                    }
+                }
+            }
             .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
             .animation(.easeOut(duration: 0.08), value: isCleanupButtonPressed)
     }
@@ -451,6 +463,9 @@ struct SidebarThreadRow: View {
         }
     }
 
+}
+
+extension SidebarThreadRow {
     func commitRename() {
         if let committedName = sidebarThreadRenameCommitValue(
             initialValue: initialEditText,

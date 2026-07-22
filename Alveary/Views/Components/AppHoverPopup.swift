@@ -43,6 +43,7 @@ class AppKitHoverInfoButton: NSButton {
     }
 
     func configure(helpText: String?) {
+        let helpTextChanged = self.helpText != helpText
         self.helpText = helpText
         isEnabled = true
         alphaValue = 1
@@ -50,9 +51,9 @@ class AppKitHoverInfoButton: NSButton {
         setAccessibilityLabel("More information")
         setAccessibilityValue(helpText ?? "")
         setAccessibilityHelp(helpText)
-        if helpText == nil {
+        if helpText?.isEmpty != false {
             closeHoverTooltip()
-        } else if hoverTooltip.isShown {
+        } else if helpTextChanged, hoverTooltip.isShown {
             updateHoverTooltip()
         }
     }
@@ -208,6 +209,14 @@ extension AppKitHoverInfoButton {
     var tooltipIgnoresMouseForTesting: Bool? {
         hoverTooltip.tooltipIgnoresMouse
     }
+
+    var tooltipContentBuildCountForTesting: Int {
+        hoverTooltip.contentBuildCountForTesting
+    }
+
+    var tooltipIsShownForTesting: Bool {
+        hoverTooltip.isShown
+    }
 }
 #endif
 
@@ -232,6 +241,7 @@ final class AppKitHoverTooltipController {
     private var tooltipPopover: NSPopover?
 #if DEBUG
     private var isShowingForTesting = false
+    private(set) var contentBuildCountForTesting = 0
 #endif
 
     var isShown: Bool {
@@ -304,6 +314,9 @@ final class AppKitHoverTooltipController {
     }
 
     private func makePopoverController(text: String) -> NSHostingController<AppHoverTooltipContent> {
+#if DEBUG
+        contentBuildCountForTesting += 1
+#endif
         let controller = NSHostingController(rootView: AppHoverTooltipContent(text: text))
         controller.preferredContentSize = controller.view.fittingSize
         return controller
@@ -342,7 +355,7 @@ struct AppHoverTooltipContent: View {
             .font(.callout.weight(.semibold))
             .foregroundStyle(.primary)
             .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: !Self.shouldWrap(text), vertical: false)
+            .fixedSize(horizontal: !Self.shouldWrap(text), vertical: true)
             .frame(width: Self.wrappedTextWidth(for: text), alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 15)

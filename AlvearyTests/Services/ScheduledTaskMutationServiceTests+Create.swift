@@ -132,4 +132,47 @@ extension ScheduledTaskMutationServiceTests {
             XCTAssertEqual(error as? ScheduledTaskMutationError, .workspaceRootsChanged)
         }
     }
+
+    func testCreateRejectsPinnedForkTargetUntilBootstrapCompletes() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+        let target = AgentThread(
+            name: "Pending fork",
+            hasCompletedInitialSetup: false,
+            isPinned: true,
+            isForkBootstrapPending: true,
+            mode: .task
+        )
+        target.conversations = [
+            Conversation(id: "pending-fork-main", provider: "codex", thread: target)
+        ]
+        fixture.context.insert(target)
+        try fixture.context.save()
+        let edit = ScheduledTaskDefinitionEdit(
+            title: "Continue fork",
+            prompt: "Continue after the fork is ready.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 8, minute: 0),
+            timeZoneIdentifier: "UTC",
+            providerID: "codex",
+            model: nil,
+            effort: "medium",
+            permissionMode: "default",
+            workspaceKind: .privateWorkspace,
+            workspaceStrategy: .localCheckout,
+            grantedRoots: [],
+            project: nil,
+            targetThread: target
+        )
+
+        XCTAssertThrowsError(try fixture.service.create(edit: edit)) { error in
+            XCTAssertEqual(error as? ScheduledTaskMutationError, .existingThreadRequiresPinnedThread)
+        }
+
+        target.isForkBootstrapPending = false
+        target.hasCompletedInitialSetup = true
+        try fixture.context.save()
+        let definition = try fixture.service.create(edit: edit)
+
+        XCTAssertEqual(definition.targetThread?.persistentModelID, target.persistentModelID)
+    }
 }

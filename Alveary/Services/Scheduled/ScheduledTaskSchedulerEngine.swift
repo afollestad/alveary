@@ -7,18 +7,21 @@ final class ScheduledTaskSchedulerEngine {
 
     let modelContext: ModelContext
     let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
-    private let preflightValidator: ScheduledTaskPreflightValidator
+    let preflightValidator: ScheduledTaskPreflightValidator
+    let targetIsReady: @MainActor (String) -> Bool
     let saveState: StateSaver
 
     init(
         modelContext: ModelContext,
         recurrenceCalculator: ScheduledTaskRecurrenceCalculator = ScheduledTaskRecurrenceCalculator(),
         preflightValidator: @escaping ScheduledTaskPreflightValidator,
+        targetIsReady: @escaping @MainActor (String) -> Bool = { _ in true },
         saveState: @escaping StateSaver = { try $0.save() }
     ) {
         self.modelContext = modelContext
         self.recurrenceCalculator = recurrenceCalculator
         self.preflightValidator = preflightValidator
+        self.targetIsReady = targetIsReady
         self.saveState = saveState
     }
 
@@ -32,7 +35,7 @@ final class ScheduledTaskSchedulerEngine {
         case let .resolved(result):
             return result
         case let .requiresPreflight(snapshot, recheck):
-            let preflightOutcome = await preflightValidator(snapshot)
+            let preflightOutcome = await validatePreflight(snapshot)
             try Task.checkCancellation()
             return try finishClaim(
                 definitionID: definitionID,
@@ -90,9 +93,10 @@ final class ScheduledTaskSchedulerEngine {
             expectedState: definition.state,
             expectedNextOccurrenceAt: definition.nextOccurrenceAt,
             expectedPendingOccurrenceAt: definition.pendingOccurrenceAt,
-            expectedProjectConfiguration: projectConfigurationSnapshot(for: definition)
+            expectedProjectConfiguration: projectConfigurationSnapshot(for: definition),
+            expectedTarget: targetSnapshot(for: definition)
         )
-        let outcome = await preflightValidator(snapshot)
+        let outcome = await validatePreflight(snapshot)
         try Task.checkCancellation()
         return try finishRunNowClaim(request, recheck: recheck, preflightOutcome: outcome)
     }
@@ -160,6 +164,7 @@ private extension ScheduledTaskSchedulerEngine {
             expectedNextOccurrenceAt: definition.nextOccurrenceAt,
             expectedPendingOccurrenceAt: definition.pendingOccurrenceAt,
             expectedProjectConfiguration: projectConfigurationSnapshot(for: definition),
+            expectedTarget: targetSnapshot(for: definition),
             occurrenceAt: duePlan.occurrenceAt
         )
         return .requiresPreflight(snapshot, recheck)
@@ -179,6 +184,7 @@ private extension ScheduledTaskSchedulerEngine {
               currentDefinition.nextOccurrenceAt == recheck.expectedNextOccurrenceAt,
               currentDefinition.pendingOccurrenceAt == recheck.expectedPendingOccurrenceAt,
               projectConfigurationSnapshot(for: currentDefinition) == recheck.expectedProjectConfiguration,
+              targetSnapshot(for: currentDefinition) == recheck.expectedTarget,
               let currentRecurrence = currentDefinition.recurrence,
               let currentDuePlan = try makeDuePlan(
                   definition: currentDefinition,
@@ -192,13 +198,20 @@ private extension ScheduledTaskSchedulerEngine {
         guard !hasActiveRun(currentDefinition) else {
             return try recordOverlap(duePlan: currentDuePlan, definition: currentDefinition)
         }
+        if let target = targetSnapshot(for: currentDefinition),
+           !targetIsAvailableForClaim(target) {
+            return try recordTargetWait(
+                duePlan: currentDuePlan,
+                definition: currentDefinition,
+                at: actionDate
+            )
+        }
 
         switch preflightOutcome {
         case .ready(let workspaceIdentities):
             guard workspaceIdentities.matchesConfiguration(
-                workspaceKind: currentDefinition.workspaceKind,
-                projectPath: currentDefinition.project?.path,
-                grantedRootPaths: currentDefinition.grantedRoots
+                targetSnapshot(for: currentDefinition),
+                definition: currentDefinition
             ) else {
                 return .changedDuringPreflight
             }
@@ -208,6 +221,8 @@ private extension ScheduledTaskSchedulerEngine {
                 workspaceIdentities: workspaceIdentities,
                 at: actionDate
             )
+        case .targetBusy:
+            return try recordTargetWait(duePlan: currentDuePlan, definition: currentDefinition, at: actionDate)
         case let .invalid(reason):
             return try pauseInvalidDefinition(currentDefinition, reason: reason, at: actionDate)
         }
@@ -226,6 +241,7 @@ private extension ScheduledTaskSchedulerEngine {
               definition.nextOccurrenceAt == recheck.expectedNextOccurrenceAt,
               definition.pendingOccurrenceAt == recheck.expectedPendingOccurrenceAt,
               projectConfigurationSnapshot(for: definition) == recheck.expectedProjectConfiguration,
+              targetSnapshot(for: definition) == recheck.expectedTarget,
               isCurrent(request, for: definition)
         else {
             return .changedDuringPreflight
@@ -233,13 +249,16 @@ private extension ScheduledTaskSchedulerEngine {
         guard !hasActiveRun(definition) else {
             return .activeRunExists
         }
+        if let target = targetSnapshot(for: definition),
+           !targetIsAvailableForClaim(target) {
+            return .waitingForTarget(pendingOccurrenceAt: request.occurrenceAt)
+        }
 
         switch preflightOutcome {
         case .ready(let workspaceIdentities):
             guard workspaceIdentities.matchesConfiguration(
-                workspaceKind: definition.workspaceKind,
-                projectPath: definition.project?.path,
-                grantedRootPaths: definition.grantedRoots
+                targetSnapshot(for: definition),
+                definition: definition
             ) else {
                 return .changedDuringPreflight
             }
@@ -248,6 +267,8 @@ private extension ScheduledTaskSchedulerEngine {
                 definition: definition,
                 workspaceIdentities: workspaceIdentities
             )
+        case .targetBusy:
+            return .waitingForTarget(pendingOccurrenceAt: request.occurrenceAt)
         case let .invalid(reason):
             return try pauseInvalidDefinition(definition, reason: reason, at: request.triggeredAt)
         }
@@ -325,7 +346,8 @@ private extension ScheduledTaskSchedulerEngine {
             occurrenceAt: duePlan.occurrenceAt,
             triggeredAt: actionDate,
             triggerKind: .scheduled,
-            workspaceIdentitySnapshot: workspaceIdentities
+            workspaceIdentitySnapshot: workspaceIdentities,
+            targetSnapshot: targetSnapshot(for: definition)
         )
         applyConsumedOccurrences(duePlan, to: definition)
         modelContext.insert(run)
@@ -365,7 +387,8 @@ private extension ScheduledTaskSchedulerEngine {
             triggeredAt: actionDate,
             triggerKind: .scheduled,
             status: .skipped,
-            workspaceIdentitySnapshot: workspaceIdentities
+            workspaceIdentitySnapshot: workspaceIdentities,
+            targetSnapshot: targetSnapshot(for: definition)
         )
         run.finishedAt = actionDate
         applyConsumedOccurrences(duePlan, to: definition)
@@ -397,6 +420,24 @@ private extension ScheduledTaskSchedulerEngine {
         return .overlapped(pendingOccurrenceAt: duePlan.occurrenceAt)
     }
 
+    func recordTargetWait(
+        duePlan: DuePlan,
+        definition: ScheduledTask,
+        at actionDate: Date
+    ) throws -> ScheduledTaskClaimResult {
+        let definitionSnapshot = ScheduledTaskClaimMutationSnapshot(definition)
+        definition.pendingOccurrenceAt = ScheduledTaskRecurrenceCalculator.latestCoalescedOccurrence(
+            existing: definition.pendingOccurrenceAt,
+            candidate: duePlan.occurrenceAt
+        )
+        definition.targetWaitStartedAt = definition.targetWaitStartedAt ?? actionDate
+        if duePlan.consumesNextOccurrence {
+            definition.nextOccurrenceAt = duePlan.nextOccurrenceAt
+        }
+        try persistClaimMutation(definition: definition, restoring: definitionSnapshot)
+        return .waitingForTarget(pendingOccurrenceAt: duePlan.occurrenceAt)
+    }
+
     func applyConsumedOccurrences(
         _ duePlan: DuePlan,
         to definition: ScheduledTask
@@ -406,6 +447,7 @@ private extension ScheduledTaskSchedulerEngine {
         }
         if duePlan.consumesPendingOccurrence {
             definition.pendingOccurrenceAt = nil
+            definition.targetWaitStartedAt = nil
         }
         if definition.recurrence?.isOneShot == true {
             definition.state = .completed
@@ -430,7 +472,8 @@ private extension ScheduledTaskSchedulerEngine {
             occurrenceAt: request.occurrenceAt,
             triggeredAt: request.triggeredAt,
             triggerKind: .runNow,
-            workspaceIdentitySnapshot: workspaceIdentities
+            workspaceIdentitySnapshot: workspaceIdentities,
+            targetSnapshot: targetSnapshot(for: definition)
         )
         try applyRunNowConsumption(request, to: definition)
         modelContext.insert(run)
@@ -440,59 +483,6 @@ private extension ScheduledTaskSchedulerEngine {
             insertedRun: run
         )
         return .claimed(runID: run.persistentModelID)
-    }
-
-    func applyRunNowConsumption(
-        _ request: ScheduledTaskRunNowRequest,
-        to definition: ScheduledTask
-    ) throws {
-        guard request.consumesScheduledOccurrence else {
-            return
-        }
-        if let pendingOccurrenceAt = definition.pendingOccurrenceAt,
-           pendingOccurrenceAt <= request.triggeredAt {
-            definition.pendingOccurrenceAt = nil
-        }
-        if let recurrence = definition.recurrence {
-            definition.nextOccurrenceAt = try recurrenceCalculator.nextOccurrence(
-                strictlyAfter: request.triggeredAt,
-                recurrence: recurrence,
-                timeZoneIdentifier: definition.timeZoneIdentifier
-            )
-            if recurrence.isOneShot {
-                definition.state = .completed
-                definition.nextOccurrenceAt = nil
-            }
-        }
-    }
-
-    func pauseInvalidDefinition(
-        _ definition: ScheduledTask,
-        reason: String,
-        at actionDate: Date
-    ) throws -> ScheduledTaskClaimResult {
-        let definitionSnapshot = ScheduledTaskPauseSnapshot(definition)
-        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedReason = trimmedReason.isEmpty ? "Scheduled task preflight failed." : trimmedReason
-        let nextOccurrence = definition.recurrence.flatMap { recurrence in
-            try? recurrenceCalculator.nextOccurrence(
-                strictlyAfter: actionDate,
-                recurrence: recurrence,
-                timeZoneIdentifier: definition.timeZoneIdentifier
-            )
-        }
-        definition.state = .paused
-        definition.nextOccurrenceAt = nextOccurrence
-        definition.pendingOccurrenceAt = nil
-        definition.pauseReason = resolvedReason
-        definition.lastError = resolvedReason
-        definition.revision += 1
-        definition.modifiedAt = actionDate
-        try persistInvalidDefinitionPause(
-            definition: definition,
-            restoring: definitionSnapshot
-        )
-        return .paused(reason: resolvedReason)
     }
 
 }

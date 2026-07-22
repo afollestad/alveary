@@ -251,6 +251,9 @@ extension ConversationViewModel {
             respawnSettingsSource: respawnSettingsSource,
             hostToolExposure: hostToolExposure
         )
+        try validateAutomatedScheduledWorkspaceIfNeeded(
+            isAutomatedScheduledTurn: isAutomatedScheduledTurn
+        )
         if resolvedStagedContext.consumedCurrentStagedContext != nil { state.stagedContext = nil }
         let attempt = try localUserMessageAttempt(
             outbound: OutboundMessageText(
@@ -289,7 +292,8 @@ extension ConversationViewModel {
                     useCurrentStagedContextWhenOverrideNil: useCurrentStagedContextWhenOverrideNil,
                     existingLocalUserMessageID: attempt.id,
                     snapshotStagedContext: attempt.stagedContext,
-                    isAutomatedScheduledTurn: isAutomatedScheduledTurn
+                    isAutomatedScheduledTurn: isAutomatedScheduledTurn,
+                    settingsSource: isAutomatedScheduledTurn ? respawnSettingsSource : .nextTurn
                 )
                 state.markTranscriptImageAttachments(id: attempt.id, attachments: attempt.attachments)
                 state.markTranscriptFileAttachments(id: attempt.id, attachments: attempt.fileAttachments)
@@ -362,13 +366,15 @@ extension ConversationViewModel {
         restoreExitPlanModeRevisionGuidanceIfNeeded(attempt.consumedExitPlanModeRevisionGuidance)
     }
 
+    // swiftlint:disable:next function_body_length
     private func setupAndStartReserved(
         _ payload: InitialSetupReservedPayload,
         stagedContextOverride: String? = nil,
         useCurrentStagedContextWhenOverrideNil: Bool = true,
         existingLocalUserMessageID: String? = nil,
         snapshotStagedContext: String? = nil,
-        isAutomatedScheduledTurn: Bool = false
+        isAutomatedScheduledTurn: Bool = false,
+        settingsSource: SessionSettingsConfigSource = .nextTurn
     ) async throws {
         prepareInitialSetupStart()
 
@@ -405,9 +411,12 @@ extension ConversationViewModel {
                     allowedDirectories: claudeAppShotDirectoriesIfNeeded(appShots: payload.appShots),
                     initialGoal: payload.initialGoal,
                     isAutomatedScheduledTurn: isAutomatedScheduledTurn,
-                    settingsSource: .nextTurn
+                    settingsSource: settingsSource
                 ),
                 performsCancellationCleanup: false
+            )
+            try validateAutomatedScheduledWorkspaceIfNeeded(
+                isAutomatedScheduledTurn: isAutomatedScheduledTurn
             )
             try completeInitialPromptSetup(
                 thread: thread, stagedContext: snapshot.stagedContext, existingLocalUserMessageID: existingLocalUserMessageID

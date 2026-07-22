@@ -38,11 +38,14 @@ enum ScheduledTaskHostToolSupport {
             .joined()
     }
 
-    static func scheduleSummary(for definition: ScheduledTask) -> String {
+    static func scheduleSummary(
+        for definition: ScheduledTask,
+        timeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier
+    ) -> String {
         guard let recurrence = definition.recurrence else {
-            return "invalid schedule [\(definition.timeZoneIdentifier)]"
+            return "invalid schedule [\(timeZoneIdentifier)]"
         }
-        let timeZone = "[\(definition.timeZoneIdentifier)]"
+        let timeZone = "[\(timeZoneIdentifier)]"
         switch recurrence {
         case .once(let occurrence):
             return "once at \(canonicalDate(occurrence)) \(timeZone)"

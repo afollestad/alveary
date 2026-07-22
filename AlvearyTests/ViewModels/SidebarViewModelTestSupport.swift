@@ -37,6 +37,7 @@ struct SidebarTestFixture {
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        afterPendingScheduledWorktreeCleanup: @escaping @MainActor () async -> Void = {},
         invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
         stopAndWaitForScheduledTaskRun: @escaping SidebarViewModel.ScheduledTaskRunQuiescence = { _ in },
         unexpectedErrors: RecordingUnexpectedErrors = RecordingUnexpectedErrors()
@@ -80,6 +81,7 @@ struct SidebarTestFixture {
             saveThreadCreation: saveThreadCreation,
             savePendingSidebarChanges: savePendingSidebarChanges,
             saveSidebarOrdering: saveSidebarOrdering,
+            afterPendingScheduledWorktreeCleanup: afterPendingScheduledWorktreeCleanup,
             presentUnexpectedError: { [unexpectedErrors] message in
                 unexpectedErrors.present(message)
             },

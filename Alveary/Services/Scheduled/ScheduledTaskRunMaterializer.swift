@@ -44,6 +44,9 @@ final class DefaultScheduledTaskRunMaterializer: ScheduledTaskRunMaterializing {
             }
             throw snapshotError
         }
+        if snapshot.destination == .existingThread {
+            return try materializeExistingTarget(runID: runID, snapshot: snapshot)
+        }
         try persistTaskShellWithRetry(runID: runID, snapshot: snapshot)
 
         let preparedWorkspace = try await prepareWorkspaceOrPersistFailure(
@@ -76,10 +79,63 @@ final class DefaultScheduledTaskRunMaterializer: ScheduledTaskRunMaterializing {
     }
 }
 
+extension DefaultScheduledTaskRunMaterializer {
+    func materializeExistingTarget(
+        runID: PersistentIdentifier,
+        snapshot: ScheduledTaskRunSnapshot
+    ) throws -> ScheduledTaskRunMaterialization {
+        guard let run = modelContext.resolveScheduledTaskRun(id: runID),
+              run.status == .preparing,
+              let thread = run.targetThread,
+              thread.isPinned,
+              thread.archivedAt == nil,
+              !thread.isDraft,
+              !thread.hasPendingScheduledTaskWorktreeCleanup,
+              let targetConversationID = snapshot.targetConversationID,
+              let conversation = thread.conversations.first(where: {
+                  $0.isMain && $0.id == targetConversationID
+              }),
+              !ScheduledTaskExistingTargetReadiness.hasBlockingPersistedInteraction(in: conversation) else {
+            throw ScheduledTaskRunMaterializationError.existingTargetUnavailable
+        }
+        guard let workspaceIdentities = snapshot.workspaceIdentities,
+              workspaceIdentities.matchesConfiguration(
+                  workspaceKind: snapshot.workspaceKind,
+                  projectPath: snapshot.projectPath,
+                  grantedRootPaths: snapshot.grantedRoots
+              ),
+              let projectPath = snapshot.projectPath else {
+            throw ScheduledTaskRunMaterializationError.workspaceRootsChanged
+        }
+        let workspace = try prepareProjectLocalWorkspace(
+            projectPath: projectPath,
+            grantedRoots: snapshot.grantedRoots,
+            workspaceIdentities: workspaceIdentities
+        ).descriptor
+        let note = makeScheduledTaskNote(run: run, snapshot: snapshot, conversation: conversation)
+        modelContext.insert(note)
+        do {
+            try saveChanges(modelContext)
+        } catch {
+            modelContext.delete(note)
+            run.status = .claimed
+            run.preparationStartedAt = nil
+            throw ScheduledTaskRunMaterializationError.provenancePersistenceFailed(error)
+        }
+        return ScheduledTaskRunMaterialization(
+            runID: runID,
+            threadID: thread.persistentModelID,
+            conversationID: conversation.id,
+            prompt: snapshot.prompt,
+            workspace: workspace
+        )
+    }
+}
+
 private extension ScheduledTaskRunMaterializationError {
     var isInvalidPersistedSnapshot: Bool {
         switch self {
-        case .invalidTimeZone, .invalidWorkspaceConfiguration:
+        case .invalidDestination, .invalidTimeZone, .invalidWorkspaceConfiguration:
             return true
         default:
             return false
@@ -142,6 +198,7 @@ extension DefaultScheduledTaskRunMaterializer {
             throw ScheduledTaskRunMaterializationError.runChangedDuringPreparation
         }
         applyPreparedWorkspaceMetadata(preparedWorkspace, run: run, thread: thread)
+        try retainWorkspaceCleanupProvenanceIfNeeded(preparedWorkspace, run: run)
         run.clearPendingWorktreeCleanup()
         try saveChanges(modelContext)
 
@@ -152,6 +209,26 @@ extension DefaultScheduledTaskRunMaterializer {
             prompt: snapshot.prompt,
             workspace: workspace
         )
+    }
+
+    func retainWorkspaceCleanupProvenanceIfNeeded(
+        _ preparedWorkspace: PreparedScheduledTaskWorkspace,
+        run: ScheduledTaskRun
+    ) throws {
+        let workspace = preparedWorkspace.descriptor
+        guard workspace.ownershipStrategy == .projectWorktreeOwned else {
+            run.workspaceCleanupProvenance = nil
+            return
+        }
+        guard let provenance = run.pendingWorktreeCleanup,
+              provenance.sourceProjectPath == workspace.sourceProjectPath,
+              provenance.worktreePath == workspace.primaryRoot,
+              provenance.branch == preparedWorkspace.branch,
+              provenance.ownershipMarkerID == workspace.ownershipMarkerID,
+              provenance.ownershipSourceProjectPath == workspace.sourceProjectPath else {
+            throw ScheduledTaskRunMaterializationError.missingWorktreeCleanupMetadata
+        }
+        run.workspaceCleanupProvenance = provenance
     }
 
     func markTaskShellFailedWithRetry(
@@ -193,18 +270,22 @@ extension DefaultScheduledTaskRunMaterializer {
         preparedWorkspace: PreparedScheduledTaskWorkspace?
     ) -> AgentThread {
         let workspace = preparedWorkspace?.descriptor
+        let isProjectThread = snapshot.workspaceKind == .project
         return AgentThread(
             name: snapshot.title,
             hasCustomName: true,
             branch: preparedWorkspace?.branch,
             worktreePath: workspace?.ownershipStrategy == .projectWorktreeOwned ? workspace?.primaryRoot : nil,
             permissionMode: snapshot.permissionMode,
+            planModeEnabled: snapshot.planModeEnabled ?? false,
             effort: snapshot.effort,
             model: snapshot.model,
+            speedMode: snapshot.speedMode,
             useWorktree: workspace?.ownershipStrategy == .projectWorktreeOwned,
             modifiedAt: now(),
-            mode: .task,
-            taskWorkspaceDescriptor: workspace,
+            mode: isProjectThread ? .project : .task,
+            taskWorkspaceDescriptor: isProjectThread ? nil : workspace,
+            project: snapshot.projectPath.flatMap(modelContext.resolveProject(path:)),
             scheduledTaskRun: run
         )
     }
@@ -219,6 +300,7 @@ extension DefaultScheduledTaskRunMaterializer {
             conversationId: conversation.id,
             type: ConversationEventRecord.scheduledTaskNoteType,
             content: ScheduledTaskOccurrenceNoteFormatter(locale: locale).text(
+                title: snapshot.title,
                 occurrenceAt: snapshot.occurrenceAt,
                 timeZone: snapshot.timeZone
             ),

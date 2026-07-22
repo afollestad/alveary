@@ -46,6 +46,13 @@ struct ScheduledTaskRow: View {
                 )
                 ScheduledTaskMetadataLabel(systemImage: "folder", text: task.workspaceSummary)
 
+                if task.isWaitingForTarget {
+                    ScheduledTaskMetadataLabel(
+                        systemImage: "hourglass",
+                        text: "Waiting for the attached thread to become idle"
+                    )
+                }
+
                 if let nextOccurrenceAt = task.nextOccurrenceAt {
                     ScheduledTaskMetadataLabel(
                         systemImage: "clock",
@@ -199,7 +206,16 @@ private struct ScheduledTaskRowActions: View {
         }
         .secondaryActionButtonStyle()
         .disabled(!task.canRunNow || isRunNowPending)
-        .help(task.hasActiveRun ? "Run now is unavailable while this task is running or waiting." : "Run this task now")
+        .help(runNowHelp)
+    }
+
+    private var runNowHelp: String {
+        if task.isWaitingForTarget {
+            return "Run now is unavailable while this schedule is waiting for its attached thread."
+        }
+        return task.hasActiveRun
+            ? "Run now is unavailable while this task is running or waiting."
+            : "Run this task now"
     }
 
     private var editButton: some View {

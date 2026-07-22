@@ -162,6 +162,21 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
         XCTAssertNil(expiredOneShot.nextOccurrenceAt)
     }
 
+    func testResumeRejectsUnknownPersistedDestination() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+        let definition = try fixture.insertDefinition(state: .paused)
+        definition.destinationRawValue = "future-destination"
+        try fixture.context.save()
+
+        XCTAssertThrowsError(
+            try fixture.service.resume(definitionID: definition.id)
+        ) { error in
+            XCTAssertEqual(error as? ScheduledTaskMutationError, .invalidDestination)
+        }
+        XCTAssertEqual(definition.state, .paused)
+        XCTAssertNil(definition.decodedDestination)
+    }
+
     func testPauseRejectsCompletedOneShotWithoutChangingIt() throws {
         let fixture = try ScheduledTaskMutationFixture()
         let definition = try fixture.insertDefinition(
@@ -391,7 +406,8 @@ struct ScheduledTaskMutationFixture {
         notificationCenter = NotificationCenter()
         service = ScheduledTaskMutationService(
             modelContext: context,
-            notificationCenter: notificationCenter
+            notificationCenter: notificationCenter,
+            currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current }
         )
     }
 
@@ -412,7 +428,7 @@ struct ScheduledTaskMutationFixture {
             revision: revision,
             state: state,
             recurrence: recurrence,
-            timeZoneIdentifier: "UTC",
+            timeZoneIdentifier: "Etc/UTC",
             providerID: "codex",
             nextOccurrenceAt: nextOccurrenceAt,
             pendingOccurrenceAt: pendingOccurrenceAt,

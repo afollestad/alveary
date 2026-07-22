@@ -6,6 +6,94 @@ import XCTest
 
 @MainActor
 final class ScheduledTaskRunMaterializerTests: XCTestCase {
+    func testExistingThreadOccurrenceUsesPinnedTargetWithoutCreatingTaskShell() async throws {
+        let fixture = try ScheduledTaskRunMaterializerFixture()
+        defer { fixture.removeFiles() }
+        let projectRoot = try fixture.createDirectory(named: "ExistingProject")
+        let project = Project(path: projectRoot.path, name: "Existing Project")
+        let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
+        let conversation = Conversation(id: "existing-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        project.threads = [target]
+        fixture.context.insert(project)
+        try fixture.context.save()
+        let run = try fixture.insertRun(
+            id: "existing-run",
+            occurrenceID: "existing-occurrence",
+            workspaceKind: .project,
+            workspaceStrategy: .localCheckout,
+            projectPath: projectRoot.path,
+            destination: .existingThread,
+            targetThread: target,
+            targetConversationID: conversation.id
+        )
+
+        let result = try await fixture.makeMaterializer().materialize(runID: run.persistentModelID)
+
+        XCTAssertEqual(result.threadID, target.persistentModelID)
+        XCTAssertEqual(result.conversationID, conversation.id)
+        XCTAssertNil(run.thread)
+        XCTAssertEqual(run.targetThread?.persistentModelID, target.persistentModelID)
+        XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
+        let note = try XCTUnwrap(conversation.events.first)
+        XCTAssertEqual(note.type, ConversationEventRecord.scheduledTaskNoteType)
+        XCTAssertEqual(
+            note.content,
+            "Scheduled task \"Review changes\" for Jan 15, 2027 at 2:00\u{202F}AM"
+        )
+        XCTAssertEqual(TranscriptNoteKind.scheduledTask(try XCTUnwrap(note.content)).alignment, .centered)
+    }
+
+    func testExistingThreadOccurrenceRefusesPendingPersistedInteractionWithoutInsertingNote() async throws {
+        let fixture = try ScheduledTaskRunMaterializerFixture()
+        defer { fixture.removeFiles() }
+        let projectRoot = try fixture.createDirectory(named: "ExistingPendingProject")
+        let project = Project(path: projectRoot.path, name: "Existing Project")
+        let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
+        let conversation = Conversation(id: "existing-pending-main", provider: "codex", thread: target)
+        let approval = ConversationEventRecord(
+            id: "existing-pending-approval",
+            conversationId: conversation.id,
+            type: "tool_approval",
+            content: "provider-session",
+            toolId: "pending-tool",
+            toolName: "Bash",
+            toolInput: #"{"command":"pwd"}"#,
+            conversation: conversation
+        )
+        conversation.events = [approval]
+        target.conversations = [conversation]
+        project.threads = [target]
+        fixture.context.insert(project)
+        fixture.context.insert(approval)
+        try fixture.context.save()
+        let run = try fixture.insertRun(
+            id: "existing-pending-run",
+            occurrenceID: "existing-pending-occurrence",
+            workspaceKind: .project,
+            workspaceStrategy: .localCheckout,
+            projectPath: projectRoot.path,
+            destination: .existingThread,
+            targetThread: target,
+            targetConversationID: conversation.id
+        )
+
+        do {
+            _ = try await fixture.makeMaterializer().materialize(runID: run.persistentModelID)
+            XCTFail("Expected the pending persisted interaction to make the existing target unavailable")
+        } catch let error as ScheduledTaskRunMaterializationError {
+            guard case .existingTargetUnavailable = error else {
+                return XCTFail("Expected existing target unavailable, got \(error)")
+            }
+        }
+
+        XCTAssertEqual(conversation.events.map(\.id), [approval.id])
+        XCTAssertFalse(conversation.events.contains { $0.type == ConversationEventRecord.scheduledTaskNoteType })
+        XCTAssertNil(approval.toolApprovalStatus)
+        XCTAssertEqual(approval.toolInput, #"{"command":"pwd"}"#)
+        XCTAssertNil(run.thread)
+    }
+
     func testPrivateOccurrenceCreatesSeparateProjectlessTaskWithProvenanceAndLocalizedNote() async throws {
         let fixture = try ScheduledTaskRunMaterializerFixture()
         defer { fixture.removeFiles() }
@@ -89,7 +177,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
     private func assertScheduledNote(conversation: Conversation, fixedNow: Date) throws {
         let note = try XCTUnwrap(conversation.events.first)
         XCTAssertEqual(note.type, ConversationEventRecord.scheduledTaskNoteType)
-        XCTAssertEqual(note.content, "Scheduled task for Jan 15, 2027 at 9:30\u{202F}AM")
+        XCTAssertEqual(note.content, "Scheduled task \"Review changes\" for Jan 15, 2027 at 9:30\u{202F}AM")
         XCTAssertEqual(note.timestamp, fixedNow)
         XCTAssertEqual(conversation.restoreContextFromHistory(), nil)
 
@@ -102,7 +190,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         XCTAssertEqual(TranscriptNoteKind.scheduledTask(try XCTUnwrap(note.content)).alignment, .centered)
     }
 
-    func testProjectLocalOccurrenceUsesSnapshotPathWithoutAttachingProject() async throws {
+    func testProjectLocalOccurrenceCreatesThreadInSnapshotProject() async throws {
         let fixture = try ScheduledTaskRunMaterializerFixture()
         defer { fixture.removeFiles() }
         let projectRoot = try fixture.createDirectory(named: "Project")
@@ -121,14 +209,15 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         let result = try await fixture.makeMaterializer().materialize(runID: run.persistentModelID)
 
         let thread = try XCTUnwrap(fixture.context.resolveScheduledTaskRun(id: run.persistentModelID)?.thread)
-        XCTAssertNil(thread.project)
-        XCTAssertEqual(thread.mode, .task)
+        XCTAssertEqual(thread.project?.persistentModelID, project.persistentModelID)
+        XCTAssertEqual(thread.mode, .project)
         XCTAssertFalse(thread.useWorktree)
         XCTAssertNil(thread.worktreePath)
         XCTAssertEqual(result.workspace.ownershipStrategy, .projectLocal)
         XCTAssertEqual(result.workspace.primaryRoot, CanonicalPath.normalize(projectRoot.path))
         XCTAssertEqual(result.workspace.sourceProjectPath, CanonicalPath.normalize(projectRoot.path))
         XCTAssertEqual(result.workspace.grantedRoots, [CanonicalPath.normalize(grant.path)])
+        XCTAssertEqual(thread.taskGrantedRoots, result.workspace.grantedRoots)
         let createCalls = await fixture.worktreeManager.createCalls()
         XCTAssertTrue(createCalls.isEmpty)
     }
@@ -167,7 +256,8 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         let result = try await fixture.makeMaterializer().materialize(runID: run.persistentModelID)
 
         let thread = try XCTUnwrap(fixture.context.resolveScheduledTaskRun(id: run.persistentModelID)?.thread)
-        XCTAssertNil(thread.project)
+        XCTAssertEqual(thread.project?.persistentModelID, project.persistentModelID)
+        XCTAssertEqual(thread.mode, .project)
         XCTAssertTrue(thread.useWorktree)
         XCTAssertEqual(thread.branch, "alveary/scheduled-review")
         XCTAssertEqual(thread.worktreePath, CanonicalPath.normalize(worktreeRoot.path))
@@ -175,9 +265,11 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         XCTAssertEqual(result.workspace.primaryRoot, CanonicalPath.normalize(worktreeRoot.path))
         XCTAssertEqual(result.workspace.sourceProjectPath, CanonicalPath.normalize(projectRoot.path))
         XCTAssertEqual(result.workspace.grantedRoots, [CanonicalPath.normalize(grant.path)])
+        XCTAssertEqual(thread.taskGrantedRoots, result.workspace.grantedRoots)
         XCTAssertNotNil(result.workspace.ownershipMarkerID)
         try fixture.workspaceOwnershipService.validateOwnedWorkspace(result.workspace)
         XCTAssertNil(run.pendingWorktreeCleanup)
+        try assertScheduledWorktreeCleanupProvenance(run, thread, result.workspace, projectRoot, worktreeRoot)
         await assertWorktreeCreationUsesSnapshot(
             fixture: fixture,
             projectPath: projectRoot.path
@@ -262,16 +354,32 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         let note = ConversationEventRecord(
             conversationId: conversation.id,
             type: ConversationEventRecord.scheduledTaskNoteType,
-            content: "Scheduled task for Jan 15, 2027 at 9:30 AM",
+            content: "Scheduled task \"Review changes\" for Jan 15, 2027 at 9:30 AM",
             conversation: conversation
         )
 
         let restore = try XCTUnwrap(conversation.restoreContext(from: [message, note]))
         XCTAssertTrue(restore.contains("Continue the real work"))
-        XCTAssertFalse(restore.contains("Scheduled task for"))
+        XCTAssertFalse(restore.contains("Scheduled task \"Review changes\""))
 
         XCTAssertFalse(ConversationForkTranscriptPolicy.shouldCopy(note))
     }
+}
+
+@MainActor
+private func assertScheduledWorktreeCleanupProvenance(
+    _ run: ScheduledTaskRun,
+    _ thread: AgentThread,
+    _ workspace: TaskWorkspaceDescriptor,
+    _ projectRoot: URL,
+    _ worktreeRoot: URL
+) throws {
+    let cleanup = try XCTUnwrap(run.workspaceCleanupProvenance)
+    XCTAssertEqual(cleanup.sourceProjectPath, CanonicalPath.normalize(projectRoot.path))
+    XCTAssertEqual(cleanup.worktreePath, CanonicalPath.normalize(worktreeRoot.path))
+    XCTAssertEqual(cleanup.branch, "alveary/scheduled-review")
+    XCTAssertEqual(cleanup.ownershipMarkerID, workspace.ownershipMarkerID)
+    XCTAssertEqual(thread.taskWorkspaceMarkerID, workspace.ownershipMarkerID)
 }
 
 @MainActor

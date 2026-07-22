@@ -8,6 +8,10 @@ import XCTest
 extension ConversationViewModelTests {
     func testProviderSessionMetadataRenamesAutomaticThreadAndMainConversation() async throws {
         let fixture = try ConversationViewModelTestFixture(threadName: AgentThread.untitledName)
+        let renameNotification = expectation(
+            forNotification: .threadPresentationChanged,
+            object: try fixture.dbThread()
+        )
 
         fixture.viewModel.handleEvent(.providerSessionMetadataChanged(
             sessionId: "codex-thread",
@@ -20,6 +24,7 @@ extension ConversationViewModelTests {
         XCTAssertFalse(try fixture.dbThread().hasCustomName)
         XCTAssertEqual(try fixture.dbConversation().title, "Generated Codex Name")
         XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).isEmpty)
+        await fulfillment(of: [renameNotification], timeout: 1)
     }
 
     func testProviderSessionMetadataUsesPreviewWhenNameIsMissing() async throws {

@@ -181,7 +181,7 @@ extension SidebarViewModelTests {
 }
 
 @MainActor
-private final class SidebarScheduledRunQuiescenceGate {
+final class SidebarScheduledRunQuiescenceGate {
     private(set) var runID: PersistentIdentifier?
     private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
     private var releaseContinuation: CheckedContinuation<Void, Never>?

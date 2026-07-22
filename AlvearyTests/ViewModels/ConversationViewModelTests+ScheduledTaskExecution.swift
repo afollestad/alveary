@@ -4,12 +4,13 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testScheduledTaskNoteIsHoistedAboveEarlierAndEqualTimestampTranscriptRows() throws {
+    func testScheduledTaskNoteStaysAtChronologicalBoundaryBeforeScheduledPrompt() throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
         let earlierDate = Date(timeIntervalSince1970: 100)
         let noteDate = Date(timeIntervalSince1970: 200)
+        let promptDate = Date(timeIntervalSince1970: 300)
         let assistant = ConversationEventRecord(
             id: "assistant-before-note",
             type: "message",
@@ -23,13 +24,13 @@ extension ConversationViewModelTests {
             type: "message",
             role: "user",
             content: "Scheduled prompt",
-            timestamp: noteDate,
+            timestamp: promptDate,
             conversation: fixture.conversation
         )
         let note = ConversationEventRecord(
             id: "zzz-scheduled-note",
             type: ConversationEventRecord.scheduledTaskNoteType,
-            content: "Scheduled task for Jan 15, 2027 at 9:30 AM",
+            content: "Scheduled task \"Scheduled audit\" for Jan 15, 2027 at 9:30 AM",
             timestamp: noteDate,
             conversation: fixture.conversation
         )
@@ -39,14 +40,14 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         let records = fixture.viewModel.conversationEventRecords()
-        XCTAssertEqual(records.map(\.id), [note.id, assistant.id, user.id])
+        XCTAssertEqual(records.map(\.id), [assistant.id, note.id, user.id])
 
         fixture.viewModel.rebuildChatItemsIfNeeded(from: records, forceFullRebuild: true)
         XCTAssertEqual(
             fixture.viewModel.state.grouper.items,
             [
-                .transcriptNote(id: note.id, kind: .scheduledTask(try XCTUnwrap(note.content))),
                 .assistantMessage(id: assistant.id, text: "Provider output"),
+                .transcriptNote(id: note.id, kind: .scheduledTask(try XCTUnwrap(note.content))),
                 .userMessage(id: user.id, text: "Scheduled prompt")
             ]
         )

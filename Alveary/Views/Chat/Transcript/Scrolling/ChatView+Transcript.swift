@@ -40,7 +40,7 @@ struct ChatTranscriptView: View {
         appKitTranscriptSurface()
         .onChange(of: events.count) {
             if !viewModel.turnState.isActive {
-                viewModel.rebuildChatItemsIfNeeded(from: events)
+                viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
             }
             if shouldForceBottomScroll(for: events) {
                 scrollToBottom(forceFollow: true)
@@ -91,7 +91,7 @@ struct ChatTranscriptView: View {
             }
         }
         .onAppear {
-            viewModel.rebuildChatItemsIfNeeded(from: events)
+            viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
             scrollToBottom(forceFollow: true)
         }
         .onChange(of: viewModel.turnState.isActive) { _, isActive in
@@ -99,7 +99,10 @@ struct ChatTranscriptView: View {
                 isFollowing = true
                 scrollToBottom(forceFollow: true)
             } else {
-                viewModel.rebuildChatItemsIfNeeded(from: events, forceFullRebuild: true)
+                // Background services can insert transcript records before `@Query` publishes
+                // its next snapshot. Re-fetch here so a stale view snapshot cannot erase them;
+                // if that fetch fails, preserve the live grouper instead of forcing stale rows.
+                viewModel.rebuildChatItemsFromConversationRecords(forceFullRebuild: true)
                 // `forceFullRebuild` can swap transient rows for persisted rows and publish
                 // a sequence of AppKit document-height changes, so a fresh jump-to-latest
                 // scroll lands against the settled baseline and keeps reissuing for any

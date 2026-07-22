@@ -17,6 +17,7 @@ protocol ScheduledTaskRunMaterializing: AnyObject {
 enum ScheduledTaskRunMaterializationError: LocalizedError {
     case runMissing
     case invalidRunStatus(ScheduledTaskRunStatus)
+    case invalidDestination(String)
     case invalidTimeZone(String)
     case invalidWorkspaceConfiguration(kind: String, strategy: String)
     case missingProjectPath
@@ -26,6 +27,7 @@ enum ScheduledTaskRunMaterializationError: LocalizedError {
     case missingWorktreeCleanupMetadata
     case worktreeCleanupSourceChanged(String)
     case runChangedDuringPreparation
+    case existingTargetUnavailable
     case provenancePersistenceFailed(Error)
     case preparationAndCleanupFailed(preparation: Error, cleanup: Error)
 
@@ -35,6 +37,8 @@ enum ScheduledTaskRunMaterializationError: LocalizedError {
             return "The scheduled task run no longer exists."
         case .invalidRunStatus(let status):
             return "The scheduled task run cannot be prepared from its current status: \(status.rawValue)."
+        case .invalidDestination(let destination):
+            return "The scheduled task uses an invalid destination: \(destination)."
         case .invalidTimeZone(let identifier):
             return "The scheduled task uses an invalid timezone: \(identifier)."
         case let .invalidWorkspaceConfiguration(kind, strategy):
@@ -53,6 +57,8 @@ enum ScheduledTaskRunMaterializationError: LocalizedError {
             return "Git cleanup was deferred because the scheduled task Project directory changed: \(path)"
         case .runChangedDuringPreparation:
             return "The scheduled task run changed while its workspace was being prepared."
+        case .existingTargetUnavailable:
+            return "The pinned thread selected for this scheduled run is no longer available."
         case .provenancePersistenceFailed(let error):
             return "The scheduled task could not save its Task history: \(error.localizedDescription)"
         case let .preparationAndCleanupFailed(preparation, cleanup):
@@ -69,12 +75,12 @@ struct ScheduledTaskOccurrenceNoteFormatter {
         self.locale = locale
     }
 
-    func text(occurrenceAt: Date, timeZone: TimeZone) -> String {
+    func text(title: String, occurrenceAt: Date, timeZone: TimeZone) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
         formatter.timeZone = timeZone
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
-        return "Scheduled task for \(formatter.string(from: occurrenceAt))"
+        return "Scheduled task \"\(title)\" for \(formatter.string(from: occurrenceAt))"
     }
 }

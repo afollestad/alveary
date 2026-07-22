@@ -23,6 +23,7 @@ final class SidebarViewModel {
     let saveThreadCreation: @MainActor (ModelContext) throws -> Void
     let savePendingSidebarChanges: @MainActor (ModelContext) throws -> Void
     let saveSidebarOrdering: @MainActor (ModelContext) throws -> Void
+    let afterPendingScheduledWorktreeCleanup: @MainActor () async -> Void
     private let presentUnexpectedError: @MainActor @Sendable (String) -> Void
     private let notificationManager: any NotificationManager
     private let threadActivityRecorder: any ThreadActivityRecording
@@ -30,6 +31,7 @@ final class SidebarViewModel {
     var threadActivityObserver: NSObjectProtocol?
 
     private(set) var sidebarError: String?
+    var scheduledTaskAttachmentAlert: String?
     var statusVersion = 0
     var threadOrderVersion = 0
     var activeForkSourceThreadIDs: Set<PersistentIdentifier> = []
@@ -38,7 +40,6 @@ final class SidebarViewModel {
     var pendingDraftProjectPaths: [AgentThreadMode: String] = [:]
     var cachedDraftThreadIDs: [AgentThreadMode: PersistentIdentifier] = [:]
     var activeScheduledCleanupRunIDs: Set<PersistentIdentifier> = []
-
     init(
         agentsManager: any AgentsManager,
         modelContext: ModelContext,
@@ -57,6 +58,7 @@ final class SidebarViewModel {
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        afterPendingScheduledWorktreeCleanup: @escaping @MainActor () async -> Void = {},
         presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         notificationManager: any NotificationManager,
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
@@ -78,10 +80,10 @@ final class SidebarViewModel {
         self.saveThreadCreation = saveThreadCreation
         self.savePendingSidebarChanges = savePendingSidebarChanges
         self.saveSidebarOrdering = saveSidebarOrdering
+        self.afterPendingScheduledWorktreeCleanup = afterPendingScheduledWorktreeCleanup
         self.presentUnexpectedError = presentUnexpectedError
         self.notificationManager = notificationManager
         self.threadActivityRecorder = threadActivityRecorder
-
         statusObserver = NotificationCenter.default.addObserver(
             forName: .agentStatusChanged,
             object: nil,
@@ -105,13 +107,11 @@ final class SidebarViewModel {
         }
     }
 
-    func presentSidebarError(_ error: Error) {
-        sidebarError = error.localizedDescription
-    }
-
     func dismissSidebarError() {
         sidebarError = nil
     }
+
+    func presentGeneralSidebarError(_ error: Error) { sidebarError = error.localizedDescription }
 
     private func invalidateConversationControllers(_ conversationIDs: [String]) {
         for conversationID in conversationIDs {
@@ -124,6 +124,7 @@ final class SidebarViewModel {
         onPersistenceCommit: @escaping @MainActor () -> Void = {}
     ) async throws {
         var dbThread = try requireThread(thread)
+        try requireNoScheduledTaskAttachment(dbThread)
         guard !dbThread.isDraft else {
             throw SidebarViewModelError.threadMissing
         }
@@ -131,9 +132,14 @@ final class SidebarViewModel {
         let snapshot = try makeThreadArchiveSnapshot(dbThread)
         let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
         try backfillProviderSessionBindings(from: providerSessionResolution.records)
+        if let currentThread = modelContext.resolveThread(id: snapshot.threadID) {
+            try requireNoScheduledTaskAttachment(currentThread)
+        }
         await beginConversationTeardowns(snapshot.conversationIDs)
-        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
+            // Attachment state can change while provider resolution and runtime teardown await.
+            // Recheck on the main actor immediately before the durable lifecycle mutation.
+            try requireNoScheduledTaskAttachment(dbThread)
             if modelContext.hasChanges {
                 try modelContext.save()
             }
@@ -151,6 +157,7 @@ final class SidebarViewModel {
                 throw error
             }
         }
+        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         invalidateConversationControllers(snapshot.conversationIDs)
 
         let teardownError = await conversationTeardownError(snapshot.conversationIDs)
@@ -185,16 +192,19 @@ final class SidebarViewModel {
         let diagnostics = await providerSessionActionService.unarchiveSessions(providerSessionResolution)
         presentProviderSessionActionDiagnostics(diagnostics)
     }
-
     func deleteThread(
         _ thread: AgentThread,
         onPersistenceCommit: @escaping @MainActor () -> Void = {}
     ) async throws {
-        let dbThread = try await quiesceScheduledTaskRunIfNeeded(for: requireThread(thread))
+        let requiredThread = try requireThread(thread)
+        try requireNoScheduledTaskAttachment(requiredThread)
+        let dbThread = try await quiesceScheduledTaskRunIfNeeded(for: requiredThread)
+        try requireNoScheduledTaskAttachment(dbThread)
         var snapshot = try makeThreadCleanupSnapshot(dbThread)
         if snapshot.pendingScheduledWorktreeCleanup != nil {
             do {
                 try await cleanupPendingScheduledWorktreeBeforeThreadDeletion(snapshot)
+                await afterPendingScheduledWorktreeCleanup()
             } catch {
                 throw SidebarViewModelError.threadDeletePreparationFailed(error)
             }
@@ -277,7 +287,9 @@ final class SidebarViewModel {
             try await awaitConversationTeardowns(snapshot.conversationIDs)
         }
 
-        if snapshot.mode == .task {
+        if snapshot.mode == .task ||
+            snapshot.pendingScheduledWorktreeCleanup != nil ||
+            snapshot.scheduledWorktreeCleanup != nil {
             try await cleanupTaskWorkspace(snapshot)
             return
         }

@@ -30,11 +30,10 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
                 "kind": .string("weekly"),
                 "weekday": .string("monday"),
                 "hour": .number(10),
-                "minute": .number(15),
-                "time_zone": .string("America/Chicago")
+                "minute": .number(15)
             ]), ScheduledTaskProposalSchedule(
                 recurrence: .weekly(weekday: 2, hour: 10, minute: 15),
-                timeZoneIdentifier: "America/Chicago"
+                timeZoneIdentifier: "UTC"
             )),
             (schedule([
                 "kind": .string("monthly"),
@@ -56,7 +55,19 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
         }
     }
 
-    func testOmittedTimeZoneIsResolvedForEachParse() throws {
+    func testRejectsLegacyExplicitTimeZoneThatDoesNotMatchMac() {
+        let parser = ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC")
+        let arguments = schedule([
+            "kind": .string("daily"),
+            "hour": .number(8),
+            "minute": .number(0),
+            "time_zone": .string("America/Chicago")
+        ])
+
+        assertInvalid(arguments, parser: parser, containing: "Mac's current local time zone")
+    }
+
+    func testOmittedTimeZoneIsResolvedForEachParseWithoutChangingRetryIdentity() throws {
         let timeZone = ScheduledTaskHostToolTimeZoneBox("UTC")
         let parser = ScheduledTaskHostToolRequestParser(
             defaultTimeZoneIdentifierProvider: { timeZone.identifier }
@@ -77,7 +88,29 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
         }
         XCTAssertEqual(firstSchedule.timeZoneIdentifier, "UTC")
         XCTAssertEqual(secondSchedule.timeZoneIdentifier, "America/Chicago")
-        XCTAssertNotEqual(first.canonicalPayloadHash, second.canonicalPayloadHash)
+        XCTAssertEqual(first.canonicalPayloadJSON, second.canonicalPayloadJSON)
+        XCTAssertEqual(first.canonicalPayloadHash, second.canonicalPayloadHash)
+    }
+
+    func testRetryIdentityAcceptsPriorLegacyExplicitTimeZoneAfterMacTimeZoneChanges() throws {
+        let timeZone = ScheduledTaskHostToolTimeZoneBox("UTC")
+        let parser = ScheduledTaskHostToolRequestParser(
+            defaultTimeZoneIdentifierProvider: { timeZone.identifier }
+        )
+        let arguments = schedule([
+            "kind": .string("daily"),
+            "hour": .number(8),
+            "minute": .number(0),
+            "time_zone": .string("UTC")
+        ])
+        let first = try parser.parse(arguments: arguments)
+        timeZone.identifier = "America/Chicago"
+
+        let retryIdentity = try parser.parseRetryIdentity(arguments: arguments)
+
+        XCTAssertEqual(retryIdentity.canonicalPayloadJSON, first.canonicalPayloadJSON)
+        XCTAssertEqual(retryIdentity.canonicalPayloadHash, first.canonicalPayloadHash)
+        assertInvalid(arguments, parser: parser, containing: "Mac's current local time zone")
     }
 
     func testRejectsWeekdayCasingOutsideAdvertisedEnum() {
@@ -201,7 +234,8 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
 
         XCTAssertEqual(parsedFirst.canonicalPayloadJSON, parsedSecond.canonicalPayloadJSON)
         XCTAssertEqual(parsedFirst.canonicalPayloadHash, parsedSecond.canonicalPayloadHash)
-        XCTAssertTrue(parsedFirst.canonicalPayloadJSON.contains(#""time_zone":"UTC""#))
+        XCTAssertTrue(parsedFirst.canonicalPayloadJSON.contains(#""time_zone_source":"local""#))
+        XCTAssertFalse(parsedFirst.canonicalPayloadJSON.contains(#""time_zone":"UTC""#))
     }
 
     func testCatalogAdvertisesExactlyTwoClosedDomainToolsWithoutTrustedFields() throws {
@@ -219,7 +253,7 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
 
         let encoded = try JSONEncoder().encode(proposeTool.inputSchema)
         let schema = try XCTUnwrap(String(data: encoded, encoding: .utf8))
-        for forbiddenField in ["conversation_id", "provider_id", "permission_mode", "folder_path", "project_path"] {
+        for forbiddenField in ["conversation_id", "provider_id", "permission_mode", "folder_path", "project_path", "time_zone"] {
             XCTAssertFalse(schema.contains(#""\#(forbiddenField)""#))
         }
 
@@ -239,10 +273,13 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
 
         assertEveryObjectSchemaDeclaresProperties(proposeTool.inputSchema)
         XCTAssertTrue(proposeTool.description.contains("Use action create"))
-        let serverInstructions = try XCTUnwrap(ScheduledTaskHostToolCatalog.serverMetadata.instructions)
+        let serverInstructions = try XCTUnwrap(
+            ScheduledTaskHostToolCatalog.serverMetadata(timeZoneIdentifier: "Pacific/Auckland").instructions
+        )
         XCTAssertTrue(serverInstructions.contains("propose_scheduled_task"))
         XCTAssertTrue(serverInstructions.contains("action create"))
         XCTAssertTrue(serverInstructions.contains("Never use shell commands"))
+        XCTAssertTrue(serverInstructions.contains("Mac's current local time zone (Pacific/Auckland)"))
 
         XCTAssertTrue(schema.contains(#""days""#))
         XCTAssertTrue(schema.contains(#""uniqueItems":true"#))

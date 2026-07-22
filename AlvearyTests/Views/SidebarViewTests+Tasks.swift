@@ -6,6 +6,36 @@ import XCTest
 
 @MainActor
 extension SidebarViewTests {
+    func testDisabledCleanupUsesNoSignOnlyOnDirectHover() {
+        let disabledReason = "Attached to a scheduled task"
+        for action in ThreadCleanupAction.allCases {
+            XCTAssertEqual(
+                sidebarThreadCleanupSystemImage(
+                    action: action,
+                    disabledReason: disabledReason,
+                    isCleanupButtonHovered: false
+                ),
+                action.systemImage
+            )
+            XCTAssertEqual(
+                sidebarThreadCleanupSystemImage(
+                    action: action,
+                    disabledReason: disabledReason,
+                    isCleanupButtonHovered: true
+                ),
+                "nosign"
+            )
+        }
+        XCTAssertEqual(
+            sidebarThreadCleanupSystemImage(action: .archive, disabledReason: nil, isCleanupButtonHovered: true),
+            "archivebox"
+        )
+        XCTAssertEqual(
+            sidebarThreadCleanupSystemImage(action: .delete, disabledReason: nil, isCleanupButtonHovered: true),
+            "trash"
+        )
+    }
+
     func testTasksHeaderActionRequestsTaskModeComposer() {
         let appState = AppState()
 
@@ -138,7 +168,7 @@ extension SidebarViewTests {
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedTask(task.persistentModelID))
     }
 
-    func testLinkedScheduledRunWithFallbackModeUsesTaskSidebarBehavior() throws {
+    func testLinkedScheduledRunWithFallbackProjectModeUsesProjectSidebarBehavior() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/sidebar-fallback-task", name: "Project")
         fixture.context.insert(project)
@@ -156,12 +186,13 @@ extension SidebarViewTests {
 
         XCTAssertEqual(
             view.archiveConfirmationMessage(for: task),
-            "This archives \"Fallback scheduled task\". You can find archived tasks in Settings > Threads > Archived Tasks."
+            "This archives \"Fallback scheduled task\". "
+                + "You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
         )
-        XCTAssertTrue(threadDeleteConfirmationMessage(for: task).contains("Alveary-owned workspace or worktree"))
+        XCTAssertTrue(threadDeleteConfirmationMessage(for: task).contains("removes its worktree and branch if present"))
         XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task))
-        XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedTask(task.persistentModelID))
-        XCTAssertFalse(sidebarItem(.thread(task), belongsToProjectPath: project.path) { _ in project.path })
+        XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedThread(task.persistentModelID))
+        XCTAssertTrue(sidebarItem(.thread(task), belongsToProjectPath: project.path) { _ in project.path })
     }
 
     func testDeletingLastSelectedTaskRequestsBlankTaskComposerAfterSuccess() async throws {
@@ -325,7 +356,7 @@ extension SidebarViewTests {
         XCTAssertNotNil(try fixture.requireThread(task).archivedAt)
     }
 
-    func testProjectDeletionPreservesSelectedLinkedRunTaskWithUnknownMode() async throws {
+    func testProjectDeletionDeletesLinkedRunThreadWithUnknownProjectMode() async throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/sidebar-fallback-task-project", name: "Project")
         fixture.context.insert(project)
@@ -337,21 +368,10 @@ extension SidebarViewTests {
         task.modeRawValue = "future-mode"
         task.project = project
         try fixture.context.save()
-        let conversationID = try XCTUnwrap(task.conversations.first?.persistentModelID)
-        let appState = AppState()
-        appState.selectedSidebarItem = .thread(task)
-        appState.previousSelection = .threadId(task.persistentModelID)
-        appState.selectedConversationIDs[task.persistentModelID] = conversationID
-        let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
-
-        await view.confirmDeleteProject(project)
+        try await fixture.viewModel.deleteProject(project)
 
         XCTAssertNil(fixture.context.resolveProject(id: project.persistentModelID))
-        XCTAssertNotNil(fixture.context.resolveThread(id: task.persistentModelID))
-        XCTAssertNil(task.project)
-        XCTAssertEqual(appState.selectedSidebarItem, .thread(task))
-        XCTAssertEqual(appState.previousSelection, .threadId(task.persistentModelID))
-        XCTAssertEqual(appState.selectedConversationIDs[task.persistentModelID], conversationID)
+        XCTAssertNil(fixture.context.resolveThread(id: task.persistentModelID))
     }
 }
 

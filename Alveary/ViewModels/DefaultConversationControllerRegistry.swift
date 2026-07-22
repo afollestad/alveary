@@ -15,7 +15,7 @@ final class DefaultConversationControllerRegistry: ConversationControllerRegistr
     let suspendRuntime: RuntimeSuspension
     let runtimeIsSuspended: RuntimeSuspensionVerification
     var entries: [ConversationControllerKey: ControllerEntry] = [:]
-    private var outcomeHubs: [ConversationControllerKey: OutcomeHub] = [:]
+    var outcomeHubs: [ConversationControllerKey: OutcomeHub] = [:]
 
     init(
         makeViewModel: @escaping Factory,

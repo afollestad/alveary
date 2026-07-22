@@ -54,8 +54,8 @@ extension ScheduledTaskSchedulerCoordinator {
         }
         while let run = modelContext.resolveScheduledTaskRun(id: runID) {
             applyTerminalResult(result, finishedAt: finishedAt, to: run)
-            let conversation = run.thread?.conversations.first(where: \.isMain)
-            let conversationIDs = run.thread?.conversations.map(\.id) ?? []
+            let conversation = presentationConversation(for: run)
+            let conversationIDs = conversationIDsToReconcile(for: run)
             conversation?.isUnread = true
             do {
                 try saveTerminalState()
@@ -135,7 +135,7 @@ extension ScheduledTaskSchedulerCoordinator {
         }
         run.finishedAt = finishedAt
         run.requiresFinalizationRecovery = false
-        run.thread?.modifiedAt = finishedAt
+        presentationConversation(for: run)?.thread?.modifiedAt = finishedAt
     }
 
     func publishTerminalState(
@@ -161,8 +161,41 @@ extension ScheduledTaskSchedulerCoordinator {
     }
 
     func reconcileTerminalConversations(for run: ScheduledTaskRun) {
-        for conversationID in run.thread?.conversations.map(\.id) ?? [] {
+        for conversationID in conversationIDsToReconcile(for: run) {
             terminalConversationReconciliation(conversationID)
+        }
+    }
+
+    func conversationIDsToReconcile(for run: ScheduledTaskRun) -> [String] {
+        switch run.decodedDestinationSnapshot {
+        case .newThread:
+            return run.thread?.conversations.map(\.id) ?? []
+        case .existingThread:
+            return run.targetThread?.conversations.map(\.id) ?? []
+        case nil:
+            var seenConversationIDs = Set<String>()
+            let relationshipConversationIDs = (run.thread?.conversations.map(\.id) ?? []) +
+                (run.targetThread?.conversations.map(\.id) ?? [])
+            return relationshipConversationIDs.filter { seenConversationIDs.insert($0).inserted }
+        }
+    }
+
+    func presentationConversation(for run: ScheduledTaskRun) -> Conversation? {
+        switch run.decodedDestinationSnapshot {
+        case .newThread:
+            return run.thread?.conversations.first(where: \.isMain)
+        case .existingThread:
+            guard let targetConversationID = run.targetConversationIDSnapshot,
+                  let targetThread = run.targetThread else {
+                return nil
+            }
+            return targetThread.conversations.first {
+                $0.isMain &&
+                    $0.id == targetConversationID &&
+                    $0.thread?.persistentModelID == targetThread.persistentModelID
+            }
+        case nil:
+            return nil
         }
     }
 }

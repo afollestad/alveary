@@ -3,92 +3,136 @@ import SwiftUI
 
 struct ScheduledTaskEditorWorkspaceSection: View {
     let projects: [ScheduledTaskProjectOption]
+    let threads: [ScheduledTaskThreadOption]
     @Binding var draft: ScheduledTaskEditorDraft
 
     var body: some View {
         SettingsFormSection("Workspace") {
             SettingsFormRow {
-                SettingsResponsiveControlRow("Primary workspace", horizontalControlSizing: .intrinsic) {
-                    Picker("Primary workspace", selection: $draft.workspaceKind) {
-                        Text("Private").tag(ScheduledTaskWorkspaceKind.privateWorkspace)
-                        Text("Project").tag(ScheduledTaskWorkspaceKind.project)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                SettingsResponsiveControlRow("Runs in", horizontalControlSizing: .selectedContent) {
+                    ScheduledTaskMenuPicker(
+                        accessibilityLabel: "Runs in",
+                        selection: $draft.destination,
+                        options: [
+                            .init(value: .newThread, label: "New thread"),
+                            .init(value: .existingThread, label: "Existing thread")
+                        ]
+                    )
                 }
             }
 
-            if draft.workspaceKind == .project {
+            switch draft.destination {
+            case .newThread:
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Project") {
-                        Picker("Project", selection: $draft.projectPath) {
-                            Text("Select a project").tag(String?.none)
-                            ForEach(projects) { project in
-                                Text(project.name).tag(Optional(project.path))
+                    SettingsResponsiveControlRow("Project", horizontalControlSizing: .selectedContent) {
+                        ScheduledTaskMenuPicker(
+                            accessibilityLabel: "Project",
+                            selection: projectSelection,
+                            options: [.init(value: String?.none, label: "None")] + projects.map {
+                                .init(value: Optional($0.path), label: $0.name)
                             }
-                        }
-                        .labelsHidden()
+                        )
                     }
                 }
 
-                SettingsFormRow {
-                    SettingsResponsiveControlRow("Run location", horizontalControlSizing: .intrinsic) {
-                        Picker("Run location", selection: $draft.workspaceStrategy) {
-                            Text("Worktree").tag(ScheduledTaskWorkspaceStrategy.worktree)
-                            Text("Local checkout").tag(ScheduledTaskWorkspaceStrategy.localCheckout)
+                if draft.projectPath != nil {
+                    SettingsFormRow {
+                        SettingsResponsiveControlRow("Run location", horizontalControlSizing: .intrinsic) {
+                            Picker("Run location", selection: $draft.workspaceStrategy) {
+                                Text("Worktree").tag(ScheduledTaskWorkspaceStrategy.worktree)
+                                Text("Local").tag(ScheduledTaskWorkspaceStrategy.localCheckout)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
                         }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
+                    }
+                }
+
+                folderGrantsRow
+            case .existingThread:
+                if threads.isEmpty {
+                    SettingsFormRow(showsDivider: false) {
+                        SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
+                            Text("Pin a local thread first")
+                                .font(.callout)
+                                .foregroundStyle(.tertiary)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    }
+                } else {
+                    SettingsFormRow(showsDivider: false) {
+                        SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
+                            ScheduledTaskMenuPicker(
+                                accessibilityLabel: "Existing thread",
+                                selection: $draft.targetConversationID,
+                                options: [.init(value: String?.none, label: "Select a thread")] + threads.map {
+                                    .init(value: Optional($0.conversationID), label: $0.label)
+                                },
+                                placeholder: "Select a thread"
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
 
-            SettingsFormRow(showsDivider: false) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Folder grants")
-                            Text("Give this task access to additional folders.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+    private var projectSelection: Binding<String?> {
+        Binding(
+            get: { draft.projectPath },
+            set: { path in
+                draft.projectPath = path
+                draft.workspaceKind = path == nil ? .privateWorkspace : .project
+            }
+        )
+    }
 
-                        Spacer()
-
-                        Button(action: chooseFolders) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "folder.badge.plus")
-                                Text("Add folders")
-                            }
-                        }
-                        .secondaryActionButtonStyle()
-                    }
-
-                    if draft.grantedRoots.isEmpty {
-                        Text("No additional folders")
+    private var folderGrantsRow: some View {
+        SettingsFormRow(showsDivider: false) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Folder grants")
+                        Text("Give this task access to additional folders.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(draft.grantedRoots, id: \.self) { path in
-                                HStack(spacing: 10) {
-                                    Image(systemName: "folder")
-                                        .foregroundStyle(.secondary)
-                                    Text(URL(fileURLWithPath: path).lastPathComponent)
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Button {
-                                        draft.grantedRoots.removeAll { $0 == path }
-                                    } label: {
-                                        Image(systemName: "xmark")
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .help("Remove folder grant")
-                                    .accessibilityLabel("Remove \(path)")
+                    }
+
+                    Spacer()
+
+                    Button(action: chooseFolders) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder.badge.plus")
+                            Text("Add folders")
+                        }
+                    }
+                    .secondaryActionButtonStyle()
+                }
+
+                if draft.grantedRoots.isEmpty {
+                    Text("No additional folders")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(draft.grantedRoots, id: \.self) { path in
+                            HStack(spacing: 10) {
+                                Image(systemName: "folder")
+                                    .foregroundStyle(.secondary)
+                                Text(URL(fileURLWithPath: path).lastPathComponent)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button {
+                                    draft.grantedRoots.removeAll { $0 == path }
+                                } label: {
+                                    Image(systemName: "xmark")
                                 }
-                                .accessibilityElement(children: .contain)
-                                .accessibilityHint(path)
+                                .buttonStyle(.borderless)
+                                .help("Remove folder grant")
+                                .accessibilityLabel("Remove \(path)")
                             }
+                            .accessibilityElement(children: .contain)
+                            .accessibilityHint(path)
                         }
                     }
                 }

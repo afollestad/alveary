@@ -231,18 +231,20 @@ extension SidebarViewModel {
         try flushPendingSidebarPinChanges()
 
         do {
-            var didChange = try normalizeSidebarOrdering()
             let dbProject = try resolveProjectForPinning(project.persistentModelID)
             let wasPinned = dbProject.isPinned
             let projectPath = dbProject.path
+            if wasPinned || isPinned {
+                // Validate before normalization or project changes so a rejected child unpin
+                // never relies on rollback to restore the caller's in-memory state.
+                try requireChildrenCanBeUnpinned(
+                    try unarchivedThreadsForOrdering(projectPath: projectPath)
+                )
+            }
+            var didChange = try normalizeSidebarOrdering()
 
             if isPinned, !wasPinned {
-                for child in try unarchivedThreadsForOrdering(projectPath: projectPath)
-                where child.isPinned || child.pinnedSortOrder != nil {
-                    child.isPinned = false
-                    child.pinnedSortOrder = nil
-                    didChange = true
-                }
+                didChange = try unpinChildrenIfAllowed(projectPath: projectPath) || didChange
                 didChange = try normalizeSidebarOrdering() || didChange
                 let appendOrder = try currentPinnedItemCount()
                 dbProject.isPinned = true
@@ -258,12 +260,7 @@ extension SidebarViewModel {
             }
 
             if wasPinned || isPinned {
-                for child in try unarchivedThreadsForOrdering(projectPath: projectPath)
-                where child.isPinned || child.pinnedSortOrder != nil {
-                    child.isPinned = false
-                    child.pinnedSortOrder = nil
-                    didChange = true
-                }
+                didChange = try unpinChildrenIfAllowed(projectPath: projectPath) || didChange
             }
 
             didChange = try normalizeSidebarOrdering() || didChange
@@ -299,6 +296,9 @@ extension SidebarViewModel {
                 throw SidebarViewModelError.threadMissing
             }
             let wasPinned = dbThread.isPinned
+            if !isPinned, wasPinned {
+                try requireNoScheduledTaskAttachment(dbThread)
+            }
             if isPinned, !wasPinned {
                 let appendOrder = try currentPinnedItemCount()
                 dbThread.isPinned = true
@@ -338,6 +338,24 @@ extension SidebarViewModel {
 }
 
 private extension SidebarViewModel {
+    func unpinChildrenIfAllowed(projectPath: String) throws -> Bool {
+        let children = try unarchivedThreadsForOrdering(projectPath: projectPath)
+        try requireChildrenCanBeUnpinned(children)
+        var didChange = false
+        for child in children where child.isPinned || child.pinnedSortOrder != nil {
+            child.isPinned = false
+            child.pinnedSortOrder = nil
+            didChange = true
+        }
+        return didChange
+    }
+
+    func requireChildrenCanBeUnpinned(_ threads: [AgentThread]) throws {
+        for thread in threads where thread.isPinned || thread.pinnedSortOrder != nil {
+            try requireNoScheduledTaskAttachment(thread)
+        }
+    }
+
     func latestVisibleThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
         threads
             .filter { $0.effectiveMode == .project && $0.project?.path == project.path }

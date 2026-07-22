@@ -137,6 +137,10 @@ private struct SettingsResponsiveControlRowLayout: Layout {
             return labelWidth > 0 ? .horizontal(width: width, controlWidth: controlWidth) : .stacked(width: width)
         }
 
+        if case .selectedContent = horizontalControlSizing {
+            return labelWidth >= labelIdealWidth ? .horizontal(width: width, controlWidth: controlWidth) : .stacked(width: width)
+        }
+
         guard responsiveControlWidth >= minimumControlWidth,
               labelWidth >= labelIdealWidth else {
             return .stacked(width: width)
@@ -163,6 +167,8 @@ private struct SettingsResponsiveControlRowLayout: Layout {
             return max(minimumControlWidth, subviews[1].sizeThatFits(.unspecified).width)
         case .intrinsicInline:
             return subviews[1].sizeThatFits(.unspecified).width
+        case .selectedContent:
+            return min(subviews[1].sizeThatFits(.unspecified).width, availableWidth)
         }
     }
 
@@ -185,4 +191,5 @@ enum SettingsControlHorizontalSizing {
     case expandsToFitContent(idealWidth: CGFloat)
     case intrinsic
     case intrinsicInline
+    case selectedContent
 }

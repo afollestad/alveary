@@ -28,8 +28,14 @@ struct ScheduledTaskAutomatedWorkspaceValidator {
         guard let run = thread.scheduledTaskRun else {
             throw ScheduledTurnWorkspaceValidationError.missingRun
         }
-        guard thread.mode == .task,
-              let workspace = thread.taskWorkspaceDescriptor else {
+        let workspace: TaskWorkspaceDescriptor?
+        switch thread.mode {
+        case .task:
+            workspace = thread.taskWorkspaceDescriptor
+        case .project:
+            workspace = projectWorkspace(thread: thread, run: run)
+        }
+        guard let workspace else {
             throw ScheduledTurnWorkspaceValidationError.missingWorkspace
         }
         guard workspace.primaryRoot == run.preparedWorkspaceRoot,
@@ -51,9 +57,69 @@ struct ScheduledTaskAutomatedWorkspaceValidator {
         try validateWorkspaceKind(workspace, run: run, workspaceIdentities: workspaceIdentities)
         try validateGrantedRoots(workspace, run: run, workspaceIdentities: workspaceIdentities)
     }
+
+    func validateExistingTarget(thread: AgentThread, run: ScheduledTaskRun) throws {
+        guard run.targetThread?.persistentModelID == thread.persistentModelID,
+              let workspaceKind = run.workspaceKindSnapshot,
+              run.workspaceStrategySnapshot != nil,
+              let workspaceIdentities = run.workspaceIdentitySnapshot,
+              workspaceIdentities.matchesConfiguration(
+                  workspaceKind: workspaceKind,
+                  projectPath: run.projectPathSnapshot,
+                  grantedRootPaths: run.grantedRootsSnapshot
+              ),
+              thread.primaryWorkingDirectory == run.projectPathSnapshot else {
+            throw ScheduledTurnWorkspaceValidationError.workspaceDoesNotMatchRun
+        }
+
+        let workspace: TaskWorkspaceDescriptor
+        switch thread.effectiveMode {
+        case .project:
+            guard let primaryRoot = thread.primaryWorkingDirectory else {
+                throw ScheduledTurnWorkspaceValidationError.missingWorkspace
+            }
+            workspace = TaskWorkspaceDescriptor(
+                primaryRoot: primaryRoot,
+                grantedRoots: thread.taskGrantedRoots,
+                ownershipStrategy: .projectLocal,
+                sourceProjectPath: primaryRoot
+            )
+        case .task:
+            guard let descriptor = thread.taskWorkspaceDescriptor else {
+                throw ScheduledTurnWorkspaceValidationError.missingWorkspace
+            }
+            workspace = descriptor
+            if descriptor.ownershipStrategy != .projectLocal {
+                try workspaceOwnershipService.validateOwnedWorkspace(descriptor)
+            }
+        }
+
+        guard workspace.primaryRoot == run.projectPathSnapshot,
+              workspace.grantedRoots == run.grantedRootsSnapshot,
+              let claimedPrimaryIdentity = workspaceIdentities.projectRoot?.identity,
+              currentIdentity(at: workspace.primaryRoot) == claimedPrimaryIdentity else {
+            throw ScheduledTurnWorkspaceValidationError.workspaceRootsChanged
+        }
+        try validateGrantedRoots(workspace, run: run, workspaceIdentities: workspaceIdentities)
+    }
 }
 
 private extension ScheduledTaskAutomatedWorkspaceValidator {
+    func projectWorkspace(thread: AgentThread, run: ScheduledTaskRun) -> TaskWorkspaceDescriptor? {
+        guard thread.mode == .project,
+              let primaryRoot = thread.primaryWorkingDirectory,
+              let ownershipStrategy = run.preparedWorkspaceOwnershipStrategy else {
+            return nil
+        }
+        return TaskWorkspaceDescriptor(
+            primaryRoot: primaryRoot,
+            grantedRoots: run.grantedRootsSnapshot,
+            ownershipStrategy: ownershipStrategy,
+            ownershipMarkerID: run.preparedWorkspaceMarkerID,
+            sourceProjectPath: run.projectPathSnapshot
+        )
+    }
+
     func validateWorkspaceKind(
         _ workspace: TaskWorkspaceDescriptor,
         run: ScheduledTaskRun,

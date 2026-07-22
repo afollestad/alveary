@@ -31,7 +31,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         XCTAssertEqual(task["revision"], .number(4))
         XCTAssertEqual(task["title"], .string("Daily review"))
         XCTAssertEqual(task["state"], .string("active"))
-        XCTAssertEqual(task["schedule_summary"], .string("every Monday, Wednesday, Friday at 08:05 [UTC]"))
+        XCTAssertEqual(task["schedule_summary"], .string("every Monday, Wednesday, Friday at 08:05 [Etc/UTC]"))
         XCTAssertFalse(try encoded(result).contains("SECRET PROMPT CONTENT"))
     }
 
@@ -112,17 +112,23 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
 }
 
 extension ScheduledTaskHostToolServiceTests {
-    func createArguments(title: String = "Daily review") -> [String: AgentCLIKit.JSONValue] {
-        [
+    func createArguments(
+        title: String = "Daily review",
+        legacyTimeZoneIdentifier: String? = nil
+    ) -> [String: AgentCLIKit.JSONValue] {
+        var schedule: [String: AgentCLIKit.JSONValue] = [
+            "kind": .string("daily"),
+            "hour": .number(9),
+            "minute": .number(15)
+        ]
+        if let legacyTimeZoneIdentifier {
+            schedule["time_zone"] = .string(legacyTimeZoneIdentifier)
+        }
+        return [
             "action": .string("create"),
             "title": .string(title),
             "prompt": .string("Review the latest changes."),
-            "schedule": .object([
-                "kind": .string("daily"),
-                "hour": .number(9),
-                "minute": .number(15),
-                "time_zone": .string("UTC")
-            ])
+            "schedule": .object(schedule)
         ]
     }
 
@@ -249,6 +255,8 @@ final class ScheduledTaskHostToolFixture {
         service = ScheduledTaskHostToolService(
             modelContext: context,
             notificationCenter: notificationCenter,
+            requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "Etc/UTC"),
+            currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current },
             now: { Date(timeIntervalSince1970: 1_000) }
         )
     }
@@ -284,7 +292,7 @@ final class ScheduledTaskHostToolFixture {
             prompt: prompt,
             revision: revision,
             recurrence: recurrence,
-            timeZoneIdentifier: "UTC",
+            timeZoneIdentifier: "Etc/UTC",
             providerID: providerID,
             model: model,
             effort: effort,

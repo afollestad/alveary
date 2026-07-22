@@ -7,26 +7,27 @@ struct ScheduledTaskEditorAgentSection: View {
     var body: some View {
         SettingsFormSection("Agent") {
             SettingsFormRow {
-                SettingsResponsiveControlRow("Provider", horizontalControlSizing: .intrinsic) {
-                    Picker("Provider", selection: $draft.providerID) {
-                        ForEach(viewModel.providerIDs(including: draft.providerID), id: \.self) { providerID in
-                            Text(viewModel.providerDisplayName(for: providerID)).tag(providerID)
+                SettingsResponsiveControlRow("Provider", horizontalControlSizing: .selectedContent) {
+                    ScheduledTaskMenuPicker(
+                        accessibilityLabel: "Provider",
+                        selection: $draft.providerID,
+                        options: viewModel.providerIDs(including: draft.providerID).map {
+                            .init(value: $0, label: viewModel.providerDisplayName(for: $0))
                         }
-                    }
-                    .labelsHidden()
+                    )
                 }
             }
 
             SettingsFormRow {
-                SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
-                    Picker("Model", selection: $draft.modelSelection) {
-                        ForEach(
-                            viewModel.modelPickerOptions(for: draft.providerID, including: draft.modelSelection)
-                        ) { option in
-                            Text(option.label).tag(option.value)
-                        }
-                    }
-                    .labelsHidden()
+                SettingsResponsiveControlRow("Model", horizontalControlSizing: .selectedContent) {
+                    ScheduledTaskMenuPicker(
+                        accessibilityLabel: "Model",
+                        selection: $draft.modelSelection,
+                        options: viewModel.modelPickerOptions(
+                            for: draft.providerID,
+                            including: draft.modelSelection
+                        ).map { .init(value: $0.value, label: $0.label) }
+                    )
                 }
             }
 
@@ -36,30 +37,26 @@ struct ScheduledTaskEditorAgentSection: View {
             )
             if !effortOptions.isEmpty {
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
-                        Picker("Effort", selection: $draft.effort) {
-                            ForEach(effortOptions) { option in
-                                Text(option.label).tag(option.value)
-                            }
-                        }
-                        .labelsHidden()
+                    SettingsResponsiveControlRow("Effort", horizontalControlSizing: .selectedContent) {
+                        ScheduledTaskMenuPicker(
+                            accessibilityLabel: "Effort",
+                            selection: $draft.effort,
+                            options: effortOptions.map { .init(value: $0.value, label: $0.label) }
+                        )
                     }
                 }
             }
 
             SettingsFormRow(showsDivider: false) {
-                SettingsResponsiveControlRow("Permissions", horizontalControlSizing: .intrinsic) {
-                    Picker("Permissions", selection: $draft.permissionMode) {
-                        ForEach(
-                            viewModel.permissionModeOptions(
-                                for: draft.providerID,
-                                including: draft.permissionMode
-                            )
-                        ) { option in
-                            Text(option.label).tag(option.value)
-                        }
-                    }
-                    .labelsHidden()
+                SettingsResponsiveControlRow("Permissions", horizontalControlSizing: .selectedContent) {
+                    ScheduledTaskMenuPicker(
+                        accessibilityLabel: "Permissions",
+                        selection: $draft.permissionMode,
+                        options: viewModel.permissionModeOptions(
+                            for: draft.providerID,
+                            including: draft.permissionMode
+                        ).map { .init(value: $0.value, label: $0.label) }
+                    )
                 }
             }
         }

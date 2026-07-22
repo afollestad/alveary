@@ -71,7 +71,7 @@ extension SidebarViewModelTests {
         XCTAssertFalse(fixture.viewModel.hasAnyActiveTaskThreads())
     }
 
-    func testLinkedScheduledRunsWithFallbackModesRemainActiveTasksAndSuppressEmptyState() throws {
+    func testScheduledProjectRunsAndUnknownProjectSnapshotsStayOutOfTasks() throws {
         let fixture = try SidebarTestFixture()
         let (projectModeTask, _) = try insertScheduledTaskThread(
             fixture: fixture,
@@ -91,12 +91,10 @@ extension SidebarViewModelTests {
 
         let activeTasks = fixture.viewModel.activeTaskThreads()
 
-        XCTAssertEqual(activeTasks.map(\.persistentModelID), [
-            projectModeTask.persistentModelID,
-            unknownModeTask.persistentModelID
-        ])
-        XCTAssertTrue(fixture.viewModel.hasAnyActiveTaskThreads())
-        XCTAssertFalse(shouldShowNoTasksPlaceholder(
+        XCTAssertTrue(activeTasks.isEmpty)
+        XCTAssertEqual(unknownModeTask.effectiveMode, .project)
+        XCTAssertFalse(fixture.viewModel.hasAnyActiveTaskThreads())
+        XCTAssertTrue(shouldShowNoTasksPlaceholder(
             activeTaskThreads: activeTasks,
             hasAnyActiveTaskThreads: fixture.viewModel.hasAnyActiveTaskThreads()
         ))
@@ -190,7 +188,7 @@ extension SidebarViewModelTests {
         )
     }
 
-    func testLinkedScheduledRunWithUnknownModeUsesPinnedTaskDomain() throws {
+    func testLinkedScheduledRunWithUnknownProjectModeUsesProjectDomain() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(
             path: "/tmp/pinned-fallback-task-owner",
@@ -210,10 +208,11 @@ extension SidebarViewModelTests {
 
         try fixture.viewModel.setThreadPinned(task, isPinned: true)
 
-        XCTAssertTrue(task.isPinned)
+        XCTAssertEqual(task.effectiveMode, .project)
+        XCTAssertFalse(task.isPinned)
         XCTAssertEqual(
             fixture.viewModel.pinnedItems(projects: [project]).map(\.dragItem),
-            [.project(project.persistentModelID), .pinnedTask(task.persistentModelID)]
+            [.project(project.persistentModelID)]
         )
         XCTAssertFalse(try fixture.viewModel.commitSidebarDrop(
             dragItem: .pinnedTask(task.persistentModelID),

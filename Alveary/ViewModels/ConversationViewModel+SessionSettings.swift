@@ -4,6 +4,7 @@ import Foundation
 enum SessionSettingsConfigSource {
     case currentContinuation
     case nextTurn
+    case automatedScheduledRun
 }
 
 enum SchedulingHostToolExposure {
@@ -51,13 +52,13 @@ extension ConversationViewModel {
         let planModeOverride = spawnPlanModeOverride(settingsSource: settingsSource, context: settingsContext)
         let speedModeOverride = spawnSpeedModeOverride(settingsSource: settingsSource, context: settingsContext)
         let modelAndEffort = spawnModelAndEffort(context: settingsContext, thread: dbConversation.thread)
-        let additionalWorkspaceRoots = dbConversation.thread?.mode == .task
-            ? dbConversation.thread?.taskWorkspaceDescriptor?.grantedRoots ?? []
-            : []
+        let additionalWorkspaceRoots = scheduledAdditionalWorkspaceRoots(in: dbConversation.thread)
         let preservesAutomatedScheduledTurn = settingsSource == .currentContinuation
             && settingsContext.liveConfig?.isAutomatedScheduledTurn == true
             && defersOrdinaryScheduledOutbound
-        let resolvedAutomatedScheduledTurn = isAutomatedScheduledTurn || preservesAutomatedScheduledTurn
+        let resolvedAutomatedScheduledTurn = isAutomatedScheduledTurn ||
+            settingsSource == .automatedScheduledRun ||
+            preservesAutomatedScheduledTurn
         let schedulingHostTools = schedulingHostToolConfiguration(
             requestedExposure: hostToolExposure,
             settingsSource: settingsSource,
@@ -104,9 +105,7 @@ extension ConversationViewModel {
         settingsSource: SessionSettingsConfigSource,
         isAutomatedScheduledTurn: Bool
     ) -> SchedulingHostToolConfiguration {
-        let exposure = requestedExposure ?? (
-            settingsSource == .nextTurn ? .ordinaryOutbound : .currentContinuation
-        )
+        let exposure = requestedExposure ?? (settingsSource == .nextTurn ? .ordinaryOutbound : .currentContinuation)
         guard exposure == .ordinaryOutbound,
               !isAutomatedScheduledTurn,
               !state.schedulingHostToolsDisabled else {
@@ -426,6 +425,9 @@ extension ConversationViewModel {
         settingsSource: SessionSettingsConfigSource,
         context: SpawnSettingsContext
     ) -> String? {
+        if settingsSource == .automatedScheduledRun {
+            return nil
+        }
         if settingsSource == .currentContinuation {
             return state.runtimePermissionMode
                 ?? context.liveConfig?.permissionMode
@@ -442,6 +444,9 @@ extension ConversationViewModel {
         settingsSource: SessionSettingsConfigSource,
         context: SpawnSettingsContext
     ) -> Bool? {
+        if settingsSource == .automatedScheduledRun {
+            return nil
+        }
         if state.pendingToolApproval?.request.toolName == "ExitPlanMode" {
             return true
         }
@@ -462,6 +467,9 @@ extension ConversationViewModel {
         settingsSource: SessionSettingsConfigSource,
         context: SpawnSettingsContext
     ) -> AgentSpeedMode? {
+        if settingsSource == .automatedScheduledRun {
+            return nil
+        }
         if settingsSource == .currentContinuation {
             return state.runtimeSpeedMode
                 ?? context.liveConfig?.speedMode
@@ -485,16 +493,4 @@ extension ConversationViewModel {
         )
     }
 
-    private func mergedAllowedDirectories(configured: [String], additional: [String]) -> [String] {
-        var result: [String] = []
-        var seen = Set<String>()
-        for directory in configured + additional {
-            let normalized = CanonicalPath.normalize(directory)
-            guard !normalized.isEmpty, seen.insert(normalized).inserted else {
-                continue
-            }
-            result.append(normalized)
-        }
-        return result
-    }
 }

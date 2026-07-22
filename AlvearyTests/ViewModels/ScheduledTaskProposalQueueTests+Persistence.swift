@@ -229,11 +229,14 @@ private final class ScheduledTaskProposalCrossContextFixture {
         )
         let mutationService = ScheduledTaskMutationService(
             modelContext: resolvedMainContext,
-            notificationCenter: notificationCenter
+            notificationCenter: notificationCenter,
+            currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current }
         )
         hostService = ScheduledTaskHostToolService(
             modelContext: resolvedMainContext,
             notificationCenter: notificationCenter,
+            requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "Etc/UTC"),
+            currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current },
             now: { [clock] in clock.now }
         )
         coordinator = ScheduledTaskProposalQueueCoordinator(
@@ -249,7 +252,8 @@ private final class ScheduledTaskProposalCrossContextFixture {
             settingsService: InMemorySettingsService(),
             notificationCenter: notificationCenter,
             runNow: { _ in true },
-            now: { [clock] in clock.now }
+            now: { [clock] in clock.now },
+            currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current }
         )
     }
 
@@ -350,8 +354,7 @@ private final class ScheduledTaskProposalCrossContextFixture {
             "schedule": .object([
                 "kind": .string("daily"),
                 "hour": .number(10),
-                "minute": .number(15),
-                "time_zone": .string("UTC")
+                "minute": .number(15)
             ])
         ]
     }

@@ -5,13 +5,100 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskSchedulerCoordinatorTests {
+    func testPreExecutionFailureRoutesUnreadToTargetAndReconcilesSiblingControllers() async throws {
+        let fixture = try ScheduledTaskCoordinatorFixture()
+        let project = Project(path: "/tmp/pre-execution-target", name: "Target")
+        let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
+        let main = Conversation(id: "pre-execution-main", provider: "codex", thread: target)
+        let sibling = Conversation(id: "pre-execution-sibling", provider: "codex", isMain: false, thread: target)
+        target.conversations = [main, sibling]
+        project.threads = [target]
+        let run = ScheduledTaskRun(
+            occurrenceID: "pre-execution-occurrence",
+            definitionID: "pre-execution-definition",
+            definitionRevision: 1,
+            occurrenceAt: fixture.actionDate,
+            triggerKind: .scheduled,
+            titleSnapshot: "Attached schedule",
+            promptSnapshot: "Run work",
+            destinationSnapshot: .existingThread,
+            targetConversationIDSnapshot: main.id,
+            timeZoneIdentifierSnapshot: "UTC",
+            providerIDSnapshot: "codex",
+            effortSnapshot: "high",
+            permissionModeSnapshot: "acceptEdits",
+            workspaceKindSnapshot: .project,
+            workspaceStrategySnapshot: .localCheckout,
+            projectPathSnapshot: project.path,
+            targetThread: target
+        )
+        fixture.context.insert(project)
+        fixture.context.insert(run)
+        try fixture.context.save()
+        var reconciledIDs: [String] = []
+        let services = fixture.makeServices(terminalConversationReconciliation: {
+            reconciledIDs.append($0)
+        })
+
+        await services.coordinator.persistTerminalResult(
+            .failed(message: "Preparation failed"),
+            runID: run.persistentModelID,
+            finishedAt: fixture.actionDate
+        )
+
+        XCTAssertEqual(run.status, .failure)
+        XCTAssertTrue(main.isUnread)
+        XCTAssertFalse(sibling.isUnread)
+        XCTAssertEqual(Set(reconciledIDs), Set([main.id, sibling.id]))
+        XCTAssertEqual(target.modifiedAt, fixture.actionDate)
+    }
+
+    func testRunNowBusyTargetPublishesVisibleClaimError() async throws {
+        let fixture = try ScheduledTaskCoordinatorFixture()
+        let project = Project(path: "/tmp/run-now-target", name: "Run now target")
+        let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
+        let conversation = Conversation(id: "run-now-target-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        project.threads = [target]
+        fixture.context.insert(project)
+        let definition = try fixture.insertDefinition(
+            id: "busy-run-now",
+            project: project,
+            workspaceStrategy: .localCheckout
+        )
+        definition.destination = .existingThread
+        definition.targetThread = target
+        try fixture.context.save()
+        let services = fixture.makeServices(preflightValidator: { _ in .targetBusy })
+        var claimErrors: [String] = []
+        services.coordinator.setSchedulingStateDidChange { _, errorMessage in
+            if let errorMessage {
+                claimErrors.append(errorMessage)
+            }
+        }
+        let request = ScheduledTaskRunNowRequest.prepare(
+            definition: definition,
+            triggeredAt: fixture.actionDate,
+            recurrenceCalculator: ScheduledTaskRecurrenceCalculator()
+        )
+
+        XCTAssertTrue(services.coordinator.startRunNow(request))
+        await services.coordinator.waitUntilIdle()
+
+        XCTAssertEqual(
+            claimErrors,
+            ["This scheduled task couldn't start because its pinned target thread is busy. Try again when the thread is idle."]
+        )
+        XCTAssertTrue(try fixture.runs().isEmpty)
+    }
+
     func testSchedulingStateChangesAfterClaimAndTerminalCompletion() async throws {
         let fixture = try ScheduledTaskCoordinatorFixture()
         try fixture.insertDefinition(id: "state-change", projectPath: "/tmp/state-change")
         let executionProbe = ScheduledTaskBlockingProbe()
         let services = fixture.makeServices(executionProbe: executionProbe)
         var changedDefinitionIDs: [String] = []
-        services.coordinator.setSchedulingStateDidChange { definitionID in
+        services.coordinator.setSchedulingStateDidChange { definitionID, _ in
             changedDefinitionIDs.append(definitionID)
         }
 

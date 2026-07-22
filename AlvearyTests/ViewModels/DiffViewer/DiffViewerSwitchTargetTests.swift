@@ -78,7 +78,7 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         XCTAssertEqual(target.baseRef, "main")
     }
 
-    func testForThreadDoesNotExposeProjectRootForLinkedRunWithFallbackMode() throws {
+    func testForThreadUsesProjectSnapshotForLinkedRunWithFallbackMode() throws {
         let fixture = try Fixture()
         let project = try fixture.insertProject(path: "/tmp/fallback-scheduled-project")
         let thread = try fixture.insertThread(
@@ -88,6 +88,29 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         )
         thread.modeRawValue = "future-mode"
         let run = makeDiffViewerScheduledRun()
+        run.thread = thread
+        thread.scheduledTaskRun = run
+        fixture.context.insert(run)
+        try fixture.context.save()
+
+        let target = try XCTUnwrap(DiffViewerSwitchTarget.forThread(thread))
+
+        XCTAssertEqual(target.projectPath, project.path)
+        XCTAssertEqual(target.worktreePath, thread.worktreePath)
+        XCTAssertEqual(target.directory, thread.worktreePath)
+        XCTAssertEqual(target.conversationIds, ["fallback-scheduled-conversation"])
+    }
+
+    func testForThreadDoesNotExposeProjectRootForPrivateLinkedRunWithFallbackMode() throws {
+        let fixture = try Fixture()
+        let project = try fixture.insertProject(path: "/tmp/fallback-private-project")
+        let thread = try fixture.insertThread(
+            project: project,
+            conversationIDs: ["fallback-private-conversation"],
+            worktreePath: "/tmp/fallback-private-worktree"
+        )
+        thread.modeRawValue = "future-mode"
+        let run = makeDiffViewerScheduledRun(workspaceKind: .privateWorkspace)
         run.thread = thread
         thread.scheduledTaskRun = run
         fixture.context.insert(run)
@@ -137,21 +160,27 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
         XCTAssertEqual(target.conversationIds, ["self-worktree-conv"])
     }
 
-    func testForProjectExcludesLinkedRunWithFallbackMode() throws {
+    func testForProjectUsesWorkspaceSnapshotForLinkedRunsWithFallbackMode() throws {
         let fixture = try Fixture()
         let project = try fixture.insertProject(path: "/tmp/alveary-project")
         _ = try fixture.insertThread(project: project, conversationIDs: ["project-conversation"])
-        let linkedTask = try fixture.insertThread(project: project, conversationIDs: ["linked-task-conversation"])
-        linkedTask.modeRawValue = "future-mode"
-        let run = makeDiffViewerScheduledRun()
-        run.thread = linkedTask
-        linkedTask.scheduledTaskRun = run
-        fixture.context.insert(run)
+        let projectFallback = try fixture.insertThread(project: project, conversationIDs: ["project-fallback-conversation"])
+        projectFallback.modeRawValue = "future-mode"
+        let projectRun = makeDiffViewerScheduledRun()
+        projectRun.thread = projectFallback
+        projectFallback.scheduledTaskRun = projectRun
+        fixture.context.insert(projectRun)
+        let privateFallback = try fixture.insertThread(project: project, conversationIDs: ["private-fallback-conversation"])
+        privateFallback.modeRawValue = "future-mode"
+        let privateRun = makeDiffViewerScheduledRun(workspaceKind: .privateWorkspace)
+        privateRun.thread = privateFallback
+        privateFallback.scheduledTaskRun = privateRun
+        fixture.context.insert(privateRun)
         try fixture.context.save()
 
         let target = DiffViewerSwitchTarget.forProject(project)
 
-        XCTAssertEqual(target.conversationIds, ["project-conversation"])
+        XCTAssertEqual(target.conversationIds, ["project-conversation", "project-fallback-conversation"])
     }
 
     func testForProjectUsesCandidateConversationIDsWhenProvided() throws {
@@ -195,7 +224,9 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
     }
 }
 
-private func makeDiffViewerScheduledRun() -> ScheduledTaskRun {
+private func makeDiffViewerScheduledRun(
+    workspaceKind: ScheduledTaskWorkspaceKind = .project
+) -> ScheduledTaskRun {
     ScheduledTaskRun(
         occurrenceID: UUID().uuidString,
         definitionID: "diff-viewer-definition",
@@ -209,7 +240,7 @@ private func makeDiffViewerScheduledRun() -> ScheduledTaskRun {
         providerIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
-        workspaceKindSnapshot: .project,
+        workspaceKindSnapshot: workspaceKind,
         workspaceStrategySnapshot: .worktree
     )
 }

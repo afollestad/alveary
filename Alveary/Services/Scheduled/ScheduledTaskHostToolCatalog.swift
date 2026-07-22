@@ -6,16 +6,20 @@ enum ScheduledTaskHostToolCatalog {
     static let proposeToolName = "propose_scheduled_task"
 
     static var serverMetadata: AgentCLIKit.AgentHostToolServerMetadata {
-        let timeZoneIdentifier = TimeZone.current.identifier
-        return AgentCLIKit.AgentHostToolServerMetadata(
+        serverMetadata(timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
+    }
+
+    static func serverMetadata(timeZoneIdentifier: String) -> AgentCLIKit.AgentHostToolServerMetadata {
+        AgentCLIKit.AgentHostToolServerMetadata(
             name: "alveary_host",
             title: "Alveary scheduling",
             instructions: """
-            These tools manage Alveary's local scheduled tasks. The host time zone is \(timeZoneIdentifier); an omitted time_zone uses it. \
+            These tools manage Alveary's local scheduled tasks. Schedule times use the Mac's current local time zone \
+            (\(timeZoneIdentifier)). \
             Use scheduling tools only when the user explicitly asks to create, list, edit, pause, resume, delete, or run an Alveary \
             scheduled task. Incidental dates, deadlines, elapsed-time estimates, and phrases such as "later" do not imply a scheduling \
-            request. Ask for clarification before proposing a task when its instructions, recurrence, target, or intended time zone are \
-            materially ambiguous. For a weekdays schedule, days must list every intended day of the week, including weekend days when \
+            request. Ask for clarification before proposing a task when its instructions, recurrence, or target are materially ambiguous. \
+            For a weekdays schedule, days must list every intended day of the week, including weekend days when \
             requested. Use propose_scheduled_task with action create to create a scheduled task. Call list_scheduled_tasks before edit, \
             pause, resume, delete, or run_now, then use propose_scheduled_task with that action. Never invent or search for a separate \
             create_scheduled_task tool. A proposal only opens Alveary's native confirmation UI; describe it as an opened proposal and \
@@ -73,7 +77,7 @@ private extension ScheduledTaskHostToolCatalog {
         explicitly requests that action. Use action create for a new scheduled task; there is no separate create_scheduled_task tool. For \
         create, provide title, prompt, and schedule. For edit, provide task_id, revision, and changes. For pause, resume, delete, or run_now, \
         provide task_id and revision. For existing definitions, call list_scheduled_tasks first and pass its exact task_id and revision. Ask \
-        for clarification instead of guessing materially ambiguous instructions, recurrence, target, or time zone. Edit changes may replace \
+        for clarification instead of guessing materially ambiguous instructions, recurrence, or target. Edit changes may replace \
         title, prompt, or the complete schedule. Provider, model, permissions, workspace, Project, authorization, and folder grants are bound \
         by Alveary and are intentionally not accepted. This tool never changes a canonical schedule by itself. After it returns, say that a \
         proposal was opened for confirmation.
@@ -127,8 +131,7 @@ private extension ScheduledTaskHostToolCatalog {
             strictObject(
                 properties: [
                     "kind": enumSchema(["once"]),
-                    "at": dateTimeSchema,
-                    "time_zone": nonEmptyStringSchema
+                    "at": dateTimeSchema
                 ],
                 required: ["kind", "at"]
             ),
@@ -136,8 +139,7 @@ private extension ScheduledTaskHostToolCatalog {
                 properties: [
                     "kind": enumSchema(["interval"]),
                     "minutes": integerSchema(minimum: 1),
-                    "anchor_at": dateTimeSchema,
-                    "time_zone": nonEmptyStringSchema
+                    "anchor_at": dateTimeSchema
                 ],
                 required: ["kind", "minutes", "anchor_at"]
             ),
@@ -147,8 +149,7 @@ private extension ScheduledTaskHostToolCatalog {
                     "kind": enumSchema(["weekdays"]),
                     "days": weekdayListSchema,
                     "hour": integerSchema(minimum: 0, maximum: 23),
-                    "minute": integerSchema(minimum: 0, maximum: 59),
-                    "time_zone": nonEmptyStringSchema
+                    "minute": integerSchema(minimum: 0, maximum: 59)
                 ],
                 required: ["kind", "days", "hour", "minute"]
             ),
@@ -157,8 +158,7 @@ private extension ScheduledTaskHostToolCatalog {
                     "kind": enumSchema(["weekly"]),
                     "weekday": enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
                     "hour": integerSchema(minimum: 0, maximum: 23),
-                    "minute": integerSchema(minimum: 0, maximum: 59),
-                    "time_zone": nonEmptyStringSchema
+                    "minute": integerSchema(minimum: 0, maximum: 59)
                 ],
                 required: ["kind", "weekday", "hour", "minute"]
             ),
@@ -167,8 +167,7 @@ private extension ScheduledTaskHostToolCatalog {
                     "kind": enumSchema(["monthly"]),
                     "day": integerSchema(minimum: 1, maximum: 31),
                     "hour": integerSchema(minimum: 0, maximum: 23),
-                    "minute": integerSchema(minimum: 0, maximum: 59),
-                    "time_zone": nonEmptyStringSchema
+                    "minute": integerSchema(minimum: 0, maximum: 59)
                 ],
                 required: ["kind", "day", "hour", "minute"]
             )
@@ -184,8 +183,7 @@ private extension ScheduledTaskHostToolCatalog {
         "weekday": enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
         "day": integerSchema(minimum: 1, maximum: 31),
         "hour": integerSchema(minimum: 0, maximum: 23),
-        "minute": integerSchema(minimum: 0, maximum: 59),
-        "time_zone": nonEmptyStringSchema
+        "minute": integerSchema(minimum: 0, maximum: 59)
     ]
 
     static func wallClockScheduleSchema(kind: String) -> AgentCLIKit.JSONValue {
@@ -193,8 +191,7 @@ private extension ScheduledTaskHostToolCatalog {
             properties: [
                 "kind": enumSchema([kind]),
                 "hour": integerSchema(minimum: 0, maximum: 23),
-                "minute": integerSchema(minimum: 0, maximum: 59),
-                "time_zone": nonEmptyStringSchema
+                "minute": integerSchema(minimum: 0, maximum: 59)
             ],
             required: ["kind", "hour", "minute"]
         )

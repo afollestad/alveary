@@ -65,7 +65,10 @@ struct ScheduledTaskRunMaterializerFixture {
         projectPath: String? = nil,
         projectBaseRef: String? = nil,
         projectRemoteName: String? = nil,
-        grantedRoots: [String] = []
+        grantedRoots: [String] = [],
+        destination: ScheduledTaskDestination = .newThread,
+        targetThread: AgentThread? = nil,
+        targetConversationID: String? = nil
     ) throws -> ScheduledTaskRun {
         let canonicalProjectPath = projectPath.map(CanonicalPath.normalize)
         let canonicalGrantedRoots = ScheduledTask.normalizedUniquePaths(grantedRoots)
@@ -85,6 +88,8 @@ struct ScheduledTaskRunMaterializerFixture {
             triggerKind: .scheduled,
             titleSnapshot: "Review changes",
             promptSnapshot: "Review the scheduled changes.",
+            destinationSnapshot: destination,
+            targetConversationIDSnapshot: targetConversationID,
             timeZoneIdentifierSnapshot: "America/Chicago",
             providerIDSnapshot: "codex",
             modelSnapshot: "gpt-5",
@@ -96,7 +101,8 @@ struct ScheduledTaskRunMaterializerFixture {
             projectBaseRefSnapshot: projectBaseRef,
             projectRemoteNameSnapshot: projectRemoteName,
             grantedRootsSnapshot: canonicalGrantedRoots,
-            workspaceIdentitySnapshot: workspaceIdentities
+            workspaceIdentitySnapshot: workspaceIdentities,
+            targetThread: targetThread
         )
         context.insert(run)
         try context.save()

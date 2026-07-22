@@ -5,41 +5,70 @@ import XCTest
 
 @MainActor
 extension ContentViewProjectActionsTests {
-    func testLinkedScheduledRunWithFallbackModeCannotUseProjectActionsOrCommitDiff() throws {
-        let fixture = try makeFallbackScheduledProjectActionFixture()
+    func testLinkedScheduledRunFallbackUsesWorkspaceSnapshotForProjectActionsAndCommitDiff() throws {
+        let projectFixture = try makeFallbackScheduledProjectActionFixture(workspaceKind: .project)
+        let privateFixture = try makeFallbackScheduledProjectActionFixture(workspaceKind: .privateWorkspace)
         let action = AlvearyProjectConfig.ProjectAction(name: "Build", command: "./scripts/build.sh")
+        let projectWorktreePath = try XCTUnwrap(projectFixture.thread.worktreePath)
 
-        XCTAssertNil(ProjectActionExecutionContext(thread: fixture.thread, action: action))
-        XCTAssertFalse(SidebarItem.thread(fixture.thread).canCommitDiffChanges)
+        let projectActionContext = try XCTUnwrap(ProjectActionExecutionContext(thread: projectFixture.thread, action: action))
+        XCTAssertEqual(projectActionContext.currentDirectory, projectWorktreePath)
+        XCTAssertTrue(SidebarItem.thread(projectFixture.thread).canCommitDiffChanges)
+        let projectCommitTarget = try XCTUnwrap(DiffGitCommitTargetSnapshotResolver.resolve(
+            selection: .thread(projectFixture.thread),
+            modelContext: projectFixture.context,
+            appState: projectFixture.appState,
+            activeDirectory: projectWorktreePath
+        ))
+        XCTAssertEqual(projectCommitTarget.directory, projectWorktreePath)
+        XCTAssertEqual(projectCommitTarget.generationRoute, .thread)
+
+        XCTAssertNil(ProjectActionExecutionContext(thread: privateFixture.thread, action: action))
+        XCTAssertFalse(SidebarItem.thread(privateFixture.thread).canCommitDiffChanges)
         XCTAssertNil(DiffGitCommitTargetSnapshotResolver.resolve(
-            selection: .thread(fixture.thread),
-            modelContext: fixture.context,
-            appState: fixture.appState,
-            activeDirectory: fixture.thread.worktreePath
+            selection: .thread(privateFixture.thread),
+            modelContext: privateFixture.context,
+            appState: privateFixture.appState,
+            activeDirectory: privateFixture.thread.worktreePath
         ))
     }
 
-    func testLinkedScheduledRunWithFallbackModeNeverUsesProjectTerminalRoot() throws {
-        let fixture = try makeFallbackScheduledProjectActionFixture()
-        let shellContext = TerminalDefaultShellContextResolver.resolve(
-            selection: .thread(fixture.thread),
-            modelContext: fixture.context,
-            builder: fixture.builder
+    func testLinkedScheduledRunFallbackUsesWorkspaceSnapshotForTerminalRoot() throws {
+        let projectFixture = try makeFallbackScheduledProjectActionFixture(workspaceKind: .project)
+        let privateFixture = try makeFallbackScheduledProjectActionFixture(workspaceKind: .privateWorkspace)
+        let projectWorktreePath = try XCTUnwrap(projectFixture.thread.worktreePath)
+        let projectShellContext = TerminalDefaultShellContextResolver.resolve(
+            selection: .thread(projectFixture.thread),
+            modelContext: projectFixture.context,
+            builder: projectFixture.builder
+        )
+        let privateShellContext = TerminalDefaultShellContextResolver.resolve(
+            selection: .thread(privateFixture.thread),
+            modelContext: privateFixture.context,
+            builder: privateFixture.builder
         )
 
-        XCTAssertEqual(shellContext.threadID, fixture.thread.persistentModelID)
-        XCTAssertEqual(shellContext.currentDirectory, "/Users/alice")
-        XCTAssertNotEqual(shellContext.currentDirectory, fixture.project.path)
-        XCTAssertNotEqual(shellContext.currentDirectory, fixture.thread.worktreePath)
+        XCTAssertEqual(projectShellContext.threadID, projectFixture.thread.persistentModelID)
+        XCTAssertEqual(projectShellContext.currentDirectory, projectWorktreePath)
+        XCTAssertEqual(privateShellContext.threadID, privateFixture.thread.persistentModelID)
+        XCTAssertEqual(privateShellContext.currentDirectory, "/Users/alice")
 
-        fixture.thread.isDraft = true
-        try fixture.context.save()
-        let draftShellContext = TerminalDefaultShellContextResolver.resolve(
-            selection: .thread(fixture.thread),
-            modelContext: fixture.context,
-            builder: fixture.builder
+        projectFixture.thread.isDraft = true
+        privateFixture.thread.isDraft = true
+        try projectFixture.context.save()
+        try privateFixture.context.save()
+        let projectDraftShellContext = TerminalDefaultShellContextResolver.resolve(
+            selection: .thread(projectFixture.thread),
+            modelContext: projectFixture.context,
+            builder: projectFixture.builder
         )
-        XCTAssertEqual(draftShellContext.currentDirectory, "/Users/alice")
+        let privateDraftShellContext = TerminalDefaultShellContextResolver.resolve(
+            selection: .thread(privateFixture.thread),
+            modelContext: privateFixture.context,
+            builder: privateFixture.builder
+        )
+        XCTAssertEqual(projectDraftShellContext.currentDirectory, projectFixture.project.path)
+        XCTAssertEqual(privateDraftShellContext.currentDirectory, "/Users/alice")
     }
 }
 
@@ -53,7 +82,9 @@ private struct FallbackScheduledProjectActionFixture {
 }
 
 @MainActor
-private func makeFallbackScheduledProjectActionFixture() throws -> FallbackScheduledProjectActionFixture {
+private func makeFallbackScheduledProjectActionFixture(
+    workspaceKind: ScheduledTaskWorkspaceKind
+) throws -> FallbackScheduledProjectActionFixture {
     let container = try ModelContainer(
         for: Project.self,
         AgentThread.self,
@@ -66,7 +97,7 @@ private func makeFallbackScheduledProjectActionFixture() throws -> FallbackSched
     )
     let context = ModelContext(container)
     let project = Project(path: "/tmp/fallback-scheduled-project", name: "Project")
-    let run = makeProjectActionsScheduledRun()
+    let run = makeProjectActionsScheduledRun(workspaceKind: workspaceKind)
     let thread = AgentThread(
         name: "Fallback scheduled task",
         worktreePath: "/tmp/fallback-scheduled-worktree",
@@ -95,7 +126,7 @@ private func makeFallbackScheduledProjectActionFixture() throws -> FallbackSched
     )
 }
 
-private func makeProjectActionsScheduledRun() -> ScheduledTaskRun {
+private func makeProjectActionsScheduledRun(workspaceKind: ScheduledTaskWorkspaceKind) -> ScheduledTaskRun {
     ScheduledTaskRun(
         occurrenceID: UUID().uuidString,
         definitionID: "project-actions-definition",
@@ -109,7 +140,7 @@ private func makeProjectActionsScheduledRun() -> ScheduledTaskRun {
         providerIDSnapshot: "codex",
         effortSnapshot: "high",
         permissionModeSnapshot: "default",
-        workspaceKindSnapshot: .project,
+        workspaceKindSnapshot: workspaceKind,
         workspaceStrategySnapshot: .worktree
     )
 }

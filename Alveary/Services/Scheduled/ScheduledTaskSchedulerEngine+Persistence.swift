@@ -54,12 +54,14 @@ struct ScheduledTaskClaimMutationSnapshot {
     let stateRawValue: String
     let nextOccurrenceAt: Date?
     let pendingOccurrenceAt: Date?
+    let targetWaitStartedAt: Date?
 
     @MainActor
     init(_ definition: ScheduledTask) {
         stateRawValue = definition.stateRawValue
         nextOccurrenceAt = definition.nextOccurrenceAt
         pendingOccurrenceAt = definition.pendingOccurrenceAt
+        targetWaitStartedAt = definition.targetWaitStartedAt
     }
 
     @MainActor
@@ -67,6 +69,7 @@ struct ScheduledTaskClaimMutationSnapshot {
         definition.stateRawValue = stateRawValue
         definition.nextOccurrenceAt = nextOccurrenceAt
         definition.pendingOccurrenceAt = pendingOccurrenceAt
+        definition.targetWaitStartedAt = targetWaitStartedAt
     }
 }
 
@@ -74,6 +77,7 @@ struct ScheduledTaskPauseSnapshot {
     let stateRawValue: String
     let nextOccurrenceAt: Date?
     let pendingOccurrenceAt: Date?
+    let targetWaitStartedAt: Date?
     let pauseReason: String?
     let lastError: String?
     let revision: Int
@@ -84,6 +88,7 @@ struct ScheduledTaskPauseSnapshot {
         stateRawValue = definition.stateRawValue
         nextOccurrenceAt = definition.nextOccurrenceAt
         pendingOccurrenceAt = definition.pendingOccurrenceAt
+        targetWaitStartedAt = definition.targetWaitStartedAt
         pauseReason = definition.pauseReason
         lastError = definition.lastError
         revision = definition.revision
@@ -95,6 +100,7 @@ struct ScheduledTaskPauseSnapshot {
         definition.stateRawValue = stateRawValue
         definition.nextOccurrenceAt = nextOccurrenceAt
         definition.pendingOccurrenceAt = pendingOccurrenceAt
+        definition.targetWaitStartedAt = targetWaitStartedAt
         definition.pauseReason = pauseReason
         definition.lastError = lastError
         definition.revision = revision

@@ -392,6 +392,7 @@ final class ScheduledTasksViewModelTests: XCTestCase {
 @MainActor
 final class ScheduledTasksViewModelFixture {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let currentTimeZone: TimeZone
     let container: ModelContainer
     let context: ModelContext
     let notificationCenter = NotificationCenter()
@@ -399,7 +400,11 @@ final class ScheduledTasksViewModelFixture {
     let mutationService: ScheduledTaskMutationService
     let viewModel: ScheduledTasksViewModel
 
-    init(runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in true }) throws {
+    init(
+        runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in true },
+        currentTimeZone: TimeZone = TimeZone(identifier: "America/Chicago") ?? .current
+    ) throws {
+        self.currentTimeZone = currentTimeZone
         container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
@@ -413,7 +418,8 @@ final class ScheduledTasksViewModelFixture {
         context = ModelContext(container)
         mutationService = ScheduledTaskMutationService(
             modelContext: context,
-            notificationCenter: notificationCenter
+            notificationCenter: notificationCenter,
+            currentTimeZone: { currentTimeZone }
         )
         viewModel = ScheduledTasksViewModel(
             modelContext: context,
@@ -421,7 +427,8 @@ final class ScheduledTasksViewModelFixture {
             settingsService: settingsService,
             notificationCenter: notificationCenter,
             runNow: runNow,
-            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+            now: { Date(timeIntervalSince1970: 1_800_000_000) },
+            currentTimeZone: { currentTimeZone }
         )
     }
 
@@ -441,7 +448,7 @@ final class ScheduledTasksViewModelFixture {
             revision: revision,
             state: state,
             recurrence: recurrence,
-            timeZoneIdentifier: "UTC",
+            timeZoneIdentifier: currentTimeZone.identifier,
             providerID: "claude",
             nextOccurrenceAt: nextOccurrenceAt,
             pauseReason: pauseReason,

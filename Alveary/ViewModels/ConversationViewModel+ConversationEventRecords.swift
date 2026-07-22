@@ -3,8 +3,29 @@ import SwiftData
 
 extension ConversationViewModel {
     func conversationEventRecords() -> [ConversationEventRecord] {
+        (try? fetchConversationEventRecords()) ?? []
+    }
+
+    func rebuildChatItemsFromConversationRecords(
+        fallbackEvents: [ConversationEventRecord]? = nil,
+        forceFullRebuild: Bool = false
+    ) {
+        guard let records = ConversationTranscriptRecordRefresh.resolve(
+            fallbackEvents: fallbackEvents,
+            currentProcessedCount: state.grouper.processedCount,
+            fetch: fetchConversationEventRecords
+        ) else {
+            return
+        }
+        rebuildChatItemsIfNeeded(
+            from: records,
+            forceFullRebuild: forceFullRebuild
+        )
+    }
+
+    private func fetchConversationEventRecords() throws -> [ConversationEventRecord] {
         let conversationID = conversation.id
-        let records = (try? modelContext.fetch(
+        return try modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate { $0.conversationId == conversationID },
                 sortBy: [
@@ -12,17 +33,25 @@ extension ConversationViewModel {
                     SortDescriptor(\.id)
                 ]
             )
-        )) ?? []
+        )
+    }
+}
 
-        let scheduledTaskNotes = records.filter {
-            $0.type == ConversationEventRecord.scheduledTaskNoteType
-        }
-        guard !scheduledTaskNotes.isEmpty else {
-            return records
-        }
-
-        return scheduledTaskNotes + records.filter {
-            $0.type != ConversationEventRecord.scheduledTaskNoteType
+enum ConversationTranscriptRecordRefresh {
+    static func resolve(
+        fallbackEvents: [ConversationEventRecord]?,
+        currentProcessedCount: Int,
+        fetch: () throws -> [ConversationEventRecord]
+    ) -> [ConversationEventRecord]? {
+        // A successful empty fetch is authoritative. Only a thrown fetch may use the
+        // view's last query snapshot, and never if it trails the current grouper.
+        do {
+            return try fetch()
+        } catch {
+            guard let fallbackEvents, fallbackEvents.count >= currentProcessedCount else {
+                return nil
+            }
+            return fallbackEvents
         }
     }
 }

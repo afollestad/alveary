@@ -308,19 +308,19 @@ struct SidebarView: View {
                     "The main project folder will not be touched."
             )
         }
-    }
-
-    func archiveConfirmationMessage(for thread: AgentThread) -> String {
-        if thread.effectiveMode == .task {
-            return "This archives \"\(thread.displayName())\". "
-                + "You can find archived tasks in Settings > Threads > Archived Tasks."
+        .alert(
+            "Scheduled task attachment",
+            isPresented: Binding(
+                get: { viewModel.scheduledTaskAttachmentAlert != nil },
+                set: { if !$0 { viewModel.scheduledTaskAttachmentAlert = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                viewModel.scheduledTaskAttachmentAlert = nil
+            }
+        } message: {
+            Text(viewModel.scheduledTaskAttachmentAlert ?? "")
         }
-        return "This archives \"\(thread.displayName())\". "
-            + "You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
-    }
-
-    func deleteConfirmationMessage(for thread: AgentThread) -> String {
-        threadDeleteConfirmationMessage(for: thread)
     }
 
     func sidebarThreadRow(
@@ -332,6 +332,7 @@ struct SidebarView: View {
     ) -> some View {
         let isSelected = appState.selectedSidebarItem == .thread(thread)
         let cleanupAction = viewModel.defaultThreadCleanupAction
+        let cleanupDisabledReason = viewModel.scheduledTaskAttachmentReason(for: thread)
         let leadingPadding: CGFloat = layout == .topLevel ? SidebarSectionHeaderRow.contentLeadingPadding : 14
 
         return SidebarThreadRow(
@@ -341,6 +342,7 @@ struct SidebarView: View {
             layout: layout,
             editingThreadID: $editingThreadID,
             cleanupAction: cleanupAction,
+            cleanupDisabledReason: cleanupDisabledReason,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
             dragConfiguration: dragConfiguration,
             onCommitRename: { newName in
@@ -378,6 +380,8 @@ struct SidebarView: View {
 
     @ViewBuilder
     func sidebarThreadContextMenu(for thread: AgentThread) -> some View {
+        let scheduledTaskAttachmentReason = viewModel.scheduledTaskAttachmentReason(for: thread)
+
         ForEach(
             sidebarThreadContextMenuItems(
                 isPinned: thread.isPinned,
@@ -387,6 +391,10 @@ struct SidebarView: View {
             ),
             id: \.self
         ) { item in
+            let disabledReason = sidebarThreadContextMenuDisabledReason(
+                for: item,
+                scheduledTaskAttachmentReason: scheduledTaskAttachmentReason
+            )
             switch item {
             case .forkLocal:
                 Button("Fork into local") {
@@ -403,7 +411,7 @@ struct SidebarView: View {
                     setThreadPinned(thread, isPinned: true)
                 }
             case .unpin:
-                Button("Unpin") {
+                SidebarThreadContextMenuActionButton("Unpin", disabledReason: disabledReason) {
                     setThreadPinned(thread, isPinned: false)
                 }
             case .rename:
@@ -411,12 +419,12 @@ struct SidebarView: View {
                     editingThreadID = thread.persistentModelID
                 }
             case .archive:
-                Button("Archive...") {
-                    pendingArchiveThread = thread
+                SidebarThreadContextMenuActionButton("Archive...", disabledReason: disabledReason) {
+                    requestArchive(thread)
                 }
             case .delete:
-                Button("Delete...", role: .destructive) {
-                    pendingDeleteThread = thread
+                SidebarThreadContextMenuActionButton("Delete...", role: .destructive, disabledReason: disabledReason) {
+                    requestDelete(thread)
                 }
             }
         }

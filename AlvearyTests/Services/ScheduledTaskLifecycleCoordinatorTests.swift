@@ -384,6 +384,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
     ) -> ScheduledTaskRecoveryReadinessSnapshot {
         ScheduledTaskRecoveryReadinessSnapshot(
             runID: runID,
+            claimedAt: Date(timeIntervalSinceReferenceDate: 900),
             preflight: ScheduledTaskPreflightSnapshot(
                 definitionID: "definition-\(runID)",
                 definitionRevision: 1,

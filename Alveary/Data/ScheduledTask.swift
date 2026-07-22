@@ -7,6 +7,11 @@ enum ScheduledTaskState: String, Codable, CaseIterable, Sendable {
     case completed
 }
 
+enum ScheduledTaskDestination: String, Codable, CaseIterable, Sendable {
+    case newThread
+    case existingThread
+}
+
 enum ScheduledTaskWorkspaceKind: String, Codable, CaseIterable, Sendable {
     case privateWorkspace
     case project
@@ -22,6 +27,7 @@ final class ScheduledTask {
     @Attribute(.unique) var id: String
     var title: String
     var prompt: String
+    var destinationRawValue: String = ScheduledTaskDestination.newThread.rawValue
     var revision: Int
     var stateRawValue: String
     var recurrenceKindRawValue: String
@@ -42,17 +48,20 @@ final class ScheduledTask {
     var grantedRoots: [String]
     var nextOccurrenceAt: Date?
     var pendingOccurrenceAt: Date?
+    var targetWaitStartedAt: Date?
     var pauseReason: String?
     var lastError: String?
     var createdAt: Date
     var modifiedAt: Date
     var project: Project?
+    var targetThread: AgentThread?
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskRun.scheduledTask) var runs: [ScheduledTaskRun]
 
     init(
         id: String = UUID().uuidString,
         title: String,
         prompt: String,
+        destination: ScheduledTaskDestination = .newThread,
         revision: Int = 1,
         state: ScheduledTaskState = .active,
         recurrence: ScheduledTaskRecurrence,
@@ -67,15 +76,18 @@ final class ScheduledTask {
         project: Project? = nil,
         nextOccurrenceAt: Date? = nil,
         pendingOccurrenceAt: Date? = nil,
+        targetWaitStartedAt: Date? = nil,
         pauseReason: String? = nil,
         lastError: String? = nil,
         createdAt: Date = .now,
         modifiedAt: Date = .now,
+        targetThread: AgentThread? = nil,
         runs: [ScheduledTaskRun] = []
     ) {
         self.id = id
         self.title = title
         self.prompt = prompt
+        self.destinationRawValue = destination.rawValue
         self.revision = revision
         self.stateRawValue = state.rawValue
         self.recurrenceKindRawValue = recurrence.kind.rawValue
@@ -90,10 +102,12 @@ final class ScheduledTask {
         self.project = project
         self.nextOccurrenceAt = nextOccurrenceAt
         self.pendingOccurrenceAt = pendingOccurrenceAt
+        self.targetWaitStartedAt = targetWaitStartedAt
         self.pauseReason = pauseReason
         self.lastError = lastError
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.targetThread = targetThread
         self.runs = runs
 
         recurrenceAnchorAt = nil
@@ -107,6 +121,15 @@ final class ScheduledTask {
 }
 
 extension ScheduledTask {
+    var destination: ScheduledTaskDestination {
+        get { ScheduledTaskDestination(rawValue: destinationRawValue) ?? .newThread }
+        set { destinationRawValue = newValue.rawValue }
+    }
+
+    var decodedDestination: ScheduledTaskDestination? {
+        ScheduledTaskDestination(rawValue: destinationRawValue)
+    }
+
     var state: ScheduledTaskState {
         get { ScheduledTaskState(rawValue: stateRawValue) ?? .paused }
         set { stateRawValue = newValue.rawValue }

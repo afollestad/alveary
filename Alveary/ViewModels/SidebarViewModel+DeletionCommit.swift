@@ -5,6 +5,9 @@ extension SidebarViewModel {
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
+                try requireNoScheduledTaskAttachment(dbThread)
+                try clearCompletedPendingWorktreeCleanupBeforeThreadDeletion(snapshot)
+                try promoteScheduledWorktreeCleanupIfNeeded(snapshot)
                 modelContext.delete(dbThread)
                 _ = try normalizeSidebarOrderingForLifecycle(
                     excludingThreadIDs: [snapshot.threadID]
@@ -29,6 +32,10 @@ extension SidebarViewModel {
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
+                try requireNoScheduledTaskAttachments(in: dbProject)
+                for threadSnapshot in snapshot.threadSnapshots {
+                    try promoteScheduledWorktreeCleanupIfNeeded(threadSnapshot)
+                }
                 for scheduledTaskID in snapshot.scheduledTaskIDs {
                     guard let scheduledTask = modelContext.resolveScheduledTask(id: scheduledTaskID) else {
                         continue
@@ -66,5 +73,22 @@ extension SidebarViewModel {
             return
         }
         try modelContext.save()
+    }
+
+    private func promoteScheduledWorktreeCleanupIfNeeded(
+        _ snapshot: ThreadCleanupSnapshot
+    ) throws {
+        guard let cleanup = snapshot.scheduledWorktreeCleanup,
+              let runID = snapshot.scheduledTaskRunID,
+              let run = modelContext.resolveScheduledTaskRun(id: runID),
+              run.workspaceCleanupProvenance == cleanup,
+              !run.hasPendingWorktreeCleanupMetadata else {
+            if snapshot.scheduledWorktreeCleanup != nil {
+                throw SidebarViewModelError.threadMissingDeletionMetadata
+            }
+            return
+        }
+        run.setPendingWorktreeCleanup(cleanup)
+        run.workspaceCleanupProvenance = nil
     }
 }

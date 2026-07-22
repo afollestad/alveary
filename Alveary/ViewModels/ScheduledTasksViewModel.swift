@@ -8,6 +8,9 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
     case promptRequired
     case projectRequired
     case projectNotFound
+    case existingThreadRequired
+    case existingThreadUnavailable
+    case invalidPersistedDestination
     case runNowRejected
 
     var errorDescription: String? {
@@ -20,6 +23,12 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
             "Choose a project for this scheduled task."
         case .projectNotFound:
             "The selected project no longer exists."
+        case .existingThreadRequired:
+            "Choose a pinned thread for this scheduled task."
+        case .existingThreadUnavailable:
+            "The selected pinned thread is no longer available."
+        case .invalidPersistedDestination:
+            "This scheduled task has an invalid persisted destination."
         case .runNowRejected:
             "This scheduled task could not be started. It may already be starting or the scheduler may be unavailable."
         }
@@ -48,15 +57,18 @@ final class ScheduledTasksViewModel {
     @ObservationIgnored let agentRegistry: AgentRegistry
     @ObservationIgnored private let runNowAction: @MainActor (ScheduledTaskRunNowRequest) -> Bool
     @ObservationIgnored let now: () -> Date
-    @ObservationIgnored private let notificationCenter: NotificationCenter
-    @ObservationIgnored private var changeObservationTask: Task<Void, Never>?
+    @ObservationIgnored let currentTimeZone: () -> TimeZone
+    @ObservationIgnored let notificationCenter: NotificationCenter
+    @ObservationIgnored var changeObservationTask: Task<Void, Never>?
+    @ObservationIgnored var threadObservationTask: Task<Void, Never>?
 
     private(set) var tasks: [ScheduledTaskRowPresentation] = []
     private(set) var projects: [ScheduledTaskProjectOption] = []
+    private(set) var pinnedThreads: [ScheduledTaskThreadOption] = []
     var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
     var providerOrdering: [String] = []
     var isLoadingProviders = false
-    private(set) var pendingRunNowDefinitionIDs = Set<String>()
+    var pendingRunNowDefinitionIDs = Set<String>()
     private(set) var activePaneTarget: ScheduledTaskPaneTarget?
     private(set) var paneSessions: [ScheduledTaskPaneTarget: ScheduledTaskPaneSession] = [:]
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<ScheduledTaskPaneTarget>> = []
@@ -73,7 +85,8 @@ final class ScheduledTasksViewModel {
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         notificationCenter: NotificationCenter = .default,
         runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        currentTimeZone: @escaping () -> TimeZone = { .autoupdatingCurrent }
     ) {
         self.modelContext = modelContext
         self.mutationService = mutationService
@@ -83,6 +96,7 @@ final class ScheduledTasksViewModel {
         self.notificationCenter = notificationCenter
         runNowAction = runNow
         self.now = now
+        self.currentTimeZone = currentTimeZone
 
         reload()
         observeChanges()
@@ -90,6 +104,7 @@ final class ScheduledTasksViewModel {
 
     deinit {
         changeObservationTask?.cancel()
+        threadObservationTask?.cancel()
     }
 
     func load() async {
@@ -112,6 +127,7 @@ final class ScheduledTasksViewModel {
                 )
             )
             projects = fetchedProjects.map { ScheduledTaskProjectOption(path: $0.path, name: $0.name) }
+            pinnedThreads = try makePinnedThreadOptions()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -402,22 +418,6 @@ private extension ScheduledTasksViewModel {
         dismissPane(target, generation: request.generation, restoreFocus: false)
     }
 
-    func observeChanges() {
-        let notifications = notificationCenter.notifications(named: .scheduledTasksChanged)
-        changeObservationTask = Task { @MainActor [weak self] in
-            for await notification in notifications {
-                guard !Task.isCancelled else {
-                    return
-                }
-                if notification.userInfo?[ScheduledTasksChangeUserInfoKey.schedulerClaimResolved] as? Bool == true,
-                   let definitionID = notification.userInfo?[ScheduledTasksChangeUserInfoKey.definitionID] as? String {
-                    self?.pendingRunNowDefinitionIDs.remove(definitionID)
-                }
-                self?.reload()
-            }
-        }
-    }
-
     func performMutation(_ mutation: () throws -> Void) {
         do {
             try mutation()
@@ -427,69 +427,6 @@ private extension ScheduledTasksViewModel {
             errorMessage = error.localizedDescription
             reload()
         }
-    }
-
-    func makeDefinitionEdit(
-        from draft: ScheduledTaskEditorDraft,
-        preservesTrustedGrantSnapshot: Bool
-    ) throws -> ScheduledTaskDefinitionEdit {
-        let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else {
-            throw ScheduledTasksViewModelError.titleRequired
-        }
-        let prompt = draft.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty else {
-            throw ScheduledTasksViewModelError.promptRequired
-        }
-
-        let project: Project?
-        if draft.workspaceKind == .project {
-            guard let projectPath = draft.projectPath else {
-                throw ScheduledTasksViewModelError.projectRequired
-            }
-            guard let resolvedProject = resolveProject(path: projectPath) else {
-                throw ScheduledTasksViewModelError.projectNotFound
-            }
-            project = resolvedProject
-        } else {
-            project = nil
-        }
-
-        let options = modelOptions(for: draft.providerID)
-        let storedModel = AgentModelOptionSelection.storedModelValue(
-            in: options,
-            matching: draft.modelSelection
-        )
-        let normalizedModel = storedModel == AppSettings.defaultModelValue ? nil : storedModel
-        let normalizedEffort = AgentModelOptionSelection.normalizedEffort(
-            draft.effort,
-            options: options,
-            selectedModel: normalizedModel
-        )
-
-        return ScheduledTaskDefinitionEdit(
-            title: title,
-            prompt: prompt,
-            recurrence: draft.recurrence,
-            timeZoneIdentifier: draft.timeZoneIdentifier,
-            providerID: draft.providerID,
-            model: normalizedModel,
-            effort: normalizedEffort,
-            permissionMode: draft.permissionMode,
-            workspaceKind: draft.workspaceKind,
-            workspaceStrategy: draft.workspaceStrategy,
-            grantedRoots: preservesTrustedGrantSnapshot
-                ? draft.grantedRoots
-                : ScheduledTask.normalizedUniquePaths(draft.grantedRoots),
-            project: project
-        )
-    }
-
-    func resolveProject(path: String) -> Project? {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == path
-        })
-        return try? modelContext.fetch(descriptor).first
     }
 
 }

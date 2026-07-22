@@ -1,20 +1,7 @@
 import Foundation
 import SwiftData
-
 @MainActor
 final class ScheduledTaskSchedulerCoordinator {
-    typealias PendingOccurrenceClearer = @MainActor (PersistentIdentifier) throws -> Void
-    typealias PendingOccurrenceStateSaver = @MainActor () throws -> Void
-    typealias TerminalStateSaver = @MainActor () throws -> Void
-    typealias TerminalConversationReconciliation = @MainActor (_ conversationID: String) -> Void
-    typealias DefinitionFailureNotification = @MainActor (
-        _ definitionID: String,
-        _ title: String,
-        _ reason: String
-    ) -> Void
-    typealias PersistenceRetryWait = @MainActor () async -> Void
-    typealias SchedulingStateDidChange = @MainActor (_ definitionID: String) -> Void
-
     let modelContext: ModelContext
     private let engine: ScheduledTaskSchedulerEngine
     private let rootLock: ScheduledTaskRootLock
@@ -29,14 +16,14 @@ final class ScheduledTaskSchedulerCoordinator {
     let persistenceRetryWait: PersistenceRetryWait
     let now: @MainActor () -> Date
     private var launches: [UUID: ScheduledTaskActiveLaunch] = [:]
-    private var launchIDsByRunID: [PersistentIdentifier: UUID] = [:]
-    private var definitionsBeingClaimed: Set<String> = []
+    var launchIDsByRunID: [PersistentIdentifier: UUID] = [:]
+    var definitionsBeingClaimed: Set<String> = []
     private var definitionsBeingStopped: Set<String> = []
     private var definitionsWithDurableStopClear: Set<String> = []
     private var idleWaiters: [CheckedContinuation<Void, Never>] = []
     private var runIdleWaiters: [PersistentIdentifier: [CheckedContinuation<Void, Never>]] = [:]
     private var lifecycleState = ScheduledTaskCoordinatorLifecycleState.running
-    private var schedulingStateDidChange: SchedulingStateDidChange?
+    var schedulingStateDidChange: SchedulingStateDidChange?
 
     init(
         modelContext: ModelContext,
@@ -71,7 +58,9 @@ final class ScheduledTaskSchedulerCoordinator {
                 return
             }
             let previousStateRawValue = definition.stateRawValue
+            let previousTargetWaitStartedAt = definition.targetWaitStartedAt
             definition.pendingOccurrenceAt = nil
+            definition.targetWaitStartedAt = nil
             if definition.recurrence?.isOneShot == true,
                definition.nextOccurrenceAt == nil {
                 definition.state = .completed
@@ -80,6 +69,7 @@ final class ScheduledTaskSchedulerCoordinator {
                 try savePendingOccurrenceState()
             } catch {
                 definition.pendingOccurrenceAt = pendingOccurrenceAt
+                definition.targetWaitStartedAt = previousTargetWaitStartedAt
                 definition.stateRawValue = previousStateRawValue
                 throw error
             }
@@ -89,22 +79,6 @@ final class ScheduledTaskSchedulerCoordinator {
         self.now = now
     }
 
-    var activeRunIDs: Set<PersistentIdentifier> {
-        Set(launchIDsByRunID.keys)
-    }
-
-    var definitionIDsBeingClaimed: Set<String> {
-        definitionsBeingClaimed
-    }
-
-    func setSchedulingStateDidChange(_ handler: @escaping SchedulingStateDidChange) {
-        schedulingStateDidChange = handler
-    }
-
-    func isActive(runID: PersistentIdentifier) -> Bool {
-        launchIDsByRunID[runID] != nil
-    }
-
     /// Starts one independent claim pipeline for each due definition. This method does not
     /// wait for the runs to finish, allowing disjoint workspaces to execute concurrently.
     @discardableResult
@@ -112,7 +86,15 @@ final class ScheduledTaskSchedulerCoordinator {
         guard lifecycleState == .running else {
             return 0
         }
-        let definitions = try modelContext.fetch(FetchDescriptor<ScheduledTask>())
+        let definitions = try modelContext.fetch(FetchDescriptor<ScheduledTask>()).sorted {
+            let lhsDate = $0.targetWaitStartedAt ?? $0.pendingOccurrenceAt ?? $0.nextOccurrenceAt ?? $0.createdAt
+            let rhsDate = $1.targetWaitStartedAt ?? $1.pendingOccurrenceAt ?? $1.nextOccurrenceAt ?? $1.createdAt
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+            return $0.id < $1.id
+        }
+        var selectedTargetIDs = Set<PersistentIdentifier>()
         let dueDefinitionIDs = definitions.compactMap { definition -> String? in
             let persistedState = ScheduledTaskState(rawValue: definition.stateRawValue)
             guard persistedState != .completed else {
@@ -126,7 +108,16 @@ final class ScheduledTaskSchedulerCoordinator {
                     && definition.nextOccurrenceAt == nil
                     && definition.pendingOccurrenceAt == nil
             )
-            return nextIsDue || pendingIsDue || needsDefinitionValidation ? definition.id : nil
+            guard nextIsDue || pendingIsDue || needsDefinitionValidation else {
+                return nil
+            }
+            if definition.decodedDestination == .existingThread,
+               let targetID = definition.targetThread?.persistentModelID {
+                guard selectedTargetIDs.insert(targetID).inserted else {
+                    return nil
+                }
+            }
+            return definition.id
         }
         return dueDefinitionIDs.reduce(into: 0) { count, definitionID in
             if startDueTask(definitionID: definitionID, at: actionDate) {
@@ -143,14 +134,14 @@ final class ScheduledTaskSchedulerCoordinator {
         definitionID: String,
         at actionDate: Date = .now
     ) -> Bool {
-        startClaim(definitionID: definitionID) { [engine] in
+        startClaim(definitionID: definitionID, reportsClaimErrors: false) { [engine] in
             try await engine.claimDue(definitionID: definitionID, at: actionDate)
         }
     }
 
     @discardableResult
     func startRunNow(_ request: ScheduledTaskRunNowRequest) -> Bool {
-        startClaim(definitionID: request.definitionID) { [engine] in
+        startClaim(definitionID: request.definitionID, reportsClaimErrors: true) { [engine] in
             try await engine.claimRunNow(request)
         }
     }
@@ -170,7 +161,7 @@ final class ScheduledTaskSchedulerCoordinator {
             }
             let launch = makeLaunch(definitionID: run.definitionID)
             register(runID: runID, for: launch)
-            schedulingStateDidChange?(run.definitionID)
+            schedulingStateDidChange?(run.definitionID, nil)
             launch.task = Task { @MainActor [weak self, weak launch] in
                 guard let self, let launch else {
                     return
@@ -284,6 +275,7 @@ final class ScheduledTaskSchedulerCoordinator {
 private extension ScheduledTaskSchedulerCoordinator {
     func startClaim(
         definitionID: String,
+        reportsClaimErrors: Bool,
         claim: @escaping @MainActor () async throws -> ScheduledTaskClaimResult
     ) -> Bool {
         guard lifecycleState == .running,
@@ -291,7 +283,10 @@ private extension ScheduledTaskSchedulerCoordinator {
               definitionsBeingClaimed.insert(definitionID).inserted else {
             return false
         }
-        let launch = makeLaunch(definitionID: definitionID)
+        let launch = makeLaunch(
+            definitionID: definitionID,
+            reportsClaimErrors: reportsClaimErrors
+        )
         launch.task = Task { @MainActor [weak self, weak launch] in
             guard let self, let launch else {
                 return
@@ -301,8 +296,14 @@ private extension ScheduledTaskSchedulerCoordinator {
         return true
     }
 
-    func makeLaunch(definitionID: String) -> ScheduledTaskActiveLaunch {
-        let launch = ScheduledTaskActiveLaunch(definitionID: definitionID)
+    func makeLaunch(
+        definitionID: String,
+        reportsClaimErrors: Bool = false
+    ) -> ScheduledTaskActiveLaunch {
+        let launch = ScheduledTaskActiveLaunch(
+            definitionID: definitionID,
+            reportsClaimErrors: reportsClaimErrors
+        )
         launches[launch.id] = launch
         return launch
     }
@@ -322,32 +323,37 @@ private extension ScheduledTaskSchedulerCoordinator {
                let definition = modelContext.resolveScheduledTask(id: launch.definitionID) {
                 definitionFailureNotification(definition.id, definition.title, reason)
             }
+            let claimErrorMessage = launch.reportsClaimErrors
+                ? runNowClaimErrorMessage(for: result)
+                : nil
             guard let runID = runnableRunID(from: result),
                   let run = modelContext.resolveScheduledTaskRun(id: runID),
                   run.status == .claimed else {
-                finish(launch)
+                finish(launch, claimErrorMessage: claimErrorMessage)
+                return
+            }
+            if case .alreadyClaimed = result, let activeLaunchID = launchIDsByRunID[runID], launches[activeLaunchID] != nil {
+                finish(launch, claimErrorMessage: claimErrorMessage)
                 return
             }
             register(runID: runID, for: launch)
             definitionsBeingClaimed.remove(launch.definitionID)
-            schedulingStateDidChange?(launch.definitionID)
+            schedulingStateDidChange?(launch.definitionID, nil)
             await performRun(runID: runID, launch: launch)
         } catch is CancellationError {
             await persistInterruptedRunIfNeeded(for: launch)
-            finish(launch)
+            finish(
+                launch,
+                claimErrorMessage: launch.reportsClaimErrors
+                    ? "The scheduled task Run now request was interrupted."
+                    : nil
+            )
         } catch {
             await persistFailedRunIfNeeded(for: launch, error: error)
-            finish(launch)
-        }
-    }
-
-    func runnableRunID(from result: ScheduledTaskClaimResult) -> PersistentIdentifier? {
-        switch result {
-        case .claimed(let runID), .alreadyClaimed(let runID):
-            return runID
-        case .skipped, .overlapped, .paused, .changedDuringPreflight,
-             .activeRunExists, .inactive, .notDue, .definitionNotFound:
-            return nil
+            finish(
+                launch,
+                claimErrorMessage: launch.reportsClaimErrors ? error.localizedDescription : nil
+            )
         }
     }
 
@@ -450,8 +456,12 @@ private extension ScheduledTaskSchedulerCoordinator {
         return !definition.runs.contains { $0.persistentModelID != runID && !$0.hasKnownTerminalStatus }
     }
 
-    func finish(_ launch: ScheduledTaskActiveLaunch) {
-        if let runID = launch.runID {
+    func finish(
+        _ launch: ScheduledTaskActiveLaunch,
+        claimErrorMessage: String? = nil
+    ) {
+        if let runID = launch.runID,
+           launchIDsByRunID[runID] == launch.id {
             launchIDsByRunID.removeValue(forKey: runID)
             let waiters = runIdleWaiters.removeValue(forKey: runID) ?? []
             waiters.forEach { $0.resume() }
@@ -459,7 +469,7 @@ private extension ScheduledTaskSchedulerCoordinator {
         definitionsBeingClaimed.remove(launch.definitionID)
         launches.removeValue(forKey: launch.id)
         releaseStopFenceIfPossible(definitionID: launch.definitionID)
-        schedulingStateDidChange?(launch.definitionID)
+        schedulingStateDidChange?(launch.definitionID, claimErrorMessage)
         guard launches.isEmpty else {
             return
         }

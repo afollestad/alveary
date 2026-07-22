@@ -37,6 +37,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let statusSnapshot = LockedState([String: ActivitySignal]())
     let conversationStatesStore = LockedState([String: ConversationState]())
     let automatedScheduledRunIDs = LockedState(Set<String>())
+    let automatedScheduledRunsByThreadKey = LockedState([String: String]())
 
     init(
         agentCLIKitServices: AgentCLIKitHostServices,
@@ -96,6 +97,23 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     @MainActor
     func isAutomatedScheduledRunActive(runID: String) -> Bool {
         automatedScheduledRunIDs.withLock { $0.contains(runID) }
+    }
+
+    @MainActor
+    func setAutomatedScheduledThreadActive(_ active: Bool, threadKey: String, runID: String) {
+        setAutomatedScheduledRunActive(active, runID: runID)
+        automatedScheduledRunsByThreadKey.withLock { runs in
+            if active {
+                runs[threadKey] = runID
+            } else if runs[threadKey] == runID {
+                runs.removeValue(forKey: threadKey)
+            }
+        }
+    }
+
+    @MainActor
+    func automatedScheduledRunID(threadKey: String) -> String? {
+        automatedScheduledRunsByThreadKey.withLock { $0[threadKey] }
     }
 
     nonisolated func beginShutdown() {
