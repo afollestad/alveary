@@ -92,6 +92,117 @@ extension ChatComposerActionRowTests {
         XCTAssertEqual(workspaceButton.accessibilityHelp(), reason)
     }
 
+    func testTaskWorkspaceClickSurvivesEquivalentReconfiguration() {
+        let workspace = makeTaskWorkspaceConfiguration()
+        let fixture = makeWorkspaceWindowBackedActionRow(makeConfiguration(
+            mode: .idle,
+            showWorktreePicker: false,
+            taskWorkspace: workspace
+        ))
+        let button = fixture.row.worktreeButton
+
+        button.mouseDown(with: workspaceMouseEvent(type: .leftMouseDown, button: button, window: fixture.window))
+        fixture.row.configure(makeConfiguration(
+            mode: .idle,
+            showWorktreePicker: false,
+            taskWorkspace: workspace
+        ))
+
+        XCTAssertTrue(fixture.window.firstResponder === button)
+        var actionCount = 0
+        button.actionHandler = { actionCount += 1 }
+        button.mouseUp(with: workspaceMouseEvent(type: .leftMouseUp, button: button, window: fixture.window))
+        XCTAssertEqual(actionCount, 1)
+    }
+
+    func testChangingTaskWorkspaceControlToWorktreeCancelsPendingClickAndClosesMenuState() {
+        let workspace = makeTaskWorkspaceConfiguration()
+        let fixture = makeWorkspaceWindowBackedActionRow(makeConfiguration(
+            mode: .idle,
+            showWorktreePicker: false,
+            taskWorkspace: workspace
+        ))
+        let button = fixture.row.worktreeButton
+        let popover = NSPopover()
+        fixture.row.taskWorkspacePopover = popover
+        fixture.row.taskWorkspaceMenuController = ComposerTaskWorkspaceMenuViewController(
+            configuration: workspace,
+            onAddFolders: {},
+            onRemoveGrant: { _ in },
+            onRequestClose: {}
+        )
+
+        button.mouseDown(with: workspaceMouseEvent(type: .leftMouseDown, button: button, window: fixture.window))
+        fixture.row.configure(makeConfiguration(mode: .idle, showWorktreePicker: true))
+
+        XCTAssertFalse(fixture.window.firstResponder === button)
+        XCTAssertNil(fixture.row.taskWorkspacePopover)
+        XCTAssertNil(fixture.row.taskWorkspaceMenuController)
+        var actionCount = 0
+        button.actionHandler = { actionCount += 1 }
+        button.mouseUp(with: workspaceMouseEvent(type: .leftMouseUp, button: button, window: fixture.window))
+        XCTAssertEqual(actionCount, 0)
+    }
+
+    func testChangingWorktreeControlToTaskWorkspaceCancelsPendingClickAndClosesMenuState() {
+        let fixture = makeWorkspaceWindowBackedActionRow(makeConfiguration(
+            mode: .idle,
+            showWorktreePicker: true
+        ))
+        let button = fixture.row.worktreeButton
+        let popover = NSPopover()
+        fixture.row.worktreePopover = popover
+        fixture.row.worktreeMenuController = ComposerWorktreeMenuViewController(
+            options: ChatComposerWorktreeLocationPresentation.options(),
+            selectedValue: ChatComposerWorktreeLocationPresentation.localValue,
+            onUseWorktreeSelected: { _ in },
+            onRequestCloseMainMenu: {}
+        )
+
+        button.mouseDown(with: workspaceMouseEvent(type: .leftMouseDown, button: button, window: fixture.window))
+        fixture.row.configure(makeConfiguration(
+            mode: .idle,
+            showWorktreePicker: false,
+            taskWorkspace: makeTaskWorkspaceConfiguration()
+        ))
+
+        XCTAssertFalse(fixture.window.firstResponder === button)
+        XCTAssertNil(fixture.row.worktreePopover)
+        XCTAssertNil(fixture.row.worktreeMenuController)
+        var actionCount = 0
+        button.actionHandler = { actionCount += 1 }
+        button.mouseUp(with: workspaceMouseEvent(type: .leftMouseUp, button: button, window: fixture.window))
+        XCTAssertEqual(actionCount, 0)
+    }
+
+    func testEquivalentTaskWorkspaceReconfigurationPreservesMenuState() {
+        let workspace = makeTaskWorkspaceConfiguration()
+        let row = ChatComposerActionRowView()
+        row.configure(makeConfiguration(
+            mode: .idle,
+            showWorktreePicker: false,
+            taskWorkspace: workspace
+        ))
+        let popover = NSPopover()
+        let controller = ComposerTaskWorkspaceMenuViewController(
+            configuration: workspace,
+            onAddFolders: {},
+            onRemoveGrant: { _ in },
+            onRequestClose: {}
+        )
+        row.taskWorkspacePopover = popover
+        row.taskWorkspaceMenuController = controller
+
+        row.configure(makeConfiguration(
+            mode: .idle,
+            showWorktreePicker: false,
+            taskWorkspace: makeTaskWorkspaceConfiguration(grantedRoots: ["/tmp/grant"])
+        ))
+
+        XCTAssertTrue(row.taskWorkspacePopover === popover)
+        XCTAssertTrue(row.taskWorkspaceMenuController === controller)
+    }
+
     func testFinishingTaskWorkspaceMenuReleasesButtonFocusAndController() {
         let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
         let workspace = ChatComposerActionRowView.TaskWorkspaceConfiguration(
@@ -126,6 +237,58 @@ extension ChatComposerActionRowTests {
         XCTAssertNil(row.taskWorkspacePopover)
         XCTAssertNil(row.taskWorkspaceMenuController)
     }
+}
+
+private struct WorkspaceWindowBackedActionRow {
+    let row: ChatComposerActionRowView
+    let window: NSWindow
+}
+
+@MainActor
+private func makeWorkspaceWindowBackedActionRow(
+    _ configuration: ChatComposerActionRowView.Configuration
+) -> WorkspaceWindowBackedActionRow {
+    let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 480, height: 30))
+    row.configure(configuration)
+    let window = NSWindow(contentRect: row.frame, styleMask: .borderless, backing: .buffered, defer: false)
+    window.contentView = row
+    row.layoutSubtreeIfNeeded()
+    return WorkspaceWindowBackedActionRow(row: row, window: window)
+}
+
+@MainActor
+private func makeTaskWorkspaceConfiguration(
+    grantedRoots: [String] = []
+) -> ChatComposerActionRowView.TaskWorkspaceConfiguration {
+    ChatComposerActionRowView.TaskWorkspaceConfiguration(
+        primaryRoot: "/tmp/private-task",
+        grantedRoots: grantedRoots,
+        ownershipStrategy: .privateOwned,
+        canEdit: true,
+        disabledTooltip: nil,
+        onAddFolders: { _ in },
+        onRemoveGrant: { _ in }
+    )
+}
+
+@MainActor
+private func workspaceMouseEvent(
+    type: NSEvent.EventType,
+    button: NSView,
+    window: NSWindow
+) -> NSEvent {
+    let location = button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil)
+    return NSEvent.mouseEvent(
+        with: type,
+        location: location,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 0
+    ) ?? NSEvent()
 }
 
 private extension NSView {

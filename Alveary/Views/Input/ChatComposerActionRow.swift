@@ -255,8 +255,9 @@ final class ChatComposerActionRowView: NSView {
     }
 
     func configure(_ configuration: Configuration) {
+        let previousWorkspaceControlRole = self.configuration.map(workspaceControlRole(for:))
         self.configuration = configuration
-        applyConfiguration()
+        applyConfiguration(previousWorkspaceControlRole: previousWorkspaceControlRole)
         handleReasoningMenuPresentationRequestIfNeeded()
     }
 
@@ -362,7 +363,7 @@ final class ChatComposerActionRowView: NSView {
         spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
 
-    private func applyConfiguration() {
+    private func applyConfiguration(previousWorkspaceControlRole: WorkspaceControlRole?) {
         guard let configuration else {
             return
         }
@@ -370,15 +371,15 @@ final class ChatComposerActionRowView: NSView {
         if configuration.areControlsDisabled {
             closePlusMenu()
             closeReasoningMenu()
-            closeWorktreeLocationMenu()
-            closeTaskWorkspaceMenu()
         }
         if configuration.areControlsDisabled || configuration.supportedPermissionModes.isEmpty {
             closePermissionMenu()
         }
-        if configuration.areControlsDisabled || !configuration.showWorktreePicker {
-            closeWorktreeLocationMenu()
-        }
+        reconcileWorkspaceControl(
+            previousRole: previousWorkspaceControlRole,
+            currentRole: workspaceControlRole(for: configuration),
+            controlsAreDisabled: configuration.areControlsDisabled
+        )
         applyMenuConfiguration(configuration)
         applyTaskWorkspaceConfiguration(configuration)
         applyPlusButtonConfiguration(configuration)

@@ -61,6 +61,52 @@ extension ChatComposerActionRowView {
     }
 }
 
+extension ChatComposerActionRowView {
+    enum WorkspaceControlRole: Equatable {
+        case hidden
+        case taskWorkspace
+        case worktree
+    }
+
+    func workspaceControlRole(for configuration: Configuration) -> WorkspaceControlRole {
+        if configuration.taskWorkspace != nil {
+            return .taskWorkspace
+        }
+        if configuration.showWorktreePicker {
+            return .worktree
+        }
+        return .hidden
+    }
+
+    func reconcileWorkspaceControl(
+        previousRole: WorkspaceControlRole?,
+        currentRole: WorkspaceControlRole,
+        controlsAreDisabled: Bool
+    ) {
+        let roleChanged = previousRole.map { $0 != currentRole } ?? false
+        if controlsAreDisabled || currentRole == .hidden || roleChanged {
+            closeWorktreeLocationMenu()
+            closeTaskWorkspaceMenu()
+            return
+        }
+
+        // This button hosts two menus. Preserve pending clicks only while its
+        // semantic role and compatible menu state remain unchanged.
+        switch currentRole {
+        case .taskWorkspace:
+            if worktreePopover != nil {
+                closeWorktreeLocationMenu()
+            }
+        case .worktree:
+            if taskWorkspacePopover != nil {
+                closeTaskWorkspaceMenu()
+            }
+        case .hidden:
+            break
+        }
+    }
+}
+
 enum ComposerTaskWorkspacePresentation {
     static func grantRemovalAccessibilityLabel(_ path: String) -> String {
         "Remove Access to \(grantDisplayPath(path))"
