@@ -193,15 +193,6 @@ extension SidebarViewModel {
         )
     }
 
-    func hasAnyActiveTaskThreads() -> Bool {
-        let descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false
-            }
-        )
-        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.effectiveMode == .task }
-    }
-
     func activeThreads(for project: Project) -> [AgentThread] {
         let projectPath = project.path
         let descriptor = FetchDescriptor<AgentThread>(
@@ -212,16 +203,6 @@ extension SidebarViewModel {
 
         let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .project }
         return AgentThreadOrdering.sorted(threads.filter { project.isPinned || !$0.isPinned })
-    }
-
-    func hasAnyActiveThreads(for project: Project) -> Bool {
-        let projectPath = project.path
-        let descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
-            }
-        )
-        return ((try? modelContext.fetch(descriptor)) ?? []).contains { $0.effectiveMode == .project }
     }
 
     func setProjectPinned(_ project: Project, isPinned: Bool) throws {

@@ -19,7 +19,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(savedDraft.project?.path, project.path)
         XCTAssertEqual(savedDraft.conversations.count, 1)
         XCTAssertTrue(fixture.viewModel.activeThreads(for: project).isEmpty)
-        XCTAssertFalse(fixture.viewModel.hasAnyActiveThreads(for: project))
+        XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveThreads(for: project))
     }
 
     func testOpenDraftThreadReusesIdentityAndMovesProjectWithoutClearingSelections() async throws {

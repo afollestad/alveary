@@ -100,7 +100,7 @@ extension SidebarViewModelTests {
         try fixture.context.save()
 
         XCTAssertTrue(fixture.viewModel.activeThreads(for: project).isEmpty)
-        XCTAssertFalse(fixture.viewModel.hasAnyActiveThreads(for: project))
+        XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveThreads(for: project))
         XCTAssertEqual(fixture.viewModel.pinnedThreads().map(\.persistentModelID), [task.persistentModelID])
         XCTAssertEqual(fixture.viewModel.pinnedItems(projects: []).map(\.dragItem), [.pinnedTask(task.persistentModelID)])
     }

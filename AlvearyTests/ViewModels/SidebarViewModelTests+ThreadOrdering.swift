@@ -52,7 +52,7 @@ extension SidebarViewModelTests {
 
         XCTAssertTrue(fixture.viewModel.pinnedThreads().isEmpty)
         XCTAssertTrue(fixture.viewModel.activeThreads(for: project).isEmpty)
-        XCTAssertFalse(fixture.viewModel.hasAnyActiveThreads(for: project))
+        XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveThreads(for: project))
     }
 
     func testPinnedThreadsFetchesUnarchivedPinnedThreadsSortedByActivity() throws {
@@ -165,7 +165,7 @@ extension SidebarViewModelTests {
         fixture.context.insert(project)
         try fixture.context.save()
 
-        XCTAssertTrue(fixture.viewModel.hasAnyActiveThreads(for: project))
+        XCTAssertTrue(try fixture.renderSnapshot().hasAnyActiveThreads(for: project))
     }
 
     func testPinnedItemsMixProjectsAndStandaloneThreadsByNewestActivity() throws {

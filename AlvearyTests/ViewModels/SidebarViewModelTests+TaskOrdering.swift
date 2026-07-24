@@ -44,7 +44,7 @@ extension SidebarViewModelTests {
             newest.persistentModelID,
             oldest.persistentModelID
         ])
-        XCTAssertTrue(fixture.viewModel.hasAnyActiveTaskThreads())
+        XCTAssertTrue(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
     }
 
     func testTaskEmptyStateCountIncludesPinnedTasks() throws {
@@ -56,7 +56,7 @@ extension SidebarViewModelTests {
         try fixture.context.save()
 
         XCTAssertTrue(fixture.viewModel.activeTaskThreads().isEmpty)
-        XCTAssertTrue(fixture.viewModel.hasAnyActiveTaskThreads())
+        XCTAssertTrue(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
     }
 
     func testTaskEmptyStateCountExcludesArchivedAndDraftTasks() throws {
@@ -68,7 +68,7 @@ extension SidebarViewModelTests {
         try fixture.context.save()
 
         XCTAssertTrue(fixture.viewModel.activeTaskThreads().isEmpty)
-        XCTAssertFalse(fixture.viewModel.hasAnyActiveTaskThreads())
+        XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
     }
 
     func testScheduledProjectRunsAndUnknownProjectSnapshotsStayOutOfTasks() throws {
@@ -93,10 +93,10 @@ extension SidebarViewModelTests {
 
         XCTAssertTrue(activeTasks.isEmpty)
         XCTAssertEqual(unknownModeTask.effectiveMode, .project)
-        XCTAssertFalse(fixture.viewModel.hasAnyActiveTaskThreads())
+        XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
         XCTAssertTrue(shouldShowNoTasksPlaceholder(
             activeTaskThreads: activeTasks,
-            hasAnyActiveTaskThreads: fixture.viewModel.hasAnyActiveTaskThreads()
+            hasAnyActiveTaskThreads: try fixture.renderSnapshot().hasAnyActiveTaskThreads
         ))
     }
 

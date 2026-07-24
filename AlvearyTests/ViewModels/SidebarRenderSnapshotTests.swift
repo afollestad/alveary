@@ -18,7 +18,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(task)
         try fixture.context.save()
 
-        let snapshot = try makeSnapshot(fixture)
+        let snapshot = try fixture.renderSnapshot()
 
         XCTAssertEqual(
             snapshot.activeThreads(for: alpha).map(\.persistentModelID),
@@ -43,7 +43,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(project)
         try fixture.context.save()
 
-        let snapshot = try makeSnapshot(fixture)
+        let snapshot = try fixture.renderSnapshot()
 
         // Archived rows still count as "has threads", so the empty placeholder stays hidden.
         XCTAssertTrue(snapshot.activeThreads(for: project).isEmpty)
@@ -68,7 +68,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(regularProject)
         try fixture.context.save()
 
-        let snapshot = try makeSnapshot(fixture)
+        let snapshot = try fixture.renderSnapshot()
 
         XCTAssertEqual(
             snapshot.pinnedItems.map(\.id),
@@ -99,7 +99,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(unpinnedTask)
         try fixture.context.save()
 
-        let snapshot = try makeSnapshot(fixture)
+        let snapshot = try fixture.renderSnapshot()
 
         XCTAssertEqual(snapshot.pinnedItems.map(\.dragItem), [
             .project(project.persistentModelID),
@@ -127,7 +127,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(fresh)
         try fixture.context.save()
 
-        let legacySnapshot = try makeSnapshot(fixture)
+        let legacySnapshot = try fixture.renderSnapshot()
         XCTAssertEqual(legacySnapshot.pinnedItems.map(\.stableID), [fresh.path, stale.path])
 
         // A manual order wins over activity, and later activity must not move the item.
@@ -135,7 +135,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fresh.pinnedSortOrder = 1
         try fixture.context.save()
 
-        let manualSnapshot = try makeSnapshot(fixture)
+        let manualSnapshot = try fixture.renderSnapshot()
         XCTAssertEqual(manualSnapshot.pinnedItems.map(\.stableID), [stale.path, fresh.path])
     }
 
@@ -148,19 +148,19 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(destination)
         try fixture.context.save()
 
-        XCTAssertEqual(try makeSnapshot(fixture).activeThreads(for: source).count, 1)
+        XCTAssertEqual(try fixture.renderSnapshot().activeThreads(for: source).count, 1)
 
         thread.project = destination
         try fixture.context.save()
 
-        let reassigned = try makeSnapshot(fixture)
+        let reassigned = try fixture.renderSnapshot()
         XCTAssertTrue(reassigned.activeThreads(for: source).isEmpty)
         XCTAssertEqual(reassigned.activeThreads(for: destination).map(\.persistentModelID), [thread.persistentModelID])
 
         thread.modeRawValue = AgentThreadMode.task.rawValue
         try fixture.context.save()
 
-        let retyped = try makeSnapshot(fixture)
+        let retyped = try fixture.renderSnapshot()
         XCTAssertTrue(retyped.activeThreads(for: destination).isEmpty)
         XCTAssertEqual(retyped.activeTaskThreads.map(\.persistentModelID), [thread.persistentModelID])
     }
@@ -180,7 +180,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(task)
         try fixture.context.save()
 
-        let snapshot = try makeSnapshot(fixture)
+        let snapshot = try fixture.renderSnapshot()
 
         // Collapsed: one standalone pinned row plus one Task row.
         XCTAssertEqual(snapshot.expandedThreadCount(expandedProjects: []), 2)
@@ -203,7 +203,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         fixture.context.insert(task)
         try fixture.context.save()
 
-        let snapshot = try makeSnapshot(fixture)
+        let snapshot = try fixture.renderSnapshot()
         let items = buildNavigableItems(
             pinnedItems: snapshot.pinnedItems,
             projects: snapshot.regularProjects,
@@ -226,16 +226,6 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         XCTAssertEqual(
             snapshot.regularProjects.map { SidebarDragItem.project($0.persistentModelID) },
             [.project(regularProject.persistentModelID)]
-        )
-    }
-
-    private func makeSnapshot(_ fixture: SidebarTestFixture) throws -> SidebarRenderSnapshot {
-        SidebarRenderSnapshot(
-            viewModel: fixture.viewModel,
-            projects: try fixture.context.fetch(FetchDescriptor<Project>()),
-            unarchivedThreads: try fixture.context.fetch(
-                FetchDescriptor<AgentThread>(predicate: #Predicate { $0.archivedAt == nil })
-            )
         )
     }
 

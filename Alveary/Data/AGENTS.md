@@ -66,6 +66,11 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 - `ModelContext+Resolve.swift` hosts shared typed lookup helpers such as `resolveThread(id:)`. Call sites should prefer `modelContext.resolveThread(id:)` over ad-hoc `modelContext.model(for: id) as? AgentThread` casts so the cast lives in one place. Add sibling resolvers here when another model grows a second call site.
 - Fetch-backed resolvers (`resolveThread` / `resolveConversation` / `resolveProject`) are the safe choice after an `await`. `modelContext.model(for:)` can return a non-nil zombie whose next persisted-property read traps; the fetch helpers materialize only still-live rows and return `nil` otherwise.
 
+## Fetch Predicates
+
+- **Keep `#Predicate` relationship keypaths one level deep.** A nested traversal such as `conversation.thread?.project?.path == projectPath` compiles, but the store cannot translate it and the fetch raises `NSInvalidArgumentException: Unsupported function expression TERNARY(...)`. That is an Objective-C exception, so `try? modelContext.fetch(...)` does not contain it — the app crashes.
+    - **How to apply:** predicate on the nearest relationship (`thread.project?.path`, `conversation.thread?.persistentModelID`) and reach the far side through the model graph instead. When a route needs a to-many relationship for every fetched row, set `FetchDescriptor.relationshipKeyPathsForPrefetching` so reading it stays batched rather than one fault per row; `ContentView+DiffViewerRouting.swift` gathers project conversation candidates this way.
+
 ## Async Property Access
 
 - **Do not read persisted `@Model` properties on a model reference across an `await`.** SwiftData can refresh or invalidate the model's backing state during suspension; a post-await getter (e.g. `Conversation.id`, `AgentThread.worktreePath`) can then trap with `_assertionFailure` and crash the app.

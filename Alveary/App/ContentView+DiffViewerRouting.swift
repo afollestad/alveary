@@ -154,11 +154,14 @@ extension ContentView {
 
     private func liveDiffViewerThreads(for project: Project) -> [AgentThread] {
         let projectPath = project.path
-        let descriptor = FetchDescriptor<AgentThread>(
+        var descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
+        // The project route reads every candidate thread's conversations right after this
+        // fetch, so prefetching keeps that batched instead of one fault per thread.
+        descriptor.relationshipKeyPathsForPrefetching = [\.conversations]
         return ((try? uiModelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .project }
     }
 
@@ -172,33 +175,16 @@ extension ContentView {
         return Set(((try? uiModelContext.fetch(descriptor)) ?? []).map(\.id))
     }
 
-    /// One project-scoped conversation fetch instead of one per candidate thread.
+    /// Reads the relationship prefetched by `liveDiffViewerThreads(for:)` instead of running
+    /// a conversation fetch per candidate thread. A project-scoped conversation predicate
+    /// cannot replace it: `conversation.thread?.project?.path` is a nested relationship
+    /// keypath the store cannot translate, and it traps the fetch at runtime.
     private func liveDiffViewerConversationIDs(for project: Project, threads: [AgentThread]) -> Set<String> {
-        let qualifyingThreadIDs = Set(
-            threads
-                .filter { $0.worktreePath == nil || $0.worktreePath == project.path }
-                .map(\.persistentModelID)
-        )
-        guard !qualifyingThreadIDs.isEmpty else {
-            return []
-        }
-
         let projectPath = project.path
-        let descriptor = FetchDescriptor<Conversation>(
-            predicate: #Predicate { conversation in
-                conversation.thread?.project?.path == projectPath
-            }
-        )
-        let conversations = (try? uiModelContext.fetch(descriptor)) ?? []
         return Set(
-            conversations
-                .filter { conversation in
-                    guard let threadID = conversation.thread?.persistentModelID else {
-                        return false
-                    }
-                    return qualifyingThreadIDs.contains(threadID)
-                }
-                .map(\.id)
+            threads
+                .filter { $0.worktreePath == nil || $0.worktreePath == projectPath }
+                .flatMap { $0.conversations.map(\.id) }
         )
     }
 }

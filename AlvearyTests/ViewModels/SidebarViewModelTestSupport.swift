@@ -89,6 +89,18 @@ struct SidebarTestFixture {
         )
     }
 
+    /// The production sidebar render path: one project query plus one unarchived-thread
+    /// query, grouped exactly as `SidebarView.body` groups them.
+    func renderSnapshot() throws -> SidebarRenderSnapshot {
+        SidebarRenderSnapshot(
+            viewModel: viewModel,
+            projects: try context.fetch(FetchDescriptor<Project>()),
+            unarchivedThreads: try context.fetch(
+                FetchDescriptor<AgentThread>(predicate: #Predicate { $0.archivedAt == nil })
+            )
+        )
+    }
+
     func insertProject(name: String, path: String) throws -> Project {
         let project = Project(path: path, name: name)
         context.insert(project)

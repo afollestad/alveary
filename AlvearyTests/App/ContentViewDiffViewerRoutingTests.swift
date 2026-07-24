@@ -40,7 +40,7 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         )
     }
 
-    func testProjectScopedConversationFetchMatchesTheNestedRelationship() throws {
+    func testProjectScopedThreadFetchGathersOnlyItsOwnConversations() throws {
         let fixture = try DiffRoutingFixture()
         let otherProject = Project(path: "/tmp/diff-routing-other", name: "Other")
         let otherThread = AgentThread(name: "Other thread", project: otherProject)
@@ -52,17 +52,18 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         fixture.context.insert(otherProject)
         try fixture.context.save()
 
-        // Locks in the two-level predicate the batched project fetch depends on.
+        // Locks in the thread fetch the project route gathers conversations through. A
+        // nested `conversation.thread?.project?.path` predicate traps the store instead.
         let projectPath = fixture.project.path
-        let conversations = try fixture.context.fetch(
-            FetchDescriptor<Conversation>(
-                predicate: #Predicate { conversation in
-                    conversation.thread?.project?.path == projectPath
-                }
-            )
+        var descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { thread in
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
+            }
         )
+        descriptor.relationshipKeyPathsForPrefetching = [\.conversations]
+        let threads = try fixture.context.fetch(descriptor)
 
-        XCTAssertEqual(conversations.map(\.id), ["main"])
+        XCTAssertEqual(threads.flatMap { $0.conversations.map(\.id) }, ["main"])
     }
 
     func testResolutionAndPaneWorkStartOnlyAfterTheSuspensionGate() async throws {
