@@ -5,6 +5,8 @@ struct ContentViewBootstrapState {
     let sidebarViewModel: SidebarViewModel
     let appShotCoordinator: AppShotCoordinator
     let appShotCaptureController: AppShotCaptureController
+    let lastActiveProjectRecorder: LastActiveProjectRecorder
+    let diffViewModel: DiffViewerViewModel
 }
 
 extension ContentView {
@@ -22,7 +24,9 @@ extension ContentView {
                 appState: appState,
                 appShotCoordinator: appShotCoordinator,
                 sidebarViewModel: sidebarViewModel
-            )
+            ),
+            lastActiveProjectRecorder: makeLastActiveProjectRecorder(dependencies: dependencies),
+            diffViewModel: makeDiffViewModel(dependencies: dependencies)
         )
     }
 
@@ -141,5 +145,43 @@ extension ContentView {
             appState: appState,
             settingsService: dependencies.settingsService
         )
+    }
+
+    static func makeOnboardingViewModel(dependencies: ContentViewDependencies) -> OnboardingViewModel {
+        OnboardingViewModel(
+            settingsService: dependencies.settingsService,
+            dependencyService: dependencies.onboardingDependencyService
+        )
+    }
+
+    static func makeLastActiveProjectRecorder(
+        dependencies: ContentViewDependencies
+    ) -> LastActiveProjectRecorder {
+        let modelContext = dependencies.modelContainer.mainContext
+        let settingsService = dependencies.settingsService
+        return LastActiveProjectRecorder(
+            resolve: { owner in
+                resolveLastActiveProject(owner, modelContext: modelContext)
+            },
+            persist: { path in
+                settingsService.updateLastActiveProjectPath(path)
+            }
+        )
+    }
+
+    static func resolveLastActiveProject(
+        _ owner: LastActiveProjectOwner,
+        modelContext: ModelContext
+    ) -> LastActiveProjectResolution {
+        switch owner {
+        case .project(let projectID):
+            return .path(modelContext.resolveProject(id: projectID)?.path)
+        case .thread(let threadID):
+            guard let thread = modelContext.resolveThread(id: threadID),
+                  thread.effectiveMode == .project else {
+                return .unowned
+            }
+            return .path(thread.project?.path)
+        }
     }
 }

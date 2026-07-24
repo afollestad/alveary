@@ -4,18 +4,18 @@ import SwiftUI
 extension SidebarView {
     static let backspaceKey = KeyEquivalent("\u{7F}")
 
-    var navigableItems: [SidebarItem] {
+    func navigableItems(context: SidebarRenderContext) -> [SidebarItem] {
         buildNavigableItems(
-            pinnedItems: pinnedItems(),
-            projects: regularProjects,
+            pinnedItems: context.pinnedItems,
+            projects: context.regularProjects,
             expandedProjects: expandedProjects,
-            activeThreads: activeThreads,
-            activeTasks: activeTaskThreads()
+            activeThreads: context.activeThreads(for:),
+            activeTasks: context.activeTaskThreads
         )
     }
 
-    func handleVerticalArrow(_ key: KeyEquivalent) -> KeyPress.Result {
-        let items = navigableItems
+    func handleVerticalArrow(_ key: KeyEquivalent, context: SidebarRenderContext) -> KeyPress.Result {
+        let items = navigableItems(context: context)
         let isDown = key == .downArrow
         guard let next = navigateVertically(
             in: items,
@@ -28,7 +28,7 @@ extension SidebarView {
         return .handled
     }
 
-    func handleSidebarKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+    func handleSidebarKeyPress(_ keyPress: KeyPress, context: SidebarRenderContext) -> KeyPress.Result {
         if isSidebarDragInteractionInFlight {
             return .handled
         }
@@ -45,13 +45,13 @@ extension SidebarView {
 
         switch keyPress.key {
         case .upArrow, .downArrow:
-            return handleVerticalArrow(keyPress.key)
+            return handleVerticalArrow(keyPress.key, context: context)
         case .return:
             return handleRenameKey()
         case Self.backspaceKey:
             return handleDeleteKey()
         case .leftArrow, .rightArrow:
-            return handleHorizontalArrow(keyPress.key)
+            return handleHorizontalArrow(keyPress.key, context: context)
         default:
             return .ignored
         }
@@ -86,7 +86,7 @@ extension SidebarView {
         return .handled
     }
 
-    func handleHorizontalArrow(_ key: KeyEquivalent) -> KeyPress.Result {
+    func handleHorizontalArrow(_ key: KeyEquivalent, context: SidebarRenderContext) -> KeyPress.Result {
         let selection = effectiveSidebarSelection(appState.selectedSidebarItem)
         switch key {
         case .leftArrow:
@@ -94,10 +94,10 @@ extension SidebarView {
                 selection: selection,
                 expandedProjects: expandedProjects,
                 projectHasVisibleThreads: { project in
-                    !activeThreads(for: project).isEmpty
+                    !context.activeThreads(for: project).isEmpty
                 }
             ) {
-                return handleVerticalArrow(.upArrow)
+                return handleVerticalArrow(.upArrow, context: context)
             }
 
             guard case .project(let project) = selection else {
@@ -110,7 +110,7 @@ extension SidebarView {
                 selection: selection,
                 expandedProjects: expandedProjects
             ) {
-                return handleVerticalArrow(.downArrow)
+                return handleVerticalArrow(.downArrow, context: context)
             }
 
             guard case .project(let project) = selection else {

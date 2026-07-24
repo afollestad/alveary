@@ -3,18 +3,11 @@ import SwiftData
 import SwiftUI
 
 extension SidebarView {
-    func activeTaskThreads() -> [AgentThread] {
-        viewModel.activeTaskThreads()
-    }
-
-    func hasAnyActiveTaskThreads() -> Bool {
-        viewModel.hasAnyActiveTaskThreads()
-    }
-
     @ViewBuilder
     func taskRows(
         _ tasks: [AgentThread],
-        showsNoTasksPlaceholder: Bool
+        showsNoTasksPlaceholder: Bool,
+        context: SidebarRenderContext
     ) -> some View {
         if showsNoTasksPlaceholder {
             Text("No tasks")
@@ -30,7 +23,7 @@ extension SidebarView {
             )
         }
         .transaction { transaction in
-            if threadOrderAnimation == nil {
+            if context.threadOrderAnimation == nil {
                 transaction.disablesAnimations = true
                 transaction.animation = nil
             }
@@ -41,7 +34,8 @@ extension SidebarView {
     func projectRows(
         _ visibleProjects: [Project],
         showsNoProjectsPlaceholder: Bool,
-        dropSection: SidebarDropSection
+        dropSection: SidebarDropSection,
+        context: SidebarRenderContext
     ) -> some View {
         if showsNoProjectsPlaceholder {
             Text("No projects yet")
@@ -51,7 +45,7 @@ extension SidebarView {
 
         ForEach(Array(visibleProjects.enumerated()), id: \.element.persistentModelID) { index, project in
             let topSpacing: CGFloat = index == 0 ? 0 : SidebarProjectListMetrics.subsequentProjectTopSpacing
-            projectRow(project, topSpacing: topSpacing, dropSection: dropSection)
+            projectRow(project, topSpacing: topSpacing, dropSection: dropSection, context: context)
         }
     }
 
@@ -59,12 +53,13 @@ extension SidebarView {
     func projectRow(
         _ project: Project,
         topSpacing: CGFloat,
-        dropSection: SidebarDropSection
+        dropSection: SidebarDropSection,
+        context: SidebarRenderContext
     ) -> some View {
-        let activeProjectThreads = activeThreads(for: project)
+        let activeProjectThreads = context.activeThreads(for: project)
         let showsNoThreadsPlaceholder = shouldShowNoThreadsPlaceholder(
             activeProjectThreads: activeProjectThreads,
-            hasAnyActiveThreads: hasAnyActiveThreads(for: project)
+            hasAnyActiveThreads: context.hasAnyActiveThreads(for: project)
         )
         let configuration = SidebarProjectGroupConfiguration(
             project: project,
@@ -76,23 +71,27 @@ extension SidebarView {
             showsNoThreadsPlaceholder: showsNoThreadsPlaceholder
         )
 
-        projectHeaderRow(configuration, topSpacing: topSpacing)
+        projectHeaderRow(configuration, topSpacing: topSpacing, context: context)
 
         if configuration.isExpanded {
-            projectChildRows(configuration)
+            projectChildRows(configuration, context: context)
         }
     }
 
     private func projectHeaderRow(
         _ configuration: SidebarProjectGroupConfiguration,
-        topSpacing: CGFloat
+        topSpacing: CGFloat,
+        context: SidebarRenderContext
     ) -> some View {
         SidebarProjectRow(
             project: configuration.project,
             isExpanded: configuration.isExpanded,
             isSelected: configuration.isSelected,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
-            dragConfiguration: projectDragConfiguration(for: configuration.project),
+            dragConfiguration: projectDragConfiguration(
+                for: configuration.project,
+                logicalOrder: context.dragLogicalOrder
+            ),
             onToggleExpanded: { toggleProjectExpansionFromRow(configuration.project) },
             onActivate: { activateProjectFromRow(configuration.project) },
             onCreateThread: { createThreadFromProjectRow(configuration.project) }
@@ -132,7 +131,10 @@ extension SidebarView {
     }
 
     @ViewBuilder
-    private func projectChildRows(_ configuration: SidebarProjectGroupConfiguration) -> some View {
+    private func projectChildRows(
+        _ configuration: SidebarProjectGroupConfiguration,
+        context: SidebarRenderContext
+    ) -> some View {
         if configuration.showsNoThreadsPlaceholder {
             Text("No threads")
                 .font(.caption)
@@ -161,7 +163,7 @@ extension SidebarView {
             )
         }
         .transaction { transaction in
-            if threadOrderAnimation == nil {
+            if context.threadOrderAnimation == nil {
                 transaction.disablesAnimations = true
                 transaction.animation = nil
             }

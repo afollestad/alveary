@@ -164,7 +164,7 @@ extension SidebarViewTests {
         try fixture.context.save()
         let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
 
-        XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task))
+        XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task, logicalOrder: emptySidebarDragLogicalOrder))
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedTask(task.persistentModelID))
     }
 
@@ -190,7 +190,7 @@ extension SidebarViewTests {
                 + "You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
         )
         XCTAssertTrue(threadDeleteConfirmationMessage(for: task).contains("removes its worktree and branch if present"))
-        XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task))
+        XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task, logicalOrder: emptySidebarDragLogicalOrder))
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedThread(task.persistentModelID))
         XCTAssertTrue(sidebarItem(.thread(task), belongsToProjectPath: project.path) { _ in project.path })
     }
@@ -431,3 +431,11 @@ private func makeSidebarPendingCleanupRun() -> ScheduledTaskRun {
         workspaceStrategySnapshot: .worktree
     )
 }
+
+/// Drag configurations only need a logical order to seed a started session; these
+/// assertions care about the configuration's existence, not the sidebar's order.
+private let emptySidebarDragLogicalOrder = SidebarDragLogicalOrder(
+    pinnedItems: [],
+    regularProjects: [],
+    projectsHeaderIsSticky: false
+)

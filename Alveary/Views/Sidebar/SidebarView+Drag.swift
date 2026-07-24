@@ -214,15 +214,6 @@ extension SidebarView {
         accessibilityReduceMotion ? nil : .easeInOut(duration: 0.16)
     }
 
-    var sidebarDragLogicalOrder: SidebarDragLogicalOrder {
-        let pinnedItems = pinnedItems()
-        return SidebarDragLogicalOrder(
-            pinnedItems: pinnedItems.map(\.dragItem),
-            regularProjects: regularProjects.map { .project($0.persistentModelID) },
-            projectsHeaderIsSticky: pinnedItems.isEmpty
-        )
-    }
-
     @ViewBuilder
     var sidebarDragOverlay: some View {
         GeometryReader { proxy in
@@ -258,7 +249,10 @@ extension SidebarView {
         }
     }
 
-    func projectDragConfiguration(for project: Project) -> SidebarRowDragConfiguration? {
+    func projectDragConfiguration(
+        for project: Project,
+        logicalOrder: SidebarDragLogicalOrder
+    ) -> SidebarRowDragConfiguration? {
         guard editingThreadID == nil else {
             return nil
         }
@@ -267,7 +261,7 @@ extension SidebarView {
         return SidebarRowDragConfiguration(
             isEnabled: sidebarDragSourceIsEnabled(item),
             onChanged: { location in
-                updateSidebarDrag(item: item, location: location)
+                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
             onEnded: { location in
                 finishSidebarDragGesture(item: item, location: location)
@@ -275,12 +269,15 @@ extension SidebarView {
         )
     }
 
-    func pinnedItemDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
+    func pinnedItemDragConfiguration(
+        for thread: AgentThread,
+        logicalOrder: SidebarDragLogicalOrder
+    ) -> SidebarRowDragConfiguration? {
         switch thread.effectiveMode {
         case .project:
-            return pinnedThreadDragConfiguration(for: thread)
+            return pinnedThreadDragConfiguration(for: thread, logicalOrder: logicalOrder)
         case .task:
-            return pinnedTaskDragConfiguration(for: thread)
+            return pinnedTaskDragConfiguration(for: thread, logicalOrder: logicalOrder)
         }
     }
 
@@ -293,7 +290,10 @@ extension SidebarView {
         }
     }
 
-    private func pinnedThreadDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
+    private func pinnedThreadDragConfiguration(
+        for thread: AgentThread,
+        logicalOrder: SidebarDragLogicalOrder
+    ) -> SidebarRowDragConfiguration? {
         guard editingThreadID == nil,
               thread.effectiveMode == .project,
               thread.isPinned,
@@ -307,7 +307,7 @@ extension SidebarView {
         return SidebarRowDragConfiguration(
             isEnabled: sidebarDragSourceIsEnabled(item),
             onChanged: { location in
-                updateSidebarDrag(item: item, location: location)
+                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
             onEnded: { location in
                 finishSidebarDragGesture(item: item, location: location)
@@ -315,7 +315,10 @@ extension SidebarView {
         )
     }
 
-    private func pinnedTaskDragConfiguration(for thread: AgentThread) -> SidebarRowDragConfiguration? {
+    private func pinnedTaskDragConfiguration(
+        for thread: AgentThread,
+        logicalOrder: SidebarDragLogicalOrder
+    ) -> SidebarRowDragConfiguration? {
         guard editingThreadID == nil,
               thread.effectiveMode == .task,
               thread.isPinned,
@@ -328,7 +331,7 @@ extension SidebarView {
         return SidebarRowDragConfiguration(
             isEnabled: sidebarDragSourceIsEnabled(item),
             onChanged: { location in
-                updateSidebarDrag(item: item, location: location)
+                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
             onEnded: { location in
                 finishSidebarDragGesture(item: item, location: location)
@@ -347,7 +350,11 @@ extension SidebarView {
         }
     }
 
-    func updateSidebarDrag(item: SidebarDragItem, location: CGPoint) {
+    func updateSidebarDrag(
+        item: SidebarDragItem,
+        location: CGPoint,
+        logicalOrder: SidebarDragLogicalOrder
+    ) {
         switch sidebarDragInteractionState {
         case .idle:
             let previousState = sidebarDragInteractionState
@@ -355,7 +362,7 @@ extension SidebarView {
                 previousState,
                 item: item,
                 location: location,
-                logicalOrder: sidebarDragLogicalOrder,
+                logicalOrder: logicalOrder,
                 newSessionID: UUID()
             )
             if sidebarDragTransitionStartsSession(previousState: previousState, nextState: nextState) {

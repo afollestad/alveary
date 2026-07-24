@@ -1,90 +1,149 @@
 import Foundation
 import SwiftData
 
-extension ContentView {
-    func updateDiffViewer(item: SidebarItem?) {
-        diffViewerSwitchGeneration &+= 1
-        let generation = diffViewerSwitchGeneration
+/// Root selection reduced to the identity the Diff Viewer actually routes on.
+///
+/// Built from selection tokens only — no SwiftData property reads — so the
+/// click-to-highlight frame never waits on a fetch. `Settings` normalizes to the
+/// same route as its preserved bookmark, so opening Settings from a project does
+/// not re-route the pane.
+enum DiffViewerRoutingSelection: Equatable {
+    case none
+    case thread(PersistentIdentifier)
+    case project(String)
 
-        let target: DiffViewerSwitchTarget?
-
-        switch item {
-        case .thread(let selectedThread):
-            guard let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID) else {
-                target = nil
-                break
-            }
-            if thread.effectiveMode == .project, thread.isDraft, let project = thread.project {
-                target = resolvedDiffViewerTarget(for: project)
-            } else {
-                target = resolvedDiffViewerTarget(for: thread)
-            }
-        case .project(let selectedProject):
-            guard let project = uiModelContext.resolveProject(id: selectedProject.persistentModelID) else {
-                target = nil
-                break
-            }
-            target = resolvedDiffViewerTarget(for: project)
+    init(selection: SidebarItem?, previousSelection: AppState.SidebarBookmark?) {
+        switch selection {
+        case .thread(let thread):
+            self = .thread(thread.persistentModelID)
+        case .project(let project):
+            self = .project(project.path)
         case .settings:
-            target = diffViewerTargetForPreservedBookmark()
-        default:
-            target = nil
+            switch previousSelection {
+            case .threadId(let threadID):
+                self = .thread(threadID)
+            case .projectPath(let path):
+                self = .project(path)
+            case .skills, .mcp, .scheduled, nil:
+                self = .none
+            }
+        case .skills, .mcp, .scheduled, nil:
+            self = .none
         }
+    }
+}
 
-        guard let target else {
-            diffViewModel.clear()
+/// The complete set of inputs that decide what the Diff Viewer shows.
+struct DiffViewerRoutingKey: Equatable {
+    let selection: DiffViewerRoutingSelection
+    let scope: DiffViewerSwitchScope
+    let draftRevision: UInt64
+}
+
+/// Runs one Diff Viewer route with an injected suspension gate.
+///
+/// The gate is `Task.yield()` in production; tests replace it to prove that target
+/// resolution and pane work start only after the selected frame has painted, and
+/// that a superseded key applies nothing.
+@MainActor
+struct DiffViewerRouteRunner {
+    let isCurrent: @MainActor (DiffViewerRoutingKey) -> Bool
+    let resolveTarget: @MainActor (DiffViewerRoutingSelection) -> DiffViewerSwitchTarget?
+    let clear: @MainActor () -> Void
+    let applyTarget: @MainActor (DiffViewerSwitchTarget, DiffViewerSwitchScope) async -> Void
+    let suspendBeforeResolving: @MainActor () async -> Void
+
+    func run(key: DiffViewerRoutingKey) async {
+        await suspendBeforeResolving()
+        guard isCurrent(key) else {
             return
         }
 
-        // The toolbar diff summary must stay fresh even while the pane is
-        // hidden; only the heavy pane payload waits for the pane to show.
-        let scope: DiffViewerSwitchScope = isDiffViewerRendered ? .full : .toolbarStatsOnly
+        let target = resolveTarget(key.selection)
 
-        Task {
-            guard generation == diffViewerSwitchGeneration else {
-                return
-            }
-            await diffViewModel.switchToTarget(target, scope: scope)
+        guard isCurrent(key) else {
+            return
         }
+
+        guard let target else {
+            clear()
+            return
+        }
+
+        await applyTarget(target, key.scope)
+    }
+}
+
+extension ContentView {
+    var diffViewerRoutingSelection: DiffViewerRoutingSelection {
+        DiffViewerRoutingSelection(
+            selection: appState.selectedSidebarItem,
+            previousSelection: appState.previousSelection
+        )
     }
 
-    func diffViewerTargetForPreservedBookmark() -> DiffViewerSwitchTarget? {
-        switch appState.previousSelection {
-        case .threadId(let id):
-            guard let thread = uiModelContext.resolveThread(id: id),
+    var diffViewerSwitchScope: DiffViewerSwitchScope {
+        // The toolbar diff summary must stay fresh even while the pane is
+        // hidden; only the heavy pane payload waits for the pane to show.
+        isDiffViewerRendered ? .full : .toolbarStatsOnly
+    }
+
+    var diffViewerRoutingKey: DiffViewerRoutingKey {
+        DiffViewerRoutingKey(
+            selection: diffViewerRoutingSelection,
+            scope: diffViewerSwitchScope,
+            draftRevision: diffViewerDraftRefreshRevision
+        )
+    }
+
+    func routeDiffViewer(key: DiffViewerRoutingKey) async {
+        await DiffViewerRouteRunner(
+            isCurrent: isDiffViewerRoutingKeyCurrent,
+            resolveTarget: resolvedDiffViewerTarget(for:),
+            clear: { diffViewModel.clear() },
+            applyTarget: { target, scope in
+                await diffViewModel.switchToTarget(target, scope: scope)
+            },
+            // Let the new selection paint before any SwiftData or Git work starts.
+            suspendBeforeResolving: { await Task.yield() }
+        ).run(key: key)
+    }
+
+    /// `Task.isCancelled` covers the draft revision, which only ever changes by
+    /// restarting the keyed task; selection and scope are read live from
+    /// reference-backed state so a resumed job cannot act on a stale route.
+    func isDiffViewerRoutingKeyCurrent(_ key: DiffViewerRoutingKey) -> Bool {
+        guard !Task.isCancelled else {
+            return false
+        }
+        return key.selection == diffViewerRoutingSelection && key.scope == diffViewerSwitchScope
+    }
+
+    func resolvedDiffViewerTarget(for selection: DiffViewerRoutingSelection) -> DiffViewerSwitchTarget? {
+        switch selection {
+        case .none:
+            return nil
+        case .thread(let threadID):
+            guard let thread = uiModelContext.resolveThread(id: threadID),
                   thread.archivedAt == nil else {
                 return nil
             }
             if thread.effectiveMode == .project, thread.isDraft, let project = thread.project {
-                return resolvedDiffViewerTarget(for: project)
+                return diffViewerTarget(for: project)
             }
             return DiffViewerSwitchTarget.forThread(
                 thread,
                 candidateConversationIDs: liveDiffViewerConversationIDs(for: thread)
             )
-        case .projectPath(let path):
-            let descriptor = FetchDescriptor<Project>(predicate: #Predicate { $0.path == path })
-            guard let project = try? uiModelContext.fetch(descriptor).first else {
+        case .project(let path):
+            guard let project = resolveProject(path: path) else {
                 return nil
             }
-            return resolvedDiffViewerTarget(for: project)
-        default:
-            return nil
+            return diffViewerTarget(for: project)
         }
     }
 
-    private func resolvedDiffViewerTarget(for thread: AgentThread) -> DiffViewerSwitchTarget? {
-        guard let liveThread = uiModelContext.resolveThread(id: thread.persistentModelID),
-              liveThread.archivedAt == nil else {
-            return nil
-        }
-        return DiffViewerSwitchTarget.forThread(
-            liveThread,
-            candidateConversationIDs: liveDiffViewerConversationIDs(for: liveThread)
-        )
-    }
-
-    private func resolvedDiffViewerTarget(for project: Project) -> DiffViewerSwitchTarget {
+    private func diffViewerTarget(for project: Project) -> DiffViewerSwitchTarget {
         let threads = liveDiffViewerThreads(for: project)
         return DiffViewerSwitchTarget.forProject(
             project,
@@ -113,8 +172,33 @@ extension ContentView {
         return Set(((try? uiModelContext.fetch(descriptor)) ?? []).map(\.id))
     }
 
+    /// One project-scoped conversation fetch instead of one per candidate thread.
     private func liveDiffViewerConversationIDs(for project: Project, threads: [AgentThread]) -> Set<String> {
-        let qualifyingThreads = threads.filter { $0.worktreePath == nil || $0.worktreePath == project.path }
-        return Set(qualifyingThreads.flatMap { liveDiffViewerConversationIDs(for: $0) })
+        let qualifyingThreadIDs = Set(
+            threads
+                .filter { $0.worktreePath == nil || $0.worktreePath == project.path }
+                .map(\.persistentModelID)
+        )
+        guard !qualifyingThreadIDs.isEmpty else {
+            return []
+        }
+
+        let projectPath = project.path
+        let descriptor = FetchDescriptor<Conversation>(
+            predicate: #Predicate { conversation in
+                conversation.thread?.project?.path == projectPath
+            }
+        )
+        let conversations = (try? uiModelContext.fetch(descriptor)) ?? []
+        return Set(
+            conversations
+                .filter { conversation in
+                    guard let threadID = conversation.thread?.persistentModelID else {
+                        return false
+                    }
+                    return qualifyingThreadIDs.contains(threadID)
+                }
+                .map(\.id)
+        )
     }
 }

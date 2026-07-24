@@ -53,7 +53,8 @@ struct ContentView: View {
     @State var appShotCaptureController: AppShotCaptureController
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
     @State private var toolbarProjectActionsThreadID: PersistentIdentifier?
-    @State var diffViewerSwitchGeneration = 0
+    @State var diffViewerDraftRefreshRevision: UInt64 = 0
+    @State var lastActiveProjectRecorder: LastActiveProjectRecorder
     @State var gitCommitModalModel: DiffGitCommitModalModel?
     @State private var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
     @State private var terminalToolbarTrackedSessionIDs = Set<UUID>()
@@ -99,7 +100,6 @@ struct ContentView: View {
         _terminalPaneHeight = State(initialValue: CGFloat(settings.terminalPaneHeight))
         let bootstrapState = Self.makeBootstrapState(dependencies: dependencies, appState: appState)
         _sidebarViewModel = State(initialValue: bootstrapState.sidebarViewModel)
-        _diffViewModel = State(initialValue: Self.makeDiffViewModel(dependencies: dependencies))
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
         _scheduledTasksViewModel = State(initialValue: Self.makeScheduledTasksViewModel(dependencies: dependencies))
@@ -110,19 +110,17 @@ struct ContentView: View {
         _archivedTasksSettingsViewModel = State(initialValue: Self.makeArchivedTasksSettingsViewModel(
             dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState
         ))
-        _onboardingViewModel = State(
-            initialValue: OnboardingViewModel(
-                settingsService: dependencies.settingsService,
-                dependencyService: dependencies.onboardingDependencyService
-            )
-        )
+        _onboardingViewModel = State(initialValue: Self.makeOnboardingViewModel(dependencies: dependencies))
         _appShotCoordinator = State(initialValue: bootstrapState.appShotCoordinator)
         _appShotCaptureController = State(initialValue: bootstrapState.appShotCaptureController)
+        _lastActiveProjectRecorder = State(initialValue: bootstrapState.lastActiveProjectRecorder)
+        _diffViewModel = State(initialValue: bootstrapState.diffViewModel)
     }
 
     var body: some View {
         let resolvedRightPaneDestination = rightPaneDestination
         let widthDomain = resolvedRightPaneDestination?.widthDomain ?? .diff
+        let diffRoutingKey = diffViewerRoutingKey
         let middlePane = MiddlePane(
             appState: appState,
             modelContext: viewModelContext,
@@ -143,9 +141,7 @@ struct ContentView: View {
                 (try? await skillsService.loadInstalled()) ?? []
             },
             diffViewModel: diffViewModel,
-            diffViewerSwitchScope: {
-                rightPaneDestination == .diff ? .full : .toolbarStatsOnly
-            },
+            diffViewerSwitchScope: { self.diffViewerSwitchScope },
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
             scheduledTasksViewModel: scheduledTasksViewModel,
@@ -274,29 +270,29 @@ struct ContentView: View {
             appState.setLeftPaneVisible(visibility != .detailOnly)
         }
         .onChange(of: appState.selectedSidebarItem) { _, selection in
-            recordLastActiveProject(for: selection)
-            updateDiffViewer(item: selection)
-            cancelPendingCommitMessageGenerationIfNeeded()
+            scheduleLastActiveProjectRecord(for: selection)
+            appState.invalidateCommitMessageGenerationForSelectionChange()
+        }
+        .onChange(of: appState.selectedConversationIDs) { _, _ in
+            appState.invalidateCommitMessageGenerationForSelectionChange()
         }
         .onChange(of: appShotCoordinator.triggerID) { _, _ in
             appShotCaptureController.captureIfIdle()
         }
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftProjectChanged)) { _ in
-            updateDiffViewer(item: appState.selectedSidebarItem)
+            diffViewerDraftRefreshRevision &+= 1
             Task { await refreshToolbarProjectActions() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftMaterialized)) { _ in
-            updateDiffViewer(item: appState.selectedSidebarItem)
+            diffViewerDraftRefreshRevision &+= 1
             Task { await refreshToolbarProjectActions() }
         }
-        .onChange(of: appState.previousSelection) { _, _ in
-            guard appState.selectedSidebarItem == .settings else {
-                return
-            }
-            updateDiffViewer(item: .settings)
+        // Watching follows the rendered pane; routing is owned by the keyed task below.
+        .onChange(of: isDiffViewerRendered, initial: true) { _, isRendered in
+            diffViewModel.setWatchingEnabled(isRendered)
         }
-        .onChange(of: resolvedRightPaneDestination) { _, destination in
-            handleRightPaneDestinationChange(destination)
+        .task(id: diffRoutingKey) {
+            await routeDiffViewer(key: diffRoutingKey)
         }
 
         let activityObservedView = selectionObservedView
@@ -348,8 +344,6 @@ struct ContentView: View {
             wireNotificationManager()
             startThreadActivityBackfillIfNeeded()
             restoreLastOpenThreadSelectionIfNeeded()
-            updateDiffViewer(item: appState.selectedSidebarItem)
-            handleRightPaneDestinationChange(resolvedRightPaneDestination)
             replayModelPreparationDeferredRoutingIfAvailable()
             // Mark-read of the active conversation is handled by `ThreadDetailView` once
             // the restored selection mounts; just sync the dock badge on launch.

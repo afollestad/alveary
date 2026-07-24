@@ -7,31 +7,23 @@ extension ConversationView {
             return
         }
 
-        defer {
-            appState.clearCommitMessageGenerationRequest(id: request.id)
-        }
-
-        guard appState.pendingCommitMessageGenerationRequest?.id == request.id,
-              case .thread(let selectedThread) = appState.selectedSidebarItem,
-              selectedThread.persistentModelID == conversation.thread?.persistentModelID,
-              selectedConversation(
-                  in: selectedThread,
-                  modelContext: modelContext,
-                  appState: appState
-              )?.persistentModelID == conversation.persistentModelID else {
-            request.completion(.failure(CommitMessageGenerationError.activeConversationChanged))
+        guard case .thread(let selectedThread) = appState.selectedSidebarItem,
+              selectedThread.persistentModelID == request.threadID,
+              request.threadID == conversation.thread?.persistentModelID else {
+            appState.completeCommitMessageGenerationRequest(
+                id: request.id,
+                result: .failure(CommitMessageGenerationError.activeConversationChanged)
+            )
             return
         }
 
         do {
             let message = try await viewModel.generateCommitMessage(request.prompt)
-            guard appState.pendingCommitMessageGenerationRequest?.id == request.id else {
-                request.completion(.failure(CommitMessageGenerationError.activeConversationChanged))
-                return
-            }
-            request.completion(.success(message))
+            // Every outcome routes through the ID-checked completion, so a stale
+            // conversation task resolves nothing instead of resuming twice.
+            appState.completeCommitMessageGenerationRequest(id: request.id, result: .success(message))
         } catch {
-            request.completion(.failure(error))
+            appState.completeCommitMessageGenerationRequest(id: request.id, result: .failure(error))
         }
     }
 }

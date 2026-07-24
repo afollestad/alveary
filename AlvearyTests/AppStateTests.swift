@@ -126,50 +126,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(AppUpdateToolbarBadgeState.readyToInstall.accessibilityValue, "App update ready to install")
     }
 
-    func testClearsMatchingCommitMessageGenerationRequest() throws {
-        let fixture = try makeFixture(
-            primaryConversations: [Conversation(title: "Main", provider: "claude")]
-        )
-        let state = AppState()
-
-        state.requestCommitMessageGeneration(
-            prompt: "Generate commit",
-            conversationID: fixture.primaryConversations[0].persistentModelID,
-            completion: { _ in }
-        )
-        let requestID = try XCTUnwrap(state.pendingCommitMessageGenerationRequest?.id)
-
-        state.clearCommitMessageGenerationRequest(id: requestID)
-
-        XCTAssertNil(state.pendingCommitMessageGenerationRequest)
-    }
-
-    func testCancelsCommitMessageGenerationRequestWhenSelectedConversationChanges() throws {
-        let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true)
-        let sideConversation = Conversation(title: "Side", provider: "claude", isMain: false, displayOrder: 2)
-        let fixture = try makeFixture(primaryConversations: [mainConversation, sideConversation])
-        let state = AppState()
-        var capturedError: Error?
-
-        state.requestCommitMessageGeneration(
-            prompt: "Generate commit",
-            conversationID: mainConversation.persistentModelID,
-            completion: { result in
-                if case .failure(let error) = result {
-                    capturedError = error
-                }
-            }
-        )
-
-        state.selectConversation(sideConversation, in: fixture.primaryThread)
-
-        XCTAssertNil(state.pendingCommitMessageGenerationRequest)
-        XCTAssertEqual(
-            capturedError?.localizedDescription,
-            CommitMessageGenerationError.activeConversationChanged.localizedDescription
-        )
-    }
-
     func testSelectedConversationIsPureRead() throws {
         let mainConversation = Conversation(title: "Main", provider: "claude", isMain: true, displayOrder: 1)
         let sideConversation = Conversation(title: "Side", provider: "claude", isMain: false, displayOrder: 2)
@@ -439,7 +395,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(stack.displayToasts.map(\.message), ["Newest", "Middle", "Oldest"])
     }
 
-    private func makeFixture(
+    func makeFixture(
         primaryConversations: [Conversation],
         secondaryConversations: [Conversation] = []
     ) throws -> ThreadFixture {
@@ -476,7 +432,7 @@ final class AppStateTests: XCTestCase {
     }
 }
 
-private struct ThreadFixture {
+struct ThreadFixture {
     let container: ModelContainer
     let context: ModelContext
     let primaryThread: AgentThread

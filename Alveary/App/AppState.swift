@@ -108,21 +108,35 @@ final class AppState {
 
     func requestCommitMessageGeneration(
         prompt: String,
+        threadID: PersistentIdentifier,
         conversationID: PersistentIdentifier,
         completion: @escaping @MainActor (Result<String, Error>) -> Void
     ) {
+        // A replacement request is a terminal outcome for the previous one; without
+        // this its continuation would never resume.
+        cancelPendingCommitMessageGenerationRequest()
+        // Record the explicit conversation so later validation stays fetch-free.
+        selectedConversationIDs[threadID] = conversationID
         pendingCommitMessageGenerationRequest = CommitMessageGenerationRequest(
             id: UUID(),
+            threadID: threadID,
             conversationID: conversationID,
             prompt: prompt,
             completion: completion
         )
     }
 
-    func clearCommitMessageGenerationRequest(id: UUID) {
-        if pendingCommitMessageGenerationRequest?.id == id {
-            pendingCommitMessageGenerationRequest = nil
+    /// The single terminal path for a commit-message request. An ID that is no longer
+    /// pending is a no-op, so a stale conversation task can never resume a continuation
+    /// a second time.
+    func completeCommitMessageGenerationRequest(id: UUID, result: Result<String, Error>) {
+        guard let request = pendingCommitMessageGenerationRequest,
+              request.id == id else {
+            return
         }
+
+        pendingCommitMessageGenerationRequest = nil
+        request.completion(result)
     }
 
     func cancelPendingCommitMessageGenerationRequest(
@@ -132,8 +146,22 @@ final class AppState {
             return
         }
 
-        pendingCommitMessageGenerationRequest = nil
-        request.completion(.failure(error))
+        completeCommitMessageGenerationRequest(id: request.id, result: .failure(error))
+    }
+
+    /// Fetch-free ownership check run whenever the sidebar selection or the selected
+    /// conversation map changes.
+    func invalidateCommitMessageGenerationForSelectionChange() {
+        guard let request = pendingCommitMessageGenerationRequest else {
+            return
+        }
+
+        guard case .thread(let selectedThread) = selectedSidebarItem,
+              selectedThread.persistentModelID == request.threadID,
+              selectedConversationIDs[request.threadID] == request.conversationID else {
+            cancelPendingCommitMessageGenerationRequest()
+            return
+        }
     }
 
     func selectedConversation(in thread: AgentThread, conversations: [Conversation]) -> Conversation? {
@@ -227,6 +255,7 @@ final class AppState {
 
     struct CommitMessageGenerationRequest {
         let id: UUID
+        let threadID: PersistentIdentifier
         let conversationID: PersistentIdentifier
         let prompt: String
         let completion: @MainActor (Result<String, Error>) -> Void

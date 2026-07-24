@@ -70,6 +70,8 @@ struct ProjectSettingsView: View {
     @State private var screenError: String?
     @State private var pendingRestoreThread: AgentThread?
     @State private var pendingDeleteThread: AgentThread?
+    // Non-nil once the archived-threads query is allowed to run for that project path.
+    @State private var archivedThreadsProjectPath: String?
 
     init(
         project: Project,
@@ -77,6 +79,8 @@ struct ProjectSettingsView: View {
         sidebarViewModel: SidebarViewModel,
         voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
         initialConfig: AlvearyProjectConfig = .empty,
+        // Snapshot-only seed; production always mounts the archived card after the first yield.
+        initialArchivedThreadsSectionMounted: Bool = false,
         loadConfig: @escaping @Sendable (String) async -> AlvearyProjectConfig = { projectPath in
             await AlvearyProjectConfig(projectPath: projectPath)
         }
@@ -93,6 +97,7 @@ struct ProjectSettingsView: View {
         _teardownScript = State(initialValue: editorState.teardownScript)
         _preservePatterns = State(initialValue: editorState.preservePatterns)
         _actions = State(initialValue: editorState.actions)
+        _archivedThreadsProjectPath = State(initialValue: initialArchivedThreadsSectionMounted ? project.path : nil)
     }
 
     var body: some View {
@@ -140,13 +145,22 @@ struct ProjectSettingsView: View {
                     onRemoveAction: removeAction
                 )
 
-                ProjectSettingsArchivedThreadsCard(
-                    threads: archivedThreads,
-                    onRequestRestoreThread: { pendingRestoreThread = $0 },
-                    onRequestDeleteThread: { pendingDeleteThread = $0 }
-                )
+                if archivedThreadsProjectPath == project.path {
+                    ProjectSettingsArchivedThreadsSection(
+                        projectPath: project.path,
+                        onRequestRestoreThread: { pendingRestoreThread = $0 },
+                        onRequestDeleteThread: { pendingDeleteThread = $0 }
+                    )
+                }
             }
             .padding(28)
+        }
+        // Keep the archived-thread query off the frame that paints the selected project.
+        // Path-keyed rather than a Bool so a reused view identity cannot show the
+        // previous project's archived rows for a frame.
+        .task(id: project.path) {
+            await Task.yield()
+            archivedThreadsProjectPath = project.path
         }
         .task(id: project.path) {
             await loadState()
@@ -246,10 +260,6 @@ func deleteProjectSettingsArchivedThread(
 }
 
 private extension ProjectSettingsView {
-    var archivedThreads: [AgentThread] {
-        archivedProjectThreads(projectPath: project.path, modelContext: modelContext)
-    }
-
     var setupScriptBinding: Binding<String> {
         Binding(
             get: { setupScript },
@@ -418,14 +428,13 @@ private extension ProjectSettingsView {
     }
 }
 
+/// Project-mode archived rows, newest archive first.
+///
+/// Split from the query so the ordering and the fallback-mode filter stay testable
+/// without mounting the view.
 @MainActor
-func archivedProjectThreads(projectPath: String, modelContext: ModelContext) -> [AgentThread] {
-    let descriptor = FetchDescriptor<AgentThread>(
-        predicate: #Predicate { thread in
-            thread.archivedAt != nil && thread.project?.path == projectPath
-        }
-    )
-    return ((try? modelContext.fetch(descriptor)) ?? [])
+func projectSettingsArchivedThreads(_ threads: [AgentThread]) -> [AgentThread] {
+    threads
         .filter { $0.effectiveMode == .project }
         .sorted { ($0.archivedAt ?? .distantPast) > ($1.archivedAt ?? .distantPast) }
 }

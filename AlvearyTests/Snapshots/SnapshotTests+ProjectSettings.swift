@@ -26,6 +26,7 @@ extension SnapshotTests {
                 appState: AppState(),
                 sidebarViewModel: fixture.viewModel,
                 initialConfig: config,
+                initialArchivedThreadsSectionMounted: true,
                 loadConfig: { _ in config }
             )
         }

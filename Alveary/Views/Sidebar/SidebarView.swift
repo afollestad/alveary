@@ -24,7 +24,11 @@ struct SidebarView: View {
 
     @Environment(\.modelContext) var uiModelContext
     @Environment(\.accessibilityReduceMotion) var accessibilityReduceMotion
-    @Query private var queriedProjects: [Project]
+    @Query var queriedProjects: [Project]
+    // One observation-backed query feeds the whole render pass. Drafts are included so
+    // draft-driven refreshes stay tracked; `SidebarRenderSnapshot` filters them out.
+    @Query(filter: #Predicate<AgentThread> { $0.archivedAt == nil })
+    var queriedUnarchivedThreads: [AgentThread]
     @State var expandedProjects: Set<String> = []
     @State var editingThreadID: PersistentIdentifier?
     @State var pendingArchiveThread: AgentThread?
@@ -49,55 +53,21 @@ struct SidebarView: View {
         self.voiceInputLifecycleController = voiceInputLifecycleController
     }
 
+    /// Ordered projects for action paths that run outside a render pass.
+    /// Render code must use `SidebarRenderContext` instead.
     var projects: [Project] {
         viewModel.orderedProjects(from: queriedProjects)
-    }
-
-    var regularProjects: [Project] {
-        viewModel.regularProjects(from: projects)
-    }
-
-    var threadOrderAnimation: Animation? {
-        guard !accessibilityReduceMotion,
-              editingThreadID == nil,
-              !isSidebarDragInteractionInFlight,
-              expandedThreadCount <= 200 else {
-            return nil
-        }
-        return .easeInOut(duration: 0.15)
-    }
-
-    private var expandedThreadCount: Int {
-        let pinnedThreadCount = pinnedItems().reduce(0) { count, item in
-            switch item.kind {
-            case .thread:
-                return count + 1
-            case .project(let project):
-                guard expandedProjects.contains(project.path) else {
-                    return count
-                }
-                return count + activeThreads(for: project).count
-            }
-        }
-
-        let projectThreadCount = regularProjects.reduce(0) { count, project in
-            guard expandedProjects.contains(project.path) else {
-                return count
-            }
-            return count + activeThreads(for: project).count
-        }
-        return pinnedThreadCount + projectThreadCount + activeTaskThreads().count
     }
 
     var body: some View {
         let statusVersion = viewModel.statusVersion
         let threadOrderVersion = viewModel.threadOrderVersion
-        let pinnedItems = self.pinnedItems()
-        let regularProjects = self.regularProjects
-        let activeTaskThreads = self.activeTaskThreads()
-        let visibleDragItems = Set(
-            pinnedItems.map(\.dragItem) + regularProjects.map { .project($0.persistentModelID) }
-        )
+        let context = makeRenderContext()
+        let pinnedItems = context.pinnedItems
+        let regularProjects = context.regularProjects
+        let activeTaskThreads = context.activeTaskThreads
+        let threadOrderAnimation = context.threadOrderAnimation
+        let visibleDragItems = Set(context.dragLogicalOrder.pinnedItems + context.dragLogicalOrder.regularProjects)
         let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
 
         return VStack(spacing: 0) {
@@ -120,13 +90,16 @@ struct SidebarView: View {
                                 : SidebarRowMetrics.interThreadRowSpacing
                             switch item.kind {
                             case .project(let project):
-                                projectRow(project, topSpacing: topSpacing, dropSection: .pinned)
+                                projectRow(project, topSpacing: topSpacing, dropSection: .pinned, context: context)
                             case .thread(let thread):
                                 sidebarThreadRow(
                                     thread,
                                     layout: .topLevel,
                                     topSpacing: topSpacing,
-                                    dragConfiguration: pinnedItemDragConfiguration(for: thread),
+                                    dragConfiguration: pinnedItemDragConfiguration(
+                                        for: thread,
+                                        logicalOrder: context.dragLogicalOrder
+                                    ),
                                     opacity: activeSidebarDragItem == item.dragItem ? 0.48 : 1
                                 )
                                 .sidebarDragGeometry(pinnedItemDragGeometryRole(for: thread))
@@ -142,8 +115,9 @@ struct SidebarView: View {
                         projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
                         projectRows(
                             regularProjects,
-                            showsNoProjectsPlaceholder: projects.isEmpty,
-                            dropSection: .projects
+                            showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
+                            dropSection: .projects,
+                            context: context
                         )
 
                         tasksHeader
@@ -151,8 +125,9 @@ struct SidebarView: View {
                             activeTaskThreads,
                             showsNoTasksPlaceholder: shouldShowNoTasksPlaceholder(
                                 activeTaskThreads: activeTaskThreads,
-                                hasAnyActiveTaskThreads: hasAnyActiveTaskThreads()
-                            )
+                                hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
+                            ),
+                            context: context
                         )
                     }
                 }
@@ -160,9 +135,10 @@ struct SidebarView: View {
                 if pinnedItems.isEmpty {
                     Section {
                         projectRows(
-                            projects,
-                            showsNoProjectsPlaceholder: projects.isEmpty,
-                            dropSection: .projects
+                            context.orderedProjects,
+                            showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
+                            dropSection: .projects,
+                            context: context
                         )
 
                         tasksHeader
@@ -170,8 +146,9 @@ struct SidebarView: View {
                             activeTaskThreads,
                             showsNoTasksPlaceholder: shouldShowNoTasksPlaceholder(
                                 activeTaskThreads: activeTaskThreads,
-                                hasAnyActiveTaskThreads: hasAnyActiveTaskThreads()
-                            )
+                                hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
+                            ),
+                            context: context
                         )
                     } header: {
                         projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
@@ -192,7 +169,9 @@ struct SidebarView: View {
             .focusable()
             .focused($isKeyboardFocused)
             .focusEffectDisabled()
-            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, Self.backspaceKey], action: handleSidebarKeyPress)
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, Self.backspaceKey]) { keyPress in
+                handleSidebarKeyPress(keyPress, context: context)
+            }
         }
         .onPreferenceChange(SidebarDragGeometryPreferenceKey.self) { frames in
             scheduleSidebarDragGeometryRefresh(with: frames)

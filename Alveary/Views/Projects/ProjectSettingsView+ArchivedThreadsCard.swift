@@ -1,6 +1,39 @@
 import SwiftData
 import SwiftUI
 
+/// Observation-backed wrapper around the archived-threads card.
+///
+/// `ProjectSettingsView` mounts this only after its first yield so selecting a
+/// project paints before the archived-thread query runs.
+struct ProjectSettingsArchivedThreadsSection: View {
+    let onRequestRestoreThread: (AgentThread) -> Void
+    let onRequestDeleteThread: (AgentThread) -> Void
+
+    @Query private var archivedThreads: [AgentThread]
+
+    init(
+        projectPath: String,
+        onRequestRestoreThread: @escaping (AgentThread) -> Void,
+        onRequestDeleteThread: @escaping (AgentThread) -> Void
+    ) {
+        self.onRequestRestoreThread = onRequestRestoreThread
+        self.onRequestDeleteThread = onRequestDeleteThread
+        _archivedThreads = Query(
+            filter: #Predicate<AgentThread> { thread in
+                thread.archivedAt != nil && thread.project?.path == projectPath
+            }
+        )
+    }
+
+    var body: some View {
+        ProjectSettingsArchivedThreadsCard(
+            threads: projectSettingsArchivedThreads(archivedThreads),
+            onRequestRestoreThread: onRequestRestoreThread,
+            onRequestDeleteThread: onRequestDeleteThread
+        )
+    }
+}
+
 struct ProjectSettingsArchivedThreadsCard: View {
     let threads: [AgentThread]
     let onRequestRestoreThread: (AgentThread) -> Void

@@ -26,6 +26,9 @@ func areProjectsOrdered(_ lhs: Project, _ rhs: Project) -> Bool {
 }
 
 extension SidebarView {
+    // Authoritative fetch-backed reads. These are for post-mutation fallbacks such as
+    // deletion/archive selection recovery, never for render passes — `SidebarRenderContext`
+    // owns everything the click-to-highlight frame needs.
     func activeThreads(for project: Project) -> [AgentThread] {
         viewModel.activeThreads(for: project)
     }
@@ -38,8 +41,8 @@ extension SidebarView {
         viewModel.pinnedItems(projects: projects)
     }
 
-    func hasAnyActiveThreads(for project: Project) -> Bool {
-        viewModel.hasAnyActiveThreads(for: project)
+    func activeTaskThreads() -> [AgentThread] {
+        viewModel.activeTaskThreads()
     }
 
     func isProjectSelected(_ project: Project) -> Bool {

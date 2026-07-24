@@ -124,6 +124,7 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
         var commitRequestWasCancelled = false
         appState.requestCommitMessageGeneration(
             prompt: "Commit",
+            threadID: task.persistentModelID,
             conversationID: mainConversationID,
             completion: { result in
                 if case .failure(CommitMessageGenerationError.activeConversationChanged) = result {

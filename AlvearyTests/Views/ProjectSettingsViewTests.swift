@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -31,7 +32,16 @@ final class ProjectSettingsViewTests: XCTestCase {
         privateRun.workspaceKindRawValueSnapshot = ScheduledTaskWorkspaceKind.privateWorkspace.rawValue
         try fixture.context.save()
 
-        let archivedThreads = archivedProjectThreads(projectPath: project.path, modelContext: fixture.context)
+        let projectPath = project.path
+        let archivedThreads = projectSettingsArchivedThreads(
+            try fixture.context.fetch(
+                FetchDescriptor<AgentThread>(
+                    predicate: #Predicate { thread in
+                        thread.archivedAt != nil && thread.project?.path == projectPath
+                    }
+                )
+            )
+        )
 
         XCTAssertEqual(archivedThreads.map(\.persistentModelID), [
             projectFallback.persistentModelID,

@@ -261,10 +261,4 @@ extension ContentView {
             assertionFailure("Diff is not a contextual pane")
         }
     }
-
-    func handleRightPaneDestinationChange(_ destination: RightPaneDestination?) {
-        let isDiffVisible = destination == .diff
-        diffViewModel.setWatchingEnabled(isDiffVisible)
-        updateDiffViewer(item: appState.selectedSidebarItem)
-    }
 }

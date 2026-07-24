@@ -153,13 +153,14 @@ extension ContentView {
         prompt: String,
         completion: @escaping @MainActor (Result<String, Error>) -> Void
     ) {
-        guard let (_, conversation) = activeDiffActionTarget() else {
+        guard let (thread, conversation) = activeDiffActionTarget() else {
             completion(.failure(CommitMessageGenerationError.activeConversationChanged))
             return
         }
 
         appState.requestCommitMessageGeneration(
             prompt: prompt,
+            threadID: thread.persistentModelID,
             conversationID: conversation.persistentModelID,
             completion: completion
         )
@@ -179,18 +180,6 @@ extension ContentView {
             return try await generateCommitMessage(prompt: prompt)
         case .project(let directory):
             return try await agentOneShotPromptService.generate(prompt: prompt, workingDirectory: directory)
-        }
-    }
-
-    func cancelPendingCommitMessageGenerationIfNeeded() {
-        guard let request = appState.pendingCommitMessageGenerationRequest else {
-            return
-        }
-
-        guard let activeConversationID = activeDiffActionTarget()?.conversation.persistentModelID,
-              activeConversationID == request.conversationID else {
-            appState.cancelPendingCommitMessageGenerationRequest()
-            return
         }
     }
 }

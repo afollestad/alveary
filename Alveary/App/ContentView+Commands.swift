@@ -228,21 +228,8 @@ extension ContentView {
         return resolution.project
     }
 
-    func recordLastActiveProject(for selection: SidebarItem?) {
-        let path: String?
-        switch selection {
-        case .project(let project):
-            path = uiModelContext.resolveProject(id: project.persistentModelID)?.path
-        case .thread(let thread):
-            guard let liveThread = uiModelContext.resolveThread(id: thread.persistentModelID),
-                  liveThread.effectiveMode == .project else {
-                return
-            }
-            path = liveThread.project?.path
-        default:
-            return
-        }
-        settingsService.updateLastActiveProjectPath(path)
+    func scheduleLastActiveProjectRecord(for selection: SidebarItem?) {
+        lastActiveProjectRecorder.record(for: selection)
     }
 
     func importProjectFromDisk() async {
