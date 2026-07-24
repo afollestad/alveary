@@ -281,6 +281,38 @@ final class ChatComposerActionRowTests: XCTestCase {
         #endif
     }
 
+    func testConfigureSkipsReapplyForValueIdenticalConfigurations() {
+        XCTAssertEqual(
+            ChatComposerActionRowView.AppliedConfigurationSnapshot(makeConfiguration(mode: .idle)),
+            ChatComposerActionRowView.AppliedConfigurationSnapshot(makeConfiguration(mode: .idle))
+        )
+
+        let row = ChatComposerActionRowView()
+        row.configure(makeConfiguration(mode: .idle))
+        // Marker the apply pass always resets (taskWorkspace is nil here).
+        row.worktreeButton.toolTip = "probe"
+
+        // Same values through fresh closures must not run another apply pass;
+        // SwiftUI re-evaluates the composer body far more often than its
+        // rendered values actually change.
+        row.configure(makeConfiguration(mode: .idle))
+        XCTAssertEqual(row.worktreeButton.toolTip, "probe")
+
+        row.configure(makeConfiguration(mode: .busy(canStop: true)))
+        XCTAssertNil(row.worktreeButton.toolTip)
+    }
+
+    func testConfigureKeepsStoredConfigurationFreshWhenSkippingReapply() {
+        var planModeChanges: [Bool] = []
+        let row = ChatComposerActionRowView()
+        row.configure(makeConfiguration(mode: .idle, onPlanModeChange: { _ in }))
+        row.configure(makeConfiguration(mode: .idle, onPlanModeChange: { planModeChanges.append($0) }))
+
+        row.configuration?.onPlanModeChange(true)
+
+        XCTAssertEqual(planModeChanges, [true])
+    }
+
 }
 
 func makeConfiguration(

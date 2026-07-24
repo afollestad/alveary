@@ -2,52 +2,6 @@ import AppKit
 
 @MainActor
 final class ComposerReasoningMenuRowView: NSView {
-    struct Configuration {
-        let title: String
-        let subtitle: String?
-        let iconName: String?
-        let iconRotationRadians: CGFloat
-        let trailingIconName: String?
-        let accessibilityLabel: String
-        let isSelected: Bool
-        let isEnabled: Bool
-        let isWarning: Bool
-        let showsFocusBackground: Bool
-        let activatesWithRightArrow: Bool
-        let action: () -> Void
-        let cancelAction: () -> Void
-
-        init(
-            title: String,
-            subtitle: String? = nil,
-            iconName: String?,
-            iconRotationRadians: CGFloat = 0,
-            trailingIconName: String?,
-            accessibilityLabel: String,
-            isSelected: Bool,
-            isEnabled: Bool,
-            isWarning: Bool = false,
-            showsFocusBackground: Bool = false,
-            activatesWithRightArrow: Bool = true,
-            action: @escaping () -> Void,
-            cancelAction: @escaping () -> Void
-        ) {
-            self.title = title
-            self.subtitle = subtitle
-            self.iconName = iconName
-            self.iconRotationRadians = iconRotationRadians
-            self.trailingIconName = trailingIconName
-            self.accessibilityLabel = accessibilityLabel
-            self.isSelected = isSelected
-            self.isEnabled = isEnabled
-            self.isWarning = isWarning
-            self.showsFocusBackground = showsFocusBackground
-            self.activatesWithRightArrow = activatesWithRightArrow
-            self.action = action
-            self.cancelAction = cancelAction
-        }
-    }
-
     private var configuration: Configuration?
     private var trackingArea: NSTrackingArea?
     private var focusStateIsVisible = false
@@ -323,7 +277,11 @@ final class ComposerReasoningMenuRowView: NSView {
     }
 
     private func titleTextRect(for configuration: Configuration, titleHeight: CGFloat) -> NSRect {
-        let trailingReserved: CGFloat = configuration.trailingIconName == nil ? 0 : ComposerReasoningMenuMetrics.trailingIconReservedWidth
+        // Multi-line subtitles always reserve the trailing icon slot so wrap
+        // width (and therefore measured row height) cannot change when the
+        // selection checkmark appears or disappears.
+        let reservesTrailing = configuration.trailingIconName != nil || configuration.subtitleLineLimit > 1
+        let trailingReserved: CGFloat = reservesTrailing ? ComposerReasoningMenuMetrics.trailingIconReservedWidth : 0
         let leading = titleLeading(for: configuration)
         return NSRect(
             x: leading,
@@ -368,8 +326,13 @@ final class ComposerReasoningMenuRowView: NSView {
         titleAttributes: [NSAttributedString.Key: Any],
         subtitleAttributes: [NSAttributedString.Key: Any]
     ) {
-        let subtitleSize = subtitle.size(withAttributes: subtitleAttributes)
-        let groupHeight = titleRect.height + ComposerReasoningMenuMetrics.subtitleSpacing + subtitleSize.height
+        let lineLimit = configuration?.subtitleLineLimit ?? 1
+        let subtitleHeight = Self.subtitleHeight(
+            subtitle,
+            availableWidth: titleRect.width,
+            lineLimit: lineLimit
+        )
+        let groupHeight = titleRect.height + ComposerReasoningMenuMetrics.subtitleSpacing + subtitleHeight
         let titleY = floor((bounds.height - groupHeight) / 2)
         (title as NSString).draw(
             in: NSRect(
@@ -380,15 +343,21 @@ final class ComposerReasoningMenuRowView: NSView {
             ),
             withAttributes: titleAttributes
         )
-        (subtitle as NSString).draw(
-            in: NSRect(
-                x: titleRect.minX,
-                y: titleY + titleRect.height + ComposerReasoningMenuMetrics.subtitleSpacing,
-                width: titleRect.width,
-                height: subtitleSize.height
-            ),
-            withAttributes: subtitleAttributes
+        let subtitleRect = NSRect(
+            x: titleRect.minX,
+            y: titleY + titleRect.height + ComposerReasoningMenuMetrics.subtitleSpacing,
+            width: titleRect.width,
+            height: subtitleHeight
         )
+        if lineLimit > 1 {
+            (subtitle as NSString).draw(
+                with: subtitleRect,
+                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                attributes: subtitleAttributes
+            )
+        } else {
+            (subtitle as NSString).draw(in: subtitleRect, withAttributes: subtitleAttributes)
+        }
     }
 
     private func drawTrailingIcon() {
@@ -443,11 +412,10 @@ private extension ComposerReasoningMenuRowView {
     }
 
     func subtitleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
-        [
-            .font: ComposerReasoningMenuMetrics.subtitleFont,
-            .foregroundColor: NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.68 : 0.32),
-            .paragraphStyle: ComposerReasoningMenuMetrics.truncatingParagraphStyle
-        ]
+        var attributes = Self.subtitleMeasurementAttributes(lineLimit: configuration.subtitleLineLimit)
+        attributes[.foregroundColor] = NSColor.secondaryLabelColor
+            .appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.68 : 0.32)
+        return attributes
     }
 
     func symbolDrawingSize(for image: NSImage, maxSize: CGFloat) -> NSSize {

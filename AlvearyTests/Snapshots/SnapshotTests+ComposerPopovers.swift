@@ -95,7 +95,7 @@ extension SnapshotTests {
 
     func testComposerPermissionMenuCodexContent() {
         let options = makeSnapshotPermissionOptions()
-        let size = ComposerPermissionMenuMetrics.contentSize(optionCount: options.count)
+        let size = ComposerPermissionMenuMetrics.contentSize(options: options)
 
         assertMacSnapshot(
             ComposerPermissionMenuSnapshot(options: options),

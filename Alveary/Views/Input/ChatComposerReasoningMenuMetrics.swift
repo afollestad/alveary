@@ -97,6 +97,12 @@ enum ComposerReasoningMenuMetrics {
         return style
     }
 
+    @MainActor static var wrappingParagraphStyle: NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byWordWrapping
+        return style
+    }
+
     @MainActor
     static func mainContentSize(
         for configuration: ChatComposerActionRowView.ReasoningConfiguration,

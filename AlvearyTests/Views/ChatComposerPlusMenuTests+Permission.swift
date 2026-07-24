@@ -44,7 +44,6 @@ extension ChatComposerPlusMenuTests {
             }
         )
         XCTAssertEqual(fullAccessRow.accessibilityValue() as? String, "Selected")
-        XCTAssertEqual(fullAccessRow.frame.height, ComposerPermissionMenuMetrics.rowHeight)
         #if DEBUG
         XCTAssertEqual(fullAccessRow.debugIconName, "exclamationmark.shield")
         XCTAssertEqual(fullAccessRow.debugTrailingIconName, "checkmark")
@@ -225,6 +224,81 @@ extension ChatComposerPlusMenuTests {
 
         XCTAssertNil(row.permissionPopover)
         XCTAssertNil(row.permissionMenuController)
+    }
+
+    func testPermissionMenuRowFramesUseMeasuredHeights() throws {
+        let options: [ChatComposerActionRowView.PermissionOptionPresentation] = [
+            .init(
+                value: "untrusted",
+                title: "Ask for approval",
+                description: "Always ask to edit external files and use the internet.",
+                symbolName: "hand.raised"
+            ),
+            .init(
+                value: "never",
+                title: "Full access",
+                description: "Unrestricted access to the internet and any file on your computer.",
+                symbolName: "exclamationmark.shield",
+                isWarning: true
+            )
+        ]
+        let controller = ComposerPermissionMenuViewController(
+            options: options,
+            selectedValue: "never",
+            onPermissionSelected: { _ in },
+            onRequestCloseMainMenu: {}
+        )
+        controller.loadViewIfNeeded()
+        controller.view.layoutSubtreeIfNeeded()
+
+        let rows = controller.view.permissionDescendants(of: ComposerReasoningMenuRowView.self)
+        XCTAssertEqual(rows.count, options.count)
+        for (row, option) in zip(rows, options) {
+            XCTAssertEqual(row.frame.height, ComposerPermissionMenuMetrics.rowHeight(for: option))
+        }
+        let fullAccessRow = try XCTUnwrap(rows.last)
+        XCTAssertGreaterThan(fullAccessRow.frame.height, ComposerPermissionMenuMetrics.rowHeight)
+    }
+
+    func testPermissionMenuRowHeightGrowsForWrappedSubtitlesAndKeepsBaseForShortOnes() {
+        let short = ChatComposerActionRowView.PermissionOptionPresentation(
+            value: "short",
+            title: "Short",
+            description: "Ask first.",
+            symbolName: "hand.raised"
+        )
+        let long = ChatComposerActionRowView.PermissionOptionPresentation(
+            value: "long",
+            title: "Full access",
+            description: "Unrestricted access to the internet and any file on your computer.",
+            symbolName: "exclamationmark.shield"
+        )
+
+        XCTAssertEqual(ComposerPermissionMenuMetrics.rowHeight(for: short), ComposerPermissionMenuMetrics.rowHeight)
+        XCTAssertGreaterThan(ComposerPermissionMenuMetrics.rowHeight(for: long), ComposerPermissionMenuMetrics.rowHeight)
+        // Bounded at two lines: even an extremely long description adds at
+        // most one extra line of height.
+        let extreme = ChatComposerActionRowView.PermissionOptionPresentation(
+            value: "extreme",
+            title: "Extreme",
+            description: String(repeating: "Really long permission description text. ", count: 12),
+            symbolName: "hand.raised"
+        )
+        XCTAssertEqual(
+            ComposerPermissionMenuMetrics.rowHeight(for: extreme),
+            ComposerPermissionMenuMetrics.rowHeight(for: long)
+        )
+
+        let size = ComposerPermissionMenuMetrics.contentSize(options: [short, long])
+        XCTAssertEqual(size.width, 320)
+        XCTAssertEqual(
+            size.height,
+            ComposerPermissionMenuMetrics.verticalInset * 2 +
+                ComposerPermissionMenuMetrics.headerHeight +
+                ComposerPermissionMenuMetrics.headerBottomSpacing +
+                ComposerPermissionMenuMetrics.rowHeight(for: short) +
+                ComposerPermissionMenuMetrics.rowHeight(for: long)
+        )
     }
 }
 

@@ -19,7 +19,7 @@ final class ComposerPermissionMenuViewController: NSViewController {
         self.onPermissionSelected = onPermissionSelected
         self.onRequestCloseMainMenu = onRequestCloseMainMenu
         super.init(nibName: nil, bundle: nil)
-        preferredContentSize = ComposerPermissionMenuMetrics.contentSize(optionCount: options.count)
+        preferredContentSize = ComposerPermissionMenuMetrics.contentSize(options: options)
     }
 
     required init?(coder: NSCoder) {
@@ -47,7 +47,7 @@ final class ComposerPermissionMenuViewController: NSViewController {
     ) {
         self.options = options
         self.selectedValue = selectedValue
-        let size = ComposerPermissionMenuMetrics.contentSize(optionCount: options.count)
+        let size = ComposerPermissionMenuMetrics.contentSize(options: options)
         preferredContentSize = size
         menuView?.update(options: options, selectedValue: selectedValue)
     }
@@ -77,7 +77,7 @@ private final class ComposerPermissionMenuView: AppKitComposerPopoverSurfaceView
         self.selectedValue = selectedValue
         self.onPermissionSelected = onPermissionSelected
         self.onCancel = onCancel
-        super.init(frame: NSRect(origin: .zero, size: ComposerPermissionMenuMetrics.contentSize(optionCount: options.count)))
+        super.init(frame: NSRect(origin: .zero, size: ComposerPermissionMenuMetrics.contentSize(options: options)))
         setup()
         rebuildRows()
     }
@@ -92,7 +92,7 @@ private final class ComposerPermissionMenuView: AppKitComposerPopoverSurfaceView
     ) {
         self.options = options
         self.selectedValue = selectedValue
-        frame.size = ComposerPermissionMenuMetrics.contentSize(optionCount: options.count)
+        frame.size = ComposerPermissionMenuMetrics.contentSize(options: options)
         rebuildRows()
         needsLayout = true
     }
@@ -108,14 +108,15 @@ private final class ComposerPermissionMenuView: AppKitComposerPopoverSurfaceView
         )
         nextY += ComposerPermissionMenuMetrics.headerHeight + ComposerPermissionMenuMetrics.headerBottomSpacing
 
-        for row in rows {
+        for (row, option) in zip(rows, options) {
+            let rowHeight = ComposerPermissionMenuMetrics.rowHeight(for: option)
             row.frame = NSRect(
                 x: ComposerPermissionMenuMetrics.horizontalInset,
                 y: nextY,
                 width: bounds.width - ComposerPermissionMenuMetrics.horizontalInset * 2,
-                height: ComposerPermissionMenuMetrics.rowHeight
+                height: rowHeight
             )
-            nextY += ComposerPermissionMenuMetrics.rowHeight
+            nextY += rowHeight
         }
     }
 
@@ -140,6 +141,7 @@ private final class ComposerPermissionMenuView: AppKitComposerPopoverSurfaceView
             row.configure(.init(
                 title: option.title,
                 subtitle: option.description,
+                subtitleLineLimit: ComposerPermissionMenuMetrics.subtitleLineLimit,
                 iconName: option.symbolName,
                 trailingIconName: isSelected ? "checkmark" : nil,
                 accessibilityLabel: option.title,
@@ -156,7 +158,8 @@ private final class ComposerPermissionMenuView: AppKitComposerPopoverSurfaceView
 }
 
 enum ComposerPermissionMenuMetrics {
-    static let width: CGFloat = 480
+    static let width: CGFloat = 320
+    static let subtitleLineLimit = 2
     static let horizontalInset: CGFloat = ComposerReasoningMenuMetrics.horizontalInset
     static let verticalInset: CGFloat = 8
     static let headerInset: CGFloat = ComposerReasoningMenuMetrics.headerInset
@@ -164,14 +167,29 @@ enum ComposerPermissionMenuMetrics {
     static let headerBottomSpacing: CGFloat = ComposerReasoningMenuMetrics.headerBottomSpacing
     static let rowHeight: CGFloat = ComposerReasoningMenuMetrics.permissionRowHeight
 
+    /// Base row height plus however much a wrapped subtitle grows beyond its
+    /// single-line height, so one-line rows keep the historical 50pt footprint.
     @MainActor
-    static func contentSize(optionCount: Int) -> NSSize {
+    static func rowHeight(for option: ChatComposerActionRowView.PermissionOptionPresentation) -> CGFloat {
+        let availableWidth = ComposerReasoningMenuRowView.stackedSubtitleAvailableWidth(
+            rowWidth: width - horizontalInset * 2
+        )
+        let wrappedHeight = ComposerReasoningMenuRowView.subtitleHeight(
+            option.description,
+            availableWidth: availableWidth,
+            lineLimit: subtitleLineLimit
+        )
+        return rowHeight + max(0, wrappedHeight - ComposerReasoningMenuRowView.subtitleLineHeight())
+    }
+
+    @MainActor
+    static func contentSize(options: [ChatComposerActionRowView.PermissionOptionPresentation]) -> NSSize {
         NSSize(
             width: width,
             height: verticalInset * 2 +
                 headerHeight +
                 headerBottomSpacing +
-                rowHeight * CGFloat(optionCount)
+                options.reduce(0) { $0 + rowHeight(for: $1) }
         )
     }
 }

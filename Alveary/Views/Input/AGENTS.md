@@ -34,6 +34,9 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 ## Composer Popovers
 
 - Composer popup menus must reuse `AppKitComposerPopoverSurfaceView` and `AppKitComposerPopoverDividerView` from `Components/AppKit/` instead of hand-rolled popover surfaces or divider views.
+- Menu-anchor buttons fire on mouse-up; do not switch them to mouse-down activation (explicit user decision).
+- The reasoning menu builds its model rows lazily on first disclosure expansion (`hasBuiltModelRows` in `ComposerReasoningMenuView`); collapsed opens and collapsed updates must not pay the per-model row build, and the first expansion must build synchronously before the immediate resize.
+- Permission rows wrap subtitles to at most 2 lines with per-option measured heights (`ComposerPermissionMenuMetrics.rowHeight(for:)`); reasoning rows stay single-line. Multi-line rows always reserve the trailing icon slot so selection cannot change wrap width.
 
 ## Worktree Picker
 
@@ -59,6 +62,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
   - Bare `/effort` clears only the command text, preserves attachments, sends nothing, does not request editor focus, and opens the existing reasoning popover.
   - `/effort <value>` accepts exactly one case-insensitive canonical option through the existing effort-change callback. Clear and refocus only when accepted; otherwise retain the draft and attachments and surface the current dynamic options or the underlying setting error.
 - `ChatComposerActionRow` owns the bottom settings/action row; `ChatComposerActionRowView` owns native AppKit rendering inside the production panel.
+- `configure(_:)` stores every incoming configuration (handlers must fire with fresh closures) but skips `applyConfiguration` when `AppliedConfigurationSnapshot` is unchanged — SwiftUI re-evaluates the composer body far more often than rendered values change. **When adding a rendered value to `Configuration`, add it to `AppliedConfigurationSnapshot` too**, or the row will not repaint when only that value changes. State the row mutates outside `configure` (for example the reasoning display-selection override) must repaint the affected control itself; it can no longer rely on the next configure pass.
 - The leading `+` button must remain square to the dropdown height, with default, hover, pressed, focused, and disabled states clipped to the same circular background.
 - Native controls that custom-draw dynamic `NSColor`s must resolve colors through `appKitRenderingAppearance` and invalidate display from `viewDidChangeEffectiveAppearance()`.
 - `ComposerMode.ProgressReason.canStop` is the single source of truth for whether the action slot renders a stop button and whether Escape stop confirmation is armed.

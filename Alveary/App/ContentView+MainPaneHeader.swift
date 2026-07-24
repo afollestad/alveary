@@ -118,7 +118,7 @@ extension ContentView {
         return {
             performAppNavigationIfModelPreparationModalAbsent(
                 lifecycleController: voiceInputLifecycleController,
-                operation: newConversationAction
+                operation: { newConversationAction() }
             )
         }
     }

@@ -304,7 +304,7 @@ private extension ThreadDetailView {
             return nil
         }
 
-        return {
+        return NewConversationAction(threadID: thread.persistentModelID) {
             Task { await createConversation() }
         }
     }

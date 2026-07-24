@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Published by `ThreadDetailView` so `AlvearyApp.commands` can expose a ⌘T
@@ -6,8 +7,29 @@ import SwiftUI
 /// the active thread, so routing the menu through a `FocusedValue` keeps the
 /// command aware of the current thread without duplicating that logic or
 /// plumbing a new `CommandRequest` case through `ContentView+Commands.swift`.
+///
+/// Like `DiffViewerCommand`, equality deliberately excludes the closure and
+/// compares the publishing thread's identity instead. `ContentView` reads this
+/// focused value for the toolbar `+` button; a bare-closure value can never
+/// compare equal, so every `ThreadDetailView` body evaluation would invalidate
+/// `ContentView`, which re-renders `ThreadDetailView`, which republishes —
+/// a frame-rate render loop across the whole window.
+struct NewConversationAction: Equatable {
+    let threadID: PersistentIdentifier
+    let perform: @MainActor () -> Void
+
+    static func == (lhs: NewConversationAction, rhs: NewConversationAction) -> Bool {
+        lhs.threadID == rhs.threadID
+    }
+
+    @MainActor
+    func callAsFunction() {
+        perform()
+    }
+}
+
 struct NewConversationActionKey: FocusedValueKey {
-    typealias Value = @MainActor () -> Void
+    typealias Value = NewConversationAction
 }
 
 /// Published by `ContentView` so the ⇧⌘T "Show/Hide Terminal" menu item can

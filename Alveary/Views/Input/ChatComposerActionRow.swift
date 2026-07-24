@@ -191,6 +191,7 @@ final class ChatComposerActionRowView: NSView {
     var rowSubviews: [NSView] = []
 
     var configuration: Configuration?
+    private var lastAppliedConfigurationSnapshot: AppliedConfigurationSnapshot?
     var plusPopover: NSPopover?
     var reasoningPopover: NSPopover?
     var reasoningPopoverAnchorRect: NSRect?
@@ -255,9 +256,14 @@ final class ChatComposerActionRowView: NSView {
     }
 
     func configure(_ configuration: Configuration) {
+        let snapshot = AppliedConfigurationSnapshot(configuration)
         let previousWorkspaceControlRole = self.configuration.map(workspaceControlRole(for:))
+        // Store configs so handlers stay fresh; skip apply/relayout when rendered values are unchanged.
         self.configuration = configuration
-        applyConfiguration(previousWorkspaceControlRole: previousWorkspaceControlRole)
+        if lastAppliedConfigurationSnapshot != snapshot {
+            lastAppliedConfigurationSnapshot = snapshot
+            applyConfiguration(previousWorkspaceControlRole: previousWorkspaceControlRole)
+        }
         handleReasoningMenuPresentationRequestIfNeeded()
     }
 

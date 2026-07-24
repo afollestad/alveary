@@ -156,7 +156,10 @@ extension ChatComposerActionRowView {
         reasoningPopover = nil
         reasoningPopoverAnchorRect = nil
         reasoningMenuController = nil
-        reasoningDisplaySelectionOverride = nil
+        // Reconfigure the button back to the persisted selection; configure()
+        // now skips value-identical updates, so a lingering display override
+        // would otherwise stay painted until an unrelated config change.
+        applyReasoningDisplaySelectionOverride(nil)
         reasoningButton.releaseMenuFocusIfNeeded()
     }
 
