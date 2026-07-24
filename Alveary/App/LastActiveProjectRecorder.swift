@@ -13,7 +13,7 @@ enum LastActiveProjectOwner: Equatable {
             self = .project(project.persistentModelID)
         case .thread(let thread):
             self = .thread(thread.persistentModelID)
-        case .skills, .mcp, .scheduled, .settings, nil:
+        case .skills, .mcp, .scheduled, .archived, .settings, nil:
             return nil
         }
     }

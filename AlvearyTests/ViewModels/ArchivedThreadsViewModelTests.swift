@@ -4,10 +4,10 @@ import XCTest
 @testable import Alveary
 
 @MainActor
-final class ArchivedTasksSettingsViewModelTests: XCTestCase {
+final class ArchivedThreadsViewModelTests: XCTestCase {
     func testPermanentDeleteSanitizesRoutingAtCommitBeforeCleanupFinishes() async throws {
         let fixture = try SidebarTestFixture()
-        let cleanupGate = ArchivedTaskCleanupGate()
+        let cleanupGate = ArchivedThreadCleanupGate()
         await fixture.agentsManager.setDestroyObserver { _ in
             await cleanupGate.waitForRelease()
         }
@@ -44,7 +44,7 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
         await deletion.value
     }
 
-    func testRefreshFetchesOnlyArchivedNondraftTasksInDeterministicNewestFirstOrder() throws {
+    func testRefreshFetchesArchivedNondraftThreadsOfEveryModeInDeterministicNewestFirstOrder() throws {
         let fixture = try SidebarTestFixture()
         let oldest = try insertTask(
             in: fixture,
@@ -66,18 +66,30 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
         )
         _ = try insertTask(in: fixture, name: "Active", archivedAt: nil)
         _ = try insertTask(in: fixture, name: "Draft", archivedAt: Date(), isDraft: true)
-        let archivedProjectThread = AgentThread(name: "Project thread", archivedAt: Date())
+        // Project-mode threads used to be filtered out; the combined screen lists them too.
+        let archivedProjectThread = AgentThread(
+            name: "Project thread",
+            archivedAt: Date(timeIntervalSince1970: 300)
+        )
         fixture.context.insert(archivedProjectThread)
         try fixture.context.save()
         let viewModel = makeViewModel(fixture: fixture).viewModel
 
         viewModel.refresh()
 
-        XCTAssertEqual(viewModel.items.map(\.id), [beta.persistentModelID, alpha.persistentModelID, oldest.persistentModelID])
-        XCTAssertEqual(viewModel.items.map(\.title), ["Beta", "Alpha", "Zulu"])
+        XCTAssertEqual(
+            viewModel.items.map(\.id),
+            [
+                archivedProjectThread.persistentModelID,
+                beta.persistentModelID,
+                alpha.persistentModelID,
+                oldest.persistentModelID
+            ]
+        )
+        XCTAssertEqual(viewModel.items.map(\.title), ["Project thread", "Beta", "Alpha", "Zulu"])
     }
 
-    func testRestoreAlwaysUnpinsTaskAndRemovesItFromArchivedItems() async throws {
+    func testRestoreAlwaysUnpinsThreadAndRemovesItFromArchivedItems() async throws {
         let fixture = try SidebarTestFixture()
         let task = try insertTask(
             in: fixture,
@@ -100,6 +112,23 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.items.isEmpty)
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertGreaterThan(fixture.viewModel.threadOrderVersion, initialOrderVersion)
+    }
+
+    func testConfirmedRestoreUsesPresentedItemAfterDialogBindingClearsPendingState() async throws {
+        let fixture = try SidebarTestFixture()
+        let task = try insertTask(in: fixture, name: "Restore race", archivedAt: Date())
+        let viewModel = makeViewModel(fixture: fixture).viewModel
+        viewModel.refresh()
+        let item = try XCTUnwrap(viewModel.items.first)
+        viewModel.requestRestore(item)
+        XCTAssertEqual(viewModel.pendingRestore, item)
+
+        viewModel.cancelRestore()
+        await viewModel.confirmRestore(item)
+
+        XCTAssertNil(viewModel.pendingRestore)
+        XCTAssertNil(try XCTUnwrap(fixture.context.resolveThread(id: task.persistentModelID)).archivedAt)
+        XCTAssertTrue(viewModel.items.isEmpty)
     }
 
     func testPermanentDeleteCleansWorkspaceAndSanitizesStaleAppAndSettingsState() async throws {
@@ -152,7 +181,7 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
 
     func testPrecommitDeleteFailureRollsBackAndPreservesSelectionState() async throws {
         let fixture = try SidebarTestFixture(saveDeletionCommit: { _ in
-            throw ArchivedTasksSettingsTestError.saveFailed
+            throw ArchivedThreadsTestError.saveFailed
         })
         let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
         defer { try? fixture.taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace) }
@@ -184,7 +213,7 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.errorMessage?.contains("could not be deleted") == true)
     }
 
-    func testPostcommitCleanupFailureTreatsTaskAsDeletedAndShowsDiagnostic() async throws {
+    func testPostcommitCleanupFailureTreatsThreadAsDeletedAndShowsDiagnostic() async throws {
         let fixture = try SidebarTestFixture()
         let workspace = try fixture.taskWorkspaceOwnershipService.createPrivateWorkspace()
         defer { try? fixture.taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace) }
@@ -235,16 +264,16 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
     func testSuccessfulRefreshClearsTransientLoadError() throws {
         let fixture = try SidebarTestFixture()
         let task = try insertTask(in: fixture, name: "Recovered", archivedAt: Date())
-        let fetchState = ArchivedTasksFetchState()
+        let fetchState = ArchivedThreadsFetchState()
         let appState = AppState()
-        let viewModel = ArchivedTasksSettingsViewModel(
+        let viewModel = ArchivedThreadsViewModel(
             modelContext: fixture.context,
             sidebarViewModel: fixture.viewModel,
             appState: appState,
             settingsService: fixture.settingsService,
-            fetchArchivedTasks: {
+            fetchArchivedThreads: {
                 if fetchState.shouldFail {
-                    throw ArchivedTasksSettingsTestError.fetchFailed
+                    throw ArchivedThreadsTestError.fetchFailed
                 }
                 return [task]
             }
@@ -260,14 +289,14 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.items.map(\.id), [task.persistentModelID])
     }
 
-    func testTaskLifecycleNotificationRefreshesVisibleArchivedItems() throws {
+    func testThreadLifecycleNotificationRefreshesVisibleArchivedItemsForEveryMode() throws {
         let fixture = try SidebarTestFixture()
         let task = try insertTask(in: fixture, name: "Archived elsewhere", archivedAt: Date())
         let viewModel = makeViewModel(fixture: fixture).viewModel
 
         viewModel.handleThreadLifecycleChanged(Notification(
             name: .threadLifecycleChanged,
-            userInfo: [ThreadLifecycleNotificationKey.mode: AgentThreadMode.task.rawValue]
+            userInfo: [ThreadLifecycleNotificationKey.mode: AgentThreadMode.project.rawValue]
         ))
 
         XCTAssertEqual(viewModel.items.map(\.id), [task.persistentModelID])
@@ -297,20 +326,26 @@ final class ArchivedTasksSettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(unknownProjectModeTask.effectiveMode, .project)
         XCTAssertEqual(unknownPrivateModeTask.effectiveMode, .task)
-        XCTAssertEqual(viewModel.items.map(\.id), [unknownPrivateModeTask.persistentModelID])
+        // Both modes are listed now; only the delete-copy flag differs between them.
+        XCTAssertEqual(
+            viewModel.items.map(\.id),
+            [unknownPrivateModeTask.persistentModelID, unknownProjectModeTask.persistentModelID]
+        )
+        XCTAssertEqual(viewModel.items.map(\.isTask), [true, false])
 
         await viewModel.restore(try XCTUnwrap(viewModel.items.first))
 
         XCTAssertNotNil(unknownProjectModeTask.archivedAt)
         XCTAssertNil(unknownPrivateModeTask.archivedAt)
-        XCTAssertTrue(viewModel.items.isEmpty)
+        XCTAssertEqual(viewModel.items.map(\.id), [unknownProjectModeTask.persistentModelID])
     }
 }
 
-private extension ArchivedTasksSettingsViewModelTests {
-    func makeViewModel(fixture: SidebarTestFixture) -> (viewModel: ArchivedTasksSettingsViewModel, appState: AppState) {
+// Non-private so `ArchivedThreadsViewModelTests+Grouping.swift` shares these fixtures.
+extension ArchivedThreadsViewModelTests {
+    func makeViewModel(fixture: SidebarTestFixture) -> (viewModel: ArchivedThreadsViewModel, appState: AppState) {
         let appState = AppState()
-        let viewModel = ArchivedTasksSettingsViewModel(
+        let viewModel = ArchivedThreadsViewModel(
             modelContext: fixture.context,
             sidebarViewModel: fixture.viewModel,
             appState: appState,
@@ -332,7 +367,7 @@ private extension ArchivedTasksSettingsViewModelTests {
         conversationIDs: [String] = ["main"]
     ) throws -> AgentThread {
         let workspace = workspace ?? TaskWorkspaceDescriptor(
-            primaryRoot: "/tmp/archived-task-settings-\(UUID().uuidString)",
+            primaryRoot: "/tmp/archived-threads-\(UUID().uuidString)",
             ownershipStrategy: .projectLocal
         )
         let task = AgentThread(
@@ -359,19 +394,40 @@ private extension ArchivedTasksSettingsViewModelTests {
         try fixture.context.save()
         return task
     }
+
+    @discardableResult
+    func insertProjectThread(
+        in fixture: SidebarTestFixture,
+        name: String,
+        project: Project,
+        archivedAt: Date?
+    ) throws -> AgentThread {
+        let thread = AgentThread(
+            name: name,
+            hasCustomName: true,
+            archivedAt: archivedAt,
+            project: project
+        )
+        thread.conversations = [
+            Conversation(id: "\(name)-main", provider: "codex", isMain: true, displayOrder: 0, thread: thread)
+        ]
+        fixture.context.insert(thread)
+        try fixture.context.save()
+        return thread
+    }
 }
 
-private enum ArchivedTasksSettingsTestError: Error {
+private enum ArchivedThreadsTestError: Error {
     case fetchFailed
     case saveFailed
 }
 
-private final class ArchivedTasksFetchState {
+private final class ArchivedThreadsFetchState {
     var shouldFail = true
 }
 
 @MainActor
-private final class ArchivedTaskCleanupGate {
+private final class ArchivedThreadCleanupGate {
     private var didEnter = false
     private var entryContinuation: CheckedContinuation<Void, Never>?
     private var releaseContinuation: CheckedContinuation<Void, Never>?

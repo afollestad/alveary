@@ -2,11 +2,16 @@ import Foundation
 import SwiftData
 
 func threadDeleteConfirmationMessage(for thread: AgentThread) -> String {
-    if thread.effectiveMode == .task {
-        return "This permanently deletes \"\(thread.displayName())\" and removes its Alveary-owned workspace or worktree. "
+    threadDeleteConfirmationMessage(title: thread.displayName(), isTask: thread.effectiveMode == .task)
+}
+
+/// Value-typed twin so surfaces holding presentation items — not live rows — share this copy.
+func threadDeleteConfirmationMessage(title: String, isTask: Bool) -> String {
+    if isTask {
+        return "This permanently deletes \"\(title)\" and removes its Alveary-owned workspace or worktree. "
             + "Granted folders are never deleted."
     }
-    return "This permanently deletes \"\(thread.displayName())\" from Alveary and removes its worktree and branch if present."
+    return "This permanently deletes \"\(title)\" from Alveary and removes its worktree and branch if present."
 }
 
 extension SidebarView {
@@ -451,6 +456,7 @@ enum SidebarSelectionToken: Equatable {
     case skills
     case mcp
     case scheduled
+    case archived
     case project(PersistentIdentifier)
     case thread(PersistentIdentifier)
     case settings
@@ -481,6 +487,8 @@ func sidebarSelectionToken(_ item: SidebarItem?) -> SidebarSelectionToken {
         .mcp
     case .scheduled:
         .scheduled
+    case .archived:
+        .archived
     case .project(let project):
         .project(project.persistentModelID)
     case .thread(let thread):

@@ -46,7 +46,7 @@ struct ContentView: View {
     @State var scheduledTasksViewModel: ScheduledTasksViewModel
     @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     @State private var settingsViewModel: SettingsViewModel
-    @State private var archivedTasksSettingsViewModel: ArchivedTasksSettingsViewModel
+    @State private var archivedThreadsViewModel: ArchivedThreadsViewModel
     @State var onboardingViewModel: OnboardingViewModel
     @State var terminalManager = TerminalManager()
     @State var appShotCoordinator: AppShotCoordinator
@@ -107,7 +107,7 @@ struct ContentView: View {
             initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
         )
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
-        _archivedTasksSettingsViewModel = State(initialValue: Self.makeArchivedTasksSettingsViewModel(
+        _archivedThreadsViewModel = State(initialValue: Self.makeArchivedThreadsViewModel(
             dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState
         ))
         _onboardingViewModel = State(initialValue: Self.makeOnboardingViewModel(dependencies: dependencies))
@@ -146,7 +146,7 @@ struct ContentView: View {
             mcpViewModel: mcpViewModel,
             scheduledTasksViewModel: scheduledTasksViewModel,
             settingsViewModel: settingsViewModel,
-            archivedTasksSettingsViewModel: archivedTasksSettingsViewModel,
+            archivedThreadsViewModel: archivedThreadsViewModel,
             appUpdateManager: appUpdateManager,
             targetSettingsPage: appState.pendingSettingsTargetPage,
             onTargetSettingsPageHandled: { page in

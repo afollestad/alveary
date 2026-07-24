@@ -44,7 +44,7 @@ extension SidebarViewTests {
         assertPendingTaskComposerRequest(appState)
     }
 
-    func testTaskArchiveConfirmationMessagePointsToArchivedTasksSettings() throws {
+    func testTaskArchiveConfirmationMessagePointsToTheArchivedSidebarRow() throws {
         let fixture = try SidebarTestFixture()
         let task = makeSidebarTask(name: "Nightly audit", modifiedAt: Date())
         fixture.context.insert(task)
@@ -53,7 +53,7 @@ extension SidebarViewTests {
 
         XCTAssertEqual(
             view.archiveConfirmationMessage(for: task),
-            "This archives \"Nightly audit\". You can find archived tasks in Settings > Threads > Archived Tasks."
+            "This archives \"Nightly audit\". You can find archived threads under Archived in the sidebar."
         )
     }
 
@@ -187,7 +187,7 @@ extension SidebarViewTests {
         XCTAssertEqual(
             view.archiveConfirmationMessage(for: task),
             "This archives \"Fallback scheduled task\". "
-                + "You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
+                + "You can find archived threads under Archived in the sidebar."
         )
         XCTAssertTrue(threadDeleteConfirmationMessage(for: task).contains("removes its worktree and branch if present"))
         XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task, logicalOrder: emptySidebarDragLogicalOrder))

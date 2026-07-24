@@ -25,7 +25,7 @@ struct MiddlePane: View {
     let mcpViewModel: MCPViewModel
     let scheduledTasksViewModel: ScheduledTasksViewModel
     let settingsViewModel: SettingsViewModel
-    let archivedTasksSettingsViewModel: ArchivedTasksSettingsViewModel
+    let archivedThreadsViewModel: ArchivedThreadsViewModel
     let appUpdateManager: AppUpdateManager
     let targetSettingsPage: AppSettings.SettingsPage?
     let onTargetSettingsPageHandled: (AppSettings.SettingsPage) -> Void
@@ -44,12 +44,13 @@ struct MiddlePane: View {
             MCPScreen(viewModel: mcpViewModel)
         case .scheduled:
             ScheduledTasksScreen(viewModel: scheduledTasksViewModel)
+        case .archived:
+            ArchivedScreen(viewModel: archivedThreadsViewModel)
         case .project(let project):
             ProjectSettingsView(
                 project: project,
                 appState: appState,
-                sidebarViewModel: sidebarViewModel,
-                voiceInputLifecycleController: voiceInputLifecycleController
+                sidebarViewModel: sidebarViewModel
             )
                 .id(project.path)
         case .thread(let thread):
@@ -100,7 +101,6 @@ struct MiddlePane: View {
         case .settings:
             SettingsScreen(
                 viewModel: settingsViewModel,
-                archivedTasksViewModel: archivedTasksSettingsViewModel,
                 gitHubCLI: gitHubCLI,
                 appUpdateManager: appUpdateManager,
                 targetPage: targetSettingsPage,
@@ -157,6 +157,8 @@ func resolveSidebarSelectionBookmark(
         return .mcp
     case .scheduled:
         return .scheduled
+    case .archived:
+        return .archived
     case .projectPath(let path):
         let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
             project.path == path

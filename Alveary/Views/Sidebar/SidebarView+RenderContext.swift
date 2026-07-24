@@ -9,6 +9,7 @@ struct SidebarRenderContext {
     let snapshot: SidebarRenderSnapshot
     let threadOrderAnimation: Animation?
     let dragLogicalOrder: SidebarDragLogicalOrder
+    let hasArchivedThreads: Bool
 
     var pinnedItems: [SidebarPinnedItem] { snapshot.pinnedItems }
     var orderedProjects: [Project] { snapshot.orderedProjects }
@@ -40,7 +41,8 @@ extension SidebarView {
                 pinnedItems: snapshot.pinnedItems.map(\.dragItem),
                 regularProjects: snapshot.regularProjects.map { .project($0.persistentModelID) },
                 projectsHeaderIsSticky: snapshot.pinnedItems.isEmpty
-            )
+            ),
+            hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty
         )
     }
 

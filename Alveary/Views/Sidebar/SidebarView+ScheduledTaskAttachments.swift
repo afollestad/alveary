@@ -20,12 +20,8 @@ extension SidebarView {
     }
 
     func archiveConfirmationMessage(for thread: AgentThread) -> String {
-        if thread.effectiveMode == .task {
-            return "This archives \"\(thread.displayName())\". "
-                + "You can find archived tasks in Settings > Threads > Archived Tasks."
-        }
-        return "This archives \"\(thread.displayName())\". "
-            + "You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
+        "This archives \"\(thread.displayName())\". "
+            + "You can find archived threads under Archived in the sidebar."
     }
 
     func deleteConfirmationMessage(for thread: AgentThread) -> String {

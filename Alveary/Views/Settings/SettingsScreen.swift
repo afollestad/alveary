@@ -5,7 +5,6 @@ struct SettingsScreen: View {
     private static let sidebarWidth: CGFloat = 180
 
     let viewModel: SettingsViewModel
-    let archivedTasksViewModel: ArchivedTasksSettingsViewModel?
     let gitHubCLI: GitHubCLIService
     let appUpdateManager: AppUpdateManager
     let targetPage: AppSettings.SettingsPage?
@@ -16,7 +15,6 @@ struct SettingsScreen: View {
 
     init(
         viewModel: SettingsViewModel,
-        archivedTasksViewModel: ArchivedTasksSettingsViewModel? = nil,
         gitHubCLI: GitHubCLIService,
         appUpdateManager: AppUpdateManager,
         targetPage: AppSettings.SettingsPage? = nil,
@@ -25,7 +23,6 @@ struct SettingsScreen: View {
         initialTabRawValue: String? = nil
     ) {
         self.viewModel = viewModel
-        self.archivedTasksViewModel = archivedTasksViewModel
         self.gitHubCLI = gitHubCLI
         self.appUpdateManager = appUpdateManager
         self.targetPage = targetPage
@@ -168,7 +165,6 @@ struct SettingsScreen: View {
         case .threads:
             ThreadsSettingsTabView(
                 viewModel: viewModel,
-                archivedTasksViewModel: archivedTasksViewModel,
                 defaultProvider: binding(for: \.defaultProvider),
                 defaultModel: binding(for: \.defaultModel),
                 permissionMode: binding(for: \.permissionMode),

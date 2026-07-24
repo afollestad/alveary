@@ -73,7 +73,7 @@ extension SidebarView {
     }
 
     @ViewBuilder
-    func topLevelRows() -> some View {
+    func topLevelRows(context: SidebarRenderContext) -> some View {
         topLevelRow(
             title: "Skills",
             systemImage: "puzzlepiece.extension",
@@ -86,11 +86,21 @@ extension SidebarView {
             item: .mcp,
             bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
         )
+        // Whichever row ends the group takes no bottom spacing; the Projects/Pinned
+        // header below owns that boundary.
         topLevelRow(
             title: "Scheduled",
             systemImage: "clock",
-            item: .scheduled
+            item: .scheduled,
+            bottomSpacing: context.hasArchivedThreads ? SidebarRowMetrics.topLevelRowSpacing : 0
         )
+        if context.hasArchivedThreads {
+            topLevelRow(
+                title: "Archived",
+                systemImage: "archivebox",
+                item: .archived
+            )
+        }
     }
 
     func topLevelRow(
@@ -196,7 +206,7 @@ func sidebarProjectPathToExpand(
             return nil
         }
         return resolvedThread.project?.path
-    case .skills, .mcp, .scheduled, .settings, nil:
+    case .skills, .mcp, .scheduled, .archived, .settings, nil:
         return nil
     }
 }

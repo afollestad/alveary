@@ -3,10 +3,7 @@
 These instructions cover the project settings UI under `Alveary/Views/Projects/`.
 
 - Project actions are edited from project settings via `.alveary.json`, but they surface in the main toolbar only while a thread for that project is selected. Execution should prefer the thread's `worktreePath` and only fall back to the project root when no worktree exists.
-- Archived-thread lists should read live `AgentThread` rows by project path and archive state instead of filtering `project.threads` during render. This mirrors the sidebar's SwiftData crash guard: relationship arrays can retain stale model references across SwiftUI refreshes.
-- The archived-threads card is deferred so selecting a project paints first. `ProjectSettingsArchivedThreadsSection` owns an observation-backed `@Query`, and `ProjectSettingsView` mounts it only once `archivedThreadsProjectPath` matches the current project — set after a `Task.yield()`. Keep that state path-keyed rather than a Bool so a reused view identity cannot show the previous project's rows, and do not reset it synchronously inside the task; the run loop can render that reset. `initialArchivedThreadsSectionMounted` is a snapshot-only seed — do not pass it from production call sites. Asynchronous config loading and its save debounce stay on their own task.
-- Archived-thread restore/delete actions must route through `SidebarViewModel` lifecycle methods so runtime teardown, notification cleanup, worktree removal, and branch cleanup stay shared with the sidebar.
-- Archived-thread async completions must not restore selection while voice-model preparation is blocking the window. Re-check the lifecycle controller after suspension before changing `AppState` routing.
+- Project settings has no archived-threads card. `Alveary/Views/Archived/` owns every archived surface; do not reintroduce a project-scoped archived list here. Asynchronous config loading and its save debounce stay on their own task.
 
 ## Add Project Sheet
 

@@ -134,12 +134,12 @@ extension ContentView {
         )
     }
 
-    static func makeArchivedTasksSettingsViewModel(
+    static func makeArchivedThreadsViewModel(
         dependencies: ContentViewDependencies,
         sidebarViewModel: SidebarViewModel,
         appState: AppState
-    ) -> ArchivedTasksSettingsViewModel {
-        ArchivedTasksSettingsViewModel(
+    ) -> ArchivedThreadsViewModel {
+        ArchivedThreadsViewModel(
             modelContext: dependencies.modelContainer.mainContext,
             sidebarViewModel: sidebarViewModel,
             appState: appState,

@@ -17,6 +17,14 @@ enum SidebarProjectListMetrics {
     }
 }
 
+private let archivedThreadProbeDescriptor: FetchDescriptor<AgentThread> = {
+    var descriptor = FetchDescriptor<AgentThread>(
+        predicate: #Predicate { $0.archivedAt != nil && $0.isDraft == false }
+    )
+    descriptor.fetchLimit = 1
+    return descriptor
+}()
+
 struct SidebarView: View {
     let viewModel: SidebarViewModel
     @Bindable var appState: AppState
@@ -29,6 +37,10 @@ struct SidebarView: View {
     // draft-driven refreshes stay tracked; `SidebarRenderSnapshot` filters them out.
     @Query(filter: #Predicate<AgentThread> { $0.archivedAt == nil })
     var queriedUnarchivedThreads: [AgentThread]
+    // Existence probe for the conditional Archived row. Bounded to one row because the
+    // Archived screen owns the real fetch; this only decides whether to render the row.
+    @Query(archivedThreadProbeDescriptor)
+    var queriedArchivedThreadProbe: [AgentThread]
     @State var expandedProjects: Set<String> = []
     @State var editingThreadID: PersistentIdentifier?
     @State var pendingArchiveThread: AgentThread?
@@ -79,7 +91,7 @@ struct SidebarView: View {
 
             List {
                 Section {
-                    topLevelRows()
+                    topLevelRows(context: context)
 
                     if !pinnedItems.isEmpty {
                         pinnedHeader

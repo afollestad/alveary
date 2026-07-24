@@ -124,7 +124,7 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertFalse(try fixture.threadExists(thread))
     }
 
-    func testArchiveConfirmationMessagePointsToProjectSettingsArchivedThreads() throws {
+    func testArchiveConfirmationMessagePointsToTheArchivedSidebarRow() throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
             projectName: "Alveary",
@@ -137,7 +137,7 @@ final class SidebarViewTests: XCTestCase {
 
         XCTAssertEqual(
             message,
-            "This archives \"Thread\". You can find archived threads in the selected project's settings, at the bottom under Archived Threads."
+            "This archives \"Thread\". You can find archived threads under Archived in the sidebar."
         )
     }
 

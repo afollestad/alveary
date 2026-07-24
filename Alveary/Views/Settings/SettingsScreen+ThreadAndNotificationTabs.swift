@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ThreadsSettingsTabView: View {
     let viewModel: SettingsViewModel
-    let archivedTasksViewModel: ArchivedTasksSettingsViewModel?
     @Binding var defaultProvider: String
     @Binding var defaultModel: String
     @Binding var permissionMode: String
@@ -23,8 +22,6 @@ struct ThreadsSettingsTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
-            archivedTasksSection
-
             contextManagementSection
 
             SettingsFormSection("Defaults") {
@@ -71,32 +68,7 @@ struct ThreadsSettingsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
-            archivedTasksViewModel?.refresh()
             await viewModel.refreshProviderStatuses()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .threadLifecycleChanged)) { notification in
-            archivedTasksViewModel?.handleThreadLifecycleChanged(notification)
-        }
-        .confirmationDialog(
-            "Delete task permanently?",
-            isPresented: archivedTaskDeleteConfirmationPresented,
-            presenting: archivedTasksViewModel?.pendingPermanentDeletion
-        ) { item in
-            Button("Delete", role: .destructive) {
-                guard let archivedTasksViewModel else {
-                    return
-                }
-                Task { await archivedTasksViewModel.confirmPermanentDeletion(item) }
-            }
-
-            Button("Cancel", role: .cancel) {
-                archivedTasksViewModel?.cancelPermanentDeletion()
-            }
-        } message: { item in
-            Text(
-                "This permanently deletes \"\(item.title)\" and removes its Alveary-owned workspace or worktree. "
-                    + "Granted folders are never deleted. This cannot be undone."
-            )
         }
     }
 }

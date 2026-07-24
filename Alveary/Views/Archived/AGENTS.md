@@ -1,0 +1,12 @@
+## Archived Threads Screen
+
+These instructions cover the archived-threads UI under `Alveary/Views/Archived/`.
+
+- **Keep this the only archived surface.** `ArchivedScreen` replaced the Settings › Threads `Archived Tasks` section and the per-project `Archived Threads` card. Do not reintroduce a mode-scoped or project-scoped archived list elsewhere; the sidebar `Archived` row is the single entry point.
+- **List every mode.** The screen shows archived Project-mode and Task-mode threads together. `ArchivedThreadsViewModel` filters only on `archivedAt != nil && isDraft == false` — do not add an `effectiveMode` filter back into the fetch, the lifecycle refresh, or the re-resolve guard.
+- **Group by the `project` relationship, not by mode.** Threads with no project share the leading section, which renders its rows with **no heading**. A scheduled-materialized Task can carry a `project` and legitimately sorts under that project's heading.
+- **Sanitize deletions at the commit boundary.** Pass `onPersistenceCommit` to `SidebarViewModel.deleteThread(_:onPersistenceCommit:)` so selection, bookmark, conversation map, pending commit-message request, and launch-restore references clear before runtime teardown suspends. Re-resolve the row in the `catch` to tell a post-commit cleanup failure from a pre-commit failure.
+- **Confirm both destructive-ish actions.** Unarchive and Delete each go through a `.confirmationDialog` driven by view-model-owned pending state (`pendingRestore` / `pendingPermanentDeletion`), so the dialog binding derives from the view model rather than screen `@State`. Clear pending state before awaiting.
+- **Share the delete copy.** Delete messages come from `threadDeleteConfirmationMessage(title:isTask:)` in `Views/Sidebar/SidebarView+Actions.swift`, which the sidebar's own dialog also uses. Keep `ArchivedThreadItem.isTask` populated so the Task-workspace wording stays correct.
+- **Reuse the shared pane chrome.** The header wraps `CompactSearchPaneHeader`, which owns the 64pt `PaneHeaderLayout.height`, `.bar` background, and `AppSeparatorHairline(surface: .paneHeader)`. Keep list content on the header's 20-point leading inset.
+- **Normalize the project filter after refresh.** When the last thread in the selected project bucket leaves, `projectFilter` falls back to `.all` so the picker cannot hold a value with no matching option.

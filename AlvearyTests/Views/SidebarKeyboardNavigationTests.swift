@@ -6,7 +6,8 @@ import XCTest
 
 final class SidebarKeyboardNavigationTests: XCTestCase {
     private var container: ModelContainer!
-    private var context: ModelContext!
+    // Non-private so `SidebarKeyboardNavigationTests+*.swift` companions can seed models.
+    var context: ModelContext!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -473,7 +474,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     // MARK: - Helpers
 
     @discardableResult
-    private func makeProject(name: String, path: String, isPinned: Bool = false) -> Project {
+    func makeProject(name: String, path: String, isPinned: Bool = false) -> Project {
         let project = Project(path: path, name: name, isPinned: isPinned)
         context.insert(project)
         return project
