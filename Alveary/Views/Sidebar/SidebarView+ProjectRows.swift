@@ -19,7 +19,9 @@ extension SidebarView {
             sidebarThreadRow(
                 task,
                 layout: .topLevel,
-                topSpacing: index == 0 ? 0 : SidebarRowMetrics.interThreadRowSpacing
+                topSpacing: index == 0 ? 0 : SidebarRowMetrics.interThreadRowSpacing,
+                dragConfiguration: unpinnedTaskDragConfiguration(for: task, logicalOrder: context.dragLogicalOrder),
+                opacity: activeSidebarDragItem == .unpinnedTask(task.persistentModelID) ? 0.48 : 1
             )
         }
         .transaction { transaction in

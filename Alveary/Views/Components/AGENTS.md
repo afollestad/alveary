@@ -47,6 +47,7 @@ General shared controls live here. Narrower scopes:
 - Keep the pending-selection state for click releases; it bridges mouse-up to model publication so rows do not visually flash clear before becoming selected.
 - Pass a stable row identity when selectable rows can be inserted, removed, or reordered so transient press/pending state cannot leak into recycled `List` rows.
 - Keep selectable row background insets at their 10pt defaults unless a surface must compensate for host chrome to hit a measured visual edge.
+- **Fade a row through `appSelectionRowBackground(opacity:)`, not an outer `.opacity`.** The fill is published via `listRowBackground`, which SwiftUI hoists out of the row's own render tree, so an outer `.opacity` dims the row's content while leaving a selected row's accent fill fully opaque. Pass the same value to both.
 
 ## Split Buttons
 

@@ -99,6 +99,44 @@ extension SidebarDragInteractionTests {
         XCTAssertNil(candidate)
     }
 
+    func testUnplacedListSectionHeaderCopyDoesNotStretchTheProjectsHeader() throws {
+        let fixture = try SidebarTestFixture()
+        let source = try fixture.insertProject(name: "Source", path: "/tmp/unplaced-source")
+        let sourceItem = SidebarDragItem.project(source.persistentModelID)
+        let placedHeaderFrame = CGRect(x: 0, y: 169, width: 200, height: 39.5)
+        // `List` publishes the section header twice; the copy it never places reports the content
+        // origin. Unioning them stretched the header from y=0 down to the section it heads.
+        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
+            .viewport: [CGRect(x: 0, y: 52, width: 200, height: 868)],
+            .topLevelTerminal: [CGRect(x: 0, y: 128, width: 200, height: 24)],
+            .projectsHeader: [placedHeaderFrame, CGRect(x: 0, y: 0, width: 200, height: 39.5)]
+        ]
+        let logicalOrder = SidebarDragLogicalOrder(
+            pinnedItems: [],
+            regularProjects: [sourceItem],
+            projectsHeaderIsSticky: true
+        )
+
+        XCTAssertEqual(
+            sidebarProjectsHeaderFrame(
+                geometry: geometry,
+                viewport: try XCTUnwrap(geometry[.viewport]?.sidebarUnion),
+                isSticky: true
+            ),
+            placedHeaderFrame
+        )
+        // The line stays on the `Projects` divider, and the region above it stays reachable,
+        // instead of collapsing onto the top-level rows at the top of the list.
+        let candidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 160),
+            dragging: sourceItem,
+            geometry: geometry,
+            logicalOrder: logicalOrder
+        )
+        XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .pinned, placement: .end))
+        XCTAssertEqual(candidate?.indicatorY, placedHeaderFrame.minY)
+    }
+
     func testMonitorPointerConvertsIntoNamedViewportCoordinates() {
         let viewport = CGRect(x: 14, y: 52, width: 300, height: 600)
         let namedLocation = sidebarDragLocationInNamedSpace(

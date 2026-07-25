@@ -92,13 +92,21 @@ extension SidebarView {
             title: "Scheduled",
             systemImage: "clock",
             item: .scheduled,
-            bottomSpacing: context.hasArchivedThreads ? SidebarRowMetrics.topLevelRowSpacing : 0
+            bottomSpacing: context.hasArchivedThreads ? SidebarRowMetrics.topLevelRowSpacing : 0,
+            isTopLevelTerminal: sidebarTopLevelRowIsTerminal(
+                .scheduled,
+                hasArchivedThreads: context.hasArchivedThreads
+            )
         )
         if context.hasArchivedThreads {
             topLevelRow(
                 title: "Archived",
                 systemImage: "archivebox",
-                item: .archived
+                item: .archived,
+                isTopLevelTerminal: sidebarTopLevelRowIsTerminal(
+                    .archived,
+                    hasArchivedThreads: context.hasArchivedThreads
+                )
             )
         }
     }
@@ -107,7 +115,8 @@ extension SidebarView {
         title: String,
         systemImage: String,
         item: SidebarItem,
-        bottomSpacing: CGFloat = 0
+        bottomSpacing: CGFloat = 0,
+        isTopLevelTerminal: Bool = false
     ) -> some View {
         let isSelected = appState.selectedSidebarItem == item
 
@@ -136,6 +145,9 @@ extension SidebarView {
                     claimSidebarFocus()
                 }
             )
+            // Measure visible content before the trailing group spacing, so the published bottom
+            // edge is where the row actually ends.
+            .sidebarDragGeometry(.topLevelTerminal, isEnabled: isTopLevelTerminal)
             .padding(.bottom, bottomSpacing)
     }
 
@@ -176,6 +188,21 @@ extension SidebarView {
             return Color(nsColor: sidebarTopLevelSelectedIconNSColor)
         }
         return AppAccentIcon.foreground
+    }
+}
+
+/// Whichever top-level row ends the group publishes `.topLevelTerminal`, so the empty-`Pinned`
+/// drop target knows where the region above `Projects` begins. `Archived` is conditional, so the
+/// role moves to `Scheduled` while it is hidden — the same rule that owns the group's trailing
+/// spacing.
+func sidebarTopLevelRowIsTerminal(_ item: SidebarItem, hasArchivedThreads: Bool) -> Bool {
+    switch item {
+    case .archived:
+        return hasArchivedThreads
+    case .scheduled:
+        return !hasArchivedThreads
+    default:
+        return false
     }
 }
 

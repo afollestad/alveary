@@ -65,15 +65,24 @@ struct SidebarRowDragConfiguration {
 
 struct SidebarDropCandidate: Equatable {
     let target: SidebarDropTarget
-    let indicatorY: CGFloat
-    let hitFrame: CGRect
+    /// Mutable so boundary coalescing can re-place a candidate without rebuilding it — a rebuild
+    /// silently drops whichever fields the call site forgets.
+    var indicatorY: CGFloat
+    var hitFrame: CGRect
     let priority: Int
+    /// Skips the indicator-proximity gate. The gate keeps an insertion line local to the row that
+    /// owns it, so it only means something where neighbouring rows publish competing boundaries.
+    /// The empty-`Pinned` target spans a region where nothing else publishes at all.
+    var ignoresIndicatorProximity = false
 }
 
 struct SidebarDragLogicalOrder: Equatable {
     let pinnedItems: [SidebarDragItem]
     let regularProjects: [SidebarDragItem]
     let projectsHeaderIsSticky: Bool
+    /// Pinned Task threads that may leave `Pinned` via the Tasks-section drop target;
+    /// scheduled-attached Tasks are excluded, matching the disabled context-menu Unpin.
+    var unpinnableTaskIDs: Set<PersistentIdentifier> = []
 }
 
 struct SidebarDragFinalizationTransition {
@@ -144,6 +153,10 @@ enum SidebarDragGeometryRole: Hashable {
     case pinnedTask(PersistentIdentifier)
     case pinnedHeader
     case projectsHeader
+    /// Last visible top-level row, so the empty-`Pinned` target can reach the region where a
+    /// pinned row would appear rather than clinging to the `Projects` header's top edge.
+    case topLevelTerminal
+    case tasksHeader
     case viewport
 }
 
@@ -246,107 +259,6 @@ extension SidebarView {
                         .transition(.opacity)
                 }
             }
-        }
-    }
-
-    func projectDragConfiguration(
-        for project: Project,
-        logicalOrder: SidebarDragLogicalOrder
-    ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil else {
-            return nil
-        }
-
-        let item = SidebarDragItem.project(project.persistentModelID)
-        return SidebarRowDragConfiguration(
-            isEnabled: sidebarDragSourceIsEnabled(item),
-            onChanged: { location in
-                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
-            },
-            onEnded: { location in
-                finishSidebarDragGesture(item: item, location: location)
-            }
-        )
-    }
-
-    func pinnedItemDragConfiguration(
-        for thread: AgentThread,
-        logicalOrder: SidebarDragLogicalOrder
-    ) -> SidebarRowDragConfiguration? {
-        switch thread.effectiveMode {
-        case .project:
-            return pinnedThreadDragConfiguration(for: thread, logicalOrder: logicalOrder)
-        case .task:
-            return pinnedTaskDragConfiguration(for: thread, logicalOrder: logicalOrder)
-        }
-    }
-
-    func pinnedItemDragGeometryRole(for thread: AgentThread) -> SidebarDragGeometryRole {
-        switch thread.effectiveMode {
-        case .project:
-            return .pinnedThread(thread.persistentModelID)
-        case .task:
-            return .pinnedTask(thread.persistentModelID)
-        }
-    }
-
-    private func pinnedThreadDragConfiguration(
-        for thread: AgentThread,
-        logicalOrder: SidebarDragLogicalOrder
-    ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil,
-              thread.effectiveMode == .project,
-              thread.isPinned,
-              !thread.isDraft,
-              thread.archivedAt == nil,
-              thread.project?.isPinned != true else {
-            return nil
-        }
-
-        let item = SidebarDragItem.pinnedThread(thread.persistentModelID)
-        return SidebarRowDragConfiguration(
-            isEnabled: sidebarDragSourceIsEnabled(item),
-            onChanged: { location in
-                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
-            },
-            onEnded: { location in
-                finishSidebarDragGesture(item: item, location: location)
-            }
-        )
-    }
-
-    private func pinnedTaskDragConfiguration(
-        for thread: AgentThread,
-        logicalOrder: SidebarDragLogicalOrder
-    ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil,
-              thread.effectiveMode == .task,
-              thread.isPinned,
-              !thread.isDraft,
-              thread.archivedAt == nil else {
-            return nil
-        }
-
-        let item = SidebarDragItem.pinnedTask(thread.persistentModelID)
-        return SidebarRowDragConfiguration(
-            isEnabled: sidebarDragSourceIsEnabled(item),
-            onChanged: { location in
-                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
-            },
-            onEnded: { location in
-                finishSidebarDragGesture(item: item, location: location)
-            }
-        )
-    }
-
-    func sidebarDragSourceIsEnabled(_ item: SidebarDragItem) -> Bool {
-        switch sidebarDragInteractionState {
-        case .idle:
-            return true
-        case .active(let session):
-            return session.item == item
-        case .cancelledUntilMouseUp:
-            return false
         }
     }
 

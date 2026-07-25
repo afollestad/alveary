@@ -25,13 +25,10 @@ func sidebarCoalescedDropCandidates(
             rejectedIndices.formUnion(indices)
         case .valid(let visualBoundary):
             for index in indices {
-                let candidate = candidates[index]
-                result[index] = SidebarDropCandidate(
-                    target: candidate.target,
-                    indicatorY: visualBoundary.indicatorY,
-                    hitFrame: candidate.hitFrame.sidebarExtendingVertically(to: visualBoundary.indicatorY),
-                    priority: candidate.priority
-                )
+                // Re-place rather than rebuild, so every non-geometry field survives.
+                result[index].indicatorY = visualBoundary.indicatorY
+                result[index].hitFrame = candidates[index].hitFrame
+                    .sidebarExtendingVertically(to: visualBoundary.indicatorY)
             }
         }
     }
@@ -150,7 +147,10 @@ private func sidebarPreviousDropBoundaryEndpoint(
         )
     }
 
-    // A removed `Pinned` header can keep publishing during its `List` transition.
+    // A removed `Pinned` header can keep publishing during its `List` transition. Leaving the
+    // empty section without a previous endpoint also keeps the hidden line on the `Projects`
+    // header's top edge, where its divider is drawn — centering it in the gap above would float
+    // the line off that divider.
     if boundary.section == .pinned, items.isEmpty {
         return nil
     }
@@ -209,6 +209,9 @@ private func sidebarLogicalItems(
         logicalOrder.pinnedItems
     case .projects:
         logicalOrder.regularProjects
+    case .tasks:
+        // Tasks are activity-sorted; the section carries one end target with no per-item boundaries.
+        []
     }
 }
 
@@ -220,7 +223,10 @@ private func sidebarSectionStartFrame(
     case .pinned:
         geometry[.pinnedHeader]?.sidebarUnion
     case .projects:
-        geometry[.projectsHeader]?.sidebarUnion
+        // The unplaced `List` section-header copy would drag this endpoint to the content origin.
+        sidebarPlacedSectionHeaderFrame(geometry[.projectsHeader])
+    case .tasks:
+        geometry[.tasksHeader]?.sidebarUnion
     }
 }
 
@@ -255,6 +261,9 @@ func sidebarItemBoundaryFrames(
     case .pinnedTask(let threadID):
         let frame = geometry[.pinnedTask(threadID)]?.sidebarUnion
         return SidebarDragBoundaryFrames(header: frame, terminal: frame)
+    case .unpinnedTask:
+        // Unpinned tasks are drag sources only; they never appear in logical-order arrays or publish geometry.
+        return SidebarDragBoundaryFrames(header: nil, terminal: nil)
     }
 }
 

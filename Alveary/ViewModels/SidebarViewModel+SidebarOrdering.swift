@@ -49,6 +49,9 @@ extension SidebarViewModel {
     }
 
     func commitSidebarDrop(dragItem: SidebarDragItem, target: SidebarDropTarget) throws -> Bool {
+        if target.section == .tasks {
+            return try commitSidebarDropToTasks(dragItem: dragItem)
+        }
         guard sidebarDropRequestIsValid(dragItem: dragItem, target: target) else {
             return false
         }
@@ -97,54 +100,6 @@ extension SidebarViewModel {
         return try modelContext.fetch(descriptor).filter { $0.effectiveMode == .project }
     }
 
-    func compareRegularProjects(_ lhs: Project, _ rhs: Project) -> Bool {
-        compareOptionalOrder(
-            lhs.sidebarSortOrder,
-            rhs.sidebarSortOrder,
-            fallback: { compareProjectFallback(lhs, rhs) }
-        )
-    }
-
-    func comparePinnedProjects(_ lhs: Project, _ rhs: Project) -> Bool {
-        compareOptionalOrder(
-            lhs.pinnedSortOrder,
-            rhs.pinnedSortOrder,
-            fallback: { compareProjectFallback(lhs, rhs) }
-        )
-    }
-
-    func compareProjectFallback(_ lhs: Project, _ rhs: Project) -> Bool {
-        let nameComparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
-        if nameComparison != .orderedSame {
-            return nameComparison == .orderedAscending
-        }
-        return lhs.path < rhs.path
-    }
-
-    func comparePinnedThreads(_ lhs: AgentThread, _ rhs: AgentThread) -> Bool {
-        compareOptionalOrder(
-            lhs.pinnedSortOrder,
-            rhs.pinnedSortOrder,
-            fallback: {
-                switch (lhs.modifiedAt, rhs.modifiedAt) {
-                case (.some(let lhsActivity), .some(let rhsActivity)) where lhsActivity != rhsActivity:
-                    return lhsActivity > rhsActivity
-                case (.some, .none):
-                    return true
-                case (.none, .some):
-                    return false
-                default:
-                    break
-                }
-                let nameComparison = lhs.displayName().localizedCaseInsensitiveCompare(rhs.displayName())
-                if nameComparison != .orderedSame {
-                    return nameComparison == .orderedAscending
-                }
-                return String(describing: lhs.persistentModelID) < String(describing: rhs.persistentModelID)
-            }
-        )
-    }
-
     func currentRegularProjectCount() throws -> Int {
         try allProjects().filter { !$0.isPinned }.count
     }
@@ -190,23 +145,6 @@ private extension SidebarViewModel {
 
     func allThreads() throws -> [AgentThread] {
         try modelContext.fetch(FetchDescriptor<AgentThread>())
-    }
-
-    func compareOptionalOrder(
-        _ lhsOrder: Int?,
-        _ rhsOrder: Int?,
-        fallback: () -> Bool
-    ) -> Bool {
-        switch (lhsOrder, rhsOrder) {
-        case (.some(let lhs), .some(let rhs)) where lhs != rhs:
-            return lhs < rhs
-        case (.some, .none):
-            return true
-        case (.none, .some):
-            return false
-        default:
-            return fallback()
-        }
     }
 
     func clearInvalidProjectOrders(_ projects: [Project]) -> Bool {
@@ -315,18 +253,31 @@ private extension SidebarViewModel {
         )
     }
 
+    /// A Tasks-section drop is an unpin, not a reorder: the Tasks list is activity-sorted,
+    /// so the drop delegates to `setThreadPinned`, which owns the scheduled-attachment guard.
+    func commitSidebarDropToTasks(dragItem: SidebarDragItem) throws -> Bool {
+        guard case .pinnedTask(let id) = dragItem,
+              let thread = modelContext.resolveThread(id: id),
+              thread.effectiveMode == .task,
+              isVisiblePinnedSidebarThread(thread) else {
+            return false
+        }
+        try setThreadPinned(thread, isPinned: false)
+        return true
+    }
+
     func sidebarDropRequestIsValid(dragItem: SidebarDragItem, target: SidebarDropTarget) -> Bool {
         guard sidebarDragSourceExists(dragItem) else {
             return false
         }
-        if dragItem.isPinnedConversation, target.section != .pinned {
+        if dragItem.isConversation, target.section != .pinned {
             return false
         }
 
         guard let targetItem = target.item else {
             return true
         }
-        if case .project = dragItem, targetItem.isPinnedConversation {
+        if case .project = dragItem, targetItem.isConversation {
             return false
         }
         return sidebarTargetExists(targetItem, in: target.section)
@@ -346,6 +297,11 @@ private extension SidebarViewModel {
                 return false
             }
             return thread.effectiveMode == .task && isVisiblePinnedSidebarThread(thread)
+        case .unpinnedTask(let id):
+            guard let thread = modelContext.resolveThread(id: id) else {
+                return false
+            }
+            return thread.effectiveMode == .task && !thread.isPinned && !thread.isDraft && thread.archivedAt == nil
         }
     }
 
@@ -368,6 +324,8 @@ private extension SidebarViewModel {
                 return false
             }
             return thread.effectiveMode == .task && isVisiblePinnedSidebarThread(thread)
+        case .unpinnedTask:
+            return false
         }
     }
 
@@ -436,6 +394,10 @@ private extension SidebarViewModel {
                 let thread = try resolvePinnedThreadForOrdering(id, mode: .task)
                 thread.isPinned = true
                 thread.pinnedSortOrder = index
+            case .unpinnedTask(let id):
+                let thread = try resolveUnpinnedTaskForOrdering(id)
+                thread.isPinned = true
+                thread.pinnedSortOrder = index
             }
         }
     }
@@ -472,6 +434,17 @@ private extension SidebarViewModel {
         guard let thread = modelContext.resolveThread(id: id),
               thread.effectiveMode == mode,
               isVisiblePinnedSidebarThread(thread) else {
+            throw SidebarViewModelError.threadMissing
+        }
+        return thread
+    }
+
+    func resolveUnpinnedTaskForOrdering(_ id: PersistentIdentifier) throws -> AgentThread {
+        guard let thread = modelContext.resolveThread(id: id),
+              thread.effectiveMode == .task,
+              !thread.isPinned,
+              !thread.isDraft,
+              thread.archivedAt == nil else {
             throw SidebarViewModelError.threadMissing
         }
         return thread

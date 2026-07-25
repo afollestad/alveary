@@ -4,11 +4,13 @@ enum SidebarDragItem: Hashable {
     case project(PersistentIdentifier)
     case pinnedThread(PersistentIdentifier)
     case pinnedTask(PersistentIdentifier)
+    case unpinnedTask(PersistentIdentifier)
 }
 
 enum SidebarDropSection: Hashable {
     case pinned
     case projects
+    case tasks
 }
 
 enum SidebarDropPlacement: Hashable {
@@ -70,7 +72,7 @@ func sidebarOrder(
     to target: SidebarDropTarget,
     in order: SidebarDragOrder
 ) -> SidebarDragOrder? {
-    if draggedItem.isPinnedConversation, target.section != .pinned {
+    if draggedItem.isConversation, target.section != .pinned {
         return nil
     }
 
@@ -98,17 +100,20 @@ func sidebarOrder(
             return nil
         }
         nextOrder.regularProjects.insert(draggedItem, at: min(insertionIndex, nextOrder.regularProjects.count))
+    case .tasks:
+        // Tasks are activity-sorted, never manually ordered; a Tasks drop is an unpin, not a reorder.
+        return nil
     }
 
     return nextOrder
 }
 
 extension SidebarDragItem {
-    var isPinnedConversation: Bool {
+    var isConversation: Bool {
         switch self {
         case .project:
             false
-        case .pinnedThread, .pinnedTask:
+        case .pinnedThread, .pinnedTask, .unpinnedTask:
             true
         }
     }

@@ -22,9 +22,15 @@ func sidebarDropCandidateForLocation(
         let hitSlop = candidate.target == retainingTarget
             ? SidebarDropTargetingMetrics.retentionHitSlop
             : SidebarDropTargetingMetrics.acquisitionHitSlop
-        return candidate.target.item != item
-            && abs(candidate.indicatorY - location.y) <= SidebarDropTargetingMetrics.maximumIndicatorDistance
-            && candidate.hitFrame.insetBy(dx: 0, dy: -hitSlop).contains(location)
+        guard candidate.target.item != item,
+              candidate.hitFrame.insetBy(dx: 0, dy: -hitSlop).contains(location) else {
+            return false
+        }
+        // The empty-`Pinned` target opts out of the indicator-proximity gate. That gate keeps an
+        // insertion line local to the row that owns it, so it only means something where
+        // neighbouring rows publish competing boundaries; this one owns a region with none.
+        return candidate.ignoresIndicatorProximity
+            || abs(candidate.indicatorY - location.y) <= SidebarDropTargetingMetrics.maximumIndicatorDistance
     }
 
     return candidates.min { lhs, rhs in
@@ -79,7 +85,7 @@ func sidebarDropCandidates(
         geometry: geometry,
         projectsHeaderFrame: projectsHeaderFrame,
         viewport: viewport,
-        pinnedSectionIsVisible: !logicalOrder.pinnedItems.isEmpty
+        logicalOrder: logicalOrder
     )
 
     switch item {
@@ -98,7 +104,7 @@ func sidebarDropCandidates(
             viewport: viewport,
             stickyOcclusionMaxY: stickyOcclusionMaxY
         )
-    case .pinnedThread, .pinnedTask:
+    case .pinnedThread, .pinnedTask, .unpinnedTask:
         candidates += sidebarPinnedItemDropCandidates(
             items: logicalOrder.pinnedItems,
             geometry: geometry,
@@ -119,11 +125,11 @@ private func sidebarSectionDropCandidates(
     geometry: [SidebarDragGeometryRole: [CGRect]],
     projectsHeaderFrame: CGRect?,
     viewport: CGRect,
-    pinnedSectionIsVisible: Bool
+    logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
     var candidates: [SidebarDropCandidate] = []
 
-    if pinnedSectionIsVisible,
+    if !logicalOrder.pinnedItems.isEmpty,
        let pinnedHeaderFrame = geometry[.pinnedHeader]?.sidebarUnion,
        let candidate = sidebarSectionCandidate(
            target: SidebarDropTarget(section: .pinned, item: nil, placement: .before),
@@ -133,16 +139,23 @@ private func sidebarSectionDropCandidates(
        ) {
         candidates.append(candidate)
     }
+    if let tasksCandidate = sidebarTasksSectionDropCandidate(
+        dragging: item,
+        geometry: geometry,
+        viewport: viewport,
+        logicalOrder: logicalOrder
+    ) {
+        candidates.append(tasksCandidate)
+    }
 
     guard let projectsHeaderFrame else {
         return candidates
     }
-    if let pinnedEnd = sidebarSectionCandidate(
-        target: SidebarDropTarget(section: .pinned, item: nil, placement: .end),
-        indicatorY: projectsHeaderFrame.minY,
-        hitFrame: projectsHeaderFrame.sidebarUpperHalf,
+    if let pinnedEnd = sidebarPinnedSectionEndCandidate(
+        geometry: geometry,
+        projectsHeaderFrame: projectsHeaderFrame,
         viewport: viewport,
-        priority: -1
+        logicalOrder: logicalOrder
     ) {
         candidates.append(pinnedEnd)
     }
@@ -159,12 +172,27 @@ private func sidebarSectionDropCandidates(
     return candidates
 }
 
+/// The `Projects` header's real frame, chosen rather than unioned.
+///
+/// A `List` section header publishes its geometry twice: once where the list places it, and once
+/// from a copy the list keeps but never places, which reports the content origin. Unioning the two
+/// stretches the header from the top of the list down to the section it heads, so its upper half
+/// lands on the top-level rows and the hidden-`Pinned` line snaps to the top of the list — the
+/// intermittent "drag to pin does nothing" failure, since the unplaced copy comes and goes.
+///
+/// The placed frame is the lowest one: `Skills`/`MCP`/`Scheduled` always render above `Projects`,
+/// so the real header can never sit at the content origin. Only this role needs the treatment;
+/// `Pinned` and `Tasks` head their sections with ordinary rows, which are published once.
+func sidebarPlacedSectionHeaderFrame(_ frames: [CGRect]?) -> CGRect? {
+    frames?.max { $0.minY < $1.minY }
+}
+
 func sidebarProjectsHeaderFrame(
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect,
     isSticky: Bool
 ) -> CGRect? {
-    guard let frame = geometry[.projectsHeader]?.sidebarUnion else {
+    guard let frame = sidebarPlacedSectionHeaderFrame(geometry[.projectsHeader]) else {
         return nil
     }
     guard isSticky else {
@@ -175,12 +203,32 @@ func sidebarProjectsHeaderFrame(
     return visibleFrame.isNull || visibleFrame.isEmpty ? nil : visibleFrame
 }
 
-private func sidebarSectionCandidate(
+private func sidebarTasksSectionDropCandidate(
+    dragging item: SidebarDragItem,
+    geometry: [SidebarDragGeometryRole: [CGRect]],
+    viewport: CGRect,
+    logicalOrder: SidebarDragLogicalOrder
+) -> SidebarDropCandidate? {
+    guard case .pinnedTask(let threadID) = item,
+          logicalOrder.unpinnableTaskIDs.contains(threadID),
+          let tasksHeaderFrame = geometry[.tasksHeader]?.sidebarUnion else {
+        return nil
+    }
+    return sidebarSectionCandidate(
+        target: SidebarDropTarget(section: .tasks, item: nil, placement: .end),
+        indicatorY: tasksHeaderFrame.maxY,
+        hitFrame: tasksHeaderFrame.sidebarLowerHalf,
+        viewport: viewport
+    )
+}
+
+func sidebarSectionCandidate(
     target: SidebarDropTarget,
     indicatorY: CGFloat,
     hitFrame: CGRect,
     viewport: CGRect,
-    priority: Int = 0
+    priority: Int = 0,
+    ignoresIndicatorProximity: Bool = false
 ) -> SidebarDropCandidate? {
     guard sidebarLineIsVisible(indicatorY, viewport: viewport, stickyOcclusionMaxY: nil),
           let clippedHitFrame = hitFrame.sidebarIntersection(with: viewport) else {
@@ -190,7 +238,8 @@ private func sidebarSectionCandidate(
         target: target,
         indicatorY: indicatorY,
         hitFrame: clippedHitFrame,
-        priority: priority
+        priority: priority,
+        ignoresIndicatorProximity: ignoresIndicatorProximity
     )
 }
 
@@ -361,7 +410,7 @@ extension Array where Element == CGRect {
     }
 }
 
-private extension CGRect {
+extension CGRect {
     var sidebarUpperHalf: CGRect {
         CGRect(x: minX, y: minY, width: width, height: height / 2)
     }
@@ -369,7 +418,9 @@ private extension CGRect {
     var sidebarLowerHalf: CGRect {
         CGRect(x: minX, y: midY, width: width, height: height / 2)
     }
+}
 
+private extension CGRect {
     func sidebarIntersection(with other: CGRect) -> CGRect? {
         let result = intersection(other)
         return result.isNull || result.isEmpty ? nil : result

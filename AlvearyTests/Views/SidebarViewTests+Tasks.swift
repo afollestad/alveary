@@ -168,6 +168,63 @@ extension SidebarViewTests {
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedTask(task.persistentModelID))
     }
 
+    func testUnpinnableTaskIDsExcludeScheduleAttachedPinnedTasks() throws {
+        let fixture = try SidebarTestFixture()
+        let freeTask = makeSidebarTask(name: "Free", modifiedAt: Date(), isPinned: true)
+        let attachedTask = makeSidebarTask(name: "Attached", modifiedAt: Date(), isPinned: true)
+        let definition = ScheduledTask(
+            title: "Attached schedule",
+            prompt: "Continue in the pinned task.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            createdAt: Date(timeIntervalSince1970: 100),
+            targetThread: attachedTask
+        )
+        [freeTask, attachedTask].forEach(fixture.context.insert)
+        fixture.context.insert(definition)
+        try fixture.context.save()
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+
+        XCTAssertEqual(
+            view.unpinnableTaskIDs(in: try fixture.renderSnapshot()),
+            [freeTask.persistentModelID]
+        )
+    }
+
+    func testUnpinnedTaskUsesUnpinnedTaskDragSource() throws {
+        let fixture = try SidebarTestFixture()
+        let task = makeSidebarTask(name: "Task", modifiedAt: Date())
+        let pinned = makeSidebarTask(name: "Pinned", modifiedAt: Date(), isPinned: true)
+        let draft = AgentThread(name: "Draft", isDraft: true, mode: .task)
+        let archived = AgentThread(name: "Archived", archivedAt: Date(), mode: .task)
+        [task, pinned, draft, archived].forEach(fixture.context.insert)
+        try fixture.context.save()
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+
+        XCTAssertNotNil(view.unpinnedTaskDragConfiguration(for: task, logicalOrder: emptySidebarDragLogicalOrder))
+        XCTAssertNil(view.unpinnedTaskDragConfiguration(for: pinned, logicalOrder: emptySidebarDragLogicalOrder))
+        XCTAssertNil(view.unpinnedTaskDragConfiguration(for: draft, logicalOrder: emptySidebarDragLogicalOrder))
+        XCTAssertNil(view.unpinnedTaskDragConfiguration(for: archived, logicalOrder: emptySidebarDragLogicalOrder))
+    }
+
+    func testTopLevelTerminalGeometryFollowsTheArchivedRowsVisibility() {
+        // Scheduled ends the group while Archived is hidden, and yields it once Archived appears.
+        XCTAssertTrue(sidebarTopLevelRowIsTerminal(.scheduled, hasArchivedThreads: false))
+        XCTAssertFalse(sidebarTopLevelRowIsTerminal(.scheduled, hasArchivedThreads: true))
+        XCTAssertTrue(sidebarTopLevelRowIsTerminal(.archived, hasArchivedThreads: true))
+        XCTAssertFalse(sidebarTopLevelRowIsTerminal(.archived, hasArchivedThreads: false))
+
+        // Exactly one row ever publishes the role, whichever way Archived resolves.
+        for hasArchivedThreads in [true, false] {
+            let terminals = [SidebarItem.skills, .mcp, .scheduled, .archived].filter {
+                sidebarTopLevelRowIsTerminal($0, hasArchivedThreads: hasArchivedThreads)
+            }
+            XCTAssertEqual(terminals.count, 1)
+        }
+    }
+
     func testLinkedScheduledRunWithFallbackProjectModeUsesProjectSidebarBehavior() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/sidebar-fallback-task", name: "Project")

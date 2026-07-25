@@ -79,7 +79,11 @@ struct SidebarView: View {
         let regularProjects = context.regularProjects
         let activeTaskThreads = context.activeTaskThreads
         let threadOrderAnimation = context.threadOrderAnimation
-        let visibleDragItems = Set(context.dragLogicalOrder.pinnedItems + context.dragLogicalOrder.regularProjects)
+        let visibleDragItems = Set(
+            context.dragLogicalOrder.pinnedItems
+                + context.dragLogicalOrder.regularProjects
+                + context.activeTaskThreads.map { SidebarDragItem.unpinnedTask($0.persistentModelID) }
+        )
         let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
 
         return VStack(spacing: 0) {
@@ -441,40 +445,6 @@ struct SidebarView: View {
         appState.pendingComposerFocusToken = nil
         chatComposerFocus?.release()
         isKeyboardFocused = true
-    }
-}
-
-private extension SidebarView {
-    func projectsHeader(isListSectionHeader: Bool) -> some View {
-        SidebarSectionHeaderRow(
-            title: "Projects",
-            showsTopDivider: isListSectionHeader,
-            isListSectionHeader: isListSectionHeader
-        ) {
-            appState.openNewProjectFlow()
-        }
-        .sidebarDragGeometry(
-            .projectsHeader,
-            excludingTopInset: SidebarProjectListMetrics.listHeaderDragTopInsetExclusion
-        )
-    }
-
-    var pinnedHeader: some View {
-        SidebarSectionHeaderRow(title: "Pinned", showsTopDivider: true)
-            .sidebarDragGeometry(
-                .pinnedHeader,
-                excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTopPaddingCorrection
-            )
-    }
-
-    var tasksHeader: some View {
-        SidebarSectionHeaderRow(
-            title: "Tasks", showsTopDivider: true,
-            actionSystemImage: "plus",
-            actionAccessibilityLabel: "New task",
-            actionHelp: "New task",
-            onAction: { startNewTaskFlowFromSidebar(appState: appState) }
-        )
     }
 }
 

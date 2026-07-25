@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Everything one `SidebarView.body` pass shares with its row builders and event handlers.
@@ -40,10 +41,24 @@ extension SidebarView {
             dragLogicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: snapshot.pinnedItems.map(\.dragItem),
                 regularProjects: snapshot.regularProjects.map { .project($0.persistentModelID) },
-                projectsHeaderIsSticky: snapshot.pinnedItems.isEmpty
+                projectsHeaderIsSticky: snapshot.pinnedItems.isEmpty,
+                unpinnableTaskIDs: unpinnableTaskIDs(in: snapshot)
             ),
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty
         )
+    }
+
+    func unpinnableTaskIDs(in snapshot: SidebarRenderSnapshot) -> Set<PersistentIdentifier> {
+        var ids: Set<PersistentIdentifier> = []
+        for item in snapshot.pinnedItems {
+            guard case .thread(let thread) = item.kind,
+                  thread.effectiveMode == .task,
+                  viewModel.scheduledTaskAttachmentReason(for: thread) == nil else {
+                continue
+            }
+            ids.insert(thread.persistentModelID)
+        }
+        return ids
     }
 
     func threadOrderAnimation(expandedThreadCount: Int) -> Animation? {
