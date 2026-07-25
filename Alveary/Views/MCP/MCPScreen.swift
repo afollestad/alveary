@@ -100,7 +100,14 @@ struct MCPScreen: View {
                         )
                     }
                 }
-                .padding(EdgeInsets(top: 28, leading: 20, bottom: 28, trailing: 28))
+                .padding(
+                    EdgeInsets(
+                        top: 28,
+                        leading: PaneHeaderLayout.leadingInset,
+                        bottom: 28,
+                        trailing: PaneHeaderLayout.trailingInset
+                    )
+                )
             }
             .id(viewModel.searchQuery)
             .onGeometryChange(for: Int.self) { proxy in

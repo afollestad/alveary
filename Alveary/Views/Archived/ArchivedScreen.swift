@@ -49,9 +49,9 @@ struct ArchivedScreen: View {
                     .padding(
                         EdgeInsets(
                             top: contentVerticalPadding,
-                            leading: 20,
+                            leading: PaneHeaderLayout.leadingInset,
                             bottom: contentVerticalPadding,
-                            trailing: 28
+                            trailing: PaneHeaderLayout.trailingInset
                         )
                     )
                 }

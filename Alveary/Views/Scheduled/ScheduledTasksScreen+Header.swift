@@ -29,7 +29,7 @@ struct ScheduledTasksScreenHeader: View {
                     )
                 }
             }
-            .padding(.leading, 20)
+            .padding(.leading, PaneHeaderLayout.leadingInset)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Scheduled task filter")
             .accessibilityValue(selectedFilter.rawValue)
@@ -38,7 +38,7 @@ struct ScheduledTasksScreenHeader: View {
 
             createButton
         }
-        .padding(.trailing, 21)
+        .padding(.trailing, PaneHeaderLayout.trailingInset)
         .padding(.vertical, 16)
         .frame(height: PaneHeaderLayout.height)
         .background(.bar)

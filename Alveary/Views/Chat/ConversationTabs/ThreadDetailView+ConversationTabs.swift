@@ -55,7 +55,7 @@ struct ThreadDetailConversationTabs: View {
                     // content so chips can scroll past the pane's visible
                     // leading edge while the first chip still appears 20pt
                     // in at `contentOffset == 0`.
-                    .padding(.leading, 20)
+                    .padding(.leading, PaneHeaderLayout.leadingInset)
 
                     Color.clear
                         .frame(width: tabsTrailingSentinelWidth, height: 1)
@@ -114,7 +114,7 @@ struct ThreadDetailConversationTabs: View {
                 .accessibilityHidden(true)
                 .id(statusVersion)
         }
-        .padding(.trailing, 21)
+        .padding(.trailing, PaneHeaderLayout.trailingInset)
         .padding(.vertical, 14)
         .background(.bar)
         .overlay(alignment: .bottom) {

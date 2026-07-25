@@ -2,6 +2,13 @@ import SwiftUI
 
 enum PaneHeaderLayout {
     static let height: CGFloat = 64
+
+    /// Horizontal insets shared by pane headers and the scroll content beneath them.
+    /// Screen content must reuse these rather than hardcoding its own padding: the
+    /// header's actions and the content's rows sit against the same visual edges, so
+    /// any divergence reads as a misaligned right or left margin.
+    static let leadingInset: CGFloat = 20
+    static let trailingInset: CGFloat = 21
 }
 
 struct CompactSearchPaneHeader<Actions: View>: View {
@@ -32,8 +39,8 @@ struct CompactSearchPaneHeader<Actions: View>: View {
             }
             .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.leading, 20)
-        .padding(.trailing, 21)
+        .padding(.leading, PaneHeaderLayout.leadingInset)
+        .padding(.trailing, PaneHeaderLayout.trailingInset)
         .padding(.vertical, 14)
         .frame(height: PaneHeaderLayout.height)
         .background(.bar)
