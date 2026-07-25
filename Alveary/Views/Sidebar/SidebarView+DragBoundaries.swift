@@ -43,10 +43,12 @@ private func sidebarCandidateIndicesByBoundary(
 ) -> [SidebarLogicalDropBoundary: [Int]] {
     var result: [SidebarLogicalDropBoundary: [Int]] = [:]
     for (index, candidate) in candidates.enumerated() {
-        guard let boundary = sidebarLogicalDropBoundary(
-            for: candidate.target,
-            logicalOrder: logicalOrder
-        ) else {
+        // Containers own their whole frame; boundary coalescing would collapse them to a line.
+        guard candidate.kind == .boundary,
+              let boundary = sidebarLogicalDropBoundary(
+                  for: candidate.target,
+                  logicalOrder: logicalOrder
+              ) else {
             continue
         }
         result[boundary, default: []].append(index)

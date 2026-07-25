@@ -63,6 +63,14 @@ struct SidebarRowDragConfiguration {
     let onEnded: (CGPoint) -> Void
 }
 
+/// Lines mean ordered insertion; borders mean containers. `Pinned` is manually ordered, so its
+/// targets stay insertion boundaries. `Tasks` is activity-sorted, so its target accepts a drop
+/// anywhere in the section and renders a border around the whole thing.
+enum SidebarDropCandidateKind: Equatable {
+    case boundary
+    case container
+}
+
 struct SidebarDropCandidate: Equatable {
     let target: SidebarDropTarget
     /// Mutable so boundary coalescing can re-place a candidate without rebuilding it — a rebuild
@@ -70,6 +78,7 @@ struct SidebarDropCandidate: Equatable {
     var indicatorY: CGFloat
     var hitFrame: CGRect
     let priority: Int
+    var kind: SidebarDropCandidateKind = .boundary
     /// Skips the indicator-proximity gate. The gate keeps an insertion line local to the row that
     /// owns it, so it only means something where neighbouring rows publish competing boundaries.
     /// The empty-`Pinned` target spans a region where nothing else publishes at all.
@@ -157,6 +166,8 @@ enum SidebarDragGeometryRole: Hashable {
     /// pinned row would appear rather than clinging to the `Projects` header's top edge.
     case topLevelTerminal
     case tasksHeader
+    /// Last visible Tasks row (or the empty placeholder), so the section's border can hug content.
+    case tasksTerminal
     case viewport
 }
 
@@ -243,20 +254,43 @@ extension SidebarView {
 
                 if let sidebarDropCandidate,
                    let viewport = sidebarDragGeometryFrames[.viewport]?.sidebarUnion {
-                    Rectangle()
-                        .fill(AppAccentFill.primary)
-                        .frame(width: max(proxy.size.width - 20, 0), height: 2)
-                        .offset(
-                            x: 10,
-                            y: sidebarDragIndicatorOffset(
-                                indicatorY: sidebarDropCandidate.indicatorY,
-                                viewport: viewport,
-                                overlayHeight: proxy.size.height
+                    switch sidebarDropCandidate.kind {
+                    case .boundary:
+                        Rectangle()
+                            .fill(AppAccentFill.primary)
+                            .frame(width: max(proxy.size.width - 20, 0), height: 2)
+                            .offset(
+                                x: 10,
+                                y: sidebarDragIndicatorOffset(
+                                    indicatorY: sidebarDropCandidate.indicatorY,
+                                    viewport: viewport,
+                                    overlayHeight: proxy.size.height
+                                )
                             )
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                            .transition(.opacity)
+                    case .container:
+                        let rect = sidebarDragBorderLocalRect(
+                            frame: sidebarDropCandidate.hitFrame,
+                            viewport: viewport,
+                            overlaySize: proxy.size
                         )
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                        .transition(.opacity)
+                        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+                            .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+                                    .strokeBorder(
+                                        Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
+                                        lineWidth: SidebarDragBorderMetrics.lineWidth
+                                    )
+                            }
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                            .transition(.opacity)
+                    }
                 }
             }
         }
@@ -407,4 +441,32 @@ func sidebarDragIndicatorOffset(
 ) -> CGFloat {
     let centeredOffset = indicatorY - viewport.minY - 1
     return min(max(centeredOffset, 0), max(overlayHeight - 2, 0))
+}
+
+enum SidebarDragBorderMetrics {
+    // Matches the composer's file-drop overlay so drop affordances read the same app-wide.
+    // See `AppKitComposerFileDropOverlayView`; this alpha accent is that documented exception.
+    static let fillOpacity: Double = 0.16
+    static let strokeOpacity: Double = 0.55
+    static let lineWidth: CGFloat = 1.5
+    /// Sits just outside the 10pt-inset selection pill so a bordered row is never clipped by it.
+    static let horizontalInset: CGFloat = 6
+}
+
+/// Converts a named-space drag frame into the drag overlay's local coordinates, clamped so a
+/// partially scrolled container still renders a border across its visible extent.
+func sidebarDragBorderLocalRect(
+    frame: CGRect,
+    viewport: CGRect,
+    overlaySize: CGSize
+) -> CGRect {
+    let minY = min(max(frame.minY - viewport.minY, 0), max(overlaySize.height, 0))
+    let maxY = min(max(frame.maxY - viewport.minY, 0), max(overlaySize.height, 0))
+    let width = max(overlaySize.width - SidebarDragBorderMetrics.horizontalInset * 2, 0)
+    return CGRect(
+        x: SidebarDragBorderMetrics.horizontalInset,
+        y: minY,
+        width: width,
+        height: max(maxY - minY, 0)
+    )
 }

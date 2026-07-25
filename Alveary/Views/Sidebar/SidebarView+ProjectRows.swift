@@ -13,6 +13,7 @@ extension SidebarView {
             Text("No tasks")
                 .foregroundStyle(.secondary)
                 .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
+                .sidebarDragGeometry(.tasksTerminal)
         }
 
         ForEach(Array(tasks.enumerated()), id: \.element.persistentModelID) { index, task in
@@ -23,6 +24,7 @@ extension SidebarView {
                 dragConfiguration: unpinnedTaskDragConfiguration(for: task, logicalOrder: context.dragLogicalOrder),
                 opacity: activeSidebarDragItem == .unpinnedTask(task.persistentModelID) ? 0.48 : 1
             )
+            .sidebarDragGeometry(.tasksTerminal, isEnabled: index == tasks.count - 1)
         }
         .transaction { transaction in
             if context.threadOrderAnimation == nil {

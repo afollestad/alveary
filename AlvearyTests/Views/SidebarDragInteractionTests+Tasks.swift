@@ -167,7 +167,8 @@ extension SidebarDragInteractionTests {
             .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],
             .pinnedTask(sourceTask.persistentModelID): [CGRect(x: 0, y: 40, width: 200, height: 24)],
             .projectsHeader: [CGRect(x: 0, y: 120, width: 200, height: 24)],
-            .tasksHeader: [CGRect(x: 0, y: 200, width: 200, height: 24)]
+            .tasksHeader: [CGRect(x: 0, y: 200, width: 200, height: 24)],
+            .tasksTerminal: [CGRect(x: 0, y: 230, width: 200, height: 24)]
         ]
         let unpinnableOrder = SidebarDragLogicalOrder(
             pinnedItems: [sourceItem],
@@ -194,9 +195,134 @@ extension SidebarDragInteractionTests {
             logicalOrder: attachedOrder
         )
 
+        // The Tasks target is a container spanning header through last row, so a drop lands
+        // anywhere inside it — including below the header, far from any insertion boundary.
+        let deepCandidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 248),
+            dragging: sourceItem,
+            geometry: geometry,
+            logicalOrder: unpinnableOrder
+        )
+
         XCTAssertEqual(tasksCandidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
-        XCTAssertEqual(tasksCandidate?.indicatorY, 224)
+        XCTAssertEqual(tasksCandidate?.kind, .container)
+        // Outset by `sectionContainerOutset` so the border does not hug the header text.
+        XCTAssertEqual(tasksCandidate?.hitFrame, CGRect(x: 0, y: 196, width: 200, height: 62))
+        XCTAssertEqual(deepCandidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
         XCTAssertNil(attachedCandidate)
+    }
+
+    func testTasksContainerSurvivesItsMidpointScrollingOutOfView() throws {
+        let fixture = try SidebarTestFixture()
+        let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/source")
+        let sourceItem = SidebarDragItem.pinnedTask(sourceTask.persistentModelID)
+        // The section starts just above the viewport bottom; its unclipped midpoint is below it.
+        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
+            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 200)],
+            .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],
+            .pinnedTask(sourceTask.persistentModelID): [CGRect(x: 0, y: 40, width: 200, height: 24)],
+            .projectsHeader: [CGRect(x: 0, y: 120, width: 200, height: 24)],
+            .tasksHeader: [CGRect(x: 0, y: 180, width: 200, height: 24)],
+            .tasksTerminal: [CGRect(x: 0, y: 210, width: 200, height: 100)]
+        ]
+        let order = SidebarDragLogicalOrder(
+            pinnedItems: [sourceItem],
+            regularProjects: [],
+            projectsHeaderIsSticky: false,
+            unpinnableTaskIDs: [sourceTask.persistentModelID]
+        )
+
+        let candidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 190),
+            dragging: sourceItem,
+            geometry: geometry,
+            logicalOrder: order
+        )
+
+        XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
+        XCTAssertEqual(candidate?.hitFrame, CGRect(x: 0, y: 176, width: 200, height: 24))
+        XCTAssertEqual(candidate?.indicatorY, 188)
+    }
+
+    func testTasksContainerFallsBackToHeaderWithoutTerminalGeometry() throws {
+        let fixture = try SidebarTestFixture()
+        let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/source")
+        let sourceItem = SidebarDragItem.pinnedTask(sourceTask.persistentModelID)
+        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
+            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
+            .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],
+            .pinnedTask(sourceTask.persistentModelID): [CGRect(x: 0, y: 40, width: 200, height: 24)],
+            .projectsHeader: [CGRect(x: 0, y: 120, width: 200, height: 24)],
+            .tasksHeader: [CGRect(x: 0, y: 200, width: 200, height: 24)]
+        ]
+        let order = SidebarDragLogicalOrder(
+            pinnedItems: [sourceItem],
+            regularProjects: [],
+            projectsHeaderIsSticky: false,
+            unpinnableTaskIDs: [sourceTask.persistentModelID]
+        )
+
+        let candidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 210),
+            dragging: sourceItem,
+            geometry: geometry,
+            logicalOrder: order
+        )
+
+        XCTAssertEqual(candidate?.hitFrame, CGRect(x: 0, y: 196, width: 200, height: 32))
+        XCTAssertEqual(candidate?.kind, .container)
+    }
+
+    func testPinnedBoundariesStayInsertionLinesDuringTaskDrags() throws {
+        let fixture = try SidebarTestFixture()
+        let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/source")
+        let anchor = try fixture.insertProject(name: "Anchor", path: "/tmp/anchor")
+        let anchorItem = SidebarDragItem.pinnedThread(anchor.persistentModelID)
+        let sourceItem = SidebarDragItem.unpinnedTask(sourceTask.persistentModelID)
+        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
+            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
+            .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],
+            .pinnedThread(anchor.persistentModelID): [CGRect(x: 0, y: 40, width: 200, height: 24)],
+            .projectsHeader: [CGRect(x: 0, y: 120, width: 200, height: 24)]
+        ]
+        let order = SidebarDragLogicalOrder(
+            pinnedItems: [anchorItem],
+            regularProjects: [],
+            projectsHeaderIsSticky: false
+        )
+
+        let candidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 38),
+            dragging: sourceItem,
+            geometry: geometry,
+            logicalOrder: order
+        )
+
+        XCTAssertEqual(candidate?.kind, .boundary)
+        XCTAssertEqual(
+            candidate?.target,
+            SidebarDropTarget(section: .pinned, item: anchorItem, placement: .before)
+        )
+    }
+
+    func testDragBorderLocalRectClampsToOverlay() throws {
+        let viewport = CGRect(x: 0, y: 100, width: 200, height: 200)
+        let overlaySize = CGSize(width: 200, height: 200)
+
+        let inside = sidebarDragBorderLocalRect(
+            frame: CGRect(x: 0, y: 140, width: 200, height: 60),
+            viewport: viewport,
+            overlaySize: overlaySize
+        )
+        let scrolledAbove = sidebarDragBorderLocalRect(
+            frame: CGRect(x: 0, y: 60, width: 200, height: 80),
+            viewport: viewport,
+            overlaySize: overlaySize
+        )
+
+        XCTAssertEqual(inside, CGRect(x: 6, y: 40, width: 188, height: 60))
+        // A container scrolled partly out of view still borders its visible extent.
+        XCTAssertEqual(scrolledAbove, CGRect(x: 6, y: 0, width: 188, height: 40))
     }
 
     func testTasksTargetHiddenForNonPinnedTaskSources() throws {

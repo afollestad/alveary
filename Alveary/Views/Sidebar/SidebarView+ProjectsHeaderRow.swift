@@ -8,6 +8,11 @@ struct SidebarSectionHeaderRow: View {
     static let actionButtonCenterTrailingInset = SidebarProjectRow.trailingActionCenterTrailingInset
     // Center inline dividers within the same visual breathing room used by the native Projects boundary.
     static let inlineHeaderTopPaddingCorrection: CGFloat = 11
+    /// Full leading padding above an inline header's title, including the divider's breathing room.
+    /// Drag geometry excludes all of it so a section border hugs the visible header rather than
+    /// floating above it.
+    static let inlineHeaderTotalTopPadding = SidebarRowMetrics.pinnedThreadBoundarySpacing
+        + inlineHeaderTopPaddingCorrection
 
     private static let actionIconSize: CGFloat = 11
     private static let inlineDividerYOffset: CGFloat = 1.5

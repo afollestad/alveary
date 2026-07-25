@@ -26,10 +26,11 @@ func sidebarDropCandidateForLocation(
               candidate.hitFrame.insetBy(dx: 0, dy: -hitSlop).contains(location) else {
             return false
         }
-        // The empty-`Pinned` target opts out of the indicator-proximity gate. That gate keeps an
-        // insertion line local to the row that owns it, so it only means something where
-        // neighbouring rows publish competing boundaries; this one owns a region with none.
-        return candidate.ignoresIndicatorProximity
+        // Containers accept a drop anywhere inside them, so the indicator-proximity gate that
+        // keeps insertion lines local would reject their taller frames. The empty-`Pinned` target
+        // opts out for the same reason: it owns a region no other candidate publishes in.
+        return candidate.kind == .container
+            || candidate.ignoresIndicatorProximity
             || abs(candidate.indicatorY - location.y) <= SidebarDropTargetingMetrics.maximumIndicatorDistance
     }
 
@@ -59,7 +60,12 @@ private func sidebarDropCandidateDistance(
     from location: CGPoint,
     retainingTarget: SidebarDropTarget?
 ) -> CGFloat {
-    let distance = abs(candidate.indicatorY - location.y)
+    // A point inside a container scores a perfect hit, so an overlapping boundary can only tie
+    // and must win on `priority`. Today the two never overlap: containers cover `Tasks`, and
+    // boundaries cover `Pinned`/`Projects`.
+    let distance = candidate.kind == .container && candidate.hitFrame.contains(location)
+        ? 0
+        : abs(candidate.indicatorY - location.y)
     guard candidate.target == retainingTarget else {
         return distance
     }
@@ -214,11 +220,19 @@ private func sidebarTasksSectionDropCandidate(
           let tasksHeaderFrame = geometry[.tasksHeader]?.sidebarUnion else {
         return nil
     }
+    // Tasks is activity-sorted, so the whole section is one target rather than an insertion point.
+    // Unlike a project group, a section has room around it, so the border gets breathing space
+    // instead of hugging the header text.
+    let sectionFrame = ([tasksHeaderFrame, geometry[.tasksTerminal]?.sidebarUnion]
+        .compactMap { $0 }
+        .sidebarUnion ?? tasksHeaderFrame)
+        .insetBy(dx: 0, dy: -SidebarDropTargetingMetrics.sectionContainerOutset)
     return sidebarSectionCandidate(
         target: SidebarDropTarget(section: .tasks, item: nil, placement: .end),
-        indicatorY: tasksHeaderFrame.maxY,
-        hitFrame: tasksHeaderFrame.sidebarLowerHalf,
-        viewport: viewport
+        indicatorY: sectionFrame.midY,
+        hitFrame: sectionFrame,
+        viewport: viewport,
+        kind: .container
     )
 }
 
@@ -228,17 +242,24 @@ func sidebarSectionCandidate(
     hitFrame: CGRect,
     viewport: CGRect,
     priority: Int = 0,
+    kind: SidebarDropCandidateKind = .boundary,
     ignoresIndicatorProximity: Bool = false
 ) -> SidebarDropCandidate? {
-    guard sidebarLineIsVisible(indicatorY, viewport: viewport, stickyOcclusionMaxY: nil),
-          let clippedHitFrame = hitFrame.sidebarIntersection(with: viewport) else {
+    guard let clippedHitFrame = hitFrame.sidebarIntersection(with: viewport) else {
+        return nil
+    }
+    // A container is anchored to its visible extent, so scrolling its midpoint out of view must
+    // not drop the target while part of it is still under the pointer. A boundary is a single
+    // line, so it stays subject to the ordinary visibility check.
+    guard kind == .container || sidebarLineIsVisible(indicatorY, viewport: viewport, stickyOcclusionMaxY: nil) else {
         return nil
     }
     return SidebarDropCandidate(
         target: target,
-        indicatorY: indicatorY,
+        indicatorY: kind == .container ? clippedHitFrame.midY : indicatorY,
         hitFrame: clippedHitFrame,
         priority: priority,
+        kind: kind,
         ignoresIndicatorProximity: ignoresIndicatorProximity
     )
 }
@@ -392,6 +413,8 @@ private enum SidebarDropTargetingMetrics {
     static let acquisitionHitSlop: CGFloat = 4
     static let retentionHitSlop: CGFloat = 8
     static let retentionDistanceBias: CGFloat = 4
+    /// Breathing room around a whole-section container, which has margin to spare unlike a row.
+    static let sectionContainerOutset: CGFloat = 4
 }
 
 enum SidebarDragCoordinateSpace {

@@ -33,7 +33,7 @@ extension SidebarView {
         )
         .sidebarDragGeometry(
             .tasksHeader,
-            excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTopPaddingCorrection
+            excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
         )
     }
 }
