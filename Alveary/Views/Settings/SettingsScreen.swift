@@ -120,6 +120,12 @@ struct SettingsScreen: View {
     @ViewBuilder
     private var selectedPageView: some View {
         switch selectedPage {
+        case .agents:
+            AgentsSettingsTabView(
+                viewModel: viewModel,
+                providerIDs: viewModel.availableProviderIDs,
+                providerExtraArgsBinding: providerExtraArgsBinding
+            )
         case .interface:
             InterfaceSettingsTabView(
                 viewModel: viewModel,
@@ -150,13 +156,6 @@ struct SettingsScreen: View {
                 soundEnabled: binding(for: \.soundEnabled),
                 soundName: binding(for: \.soundName)
             )
-        case .agents:
-            AgentsSettingsTabView(
-                viewModel: viewModel,
-                providerIDs: viewModel.availableProviderIDs,
-                providerExtraArgsBinding: providerExtraArgsBinding,
-                autoTrustProjects: binding(for: \.autoTrustProjects)
-            )
         case .terminal:
             TerminalSettingsTabView(
                 expandTerminalWhenActionsRun: binding(for: \.expandTerminalWhenActionsRun),
@@ -171,6 +170,7 @@ struct SettingsScreen: View {
                 effort: binding(for: \.effort),
                 defaultThreadCleanupAction: binding(for: \.defaultThreadCleanupAction),
                 defaultEnterBehavior: binding(for: \.defaultEnterBehavior),
+                autoTrustProjects: binding(for: \.autoTrustProjects),
                 reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
                 turnAwakeEnabled: binding(for: \.turnAwakeEnabled),
                 turnAwakePreventDisplaySleep: binding(for: \.turnAwakePreventDisplaySleep),
@@ -265,6 +265,8 @@ private extension SettingsScreen {
 private extension AppSettings.SettingsPage {
     var title: String {
         switch self {
+        case .agents:
+            return "Agents"
         case .interface:
             return "Appearance"
         case .appShots:
@@ -273,8 +275,6 @@ private extension AppSettings.SettingsPage {
             return "Git"
         case .notifications:
             return "Notifications"
-        case .agents:
-            return "Providers"
         case .terminal:
             return "Terminal"
         case .threads:
@@ -286,6 +286,8 @@ private extension AppSettings.SettingsPage {
 
     var icon: String {
         switch self {
+        case .agents:
+            return "brain"
         case .interface:
             return "paintbrush"
         case .appShots:
@@ -294,8 +296,6 @@ private extension AppSettings.SettingsPage {
             return "arrow.triangle.branch"
         case .notifications:
             return "bell"
-        case .agents:
-            return "brain"
         case .terminal:
             return "terminal"
         case .threads:
@@ -307,6 +307,8 @@ private extension AppSettings.SettingsPage {
 
     var description: String {
         switch self {
+        case .agents:
+            return "Manage agent installs and CLI settings."
         case .interface:
             return "Adjust theme and typography for the app shell."
         case .appShots:
@@ -315,12 +317,10 @@ private extension AppSettings.SettingsPage {
             return "Configure Git defaults and GitHub authentication for new worktrees."
         case .notifications:
             return "Configure notification delivery and sounds."
-        case .agents:
-            return "Manage project trust, provider installs, and CLI settings."
         case .terminal:
             return "Configure terminal pane behavior for shells and project actions."
         case .threads:
-            return "Manage thread defaults and startup behavior."
+            return "Manage thread defaults, project trust, and startup behavior."
         case .appUpdates:
             return "Check GitHub Releases for newer Alveary versions."
         }

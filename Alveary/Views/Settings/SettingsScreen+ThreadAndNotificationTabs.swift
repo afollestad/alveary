@@ -8,6 +8,7 @@ struct ThreadsSettingsTabView: View {
     @Binding var effort: String
     @Binding var defaultThreadCleanupAction: ThreadCleanupAction
     @Binding var defaultEnterBehavior: ThreadEnterDefaultBehavior
+    @Binding var autoTrustProjects: Bool
     @Binding var reopenLastThreadAndConversationOnLaunch: Bool
     @Binding var turnAwakeEnabled: Bool
     @Binding var turnAwakePreventDisplaySleep: Bool
@@ -26,6 +27,15 @@ struct ThreadsSettingsTabView: View {
 
             SettingsFormSection("Defaults") {
                 defaultsSectionRows
+            }
+
+            SettingsFormSection("Project trust") {
+                SettingsToggleRow(
+                    "Auto-trust projects",
+                    helpText: ProjectTrustSettingsHelp.autoTrustProjects,
+                    isOn: $autoTrustProjects,
+                    showsDivider: false
+                )
             }
 
             SettingsFormSection("Startup") {
@@ -162,9 +172,9 @@ private extension ThreadsSettingsTabView {
     @ViewBuilder
     var defaultsSectionRows: some View {
         SettingsFormRow {
-            SettingsResponsiveControlRow("Provider", horizontalControlSizing: .intrinsic) {
+            SettingsResponsiveControlRow("Agent", horizontalControlSizing: .intrinsic) {
                 SettingsMenuPicker(
-                    "Provider",
+                    "Agent",
                     selection: threadDefaultProviderBinding,
                     options: viewModel.threadDefaultProviderIDs,
                     placeholder: providerPlaceholder,
@@ -255,9 +265,9 @@ private extension ThreadsSettingsTabView {
 
     var providerPlaceholder: String? {
         if viewModel.isCheckingThreadDefaultProviders {
-            return "Checking providers..."
+            return "Checking agents..."
         }
-        return viewModel.hasReadyThreadDefaultProvider ? nil : "No ready providers"
+        return viewModel.hasReadyThreadDefaultProvider ? nil : "No ready agents"
     }
 
     var dependentPlaceholder: String? {
@@ -281,6 +291,11 @@ private extension ThreadsSettingsTabView {
             set: { defaultModel = $0 }
         )
     }
+}
+
+private enum ProjectTrustSettingsHelp {
+    static let autoTrustProjects =
+        "Skips the trust prompt for projects newly added to Alveary."
 }
 
 private enum ThreadSettingsHelp {

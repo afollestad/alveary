@@ -7,7 +7,6 @@ import XCTest
 extension SnapshotTests {
     func testSettingsScreenAgentsTab() {
         var settings = AppSettings()
-        settings.autoTrustProjects = true
         settings.providerConfigs["claude"] = ProviderCustomConfig(
             extraArgs: "--verbose"
         )
@@ -152,6 +151,7 @@ extension SnapshotTests {
         settings.effort = "high"
         settings.theme = "light"
         settings.codeFontFamily = "JetBrains Mono"
+        settings.autoTrustProjects = true
 
         let viewModel = SettingsViewModel(
             settingsService: InMemorySettingsService(current: settings),

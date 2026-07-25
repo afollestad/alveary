@@ -6,19 +6,8 @@ struct AgentsSettingsTabView: View {
     let providerIDs: [String]
     let providerExtraArgsBinding: (String) -> Binding<String>
 
-    @Binding var autoTrustProjects: Bool
-
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
-            SettingsFormSection("Project trust") {
-                SettingsToggleRow(
-                    "Auto-trust projects",
-                    helpText: ProjectTrustSettingsHelp.autoTrustProjects,
-                    isOn: $autoTrustProjects,
-                    showsDivider: false
-                )
-            }
-
             ForEach(providerIDs, id: \.self) { providerID in
                 SettingsFormSection(viewModel.providerDisplayName(for: providerID)) {
                     SettingsToggleRow(
@@ -144,11 +133,6 @@ private extension AgentsSettingsTabView {
             }
         }
     }
-}
-
-private enum ProjectTrustSettingsHelp {
-    static let autoTrustProjects =
-        "Skips the trust prompt for projects newly added to Alveary."
 }
 
 private struct AgentStatusBadge: View {
