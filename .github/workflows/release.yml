@@ -144,6 +144,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
           ZIP_PATH: ${{ steps.package.outputs.zip_path }}
         run: scripts/ci/create-github-release.sh

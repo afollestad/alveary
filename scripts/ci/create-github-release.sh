@@ -9,5 +9,5 @@ fi
 gh release create "$TAG_NAME" \
   "$ZIP_PATH#Alveary.app.zip" \
   --repo "$GITHUB_REPOSITORY" \
-  --title "Alveary ${VERSION}" \
+  --title "$TAG_NAME" \
   --notes-file "$RELEASE_NOTES_PATH"
