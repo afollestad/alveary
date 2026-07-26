@@ -12,7 +12,7 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
     - **Expect CI-only failures.** The compiler hard-errors with `unable to type-check this expression in reasonable time` after a wall-clock budget, so a fast machine builds clean while CI fails.
     - **Lift modifier groups out of `body`.** Move each group into a `func …<Content: View>(_ content: Content) -> some View` helper, its own type-check scope, and keep chain order identical so modifier semantics do not shift. `Sidebar/SidebarView+Dialogs.swift` and `Chat/Transcript/Scrolling/ChatView+Transcript.swift` are the references.
     - **Share the optional-to-`Bool` bridge.** One `sidebarPresentationBinding`-style helper, not an inline `Binding(get:set:)` closure pair per dialog.
-    - **Measure, do not guess.** `TYPECHECK_BUDGET_MS=400 ./scripts/build.sh` lists every body over that many milliseconds and fails if any exist. CI enforces `3000`, so a `body` approaching it breaks the build there before it becomes a hard type-check error.
+    - **Measure, do not guess.** `TYPECHECK_BUDGET_MS=400 ./scripts/build.sh` lists every body over that many milliseconds and fails if any exist. CI enforces `3000` for app sources, so a `body` approaching it breaks the build there before it becomes a hard type-check error.
     - **Read local timings as a lower bound.** The same symbols measured ~7x higher on CI than locally — slower hardware plus a pinned toolchain — and the ratio varies by code shape. A body that looks fine locally can be seconds there, so scale before comparing against the CI budget, or read the numbers off a CI run.
 
 ## Responsive Settings Rows

@@ -31,9 +31,18 @@ jobs:
       # more higher here than locally (slower hardware, and a pinned toolchain rather than
       # whatever Xcode a dev has), so a local reading badly understates the real cost. The
       # slowest symbols measured here are `#Predicate` fetch shapes at ~1.5s, so 3000 keeps
-      # roughly 2x headroom for runner variance while still tripping well before a hard
+      # roughly 2x headroom for the app target while still tripping well before a hard
       # `unable to type-check this expression` error.
+      #
+      # Test sources fail at a higher bar because their floor is attribution noise, not real
+      # solve cost: the solver's wall-clock timer bills first-touch framework deserialization to
+      # whichever expression in a frontend batch needs it first, and `AppDelegateTests`
+      # statements whose genuine solve is under 100ms locally have measured 3063-3962ms here
+      # across runs, invariant to how the statement was written. 5000 clears that ~4s observed
+      # ceiling. The compiler flag stays at the base budget for every step (identical build
+      # settings, shared products); only `test.sh`'s failure scan reads the higher value.
       TYPECHECK_BUDGET_MS: "3000"
+      TYPECHECK_TEST_BUDGET_MS: "5000"
 
     steps:
       - name: Checkout

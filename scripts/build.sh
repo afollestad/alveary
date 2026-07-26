@@ -100,23 +100,4 @@ if [ "$build_status" -ne 0 ]; then
   exit "$build_status"
 fi
 
-# The frontend emits these only past the limit, so any match is over budget. Keep only sources in
-# this repository: compiler-generated macro expansion buffers (`@__swiftmacro_…`, mostly
-# `#Predicate`) just restate the diagnostic already reported at their call site and cannot be
-# edited, and dependency sources under `.build/` are not ours to change. `awk` matches the prefix
-# literally, so a repo path containing regex or `sed` delimiter characters stays safe.
-offenders=$(
-  grep -E "took [0-9]+ms to type-check" "$typecheck_budget_log" \
-    | awk -v root="$repo_root/" -v build="$repo_root/.build/" \
-      'index($0, root) == 1 && index($0, build) != 1 { print substr($0, length(root) + 1) }' \
-    | sort -u || true
-)
-
-if [ -n "$offenders" ]; then
-  echo "" >&2
-  echo "Type-check budget exceeded (TYPECHECK_BUDGET_MS=$typecheck_budget_ms):" >&2
-  echo "$offenders" >&2
-  echo "" >&2
-  echo "Split each into parts that type-check on their own; see the type-check budget bullets in AGENTS.md." >&2
-  exit 1
-fi
+typecheck_budget_report_offenders "$typecheck_budget_log" "$repo_root"

@@ -27,12 +27,12 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: attachment.fileURL.path))
 
         let appDelegate = fixture.makeAppDelegate()
-        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
         try await fixture.waitForProviderChecks(1, description: "expected startup cleanup to finish")
 
         XCTAssertEqual(try mainContext.fetchCount(FetchDescriptor<AgentThread>()), 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: attachment.fileURL.path))
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
         withExtendedLifetime(preloadedDrafts) {}
     }
 
@@ -311,7 +311,7 @@ final class AppDelegateTests: XCTestCase {
         let signalState = AppDelegateProcessSignalState(activePIDs: [100, 200])
         let appDelegate = fixture.makeAppDelegate(signalState: signalState)
 
-        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
         try await fixture.waitForProviderChecks(1, description: "expected startup warmup to finish")
 
         let sessionLoadCount = await fixture.sessionManager.loadCount()
@@ -326,7 +326,7 @@ final class AppDelegateTests: XCTestCase {
         let invocations = await fixture.shellRunner.invocations
         XCTAssertEqual(invocations.map(\.executable), ["/bin/ps", "/usr/sbin/lsof", "/usr/sbin/lsof"])
 
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
     }
 
     func testStartupWarmupRemovesSessionEntryWhenOrphanedConversationWasDeleted() async throws {
@@ -343,7 +343,7 @@ final class AppDelegateTests: XCTestCase {
         let signalState = AppDelegateProcessSignalState(activePIDs: [100])
         let appDelegate = fixture.makeAppDelegate(signalState: signalState)
 
-        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
         try await appDelegateWaitUntil("expected startup warmup to prune stale session entry") {
             !(await fixture.sessionManager.hasSession(for: "conversation-1"))
         }
@@ -352,7 +352,7 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertEqual(providerCheckCount, 1)
         XCTAssertEqual(signalState.recordedSignals(), [.init(pid: 100, signal: SIGTERM)])
 
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
     }
 
     func testManagedProcessesObserverTogglesSuddenTerminationWithSnapshotChanges() async throws {
@@ -367,7 +367,7 @@ final class AppDelegateTests: XCTestCase {
             }
         )
 
-        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
 
         await fixture.agentsManager.setAllProcessesSnapshot([Process()])
         fixture.appNotificationCenter.post(name: .managedProcessesChanged, object: nil)
@@ -379,7 +379,7 @@ final class AppDelegateTests: XCTestCase {
         XCTAssertEqual(suddenTerminationState.disableCalls, 1)
         XCTAssertEqual(suddenTerminationState.enableCalls, 1)
 
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
     }
 
     func testApplicationWillTerminateBeginsShutdownPostsNotificationAndPersistsSessionMap() async throws {
@@ -414,7 +414,7 @@ final class AppDelegateTests: XCTestCase {
             fixture.appNotificationCenter.removeObserver(observer)
         }
 
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
 
         let shutdownCallCount = await fixture.agentsManager.beginShutdownCallCount()
         let persistCount = await fixture.sessionManager.persistCount()
@@ -436,7 +436,7 @@ final class AppDelegateTests: XCTestCase {
             }
         )
 
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
 
         let shutdownCallCount = await fixture.agentsManager.beginShutdownCallCount()
         XCTAssertEqual(shutdownCallCount, 1)
@@ -467,13 +467,13 @@ extension AppDelegateTests {
         context.insert(conversation)
         try context.save()
 
-        appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        appDelegate.applicationDidFinishLaunching(appDelegateDidFinishLaunchingNotification())
         try await fixture.waitForProviderChecks(1, description: "expected startup cleanup to finish")
 
         XCTAssertEqual(try context.fetch(FetchDescriptor<AgentThread>()).map(\.persistentModelID), [thread.persistentModelID])
         XCTAssertEqual(try context.fetch(FetchDescriptor<Conversation>()).map(\.persistentModelID), [conversation.persistentModelID])
         XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
-        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+        appDelegate.applicationWillTerminate(appDelegateWillTerminateNotification())
     }
 }
 

@@ -120,18 +120,20 @@ extension ConversationViewModelTests {
         )
         fixture.viewModel.rebuildChatItemsFromConversationRecords(forceFullRebuild: true)
 
-        XCTAssertEqual(
-            fixture.viewModel.state.grouper.items,
-            [
-                .assistantMessage(id: earlierAssistant.id, text: "Earlier response"),
-                .transcriptNote(id: first.note.id, kind: .scheduledTask(try XCTUnwrap(first.note.content))),
-                .userMessage(id: first.prompt.id, text: "Run the first review."),
-                .assistantMessage(id: first.response.id, text: "First review complete."),
-                .transcriptNote(id: second.note.id, kind: .scheduledTask(try XCTUnwrap(second.note.content))),
-                .userMessage(id: second.prompt.id, text: "Run the second review."),
-                .assistantMessage(id: second.response.id, text: "Second review complete.")
-            ]
-        )
+        // Typed locals keep this off the type-check budget: the whole array inside a generic
+        // `XCTAssertEqual` measured 304ms locally, and CI runs the same solver 7-10x slower.
+        let firstNoteKind: TranscriptNoteKind = .scheduledTask(try XCTUnwrap(first.note.content))
+        let secondNoteKind: TranscriptNoteKind = .scheduledTask(try XCTUnwrap(second.note.content))
+        let expected: [ChatItem] = [
+            .assistantMessage(id: earlierAssistant.id, text: "Earlier response"),
+            .transcriptNote(id: first.note.id, kind: firstNoteKind),
+            .userMessage(id: first.prompt.id, text: "Run the first review."),
+            .assistantMessage(id: first.response.id, text: "First review complete."),
+            .transcriptNote(id: second.note.id, kind: secondNoteKind),
+            .userMessage(id: second.prompt.id, text: "Run the second review."),
+            .assistantMessage(id: second.response.id, text: "Second review complete.")
+        ]
+        XCTAssertEqual(fixture.viewModel.state.grouper.items, expected)
     }
 }
 
