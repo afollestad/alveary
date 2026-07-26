@@ -159,7 +159,15 @@ extension SidebarView {
                 thread,
                 layout: .project,
                 topSpacing: threadTopSpacing,
-                opacity: configuration.opacity
+                // Only Task children are sources: they can leave for `Tasks`. A Project-mode child
+                // has nowhere to go, so nested rows otherwise stay non-draggable.
+                dragConfiguration: unpinnedTaskDragConfiguration(
+                    for: thread,
+                    logicalOrder: context.dragLogicalOrder
+                ),
+                opacity: activeSidebarDragItem == .unpinnedTask(thread.persistentModelID)
+                    ? 0.48
+                    : configuration.opacity
             )
             .sidebarDragGeometry(
                 configuration.terminalRole,

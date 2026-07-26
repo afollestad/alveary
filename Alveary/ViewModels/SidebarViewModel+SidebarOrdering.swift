@@ -263,14 +263,23 @@ private extension SidebarViewModel {
     /// A Tasks-section drop is an unpin, not a reorder: the Tasks list is activity-sorted,
     /// so the drop delegates to `setThreadPinned`, which owns the scheduled-attachment guard.
     func commitSidebarDropToTasks(dragItem: SidebarDragItem) throws -> Bool {
-        guard case .pinnedTask(let id) = dragItem,
-              let thread = modelContext.resolveThread(id: id),
-              thread.effectiveMode == .task,
-              isVisiblePinnedSidebarThread(thread) else {
+        switch dragItem {
+        case .pinnedTask(let id):
+            guard let thread = modelContext.resolveThread(id: id),
+                  thread.effectiveMode == .task,
+                  isVisiblePinnedSidebarThread(thread) else {
+                return false
+            }
+            try setThreadPinned(thread, isPinned: false)
+            // A pinned Task can still belong to a project; unpinning alone would drop it straight
+            // back into that project rather than into `Tasks`, which is where it was dropped.
+            _ = try detachTaskFromProject(id)
+            return true
+        case .unpinnedTask(let id):
+            return try detachTaskFromProject(id)
+        case .project, .pinnedThread:
             return false
         }
-        try setThreadPinned(thread, isPinned: false)
-        return true
     }
 
     func sidebarDropRequestIsValid(dragItem: SidebarDragItem, target: SidebarDropTarget) -> Bool {
@@ -278,6 +287,14 @@ private extension SidebarViewModel {
             return false
         }
         if dragItem.isConversation, target.section != .pinned {
+            return false
+        }
+
+        // A Task nested under a pinned project cannot hold a standalone pin: the pinned project
+        // absorbs its children, so normalization would clear it in the same commit.
+        if case .unpinnedTask(let id) = dragItem,
+           target.section == .pinned,
+           modelContext.resolveThread(id: id)?.project?.isPinned == true {
             return false
         }
 

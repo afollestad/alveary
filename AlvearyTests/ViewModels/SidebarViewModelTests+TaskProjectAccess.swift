@@ -185,6 +185,99 @@ extension SidebarViewModelTests {
         XCTAssertTrue(try fixture.requireThread(task.persistentModelID).taskGrantedRoots.isEmpty)
     }
 
+    func testDroppingANestedTaskOnTasksLeavesTheProjectButKeepsTheGrant() async throws {
+        let fixture = try SidebarTestFixture()
+        let projectPath = try fixture.makeTemporaryDirectory(named: "detach-target")
+        let project = try fixture.insertProject(name: "Alveary", path: projectPath)
+        let task = try await fixture.materializedTask(named: "Nested")
+        try await fixture.viewModel.moveTaskIntoProject(
+            task.persistentModelID,
+            projectID: project.persistentModelID
+        )
+
+        let didCommit = try fixture.viewModel.commitSidebarDrop(
+            dragItem: .unpinnedTask(task.persistentModelID),
+            target: SidebarDropTarget(section: .tasks, placement: .end)
+        )
+
+        XCTAssertTrue(didCommit)
+        let detached = try fixture.requireThread(task.persistentModelID)
+        XCTAssertNil(detached.project)
+        // Placement is the only thing that changes: revoking access could break work in flight.
+        XCTAssertEqual(detached.taskWorkspaceDescriptor?.grantedRoots, [projectPath])
+        let snapshot = try fixture.renderSnapshot()
+        XCTAssertEqual(snapshot.activeTaskThreads.map(\.persistentModelID), [task.persistentModelID])
+        XCTAssertTrue(snapshot.activeThreads(for: project).isEmpty)
+    }
+
+    func testTasksDropIgnoresATaskThatIsAlreadyProjectless() async throws {
+        let fixture = try SidebarTestFixture()
+        let task = try await fixture.materializedTask(named: "Already loose")
+
+        XCTAssertFalse(try fixture.viewModel.commitSidebarDrop(
+            dragItem: .unpinnedTask(task.persistentModelID),
+            target: SidebarDropTarget(section: .tasks, placement: .end)
+        ))
+        XCTAssertNil(try fixture.requireThread(task.persistentModelID).project)
+    }
+
+    func testDropIsPurePlacementWhenTheTaskAlreadyReachesTheFolder() async throws {
+        let fixture = try SidebarTestFixture()
+        let projectPath = try fixture.makeTemporaryDirectory(named: "already-granted")
+        let project = try fixture.insertProject(name: "Alveary", path: projectPath)
+        let task = try await fixture.materializedTask(named: "Round trip")
+
+        let firstDrop = try fixture.viewModel.validateTaskProjectAccess(
+            threadID: task.persistentModelID,
+            projectID: project.persistentModelID
+        )
+        XCTAssertTrue(firstDrop.grantsNewAccess)
+        try await fixture.viewModel.moveTaskIntoProject(
+            task.persistentModelID,
+            projectID: project.persistentModelID
+        )
+        _ = try fixture.viewModel.commitSidebarDrop(
+            dragItem: .unpinnedTask(task.persistentModelID),
+            target: SidebarDropTarget(section: .tasks, placement: .end)
+        )
+
+        // Dragged back out, the grant survives, so dropping in again authorizes nothing new and
+        // the confirmation dialog is skipped.
+        let secondDrop = try fixture.viewModel.validateTaskProjectAccess(
+            threadID: task.persistentModelID,
+            projectID: project.persistentModelID
+        )
+        XCTAssertFalse(secondDrop.grantsNewAccess)
+    }
+
+    func testDroppingAPinnedNestedTaskOnTasksActuallyLandsInTasks() async throws {
+        let fixture = try SidebarTestFixture()
+        let projectPath = try fixture.makeTemporaryDirectory(named: "pinned-nested")
+        let project = try fixture.insertProject(name: "Alveary", path: projectPath)
+        let task = try await fixture.materializedTask(named: "Pinned nested")
+        try await fixture.viewModel.moveTaskIntoProject(
+            task.persistentModelID,
+            projectID: project.persistentModelID
+        )
+        // Pinning promotes it out of the unpinned project into a standalone Pinned row.
+        try fixture.viewModel.setThreadPinned(try fixture.requireThread(task.persistentModelID), isPinned: true)
+
+        let didCommit = try fixture.viewModel.commitSidebarDrop(
+            dragItem: .pinnedTask(task.persistentModelID),
+            target: SidebarDropTarget(section: .tasks, placement: .end)
+        )
+
+        XCTAssertTrue(didCommit)
+        let dropped = try fixture.requireThread(task.persistentModelID)
+        XCTAssertFalse(dropped.isPinned)
+        // Dropping on Tasks must mean "belongs in Tasks", not "unpin back into the project".
+        XCTAssertNil(dropped.project)
+        XCTAssertEqual(
+            try fixture.renderSnapshot().activeTaskThreads.map(\.persistentModelID),
+            [task.persistentModelID]
+        )
+    }
+
     func testDroppingAPinnedTaskIntoAnUnpinnedProjectClearsThePin() async throws {
         let fixture = try SidebarTestFixture()
         let projectPath = try fixture.makeTemporaryDirectory(named: "unpinned-target")
@@ -210,5 +303,29 @@ extension SidebarViewModelTests {
             snapshot.activeThreads(for: project).map(\.persistentModelID),
             [task.persistentModelID]
         )
+    }
+
+    func testPinnedProjectChildTaskDraggedToPinnedIsNotASilentNoOp() async throws {
+        let fixture = try SidebarTestFixture()
+        let projectPath = try fixture.makeTemporaryDirectory(named: "pinned-parent")
+        let project = try fixture.insertProject(name: "Pinned parent", path: projectPath)
+        let task = try await fixture.materializedTask(named: "Child")
+        try await fixture.viewModel.moveTaskIntoProject(
+            task.persistentModelID,
+            projectID: project.persistentModelID
+        )
+        try fixture.viewModel.setProjectPinned(project, isPinned: true)
+
+        let didMove = try fixture.viewModel.commitSidebarDrop(
+            dragItem: .unpinnedTask(task.persistentModelID),
+            target: SidebarDropTarget(section: .pinned, placement: .end)
+        )
+
+        // The pinned project absorbs its children, so a pin can never take effect here. The drop
+        // must report no movement rather than claiming success while changing nothing.
+        XCTAssertFalse(didMove)
+        let unchanged = try fixture.requireThread(task.persistentModelID)
+        XCTAssertFalse(unchanged.isPinned)
+        XCTAssertEqual(unchanged.project?.persistentModelID, project.persistentModelID)
     }
 }

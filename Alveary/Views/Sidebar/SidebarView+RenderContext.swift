@@ -42,7 +42,8 @@ extension SidebarView {
                 pinnedItems: snapshot.pinnedItems.map(\.dragItem),
                 regularProjects: snapshot.regularProjects.map { .project($0.persistentModelID) },
                 projectsHeaderIsSticky: snapshot.pinnedItems.isEmpty,
-                unpinnableTaskIDs: unpinnableTaskIDs(in: snapshot)
+                unpinnableTaskIDs: unpinnableTaskIDs(in: snapshot),
+                projectIDByTaskID: projectIDByTaskID(in: snapshot)
             ),
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty
         )
@@ -59,6 +60,26 @@ extension SidebarView {
             ids.insert(thread.persistentModelID)
         }
         return ids
+    }
+
+    /// Every Task thread placed in a project, keyed to that project — nested children plus
+    /// standalone pinned Tasks whose backing project is unpinned.
+    func projectIDByTaskID(in snapshot: SidebarRenderSnapshot) -> [PersistentIdentifier: PersistentIdentifier] {
+        var map: [PersistentIdentifier: PersistentIdentifier] = [:]
+        for project in snapshot.orderedProjects {
+            for thread in snapshot.activeThreads(for: project) where thread.effectiveMode == .task {
+                map[thread.persistentModelID] = project.persistentModelID
+            }
+        }
+        for item in snapshot.pinnedItems {
+            guard case .thread(let thread) = item.kind,
+                  thread.effectiveMode == .task,
+                  let projectID = thread.project?.persistentModelID else {
+                continue
+            }
+            map[thread.persistentModelID] = projectID
+        }
+        return map
     }
 
     func threadOrderAnimation(expandedThreadCount: Int) -> Animation? {

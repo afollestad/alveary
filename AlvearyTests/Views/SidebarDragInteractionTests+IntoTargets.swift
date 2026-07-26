@@ -366,4 +366,109 @@ extension SidebarDragInteractionTests {
         ))
         XCTAssertEqual(try fixture.requireThread(task.persistentModelID).mode, .task)
     }
+
+    func testNestedTaskSeesTheTasksSectionTarget() throws {
+        let fixture = try SidebarTestFixture()
+        let nested = try fixture.insertProject(name: "Nested", path: "/tmp/detach-source")
+        let loose = try fixture.insertProject(name: "Loose", path: "/tmp/detach-loose")
+        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
+            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
+            .projectsHeader: [CGRect(x: 0, y: 20, width: 200, height: 24)],
+            .tasksHeader: [CGRect(x: 0, y: 200, width: 200, height: 24)]
+        ]
+        let order = SidebarDragLogicalOrder(
+            pinnedItems: [],
+            regularProjects: [],
+            projectsHeaderIsSticky: false,
+            projectIDByTaskID: [nested.persistentModelID: loose.persistentModelID]
+        )
+
+        let nestedCandidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 212),
+            dragging: .unpinnedTask(nested.persistentModelID),
+            geometry: geometry,
+            logicalOrder: order
+        )
+        // A Task already in `Tasks` has nowhere to go, so it must not target its own section.
+        let looseCandidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 212),
+            dragging: .unpinnedTask(loose.persistentModelID),
+            geometry: geometry,
+            logicalOrder: order
+        )
+
+        XCTAssertEqual(nestedCandidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
+        XCTAssertEqual(nestedCandidate?.kind, .container)
+        XCTAssertNil(looseCandidate)
+    }
+
+    func testTasksOwnProjectNeverOffersTheIntoTarget() throws {
+        let fixture = try SidebarTestFixture()
+        let task = try fixture.insertProject(name: "Task", path: "/tmp/own-project-task")
+        let home = try fixture.insertProject(name: "Home", path: "/tmp/own-project-home")
+        let other = try fixture.insertProject(name: "Other", path: "/tmp/own-project-other")
+        let homeID = home.persistentModelID
+        let otherID = other.persistentModelID
+        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
+            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
+            .projectsHeader: [CGRect(x: 0, y: 20, width: 200, height: 24)],
+            .projectHeader(.projects, homeID): [CGRect(x: 0, y: 60, width: 200, height: 24)],
+            .projectTerminal(.projects, homeID): [CGRect(x: 0, y: 60, width: 200, height: 24)],
+            .projectHeader(.projects, otherID): [CGRect(x: 0, y: 120, width: 200, height: 24)],
+            .projectTerminal(.projects, otherID): [CGRect(x: 0, y: 120, width: 200, height: 24)]
+        ]
+        let order = SidebarDragLogicalOrder(
+            pinnedItems: [],
+            regularProjects: [.project(homeID), .project(otherID)],
+            projectsHeaderIsSticky: false,
+            projectIDByTaskID: [task.persistentModelID: homeID]
+        )
+
+        let candidates = sidebarProjectIntoDropCandidates(
+            dragging: .unpinnedTask(task.persistentModelID),
+            geometry: geometry,
+            viewport: CGRect(x: 0, y: 0, width: 200, height: 300),
+            stickyOcclusionMaxY: nil,
+            logicalOrder: order
+        )
+
+        // Dropping on the Task's own project could only fail validation, so it is not a target;
+        // every other project still is.
+        XCTAssertEqual(
+            candidates.map(\.target.item),
+            [SidebarDragItem.project(otherID)]
+        )
+    }
+
+    func testTaskUnderAPinnedProjectOffersNoPinnedInsertionPoints() throws {
+        let fixture = try SidebarTestFixture()
+        let task = try fixture.insertProject(name: "Task", path: "/tmp/unpinnable-task")
+        let parent = try fixture.insertProject(name: "Parent", path: "/tmp/unpinnable-parent")
+        let parentID = parent.persistentModelID
+        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
+            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
+            .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],
+            .projectHeader(.pinned, parentID): [CGRect(x: 0, y: 40, width: 200, height: 24)],
+            .projectTerminal(.pinned, parentID): [CGRect(x: 0, y: 70, width: 200, height: 24)],
+            .projectsHeader: [CGRect(x: 0, y: 120, width: 200, height: 24)]
+        ]
+        let order = SidebarDragLogicalOrder(
+            pinnedItems: [.project(parentID)],
+            regularProjects: [],
+            projectsHeaderIsSticky: false,
+            projectIDByTaskID: [task.persistentModelID: parentID]
+        )
+
+        // The pinned project would absorb any pin, so no Pinned boundary may appear anywhere:
+        // not at the pinned header, not between pinned items, not at the hidden-pinned edge.
+        for pointerY in [CGFloat(24), 38, 72, 122] {
+            let candidate = sidebarDropCandidateForLocation(
+                at: CGPoint(x: 100, y: pointerY),
+                dragging: .unpinnedTask(task.persistentModelID),
+                geometry: geometry,
+                logicalOrder: order
+            )
+            XCTAssertNotEqual(candidate?.target.section, .pinned, "unexpected pinned target at y=\(pointerY)")
+        }
+    }
 }

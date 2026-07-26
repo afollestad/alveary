@@ -57,7 +57,8 @@ private struct SidebarTaskAccessDialogTextSnapshot: View {
                 threadName: "New task",
                 projectName: projectName,
                 projectPath: "/tmp/\(projectName)",
-                restartsAgentProcess: true
+                restartsAgentProcess: true,
+                grantsNewAccess: true
             )
         )
         .fixedSize(horizontal: false, vertical: true)

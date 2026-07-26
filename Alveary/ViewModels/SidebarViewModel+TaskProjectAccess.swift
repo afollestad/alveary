@@ -12,6 +12,8 @@ struct SidebarTaskProjectAccessRequest: Equatable {
     /// False when the running agent picks the folder up only on its next turn, because its process
     /// was launched without it.
     let restartsAgentProcess: Bool
+    /// False when the Task can already reach this folder, which makes the drop pure placement.
+    let grantsNewAccess: Bool
 }
 
 extension SidebarViewModel {
@@ -38,7 +40,7 @@ extension SidebarViewModel {
                 "This Task cannot be given folder access right now"
             )
         }
-        guard thread.taskWorkspaceDescriptor != nil else {
+        guard let workspace = thread.taskWorkspaceDescriptor else {
             throw SidebarViewModelError.threadMissingTaskWorkspace
         }
         // Each conversation launches its own provider process, so a multi-conversation Task would
@@ -62,7 +64,8 @@ extension SidebarViewModel {
             threadName: thread.displayName(),
             projectName: project.name,
             projectPath: project.path,
-            restartsAgentProcess: thread.hasCompletedInitialSetup
+            restartsAgentProcess: thread.hasCompletedInitialSetup,
+            grantsNewAccess: !alreadyGrants(workspace: workspace, projectPath: project.path)
         )
     }
 
@@ -131,6 +134,22 @@ extension SidebarViewModel {
 }
 
 private extension SidebarViewModel {
+    /// A path already reachable from the workspace needs no new grant. Canonicalization can fail
+    /// for a missing folder; the move itself rejects that case with a clearer message.
+    func alreadyGrants(workspace: TaskWorkspaceDescriptor, projectPath: String) -> Bool {
+        guard let canonical = try? taskWorkspaceOwnershipService.canonicalizeGrants(
+            [projectPath],
+            excludingPrimaryRoot: workspace.primaryRoot
+        ) else {
+            return false
+        }
+        // An empty result means the path resolved to the workspace's own root, already reachable.
+        guard let target = canonical.first else {
+            return true
+        }
+        return workspace.grantedRoots.contains(target)
+    }
+
     func requireTaskProjectAccessIsIdle(_ thread: AgentThread) throws {
         for conversation in thread.conversations {
             switch agentsManager.status(for: conversation.id) {

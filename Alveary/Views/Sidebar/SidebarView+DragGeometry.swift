@@ -133,10 +133,11 @@ private func sidebarItemDropCandidates(
             stickyOcclusionMaxY: stickyOcclusionMaxY
         )
     case .pinnedThread, .pinnedTask, .unpinnedTask:
-        return sidebarPinnedItemDropCandidates(
-            items: logicalOrder.pinnedItems,
+        return sidebarPinnedBoundaryCandidatesIfPinnable(
+            dragging: item,
             geometry: geometry,
-            viewport: viewport
+            viewport: viewport,
+            logicalOrder: logicalOrder
         ) + sidebarProjectIntoDropCandidates(
             dragging: item,
             geometry: geometry,
@@ -155,8 +156,10 @@ private func sidebarSectionDropCandidates(
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
     var candidates: [SidebarDropCandidate] = []
+    let sourceCanPin = sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder)
 
-    if !logicalOrder.pinnedItems.isEmpty,
+    if sourceCanPin,
+       !logicalOrder.pinnedItems.isEmpty,
        let pinnedHeaderFrame = geometry[.pinnedHeader]?.sidebarUnion,
        let candidate = sidebarSectionCandidate(
            target: SidebarDropTarget(section: .pinned, item: nil, placement: .before),
@@ -178,12 +181,13 @@ private func sidebarSectionDropCandidates(
     guard let projectsHeaderFrame else {
         return candidates
     }
-    if let pinnedEnd = sidebarPinnedSectionEndCandidate(
-        geometry: geometry,
-        projectsHeaderFrame: projectsHeaderFrame,
-        viewport: viewport,
-        logicalOrder: logicalOrder
-    ) {
+    if sourceCanPin,
+       let pinnedEnd = sidebarPinnedSectionEndCandidate(
+           geometry: geometry,
+           projectsHeaderFrame: projectsHeaderFrame,
+           viewport: viewport,
+           logicalOrder: logicalOrder
+       ) {
         candidates.append(pinnedEnd)
     }
     if case .project = item,
@@ -236,9 +240,17 @@ private func sidebarTasksSectionDropCandidate(
     viewport: CGRect,
     logicalOrder: SidebarDragLogicalOrder
 ) -> SidebarDropCandidate? {
-    guard case .pinnedTask(let threadID) = item,
-          logicalOrder.unpinnableTaskIDs.contains(threadID),
-          let tasksHeaderFrame = geometry[.tasksHeader]?.sidebarUnion else {
+    // A pinned Task drops here to unpin; a project-nested Task drops here to leave the project.
+    let accepts: Bool
+    switch item {
+    case .pinnedTask(let threadID):
+        accepts = logicalOrder.unpinnableTaskIDs.contains(threadID)
+    case .unpinnedTask(let threadID):
+        accepts = logicalOrder.projectIDByTaskID[threadID] != nil
+    case .project, .pinnedThread:
+        accepts = false
+    }
+    guard accepts, let tasksHeaderFrame = geometry[.tasksHeader]?.sidebarUnion else {
         return nil
     }
     // Tasks is activity-sorted, so the whole section is one target rather than an insertion point.
@@ -365,7 +377,7 @@ private func sidebarProjectDropCandidates(
     return candidates
 }
 
-private func sidebarPinnedItemDropCandidates(
+func sidebarPinnedItemDropCandidates(
     items: [SidebarDragItem],
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect

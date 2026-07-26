@@ -98,6 +98,9 @@ struct SidebarDragLogicalOrder: Equatable {
     /// Pinned Task threads that may leave `Pinned` via the Tasks-section drop target;
     /// scheduled-attached Tasks are excluded, matching the disabled context-menu Unpin.
     var unpinnableTaskIDs: Set<PersistentIdentifier> = []
+    /// The owning project for every Task thread placed in one, pinned or nested. Gates the
+    /// `Tasks` pull-out target and suppresses the `.into` target for a Task's own project.
+    var projectIDByTaskID: [PersistentIdentifier: PersistentIdentifier] = [:]
 }
 
 struct SidebarDragFinalizationTransition {

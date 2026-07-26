@@ -44,9 +44,20 @@ func sidebarProjectIntoDropCandidates(
             reservesBoundaryHalfRows: false
         )
     ]
+    // A Task's own project is not a destination: dropping there could only fail validation.
+    let ownProjectID: PersistentIdentifier?
+    switch item {
+    case .pinnedTask(let threadID), .unpinnedTask(let threadID):
+        ownProjectID = logicalOrder.projectIDByTaskID[threadID]
+    case .project, .pinnedThread:
+        ownProjectID = nil
+    }
     return sections.flatMap { entry in
         entry.items.compactMap { candidateItem in
-            sidebarProjectIntoDropCandidate(
+            guard case .project(let projectID) = candidateItem, projectID != ownProjectID else {
+                return nil
+            }
+            return sidebarProjectIntoDropCandidate(
                 item: candidateItem,
                 entry: entry,
                 geometry: geometry,
@@ -140,5 +151,35 @@ private func sidebarUnoccludedContainerFrame(_ frame: CGRect, occlusionMaxY: CGF
         y: occlusionMaxY,
         width: frame.width,
         height: frame.maxY - occlusionMaxY
+    )
+}
+
+/// A Task nested under a pinned project cannot hold a standalone pin — the project absorbs its
+/// children, so normalization would clear the pin in the same commit.
+func sidebarSourceCanHoldStandalonePin(
+    _ item: SidebarDragItem,
+    logicalOrder: SidebarDragLogicalOrder
+) -> Bool {
+    guard case .unpinnedTask(let threadID) = item,
+          let ownProjectID = logicalOrder.projectIDByTaskID[threadID] else {
+        return true
+    }
+    return !logicalOrder.pinnedItems.contains(.project(ownProjectID))
+}
+
+/// An unpinnable source's drag offers no Pinned insertion points; `Tasks` and `.into` remain.
+func sidebarPinnedBoundaryCandidatesIfPinnable(
+    dragging item: SidebarDragItem,
+    geometry: [SidebarDragGeometryRole: [CGRect]],
+    viewport: CGRect,
+    logicalOrder: SidebarDragLogicalOrder
+) -> [SidebarDropCandidate] {
+    guard sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder) else {
+        return []
+    }
+    return sidebarPinnedItemDropCandidates(
+        items: logicalOrder.pinnedItems,
+        geometry: geometry,
+        viewport: viewport
     )
 }

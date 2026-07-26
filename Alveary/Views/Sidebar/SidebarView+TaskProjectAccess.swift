@@ -29,10 +29,18 @@ extension SidebarView {
     /// rather than opening a dialog that would fail on confirm.
     func requestTaskProjectAccessDrop(threadID: PersistentIdentifier, projectID: PersistentIdentifier) {
         do {
-            pendingTaskProjectAccess = try viewModel.validateTaskProjectAccess(
+            let request = try viewModel.validateTaskProjectAccess(
                 threadID: threadID,
                 projectID: projectID
             )
+            // Confirmation exists to authorize new folder access. When the Task can already reach
+            // the folder the drop is pure placement — non-destructive and undone by dragging back
+            // out — so asking would be noise.
+            guard request.grantsNewAccess else {
+                Task { await confirmTaskProjectAccess(request) }
+                return
+            }
+            pendingTaskProjectAccess = request
         } catch {
             viewModel.presentSidebarError(error)
         }
