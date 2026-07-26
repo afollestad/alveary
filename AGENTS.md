@@ -82,6 +82,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - First-time setup: `./scripts/setup.sh`.
 - The app pre-build needs `needle 0.25.1`; setup installs `needle` and fails clearly if the installed version does not match.
 - Build: `./scripts/build.sh`.
+- `TYPECHECK_BUDGET_MS=<ms> ./scripts/build.sh` fails the build when any function body or expression in this repo's own sources exceeds that type-check time, and prints the offenders. Generated macro buffers and `.build/` dependency sources are excluded because neither is editable here. CI sets it job-wide to `6000`; `build.sh`, `test.sh`, and `snapshots.sh` all read it through `scripts/lib/typecheck-budget.sh` so they compile with identical settings and keep sharing products, and only `build.sh` fails on it. Setting it forces `--no-xcsift` and a full recompile, because the build settings change. See the type-check budget bullet in `Alveary/Views/AGENTS.md`.
 - Run the built app: `./scripts/run.sh`.
 - Interactive development can also use the `Alveary` scheme in Xcode.
 - Test: `./scripts/test.sh`, or pass focused identifiers as arguments.

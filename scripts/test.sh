@@ -9,6 +9,9 @@ cd "$repo_root"
 export SNAPSHOT_ARTIFACTS="${SNAPSHOT_ARTIFACTS:-$repo_root/.build/snapshot-failures}"
 mkdir -p "$SNAPSHOT_ARTIFACTS"
 
+# shellcheck source=lib/typecheck-budget.sh
+source "$repo_root/scripts/lib/typecheck-budget.sh"
+
 run_and_format() {
   if command -v xcsift >/dev/null 2>&1; then
     "$@" 2>&1 | xcsift -f toon -w
@@ -23,7 +26,8 @@ if [ "$#" -eq 0 ]; then
     -scheme Alveary \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
-    test
+    test \
+    "${typecheck_budget_flags[@]+"${typecheck_budget_flags[@]}"}"
   echo "Tests passed."
   exit 0
 fi
@@ -40,6 +44,7 @@ run_and_format xargs -0 xcodebuild \
   -scheme Alveary \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
-  test < "$tmp_args"
+  test \
+  "${typecheck_budget_flags[@]+"${typecheck_budget_flags[@]}"}" < "$tmp_args"
 
 echo "Tests passed."

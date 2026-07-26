@@ -8,11 +8,12 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
 - For icon-bearing action buttons that use the shared prominent button styles, prefer explicit `Image` + `Text` content over `Label`; on macOS the shared style can render `Label` as text-only in some contexts.
 - For selectable list rows such as sidebar items, settings tabs, and diff file lists, use the `.appSelectableRow(...)` modifier from `Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows.
 - Markdown rendering is local SwiftUI `Text`/layout code; keep clickable rows free of nested hit-test blockers.
-- **Keep `body` off the compiler's type-check budget.** Swift solves an expression as a whole, so presentation modifiers chained onto a large hierarchy resolve their generic overloads together with every row in it.
+- **Keep `body` off the compiler's type-check budget.** Swift solves an expression as a whole, so a long modifier chain resolves every generic overload in it together with the hierarchy underneath. Presentation modifiers (`confirmationDialog` / `alert` / `sheet`) and observers (`onChange` / `task` / `overlay`) are both common offenders.
     - **Expect CI-only failures.** The compiler hard-errors with `unable to type-check this expression in reasonable time` after a wall-clock budget, so a fast machine builds clean while CI fails.
-    - **Lift presentation groups out of `body`.** Move `confirmationDialog` / `alert` / `sheet` chains into `func …<Content: View>(_ content: Content) -> some View` helpers, each its own type-check scope. `Sidebar/SidebarView+Dialogs.swift` is the reference.
+    - **Lift modifier groups out of `body`.** Move each group into a `func …<Content: View>(_ content: Content) -> some View` helper, its own type-check scope, and keep chain order identical so modifier semantics do not shift. `Sidebar/SidebarView+Dialogs.swift` and `Chat/Transcript/Scrolling/ChatView+Transcript.swift` are the references.
     - **Share the optional-to-`Bool` bridge.** One `sidebarPresentationBinding`-style helper, not an inline `Binding(get:set:)` closure pair per dialog.
-    - **Measure, do not guess.** `./scripts/build.sh --no-xcsift OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -warn-long-function-bodies=400'` prints per-body milliseconds; a `body` in the seconds is already at risk.
+    - **Measure, do not guess.** `TYPECHECK_BUDGET_MS=400 ./scripts/build.sh` lists every body over that many milliseconds and fails if any exist. CI enforces `6000`, so a `body` approaching it breaks the build there before it becomes a hard type-check error.
+    - **Read local timings as a lower bound.** The same symbols measured ~7x higher on CI than locally — slower hardware plus a pinned toolchain — and the ratio varies by code shape. A body that looks fine locally can be seconds there, so scale before comparing against the CI budget, or read the numbers off a CI run.
 
 ## Responsive Settings Rows
 

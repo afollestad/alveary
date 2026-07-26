@@ -29,6 +29,9 @@ if [ "$SNAPSHOT_ARTIFACTS" = "$default_snapshot_artifacts" ] || [ "$SNAPSHOT_ART
 fi
 mkdir -p "$SNAPSHOT_ARTIFACTS"
 
+# shellcheck source=lib/typecheck-budget.sh
+source "$repo_root/scripts/lib/typecheck-budget.sh"
+
 run_and_format() {
   if command -v xcsift >/dev/null 2>&1; then
     "$@" 2>&1 | xcsift -f toon -w
@@ -77,7 +80,8 @@ run_build_for_testing() {
     -scheme Alveary \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
-    build-for-testing < "$tmp_args"
+    build-for-testing \
+    "${typecheck_budget_flags[@]+"${typecheck_budget_flags[@]}"}" < "$tmp_args"
 }
 
 prepare_patched_xctestrun() {
