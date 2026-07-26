@@ -12,8 +12,8 @@ extension ConversationViewModel {
     ) -> ConversationEventRecord {
         let record = ConversationEventRecord(
             conversationId: dbConversation.id,
-            type: "message",
-            role: "user",
+            type: ConversationEventRecord.messageType,
+            role: ConversationEventRecord.userRole,
             content: message,
             conversation: dbConversation
         )

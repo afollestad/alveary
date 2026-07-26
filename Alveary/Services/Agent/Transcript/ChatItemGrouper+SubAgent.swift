@@ -45,12 +45,12 @@ extension ChatItemGrouper {
 
     func routeToSubAgent(parentId: String, event: ConversationEventRecord) {
         switch event.type {
-        case "tool_call":
+        case ConversationEventRecord.toolCallType:
             let toolId = event.toolId ?? event.id
             mutateSubAgent(id: parentId) { subAgent in
                 upsertPendingSubAgentTool(toolId: toolId, event: event, subAgent: &subAgent)
             }
-        case "tool_result":
+        case ConversationEventRecord.toolResultType:
             guard let toolId = event.toolId else {
                 return
             }
@@ -285,10 +285,10 @@ extension ChatItemGrouper {
     func patchRenderedSubAgentChild(parentId: String, event: ConversationEventRecord) {
         updateRenderedSubAgent(id: parentId) { subAgent in
             switch event.type {
-            case "tool_call":
+            case ConversationEventRecord.toolCallType:
                 let toolId = event.toolId ?? event.id
                 upsertPendingSubAgentTool(toolId: toolId, event: event, subAgent: &subAgent)
-            case "tool_result":
+            case ConversationEventRecord.toolResultType:
                 guard let toolId = event.toolId else {
                     return
                 }

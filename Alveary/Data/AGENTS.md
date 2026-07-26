@@ -66,10 +66,16 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 - `ModelContext+Resolve.swift` hosts shared typed lookup helpers such as `resolveThread(id:)`. Call sites should prefer `modelContext.resolveThread(id:)` over ad-hoc `modelContext.model(for: id) as? AgentThread` casts so the cast lives in one place. Add sibling resolvers here when another model grows a second call site.
 - Fetch-backed resolvers (`resolveThread` / `resolveConversation` / `resolveProject`) are the safe choice after an `await`. `modelContext.model(for:)` can return a non-nil zombie whose next persisted-property read traps; the fetch helpers materialize only still-live rows and return `nil` otherwise.
 
+- `ConversationEventRecord.type` and `.role` are persisted discriminators, so producers and consumers must agree on the exact string. Use the `static let` constants on the model (`messageType`, `toolCallType`, `toolApprovalType`, `userRole`, …) rather than repeating a literal — a typo in either direction silently stops matching rows instead of failing to build. Test fixtures may keep literals; asserting against the raw persisted value is what catches an accidental rename of a constant.
+
 ## Fetch Predicates
 
 - **Keep `#Predicate` relationship keypaths one level deep.** A nested traversal such as `conversation.thread?.project?.path == projectPath` compiles, but the store cannot translate it and the fetch raises `NSInvalidArgumentException: Unsupported function expression TERNARY(...)`. That is an Objective-C exception, so `try? modelContext.fetch(...)` does not contain it — the app crashes.
     - **How to apply:** predicate on the nearest relationship (`thread.project?.path`, `conversation.thread?.persistentModelID`) and reach the far side through the model graph instead. When a route needs a to-many relationship for every fetched row, set `FetchDescriptor.relationshipKeyPathsForPrefetching` so reading it stays batched rather than one fault per row; `ContentView+DiffViewerRouting.swift` gathers project conversation candidates this way.
+- **Bind the value to a local before comparing it in `#Predicate`.** Write `let recordType = ConversationEventRecord.toolApprovalType` above the fetch and compare against that, never a literal inline. Referencing the constant directly inside the predicate is not the point — the local binding is.
+    - **Why:** each `#Predicate` expands into a nested generic `PredicateExpressions` tree, and an inline literal has to be resolved through that tree instead of arriving as a plain `String`. Hoisting one literal took `suppressedPromptApprovalAlreadyResolved` from 531ms to under 100ms locally — over 3.5s on CI, where it was the single most expensive expression in the app.
+    - **Watch the term count too.** Cost climbs with each `&&`. A five-way match is expensive enough that it should be declared once and reused rather than repeated per call site; `DefaultClaudeApprovalPersistenceStore+Queries.swift` holds the session-approval shapes for that reason.
+    - **How to apply:** the type-check budget in `AGENTS.md` catches regressions, but only on CI. Assume a new multi-term predicate is expensive and give it a shared descriptor from the start.
 
 ## Async Property Access
 

@@ -198,11 +198,12 @@ extension ConversationViewModel {
         let conversationID = conversation.id
         let toolUseId = approval.toolUseId
         let sessionId = approval.sessionId
+        let recordType = ConversationEventRecord.toolApprovalType
         return ((try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
+                        $0.type == recordType &&
                         $0.toolId == toolUseId &&
                         $0.content == sessionId &&
                         $0.toolApprovalStatus != nil

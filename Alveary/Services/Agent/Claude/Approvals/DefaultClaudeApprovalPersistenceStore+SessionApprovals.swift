@@ -8,21 +8,8 @@ extension DefaultClaudeApprovalPersistenceStore {
             return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
         }
 
-        let providerId = approval.providerId
-        let conversationId = approval.conversationId
-        let sessionId = approval.sessionId
-        let matchKind = approval.matchKind.rawValue
-        let matchValue = approval.matchValue
         let existingRules = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalRule>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId &&
-                        $0.matchKind == matchKind &&
-                        $0.matchValue == matchValue
-                }
-            )
+            Self.sessionApprovalRuleDescriptor(matching: approval)
         )) ?? []
         guard existingRules.isEmpty else {
             return SessionApprovalRecordResult(isEffective: true, wasInserted: false)
@@ -51,21 +38,8 @@ extension DefaultClaudeApprovalPersistenceStore {
             return
         }
 
-        let providerId = approval.providerId
-        let conversationId = approval.conversationId
-        let sessionId = approval.sessionId
-        let matchKind = approval.matchKind.rawValue
-        let matchValue = approval.matchValue
         let matchingRules = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalRule>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId &&
-                        $0.matchKind == matchKind &&
-                        $0.matchValue == matchValue
-                }
-            )
+            Self.sessionApprovalRuleDescriptor(matching: approval)
         )) ?? []
         guard !matchingRules.isEmpty else {
             return
@@ -88,12 +62,10 @@ extension DefaultClaudeApprovalPersistenceStore {
         }
 
         let records = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalSelection>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId
-                },
+            Self.sessionApprovalSelectionsDescriptor(
+                providerId: providerId,
+                conversationId: conversationId,
+                sessionId: sessionId,
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )
         )) ?? []
@@ -115,12 +87,10 @@ extension DefaultClaudeApprovalPersistenceStore {
         }
 
         let existingRecords = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalSelection>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId
-                }
+            Self.sessionApprovalSelectionsDescriptor(
+                providerId: providerId,
+                conversationId: conversationId,
+                sessionId: sessionId
             )
         )) ?? []
         if let record = existingRecords.first {
@@ -149,12 +119,10 @@ extension DefaultClaudeApprovalPersistenceStore {
         }
 
         let existingRules = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalRule>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId
-                }
+            Self.sessionApprovalRulesDescriptor(
+                providerId: providerId,
+                conversationId: conversationId,
+                sessionId: sessionId
             )
         )) ?? []
         for rule in existingRules {
@@ -162,12 +130,10 @@ extension DefaultClaudeApprovalPersistenceStore {
         }
 
         let existingSelections = (try? context.fetch(
-            FetchDescriptor<AgentSessionApprovalSelection>(
-                predicate: #Predicate {
-                    $0.providerId == providerId &&
-                        $0.conversationId == conversationId &&
-                        $0.sessionId == sessionId
-                }
+            Self.sessionApprovalSelectionsDescriptor(
+                providerId: providerId,
+                conversationId: conversationId,
+                sessionId: sessionId
             )
         )) ?? []
         for selection in existingSelections {

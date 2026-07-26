@@ -4,26 +4,26 @@ import Foundation
 extension ChatItemGrouper {
     func process(_ event: ConversationEventRecord) {
         switch event.type {
-        case "message" where event.role == "user":
+        case ConversationEventRecord.messageType where event.role == ConversationEventRecord.userRole:
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.userMessage(id: event.id, text: event.content ?? ""))
-        case "message" where event.role == "assistant":
+        case ConversationEventRecord.messageType where event.role == ConversationEventRecord.assistantRole:
             handleAssistantMessage(event)
-        case "tool_call":
+        case ConversationEventRecord.toolCallType:
             handleToolCall(event)
-        case "tool_result":
+        case ConversationEventRecord.toolResultType:
             handleToolResult(event)
         case ConversationEventRecord.subAgentCompletedType:
             handleSubAgentCompletedMarker(event)
         case ConversationEventRecord.taskListType:
             handleTaskListSnapshot(event)
-        case "tool_approval":
+        case ConversationEventRecord.toolApprovalType:
             handleToolApproval(event)
-        case "error":
+        case ConversationEventRecord.errorType:
             handleError(event)
-        case "stop",
+        case ConversationEventRecord.stopType,
              ConversationEventRecord.steeredConversationType,
              ConversationEventRecord.scheduledTaskNoteType,
              ConversationContextCompaction.startedType,

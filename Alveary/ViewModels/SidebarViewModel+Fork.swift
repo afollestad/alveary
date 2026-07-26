@@ -6,9 +6,10 @@ extension SidebarViewModel {
     /// Approval state straight from persistence, so pre-mutation gates work without a mounted
     /// conversation controller.
     func hasUnresolvedApproval(conversationIDs: [String]) -> Bool {
+        let recordType = ConversationEventRecord.toolApprovalType
         let descriptor = FetchDescriptor<ConversationEventRecord>(
             predicate: #Predicate { record in
-                record.type == "tool_approval"
+                record.type == recordType
             }
         )
         let records = (try? modelContext.fetch(descriptor)) ?? []
@@ -337,7 +338,7 @@ private extension SidebarViewModel {
         let note = ConversationEventRecord(
             id: "session-forked-\(targetConversation.id)",
             conversationId: targetConversation.id,
-            type: "stop",
+            type: ConversationEventRecord.stopType,
             content: ConversationSessionFork.displayMessage,
             timestamp: baseDate.addingTimeInterval(Double(copiedVisibleIndex) * 0.001),
             conversation: targetConversation
@@ -363,7 +364,7 @@ private extension SidebarViewModel {
             toolId: record.toolId,
             toolName: record.toolName,
             toolInput: record.toolInput,
-            toolApprovalStatus: record.type == "tool_approval"
+            toolApprovalStatus: record.type == ConversationEventRecord.toolApprovalType
                 ? ToolApprovalStatus.superseded.rawValue
                 : record.toolApprovalStatus,
             toolOutput: record.toolOutput,
@@ -416,10 +417,10 @@ private extension SidebarViewModel {
 enum ConversationForkTranscriptPolicy {
     static func shouldCopy(_ record: ConversationEventRecord) -> Bool {
         switch record.type {
-        case "session_init", ConversationEventRecord.contextWindowInvalidatedType,
+        case ConversationEventRecord.sessionInitType, ConversationEventRecord.contextWindowInvalidatedType,
              ConversationEventRecord.goalType, ConversationEventRecord.scheduledTaskNoteType:
             return false
-        case "stop" where ConversationSessionFork.isDisplayMessage(record.content):
+        case ConversationEventRecord.stopType where ConversationSessionFork.isDisplayMessage(record.content):
             return false
         default:
             return true

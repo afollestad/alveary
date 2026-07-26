@@ -14,7 +14,7 @@ enum ScheduledTaskExistingTargetReadiness {
     }
 
     private static func isUnansweredPrompt(_ record: ConversationEventRecord) -> Bool {
-        record.type == "tool_call" &&
+        record.type == ConversationEventRecord.toolCallType &&
             record.toolName == "AskUserQuestion" &&
             record.content?.isEmpty != false
     }
@@ -23,7 +23,7 @@ enum ScheduledTaskExistingTargetReadiness {
         _ approval: ConversationEventRecord,
         among records: [ConversationEventRecord]
     ) -> Bool {
-        guard approval.type == "tool_approval",
+        guard approval.type == ConversationEventRecord.toolApprovalType,
               approval.toolApprovalStatus == nil else {
             return false
         }
@@ -35,7 +35,7 @@ enum ScheduledTaskExistingTargetReadiness {
         }
         let toolUseID = approval.toolId ?? approval.id
         if laterRecords.contains(where: {
-            $0.type == "tool_result" && $0.toolId == toolUseID
+            $0.type == ConversationEventRecord.toolResultType && $0.toolId == toolUseID
         }) {
             return false
         }
@@ -43,13 +43,13 @@ enum ScheduledTaskExistingTargetReadiness {
     }
 
     private static func isImplementationToolCall(_ record: ConversationEventRecord) -> Bool {
-        record.type == "tool_call" &&
+        record.type == ConversationEventRecord.toolCallType &&
             record.toolName != nil &&
             record.toolName != "ExitPlanMode"
     }
 
     private static func isTerminalTokenRecord(_ record: ConversationEventRecord) -> Bool {
-        guard record.type == "tokens",
+        guard record.type == ConversationEventRecord.tokensType,
               let stopReason = record.stopReason else {
             return false
         }

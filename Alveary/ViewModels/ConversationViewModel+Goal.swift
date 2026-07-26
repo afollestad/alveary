@@ -193,11 +193,13 @@ extension ConversationViewModel {
 
     func visibleUserMessageRecord() -> ConversationEventRecord? {
         let conversationID = conversation.id
+        let recordType = ConversationEventRecord.messageType
+        let userRole = ConversationEventRecord.userRole
         let descriptor = FetchDescriptor<ConversationEventRecord>(
             predicate: #Predicate { record in
                 record.conversationId == conversationID &&
-                    record.type == "message" &&
-                    record.role == "user"
+                    record.type == recordType &&
+                    record.role == userRole
             },
             sortBy: [
                 SortDescriptor(\.timestamp),

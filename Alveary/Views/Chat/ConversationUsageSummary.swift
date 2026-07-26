@@ -37,7 +37,7 @@ struct ConversationUsageSummary: Equatable, Sendable {
         cachedContextWindowSize: Int?,
         accounting: ContextTokenAccounting = .additiveCacheRead
     ) -> ConversationUsageSummary? {
-        let tokenEvents = events.filter { $0.type == "tokens" }
+        let tokenEvents = events.filter { $0.type == ConversationEventRecord.tokensType }
         let currentWindowEvents: ArraySlice<ConversationEventRecord>
         if let lastInvalidationIndex = events.lastIndex(where: { $0.type == ConversationEventRecord.contextWindowInvalidatedType }) {
             currentWindowEvents = events[events.index(after: lastInvalidationIndex)...]
@@ -47,7 +47,7 @@ struct ConversationUsageSummary: Equatable, Sendable {
 
         // Model changes only invalidate the reported max size. The latest token row
         // still describes the current provider window until a new result replaces it.
-        let currentWindowTokenEvents = currentWindowEvents.filter { $0.type == "tokens" }
+        let currentWindowTokenEvents = currentWindowEvents.filter { $0.type == ConversationEventRecord.tokensType }
         let latestTokenEvent = tokenEvents.last
         let reportedContextWindowSize = currentWindowTokenEvents.reversed().compactMap { record -> Int? in
             guard let contextWindowSize = record.contextWindowSize, contextWindowSize > 0 else {

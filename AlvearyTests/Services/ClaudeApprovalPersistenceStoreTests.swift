@@ -57,6 +57,25 @@ final class ClaudeApprovalPersistenceStoreTests: XCTestCase {
         XCTAssertNil(selectionAfterRemoval)
     }
 
+    func testDiscardingASessionApprovalRemovesOnlyTheMatchingGrant() async throws {
+        let supportDirectory = temporarySupportDirectory()
+        defer { try? FileManager.default.removeItem(at: supportDirectory) }
+        let store = DefaultClaudeApprovalPersistenceStore(supportDirectory: supportDirectory)
+        _ = await store.recordSessionApproval(sessionApproval(matchValue: "git status"))
+        _ = await store.recordSessionApproval(sessionApproval(matchValue: "git diff"))
+
+        await store.discardSessionApproval(sessionApproval(matchValue: "git status"))
+        let allowsDiscarded = await store.allowsSessionApproval(matching: [
+            sessionApproval(matchValue: "git status")
+        ])
+        let allowsSibling = await store.allowsSessionApproval(matching: [
+            sessionApproval(matchValue: "git diff")
+        ])
+
+        XCTAssertFalse(allowsDiscarded)
+        XCTAssertTrue(allowsSibling)
+    }
+
     private func sessionApproval(matchValue: String = "git status") -> AgentSessionApprovalGrant {
         AgentSessionApprovalGrant(
             providerId: "claude",

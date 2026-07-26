@@ -19,11 +19,12 @@ extension ConversationViewModel {
 
     func unresolvedToolApproval(toolUseId: String, sessionId: String? = nil) -> ToolApprovalRequest? {
         let conversationID = conversation.id
+        let recordType = ConversationEventRecord.toolApprovalType
         let approvalRecords = (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
+                        $0.type == recordType &&
                         $0.toolApprovalStatus == nil
                 },
                 sortBy: [
@@ -128,13 +129,15 @@ extension ConversationViewModel {
         conversationID: String,
         promptId: String
     ) -> [ConversationEventRecord] {
-        (try? modelContext.fetch(
+        let recordType = ConversationEventRecord.toolApprovalType
+        let promptToolName = "AskUserQuestion"
+        return (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
+                        $0.type == recordType &&
                         $0.toolId == promptId &&
-                        $0.toolName == "AskUserQuestion"
+                        $0.toolName == promptToolName
                 },
                 sortBy: [
                     SortDescriptor(\.timestamp, order: .reverse),
@@ -145,11 +148,12 @@ extension ConversationViewModel {
     }
 
     private func latestToolApprovalRecord(conversationID: String) -> ConversationEventRecord? {
-        try? modelContext.fetch(
+        let recordType = ConversationEventRecord.toolApprovalType
+        return try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
+                        $0.type == recordType &&
                         $0.toolApprovalStatus == nil
                 },
                 sortBy: [
@@ -185,11 +189,12 @@ extension ConversationViewModel {
         toolUseId: String,
         approvalTimestamp: Date
     ) -> Bool {
-        (try? modelContext.fetch(
+        let recordType = ConversationEventRecord.toolResultType
+        return (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_result" &&
+                        $0.type == recordType &&
                         $0.toolId == toolUseId &&
                         $0.timestamp > approvalTimestamp
                 }
@@ -201,11 +206,12 @@ extension ConversationViewModel {
         conversationID: String,
         approvalTimestamp: Date
     ) -> Bool {
+        let recordType = ConversationEventRecord.tokensType
         let laterTokens = (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tokens" &&
+                        $0.type == recordType &&
                         $0.timestamp > approvalTimestamp
                 }
             )
@@ -232,7 +238,7 @@ extension ConversationViewModel {
             )
         )) ?? []
         return laterRecords.contains { record in
-            guard record.type == "tool_call",
+            guard record.type == ConversationEventRecord.toolCallType,
                   let toolName = record.toolName else {
                 return false
             }

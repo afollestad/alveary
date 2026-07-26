@@ -40,21 +40,8 @@ actor DefaultClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
         }
 
         for candidate in candidates {
-            let requestConversationId = candidate.conversationId
-            let requestSessionId = candidate.sessionId
-            let requestProviderId = candidate.providerId
-            let matchKind = candidate.matchKind.rawValue
-            let matchValue = candidate.matchValue
             let matchingRules = (try? context.fetch(
-                FetchDescriptor<AgentSessionApprovalRule>(
-                    predicate: #Predicate {
-                        $0.providerId == requestProviderId &&
-                            $0.conversationId == requestConversationId &&
-                            $0.sessionId == requestSessionId &&
-                            $0.matchKind == matchKind &&
-                            $0.matchValue == matchValue
-                    }
-                )
+                Self.sessionApprovalRuleDescriptor(matching: candidate)
             )) ?? []
             if !matchingRules.isEmpty {
                 return true

@@ -255,13 +255,13 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
 
     private func isHistoricalActivityRecord(_ record: ConversationEventRecord) -> Bool {
         switch record.type {
-        case "message":
-            return record.role == "user"
-        case "stop":
+        case ConversationEventRecord.messageType:
+            return record.role == ConversationEventRecord.userRole
+        case ConversationEventRecord.stopType:
             return true
-        case "error":
+        case ConversationEventRecord.errorType:
             return record.toolId == nil && record.toolName == nil
-        case "tokens":
+        case ConversationEventRecord.tokensType:
             if record.isError {
                 return true
             }

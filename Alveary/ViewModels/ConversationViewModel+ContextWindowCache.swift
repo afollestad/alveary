@@ -2,7 +2,7 @@ import Foundation
 
 extension ConversationViewModel {
     func scheduleContextWindowCacheUpdateIfNeeded(from record: ConversationEventRecord) {
-        guard record.type == "tokens",
+        guard record.type == ConversationEventRecord.tokensType,
               let contextWindowSize = record.contextWindowSize,
               contextWindowSize > 0 else {
             return

@@ -135,7 +135,7 @@ extension ChatTranscriptView {
         runtimeAppShots: [String: [AppShotAttachment]]
     ) -> [String: [TranscriptImageAttachment]] {
         var attachmentsByID: [String: [TranscriptImageAttachment]] = [:]
-        for event in events where event.type == "message" {
+        for event in events where event.type == ConversationEventRecord.messageType {
             appendTranscriptImageAttachments(
                 event.persistedPlainImageAttachments.map(TranscriptImageAttachment.init(localImageAttachment:)),
                 to: event.id,
@@ -171,7 +171,7 @@ extension ChatTranscriptView {
         runtimeFileAttachments: [String: [LocalFileAttachment]]
     ) -> [String: [LocalFileAttachment]] {
         var attachmentsByID: [String: [LocalFileAttachment]] = [:]
-        for event in events where event.type == "message" && event.role == "user" {
+        for event in events where event.type == ConversationEventRecord.messageType && event.role == ConversationEventRecord.userRole {
             appendTranscriptFileAttachments(
                 event.persistedFileAttachments,
                 to: event.id,

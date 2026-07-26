@@ -224,13 +224,15 @@ final class ConversationViewModel {
 
     func recordPromptAnswerSummary(promptId: String, summary: String) {
         let conversationID = conversation.id
+        let recordType = ConversationEventRecord.toolCallType
+        let promptToolName = "AskUserQuestion"
         let promptEvents = try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_call" &&
+                        $0.type == recordType &&
                         $0.toolId == promptId &&
-                        $0.toolName == "AskUserQuestion"
+                        $0.toolName == promptToolName
                 },
                 sortBy: [
                     SortDescriptor(\.timestamp),

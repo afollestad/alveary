@@ -27,13 +27,13 @@ jobs:
       # the whole job so the build, test, and snapshot steps compile with identical settings and
       # keep sharing one set of products.
       #
-      # Calibrate against *these* runners, not a dev machine. The same symbols measured ~7x
-      # higher here than locally (slower hardware, and a pinned toolchain rather than whatever
-      # Xcode a dev has), so a local reading badly understates the real cost. The slowest
-      # existing symbols are `#Predicate` macro sites at ~3.5s. 6000 clears that ceiling with
-      # room for runner variance while still tripping well before a hard
+      # Calibrate against *these* runners, not a dev machine. The same symbols measured 7x or
+      # more higher here than locally (slower hardware, and a pinned toolchain rather than
+      # whatever Xcode a dev has), so a local reading badly understates the real cost. The
+      # slowest symbols measured here are `#Predicate` fetch shapes at ~1.5s, so 3000 keeps
+      # roughly 2x headroom for runner variance while still tripping well before a hard
       # `unable to type-check this expression` error.
-      TYPECHECK_BUDGET_MS: "6000"
+      TYPECHECK_BUDGET_MS: "3000"
 
     steps:
       - name: Checkout

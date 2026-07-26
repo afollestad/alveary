@@ -264,11 +264,12 @@ extension ConversationViewModel {
         allowedInteractionIDs: Set<String>?
     ) -> [ConversationEventRecord] {
         let conversationID = conversation.id
+        let recordType = ConversationEventRecord.toolApprovalType
         return ((try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
+                        $0.type == recordType &&
                         $0.toolApprovalStatus == nil
                 }
             )
@@ -281,12 +282,14 @@ extension ConversationViewModel {
         allowedInteractionIDs: Set<String>?
     ) -> [ConversationEventRecord] {
         let conversationID = conversation.id
+        let recordType = ConversationEventRecord.toolCallType
+        let promptToolName = "AskUserQuestion"
         return ((try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_call" &&
-                        $0.toolName == "AskUserQuestion"
+                        $0.type == recordType &&
+                        $0.toolName == promptToolName
                 }
             )
         )) ?? []).filter { record in

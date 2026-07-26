@@ -5,7 +5,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/snapshots.sh <verify|record> [test_identifier ...]
+Usage: ./scripts/snapshots.sh [--no-xcsift] <verify|record> [test_identifier ...]
 
 Defaults to the full `AlvearyTests/SnapshotTests` suite when no test identifiers are provided.
 
@@ -20,6 +20,14 @@ EOF
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+# Mirrors `build.sh`. xcsift reduces the build to a summary, so raw output is the only way to see
+# what the `build-for-testing` pass actually recompiled.
+use_xcsift=true
+if [ "${1:-}" = "--no-xcsift" ]; then
+  use_xcsift=false
+  shift
+fi
+
 default_snapshot_artifacts="$repo_root/.build/snapshot-failures"
 if [ -z "${SNAPSHOT_ARTIFACTS:-}" ]; then
   export SNAPSHOT_ARTIFACTS="$default_snapshot_artifacts"
@@ -33,7 +41,7 @@ mkdir -p "$SNAPSHOT_ARTIFACTS"
 source "$repo_root/scripts/lib/typecheck-budget.sh"
 
 run_and_format() {
-  if command -v xcsift >/dev/null 2>&1; then
+  if [ "$use_xcsift" = true ] && command -v xcsift >/dev/null 2>&1; then
     "$@" 2>&1 | xcsift -f toon -w
   else
     "$@"

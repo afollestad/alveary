@@ -3,12 +3,28 @@ import SwiftData
 
 @Model
 final class ConversationEventRecord {
+    // Provider-driven rows.
+    static let messageType = "message"
+    static let toolCallType = "tool_call"
+    static let toolResultType = "tool_result"
+    static let toolApprovalType = "tool_approval"
+    static let tokensType = "tokens"
+    static let errorType = "error"
+    /// Distinct from the `notificationType` stored property, which carries the notification's own kind.
+    static let notificationEventType = "notification"
+    static let stopType = "stop"
+    static let sessionInitType = "session_init"
+
+    // App-synthesized rows.
     static let contextWindowInvalidatedType = "context_window_invalidated"
     static let goalType = "goal"
     static let scheduledTaskNoteType = "scheduled_task_note"
     static let subAgentCompletedType = "sub_agent_completed"
     static let taskListType = "task_list"
     static let steeredConversationType = "steered_conversation"
+
+    static let userRole = "user"
+    static let assistantRole = "assistant"
 
     #Index<ConversationEventRecord>([\.conversationId, \.timestamp])
 

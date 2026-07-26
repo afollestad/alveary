@@ -87,11 +87,12 @@ extension ConversationViewModel {
         refreshTranscript: Bool = true
     ) {
         let conversationID = conversation.id
+        let recordType = ConversationEventRecord.toolApprovalType
         let approvalRecords = (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
+                        $0.type == recordType &&
                         $0.toolId == toolUseId &&
                         $0.content == sessionId
                 },
@@ -121,11 +122,12 @@ extension ConversationViewModel {
 
     func resolveUnresolvedToolApprovalsCompletedByToolResult(toolUseId: String) {
         let conversationID = conversation.id
+        let recordType = ConversationEventRecord.toolApprovalType
         let approvalRecords = (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_approval" &&
+                        $0.type == recordType &&
                         $0.toolId == toolUseId &&
                         $0.toolApprovalStatus == nil
                 }
@@ -183,11 +185,12 @@ extension ConversationViewModel {
     func toolApprovalAlreadyHasResult(_ approval: ToolApprovalRequest) -> Bool {
         let conversationID = conversation.id
         let toolUseId = approval.toolUseId
+        let recordType = ConversationEventRecord.toolResultType
         return (try? modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate {
                     $0.conversationId == conversationID &&
-                        $0.type == "tool_result" &&
+                        $0.type == recordType &&
                         $0.toolId == toolUseId
                 }
             )

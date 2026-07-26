@@ -81,11 +81,11 @@ extension ScheduledTaskRunRecoveryCoordinator {
         }
         var didChange = false
         for record in scheduledInteractionRecords(for: run, in: conversation) {
-            if record.type == "tool_approval", record.toolApprovalStatus == nil {
+            if record.type == ConversationEventRecord.toolApprovalType, record.toolApprovalStatus == nil {
                 record.toolApprovalStatus = ToolApprovalStatus.superseded.rawValue
                 didChange = true
             }
-            if record.type == "tool_call",
+            if record.type == ConversationEventRecord.toolCallType,
                record.toolName == "AskUserQuestion",
                record.content?.isEmpty != false {
                 record.content = ChatItemGrouper.handledPromptSummary
@@ -142,8 +142,8 @@ extension ScheduledTaskRunRecoveryCoordinator {
             }
             let interactionIDs: Set<String> = Set(
                 scheduledInteractionRecords(for: run, in: conversation).compactMap { record in
-                    guard record.type == "tool_approval" ||
-                        (record.type == "tool_call" && record.toolName == "AskUserQuestion") else {
+                    guard record.type == ConversationEventRecord.toolApprovalType ||
+                        (record.type == ConversationEventRecord.toolCallType && record.toolName == "AskUserQuestion") else {
                         return nil
                     }
                     return record.toolId ?? record.id

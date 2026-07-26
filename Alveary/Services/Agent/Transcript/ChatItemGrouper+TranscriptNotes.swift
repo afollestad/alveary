@@ -34,7 +34,7 @@ extension ChatItemGrouper {
             let pendingTool = makePendingToolEntry(id: toolId, event: ConversationEventRecord(
                 id: toolId,
                 conversationId: event.conversationId,
-                type: "tool_call",
+                type: ConversationEventRecord.toolCallType,
                 toolId: toolId,
                 toolName: transcriptNoteToolName(for: kind),
                 toolInput: "{}"
@@ -119,23 +119,23 @@ extension ChatItemGrouper {
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.transcriptNote(id: event.id, kind: .scheduledTask(event.content ?? "")))
-        case "stop" where ConversationInterruption.isDisplayMessage(event.content):
+        case ConversationEventRecord.stopType where ConversationInterruption.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             markIncompleteTranscriptActivityInterrupted()
             flushGroup()
             flushSubAgents()
             appendTranscriptItem(.transcriptNote(id: event.id, kind: .interrupted))
-        case "stop" where ConversationSessionHandoff.isStartedDisplayMessage(event.content):
+        case ConversationEventRecord.stopType where ConversationSessionHandoff.isStartedDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
             replaceOrAppendTranscriptItem(.transcriptNote(id: event.id, kind: .sessionHandoffInProgress))
-        case "stop" where ConversationSessionHandoff.isCompletedDisplayMessage(event.content):
+        case ConversationEventRecord.stopType where ConversationSessionHandoff.isCompletedDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
             replaceOrAppendTranscriptItem(.transcriptNote(id: event.id, kind: .sessionHandoff))
-        case "stop" where ConversationSessionFork.isDisplayMessage(event.content):
+        case ConversationEventRecord.stopType where ConversationSessionFork.isDisplayMessage(event.content):
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()

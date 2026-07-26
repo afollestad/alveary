@@ -138,8 +138,8 @@ private extension ConversationViewModel {
 
     func latestPersistedAppShotProviderSessionTitleFallback() -> String? {
         conversationEventRecords().reversed().first { record in
-            record.type == "message" &&
-                record.role == "user" &&
+            record.type == ConversationEventRecord.messageType &&
+                record.role == ConversationEventRecord.userRole &&
                 (!record.persistedAppShotAttachments.isEmpty ||
                     record.persistedImageAttachments.contains(where: \.isStoredAppShotScreenshot))
         }.map {
@@ -467,7 +467,7 @@ private extension ConversationViewModel {
 
     func persistSyntheticAssistantRecord(message: String) {
         guard let dbConversation = dbConversation(),
-              let record = ConversationEvent.message(role: "assistant", content: message, parentToolUseId: nil)
+              let record = ConversationEvent.message(role: ConversationEventRecord.assistantRole, content: message, parentToolUseId: nil)
                 .toRecord(conversation: dbConversation) else {
             return
         }

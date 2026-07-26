@@ -64,7 +64,7 @@ private extension ConversationViewModel {
         in orderedEvents: [ConversationEventRecord]
     ) -> Array<ConversationEventRecord>.Index? {
         orderedEvents.lastIndex {
-            $0.type == "tool_approval" &&
+            $0.type == ConversationEventRecord.toolApprovalType &&
                 $0.content == approval.sessionId &&
                 $0.toolId == approval.toolUseId
         }
@@ -88,7 +88,7 @@ private extension ConversationViewModel {
 
     func isApprovalBatchBoundary(_ record: ConversationEventRecord) -> Bool {
         switch record.type {
-        case "message", "error", "stop":
+        case ConversationEventRecord.messageType, "error", "stop":
             return true
         default:
             return false
@@ -99,7 +99,7 @@ private extension ConversationViewModel {
         in records: ArraySlice<ConversationEventRecord>
     ) -> Set<String> {
         Set(records.compactMap { record -> String? in
-            record.type == "tool_result" ? record.toolId : nil
+            record.type == ConversationEventRecord.toolResultType ? record.toolId : nil
         })
     }
 
@@ -108,7 +108,7 @@ private extension ConversationViewModel {
         in records: ArraySlice<ConversationEventRecord>
     ) -> Set<String> {
         Set(records.compactMap { record -> String? in
-            guard record.type == "tool_approval",
+            guard record.type == ConversationEventRecord.toolApprovalType,
                   record.content == sessionId else {
                 return nil
             }
@@ -122,7 +122,7 @@ private extension ConversationViewModel {
         completedToolIds: Set<String>
     ) -> [ToolApprovalRequest] {
         records.compactMap { record -> ToolApprovalRequest? in
-            guard record.type == "tool_approval",
+            guard record.type == ConversationEventRecord.toolApprovalType,
                   record.content == approval.sessionId,
                   let toolUseId = record.toolId,
                   toolUseId != approval.toolUseId,
@@ -152,7 +152,7 @@ private extension ConversationViewModel {
         context: ApprovalBatchToolCallContext
     ) -> [ToolApprovalRequest] {
         records.compactMap { record -> ToolApprovalRequest? in
-            guard record.type == "tool_call",
+            guard record.type == ConversationEventRecord.toolCallType,
                   let toolUseId = record.toolId,
                   toolUseId != approval.toolUseId,
                   !context.completedToolIds.contains(toolUseId),

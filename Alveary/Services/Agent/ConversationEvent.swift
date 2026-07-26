@@ -217,7 +217,7 @@ private extension ConversationEvent {
             content = messageContent
             parentToolUseId = messageParentToolUseId
         case .runtimeUserMessage(let messageContent):
-            role = "user"
+            role = ConversationEventRecord.userRole
             content = messageContent
             parentToolUseId = nil
         default:
@@ -226,7 +226,7 @@ private extension ConversationEvent {
 
         let record = ConversationEventRecord(
             conversationId: conversation.id,
-            type: "message",
+            type: ConversationEventRecord.messageType,
             role: role,
             content: content,
             conversation: conversation
@@ -258,7 +258,7 @@ private extension ConversationEvent {
 
         let record = ConversationEventRecord(
             conversationId: conversation.id,
-            type: "tool_call",
+            type: ConversationEventRecord.toolCallType,
             toolId: id,
             toolName: name,
             toolInput: input,
@@ -277,7 +277,7 @@ private extension ConversationEvent {
 
         let record = ConversationEventRecord(
             conversationId: conversation.id,
-            type: "tool_result",
+            type: ConversationEventRecord.toolResultType,
             toolId: id,
             toolOutput: output,
             toolOutputStderr: metadata?.stderr,
@@ -312,7 +312,7 @@ private extension ConversationEvent {
 
         let record = ConversationEventRecord(
             conversationId: conversation.id,
-            type: "tokens",
+            type: ConversationEventRecord.tokensType,
             isError: isError,
             tokenInput: input,
             tokenOutput: output,
@@ -337,7 +337,7 @@ private extension ConversationEvent {
 
         return ConversationEventRecord(
             conversationId: conversation.id,
-            type: "tool_approval",
+            type: ConversationEventRecord.toolApprovalType,
             content: request.sessionId,
             toolId: request.toolUseId,
             toolName: request.toolName,
@@ -354,7 +354,7 @@ private extension ConversationEvent {
 
         return ConversationEventRecord(
             conversationId: conversation.id,
-            type: "error",
+            type: ConversationEventRecord.errorType,
             content: failure.message,
             toolId: failure.toolUseId,
             toolName: failure.toolName,
@@ -370,7 +370,7 @@ private extension ConversationEvent {
 
         return ConversationEventRecord(
             conversationId: conversation.id,
-            type: "notification",
+            type: ConversationEventRecord.notificationEventType,
             content: message,
             notificationType: type,
             conversation: conversation
@@ -385,7 +385,7 @@ private extension ConversationEvent {
 
         return ConversationEventRecord(
             conversationId: conversation.id,
-            type: "stop",
+            type: ConversationEventRecord.stopType,
             content: message,
             conversation: conversation
         )
@@ -399,7 +399,7 @@ private extension ConversationEvent {
 
         return ConversationEventRecord(
             conversationId: conversation.id,
-            type: "session_init",
+            type: ConversationEventRecord.sessionInitType,
             content: sessionId,
             conversation: conversation
         )
@@ -413,7 +413,7 @@ private extension ConversationEvent {
 
         return ConversationEventRecord(
             conversationId: conversation.id,
-            type: "error",
+            type: ConversationEventRecord.errorType,
             content: message,
             conversation: conversation
         )

@@ -20,7 +20,7 @@ extension ConversationViewModel {
         let record = ConversationEventRecord(
             id: recordId,
             conversationId: dbConversation.id,
-            type: "tool_call",
+            type: ConversationEventRecord.toolCallType,
             toolId: toolUseId,
             toolName: name,
             toolInput: input,

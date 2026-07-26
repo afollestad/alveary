@@ -88,7 +88,7 @@ private extension Conversation {
         }
 
         var toolNamesByID: [String: String] = [:]
-        for record in orderedEvents where record.type == "tool_call" {
+        for record in orderedEvents where record.type == ConversationEventRecord.toolCallType {
             guard let toolId = record.toolId,
                   let toolName = normalizedRestoreSnippet(record.toolName) else {
                 continue
@@ -135,7 +135,7 @@ private extension Conversation {
     }
 
     static func restoreTranscriptEntry(for record: ConversationEventRecord) -> String? {
-        guard record.type == "message",
+        guard record.type == ConversationEventRecord.messageType,
               record.parentToolUseId == nil,
               let role = record.role,
               let content = normalizedRestoreSnippet(record.content) else {
@@ -144,9 +144,9 @@ private extension Conversation {
 
         let speaker: String
         switch role {
-        case "user":
+        case ConversationEventRecord.userRole:
             speaker = "User"
-        case "assistant":
+        case ConversationEventRecord.assistantRole:
             speaker = "Assistant"
         default:
             return nil
@@ -159,7 +159,7 @@ private extension Conversation {
         for record: ConversationEventRecord,
         toolNamesByID: [String: String]
     ) -> String? {
-        guard record.type == "tool_result",
+        guard record.type == ConversationEventRecord.toolResultType,
               record.parentToolUseId == nil else {
             return nil
         }
@@ -185,17 +185,17 @@ private extension Conversation {
 
     static func restoreSessionNote(for record: ConversationEventRecord) -> String? {
         switch record.type {
-        case "tokens":
+        case ConversationEventRecord.tokensType:
             guard record.isError else {
                 return nil
             }
             let note = ConversationErrorDisplayPolicy.restoreErrorTokenMessage(stopReason: record.stopReason)
             return normalizedRestoreSnippet(note) ?? ConversationErrorDisplayPolicy.genericPreviousRunFailureMessage
-        case "error", ConversationContextCompaction.failedType:
+        case ConversationEventRecord.errorType, ConversationContextCompaction.failedType:
             return restoreErrorSessionNote(for: record)
-        case "stop":
+        case ConversationEventRecord.stopType:
             return restoreStopSessionNote(for: record)
-        case "notification":
+        case ConversationEventRecord.notificationEventType:
             let type = normalizedRestoreSnippet(record.notificationType)
             let content = normalizedRestoreSnippet(record.content)
             switch (type, content) {

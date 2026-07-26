@@ -274,7 +274,7 @@ private extension ChatTranscriptView {
             return false
         }
 
-        return lastEvent.type == "message" && lastEvent.role == "user"
+        return lastEvent.type == ConversationEventRecord.messageType && lastEvent.role == ConversationEventRecord.userRole
     }
 
 }
