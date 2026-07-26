@@ -84,47 +84,6 @@ extension SidebarDragInteractionTests {
         XCTAssertNil(projectsCandidate)
     }
 
-    func testUnpinnedTaskDragTargetsPinnedBoundariesWithoutExposingProjects() throws {
-        let fixture = try SidebarTestFixture()
-        let targetThread = try fixture.insertProject(name: "Target", path: "/tmp/target")
-        let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/source")
-        let project = try fixture.insertProject(name: "Regular", path: "/tmp/regular")
-        let targetItem = SidebarDragItem.pinnedThread(targetThread.persistentModelID)
-        let sourceItem = SidebarDragItem.unpinnedTask(sourceTask.persistentModelID)
-        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
-            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 220)],
-            .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],
-            .pinnedThread(targetThread.persistentModelID): [CGRect(x: 0, y: 40, width: 200, height: 24)],
-            .projectsHeader: [CGRect(x: 0, y: 120, width: 200, height: 24)],
-            .projectHeader(.projects, project.persistentModelID): [CGRect(x: 0, y: 150, width: 200, height: 24)],
-            .projectTerminal(.projects, project.persistentModelID): [CGRect(x: 0, y: 150, width: 200, height: 24)]
-        ]
-        let order = SidebarDragLogicalOrder(
-            pinnedItems: [targetItem],
-            regularProjects: [.project(project.persistentModelID)],
-            projectsHeaderIsSticky: false
-        )
-
-        let pinnedCandidate = sidebarDropCandidateForLocation(
-            at: CGPoint(x: 100, y: 38),
-            dragging: sourceItem,
-            geometry: geometry,
-            logicalOrder: order
-        )
-        let projectsCandidate = sidebarDropCandidateForLocation(
-            at: CGPoint(x: 100, y: 148),
-            dragging: sourceItem,
-            geometry: geometry,
-            logicalOrder: order
-        )
-
-        XCTAssertEqual(
-            pinnedCandidate?.target,
-            SidebarDropTarget(section: .pinned, item: targetItem, placement: .before)
-        )
-        XCTAssertNil(projectsCandidate)
-    }
-
     func testUnpinnedTaskDragWithEmptyPinnedUsesHiddenPinnedTargetAtProjectsHeader() throws {
         let fixture = try SidebarTestFixture()
         let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/source")
@@ -207,7 +166,11 @@ extension SidebarDragInteractionTests {
         XCTAssertEqual(tasksCandidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
         XCTAssertEqual(tasksCandidate?.kind, .container)
         // Outset by `containerOutset` so the border does not hug the header text.
-        XCTAssertEqual(tasksCandidate?.hitFrame, CGRect(x: 0, y: 196, width: 200, height: 62))
+        let outset = SidebarDropTargetingMetrics.containerOutset
+        XCTAssertEqual(
+            tasksCandidate?.hitFrame,
+            CGRect(x: 0, y: 200 - outset, width: 200, height: 54 + outset * 2)
+        )
         XCTAssertEqual(deepCandidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
         XCTAssertNil(attachedCandidate)
     }
@@ -240,8 +203,11 @@ extension SidebarDragInteractionTests {
         )
 
         XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
-        XCTAssertEqual(candidate?.hitFrame, CGRect(x: 0, y: 176, width: 200, height: 24))
-        XCTAssertEqual(candidate?.indicatorY, 188)
+        XCTAssertEqual(
+            candidate?.hitFrame,
+            CGRect(x: 0, y: 180 - SidebarDropTargetingMetrics.containerOutset, width: 200, height: 20 + SidebarDropTargetingMetrics.containerOutset)
+        )
+        XCTAssertEqual(candidate?.indicatorY, 190 - SidebarDropTargetingMetrics.containerOutset / 2)
     }
 
     func testTasksContainerFallsBackToHeaderWithoutTerminalGeometry() throws {
@@ -269,7 +235,11 @@ extension SidebarDragInteractionTests {
             logicalOrder: order
         )
 
-        XCTAssertEqual(candidate?.hitFrame, CGRect(x: 0, y: 196, width: 200, height: 32))
+        let outset = SidebarDropTargetingMetrics.containerOutset
+        XCTAssertEqual(
+            candidate?.hitFrame,
+            CGRect(x: 0, y: 200 - outset, width: 200, height: 24 + outset * 2)
+        )
         XCTAssertEqual(candidate?.kind, .container)
     }
 
@@ -278,7 +248,9 @@ extension SidebarDragInteractionTests {
         let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/source")
         let anchor = try fixture.insertProject(name: "Anchor", path: "/tmp/anchor")
         let anchorItem = SidebarDragItem.pinnedThread(anchor.persistentModelID)
-        let sourceItem = SidebarDragItem.unpinnedTask(sourceTask.persistentModelID)
+        // A source already inside `Pinned` is reordering, so it keeps insertion lines. An
+        // unpinned Task arriving from `Tasks` takes the section container instead.
+        let sourceItem = SidebarDragItem.pinnedTask(sourceTask.persistentModelID)
         let geometry: [SidebarDragGeometryRole: [CGRect]] = [
             .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
             .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],

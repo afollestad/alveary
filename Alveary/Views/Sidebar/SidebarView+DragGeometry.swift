@@ -155,20 +155,13 @@ private func sidebarSectionDropCandidates(
     viewport: CGRect,
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
-    var candidates: [SidebarDropCandidate] = []
-    let sourceCanPin = sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder)
-
-    if sourceCanPin,
-       !logicalOrder.pinnedItems.isEmpty,
-       let pinnedHeaderFrame = geometry[.pinnedHeader]?.sidebarUnion,
-       let candidate = sidebarSectionCandidate(
-           target: SidebarDropTarget(section: .pinned, item: nil, placement: .before),
-           indicatorY: pinnedHeaderFrame.maxY,
-           hitFrame: pinnedHeaderFrame.sidebarLowerHalf,
-           viewport: viewport
-       ) {
-        candidates.append(candidate)
-    }
+    var candidates = sidebarPinnedSectionCandidates(
+        dragging: item,
+        geometry: geometry,
+        projectsHeaderFrame: projectsHeaderFrame,
+        viewport: viewport,
+        logicalOrder: logicalOrder
+    )
     if let tasksCandidate = sidebarTasksSectionDropCandidate(
         dragging: item,
         geometry: geometry,
@@ -180,15 +173,6 @@ private func sidebarSectionDropCandidates(
 
     guard let projectsHeaderFrame else {
         return candidates
-    }
-    if sourceCanPin,
-       let pinnedEnd = sidebarPinnedSectionEndCandidate(
-           geometry: geometry,
-           projectsHeaderFrame: projectsHeaderFrame,
-           viewport: viewport,
-           logicalOrder: logicalOrder
-       ) {
-        candidates.append(pinnedEnd)
     }
     if case .project = item,
        let projectsStart = sidebarSectionCandidate(
@@ -254,12 +238,10 @@ private func sidebarTasksSectionDropCandidate(
         return nil
     }
     // Tasks is activity-sorted, so the whole section is one target rather than an insertion point.
-    // Unlike a project group, a section has room around it, so the border gets breathing space
-    // instead of hugging the header text.
-    let sectionFrame = ([tasksHeaderFrame, geometry[.tasksTerminal]?.sidebarUnion]
-        .compactMap { $0 }
-        .sidebarUnion ?? tasksHeaderFrame)
-        .insetBy(dx: 0, dy: -SidebarDropTargetingMetrics.containerOutset)
+    let sectionFrame = sidebarSectionContainerFrame(
+        headerFrame: tasksHeaderFrame,
+        contentFrames: [geometry[.tasksTerminal]?.sidebarUnion].compactMap { $0 }
+    )
     return sidebarSectionCandidate(
         target: SidebarDropTarget(section: .tasks, item: nil, placement: .end),
         indicatorY: sectionFrame.midY,
@@ -267,6 +249,18 @@ private func sidebarTasksSectionDropCandidate(
         viewport: viewport,
         kind: .container
     )
+}
+
+/// The frame a whole-section container borders: the header's visible title row through the
+/// section's last row, plus `containerOutset` of breathing room so the border clears a selected
+/// row's accent fill instead of tracing it.
+///
+/// `Pinned` and `Tasks` share this so their borders sit identically. Both headers publish only
+/// their title row (`inlineHeaderTotalTopPadding` excluded), so neither border floats up into the
+/// divider's spacing.
+func sidebarSectionContainerFrame(headerFrame: CGRect, contentFrames: [CGRect]) -> CGRect {
+    (([headerFrame] + contentFrames).sidebarUnion ?? headerFrame)
+        .insetBy(dx: 0, dy: -SidebarDropTargetingMetrics.containerOutset)
 }
 
 func sidebarSectionCandidate(
@@ -453,7 +447,12 @@ enum SidebarDropTargetingMetrics {
     static let containerEdgeBand: CGFloat = 6
     /// Breathing room so a container border clears the content it wraps — in particular a selected
     /// row's accent fill, which otherwise traces almost exactly the same rectangle.
-    static let containerOutset: CGFloat = 4
+    ///
+    /// Matches the horizontal clearance the border already has: the pill is inset 10pt and
+    /// `SidebarDragBorderMetrics.horizontalInset` puts the border 3pt from the edge, leaving 7pt.
+    /// The pill has no bottom inset, so anything smaller here reads as pinched top and bottom
+    /// against those sides — most visibly in `Pinned`, whose row is usually the selected one.
+    static let containerOutset: CGFloat = 7
 }
 
 enum SidebarDragCoordinateSpace {

@@ -47,7 +47,9 @@ extension SidebarDragInteractionTests {
         let project = try fixture.insertProject(name: "Pinned", path: "/tmp/into-pinned")
         let projectID = project.persistentModelID
         let projectItem = SidebarDragItem.project(projectID)
-        let sourceItem = SidebarDragItem.unpinnedTask(sourceTask.persistentModelID)
+        // Only sources that still see Pinned insertion boundaries need the band reserved; an
+        // unpinned Task takes the whole section as a container instead.
+        let sourceItem = SidebarDragItem.pinnedTask(sourceTask.persistentModelID)
         let geometry: [SidebarDragGeometryRole: [CGRect]] = [
             .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
             // The first pinned item takes no top spacing, so the header sits right above it.
@@ -94,7 +96,7 @@ extension SidebarDragInteractionTests {
         let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/into-placeholder-source")
         let project = try fixture.insertProject(name: "Empty", path: "/tmp/into-placeholder")
         let projectID = project.persistentModelID
-        let sourceItem = SidebarDragItem.unpinnedTask(sourceTask.persistentModelID)
+        let sourceItem = SidebarDragItem.pinnedTask(sourceTask.persistentModelID)
         // An expanded pinned project whose only child row is the taller "No threads" placeholder.
         let geometry: [SidebarDragGeometryRole: [CGRect]] = [
             .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],

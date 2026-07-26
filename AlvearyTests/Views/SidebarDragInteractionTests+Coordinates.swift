@@ -5,12 +5,18 @@ import XCTest
 
 @MainActor
 extension SidebarDragInteractionTests {
-    func testGeometryFrameExcludesDividerOnlyTopSpacing() {
+    func testInlineHeaderGeometryPublishesOnlyItsVisibleContentRow() {
+        // A 47pt header: 23pt of divider breathing room above a 24pt title row.
         let frame = CGRect(x: 12, y: 40, width: 280, height: 47)
 
+        // `Pinned` and `Tasks` both border their section, so both hug the title rather than
+        // starting up in the padding.
         XCTAssertEqual(
-            sidebarDragGeometryFrame(frame, excludingTopInset: 11),
-            CGRect(x: 12, y: 51, width: 280, height: 36)
+            sidebarDragGeometryFrame(
+                frame,
+                excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
+            ),
+            CGRect(x: 12, y: 63, width: 280, height: 24)
         )
     }
 

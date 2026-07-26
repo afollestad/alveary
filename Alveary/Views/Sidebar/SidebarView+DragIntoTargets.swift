@@ -28,14 +28,17 @@ func sidebarProjectIntoDropCandidates(
     }
 
     // Only `Pinned` publishes insertion boundaries to a Task source, and only while the source can
-    // hold a standalone pin. `Projects` offers a Task nothing to reorder against, so banding its
-    // groups any wider would turn reachable `.into` area into dead space.
+    // hold a standalone pin and is not taking the section as one container. `Projects` offers a
+    // Task nothing to reorder against, so banding its groups any wider would turn reachable
+    // `.into` area into dead space.
+    let pinnedPublishesBoundaries = sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder)
+        && !sidebarPinnedSectionIsContainerTarget(dragging: item, logicalOrder: logicalOrder)
     let sections = [
         SidebarIntoTargetSection(
             section: .pinned,
             items: logicalOrder.pinnedItems,
             occlusionMaxY: nil,
-            reservesBoundaryHalfRows: sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder)
+            reservesBoundaryHalfRows: pinnedPublishesBoundaries
         ),
         SidebarIntoTargetSection(
             section: .projects,
@@ -167,14 +170,16 @@ func sidebarSourceCanHoldStandalonePin(
     return !logicalOrder.pinnedItems.contains(.project(ownProjectID))
 }
 
-/// An unpinnable source's drag offers no Pinned insertion points; `Tasks` and `.into` remain.
+/// An unpinnable source's drag offers no Pinned insertion points; `Tasks` and `.into` remain. A
+/// source that takes `Pinned` as one container has none either — the container would eclipse them.
 func sidebarPinnedBoundaryCandidatesIfPinnable(
     dragging item: SidebarDragItem,
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect,
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
-    guard sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder) else {
+    guard sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder),
+          !sidebarPinnedSectionIsContainerTarget(dragging: item, logicalOrder: logicalOrder) else {
         return []
     }
     return sidebarPinnedItemDropCandidates(

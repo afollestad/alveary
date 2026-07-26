@@ -17,9 +17,11 @@ extension SidebarView {
 
     var pinnedHeader: some View {
         SidebarSectionHeaderRow(title: "Pinned", showsTopDivider: true)
+            // Exclude the whole top padding, like `Tasks`. The section's container border starts
+            // here, so leaving the divider's breathing room in would float it above the title.
             .sidebarDragGeometry(
                 .pinnedHeader,
-                excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTopPaddingCorrection
+                excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
             )
     }
 
