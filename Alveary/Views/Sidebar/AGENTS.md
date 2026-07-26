@@ -50,7 +50,7 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
 - The Tasks section renders below Projects:
     - **Route New task to Task composition.** Its header action starts the native Task-mode composer flow and never opens Scheduled.
     - **Keep empty semantics exact.** Show secondary `No tasks` only when there are no active Tasks anywhere. If every active Task is pinned, leave the Tasks body empty without a placeholder.
-    - **Keep cleanup local to Tasks.** Removing the selected Task prefers the next visible Task, then the previous one. If none remains, request a blank Task composer whose draft intentionally has no selected sidebar row.
+    - **Route removal fallback by placement.** Removing a selected projectless Task prefers the next visible Task, then the previous one; if none remains, request a blank Task composer whose draft intentionally has no selected sidebar row. A Task placed in a project uses the project-child fallback instead — previous sibling, next sibling, then the project row — exactly like a Project-mode child.
 - Thread rename is inline (Finder-style `TextField` swap in `SidebarThreadRow`), not a modal sheet. The row tracks an `editingThreadID` binding.
 - Threads attached to a scheduled definition or active scheduled run keep Unpin, Archive, and Delete visible but disabled. Explain the disabled state with the shared settings-style hover tooltip. Overall row hover shows the configured archive/delete glyph; hovering the cleanup target directly replaces it with `nosign` and shows the tooltip.
 - `SidebarThreadRow` renders on a single line. Do not reintroduce a branch or worktree subtitle; threads with and without a worktree are meant to share a uniform row height.

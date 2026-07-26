@@ -187,15 +187,12 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
     }
 
     private func activityScope(for thread: AgentThread) -> ThreadActivityScope? {
-        switch thread.effectiveMode {
-        case .project:
-            guard let projectPath = thread.project?.path else {
-                return nil
-            }
+        // Scope follows sidebar placement: any thread in a project re-sorts that project's
+        // children, and only a projectless Task re-sorts the `Tasks` section.
+        if let projectPath = thread.project?.path {
             return .project(projectPath)
-        case .task:
-            return .task
         }
+        return thread.effectiveMode == .task ? .task : nil
     }
 
     private func orderedThreadIDs(scope: ThreadActivityScope) -> [PersistentIdentifier] {
@@ -213,9 +210,9 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
                 }
             )
             let threads = (try? modelContext.fetch(descriptor)) ?? []
-            return threads.filter {
-                $0.effectiveMode == .project && (!$0.isPinned || $0.project?.isPinned == true)
-            }
+            // Mode-agnostic, matching `SidebarRenderSnapshot`: any thread in the project is a
+            // child, unless a standalone pin renders it in `Pinned` instead.
+            return threads.filter { !$0.isPinned || $0.project?.isPinned == true }
         case .task:
             let descriptor = FetchDescriptor<AgentThread>(
                 predicate: #Predicate { thread in
@@ -224,7 +221,8 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
                         thread.isPinned == false
                 }
             )
-            return ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .task }
+            return ((try? modelContext.fetch(descriptor)) ?? [])
+                .filter { $0.effectiveMode == .task && $0.project == nil }
         }
     }
 

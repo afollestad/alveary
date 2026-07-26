@@ -172,11 +172,10 @@ func resolveSidebarSelectionBookmark(
             return nil
         }
 
-        if thread.archivedAt != nil, thread.effectiveMode == .project {
+        // Any archived thread with a project falls back to that project's row, including a
+        // Task that was placed in one.
+        if thread.archivedAt != nil {
             return thread.project.map(SidebarItem.project)
-        }
-        guard thread.archivedAt == nil else {
-            return nil
         }
         return .thread(thread)
     }

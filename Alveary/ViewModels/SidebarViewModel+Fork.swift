@@ -3,6 +3,32 @@ import Foundation
 import SwiftData
 
 extension SidebarViewModel {
+    /// Approval state straight from persistence, so pre-mutation gates work without a mounted
+    /// conversation controller.
+    func hasUnresolvedApproval(conversationIDs: [String]) -> Bool {
+        let descriptor = FetchDescriptor<ConversationEventRecord>(
+            predicate: #Predicate { record in
+                record.type == "tool_approval"
+            }
+        )
+        let records = (try? modelContext.fetch(descriptor)) ?? []
+        let sourceConversationIDs = Set(conversationIDs)
+        return records.contains { record in
+            guard sourceConversationIDs.contains(record.conversationId) else {
+                return false
+            }
+            guard let status = record.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:)) else {
+                return true
+            }
+            switch status {
+            case .pending, .approving, .denying, .approvingForSessionExact, .approvingForSessionGroup:
+                return true
+            case .approved, .approvedForSessionExact, .approvedForSessionGroup, .denied, .superseded:
+                return false
+            }
+        }
+    }
+
     func forkThreadIntoLocal(_ thread: AgentThread) async throws -> AgentThread {
         try await forkThread(thread, mode: .local)
     }
@@ -109,27 +135,7 @@ private extension SidebarViewModel {
     }
 
     func sourceHasUnresolvedApproval(_ source: ThreadForkSourceSnapshot) -> Bool {
-        let descriptor = FetchDescriptor<ConversationEventRecord>(
-            predicate: #Predicate { record in
-                record.type == "tool_approval"
-            }
-        )
-        let records = (try? modelContext.fetch(descriptor)) ?? []
-        let sourceConversationIDs = Set(source.conversationIDs)
-        return records.contains { record in
-            guard sourceConversationIDs.contains(record.conversationId) else {
-                return false
-            }
-            guard let status = record.toolApprovalStatus.flatMap(ToolApprovalStatus.init(rawValue:)) else {
-                return true
-            }
-            switch status {
-            case .pending, .approving, .denying, .approvingForSessionExact, .approvingForSessionGroup:
-                return true
-            case .approved, .approvedForSessionExact, .approvedForSessionGroup, .denied, .superseded:
-                return false
-            }
-        }
+        hasUnresolvedApproval(conversationIDs: source.conversationIDs)
     }
 
     func resolveForkSourceRecord(

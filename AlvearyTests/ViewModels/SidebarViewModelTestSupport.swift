@@ -223,7 +223,8 @@ actor SidebarMockAgentsManager: AgentsManager {
     private var recordedSpawnCalls: [SpawnCall] = []
     private var spawnObserver: (@Sendable @MainActor (String) -> Void)?
     private var destroyFailures: [String: MockError] = [:]
-    private var recordedDestroyCalls: [String] = []
+    private(set) var recordedDestroyCalls: [String] = []
+    private(set) var recordedSuspendCalls: [String] = []
     private var destroyObserver: (@Sendable @MainActor (String) async -> Void)?
 
     func setSpawnError(_ error: MockError?) {
@@ -297,6 +298,11 @@ actor SidebarMockAgentsManager: AgentsManager {
         if let error = destroyFailures[conversationId] {
             throw error
         }
+        statuses.set(.stopped, for: conversationId)
+    }
+
+    func suspendRuntime(conversationId: String) async {
+        recordedSuspendCalls.append(conversationId)
         statuses.set(.stopped, for: conversationId)
     }
 

@@ -56,6 +56,7 @@ enum SidebarViewModelError: LocalizedError {
     case threadDeletePreparationFailed(Error)
     case threadDeleteCleanupFailed(Error)
     case projectDeleteCleanupFailed(Error)
+    case taskProjectAccessUnavailable(String)
     case noReadyThreadDefaultProvider
 
     var errorDescription: String? {
@@ -92,6 +93,8 @@ enum SidebarViewModelError: LocalizedError {
             return "Thread was deleted, but cleanup failed: \(error.localizedDescription)"
         case .projectDeleteCleanupFailed(let error):
             return "Project was deleted, but cleanup failed: \(error.localizedDescription)"
+        case .taskProjectAccessUnavailable(let reason):
+            return reason
         case .noReadyThreadDefaultProvider:
             return "No enabled provider is installed and ready for new threads"
         }
@@ -104,7 +107,7 @@ enum SidebarViewModelError: LocalizedError {
         case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingTaskWorkspace, .threadMissingDeletionMetadata,
              .scheduledTaskRunStillActive, .scheduledTaskAttachment, .activeScheduledTaskRunAttachment,
              .threadForkUnavailable, .threadForkFailed, .forkRollbackBlockedBySchedule, .threadForkRollbackFailed,
-             .threadDeletePreparationFailed, .noReadyThreadDefaultProvider:
+             .threadDeletePreparationFailed, .taskProjectAccessUnavailable, .noReadyThreadDefaultProvider:
             return false
         }
     }

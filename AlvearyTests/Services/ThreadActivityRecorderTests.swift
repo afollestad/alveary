@@ -162,7 +162,7 @@ final class ThreadActivityRecorderTests: XCTestCase {
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
     }
 
-    func testLinkedScheduledRunUsesTaskActivityScopeWhenPersistedModeFallsBackToProject() async throws {
+    func testLinkedScheduledRunWithAProjectUsesThatProjectsActivityScope() async throws {
         let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
         let fixture = try ThreadActivityRecorderFixture(clock: clock)
         let linkedTask = fixture.insertThread(
@@ -196,8 +196,10 @@ final class ThreadActivityRecorderTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 1)
         let payload = notificationPayload.payload()
         XCTAssertEqual(linkedTask.modifiedAt, clock.now)
-        XCTAssertEqual(payload?[ThreadActivityNotificationKey.threadMode] as? String, AgentThreadMode.task.rawValue)
-        XCTAssertNil(payload?[ThreadActivityNotificationKey.projectPath])
+        // Activity scope follows sidebar placement: this thread has a project, so its activity
+        // re-sorts that project's children even though its persisted mode is unknown.
+        XCTAssertEqual(payload?[ThreadActivityNotificationKey.threadMode] as? String, AgentThreadMode.project.rawValue)
+        XCTAssertNotNil(payload?[ThreadActivityNotificationKey.projectPath])
     }
 
     func testPinnedTaskActivityUpdatesTimestampWithoutChangingTaskOrder() async throws {

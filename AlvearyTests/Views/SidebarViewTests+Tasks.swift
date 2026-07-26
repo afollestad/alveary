@@ -100,7 +100,7 @@ extension SidebarViewTests {
         XCTAssertEqual(view.selectionAfterDeletingThread(oldest), .thread(middle))
     }
 
-    func testPinnedProjectThreadFallbackDoesNotCrossIntoTaskDomain() throws {
+    func testPinnedThreadFallbackPrefersItsVisualNeighborRegardlessOfMode() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/project-thread-fallback", name: "Project")
         let firstProjectThread = AgentThread(
@@ -123,9 +123,11 @@ extension SidebarViewTests {
         try fixture.context.save()
         let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
 
+        // The Pinned section is one visual list, so the fallback is the adjacent row — here the
+        // pinned Task sitting between the two project threads.
         XCTAssertEqual(
             view.selectionAfterDeletingThread(secondProjectThread),
-            .thread(firstProjectThread)
+            .thread(task)
         )
     }
 

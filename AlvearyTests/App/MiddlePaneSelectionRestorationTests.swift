@@ -38,6 +38,20 @@ final class MiddlePaneSelectionRestorationTests: XCTestCase {
         XCTAssertEqual(item, .project(try XCTUnwrap(thread.project)))
     }
 
+    func testResolveSidebarBookmarkFallsBackToProjectForArchivedNestedTask() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Home", path: "/tmp/archived-nested-task")
+        let task = AgentThread(name: "Nested task", archivedAt: Date(), mode: .task, project: project)
+        fixture.context.insert(task)
+        try fixture.context.save()
+
+        let item = resolveSidebarSelectionBookmark(.threadId(task.persistentModelID), modelContext: fixture.context)
+
+        // Placement decides the fallback: an archived Task that lived in a project lands on that
+        // project's row rather than clearing the selection.
+        XCTAssertEqual(item, .project(project))
+    }
+
     func testResolveSidebarBookmarkUsesWorkspaceSnapshotForArchivedLinkedRunFallback() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/archived-fallback-bookmark", name: "Project")
@@ -71,7 +85,9 @@ final class MiddlePaneSelectionRestorationTests: XCTestCase {
         )
 
         XCTAssertEqual(projectItem, .project(project))
-        XCTAssertNil(privateItem)
+        // Placement-based fallback: even a private-workspace Task lands on the project it was
+        // placed in rather than clearing the selection.
+        XCTAssertEqual(privateItem, .project(project))
     }
 
     func testQueuedDraftProjectMoveRechecksVoiceLockBeforeMutation() async {

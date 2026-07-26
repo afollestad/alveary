@@ -40,24 +40,24 @@ struct SidebarRenderSnapshot {
         var hasAnyTask = false
 
         for thread in visibleThreads {
-            switch thread.effectiveMode {
-            case .project:
-                guard let projectID = thread.project?.persistentModelID else {
-                    continue
-                }
-                projectIDsWithThreads.insert(projectID)
-                if let modifiedAt = thread.modifiedAt {
-                    latestChildActivity[projectID] = max(latestChildActivity[projectID] ?? modifiedAt, modifiedAt)
-                }
-                // Pinned children render standalone unless their project is itself pinned.
-                if pinnedProjectIDs.contains(projectID) || !thread.isPinned {
-                    childThreads[projectID, default: []].append(thread)
-                }
-            case .task:
+            if thread.effectiveMode == .task {
                 hasAnyTask = true
-                if !thread.isPinned {
+            }
+            // A Task placed in a project renders as one of its children while staying a Task; a
+            // projectless Task belongs to the `Tasks` section.
+            guard let projectID = thread.project?.persistentModelID else {
+                if thread.effectiveMode == .task, !thread.isPinned {
                     unpinnedTasks.append(thread)
                 }
+                continue
+            }
+            projectIDsWithThreads.insert(projectID)
+            if let modifiedAt = thread.modifiedAt {
+                latestChildActivity[projectID] = max(latestChildActivity[projectID] ?? modifiedAt, modifiedAt)
+            }
+            // Pinned children render standalone unless their project is itself pinned.
+            if pinnedProjectIDs.contains(projectID) || !thread.isPinned {
+                childThreads[projectID, default: []].append(thread)
             }
         }
 

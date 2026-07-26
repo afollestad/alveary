@@ -201,7 +201,8 @@ extension SidebarViewModel {
             }
         )
 
-        let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .project }
+        // Mode-agnostic: a Task placed in this project is one of its children too.
+        let threads = (try? modelContext.fetch(descriptor)) ?? []
         return AgentThreadOrdering.sorted(threads.filter { project.isPinned || !$0.isPinned })
     }
 
@@ -263,7 +264,8 @@ extension SidebarViewModel {
               currentThread.effectiveMode == .task || currentThread.project != nil else {
             throw SidebarViewModelError.threadMissing
         }
-        if isPinned, currentThread.effectiveMode == .project, currentThread.project?.isPinned == true {
+        // A pinned project absorbs its children regardless of mode, so pinning one is a no-op.
+        if isPinned, currentThread.project?.isPinned == true {
             return
         }
         try flushPendingSidebarPinChanges()
@@ -309,11 +311,13 @@ extension SidebarViewModel {
               thread.isPinned else {
             return false
         }
+        // A pinned thread is absorbed by a pinned project regardless of mode; a projectless Task
+        // has nothing to be absorbed by.
         switch thread.effectiveMode {
         case .project:
             return thread.project != nil && thread.project?.isPinned != true
         case .task:
-            return true
+            return thread.project?.isPinned != true
         }
     }
 }
@@ -338,8 +342,9 @@ private extension SidebarViewModel {
     }
 
     func latestVisibleThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
+        // Mode-agnostic, matching `SidebarRenderSnapshot`: any thread in the project is a child.
         threads
-            .filter { $0.effectiveMode == .project && $0.project?.path == project.path }
+            .filter { $0.project?.path == project.path }
             .compactMap(\.modifiedAt)
             .max()
     }

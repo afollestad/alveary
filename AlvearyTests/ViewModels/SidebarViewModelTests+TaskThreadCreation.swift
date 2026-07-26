@@ -80,7 +80,7 @@ extension SidebarViewModelTests {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func testAttachedTaskModeThreadAppearsOnlyInPinnedWhenPinned() throws {
+    func testAttachedTaskModeThreadRendersAsAChildOfItsProject() throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Source", path: "/tmp/attached-task-sidebar-source")
         let task = AgentThread(
@@ -99,8 +99,9 @@ extension SidebarViewModelTests {
         fixture.context.insert(task)
         try fixture.context.save()
 
-        XCTAssertTrue(fixture.viewModel.activeThreads(for: project).isEmpty)
-        XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveThreads(for: project))
+        // A Task with a project is one of its children; only a projectless Task lives in `Tasks`.
+        XCTAssertTrue(try fixture.renderSnapshot().hasAnyActiveThreads(for: project))
+        // Its project is unpinned, so the pin still promotes it to a standalone Pinned row.
         XCTAssertEqual(fixture.viewModel.pinnedThreads().map(\.persistentModelID), [task.persistentModelID])
         XCTAssertEqual(fixture.viewModel.pinnedItems(projects: []).map(\.dragItem), [.pinnedTask(task.persistentModelID)])
     }

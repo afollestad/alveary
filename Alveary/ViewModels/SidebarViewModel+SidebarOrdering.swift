@@ -97,7 +97,8 @@ extension SidebarViewModel {
                 thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
             }
         )
-        return try modelContext.fetch(descriptor).filter { $0.effectiveMode == .project }
+        // Mode-agnostic: a Task placed in this project is one of its children for pin purposes.
+        return try modelContext.fetch(descriptor)
     }
 
     func currentRegularProjectCount() throws -> Int {
@@ -236,8 +237,9 @@ private extension SidebarViewModel {
     }
 
     func latestUnarchivedThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
+        // Mode-agnostic, matching `SidebarRenderSnapshot`: any thread in the project is a child.
         threads
-            .filter { $0.effectiveMode == .project && $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
+            .filter { $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
             .compactMap(\.modifiedAt)
             .max()
     }

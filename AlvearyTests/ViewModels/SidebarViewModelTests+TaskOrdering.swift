@@ -100,7 +100,7 @@ extension SidebarViewModelTests {
         ))
     }
 
-    func testPinnedItemsIncludeTasksEvenWhenTheirBackingProjectIsPinned() throws {
+    func testPinnedProjectAbsorbsPinnedTaskChildren() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(
             path: "/tmp/pinned-task-project",
@@ -127,15 +127,17 @@ extension SidebarViewModelTests {
 
         let pinnedItems = fixture.viewModel.pinnedItems(projects: [project])
 
-        XCTAssertEqual(pinnedItems.map(\.sidebarItem), [.project(project), .thread(task)])
-        XCTAssertEqual(pinnedItems.map(\.dragItem), [
-            .project(project.persistentModelID),
-            .pinnedTask(task.persistentModelID)
-        ])
-        XCTAssertEqual(fixture.viewModel.pinnedThreads().map(\.persistentModelID), [task.persistentModelID])
+        // A Task placed in a project is one of its children, so a pinned project absorbs it just
+        // like a Project-mode child rather than leaving it standalone in Pinned.
+        XCTAssertEqual(pinnedItems.map(\.sidebarItem), [.project(project)])
+        XCTAssertTrue(fixture.viewModel.pinnedThreads().isEmpty)
+        XCTAssertEqual(
+            fixture.viewModel.activeThreads(for: project).map(\.persistentModelID).sorted(by: { _, _ in true }).count,
+            2
+        )
     }
 
-    func testSetProjectPinnedDoesNotClearPinnedTaskBackedByProject() throws {
+    func testSetProjectPinnedClearsPinsOnEveryChildRegardlessOfMode() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/task-backed-project", name: "Project")
         let projectThread = AgentThread(
@@ -159,13 +161,13 @@ extension SidebarViewModelTests {
 
         XCTAssertFalse(projectThread.isPinned)
         XCTAssertNil(projectThread.pinnedSortOrder)
-        XCTAssertTrue(task.isPinned)
-        XCTAssertEqual(task.pinnedSortOrder, 0)
+        XCTAssertFalse(task.isPinned)
+        XCTAssertNil(task.pinnedSortOrder)
         XCTAssertTrue(project.isPinned)
-        XCTAssertEqual(project.pinnedSortOrder, 1)
+        XCTAssertEqual(project.pinnedSortOrder, 0)
     }
 
-    func testSetThreadPinnedAllowsTaskBackedByPinnedProject() throws {
+    func testSetThreadPinnedIsANoOpForATaskInsideAPinnedProject() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(
             path: "/tmp/pinned-task-owner",
@@ -180,11 +182,11 @@ extension SidebarViewModelTests {
 
         try fixture.viewModel.setThreadPinned(task, isPinned: true)
 
-        XCTAssertTrue(task.isPinned)
-        XCTAssertEqual(task.pinnedSortOrder, 1)
+        // The pinned project already renders it, so a standalone pin would double-render it.
+        XCTAssertFalse(task.isPinned)
         XCTAssertEqual(
             fixture.viewModel.pinnedItems(projects: [project]).map(\.dragItem),
-            [.project(project.persistentModelID), .pinnedTask(task.persistentModelID)]
+            [.project(project.persistentModelID)]
         )
     }
 

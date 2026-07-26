@@ -86,7 +86,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.regularProjects.map(\.path), [regularProject.path])
     }
 
-    func testPinnedTasksStayIndependentOfTheirBackingProject() throws {
+    func testPinnedProjectAbsorbsItsTaskChildren() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/snapshot-task-project", name: "Task Project", isPinned: true, pinnedSortOrder: 0)
         let pinnedTask = makeSnapshotTask(name: "Pinned Task", isPinned: true)
@@ -101,12 +101,14 @@ final class SidebarRenderSnapshotTests: XCTestCase {
 
         let snapshot = try fixture.renderSnapshot()
 
-        XCTAssertEqual(snapshot.pinnedItems.map(\.dragItem), [
-            .project(project.persistentModelID),
-            .pinnedTask(pinnedTask.persistentModelID)
-        ])
-        XCTAssertTrue(snapshot.activeThreads(for: project).isEmpty)
-        XCTAssertEqual(snapshot.activeTaskThreads.map(\.persistentModelID), [unpinnedTask.persistentModelID])
+        // A Task with a project is one of its children, so a pinned project absorbs both of them
+        // rather than leaving the pinned one standalone.
+        XCTAssertEqual(snapshot.pinnedItems.map(\.dragItem), [.project(project.persistentModelID)])
+        XCTAssertEqual(
+            Set(snapshot.activeThreads(for: project).map(\.persistentModelID)),
+            [pinnedTask.persistentModelID, unpinnedTask.persistentModelID]
+        )
+        XCTAssertTrue(snapshot.activeTaskThreads.isEmpty)
     }
 
     func testLegacyActivityOrdersOnlyPinnedProjectsWithoutAManualOrder() throws {
@@ -160,9 +162,18 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         thread.modeRawValue = AgentThreadMode.task.rawValue
         try fixture.context.save()
 
+        // Mode does not change placement: the thread stays a child of its project.
         let retyped = try fixture.renderSnapshot()
-        XCTAssertTrue(retyped.activeThreads(for: destination).isEmpty)
-        XCTAssertEqual(retyped.activeTaskThreads.map(\.persistentModelID), [thread.persistentModelID])
+        XCTAssertEqual(retyped.activeThreads(for: destination).map(\.persistentModelID), [thread.persistentModelID])
+        XCTAssertTrue(retyped.activeTaskThreads.isEmpty)
+
+        thread.project = nil
+        try fixture.context.save()
+
+        // Only a projectless Task belongs to the `Tasks` section.
+        let detached = try fixture.renderSnapshot()
+        XCTAssertTrue(detached.activeThreads(for: destination).isEmpty)
+        XCTAssertEqual(detached.activeTaskThreads.map(\.persistentModelID), [thread.persistentModelID])
     }
 
     func testExpandedThreadCountFollowsExpansionAndPinnedRows() throws {
