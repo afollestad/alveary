@@ -41,10 +41,12 @@ final class SidebarDragMonitorView: NSView {
     var onEscape: (() -> Void)?
     var onWindowInvalidated: (() -> Void)?
 
-    private var interactionState = SidebarDragInteractionState.idle
+    private(set) var interactionState = SidebarDragInteractionState.idle
     private var eventMonitor: Any?
     private var windowObservers: [NSObjectProtocol] = []
     private var autoscrollTimer: Timer?
+    /// Internal so the escape-watch companion can own its lifecycle.
+    var escapeWatchTimer: Timer?
     private var autoscrollSessionID: UUID?
     private var pointerLocation: CGPoint?
     private weak var monitoredScrollView: NSScrollView?
@@ -88,12 +90,15 @@ final class SidebarDragMonitorView: NSView {
                 pointerLocation = currentPointerLocation()
             }
             updateAutoscroll()
+            startEscapeWatch()
         case .cancelledUntilMouseUp:
             pointerLocation = nil
             stopAutoscroll()
+            stopEscapeWatch()
         case .idle:
             pointerLocation = nil
             stopAutoscroll()
+            stopEscapeWatch()
         }
     }
 
@@ -102,6 +107,7 @@ final class SidebarDragMonitorView: NSView {
         removeEventMonitor()
         removeWindowObservers()
         stopAutoscroll()
+        stopEscapeWatch()
         monitoredScrollView = nil
     }
 
@@ -221,7 +227,7 @@ final class SidebarDragMonitorView: NSView {
         return convert(window.mouseLocationOutsideOfEventStream, from: nil)
     }
 
-    private func stopAutoscroll() {
+    func stopAutoscroll() {
         autoscrollTimer?.invalidate()
         autoscrollTimer = nil
         autoscrollSessionID = nil
@@ -432,7 +438,7 @@ func sidebarAutoscrollTickOwnsTimer(tickSessionID: UUID, timerSessionID: UUID?) 
     tickSessionID == timerSessionID
 }
 
-private enum SidebarDragKeyCode {
+enum SidebarDragKeyCode {
     static let escape: UInt16 = 53
     static let suppressedDuringInteraction: Set<UInt16> = [
         36, // Return
@@ -446,7 +452,7 @@ private enum SidebarDragKeyCode {
     ]
 }
 
-private extension SidebarDragInteractionState {
+extension SidebarDragInteractionState {
     var activeSessionID: UUID? {
         guard case .active(let session) = self else {
             return nil
