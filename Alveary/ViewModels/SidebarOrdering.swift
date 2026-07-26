@@ -17,6 +17,8 @@ enum SidebarDropPlacement: Hashable {
     case before
     case after
     case end
+    /// Drop onto a container rather than between rows. Reparents; never reorders.
+    case into
 }
 
 struct SidebarDropTarget: Hashable {
@@ -41,6 +43,9 @@ func sidebarInsertionIndex(
     draggedItem: SidebarDragItem,
     target: SidebarDropTarget
 ) -> Int? {
+    guard target.placement != .into else {
+        return nil
+    }
     if target.item == draggedItem {
         return items.firstIndex(of: draggedItem)
     }
@@ -52,6 +57,8 @@ func sidebarInsertionIndex(
             return 0
         case .after, .end:
             return remainingItems.count
+        case .into:
+            return nil
         }
     }
 
@@ -64,6 +71,8 @@ func sidebarInsertionIndex(
         return targetIndex
     case .after, .end:
         return targetIndex + 1
+    case .into:
+        return nil
     }
 }
 
@@ -72,6 +81,10 @@ func sidebarOrder(
     to target: SidebarDropTarget,
     in order: SidebarDragOrder
 ) -> SidebarDragOrder? {
+    // Dropping into a project reparents the thread; `commitSidebarDrop` never routes it here.
+    guard target.placement != .into else {
+        return nil
+    }
     if draggedItem.isConversation, target.section != .pinned {
         return nil
     }

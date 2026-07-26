@@ -46,6 +46,7 @@ struct SidebarView: View {
     @State var pendingArchiveThread: AgentThread?
     @State var pendingDeleteThread: AgentThread?
     @State var pendingDeleteProject: Project?
+    @State var pendingTaskProjectAccess: SidebarTaskProjectAccessRequest?
     @State var sidebarDragInteractionState = SidebarDragInteractionState.idle
     @State var sidebarDragPointerRelay = SidebarDragPointerRelay()
     @State var sidebarDropCandidate: SidebarDropCandidate?
@@ -86,7 +87,7 @@ struct SidebarView: View {
         )
         let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
 
-        return VStack(spacing: 0) {
+        let listContent = VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
                 InlineBanner(message: sidebarError, severity: .error, autoDismissAfter: nil, onDismiss: viewModel.dismissSidebarError)
                 .padding(.horizontal, 12)
@@ -233,89 +234,8 @@ struct SidebarView: View {
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftMaterialized), perform: handleDraftMaterialized)
         .animation(threadOrderAnimation, value: threadOrderVersion)
         .animation(nil, value: statusVersion)
-        .confirmationDialog(
-            "Archive thread?",
-            isPresented: Binding(
-                get: { pendingArchiveThread != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingArchiveThread = nil
-                    }
-                }
-            ),
-            presenting: pendingArchiveThread
-        ) { thread in
-            Button("Archive") {
-                pendingArchiveThread = nil
-                Task { await archive(thread) }
-            }
 
-            Button("Cancel", role: .cancel) {
-                pendingArchiveThread = nil
-            }
-        } message: { thread in
-            Text(archiveConfirmationMessage(for: thread))
-        }
-        .confirmationDialog(
-            "Delete thread?",
-            isPresented: Binding(
-                get: { pendingDeleteThread != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingDeleteThread = nil
-                    }
-                }
-            ),
-            presenting: pendingDeleteThread
-        ) { thread in
-            Button("Delete", role: .destructive) {
-                Task { await confirmDeleteThread(thread) }
-            }
-
-            Button("Cancel", role: .cancel) {
-                pendingDeleteThread = nil
-            }
-        } message: { thread in
-            Text(deleteConfirmationMessage(for: thread))
-        }
-        .confirmationDialog(
-            "Remove project?",
-            isPresented: Binding(
-                get: { pendingDeleteProject != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingDeleteProject = nil
-                    }
-                }
-            ),
-            presenting: pendingDeleteProject
-        ) { project in
-            Button("Remove Project", role: .destructive) {
-                Task { await confirmDeleteProject(project) }
-            }
-
-            Button("Cancel", role: .cancel) {
-                pendingDeleteProject = nil
-            }
-        } message: { project in
-            Text(
-                "Remove \(project.name) from Alveary, and delete its threads and worktrees? " +
-                    "The main project folder will not be touched."
-            )
-        }
-        .alert(
-            "Scheduled task attachment",
-            isPresented: Binding(
-                get: { viewModel.scheduledTaskAttachmentAlert != nil },
-                set: { if !$0 { viewModel.scheduledTaskAttachmentAlert = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {
-                viewModel.scheduledTaskAttachmentAlert = nil
-            }
-        } message: {
-            Text(viewModel.scheduledTaskAttachmentAlert ?? "")
-        }
+        return sidebarPresentationDialogs(listContent)
     }
 
     func sidebarThreadRow(

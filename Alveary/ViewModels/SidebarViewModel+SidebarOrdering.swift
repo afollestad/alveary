@@ -49,6 +49,11 @@ extension SidebarViewModel {
     }
 
     func commitSidebarDrop(dragItem: SidebarDragItem, target: SidebarDropTarget) throws -> Bool {
+        // Moving a Task into a project is async, so it routes through
+        // `SidebarViewModel.moveTaskIntoProject` from the drag finalizer instead.
+        guard target.placement != .into else {
+            return false
+        }
         if target.section == .tasks {
             return try commitSidebarDropToTasks(dragItem: dragItem)
         }

@@ -8,6 +8,11 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
 - For icon-bearing action buttons that use the shared prominent button styles, prefer explicit `Image` + `Text` content over `Label`; on macOS the shared style can render `Label` as text-only in some contexts.
 - For selectable list rows such as sidebar items, settings tabs, and diff file lists, use the `.appSelectableRow(...)` modifier from `Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows.
 - Markdown rendering is local SwiftUI `Text`/layout code; keep clickable rows free of nested hit-test blockers.
+- **Keep `body` off the compiler's type-check budget.** Swift solves an expression as a whole, so presentation modifiers chained onto a large hierarchy resolve their generic overloads together with every row in it.
+    - **Expect CI-only failures.** The compiler hard-errors with `unable to type-check this expression in reasonable time` after a wall-clock budget, so a fast machine builds clean while CI fails.
+    - **Lift presentation groups out of `body`.** Move `confirmationDialog` / `alert` / `sheet` chains into `func …<Content: View>(_ content: Content) -> some View` helpers, each its own type-check scope. `Sidebar/SidebarView+Dialogs.swift` is the reference.
+    - **Share the optional-to-`Bool` bridge.** One `sidebarPresentationBinding`-style helper, not an inline `Binding(get:set:)` closure pair per dialog.
+    - **Measure, do not guess.** `./scripts/build.sh --no-xcsift OTHER_SWIFT_FLAGS='$(inherited) -Xfrontend -warn-long-function-bodies=400'` prints per-body milliseconds; a `body` in the seconds is already at risk.
 
 ## Responsive Settings Rows
 

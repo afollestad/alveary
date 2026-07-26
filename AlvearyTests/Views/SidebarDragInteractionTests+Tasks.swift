@@ -206,7 +206,7 @@ extension SidebarDragInteractionTests {
 
         XCTAssertEqual(tasksCandidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
         XCTAssertEqual(tasksCandidate?.kind, .container)
-        // Outset by `sectionContainerOutset` so the border does not hug the header text.
+        // Outset by `containerOutset` so the border does not hug the header text.
         XCTAssertEqual(tasksCandidate?.hitFrame, CGRect(x: 0, y: 196, width: 200, height: 62))
         XCTAssertEqual(deepCandidate?.target, SidebarDropTarget(section: .tasks, placement: .end))
         XCTAssertNil(attachedCandidate)
@@ -320,9 +320,9 @@ extension SidebarDragInteractionTests {
             overlaySize: overlaySize
         )
 
-        XCTAssertEqual(inside, CGRect(x: 6, y: 40, width: 188, height: 60))
+        XCTAssertEqual(inside, CGRect(x: 3, y: 40, width: 194, height: 60))
         // A container scrolled partly out of view still borders its visible extent.
-        XCTAssertEqual(scrolledAbove, CGRect(x: 6, y: 0, width: 188, height: 40))
+        XCTAssertEqual(scrolledAbove, CGRect(x: 3, y: 0, width: 194, height: 40))
     }
 
     func testTasksTargetHiddenForNonPinnedTaskSources() throws {

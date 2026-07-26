@@ -79,10 +79,16 @@ struct SidebarDropCandidate: Equatable {
     var hitFrame: CGRect
     let priority: Int
     var kind: SidebarDropCandidateKind = .boundary
+    /// What a container's border draws around, when that differs from where it accepts a drop —
+    /// a project group reserves its outer edges for the insertion boundaries that share them, but
+    /// the border still has to wrap the whole group.
+    var containerFrame: CGRect?
     /// Skips the indicator-proximity gate. The gate keeps an insertion line local to the row that
     /// owns it, so it only means something where neighbouring rows publish competing boundaries.
     /// The empty-`Pinned` target spans a region where nothing else publishes at all.
     var ignoresIndicatorProximity = false
+
+    var borderFrame: CGRect { containerFrame ?? hitFrame }
 }
 
 struct SidebarDragLogicalOrder: Equatable {
@@ -272,7 +278,7 @@ extension SidebarView {
                             .transition(.opacity)
                     case .container:
                         let rect = sidebarDragBorderLocalRect(
-                            frame: sidebarDropCandidate.hitFrame,
+                            frame: sidebarDropCandidate.borderFrame,
                             viewport: viewport,
                             overlaySize: proxy.size
                         )
@@ -366,9 +372,9 @@ extension SidebarView {
         let candidate = session.frozenDropCandidate
         let selectedItem = appState.selectedSidebarItem
         let selectedThreadBelongsToDraggedProject: Bool
+        // Any mode: a Task placed in the dragged project is one of its children too.
         if case .project(let projectID) = session.item,
-           case .thread(let selectedThread) = selectedItem,
-           selectedThread.effectiveMode == .project {
+           case .thread(let selectedThread) = selectedItem {
             selectedThreadBelongsToDraggedProject = selectedThread.project?.persistentModelID == projectID
         } else {
             selectedThreadBelongsToDraggedProject = false
@@ -380,6 +386,10 @@ extension SidebarView {
             sidebarDropCandidate = nil
         }
         guard let candidate else {
+            return
+        }
+        if let access = sidebarTaskProjectAccessDrop(item: session.item, target: candidate.target) {
+            requestTaskProjectAccessDrop(threadID: access.threadID, projectID: access.projectID)
             return
         }
 
@@ -449,8 +459,9 @@ enum SidebarDragBorderMetrics {
     static let fillOpacity: Double = 0.16
     static let strokeOpacity: Double = 0.55
     static let lineWidth: CGFloat = 1.5
-    /// Sits just outside the 10pt-inset selection pill so a bordered row is never clipped by it.
-    static let horizontalInset: CGFloat = 6
+    /// Sits outside the 10pt-inset selection pill so a selected row's accent fill stays fully
+    /// inside the border instead of tracing the same rectangle.
+    static let horizontalInset: CGFloat = 3
 }
 
 /// Converts a named-space drag frame into the drag overlay's local coordinates, clamped so a

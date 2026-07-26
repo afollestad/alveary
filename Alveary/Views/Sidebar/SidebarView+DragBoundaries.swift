@@ -75,6 +75,8 @@ private func sidebarLogicalDropBoundary(
         insertionIndex = targetIndex
     case .after, .end:
         insertionIndex = targetIndex + 1
+    case .into:
+        return nil
     }
     return SidebarLogicalDropBoundary(section: target.section, insertionIndex: insertionIndex)
 }

@@ -60,9 +60,9 @@ private func sidebarDropCandidateDistance(
     from location: CGPoint,
     retainingTarget: SidebarDropTarget?
 ) -> CGFloat {
-    // A point inside a container scores a perfect hit, so an overlapping boundary can only tie
-    // and must win on `priority`. Today the two never overlap: containers cover `Tasks`, and
-    // boundaries cover `Pinned`/`Projects`.
+    // A point inside a container scores a perfect hit, so an overlapping boundary can only tie and
+    // must win on `priority`. `.into` containers do overlap `Pinned` boundaries, which is why they
+    // band their frame away from the half-rows those boundaries claim rather than relying on this.
     let distance = candidate.kind == .container && candidate.hitFrame.contains(location)
         ? 0
         : abs(candidate.indicatorY - location.y)
@@ -94,29 +94,13 @@ func sidebarDropCandidates(
         logicalOrder: logicalOrder
     )
 
-    switch item {
-    case .project:
-        candidates += sidebarProjectDropCandidates(
-            section: .pinned,
-            items: logicalOrder.pinnedItems,
-            geometry: geometry,
-            viewport: viewport,
-            stickyOcclusionMaxY: nil
-        )
-        candidates += sidebarProjectDropCandidates(
-            section: .projects,
-            items: logicalOrder.regularProjects,
-            geometry: geometry,
-            viewport: viewport,
-            stickyOcclusionMaxY: stickyOcclusionMaxY
-        )
-    case .pinnedThread, .pinnedTask, .unpinnedTask:
-        candidates += sidebarPinnedItemDropCandidates(
-            items: logicalOrder.pinnedItems,
-            geometry: geometry,
-            viewport: viewport
-        )
-    }
+    candidates += sidebarItemDropCandidates(
+        dragging: item,
+        geometry: geometry,
+        viewport: viewport,
+        stickyOcclusionMaxY: stickyOcclusionMaxY,
+        logicalOrder: logicalOrder
+    )
 
     return sidebarCoalescedDropCandidates(
         candidates,
@@ -124,6 +108,43 @@ func sidebarDropCandidates(
         viewport: viewport,
         logicalOrder: logicalOrder
     )
+}
+
+private func sidebarItemDropCandidates(
+    dragging item: SidebarDragItem,
+    geometry: [SidebarDragGeometryRole: [CGRect]],
+    viewport: CGRect,
+    stickyOcclusionMaxY: CGFloat?,
+    logicalOrder: SidebarDragLogicalOrder
+) -> [SidebarDropCandidate] {
+    switch item {
+    case .project:
+        return sidebarProjectDropCandidates(
+            section: .pinned,
+            items: logicalOrder.pinnedItems,
+            geometry: geometry,
+            viewport: viewport,
+            stickyOcclusionMaxY: nil
+        ) + sidebarProjectDropCandidates(
+            section: .projects,
+            items: logicalOrder.regularProjects,
+            geometry: geometry,
+            viewport: viewport,
+            stickyOcclusionMaxY: stickyOcclusionMaxY
+        )
+    case .pinnedThread, .pinnedTask, .unpinnedTask:
+        return sidebarPinnedItemDropCandidates(
+            items: logicalOrder.pinnedItems,
+            geometry: geometry,
+            viewport: viewport
+        ) + sidebarProjectIntoDropCandidates(
+            dragging: item,
+            geometry: geometry,
+            viewport: viewport,
+            stickyOcclusionMaxY: stickyOcclusionMaxY,
+            logicalOrder: logicalOrder
+        )
+    }
 }
 
 private func sidebarSectionDropCandidates(
@@ -226,7 +247,7 @@ private func sidebarTasksSectionDropCandidate(
     let sectionFrame = ([tasksHeaderFrame, geometry[.tasksTerminal]?.sidebarUnion]
         .compactMap { $0 }
         .sidebarUnion ?? tasksHeaderFrame)
-        .insetBy(dx: 0, dy: -SidebarDropTargetingMetrics.sectionContainerOutset)
+        .insetBy(dx: 0, dy: -SidebarDropTargetingMetrics.containerOutset)
     return sidebarSectionCandidate(
         target: SidebarDropTarget(section: .tasks, item: nil, placement: .end),
         indicatorY: sectionFrame.midY,
@@ -243,6 +264,7 @@ func sidebarSectionCandidate(
     viewport: CGRect,
     priority: Int = 0,
     kind: SidebarDropCandidateKind = .boundary,
+    containerFrame: CGRect? = nil,
     ignoresIndicatorProximity: Bool = false
 ) -> SidebarDropCandidate? {
     guard let clippedHitFrame = hitFrame.sidebarIntersection(with: viewport) else {
@@ -260,6 +282,7 @@ func sidebarSectionCandidate(
         hitFrame: clippedHitFrame,
         priority: priority,
         kind: kind,
+        containerFrame: containerFrame?.sidebarIntersection(with: viewport),
         ignoresIndicatorProximity: ignoresIndicatorProximity
     )
 }
@@ -408,13 +431,17 @@ private struct SidebarProjectCandidateContext {
     let stickyOcclusionMaxY: CGFloat?
 }
 
-private enum SidebarDropTargetingMetrics {
+enum SidebarDropTargetingMetrics {
     static let maximumIndicatorDistance: CGFloat = 20
     static let acquisitionHitSlop: CGFloat = 4
     static let retentionHitSlop: CGFloat = 8
     static let retentionDistanceBias: CGFloat = 4
-    /// Breathing room around a whole-section container, which has margin to spare unlike a row.
-    static let sectionContainerOutset: CGFloat = 4
+    /// Reserved at a container's top and bottom so the insertion boundaries sharing those edges
+    /// stay reachable.
+    static let containerEdgeBand: CGFloat = 6
+    /// Breathing room so a container border clears the content it wraps — in particular a selected
+    /// row's accent fill, which otherwise traces almost exactly the same rectangle.
+    static let containerOutset: CGFloat = 4
 }
 
 enum SidebarDragCoordinateSpace {
