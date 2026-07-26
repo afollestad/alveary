@@ -4,6 +4,8 @@ import SwiftUI
 let transcriptTopInset: CGFloat = 20
 let transcriptBottomInset: CGFloat = 14
 private let transcriptProgrammaticScrollTimeout: TimeInterval = 0.4
+/// Minimum gap between follow-scrolls while text streams in, so each delta does not issue its own scroll.
+private let transcriptStreamingScrollInterval: TimeInterval = 0.1
 
 private enum ScrollToBottomRetries {
     /// Immediate scroll only. Container-change preserve-follow reissues via
@@ -36,100 +38,119 @@ struct ChatTranscriptView: View {
         !viewModel.state.grouper.items.hasInterruptedNoteAfterLatestUserMessage
     }
 
+    /// Observers are grouped into wrapper functions rather than chained inline.
+    ///
+    /// Swift type-checks an expression as a whole, so eleven `onChange`/`task`/`overlay` modifiers
+    /// on one chain resolved their generic overloads together and pushed this body toward the
+    /// compiler's per-expression time budget — a wall-clock limit, so it fails on slow machines
+    /// while building clean on fast ones. Keep new observers inside a group.
     var body: some View {
-        appKitTranscriptSurface()
-        .onChange(of: events.count) {
-            if !viewModel.turnState.isActive {
-                viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
-            }
-            if shouldForceBottomScroll(for: events) {
-                scrollToBottom(forceFollow: true)
-            } else if isFollowing {
-                scrollToBottom()
-            }
-        }
-        .onChange(of: viewModel.messageQueue.pending.count) { oldCount, newCount in
-            guard newCount > oldCount else {
-                return
-            }
-            scrollToBottom(forceFollow: true)
-        }
-        .onChange(of: viewModel.state.grouper.items.last?.id) {
-            guard isFollowing else {
-                return
-            }
-            scrollToBottom(forceFollow: true)
-        }
-        .onChange(of: viewModel.streamingText) {
-            guard isFollowing else {
-                return
-            }
-
-            let now = Date()
-            if now.timeIntervalSince(lastScrollTime) >= 0.1 {
-                scrollToBottom(at: now)
-            }
-        }
-        .onChange(of: viewModel.thoughtText) {
-            guard isFollowing else {
-                return
-            }
-
-            let now = Date()
-            if now.timeIntervalSince(lastScrollTime) >= 0.1 {
-                scrollToBottom(at: now)
-            }
-        }
-        .onChange(of: viewModel.completedThoughtText) {
-            guard isFollowing else {
-                return
-            }
-
-            let now = Date()
-            if now.timeIntervalSince(lastScrollTime) >= 0.1 {
-                scrollToBottom(at: now)
-            }
-        }
-        .onAppear {
-            viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
-            scrollToBottom(forceFollow: true)
-        }
-        .onChange(of: viewModel.turnState.isActive) { _, isActive in
-            if isActive {
-                isFollowing = true
-                scrollToBottom(forceFollow: true)
-            } else {
-                // Background services can insert transcript records before `@Query` publishes
-                // its next snapshot. Re-fetch here so a stale view snapshot cannot erase them;
-                // if that fetch fails, preserve the live grouper instead of forcing stale rows.
-                viewModel.rebuildChatItemsFromConversationRecords(forceFullRebuild: true)
-                // `forceFullRebuild` can swap transient rows for persisted rows and publish
-                // a sequence of AppKit document-height changes, so a fresh jump-to-latest
-                // scroll lands against the settled baseline and keeps reissuing for any
-                // remaining content-size shifts.
-                if isFollowing {
-                    scrollToBottom(forceFollow: true)
-                }
-            }
-        }
-        .onChange(of: scrollToBottomRequest) { _, _ in
-            scrollToBottom(forceFollow: true)
-        }
-        .task(id: appKitApprovalSelectionLoadID) {
-            await loadAppKitApprovalSelectionsIfNeeded()
-        }
-        .overlay(alignment: .bottom) {
-            ScrollToLatestButton {
-                scrollToBottom(forceFollow: true)
-            }
-            .opacity(isFollowing ? 0 : 1)
-            .allowsHitTesting(!isFollowing)
-            .accessibilityHidden(isFollowing)
-            .padding(.bottom, 12)
-            .animation(.easeInOut(duration: 0.18), value: isFollowing)
-        }
+        transcriptScrollToLatestOverlay(
+            transcriptLifecycleObservers(
+                transcriptStreamingObservers(
+                    transcriptContentObservers(appKitTranscriptSurface())
+                )
+            )
+        )
     }
 
+    private func transcriptContentObservers<Content: View>(_ content: Content) -> some View {
+        content
+            .onChange(of: events.count) {
+                if !viewModel.turnState.isActive {
+                    viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
+                }
+                if shouldForceBottomScroll(for: events) {
+                    scrollToBottom(forceFollow: true)
+                } else if isFollowing {
+                    scrollToBottom()
+                }
+            }
+            .onChange(of: viewModel.messageQueue.pending.count) { oldCount, newCount in
+                guard newCount > oldCount else {
+                    return
+                }
+                scrollToBottom(forceFollow: true)
+            }
+            .onChange(of: viewModel.state.grouper.items.last?.id) {
+                guard isFollowing else {
+                    return
+                }
+                scrollToBottom(forceFollow: true)
+            }
+    }
+
+    private func transcriptStreamingObservers<Content: View>(_ content: Content) -> some View {
+        content
+            .onChange(of: viewModel.streamingText) {
+                scrollToBottomForStreamingGrowth()
+            }
+            .onChange(of: viewModel.thoughtText) {
+                scrollToBottomForStreamingGrowth()
+            }
+            .onChange(of: viewModel.completedThoughtText) {
+                scrollToBottomForStreamingGrowth()
+            }
+    }
+
+    private func transcriptLifecycleObservers<Content: View>(_ content: Content) -> some View {
+        content
+            .onAppear {
+                viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
+                scrollToBottom(forceFollow: true)
+            }
+            .onChange(of: viewModel.turnState.isActive) { _, isActive in
+                if isActive {
+                    isFollowing = true
+                    scrollToBottom(forceFollow: true)
+                } else {
+                    // Background services can insert transcript records before `@Query` publishes
+                    // its next snapshot. Re-fetch here so a stale view snapshot cannot erase them;
+                    // if that fetch fails, preserve the live grouper instead of forcing stale rows.
+                    viewModel.rebuildChatItemsFromConversationRecords(forceFullRebuild: true)
+                    // `forceFullRebuild` can swap transient rows for persisted rows and publish
+                    // a sequence of AppKit document-height changes, so a fresh jump-to-latest
+                    // scroll lands against the settled baseline and keeps reissuing for any
+                    // remaining content-size shifts.
+                    if isFollowing {
+                        scrollToBottom(forceFollow: true)
+                    }
+                }
+            }
+            .onChange(of: scrollToBottomRequest) { _, _ in
+                scrollToBottom(forceFollow: true)
+            }
+            .task(id: appKitApprovalSelectionLoadID) {
+                await loadAppKitApprovalSelectionsIfNeeded()
+            }
+    }
+
+    private func transcriptScrollToLatestOverlay<Content: View>(_ content: Content) -> some View {
+        content
+            .overlay(alignment: .bottom) {
+                ScrollToLatestButton {
+                    scrollToBottom(forceFollow: true)
+                }
+                .opacity(isFollowing ? 0 : 1)
+                .allowsHitTesting(!isFollowing)
+                .accessibilityHidden(isFollowing)
+                .padding(.bottom, 12)
+                .animation(.easeInOut(duration: 0.18), value: isFollowing)
+            }
+    }
+
+    /// Streamed text, live thinking, and completed thinking all grow the transcript the same way,
+    /// so they share one throttled follow-scroll instead of three identical closures.
+    private func scrollToBottomForStreamingGrowth() {
+        guard isFollowing else {
+            return
+        }
+
+        let now = Date()
+        if now.timeIntervalSince(lastScrollTime) >= transcriptStreamingScrollInterval {
+            scrollToBottom(at: now)
+        }
+    }
 }
 extension ChatTranscriptView {
     func handleScrollMetricsChange(
