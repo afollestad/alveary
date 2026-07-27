@@ -52,29 +52,6 @@ extension SnapshotTests {
         )
     }
 
-    func testSettingsScreenThreadsTabHandoffSteeringDisabled() {
-        var settings = AppSettings()
-        settings.contextManagementEnabled = true
-        settings.handoffSteeringEnabled = false
-
-        let viewModel = SettingsViewModel(
-            settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
-        )
-
-        assertMacSnapshot(
-            SettingsScreen(
-                viewModel: viewModel,
-                gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
-                appUpdateManager: snapshotAppUpdateManager(),
-                onClose: {},
-                initialTabRawValue: "threads"
-            ),
-            size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_threads_handoff_steering_disabled"
-        )
-    }
-
     func testSettingsHelpTextPopup() {
         assertMacSnapshot(
             settingsHelpTextPopup,

@@ -265,6 +265,7 @@ extension AppSettings {
         case interface
         case appShots
         case git
+        case handoff
         case notifications
         case terminal
         case threads

@@ -148,6 +148,16 @@ struct SettingsScreen: View {
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault)
             )
+        case .handoff:
+            HandoffSettingsTabView(
+                contextManagementEnabled: binding(for: \.contextManagementEnabled),
+                sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
+                handoffSteeringEnabled: binding(for: \.handoffSteeringEnabled),
+                handoffSteeringCountdownSeconds: binding(for: \.handoffSteeringCountdownSeconds),
+                handoffPromptSendCountdownSeconds: binding(for: \.handoffPromptSendCountdownSeconds),
+                handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
+                sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
+            )
         case .notifications:
             NotificationsSettingsTabView(
                 viewModel: viewModel,
@@ -174,14 +184,7 @@ struct SettingsScreen: View {
                 reopenLastThreadAndConversationOnLaunch: binding(for: \.reopenLastThreadAndConversationOnLaunch),
                 turnAwakeEnabled: binding(for: \.turnAwakeEnabled),
                 turnAwakePreventDisplaySleep: binding(for: \.turnAwakePreventDisplaySleep),
-                voiceInputShortcut: binding(for: \.voiceInputShortcut),
-                contextManagementEnabled: binding(for: \.contextManagementEnabled),
-                sessionHandoffWindowPercentage: binding(for: \.sessionHandoffWindowPercentage),
-                handoffSteeringEnabled: binding(for: \.handoffSteeringEnabled),
-                handoffSteeringCountdownSeconds: binding(for: \.handoffSteeringCountdownSeconds),
-                handoffPromptSendCountdownSeconds: binding(for: \.handoffPromptSendCountdownSeconds),
-                handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
-                sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
+                voiceInputShortcut: binding(for: \.voiceInputShortcut)
             )
         case .appUpdates:
             AppUpdatesSettingsTabView(updateManager: appUpdateManager)
@@ -273,6 +276,8 @@ private extension AppSettings.SettingsPage {
             return "App shots"
         case .git:
             return "Git"
+        case .handoff:
+            return "Handoff"
         case .notifications:
             return "Notifications"
         case .terminal:
@@ -294,6 +299,8 @@ private extension AppSettings.SettingsPage {
             return "camera.viewfinder"
         case .git:
             return "arrow.triangle.branch"
+        case .handoff:
+            return "hand.palm.facing"
         case .notifications:
             return "bell"
         case .terminal:
@@ -315,6 +322,8 @@ private extension AppSettings.SettingsPage {
             return "Configure app-shot capture, shortcuts, and local context permissions."
         case .git:
             return "Configure Git defaults and GitHub authentication for new worktrees."
+        case .handoff:
+            return "Configure Alveary's Amp-inspired take on compaction: automatic session handoff, steering, and context customization."
         case .notifications:
             return "Configure notification delivery and sounds."
         case .terminal:
