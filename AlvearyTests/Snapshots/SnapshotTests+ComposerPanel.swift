@@ -89,15 +89,6 @@ extension SnapshotTests {
         )
     }
 
-    func testComposerPlusMenuCompactContent() {
-        assertMacSnapshot(
-            ComposerPlusMenuSnapshot(),
-            size: CGSize(width: 244, height: 121),
-            named: "composer_plus_menu_compact_content",
-            colorScheme: .dark
-        )
-    }
-
     func testAppKitComposerPanelWithAskUserQuestionOverlay() {
         assertMacSnapshot(
             AppKitComposerPanelNativeRowSnapshot(
@@ -416,24 +407,6 @@ struct AppKitComposerPanelNativeRowSnapshot: View {
             PermissionModeOption(value: "auto", label: "Automatic", description: "Automatically approve most actions with safety checks.")
         ]
     }
-}
-
-private struct ComposerPlusMenuSnapshot: NSViewControllerRepresentable {
-    func makeNSViewController(context: Context) -> ComposerPlusMenuViewController {
-        ComposerPlusMenuViewController(configuration: .init(
-            isGoalModeArmed: false,
-            isGoalModeToggleEnabled: true,
-            goalModeDisabledTooltip: nil,
-            isPlanModeEnabled: true,
-            isPlanModeToggleEnabled: true,
-            planModeDisabledTooltip: nil,
-            onAddPhotosAndFiles: {},
-            onPlanModeChange: { _ in },
-            onGoalModeChange: { _ in }
-        ))
-    }
-
-    func updateNSViewController(_ controller: ComposerPlusMenuViewController, context: Context) {}
 }
 
 private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {

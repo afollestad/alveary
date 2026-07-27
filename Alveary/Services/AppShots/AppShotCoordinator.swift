@@ -53,8 +53,30 @@ final class AppShotCoordinator {
 
     var triggerID = UUID()
 
+    /// The app a capture would target right now, or `nil` when nothing can be attached.
+    ///
+    /// Observation propagates transitively: `currentSettings` is tracked on this type and
+    /// `attachableApp` is tracked on the observable tracker.
+    var attachableApp: AppShotAttachableApp? {
+        guard currentSettings.enabled else {
+            return nil
+        }
+        return targetTracker.attachableApp
+    }
+
     init(targetTracker: AppShotTargetTracker = AppShotTargetTracker()) {
         self.targetTracker = targetTracker
+    }
+
+    /// Requests a capture from UI that is not the global shortcut, such as the composer `+` menu.
+    ///
+    /// This only raises the trigger; `ContentView` remains the sole trigger observer and
+    /// destination router.
+    func requestCapture() {
+        guard currentSettings.enabled else {
+            return
+        }
+        triggerID = UUID()
     }
 
     func start(settingsService: any SettingsService) {

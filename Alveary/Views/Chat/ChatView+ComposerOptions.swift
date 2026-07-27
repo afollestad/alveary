@@ -94,6 +94,11 @@ extension ChatView {
             !composerPresentation.areControlsDisabled
     }
 
+    /// The app the composer `+` menu offers to attach, or `nil` when nothing can be captured.
+    var composerAppShotAttachment: ChatComposerActionRowView.AppShotAttachmentOption? {
+        appShotCoordinator?.attachableApp.map { .init(appName: $0.appName, icon: $0.icon) }
+    }
+
     var isGoalModeChipVisible: Bool {
         if viewModel.state.isGoalModeArmed {
             return true

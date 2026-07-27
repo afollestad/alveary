@@ -199,6 +199,7 @@ struct ContentView: View {
             .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
         }
         .environment(terminalManager)
+        .environment(appShotCoordinator)
         .task {
             appShotCoordinator.start(settingsService: settingsService)
         }

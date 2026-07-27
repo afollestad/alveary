@@ -94,6 +94,21 @@ final class ChatComposerActionRowView: NSView {
         let title: String
     }
 
+    /// The app the `+` menu offers to attach as an app shot.
+    ///
+    /// `icon` arrives already resolved from the running application so opening the menu never
+    /// performs an icon lookup. The bundle identifier stops at the service layer; the row only
+    /// needs a name and a ready image.
+    struct AppShotAttachmentOption: Equatable {
+        let appName: String
+        let icon: NSImage?
+
+        /// The icon is derived from the named app, so identity alone decides equality.
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.appName == rhs.appName
+        }
+    }
+
     struct Configuration {
         let reasoning: ReasoningConfiguration
         let supportedPermissionModes: [PermissionOptionPresentation]
@@ -128,6 +143,11 @@ final class ChatComposerActionRowView: NSView {
         let onSubmit: () -> Void
         let onStop: () -> Void
         var onAddPhotosAndFiles: () -> Void = {}
+        // Deliberately absent from `AppliedConfigurationSnapshot`: the `+` menu is rebuilt from the
+        // stored configuration on every open, so the row itself never paints these. Including them
+        // would force a full `applyConfiguration` relayout on every foreground app switch.
+        var appShotAttachment: AppShotAttachmentOption?
+        var onAttachAppShot: () -> Void = {}
     }
 
     let plusButton = ComposerPlusButton()

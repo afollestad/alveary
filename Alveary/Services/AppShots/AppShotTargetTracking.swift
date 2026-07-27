@@ -1,6 +1,7 @@
 @preconcurrency import AppKit
 import ApplicationServices
 import Foundation
+import Observation
 
 struct AppShotWindowTarget: @unchecked Sendable {
     let appName: String
@@ -9,6 +10,22 @@ struct AppShotWindowTarget: @unchecked Sendable {
     let windowTitle: String
     let windowBounds: CGRect?
     let axWindow: AXUIElement
+}
+
+/// The app an app shot would capture right now, described for display before any capture runs.
+///
+/// `icon` comes straight from `NSRunningApplication`, which AppKit already holds for a live
+/// process, so publishing it costs no LaunchServices query and no bundle read. Display surfaces
+/// scale it to their own slot instead of mutating the image.
+struct AppShotAttachableApp: Equatable {
+    let appName: String
+    let bundleIdentifier: String
+    let icon: NSImage?
+
+    /// The icon is derived from the same running app, so identity alone decides equality.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.appName == rhs.appName && lhs.bundleIdentifier == rhs.bundleIdentifier
+    }
 }
 
 enum AppShotCaptureError: LocalizedError, Equatable {
@@ -44,11 +61,18 @@ enum AppShotCaptureError: LocalizedError, Equatable {
 }
 
 @MainActor
+@Observable
 final class AppShotTargetTracker {
-    private var lastNonAlvearyTarget: AppShotWindowTarget?
-    private var activationObserver: NSObjectProtocol?
+    // Refreshed on every activation, so keeping it untracked avoids per-app-switch observation work
+    // for a value no view can read.
+    @ObservationIgnored private var lastNonAlvearyTarget: AppShotWindowTarget?
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
+    @ObservationIgnored private var terminationObserver: NSObjectProtocol?
     private let workspace: NSWorkspace
     private let bundleIdentifier: String
+
+    /// The app an app shot would capture right now, or `nil` when no window is available.
+    private(set) var attachableApp: AppShotAttachableApp?
 
     init(
         workspace: NSWorkspace = .shared,
@@ -74,23 +98,40 @@ final class AppShotTargetTracker {
                 self?.recordIfNonAlveary(app)
             }
         }
+        terminationObserver = workspace.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
+                return
+            }
+            let processIdentifier = app.processIdentifier
+            Task { @MainActor in
+                self?.forgetTargetIfTerminated(processIdentifier: processIdentifier)
+            }
+        }
         if let frontmost = workspace.frontmostApplication {
             recordIfNonAlveary(frontmost)
         }
     }
 
     func stop() {
-        if let activationObserver {
-            workspace.notificationCenter.removeObserver(activationObserver)
+        for observer in [activationObserver, terminationObserver].compactMap({ $0 }) {
+            workspace.notificationCenter.removeObserver(observer)
         }
         activationObserver = nil
+        terminationObserver = nil
+        // Without observers the candidate can no longer be kept current, so do not keep publishing it.
+        lastNonAlvearyTarget = nil
+        attachableApp = nil
     }
 
     func targetForCapture() -> AppShotWindowTarget? {
         if let frontmost = workspace.frontmostApplication,
            frontmost.bundleIdentifier != bundleIdentifier,
            let target = target(for: frontmost) {
-            lastNonAlvearyTarget = target
+            store(target, for: frontmost)
             return target
         }
         return lastNonAlvearyTarget
@@ -101,7 +142,34 @@ final class AppShotTargetTracker {
               let target = target(for: app) else {
             return
         }
+        store(target, for: app)
+    }
+
+    /// Caches the capture target and republishes the display-facing candidate.
+    ///
+    /// The candidate is only reassigned when its identity actually changes. Observation fires on
+    /// every set and app activation fires on every app switch, so an unguarded assignment would
+    /// re-render every observing view each time the user alt-tabs.
+    private func store(_ target: AppShotWindowTarget, for app: NSRunningApplication) {
+        // The capture target always takes the freshest window; only the display candidate is guarded.
         lastNonAlvearyTarget = target
+        let candidate = AppShotAttachableApp(
+            appName: target.appName,
+            bundleIdentifier: target.bundleIdentifier,
+            icon: app.icon
+        )
+        guard attachableApp != candidate else {
+            return
+        }
+        attachableApp = candidate
+    }
+
+    private func forgetTargetIfTerminated(processIdentifier: pid_t) {
+        guard lastNonAlvearyTarget?.processIdentifier == processIdentifier else {
+            return
+        }
+        lastNonAlvearyTarget = nil
+        attachableApp = nil
     }
 
     private func target(for app: NSRunningApplication) -> AppShotWindowTarget? {

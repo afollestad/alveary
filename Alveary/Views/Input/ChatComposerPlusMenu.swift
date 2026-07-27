@@ -213,6 +213,11 @@ final class ComposerPlusMenuViewController: NSViewController {
         let isPlanModeToggleEnabled: Bool
         let planModeDisabledTooltip: String?
         let onAddPhotosAndFiles: () -> Void
+        /// Name of the app the app-shot row offers to attach; `nil` hides the row entirely.
+        var appShotAppName: String?
+        /// Icon for that app, resolved upstream so opening the menu performs no icon lookup.
+        var appShotAppIcon: NSImage?
+        var onAttachAppShot: () -> Void = {}
         let onPlanModeChange: (Bool) -> Void
         let onGoalModeChange: (Bool) -> Void
     }
@@ -222,7 +227,9 @@ final class ComposerPlusMenuViewController: NSViewController {
     init(configuration: Configuration) {
         self.configuration = configuration
         super.init(nibName: nil, bundle: nil)
-        preferredContentSize = ComposerPlusMenuMetrics.contentSize
+        preferredContentSize = ComposerPlusMenuMetrics.contentSize(
+            includesAppShotRow: configuration.appShotAppName != nil
+        )
     }
 
     required init?(coder: NSCoder) {
@@ -238,6 +245,7 @@ final class ComposerPlusMenuViewController: NSViewController {
 private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
     private let configuration: ComposerPlusMenuViewController.Configuration
     private let addFilesRow = ComposerPlusMenuRowView()
+    private let appShotRow = ComposerPlusMenuRowView()
     private let goalSwitch = NSSwitch()
     private let goalRow = ComposerPlusMenuRowView()
     private let planSwitch = NSSwitch()
@@ -246,7 +254,10 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
 
     init(configuration: ComposerPlusMenuViewController.Configuration) {
         self.configuration = configuration
-        super.init(frame: NSRect(origin: .zero, size: ComposerPlusMenuMetrics.contentSize))
+        super.init(frame: NSRect(
+            origin: .zero,
+            size: ComposerPlusMenuMetrics.contentSize(includesAppShotRow: configuration.appShotAppName != nil)
+        ))
         setup()
     }
 
@@ -262,9 +273,19 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
             width: bounds.width - ComposerPlusMenuMetrics.horizontalInset * 2,
             height: ComposerPlusMenuMetrics.rowHeight
         )
+        let hasAppShotRow = appShotRow.superview != nil
+        if hasAppShotRow {
+            appShotRow.frame = NSRect(
+                x: ComposerPlusMenuMetrics.horizontalInset,
+                y: addFilesRow.frame.maxY + ComposerPlusMenuMetrics.dividerSpacing,
+                width: bounds.width - ComposerPlusMenuMetrics.horizontalInset * 2,
+                height: ComposerPlusMenuMetrics.rowHeight
+            )
+        }
+        let lastFileRow = hasAppShotRow ? appShotRow : addFilesRow
         divider.frame = NSRect(
             x: AppKitComposerPopoverDividerView.horizontalInset,
-            y: ComposerPlusMenuMetrics.verticalInset + ComposerPlusMenuMetrics.rowHeight + ComposerPlusMenuMetrics.dividerSpacing,
+            y: lastFileRow.frame.maxY + ComposerPlusMenuMetrics.dividerSpacing,
             width: bounds.width - AppKitComposerPopoverDividerView.horizontalInset * 2,
             height: AppKitComposerPopoverDividerView.height
         )
@@ -284,6 +305,7 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
 
     private func setup() {
         setupAddFilesButton()
+        setupAppShotRow()
         setupDivider()
         setupGoalRow()
         setupPlanRow()
@@ -300,6 +322,29 @@ private final class ComposerPlusMenuView: AppKitComposerPopoverSurfaceView {
             trailingView: nil,
             action: { [weak self] in
                 self?.configuration.onAddPhotosAndFiles()
+            }
+        ))
+    }
+
+    /// Adds the app-shot row only when an app can actually be attached.
+    private func setupAppShotRow() {
+        guard let appName = configuration.appShotAppName else {
+            return
+        }
+        addSubview(appShotRow)
+        // Scale the app icon into the shared slot rather than resizing the image, matching
+        // `AppKitAppShotAttachmentCardView`. App icons are not template images, so the row's
+        // `contentTintColor` leaves their own colors intact.
+        appShotRow.iconScaling = .scaleProportionallyDown
+        appShotRow.configure(.init(
+            title: "Attach \(appName)",
+            icon: configuration.appShotAppIcon,
+            accessibilityLabel: "Attach \(appName)",
+            isEnabled: true,
+            toolTip: nil,
+            trailingView: nil,
+            action: { [weak self] in
+                self?.configuration.onAttachAppShot()
             }
         ))
     }

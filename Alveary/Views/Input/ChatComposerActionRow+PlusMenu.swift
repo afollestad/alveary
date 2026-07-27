@@ -33,6 +33,16 @@ extension ChatComposerActionRowView {
                 closePlusMenu()
                 self.configuration?.onAddPhotosAndFiles()
             },
+            // Both values are already resolved, so opening the menu performs no icon work.
+            appShotAppName: configuration.appShotAttachment?.appName,
+            appShotAppIcon: configuration.appShotAttachment?.icon,
+            onAttachAppShot: { [weak self] in
+                guard let self else {
+                    return
+                }
+                closePlusMenu()
+                self.configuration?.onAttachAppShot()
+            },
             onPlanModeChange: { [weak self] isEnabled in
                 self?.configuration?.onPlanModeChange(isEnabled)
             },

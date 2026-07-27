@@ -21,6 +21,13 @@ final class ComposerPlusMenuRowView: NSView {
     private var isPressed = false
     private var controlIsEnabled = true
 
+    /// How the icon fills its slot. SF Symbols draw at their natural point size; full-resolution
+    /// images such as app icons need proportional downscaling to fit.
+    var iconScaling: NSImageScaling {
+        get { iconView.imageScaling }
+        set { iconView.imageScaling = newValue }
+    }
+
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { controlIsEnabled }
     override var focusRingType: NSFocusRingType {
@@ -150,6 +157,10 @@ final class ComposerPlusMenuRowView: NSView {
         label.font = ComposerPlusMenuMetrics.itemFont
         label.textColor = .labelColor
         label.setAccessibilityElement(false)
+        // Titles can be caller-supplied (an app name, for example), so the label must clamp to the
+        // row instead of drawing past the popover edge.
+        label.lineBreakMode = .byTruncatingTail
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         iconView.contentTintColor = .labelColor
         iconView.setAccessibilityElement(false)
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -163,7 +174,12 @@ final class ComposerPlusMenuRowView: NSView {
             iconView.widthAnchor.constraint(equalToConstant: ComposerPlusMenuMetrics.iconSlotSize),
             iconView.heightAnchor.constraint(equalToConstant: ComposerPlusMenuMetrics.iconSlotSize),
             label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: ComposerPlusMenuMetrics.labelSpacing),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor)
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            // Rows with a trailing view add a tighter bound against it; this one covers rows without.
+            label.trailingAnchor.constraint(
+                lessThanOrEqualTo: trailingAnchor,
+                constant: -ComposerPlusMenuMetrics.trailingInset
+            )
         ])
     }
 
@@ -204,4 +220,17 @@ enum ComposerPlusMenuMetrics {
     static let trailingInset: CGFloat = 10
     static let trailingSpacing: CGFloat = 8
     @MainActor static var itemFont: NSFont { NSFont.preferredFont(forTextStyle: .body) }
+
+    /// Content size for a menu that may include the optional app-shot row.
+    ///
+    /// The extra row costs one row plus its leading spacing; without this the row is clipped.
+    static func contentSize(includesAppShotRow: Bool) -> NSSize {
+        guard includesAppShotRow else {
+            return contentSize
+        }
+        return NSSize(
+            width: contentSize.width,
+            height: contentSize.height + rowHeight + dividerSpacing
+        )
+    }
 }

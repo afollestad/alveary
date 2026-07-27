@@ -49,6 +49,12 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Keep presentation pure: compute labels, disabled states, placeholders, action copy, busy return behavior, effort options, and trust blocking from caller-owned inputs.
 - Keep effects elsewhere: no draft mutation, persistence, settings writes, tasks, or service calls in presentation types.
 - Keep the `+` menu presentation-only inside `ChatComposerActionRowView`. File picking, BlockInputKit insertion, and plan-mode mutation must remain callbacks owned by the composer panel or view model.
+- The `+` menu's app-shot row is a caller-owned input, not a capability the row discovers.
+    - **Take the app name and icon pre-resolved.** `Configuration.appShotAttachment` carries an `NSImage` the service layer already published. Opening the menu must never resolve an icon — in particular, never call `NSWorkspace.urlForApplication(withBundleIdentifier:)` on the click path, because that LaunchServices query would run synchronously while the popover builds.
+    - **Scale, do not resize.** Full-resolution app icons fill the shared slot through `ComposerPlusMenuRowView.iconScaling`, matching `AppKitAppShotAttachmentCardView`. Do not mutate a shared `NSImage`'s `size`, and do not mark an app icon `isTemplate` or the row's `contentTintColor` flattens it.
+    - **Hide the row when nothing is attachable.** Absent an attachment the menu keeps its exact previous geometry; present, it grows by one row plus its spacing via `ComposerPlusMenuMetrics.contentSize(includesAppShotRow:)`. A stale `contentSize` clips the trailing rows.
+    - **Only request the capture.** The action raises the app-shot trigger; the app root still observes it and owns destination routing, permissions, and staging.
+    - **Keep it out of `AppliedConfigurationSnapshot`.** The menu is rebuilt from the stored configuration on each open, so the row never paints these values; including them would force a full relayout on every foreground app switch.
 - Task Workspace controls are mode-specific composer settings, not attachments. The native action row presents current grants, `AppKitChatComposerPanelView` owns the directory picker, and `ConversationViewModel` owns validation/persistence/reconfiguration.
 - Provider and model options are caller-owned inputs populated from `AgentProviderDiscoveryService`; the action row renders them but must not discover providers, refresh models, or read provider config directly.
 - Reasoning controls are caller-owned inputs.

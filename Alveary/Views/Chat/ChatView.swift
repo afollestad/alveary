@@ -26,6 +26,10 @@ struct ChatView: View {
     let onSelectDraftProject: (String) -> Void
     @Bindable var appState: AppState
 
+    /// Optional so hosts that mount `ChatView` without the app root, such as snapshot tests,
+    /// simply render no app-shot affordance.
+    @Environment(AppShotCoordinator.self) var appShotCoordinator: AppShotCoordinator?
+
     @Query private var events: [ConversationEventRecord]
     @State private var lastScrollTime: Date = .distantPast
     @State var isFollowing = true
@@ -465,7 +469,10 @@ extension ChatView {
             onStop: {
                 isStopConfirmationArmed = false
                 Task { await viewModel.cancel() }
-            }
+            },
+            appShotAttachment: composerAppShotAttachment,
+            // Only raises the trigger; the app root observes it and owns capture routing.
+            onAttachAppShot: { appShotCoordinator?.requestCapture() }
         )
     }
 }
