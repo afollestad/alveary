@@ -141,7 +141,7 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertEqual(summaryField.maximumNumberOfLines, 0)
         XCTAssertEqual(statusView.frame, .zero)
         XCTAssertNil(statusView.statusSymbolSystemNameForTesting)
-        XCTAssertEqual(summaryField.stringValue, "Plan Check runtime path Run swift test")
+        XCTAssertEqual(summaryField.stringValue, "Run swift test")
         let summaryFont = try XCTUnwrap(summaryField.attributedStringValue.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
         XCTAssertEqual(summaryFont.pointSize, typography.nsFont(.inlineToolText).pointSize)
     }
@@ -198,7 +198,7 @@ extension AppKitTranscriptRowFactoryTests {
         XCTAssertEqual(summaryField.stringValue, "Finished plan")
     }
 
-    func testThoughtSummaryTextStripsMarkdownAndCollapsesLineBreaks() {
+    func testThoughtSummaryTextStripsMarkdownAndRendersOnlyTheNewestLine() {
         XCTAssertEqual(
             appKitTranscriptLiveThoughtSummaryText(
                 from: """
@@ -209,7 +209,29 @@ extension AppKitTranscriptRowFactoryTests {
                 2. Validate [events](https://example.com)
                 """
             ),
-            "Heading quoted idea Inspect AgentCLIKit Validate events"
+            "Validate events"
+        )
+    }
+
+    func testThoughtSummaryTextRendersOnlyTheNewestReasoningSection() {
+        XCTAssertEqual(
+            appKitTranscriptLiveThoughtSummaryText(
+                from: "**Verifying Node.js version strategy**\n\n**Finalizing plan details**"
+            ),
+            "Finalizing plan details"
+        )
+    }
+
+    func testThoughtSummaryTextIgnoresTrailingBlankAndFencedLines() {
+        XCTAssertEqual(
+            appKitTranscriptLiveThoughtSummaryText(
+                from: """
+                Checking the transcript width
+
+                ```swift
+                """
+            ),
+            "Checking the transcript width"
         )
     }
 

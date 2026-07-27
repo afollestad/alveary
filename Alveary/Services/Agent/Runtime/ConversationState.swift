@@ -302,6 +302,11 @@ final class ConversationState {
             return
         }
         if thoughtText == nil {
+            // Providers emit a whitespace-only chunk to separate reasoning sections. With no live
+            // thought to separate from, that break is leading padding rather than a new thought.
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return
+            }
             completedThoughtText = nil
             thoughtSequence += 1
             thoughtText = text

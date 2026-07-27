@@ -66,18 +66,24 @@ extension AppKitTranscriptRowFactory {
     }
 }
 
+/// Renders only the newest reasoning line. Live thought text accumulates for a whole turn, and
+/// providers separate reasoning sections with a blank line, so rendering all of it grows the row
+/// without bound and reads as one run-on sentence.
 func appKitTranscriptLiveThoughtSummaryText(from text: String) -> String {
     let lines = text
         .replacingOccurrences(of: "\r\n", with: "\n")
         .replacingOccurrences(of: "\r", with: "\n")
         .components(separatedBy: .newlines)
-        .map { appKitTranscriptLiveThoughtLineText(from: $0) }
-        .filter { !$0.isEmpty }
-        .joined(separator: " ")
-    let collapsed = appKitTranscriptCollapsedLiveThoughtPlainText(from: lines)
-    guard collapsed.isEmpty else {
-        return collapsed
+    // Walking backwards keeps the markdown pass off every earlier line of a long accumulation.
+    for line in lines.reversed() {
+        let collapsed = appKitTranscriptCollapsedLiveThoughtPlainText(
+            from: appKitTranscriptLiveThoughtLineText(from: line)
+        )
+        guard collapsed.isEmpty else {
+            return collapsed
+        }
     }
+    // Every line stripped to nothing, so prefer showing something over an empty row.
     return appKitTranscriptCollapsedLiveThoughtPlainText(from: text)
 }
 

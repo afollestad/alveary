@@ -105,6 +105,42 @@ extension ConversationViewModelTests {
         XCTAssertEqual(state.thoughtSequence, 1)
     }
 
+    func testSectionBreakSeparatesLiveThoughtsInConversationState() {
+        let state = ConversationState()
+
+        state.appendThoughtChunk("Verifying Node.js version strategy")
+        state.appendThoughtChunk("\n\n")
+        state.appendThoughtChunk("Finalizing plan details")
+
+        XCTAssertEqual(state.thoughtText, "Verifying Node.js version strategy\n\nFinalizing plan details")
+        XCTAssertEqual(state.thoughtSequence, 1)
+    }
+
+    func testLeadingSectionBreakDoesNotStartThoughtInConversationState() {
+        let state = ConversationState()
+
+        state.appendThoughtChunk("\n\n")
+
+        XCTAssertNil(state.thoughtText)
+        XCTAssertEqual(state.thoughtSequence, 0)
+
+        state.appendThoughtChunk("Plan")
+
+        XCTAssertEqual(state.thoughtText, "Plan")
+        XCTAssertEqual(state.thoughtSequence, 1)
+    }
+
+    func testLeadingSectionBreakPreservesCompletedThoughtInConversationState() {
+        let state = ConversationState()
+
+        state.appendThoughtChunk("Plan")
+        state.appendStreamingChunk("Hel")
+        state.appendThoughtChunk("\n\n")
+
+        XCTAssertNil(state.thoughtText)
+        XCTAssertEqual(state.completedThoughtText, "Plan")
+    }
+
     func testNewThoughtClearsCompletedThoughtInConversationState() {
         let state = ConversationState()
 

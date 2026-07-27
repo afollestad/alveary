@@ -25,6 +25,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 - **Clamp horizontal scroll.** The transcript scroll container is vertical-only even when child code blocks own horizontal overflow. Keep `NSClipView.bounds.origin.x` at `0`, and do not fix horizontal drift by changing transcript content width or switching measurement to clip-view width.
 - **Adapt through row factories.** Convert `ChatItem` values into cached AppKit row views by stable row id so refreshes do not reset expansion or prompt state.
 - **Bridge transient rows.** Pass live thinking, streaming, and interrupted state separately from persisted `ChatItem`s; use stable transient ids.
+- **Render only the newest thought line.** `appKitTranscriptLiveThoughtSummaryText` returns the last renderable line of the accumulated thought, not a join of every line. Live thought text accumulates for a whole turn and providers separate reasoning sections with a blank line, so joining grows the row without bound and reads as one run-on sentence. The completed-thought row shares the same helper and collapses the same way.
 - **Measure the bridge.** The AppKit surface reports the SwiftUI wrapper width so shared bubble-width caps stay aligned with the host layout.
 - **Bridge narrowly.** SwiftUI representables should only pass transcript data, state, and actions into the AppKit owner; scroll math stays in AppKit.
 
