@@ -210,7 +210,7 @@ final class AppKitAttachmentRemoveButton: NSView {
 
         let symbol = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)
         symbol?.isTemplate = true
-        let symbolSize = NSSize(width: 8, height: 8)
+        let symbolSize = BlockInputComposerStyle.imagePreviewRemoveButtonSymbolSize
         let symbolRect = NSRect(
             x: bounds.midX - symbolSize.width / 2,
             y: bounds.midY - symbolSize.height / 2,

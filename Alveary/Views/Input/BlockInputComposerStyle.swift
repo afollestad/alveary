@@ -11,7 +11,9 @@ enum BlockInputComposerStyle {
     static let imagePreviewInterItemSpacing: CGFloat = 12
     static let imagePreviewCornerRadius: CGFloat = AppCornerRadius.standard
     static let imagePreviewBorderWidth: CGFloat = 1
-    static let imagePreviewRemoveButtonSize = NSSize(width: 20, height: 20)
+    static let imagePreviewRemoveButtonSize = NSSize(width: 24, height: 24)
+    /// Glyph size inside the circular remove button, kept proportional to its background.
+    static let imagePreviewRemoveButtonSymbolSize = NSSize(width: 10, height: 10)
     static let imagePreviewRemoveButtonBorderWidth: CGFloat = 1
     static let imagePreviewRemoveButtonShadowOpacity: Float = 0.22
     static let imagePreviewRemoveButtonShadowRadius: CGFloat = 4

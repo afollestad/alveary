@@ -168,18 +168,20 @@ final class AppKitAppShotAttachmentCardView: AppKitDynamicColorView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard bounds.contains(point) else {
+        // `hitTest` receives superview coordinates, so it must be converted before being compared
+        // against this view's own rects. Testing it raw offsets the remove button's hit region by
+        // the card's origin inside the attachment strip.
+        let localPoint = superview.map { convert(point, from: $0) } ?? point
+        guard bounds.contains(localPoint) else {
             return nil
         }
-        if !removeButton.isHidden,
-           removeButtonFrame.contains(point) {
-            updateRemoveButtonFrame()
-            let removePoint = convert(point, to: removeButton)
-            if let hit = removeButton.hitTest(removePoint) {
-                return hit
-            }
+        guard !removeButton.isHidden,
+              removeButtonFrame.contains(localPoint) else {
+            return self
         }
-        return self
+        // Keep the button's frame current so its own bounds check agrees with the rect tested here.
+        updateRemoveButtonFrame()
+        return removeButton
     }
 
     override func resetCursorRects() {

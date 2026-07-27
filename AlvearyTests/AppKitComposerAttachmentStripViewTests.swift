@@ -277,7 +277,7 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         XCTAssertFalse(didOpen)
     }
 
-    private func configuredMountedStrip(
+    func configuredMountedStrip(
         attachments: [ComposerAttachment],
         width: CGFloat
     ) -> (strip: AppKitComposerAttachmentStripView, window: NSWindow) {
@@ -305,32 +305,46 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         hitView.mouseUp(with: mouseEvent(at: strip.convert(point, to: nil)))
     }
 
-    private func imageRemoveButtonCenter(in frame: NSRect) -> NSPoint {
-        NSPoint(
-            x: frame.maxX - BlockInputComposerStyle.imagePreviewRemoveButtonSize.width / 2 - 5,
-            y: frame.minY + BlockInputComposerStyle.imagePreviewRemoveButtonSize.height / 2 + 5
+    func imageRemoveButtonRect(in frame: NSRect) -> NSRect {
+        removeButtonRect(in: frame, inset: 5)
+    }
+
+    func fileRemoveButtonRect(in frame: NSRect) -> NSRect {
+        removeButtonRect(in: frame, inset: 8)
+    }
+
+    func appShotRemoveButtonRect(in frame: NSRect) -> NSRect {
+        removeButtonRect(in: frame, inset: 6)
+    }
+
+    /// Mirrors the per-surface remove-button placement so tests have one source for those insets.
+    private func removeButtonRect(in frame: NSRect, inset: CGFloat) -> NSRect {
+        let size = BlockInputComposerStyle.imagePreviewRemoveButtonSize
+        return NSRect(
+            x: frame.maxX - size.width - inset,
+            y: frame.minY + inset,
+            width: size.width,
+            height: size.height
         )
+    }
+
+    private func imageRemoveButtonCenter(in frame: NSRect) -> NSPoint {
+        center(of: imageRemoveButtonRect(in: frame))
     }
 
     private func fileRemoveButtonCenter(in frame: NSRect) -> NSPoint {
-        NSPoint(
-            x: frame.maxX - BlockInputComposerStyle.imagePreviewRemoveButtonSize.width / 2 - 8,
-            y: frame.minY + BlockInputComposerStyle.imagePreviewRemoveButtonSize.height / 2 + 8
-        )
+        center(of: fileRemoveButtonRect(in: frame))
     }
 
     private func appShotRemoveButtonCenter(in frame: NSRect) -> NSPoint {
-        NSPoint(
-            x: frame.maxX - BlockInputComposerStyle.imagePreviewRemoveButtonSize.width / 2 - 6,
-            y: frame.minY + BlockInputComposerStyle.imagePreviewRemoveButtonSize.height / 2 + 6
-        )
+        center(of: appShotRemoveButtonRect(in: frame))
     }
 
-    private func center(of frame: NSRect) -> NSPoint {
+    func center(of frame: NSRect) -> NSPoint {
         NSPoint(x: frame.midX, y: frame.midY)
     }
 
-    private func mouseEvent(at point: NSPoint) -> NSEvent {
+    func mouseEvent(at point: NSPoint) -> NSEvent {
         NSEvent.mouseEvent(
             with: .leftMouseUp,
             location: point,
@@ -344,7 +358,7 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         )!
     }
 
-    private func localImageAttachment(id: String, filename: String, size: NSSize) throws -> LocalImageAttachment {
+    func localImageAttachment(id: String, filename: String, size: NSSize) throws -> LocalImageAttachment {
         let url = try temporaryPNGURL(named: filename, size: size)
         return LocalImageAttachment(
             id: id,
@@ -354,7 +368,7 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         )
     }
 
-    private func localFileAttachment(filename: String) throws -> LocalFileAttachment {
+    func localFileAttachment(filename: String) throws -> LocalFileAttachment {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try Data("PDF".utf8).write(to: url, options: [.atomic])
         return LocalFileAttachment(
@@ -365,7 +379,7 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         )
     }
 
-    private func appShotAttachment(id: String, filename: String, size: NSSize) throws -> AppShotAttachment {
+    func appShotAttachment(id: String, filename: String, size: NSSize) throws -> AppShotAttachment {
         let screenshot = try localImageAttachment(id: "\(id)-screenshot", filename: filename, size: size)
         return AppShotAttachment(
             id: id,
@@ -404,7 +418,7 @@ private final class CursorInvalidationWindow: NSWindow {
     }
 }
 
-private extension ComposerAttachment {
+extension ComposerAttachment {
     var testingID: String {
         switch self {
         case .image(let image):
