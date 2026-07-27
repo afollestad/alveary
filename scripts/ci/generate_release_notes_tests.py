@@ -15,6 +15,13 @@ FULL_CHANGELOG = (
     f"**Full Changelog**: https://github.com/{REPOSITORY}/compare/"
     f"{PREVIOUS_TAG}...{TAG_NAME}"
 )
+COMMIT_LINK = f"[`abc1234`](https://github.com/{REPOSITORY}/commit/abc1234)"
+SECOND_COMMIT_LINK = f"[`def5678`](https://github.com/{REPOSITORY}/commit/def5678)"
+# A well-formed group, for cases where something other than the bullet shape is under test.
+VALID_GROUP = (
+    "- **App updates**\n"
+    f"  - *Update history is shown for every newer release* ({COMMIT_LINK}) by @author\n"
+)
 
 
 class GenerateReleaseNotesTests(unittest.TestCase):
@@ -89,9 +96,29 @@ class GenerateReleaseNotesTests(unittest.TestCase):
             env=environment,
         )
 
-    def test_accepts_header_free_bullets_and_footer(self) -> None:
+    def test_accepts_grouped_bullets_and_footer(self) -> None:
         self.commit("Add update history")
-        notes = f"- Add update history ([`abc123`](https://example.com)) by @author.\n\n{FULL_CHANGELOG}\n"
+        notes = (
+            "- **App updates**\n"
+            f"  - *Update history is shown for every newer release* ({COMMIT_LINK}, {SECOND_COMMIT_LINK}) by @author\n"
+            f"  - *Release notes keep their repository links interactive* ({COMMIT_LINK}) by @author\n"
+            f"\n{FULL_CHANGELOG}\n"
+        )
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.repo / ".release-notes.md").read_text(encoding="utf-8"), notes)
+
+    def test_accepts_multiple_groups(self) -> None:
+        self.commit("Add update history")
+        notes = (
+            "- **App updates**\n"
+            f"  - *Update history is shown for every newer release* ({COMMIT_LINK}) by @author\n"
+            "- **Other**\n"
+            f"  - *Internal maintenance and build improvements* ({SECOND_COMMIT_LINK}) by @author\n"
+            f"\n{FULL_CHANGELOG}\n"
+        )
 
         result = self.run_generator(generated_notes=notes)
 
@@ -109,7 +136,7 @@ class GenerateReleaseNotesTests(unittest.TestCase):
 
     def test_rejects_whats_changed_heading(self) -> None:
         self.commit("Add update history")
-        notes = f"## What's changed\n\n- Add update history\n\n{FULL_CHANGELOG}\n"
+        notes = f"## What's changed\n\n{VALID_GROUP}\n{FULL_CHANGELOG}\n"
 
         result = self.run_generator(generated_notes=notes)
 
@@ -124,9 +151,80 @@ class GenerateReleaseNotesTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("outside the required Markdown format", result.stderr)
 
+    def test_rejects_flat_ungrouped_bullet(self) -> None:
+        self.commit("Add update history")
+        notes = f"- Add update history ({COMMIT_LINK}) by @author\n\n{FULL_CHANGELOG}\n"
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside the required Markdown format", result.stderr)
+        # Rejections happen after the release is already signed and notarized, so the
+        # diagnostics have to say what was actually generated.
+        self.assertIn("groups: 0, children: 0", result.stderr)
+        self.assertIn("- Add update history", result.stderr)
+
+    def test_rejects_child_before_group(self) -> None:
+        self.commit("Add update history")
+        notes = (
+            f"  - *Update history is shown* ({COMMIT_LINK}) by @author\n"
+            "- **App updates**\n"
+            f"  - *Release notes stay interactive* ({SECOND_COMMIT_LINK}) by @author\n"
+            f"\n{FULL_CHANGELOG}\n"
+        )
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside the required Markdown format", result.stderr)
+
+    def test_rejects_group_without_children(self) -> None:
+        self.commit("Add update history")
+        notes = f"- **App updates**\n\n{FULL_CHANGELOG}\n"
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside the required Markdown format", result.stderr)
+
+    def test_rejects_empty_group_before_next_group(self) -> None:
+        self.commit("Add update history")
+        notes = f"- **App updates**\n{VALID_GROUP}\n{FULL_CHANGELOG}\n"
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside the required Markdown format", result.stderr)
+
+    def test_rejects_non_italic_child(self) -> None:
+        self.commit("Add update history")
+        notes = (
+            "- **App updates**\n"
+            f"  - Update history is shown ({COMMIT_LINK}) by @author\n"
+            f"\n{FULL_CHANGELOG}\n"
+        )
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside the required Markdown format", result.stderr)
+
+    def test_rejects_child_without_commit_link(self) -> None:
+        self.commit("Add update history")
+        notes = (
+            "- **App updates**\n"
+            "  - *Update history is shown* by @author\n"
+            f"\n{FULL_CHANGELOG}\n"
+        )
+
+        result = self.run_generator(generated_notes=notes)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("outside the required Markdown format", result.stderr)
+
     def test_rejects_duplicate_footer(self) -> None:
         self.commit("Add update history")
-        notes = f"- Add update history\n\n{FULL_CHANGELOG}\n{FULL_CHANGELOG}\n"
+        notes = f"{VALID_GROUP}\n{FULL_CHANGELOG}\n{FULL_CHANGELOG}\n"
 
         result = self.run_generator(generated_notes=notes)
 
@@ -135,7 +233,7 @@ class GenerateReleaseNotesTests(unittest.TestCase):
 
     def test_rejects_unexpected_workspace_modification(self) -> None:
         self.commit("Add update history")
-        notes = f"- Add update history\n\n{FULL_CHANGELOG}\n"
+        notes = f"{VALID_GROUP}\n{FULL_CHANGELOG}\n"
 
         result = self.run_generator(
             generated_notes=notes,
