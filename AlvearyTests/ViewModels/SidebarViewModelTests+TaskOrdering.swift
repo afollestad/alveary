@@ -94,10 +94,11 @@ extension SidebarViewModelTests {
         XCTAssertTrue(activeTasks.isEmpty)
         XCTAssertEqual(unknownModeTask.effectiveMode, .project)
         XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
-        XCTAssertTrue(shouldShowNoTasksPlaceholder(
+        // Neither thread counts as a Task anymore, so the section is empty in the strong sense.
+        XCTAssertEqual(sidebarTasksPlaceholderLabel(
             activeTaskThreads: activeTasks,
             hasAnyActiveTaskThreads: try fixture.renderSnapshot().hasAnyActiveTaskThreads
-        ))
+        ), "No tasks")
     }
 
     func testPinnedProjectAbsorbsPinnedTaskChildren() throws {

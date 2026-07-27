@@ -142,7 +142,7 @@ struct SidebarView: View {
                         tasksHeader
                         taskRows(
                             activeTaskThreads,
-                            showsNoTasksPlaceholder: shouldShowNoTasksPlaceholder(
+                            placeholderLabel: sidebarTasksPlaceholderLabel(
                                 activeTaskThreads: activeTaskThreads,
                                 hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
                             ),
@@ -163,7 +163,7 @@ struct SidebarView: View {
                         tasksHeader
                         taskRows(
                             activeTaskThreads,
-                            showsNoTasksPlaceholder: shouldShowNoTasksPlaceholder(
+                            placeholderLabel: sidebarTasksPlaceholderLabel(
                                 activeTaskThreads: activeTaskThreads,
                                 hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
                             ),

@@ -6,13 +6,17 @@ extension SidebarView {
     @ViewBuilder
     func taskRows(
         _ tasks: [AgentThread],
-        showsNoTasksPlaceholder: Bool,
+        placeholderLabel: String?,
         context: SidebarRenderContext
     ) -> some View {
-        if showsNoTasksPlaceholder {
-            Text("No tasks")
+        if let placeholderLabel {
+            // Publishing `.tasksTerminal` keeps the Tasks drop container covering the label
+            // region; without it an empty body would shrink the unpin target to the header.
+            // Leading matches task-row titles and `No projects yet`, not the header's title ink,
+            // which sits 3pt left of both.
+            Text(placeholderLabel)
                 .foregroundStyle(.secondary)
-                .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
+                .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
                 .sidebarDragGeometry(.tasksTerminal)
         }
 
@@ -205,11 +209,17 @@ extension SidebarView {
     }
 }
 
-func shouldShowNoTasksPlaceholder(
+/// The label an empty Tasks body shows, or nil while any Task rows are listed. `No tasks` means
+/// none exist anywhere; `No tasks here` means every active Task is elsewhere — pinned above, or
+/// placed in a project — so a bare header does not read as a broken section.
+func sidebarTasksPlaceholderLabel(
     activeTaskThreads: [AgentThread],
     hasAnyActiveTaskThreads: Bool
-) -> Bool {
-    activeTaskThreads.isEmpty && !hasAnyActiveTaskThreads
+) -> String? {
+    guard activeTaskThreads.isEmpty else {
+        return nil
+    }
+    return hasAnyActiveTaskThreads ? "No tasks here" : "No tasks"
 }
 
 private struct SidebarProjectGroupConfiguration {

@@ -79,14 +79,6 @@ extension SidebarViewTests {
         )
     }
 
-    func testNoTasksPlaceholderHiddenWhenAllActiveTasksArePinned() {
-        let pinnedTask = makeSidebarTask(name: "Pinned", modifiedAt: Date(), isPinned: true)
-
-        XCTAssertFalse(shouldShowNoTasksPlaceholder(activeTaskThreads: [], hasAnyActiveTaskThreads: true))
-        XCTAssertTrue(shouldShowNoTasksPlaceholder(activeTaskThreads: [], hasAnyActiveTaskThreads: false))
-        XCTAssertFalse(shouldShowNoTasksPlaceholder(activeTaskThreads: [pinnedTask], hasAnyActiveTaskThreads: true))
-    }
-
     func testTaskSelectionAfterDeletionPrefersNextVisibleTaskThenPrevious() throws {
         let fixture = try SidebarTestFixture()
         let newest = makeSidebarTask(name: "Newest", modifiedAt: Date(timeIntervalSince1970: 300))
