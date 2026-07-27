@@ -31,6 +31,9 @@ extension SidebarThreadRow {
         }
     }
 
+    // Both branches take `.transition(.identity)` so the pill's width `withAnimation` cannot
+    // govern their insertion or removal. Without it the outgoing branch stays painted for the
+    // whole 0.18s width change and the incoming one draws over it.
     func cleanupButtonContent(showsConfirm: Bool, showsIcon: Bool) -> some View {
         ZStack(alignment: .trailing) {
             if showsConfirm {
@@ -39,6 +42,7 @@ extension SidebarThreadRow {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.identity)
             }
             if showsIcon {
                 Image(systemName: sidebarThreadCleanupSystemImage(
@@ -49,9 +53,35 @@ extension SidebarThreadRow {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(iconForegroundColor)
                     .frame(width: Self.cleanupButtonSize, height: Self.cleanupButtonSize)
+                    .transition(.identity)
             }
         }
     }
+}
+
+/// Which of the cleanup control's two mutually exclusive contents renders.
+struct SidebarThreadCleanupButtonVisibility: Equatable {
+    let showsConfirm: Bool
+    let showsIcon: Bool
+}
+
+/// The archive/delete glyph and the `Confirm` label must never render together — they occupy the
+/// same pill and overlap while its width animates. The icon therefore stays hidden for the whole
+/// collapse and only returns once the width animation has settled.
+func sidebarThreadCleanupButtonVisibility(
+    isConfirmationChromeVisible: Bool,
+    isCollapsing: Bool
+) -> SidebarThreadCleanupButtonVisibility {
+    SidebarThreadCleanupButtonVisibility(
+        showsConfirm: isConfirmationChromeVisible,
+        showsIcon: !isConfirmationChromeVisible && !isCollapsing
+    )
+}
+
+/// Whether a dismissed confirmation collapses to zero width instead of landing back on the glyph.
+/// Confirming always does, regardless of hover, because it always removes the row.
+func sidebarThreadCleanupCollapsesToHidden(forCommit: Bool, isHovering: Bool) -> Bool {
+    forCommit || !isHovering
 }
 
 func sidebarThreadCleanupSystemImage(

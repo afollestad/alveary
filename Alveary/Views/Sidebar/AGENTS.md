@@ -69,6 +69,15 @@ These instructions cover sidebar-specific view code under `Alveary/Views/Sidebar
     - **Anchor confirmation right:** Keep the red `Confirm` pill icon-height.
       It expands left from the status column, and the whole rounded pill is the hit target.
       If confirmation times out after hover leaves, collapse the pill width to zero without a fade.
+    - **Never co-render the glyph and `Confirm`:** They share the pill and overlap while its width animates.
+      `sidebarThreadCleanupButtonVisibility` is the single source for which one renders; it hides the glyph for the whole collapse, not only the collapse-to-hidden case.
+      The glyph returns when `isCleanupControlCollapsing` clears — either from the width-reset `Task` or, sooner, from `onHover` when the pointer re-enters mid-collapse. That `onHover` branch must clear the flag, not just `isCleanupControlCollapsingToHidden`, or re-entry shows an empty hover circle for up to 180ms.
+      Both `cleanupButtonContent` branches carry `.transition(.identity)`. A `withTransaction(disablesAnimations:)` on the chrome flag is not enough — the sibling width `withAnimation` lands in the same update pass and governs the `ZStack` child's removal, which left `Confirm` painted for the full 0.18s with the glyph drawn over it.
+    - **Dismiss instantly on confirm:** `clearCleanupConfirmation(forCommit: true)` drops the pill to zero width with no animation, because `onConfirmCleanup` always removes the row.
+      Animating the 0.18s collapse there runs it concurrently with the `List` pulling the row out, and the two together read as the pill lagging behind the row.
+      The width-reset `Task` still gets scheduled so a failed archive/delete, which leaves the row mounted, restores the hover glyph.
+      The timeout path keeps the animation and its hover-derived landing state.
+      The whole state machine lives in `SidebarView+ThreadRowCleanupConfirmation.swift`, which is why the `@State` it drives is internal on `SidebarThreadRow` rather than private.
     - **Pause confirmation deliberately:** Keep the confirmation timeout paused while the pointer is over the pill or the mouse is pressed on it.
       If press ends outside the pill and hover is gone, resume the timeout.
     - **Reserve spacing deliberately:** Keep an 8pt title gap before the plain status dot.

@@ -16,11 +16,11 @@ struct SidebarThreadRow: View {
     private static let provenanceIndicatorSpacing: CGFloat = 6
     private static let worktreeIndicatorRotationDegrees: CGFloat = 90
     static let scheduledIndicatorAccessibilityLabel = "Scheduled task"
-    private static let cleanupWidthAnimationDuration = 0.18
-    private static let cleanupWidthAnimationNanoseconds: UInt64 = 180_000_000
+    static let cleanupWidthAnimationDuration = 0.18
+    static let cleanupWidthAnimationNanoseconds: UInt64 = 180_000_000
     private static let cleanupHideAnimationDuration = 0.12
     private static let cleanupStatusTransitionDuration = 0.18
-    private static let cleanupConfirmationTimeoutNanoseconds: UInt64 = 500_000_000
+    static let cleanupConfirmationTimeoutNanoseconds: UInt64 = 500_000_000
     private static let cleanupDestructiveTint = Color(red: 0.74, green: 0.18, blue: 0.17)
     private static let cleanupDestructivePressedTint = Color(red: 0.54, green: 0.08, blue: 0.08)
     private static let trailingStatusCenterInset = SidebarProjectRow.horizontalPadding + statusIndicatorSize
@@ -40,18 +40,20 @@ struct SidebarThreadRow: View {
 
     @State var editText = ""
     @State private var initialEditText = ""
-    @State private var isHovering = false
-    @State private var isCleanupConfirmationArmed = false
-    @State private var isCleanupConfirmationChromeVisible = false
-    @State private var isCleanupControlCollapsing = false
+    @State var isHovering = false
+    // The confirmation state machine lives in `SidebarView+ThreadRowCleanupConfirmation.swift`,
+    // so everything it drives is internal rather than private.
+    @State var isCleanupConfirmationArmed = false
+    @State var isCleanupConfirmationChromeVisible = false
+    @State var isCleanupControlCollapsing = false
     // Timeout collapse hides the affordance by shrinking to zero; hover collapse lands back on the icon.
-    @State private var isCleanupControlCollapsingToHidden = false
+    @State var isCleanupControlCollapsingToHidden = false
     @State var isHoveringCleanupButton = false
-    @State private var isCleanupButtonPressed = false
-    @State private var cleanupConfirmationDeadline: Date?
-    @State private var cleanupConfirmationRemainingNanoseconds: UInt64?
-    @State private var cleanupConfirmationResetTask: Task<Void, Never>?
-    @State private var cleanupWidthAnimationTask: Task<Void, Never>?
+    @State var isCleanupButtonPressed = false
+    @State var cleanupConfirmationDeadline: Date?
+    @State var cleanupConfirmationRemainingNanoseconds: UInt64?
+    @State var cleanupConfirmationResetTask: Task<Void, Never>?
+    @State var cleanupWidthAnimationTask: Task<Void, Never>?
     @FocusState var isFieldFocused: Bool
 
     init(
@@ -113,6 +115,13 @@ struct SidebarThreadRow: View {
             withAnimation(.easeInOut(duration: Self.cleanupHideAnimationDuration)) {
                 self.isHovering = isHovering
                 if isHovering {
+                    // Re-entering ends the collapse outright rather than waiting on
+                    // `cleanupWidthAnimationTask`; `showsIcon` is gated on `isCleanupControlCollapsing`,
+                    // so leaving it set would show an empty hover circle for up to 180ms. Either
+                    // collapse variant can be in flight here (exit and re-enter within the window
+                    // catches the land-on-icon one too), but both clear the `Confirm` chrome
+                    // instantly at collapse start, so showing the icon is safe.
+                    isCleanupControlCollapsing = false
                     isCleanupControlCollapsingToHidden = false
                 } else {
                     isHoveringCleanupButton = false
@@ -247,10 +256,13 @@ struct SidebarThreadRow: View {
     }
 
     private var cleanupButton: some View {
-        let showsConfirm = isCleanupConfirmationChromeVisible
-        let showsIcon = !showsConfirm && !isCleanupControlCollapsingToHidden
+        let visibility = sidebarThreadCleanupButtonVisibility(
+            isConfirmationChromeVisible: isCleanupConfirmationChromeVisible,
+            isCollapsing: isCleanupControlCollapsing
+        )
+        let showsConfirm = visibility.showsConfirm
 
-        return cleanupButtonContent(showsConfirm: showsConfirm, showsIcon: showsIcon)
+        return cleanupButtonContent(showsConfirm: showsConfirm, showsIcon: visibility.showsIcon)
             .frame(width: cleanupControlWidth, height: Self.cleanupButtonSize, alignment: .trailing)
             .background(
                 RoundedRectangle(cornerRadius: Self.cleanupButtonSize / 2, style: .continuous)
@@ -329,138 +341,6 @@ struct SidebarThreadRow: View {
 
     private var trailingPadding: CGFloat {
         Self.cleanupButtonTrailingPadding
-    }
-
-    private func cleanupPressGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { _ in
-                guard !isCleanupButtonPressed else {
-                    return
-                }
-
-                setCleanupButtonPressed(true)
-                pauseCleanupConfirmation()
-            }
-            .onEnded { value in
-                let wasArmed = isCleanupConfirmationArmed
-                setCleanupButtonPressed(false)
-
-                if cleanupButtonContains(value.location, width: width) {
-                    handleCleanupButtonClick()
-                } else if wasArmed && !isHoveringCleanupButton {
-                    resumeCleanupConfirmation()
-                }
-            }
-    }
-
-    private func cleanupButtonContains(_ location: CGPoint, width: CGFloat) -> Bool {
-        location.x >= 0
-            && location.x <= width
-            && location.y >= 0
-            && location.y <= Self.cleanupButtonSize
-    }
-
-    private func setCleanupButtonPressed(_ pressed: Bool) {
-        withAnimation(.easeOut(duration: 0.08)) {
-            isCleanupButtonPressed = pressed
-        }
-    }
-
-    private func handleCleanupButtonClick() {
-        if isCleanupConfirmationArmed {
-            clearCleanupConfirmation()
-            onConfirmCleanup()
-        } else {
-            armCleanupConfirmation()
-        }
-    }
-
-    private func armCleanupConfirmation() {
-        cleanupConfirmationResetTask?.cancel()
-        cleanupConfirmationRemainingNanoseconds = nil
-        cleanupWidthAnimationTask?.cancel()
-        isCleanupControlCollapsing = false
-        isCleanupControlCollapsingToHidden = false
-
-        withAnimation(.easeInOut(duration: Self.cleanupWidthAnimationDuration)) {
-            isCleanupConfirmationArmed = true
-            isCleanupConfirmationChromeVisible = true
-        }
-        scheduleCleanupConfirmationTimeout(nanoseconds: Self.cleanupConfirmationTimeoutNanoseconds)
-        if isHoveringCleanupButton {
-            pauseCleanupConfirmation()
-        }
-    }
-
-    private func scheduleCleanupConfirmationTimeout(nanoseconds: UInt64) {
-        cleanupConfirmationDeadline = Date().addingTimeInterval(Double(nanoseconds) / 1_000_000_000)
-
-        cleanupConfirmationResetTask = Task {
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                clearCleanupConfirmation()
-            }
-        }
-    }
-
-    private func pauseCleanupConfirmation() {
-        guard isCleanupConfirmationArmed,
-              cleanupConfirmationResetTask != nil,
-              cleanupConfirmationRemainingNanoseconds == nil else {
-            return
-        }
-
-        cleanupConfirmationResetTask?.cancel()
-        cleanupConfirmationResetTask = nil
-        let remainingSeconds = max(cleanupConfirmationDeadline?.timeIntervalSinceNow ?? 0, 0)
-        cleanupConfirmationDeadline = nil
-        cleanupConfirmationRemainingNanoseconds = UInt64(remainingSeconds * 1_000_000_000)
-    }
-
-    private func resumeCleanupConfirmation() {
-        guard isCleanupConfirmationArmed,
-              let remainingNanoseconds = cleanupConfirmationRemainingNanoseconds else {
-            return
-        }
-
-        cleanupConfirmationRemainingNanoseconds = nil
-        scheduleCleanupConfirmationTimeout(nanoseconds: remainingNanoseconds)
-    }
-
-    private func clearCleanupConfirmation() {
-        cleanupConfirmationResetTask?.cancel()
-        cleanupConfirmationResetTask = nil
-        cleanupWidthAnimationTask?.cancel()
-        cleanupConfirmationDeadline = nil
-        cleanupConfirmationRemainingNanoseconds = nil
-
-        guard isCleanupConfirmationArmed else {
-            return
-        }
-
-        let shouldHideAfterCollapse = !isHovering
-        var hideChromeTransaction = Transaction(animation: nil)
-        hideChromeTransaction.disablesAnimations = true
-        withTransaction(hideChromeTransaction) { isCleanupConfirmationChromeVisible = false }
-        withAnimation(.easeInOut(duration: Self.cleanupWidthAnimationDuration)) {
-            isCleanupControlCollapsing = true
-            isCleanupControlCollapsingToHidden = shouldHideAfterCollapse
-            isCleanupConfirmationArmed = false
-        }
-
-        cleanupWidthAnimationTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: Self.cleanupWidthAnimationNanoseconds)
-            guard !Task.isCancelled else {
-                return
-            }
-
-            isCleanupControlCollapsing = false
-            isCleanupControlCollapsingToHidden = false
-        }
     }
 
 }
