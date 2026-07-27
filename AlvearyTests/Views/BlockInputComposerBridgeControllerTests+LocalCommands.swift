@@ -150,6 +150,48 @@ extension BlockInputComposerBridgeControllerTests {
         XCTAssertEqual(suggestions.first?.subtitle, "External effort skill")
     }
 
+    func testModelCompletionSuppressesConflictingSkillWhenOptionsAreAvailable() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(modelOptions: [
+                ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+                ComposerModelCommandOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+            ]),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: {
+                [
+                    Self.skill(id: "model", name: "model", description: "External model skill")
+                ]
+            }
+        )
+
+        let suggestions = await provider.suggestions(for: Self.completionContext(query: "model"))
+
+        XCTAssertEqual(suggestions.map(\.insertionText), ["/model "])
+        XCTAssertEqual(suggestions.first?.subtitle, "Set the model")
+        XCTAssertEqual(suggestions.first?.detailText, "Alveary")
+    }
+
+    func testModelCompletionDoesNotReserveCommandWithFewerThanTwoOptions() async {
+        let provider = BlockInputComposerCompletionProvider(
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
+            localCommands: ComposerLocalCommandAvailability(modelOptions: [
+                ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
+            ]),
+            loadFileCompletions: { [] },
+            loadSkillCompletions: {
+                [
+                    Self.skill(id: "model", name: "model", description: "External model skill")
+                ]
+            }
+        )
+
+        let suggestions = await provider.suggestions(for: Self.completionContext(query: "model"))
+
+        XCTAssertEqual(suggestions.map(\.insertionText), ["/model "])
+        XCTAssertEqual(suggestions.first?.subtitle, "External model skill")
+    }
+
     func testPassthroughCommandCompletionSuppressesConflictingSkill() async {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),

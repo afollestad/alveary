@@ -24,6 +24,7 @@ final class ComposerReasoningMenuView: AppKitComposerPopoverSurfaceView {
 
     var hasActiveEffortInteraction: Bool { effortSlider.isTrackingInteraction }
     var preferredEffortFocusControl: NSView? { focusableControls.first }
+    var preferredModelFocusControl: NSView? { modelList.preferredFocusRow }
 
     #if DEBUG
     var debugFasterLabel: NSTextField { fasterLabel }

@@ -4,6 +4,14 @@ import Foundation
 struct AgentModelOptionMenuItem: Equatable, Sendable {
     let value: String
     let title: String
+    /// Provider-supplied alias users can type; falls back to `value` for synthesized items with no catalog entry.
+    let shortName: String
+
+    init(value: String, title: String, shortName: String? = nil) {
+        self.value = value
+        self.title = title
+        self.shortName = shortName ?? value
+    }
 }
 
 enum AgentModelOptionSelection {
@@ -92,7 +100,11 @@ enum AgentModelOptionSelection {
     ) -> [AgentModelOptionMenuItem] {
         let selectedModel = selectedModel ?? AppSettings.defaultModelValue
         var items = options.map { option in
-            AgentModelOptionMenuItem(value: pickerValue(for: option), title: option.label)
+            AgentModelOptionMenuItem(
+                value: pickerValue(for: option),
+                title: option.label,
+                shortName: option.shortName
+            )
         }
         if items.isEmpty {
             items = [

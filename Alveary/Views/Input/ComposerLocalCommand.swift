@@ -5,10 +5,21 @@ enum ComposerLocalCommandKind: String, CaseIterable, Sendable, Equatable {
     case plan
     case fast
     case effort
+    case model
     case handoff
 
     var command: String { rawValue }
     var displayName: String { "/\(rawValue)" }
+}
+
+/// One selectable model for `/model`, flattened from the composer's reasoning model groups.
+struct ComposerModelCommandOption: Sendable, Equatable {
+    let providerID: String
+    /// Picker value, matching `AgentModelOption.id`.
+    let value: String
+    /// Provider-supplied alias, typically shorter than `value`.
+    let shortName: String
+    let title: String
 }
 
 struct ComposerLocalCommand: Sendable, Equatable {
@@ -21,6 +32,7 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
     var supportsPlanMode = false
     var supportsSpeedMode = false
     var supportedEffortOptions: [String] = []
+    var modelOptions: [ComposerModelCommandOption] = []
     var supportsSessionHandoff = false
     var suppressesSlashCommandSuggestions = false
 
@@ -42,6 +54,9 @@ struct ComposerLocalCommandAvailability: Sendable, Equatable {
             supportsSpeedMode
         case .effort:
             !supportedEffortOptions.isEmpty
+        case .model:
+            // A lone option is not a choice, so `/model` would only ever restate the current model.
+            modelOptions.count >= 2
         case .handoff:
             supportsSessionHandoff
         }

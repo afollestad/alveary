@@ -43,7 +43,7 @@ extension ChatComposerActionRowView {
         let voiceInputUnavailableHelp: String?
         let voiceInputReducesMotion: Bool?
         let voiceInputIncreasesContrast: Bool?
-        let reasoningMenuPresentationRequest: UUID?
+        let reasoningMenuPresentationRequest: ReasoningMenuPresentationRequest?
 
         init(_ configuration: Configuration) {
             reasoningSelection = configuration.reasoning.selection

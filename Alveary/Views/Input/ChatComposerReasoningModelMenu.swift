@@ -19,6 +19,16 @@ final class ComposerReasoningModelListView: NSView {
         arrangedViews.compactMap { $0 as? ComposerReasoningMenuRowView }.filter(\.acceptsFirstResponder)
     }
 
+    /// Where keyboard focus should land when the list is revealed programmatically, so arrow keys
+    /// start from the current model rather than the top of the list.
+    var preferredFocusRow: ComposerReasoningMenuRowView? {
+        let selectedIdentity = "\(selectedProviderID):\(selectedModelID)"
+        if let selectedRow = rowsByIdentity[selectedIdentity], selectedRow.acceptsFirstResponder {
+            return selectedRow
+        }
+        return focusableRows.first
+    }
+
     init(
         groups: [ChatComposerActionRowView.ReasoningModelGroup],
         selectedProviderID: String,

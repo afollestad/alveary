@@ -17,6 +17,8 @@ extension ChatView {
             handleFastLocalCommand(command, draft: draft)
         case .effort:
             handleEffortLocalCommand(command, draft: draft)
+        case .model:
+            handleModelLocalCommand(command, draft: draft)
         case .handoff:
             handleHandoffLocalCommand(command, draft: draft)
         }
@@ -353,6 +355,38 @@ extension ChatView {
             return
         }
         clearSubmittedDraftAndRequestFocus(source: draft.source)
+    }
+
+    private func handleModelLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {
+        let availability = localCommandAvailability
+        guard availability.isEnabled(.model) else {
+            return
+        }
+        guard !command.argument.isEmpty else {
+            viewModel.clearInputDraft(source: draft.source)
+            reasoningMenuRequestState.requestPresentation(section: .models)
+            return
+        }
+
+        guard let option = availability.modelOption(matching: command.argument) else {
+            viewModel.lastTurnError = "Model must be one of: \(availability.modelArgumentHint)."
+            return
+        }
+
+        let outcome = reasoningConfiguration.onModelChange(
+            ChatComposerActionRowView.ReasoningModelSelectionRequest(
+                providerID: option.providerID,
+                modelID: option.value
+            )
+        )
+        switch outcome {
+        case .applied, .unchanged:
+            clearSubmittedDraftAndRequestFocus(source: draft.source)
+        case .rejected:
+            if viewModel.lastTurnError == nil {
+                viewModel.lastTurnError = "Model cannot be changed right now."
+            }
+        }
     }
 
     private func handleHandoffLocalCommand(_ command: ComposerLocalCommand, draft: ComposerDraft) {

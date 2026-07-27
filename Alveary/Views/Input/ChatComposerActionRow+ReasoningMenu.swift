@@ -3,6 +3,22 @@
 extension ChatComposerActionRowView {
     static let reasoningPopoverPreferredEdge: NSRectEdge = .maxY
 
+    /// Which reasoning control a programmatic presentation should open on, so `/effort` and `/model` land in place.
+    enum ReasoningMenuSection: Equatable {
+        case effort
+        case models
+    }
+
+    struct ReasoningMenuPresentationRequest: Equatable {
+        let id: UUID
+        let section: ReasoningMenuSection
+
+        init(id: UUID = UUID(), section: ReasoningMenuSection) {
+            self.id = id
+            self.section = section
+        }
+    }
+
     struct ReasoningModelSelectionRequest: Equatable {
         let providerID: String
         let modelID: String
@@ -92,22 +108,27 @@ extension ChatComposerActionRowView {
     func handleReasoningMenuPresentationRequestIfNeeded() {
         guard let configuration,
               let request = configuration.reasoningMenuPresentationRequest,
-              handledReasoningMenuPresentationRequest != request else {
+              handledReasoningMenuPresentationRequest != request.id else {
             return
         }
         if configuration.areControlsDisabled {
-            consumeReasoningMenuPresentationRequest(request, configuration: configuration)
+            consumeReasoningMenuPresentationRequest(request.id, configuration: configuration)
             return
         }
         guard window != nil else {
             return
         }
 
-        handledReasoningMenuPresentationRequest = request
+        handledReasoningMenuPresentationRequest = request.id
         window?.makeFirstResponder(reasoningButton)
         presentReasoningMenuIfNeeded()
-        focusReasoningMenuEffortControl()
-        notifyReasoningMenuRequestConsumed(request, configuration: configuration)
+        switch request.section {
+        case .effort:
+            focusReasoningMenuEffortControl()
+        case .models:
+            revealReasoningMenuModelList()
+        }
+        notifyReasoningMenuRequestConsumed(request.id, configuration: configuration)
     }
 
     private func focusReasoningMenuEffortControl() {
@@ -116,6 +137,16 @@ extension ChatComposerActionRowView {
             return
         }
         reasoningMenuController?.focusEffortControl()
+    }
+
+    private func revealReasoningMenuModelList() {
+        if let reasoningMenuModelsFocusOverride {
+            reasoningMenuModelsFocusOverride()
+            return
+        }
+        // Expands the disclosure and moves focus into the list; rows build synchronously on
+        // first expansion, so they are focusable as soon as this returns.
+        reasoningMenuController?.focusModelList()
     }
 
     private func consumeReasoningMenuPresentationRequest(

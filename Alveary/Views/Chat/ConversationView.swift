@@ -318,7 +318,8 @@ private extension ConversationView {
             ChatComposerActionRowView.ReasoningModelOption(
                 providerID: providerID.rawValue,
                 value: item.value,
-                title: item.title
+                title: item.title,
+                shortName: item.shortName
             )
         }
         return ChatComposerActionRowView.ReasoningModelGroup(

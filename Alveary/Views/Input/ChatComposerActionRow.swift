@@ -94,44 +94,6 @@ final class ChatComposerActionRowView: NSView {
         let title: String
     }
 
-    struct ReasoningSelection: Equatable {
-        let providerID: String
-        let providerTitle: String
-        let modelID: String
-        let modelTitle: String
-        let effortValue: String
-        let effortTitle: String
-        let effortOptions: [MenuOption]
-        let defaultEffortValue: String?
-        let speedMode: AgentSpeedMode
-        let supportsSpeedMode: Bool
-
-        var accessibilityValue: String {
-            let reasoningValue = effortOptions.isEmpty ? modelTitle : "\(modelTitle), \(effortTitle)"
-            guard supportsSpeedMode, speedMode == .fast else {
-                return reasoningValue
-            }
-            return "\(reasoningValue), Fast"
-        }
-    }
-
-    struct ReasoningModelOption: Equatable {
-        let providerID: String
-        let value: String
-        let title: String
-
-        var identity: String {
-            // Model IDs such as `default` can appear under multiple providers.
-            "\(providerID):\(value)"
-        }
-    }
-
-    struct ReasoningModelGroup: Equatable {
-        let providerID: String
-        let providerTitle: String?
-        let options: [ReasoningModelOption]
-    }
-
     struct Configuration {
         let reasoning: ReasoningConfiguration
         let supportedPermissionModes: [PermissionOptionPresentation]
@@ -161,7 +123,7 @@ final class ChatComposerActionRowView: NSView {
         var onGoalModeChipDismiss: () -> Void = {}
         var taskWorkspace: TaskWorkspaceConfiguration?
         var voiceInput: ComposerVoiceInputConfiguration?
-        var reasoningMenuPresentationRequest: UUID?
+        var reasoningMenuPresentationRequest: ReasoningMenuPresentationRequest?
         var onReasoningMenuRequestConsumed: (UUID) -> Void = { _ in }
         let onSubmit: () -> Void
         let onStop: () -> Void
@@ -200,6 +162,7 @@ final class ChatComposerActionRowView: NSView {
     var reasoningMenuIsPresentedOverride: (() -> Bool)?
     var reasoningMenuPresentationOverride: (() -> Void)?
     var reasoningMenuEffortFocusOverride: (() -> Void)?
+    var reasoningMenuModelsFocusOverride: (() -> Void)?
     var permissionPopover: NSPopover?
     var permissionMenuController: ComposerPermissionMenuViewController?
     var worktreePopover: NSPopover?

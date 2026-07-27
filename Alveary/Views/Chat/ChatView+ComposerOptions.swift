@@ -28,9 +28,24 @@ extension ChatView {
             supportsPlanMode: composerCapabilities.supportsPlanMode,
             supportsSpeedMode: composerCapabilities.supportsSpeedMode,
             supportedEffortOptions: reasoningConfiguration.selection.effortOptions.map(\.value),
+            modelOptions: localCommandModelOptions,
             supportsSessionHandoff: true,
             suppressesSlashCommandSuggestions: viewModel.state.isGoalModeArmed
         )
+    }
+
+    /// Mirrors the reasoning menu exactly: every ready provider's models before initial setup, the active provider's after.
+    private var localCommandModelOptions: [ComposerModelCommandOption] {
+        reasoningConfiguration.modelGroups.flatMap { group in
+            group.options.map { option in
+                ComposerModelCommandOption(
+                    providerID: option.providerID,
+                    value: option.value,
+                    shortName: option.shortName,
+                    title: option.title
+                )
+            }
+        }
     }
 
     var passthroughSlashCommands: [ComposerPassthroughSlashCommand] {

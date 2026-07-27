@@ -212,6 +212,8 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             "Toggle fast mode"
         case .effort:
             "Set reasoning effort"
+        case .model:
+            "Set the model"
         case .handoff:
             "Start session handoff"
         }
@@ -406,44 +408,6 @@ private extension BlockInputComposerCompletionProvider {
         let skillArgumentHints = Self.skillArgumentHints(skills: skills)
         state.withLock { state in
             state.cachedSkillArgumentHints = skillArgumentHints
-        }
-    }
-
-    static func argumentHints(
-        localCommands: ComposerLocalCommandAvailability,
-        passthroughCommands: [ComposerPassthroughSlashCommand],
-        skillHints: [(command: String, hint: String)]
-    ) -> BlockInputSlashCommandArgumentHints {
-        var localHints: [(command: String, hint: String)] = []
-        if localCommands.supportsSessionHandoff {
-            localHints.append((command: ComposerLocalCommandKind.handoff.command, hint: "Optional steering prompt"))
-        }
-        if localCommands.isEnabled(.effort) {
-            localHints.append((
-                command: ComposerLocalCommandKind.effort.command,
-                hint: localCommands.supportedEffortOptions.joined(separator: "|")
-            ))
-        }
-        let passthroughHints = passthroughCommands.compactMap { command -> (command: String, hint: String)? in
-            guard let hint = command.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !hint.isEmpty else {
-                return nil
-            }
-            return (command: command.command, hint: hint)
-        }
-        return BlockInputSlashCommandArgumentHints(commandHints: localHints + passthroughHints + skillHints)
-    }
-
-    static func skillArgumentHints(skills: [Skill]) -> [(command: String, hint: String)] {
-        skills.flatMap { skill in
-            guard let argumentHint = skill.argumentHint?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !argumentHint.isEmpty else {
-                return [(command: String, hint: String)]()
-            }
-            return [
-                (command: skill.name, hint: argumentHint),
-                (command: skill.id, hint: argumentHint)
-            ]
         }
     }
 

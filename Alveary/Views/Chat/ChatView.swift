@@ -473,14 +473,14 @@ extension ChatView {
 @MainActor
 @Observable
 final class ReasoningMenuRequestState {
-    private(set) var pendingRequest: UUID?
+    private(set) var pendingRequest: ChatComposerActionRowView.ReasoningMenuPresentationRequest?
 
-    func requestPresentation() {
-        pendingRequest = UUID()
+    func requestPresentation(section: ChatComposerActionRowView.ReasoningMenuSection = .effort) {
+        pendingRequest = ChatComposerActionRowView.ReasoningMenuPresentationRequest(section: section)
     }
 
     func consume(_ request: UUID) {
-        guard pendingRequest == request else {
+        guard pendingRequest?.id == request else {
             return
         }
         pendingRequest = nil

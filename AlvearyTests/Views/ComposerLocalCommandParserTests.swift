@@ -57,6 +57,27 @@ final class ComposerLocalCommandParserTests: XCTestCase {
         XCTAssertNil(ComposerLocalCommandParser.parse("/effort high", availability: ComposerLocalCommandAvailability()))
     }
 
+    func testParsesModelOnlyWhenMultipleOptionsAreAvailable() {
+        let supported = ComposerLocalCommandAvailability(modelOptions: [
+            ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet"),
+            ComposerModelCommandOption(providerID: "claude", value: "opus", shortName: "opus", title: "Opus")
+        ])
+        let singleOption = ComposerLocalCommandAvailability(modelOptions: [
+            ComposerModelCommandOption(providerID: "claude", value: "sonnet", shortName: "sonnet", title: "Sonnet")
+        ])
+
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/model", availability: supported),
+            ComposerLocalCommand(kind: .model, argument: "")
+        )
+        XCTAssertEqual(
+            ComposerLocalCommandParser.parse("/MODEL OPUS", availability: supported),
+            ComposerLocalCommand(kind: .model, argument: "OPUS")
+        )
+        XCTAssertNil(ComposerLocalCommandParser.parse("/model opus", availability: singleOption))
+        XCTAssertNil(ComposerLocalCommandParser.parse("/model opus", availability: ComposerLocalCommandAvailability()))
+    }
+
     func testGoalIsReservedEvenWhenUnavailable() {
         let noSupport = ComposerLocalCommandAvailability()
         let supported = ComposerLocalCommandAvailability(supportsGoalMode: true)
@@ -95,6 +116,7 @@ final class ComposerLocalCommandParserTests: XCTestCase {
         XCTAssertNil(ComposerLocalCommandParser.parse("/plan Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/fast Fix it", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/effort high", availability: ComposerLocalCommandAvailability()))
+        XCTAssertNil(ComposerLocalCommandParser.parse("/model opus", availability: ComposerLocalCommandAvailability()))
         XCTAssertNil(ComposerLocalCommandParser.parse("/handoff Focus", availability: ComposerLocalCommandAvailability()))
     }
 

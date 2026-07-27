@@ -18,6 +18,7 @@ extension ChatComposerActionRowTests {
 
         XCTAssertEqual(menuItems.map(\.value), ["gpt-5.5", "gpt-5.4-mini"])
         XCTAssertEqual(menuItems.map(\.title), ["GPT-5.5", "GPT-5.4-Mini"])
+        XCTAssertEqual(menuItems.map(\.shortName), ["gpt-5.5", "gpt-5.4-mini"])
         XCTAssertEqual(effortOptions.map(\.value), ["low", "medium"])
         XCTAssertEqual(
             AgentModelOptionSelection.defaultEffortValue(

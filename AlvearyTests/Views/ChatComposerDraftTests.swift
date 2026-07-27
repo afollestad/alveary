@@ -398,6 +398,9 @@ final class ChatComposerDraftTests: XCTestCase {
         effortOptions: [ChatComposerActionRowView.MenuOption] = [],
         selectedEffort: String = AppSettings.defaultEffortLevel,
         onEffortChange: @escaping (String) -> Bool = { _ in true },
+        modelGroups: [ChatComposerActionRowView.ReasoningModelGroup]? = nil,
+        onModelChange: @escaping (ChatComposerActionRowView.ReasoningModelSelectionRequest)
+            -> ChatComposerActionRowView.ReasoningModelSelectionOutcome = { _ in .rejected },
         providerID: String = "claude",
         settingsService: SettingsService? = nil,
         voiceInputService: (any VoiceInputService)? = nil,
@@ -422,10 +425,12 @@ final class ChatComposerDraftTests: XCTestCase {
                         title: ChatComposerTextSupport.modelLabel(for: AppSettings.defaultModelValue)
                     )
                 ],
+                modelGroups: modelGroups,
                 effortOptions: effortOptions,
                 selectedModel: AppSettings.defaultModelValue,
                 selectedEffort: selectedEffort,
-                onEffortChange: onEffortChange
+                onEffortChange: onEffortChange,
+                onModelChange: onModelChange
             ),
             defaultEnterBehavior: .queue,
             providerID: providerID,
