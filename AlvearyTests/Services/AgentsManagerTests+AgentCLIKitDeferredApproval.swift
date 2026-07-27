@@ -291,6 +291,66 @@ extension AgentsManagerTests {
         XCTAssertEqual(messageEvent, .message(role: "assistant", content: "nudged", parentToolUseId: nil))
         await manager.kill(conversationId: conversationId)
     }
+
+    func testAgentCLIKitCodexRestoredExitPlanModeDenialNudgesRespawnedThread() async throws {
+        let resumedEvent = try await resolveRestoredCodexExitPlanMode(
+            conversationId: "agentclikit-codex-plan-deny-nudge",
+            resolution: ClaudeToolApprovalResolution(
+                decision: .deny,
+                responseText: ExitPlanModeDenialPolicy.deniedResponseText
+            )
+        )
+        XCTAssertEqual(resumedEvent, .message(role: "assistant", content: "nudged-deny", parentToolUseId: nil))
+    }
+
+    func testAgentCLIKitCodexRestoredExitPlanModeApprovalNudgesRespawnedThread() async throws {
+        let resumedEvent = try await resolveRestoredCodexExitPlanMode(
+            conversationId: "agentclikit-codex-plan-approve-nudge",
+            resolution: ClaudeToolApprovalResolution(decision: .allow)
+        )
+        XCTAssertEqual(resumedEvent, .message(role: "assistant", content: "nudged-approve", parentToolUseId: nil))
+    }
+
+    /// Resolves a restored Codex `ExitPlanMode` approval with no tracked process, like after an app
+    /// restart. A fresh Codex App Server process holds none of the dead process's pending server
+    /// requests, so `resolveInteraction` after the respawn is a silent no-op; the manager must deliver
+    /// the decision as a recovery user message instead.
+    private func resolveRestoredCodexExitPlanMode(
+        conversationId: String,
+        resolution: ClaudeToolApprovalResolution
+    ) async throws -> ConversationEvent {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: CodexPlanNudgeAgentCLIKitAdapter(),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let manager = fixture.manager
+        let approval = ToolApprovalRequest(
+            sessionId: "session-codex-plan",
+            toolUseId: "exit-plan-restored",
+            toolName: "ExitPlanMode",
+            toolInput: ##"{"plan":"# Plan\n\n- Do the work."}"##
+        )
+
+        _ = try await manager.resolveToolApproval(AgentToolApprovalResolutionRequest(
+            conversationId: conversationId,
+            approval: approval,
+            resolution: resolution,
+            additionalApprovals: [],
+            sessionApproval: nil,
+            config: spawnConfig(providerId: "codex", workingDirectory: "/tmp")
+        ))
+
+        var maybeSubscription: Alveary.AgentEventSubscription?
+        try await waitUntil("expected codex plan nudge respawn to install resumed buffer") {
+            maybeSubscription = await self.awaitedSubscription(manager, conversationId: conversationId, afterIndex: 0)
+            return maybeSubscription != nil
+        }
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let resumedEvent = try await nextEvent(from: subscription.stream, description: "codex plan nudge recovery event")
+        await manager.kill(conversationId: conversationId)
+        return resumedEvent
+    }
 }
 
 private func assertCodexSessionResolutionMetadata(
@@ -303,6 +363,52 @@ private func assertCodexSessionResolutionMetadata(
     XCTAssertTrue(resolutions.allSatisfy { $0.metadata["approval_grant_kind"] == .string("session") }, file: file, line: line)
     XCTAssertTrue(resolutions.allSatisfy { $0.metadata["approval_provider_id"] == .string("codex") }, file: file, line: line)
     XCTAssertTrue(resolutions.allSatisfy { $0.metadata["approval_operation"] == .string("Bash") }, file: file, line: line)
+}
+
+/// Simulates a Codex App Server respawn after an app restart: the fresh process holds no pending
+/// server requests, so the plan decision can only reach it through the recovery user message.
+private struct CodexPlanNudgeAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .codex,
+        displayName: "Codex",
+        executableNames: ["codex"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        let script = """
+        while IFS= read -r line; do
+          case "$line" in
+            *"approved this plan"*) printf 'message:nudged-approve\\n'; exit 0 ;;
+            *"stay in plan mode"*) printf 'message:nudged-deny\\n'; exit 0 ;;
+          esac
+        done
+        sleep 5
+        """
+        return AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", script],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if line.hasPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: String(line.dropFirst("message:".count))))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        switch input {
+        case .userMessage(let message):
+            Data("\(message.text)\n".utf8)
+        case .interactionResolution, .interrupt:
+            Data()
+        }
+    }
 }
 
 /// First launch defers a tool approval and idles on stdin like the real CLI; the resumed launch only

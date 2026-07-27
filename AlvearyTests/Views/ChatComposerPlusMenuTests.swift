@@ -383,7 +383,11 @@ final class ChatComposerPlusMenuTests: XCTestCase {
         let popover = NSPopover()
         row.reasoningPopover = popover
 
-        row.popoverDidClose(Notification(name: NSPopover.didCloseNotification, object: popover))
+        // The presenter is the reasoning popover's delegate, so the close notification lands there,
+        // not on the row's NSPopoverDelegate conformance.
+        row.reasoningMenuPresenter.popoverDidClose(
+            Notification(name: NSPopover.didCloseNotification, object: popover)
+        )
 
         XCTAssertFalse(window.firstResponder === reasoningButton)
         XCTAssertNil(row.reasoningPopover)

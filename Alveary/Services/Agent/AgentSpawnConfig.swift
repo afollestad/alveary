@@ -73,6 +73,38 @@ struct AgentSpawnConfig: Sendable, Equatable {
         )
     }
 
+    /// Overrides only the reasoning fields, so a continuation config keeps its permission mode,
+    /// speed mode, host-tool exposure, and workspace authorization verbatim.
+    func withModel(_ model: String?, effort: String?) -> AgentSpawnConfig {
+        AgentSpawnConfig(copying: self, model: model, effort: effort)
+    }
+
+    private init(
+        copying config: AgentSpawnConfig,
+        model: String?,
+        effort: String?
+    ) {
+        providerId = config.providerId
+        workingDirectory = config.workingDirectory
+        permissionMode = config.permissionMode
+        planModeEnabled = config.planModeEnabled
+        self.model = model
+        self.effort = effort
+        reasoningSummaryMode = config.reasoningSummaryMode
+        speedMode = config.speedMode
+        sessionFork = config.sessionFork
+        initialPrompt = config.initialPrompt
+        initialPromptAttachments = config.initialPromptAttachments
+        initialPromptMetadata = config.initialPromptMetadata
+        // Preserve the authorization snapshot verbatim, as `withoutHostTools()` does.
+        additionalWorkspaceRoots = config.additionalWorkspaceRoots
+        allowedDirectories = config.allowedDirectories
+        hostToolServer = config.hostToolServer
+        hostTools = config.hostTools
+        initialGoal = config.initialGoal
+        isAutomatedScheduledTurn = config.isAutomatedScheduledTurn
+    }
+
     private init(
         copying config: AgentSpawnConfig,
         hostToolServer: AgentCLIKit.AgentHostToolServerMetadata,

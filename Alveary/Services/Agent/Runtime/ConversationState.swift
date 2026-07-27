@@ -50,34 +50,6 @@ struct PendingSessionSettingsChange: Equatable, Sendable {
     }
 }
 
-struct PendingExitPlanModeFollowUp: Equatable, Sendable {
-    enum Phase: Equatable, Sendable {
-        case awaitingDeniedExitTurn
-        case readyToSend
-    }
-
-    let toolUseId: String
-    let sessionId: String
-    let providerId: String
-    let providerSessionId: String?
-    let message: String
-    /// Provider-facing text for the next send; this must never be shown in transcript UI.
-    let transportText: String?
-    let sourceTurnId: String?
-    let sourceSubscriptionToken: UUID?
-    let sourceBufferGeneration: UUID?
-    let sourceEventIndex: Int
-    var lastObservedEventIndex: Int
-    var phase: Phase
-}
-
-struct PendingExitPlanModeRevisionGuidance: Equatable, Sendable {
-    let toolUseId: String
-    let sessionId: String
-    let providerId: String
-    let providerSessionId: String?
-}
-
 enum QueuedMessagesPauseReason: Equatable, Sendable {
     case interrupted
 }
@@ -185,6 +157,7 @@ final class ConversationState {
     var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?
     var pendingExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     @ObservationIgnored var pendingExitPlanModeFollowUpQuietTask: Task<Void, Never>?
+    @ObservationIgnored var pendingExitPlanModeFollowUpWatchdogTask: Task<Void, Never>?
     var runtimePermissionMode: String?
     var runtimePlanModeEnabled: Bool?
     var runtimeSpeedMode: AgentSpeedMode?

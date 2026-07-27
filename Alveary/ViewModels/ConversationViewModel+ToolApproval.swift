@@ -63,12 +63,14 @@ extension ConversationViewModel {
 
     func resolveExitPlanModeToolUseApproval(
         toolUseId: String,
-        decision: ClaudeToolApprovalDecision
+        decision: ClaudeToolApprovalDecision,
+        providerRestartConfig: AgentSpawnConfig? = nil
     ) async throws {
         try await resolveToolUseApproval(
             toolUseId: toolUseId,
             decision: decision,
-            responseText: decision == .deny ? ExitPlanModeDenialPolicy.deniedResponseText : nil
+            responseText: decision == .deny ? ExitPlanModeDenialPolicy.deniedResponseText : nil,
+            providerRestartConfig: providerRestartConfig
         )
     }
 

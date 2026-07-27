@@ -1,11 +1,44 @@
 import AgentCLIKit
 import Foundation
 
-private let exitPlanModeFollowUpQuietDelay: Duration = .milliseconds(750)
-
+/// Approve/deny entry points for the `ExitPlanMode` confirmation plus the transient revision
+/// guidance for plain denials. The staged custom-follow-up lifecycle lives in
+/// `ConversationViewModel+ExitPlanModeFollowUp.swift`.
 extension ConversationViewModel {
     func approveExitPlanMode(toolUseId: String) async throws {
-        try await resolveExitPlanModeToolUseApproval(toolUseId: toolUseId, decision: .allow)
+        // A throwing `makeSpawnConfig` (no conversation or working directory) falls through to the
+        // ordinary path, which builds its own config and surfaces the same error — the staged change
+        // stays staged either way, so nothing is silently dropped.
+        guard let pending = state.pendingSessionSettingsChange,
+              pending.hasModelChange || pending.hasEffortChange,
+              let restartConfig = try? exitPlanModeRestartConfig(pending) else {
+            try await resolveExitPlanModeToolUseApproval(toolUseId: toolUseId, decision: .allow)
+            return
+        }
+
+        // Implementation is new work rather than a continuation of the planning turn, so it is the one
+        // deferred approval allowed to consume staged model/effort. Applying them means replacing the
+        // Claude process, which takes seconds; without this the composer would offer a Stop button
+        // mid-restart instead of the reconfiguring state.
+        state.isReconfiguringSession = true
+        defer { state.isReconfiguringSession = false }
+
+        try await resolveExitPlanModeToolUseApproval(
+            toolUseId: toolUseId,
+            decision: .allow,
+            providerRestartConfig: restartConfig
+        )
+        finishPendingSessionSettingsApply(pending: pending, config: restartConfig)
+    }
+
+    /// Keeps every continuation setting — permission mode, speed, host-tool exposure, workspace
+    /// authorization — and overrides only what the user changed at the plan prompt.
+    private func exitPlanModeRestartConfig(_ pending: PendingSessionSettingsChange) throws -> AgentSpawnConfig {
+        try makeSpawnConfig(settingsSource: .currentContinuation)
+            .withModel(
+                pending.pending.model,
+                effort: AppSettings.normalizedEffortLevel(pending.pending.effort)
+            )
     }
 
     func denyExitPlanMode(toolUseId: String, followUp: String? = nil) async throws {
@@ -42,54 +75,8 @@ extension ConversationViewModel {
         }
     }
 
-    @discardableResult
-    func enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: String) -> Bool {
-        guard state.pendingToolApproval == nil,
-              let followUp = state.pendingExitPlanModeFollowUp,
-              followUp.toolUseId == clearedToolUseId,
-              followUp.phase == .readyToSend else {
-            return false
-        }
-        guard canSendPendingExitPlanModeFollowUp(followUp) else {
-            clearPendingExitPlanModeFollowUp()
-            return false
-        }
-
-        cancelPendingExitPlanModeFollowUpQuietTask()
-        let planModeStillEnabled = effectivePlanModeEnabled
-        let transportText = planModeStillEnabled ? followUp.transportText : nil
-        let consumedRevisionGuidance = transportText == nil ? nil : PendingExitPlanModeRevisionGuidance(
-            toolUseId: followUp.toolUseId,
-            sessionId: followUp.sessionId,
-            providerId: followUp.providerId,
-            providerSessionId: followUp.providerSessionId
-        )
-        state.pendingExitPlanModeFollowUp = nil
-        state.messageQueue.prepend(
-            followUp.message,
-            stagedContext: nil,
-            requiredPlanModeEnabled: planModeStillEnabled ? true : nil,
-            transportText: transportText,
-            consumedExitPlanModeRevisionGuidance: consumedRevisionGuidance
-        )
-        scheduleExitPlanModeFollowUpDrainIfNeeded()
-        return true
-    }
-
     nonisolated static func exitPlanModeRevisionFollowUpPrompt(feedback: String) -> String {
         feedback
-    }
-
-    func clearPendingExitPlanModeFollowUpIfNeeded(toolUseId: String) {
-        guard state.pendingExitPlanModeFollowUp?.toolUseId == toolUseId else {
-            return
-        }
-        clearPendingExitPlanModeFollowUp()
-    }
-
-    func clearPendingExitPlanModeFollowUp() {
-        cancelPendingExitPlanModeFollowUpQuietTask()
-        state.pendingExitPlanModeFollowUp = nil
     }
 
     func clearPendingExitPlanModeRevisionGuidanceIfNeeded(toolUseId: String) {
@@ -176,164 +163,7 @@ extension ConversationViewModel {
         recordLocalVisibleTurnEndedIfNeeded()
 
         schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()
-    }
-
-    func markPendingExitPlanModeFollowUpReadyAfterTerminalBoundary(
-        toolUseId: String,
-        sessionId: String? = nil,
-        turnId: String? = nil,
-        subscriptionToken: UUID? = nil
-    ) -> Bool {
-        guard state.pendingToolApproval == nil,
-              var followUp = state.pendingExitPlanModeFollowUp,
-              followUp.toolUseId == toolUseId,
-              sessionId == nil || followUp.sessionId == sessionId,
-              turnId == nil || followUp.sourceTurnId == nil || followUp.sourceTurnId == turnId,
-              subscriptionToken == nil ||
-                  followUp.sourceSubscriptionToken == nil ||
-                  followUp.sourceSubscriptionToken == subscriptionToken else {
-            return false
-        }
-
-        followUp.phase = .readyToSend
-        state.pendingExitPlanModeFollowUp = followUp
-        return enqueuePendingExitPlanModeFollowUpIfReady(clearedToolUseId: toolUseId)
-    }
-
-    func markPendingExitPlanModeFollowUpReadyAfterTerminalToken(_ payload: TokenEventPayload) -> Bool {
-        guard let followUp = state.pendingExitPlanModeFollowUp,
-              followUp.phase == .awaitingDeniedExitTurn,
-              payload.completesTurn,
-              terminalTokenMatchesPendingExitPlanModeFollowUp(payload, followUp: followUp) else {
-            return false
-        }
-
-        return markPendingExitPlanModeFollowUpReadyAfterTerminalBoundary(
-            toolUseId: followUp.toolUseId,
-            sessionId: followUp.sessionId,
-            subscriptionToken: followUp.sourceSubscriptionToken
-        )
-    }
-
-    func markPendingExitPlanModeFollowUpReadyAfterRuntimeIdle(
-        turnId: String?,
-        outcome: ConversationRuntimeActivityOutcome
-    ) -> Bool {
-        guard let followUp = state.pendingExitPlanModeFollowUp,
-              followUp.phase == .awaitingDeniedExitTurn,
-              followUp.sourceTurnId != nil,
-              followUp.sourceTurnId == turnId,
-              outcome.isTerminalForExitPlanModeFollowUp else {
-            return false
-        }
-
-        return markPendingExitPlanModeFollowUpReadyAfterTerminalBoundary(
-            toolUseId: followUp.toolUseId,
-            sessionId: followUp.sessionId,
-            turnId: turnId
-        )
-    }
-
-    func recordPendingExitPlanModeFollowUpEventIfNeeded(subscriptionToken: UUID? = nil) {
-        guard var followUp = state.pendingExitPlanModeFollowUp,
-              followUp.phase == .awaitingDeniedExitTurn,
-              subscriptionToken == nil ||
-                  followUp.sourceSubscriptionToken == nil ||
-                  followUp.sourceSubscriptionToken == subscriptionToken else {
-            return
-        }
-
-        followUp.lastObservedEventIndex = state.lastObservedEventIndex
-        state.pendingExitPlanModeFollowUp = followUp
-        cancelPendingExitPlanModeFollowUpQuietTask()
-    }
-
-    func drainPendingExitPlanModeFollowUpAfterSubscriptionFinish(token: UUID) -> Bool {
-        guard let followUp = state.pendingExitPlanModeFollowUp,
-              followUp.phase == .awaitingDeniedExitTurn,
-              followUp.sourceSubscriptionToken == token else {
-            return false
-        }
-
-        return markPendingExitPlanModeFollowUpReadyAfterTerminalBoundary(
-            toolUseId: followUp.toolUseId,
-            sessionId: followUp.sessionId,
-            subscriptionToken: token
-        )
-    }
-
-    func cancelPendingExitPlanModeFollowUpQuietTask() {
-        state.pendingExitPlanModeFollowUpQuietTask?.cancel()
-        state.pendingExitPlanModeFollowUpQuietTask = nil
-    }
-
-    func cancelPendingExitPlanModeFollowUpQuietTaskForViewDeactivation() {
-        cancelPendingExitPlanModeFollowUpQuietTask()
-    }
-
-    func schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded() {
-        guard let followUp = state.pendingExitPlanModeFollowUp,
-              followUp.phase == .awaitingDeniedExitTurn else {
-            return
-        }
-
-        cancelPendingExitPlanModeFollowUpQuietTask()
-        let toolUseId = followUp.toolUseId
-        let sessionId = followUp.sessionId
-        let sourceSubscriptionToken = followUp.sourceSubscriptionToken
-        let sourceEventIndex = followUp.sourceEventIndex
-        let lastObservedEventIndex = followUp.lastObservedEventIndex
-        state.pendingExitPlanModeFollowUpQuietTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: exitPlanModeFollowUpQuietDelay)
-            guard let self,
-                  !Task.isCancelled,
-                  let currentFollowUp = self.state.pendingExitPlanModeFollowUp,
-                  currentFollowUp.phase == .awaitingDeniedExitTurn,
-                  currentFollowUp.toolUseId == toolUseId,
-                  currentFollowUp.sessionId == sessionId,
-                  currentFollowUp.sourceEventIndex == sourceEventIndex,
-                  currentFollowUp.lastObservedEventIndex == lastObservedEventIndex,
-                  self.state.lastObservedEventIndex == sourceEventIndex,
-                  sourceSubscriptionToken == nil ||
-                      currentFollowUp.sourceSubscriptionToken == self.state.activeSubscriptionToken else {
-                return
-            }
-
-            if self.markPendingExitPlanModeFollowUpReadyAfterTerminalBoundary(
-                toolUseId: toolUseId,
-                sessionId: sessionId,
-                subscriptionToken: sourceSubscriptionToken
-            ) {
-                self.handleTurnCompleted()
-            }
-        }
-    }
-
-    private func stagePendingExitPlanModeFollowUp(
-        message: String,
-        approval: ToolApprovalRequest,
-        providerSnapshot: ExitPlanModeRevisionProviderSnapshot
-    ) {
-        cancelPendingExitPlanModeFollowUpQuietTask()
-        let shouldWrapTransport = effectivePlanModeEnabled &&
-            ExitPlanModeDenialPolicy.requiresRevisionTransportGuidance(providerId: providerSnapshot.providerId)
-        let transportText = shouldWrapTransport
-            ? ExitPlanModeDenialPolicy.revisionTransportText(visibleText: message)
-            : nil
-        state.pendingExitPlanModeFollowUp = PendingExitPlanModeFollowUp(
-            toolUseId: approval.toolUseId,
-            sessionId: approval.sessionId,
-            providerId: providerSnapshot.providerId,
-            providerSessionId: providerSnapshot.providerSessionId,
-            message: message,
-            transportText: transportText,
-            sourceTurnId: state.activeRuntimeActivityTurnId,
-            sourceSubscriptionToken: state.activeSubscriptionToken,
-            sourceBufferGeneration: state.activeBufferGeneration,
-            sourceEventIndex: state.lastObservedEventIndex,
-            lastObservedEventIndex: state.lastObservedEventIndex,
-            phase: .awaitingDeniedExitTurn
-        )
+        schedulePendingExitPlanModeFollowUpWatchdogIfNeeded()
     }
 
     private func stagePendingExitPlanModeRevisionGuidance(
@@ -369,20 +199,7 @@ extension ConversationViewModel {
         return true
     }
 
-    private func canSendPendingExitPlanModeFollowUp(_ followUp: PendingExitPlanModeFollowUp) -> Bool {
-        let providerSnapshot = exitPlanModeRevisionProviderSnapshot()
-        guard providerSnapshot.providerId == followUp.providerId else {
-            return false
-        }
-        if let expectedSessionId = followUp.providerSessionId,
-           let currentSessionId = providerSnapshot.providerSessionId,
-           currentSessionId != expectedSessionId {
-            return false
-        }
-        return true
-    }
-
-    private func exitPlanModeRevisionProviderSnapshot() -> ExitPlanModeRevisionProviderSnapshot {
+    func exitPlanModeRevisionProviderSnapshot() -> ExitPlanModeRevisionProviderSnapshot {
         let dbConversation = dbConversation()
         let providerId = state.liveSessionConfig?.providerId
             ?? dbConversation?.provider
@@ -398,26 +215,9 @@ extension ConversationViewModel {
             providerSessionId: providerSessionId
         )
     }
-
-    private func terminalTokenMatchesPendingExitPlanModeFollowUp(
-        _ payload: TokenEventPayload,
-        followUp: PendingExitPlanModeFollowUp
-    ) -> Bool {
-        if let sourceSubscriptionToken = followUp.sourceSubscriptionToken,
-           sourceSubscriptionToken != state.activeSubscriptionToken {
-            return false
-        }
-        guard !payload.permissionDenials.isEmpty else {
-            return true
-        }
-        return payload.permissionDenials.contains { denial in
-            denial.toolUseId == followUp.toolUseId ||
-                (denial.toolUseId == nil && denial.toolName == "ExitPlanMode")
-        }
-    }
 }
 
-private struct ExitPlanModeRevisionProviderSnapshot {
+struct ExitPlanModeRevisionProviderSnapshot {
     let providerId: String
     let providerSessionId: String?
 }
@@ -425,16 +225,5 @@ private struct ExitPlanModeRevisionProviderSnapshot {
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
-    }
-}
-
-private extension ConversationRuntimeActivityOutcome {
-    var isTerminalForExitPlanModeFollowUp: Bool {
-        switch self {
-        case .completed, .failed, .interrupted:
-            return true
-        case .unknown:
-            return false
-        }
     }
 }

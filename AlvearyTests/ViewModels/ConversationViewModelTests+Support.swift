@@ -100,6 +100,7 @@ actor MockAgentsManager: AgentsManager {
         let additionalApprovals: [ToolApprovalRequest]
         let sessionApproval: AgentSessionApprovalGrant?
         let config: AgentSpawnConfig
+        let requiresProviderRestart: Bool
 
         var decision: ClaudeToolApprovalDecision { resolution.decision }
         var updatedInput: String? { resolution.updatedInput }
@@ -297,7 +298,8 @@ actor MockAgentsManager: AgentsManager {
                 resolution: request.resolution,
                 additionalApprovals: request.additionalApprovals,
                 sessionApproval: request.sessionApproval,
-                config: request.config
+                config: request.config,
+                requiresProviderRestart: request.requiresProviderRestart
             )
         )
         await waitForApprovalResolutionIfNeeded()

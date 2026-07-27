@@ -46,6 +46,9 @@ final class ConversationViewModel {
     @ObservationIgnored var automatedScheduledExecutionRunID: String?
     @ObservationIgnored var automatedScheduledExecutionThreadKey: String?
     @ObservationIgnored var draftMaterializationSaver: () throws -> Void
+    /// Test-tunable window for the denied-plan follow-up watchdog; see
+    /// `schedulePendingExitPlanModeFollowUpWatchdogIfNeeded()`.
+    @ObservationIgnored var exitPlanModeFollowUpWatchdogDelay: Duration = .seconds(30)
 
     var streamingText: String? { state.streamingText }
     var thoughtText: String? { state.thoughtText }

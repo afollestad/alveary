@@ -7,7 +7,8 @@ extension ConversationViewModel {
         sessionId: String? = nil,
         decision: ClaudeToolApprovalDecision,
         sessionApprovalScope: ToolApprovalSessionScope? = nil,
-        responseText: String? = nil
+        responseText: String? = nil,
+        providerRestartConfig: AgentSpawnConfig? = nil
     ) async throws {
         guard !hasUnansweredPrompt else {
             throw AgentError.spawnFailed("Answer the pending question before resolving tool approval")
@@ -36,7 +37,8 @@ extension ConversationViewModel {
                 decision: decision,
                 sessionApprovalScope: sessionApprovalScope,
                 updatedToolInput: nil,
-                responseText: responseText
+                responseText: responseText,
+                providerRestartConfig: providerRestartConfig
             )
         } catch {
             state.pendingToolApproval = PendingToolApproval(request: pendingApproval.request, status: .pending)
@@ -64,10 +66,18 @@ extension ConversationViewModel {
         decision: ClaudeToolApprovalDecision,
         sessionApprovalScope: ToolApprovalSessionScope?,
         updatedToolInput: String?,
-        responseText: String? = nil
+        responseText: String? = nil,
+        providerRestartConfig: AgentSpawnConfig? = nil
     ) async throws {
-        let isResolvingLiveHookApproval = await isResolvingLiveHookApproval(pendingApproval)
-        let config = try makeSpawnConfig(settingsSource: .currentContinuation)
+        // A restart replaces the process, so the held hook is released rather than answered.
+        // Treating it as live would skip spawn preparation and leave the old subscription in place.
+        let resolvesLiveHook: Bool
+        if providerRestartConfig == nil {
+            resolvesLiveHook = await isResolvingLiveHookApproval(pendingApproval)
+        } else {
+            resolvesLiveHook = false
+        }
+        let config = try providerRestartConfig ?? makeSpawnConfig(settingsSource: .currentContinuation)
         let sessionApproval = sessionApprovalScope.flatMap {
             pendingApproval.request.sessionApprovalGrant(
                 conversationId: conversation.id,
@@ -76,7 +86,7 @@ extension ConversationViewModel {
             )
         }
         try await prepareForApprovalResumeIfNeeded(
-            isResolvingLiveHookApproval: isResolvingLiveHookApproval,
+            isResolvingLiveHookApproval: resolvesLiveHook,
             config: config
         )
         let liveResolution = try await resolveAgentToolApproval(
@@ -87,14 +97,15 @@ extension ConversationViewModel {
                 responseText: responseText
             ),
             sessionApproval: sessionApproval,
-            config: config
+            config: config,
+            requiresProviderRestart: providerRestartConfig != nil
         )
         finishApprovalResolution(
             pendingApproval,
             decision: decision,
             sessionApprovalScope: sessionApprovalScope,
             liveResolution: liveResolution,
-            isResolvingLiveHookApproval: isResolvingLiveHookApproval
+            isResolvingLiveHookApproval: resolvesLiveHook
         )
     }
 
@@ -217,6 +228,9 @@ private extension ConversationViewModel {
         if !isResolvingLiveHookApproval {
             state.invalidateSchedulingHostToolRuntimeConfiguration()
             subscribe()
+            // The reset above minted a new subscription token and zeroed the event cursor; a staged
+            // denied-plan follow-up still keyed to the old identities could never drain.
+            rebindPendingExitPlanModeFollowUpAfterSubscriptionReset(toolUseId: pendingApproval.request.toolUseId)
         }
     }
 

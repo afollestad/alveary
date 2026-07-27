@@ -7,6 +7,7 @@ final class AppKitComposerOverlayPanelView: NSView {
     struct Configuration {
         let title: String
         let rows: [AppKitComposerOverlayOptionRowView.Configuration]
+        let accessory: AppKitComposerOverlayAccessory?
         let density: AppKitComposerOverlayPanelDensity
         let titleFont: NSFont
         let pageText: String?
@@ -26,6 +27,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         init(
             title: String,
             rows: [AppKitComposerOverlayOptionRowView.Configuration],
+            accessory: AppKitComposerOverlayAccessory? = nil,
             density: AppKitComposerOverlayPanelDensity = Metrics.regularDensity,
             titleFont: NSFont = .systemFont(ofSize: 15, weight: .semibold),
             pageText: String? = nil,
@@ -44,6 +46,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         ) {
             self.title = title
             self.rows = rows
+            self.accessory = accessory
             self.density = density
             self.titleFont = titleFont
             self.pageText = pageText
@@ -71,6 +74,19 @@ final class AppKitComposerOverlayPanelView: NSView {
     private let pageField = NSTextField(labelWithString: "")
     let dismissButton = AppKitTranscriptApprovalButton()
     let primaryButton = AppKitTranscriptApprovalButton()
+    /// Stored, never rebuilt per `configure`. The panel is reconfigured on every `ChatView` render, and
+    /// picking a model mutates SwiftData and triggers one — a recreated anchor would close the popover
+    /// mid-interaction. `rebuildRows` reuses row views by id for the same reason.
+    let accessoryButton = ComposerReasoningButton()
+    lazy var accessoryMenuPresenter = ComposerReasoningMenuPresenter(
+        onDisplaySelectionChanged: { [weak self] selection in
+            self?.applyAccessoryDisplaySelectionOverride(selection)
+        },
+        onClosed: { [weak self] in
+            self?.accessoryButton.releaseMenuFocusIfNeeded()
+        }
+    )
+    var accessoryDisplaySelectionOverride: ChatComposerActionRowView.ReasoningSelection?
     var rowViews: [AppKitComposerOverlayOptionRowView] = []
     var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
@@ -96,6 +112,9 @@ final class AppKitComposerOverlayPanelView: NSView {
         guard let configuration else {
             rowViews.forEach { $0.removeFromSuperview() }
             rowViews = []
+            // The popover is a window; without this it would outlive the overlay it belongs to.
+            // `layoutContent` early-returns with no configuration, so the frame is cleared here too.
+            configureAccessory(nil)
             return
         }
 
@@ -116,6 +135,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         primaryButton.isEnabled = configuration.isPrimaryEnabled && !configuration.isResolving
 
         rebuildRows(configuration.rows)
+        configureAccessory(configuration.accessory)
         updateKeyViewLoop()
         invalidateIntrinsicContentSize()
         needsLayout = true
@@ -183,6 +203,16 @@ final class AppKitComposerOverlayPanelView: NSView {
         updateAppearance()
     }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        guard newWindow == nil else {
+            return
+        }
+        // A popover is its own window and would otherwise outlive the detached panel, matching how
+        // `ChatComposerActionRowView` tears its menus down.
+        accessoryMenuPresenter.close()
+    }
+
     private func setup() {
         wantsLayer = true
         backgroundView.wantsLayer = true
@@ -217,6 +247,11 @@ final class AppKitComposerOverlayPanelView: NSView {
         primaryButton.action = #selector(handlePrimary)
         backgroundView.addSubview(dismissButton)
         backgroundView.addSubview(primaryButton)
+        accessoryButton.isHidden = true
+        accessoryButton.keyEventHandler = { [weak self] event in
+            self?.handleKeyDown(event) ?? false
+        }
+        backgroundView.addSubview(accessoryButton)
         updateAppearance()
     }
 
@@ -334,6 +369,8 @@ final class AppKitComposerOverlayPanelView: NSView {
             width: dismissSize.width,
             height: Metrics.buttonHeight
         )
+
+        layoutAccessory(footerY: footerY)
     }
 }
 
@@ -392,7 +429,8 @@ private extension AppKitComposerOverlayPanelView {
               index == lastIndex else {
             return contentWidth
         }
-        let reservedFooterWidth = dismissButton.fittingSize.width +
+        let reservedFooterWidth = accessoryFooterWidth +
+            dismissButton.fittingSize.width +
             Metrics.footerButtonSpacing +
             primaryButton.fittingSize.width +
             Metrics.footerButtonSpacing

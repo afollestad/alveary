@@ -76,7 +76,7 @@ extension DefaultAgentsManager {
             // Off the resolution path: the nudge does transcript file I/O and a stdin write, and the
             // approval result must not wait on either.
             Task { [weak self] in
-                await self?.nudgeRespawnIfClaudeDeferredReplayUnavailable(request, services: services)
+                await self?.nudgeRespawnIfDeferredReplayUnavailable(request, services: services)
             }
         } catch {
             if didSpawn {
@@ -90,17 +90,28 @@ extension DefaultAgentsManager {
         }
     }
 
+    private func nudgeRespawnIfDeferredReplayUnavailable(
+        _ request: AgentToolApprovalResolutionRequest,
+        services: AgentCLIKitHostServices
+    ) async {
+        switch request.config.providerId {
+        case "claude":
+            await nudgeClaudeRespawnIfDeferredReplayUnavailable(request, services: services)
+        case "codex":
+            await nudgeCodexRespawnAfterDeferredResolution(request, services: services)
+        default:
+            break
+        }
+    }
+
     /// Claude only re-runs a deferred tool on resume when its session transcript kept the deferred-tool
     /// marker. A teardown that raced that write resumes as an idle session, so without a nudge the approved
     /// turn would spin forever waiting on a replay that never starts. Best-effort: the approval itself has
     /// already resolved, so a send racing process exit must not fail the resolution.
-    private func nudgeRespawnIfClaudeDeferredReplayUnavailable(
+    private func nudgeClaudeRespawnIfDeferredReplayUnavailable(
         _ request: AgentToolApprovalResolutionRequest,
         services: AgentCLIKitHostServices
     ) async {
-        guard request.config.providerId == "claude" else {
-            return
-        }
         // App-native prompts deliver their answer through the resolution path; a "run it again"
         // user message would inject noise into prompt flows instead of recovering a tool replay.
         guard !request.approval.isAppNativeInteractionPrompt else {
@@ -132,6 +143,48 @@ extension DefaultAgentsManager {
         case .deny:
             return "The pending \(request.approval.toolName) tool use was denied in Alveary. "
                 + "Do not retry it; continue without it."
+        }
+    }
+
+    /// A respawned Codex App Server process holds none of the previous process's pending server
+    /// requests, so `resolveInteraction` after a fallback deferred respawn is always a silent no-op
+    /// there: the decision never reaches Codex and the resumed thread just idles. Deliver the decision
+    /// as a best-effort recovery user message instead.
+    private func nudgeCodexRespawnAfterDeferredResolution(
+        _ request: AgentToolApprovalResolutionRequest,
+        services: AgentCLIKitHostServices
+    ) async {
+        guard let message = Self.codexDeferredRecoveryMessage(for: request) else {
+            return
+        }
+        let runtimeConversationId = services.hostAdapter.conversationId(request.conversationId)
+        guard await services.runtime.status(conversationId: runtimeConversationId)?.isProcessRunning == true else {
+            return
+        }
+        try? await services.runtime.send(
+            .userMessage(AgentCLIKit.AgentMessageInput(text: message)),
+            conversationId: runtimeConversationId
+        )
+    }
+
+    private static func codexDeferredRecoveryMessage(for request: AgentToolApprovalResolutionRequest) -> String? {
+        switch (request.approval.toolName, request.resolution.decision) {
+        case ("ExitPlanMode", .allow):
+            return "The user approved this plan in Alveary, but this session could not receive that approval "
+                + "automatically. Call the ExitPlanMode tool again now so the approval can be delivered."
+        case ("ExitPlanMode", .deny):
+            return "The user chose to stay in plan mode in Alveary. Keep planning: revise the plan using any "
+                + "feedback that follows, then call ExitPlanMode again when you are ready."
+        case ("AskUserQuestion", .allow):
+            let answers = request.resolution.updatedInput ?? request.approval.toolInput
+            return "The user answered the pending question in Alveary, but this session could not receive the "
+                + "answer automatically. The submitted answers were:\n\(answers)\n"
+                + "Continue using these answers; do not ask the question again."
+        case ("AskUserQuestion", .deny):
+            // Dismissal already ends the local turn; a recovery message would only inject noise.
+            return nil
+        default:
+            return deferredReplayRecoveryMessage(for: request)
         }
     }
 

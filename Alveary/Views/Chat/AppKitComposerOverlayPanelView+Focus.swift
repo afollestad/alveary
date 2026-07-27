@@ -20,10 +20,17 @@ extension AppKitComposerOverlayPanelView {
         focusKeyView(keyViews[next])
     }
 
+    /// Tab reaches the accessory after the option rows and before the footer buttons, so the reading
+    /// order of the panel and its key-view loop match.
+    var accessoryControls: [NSView] {
+        accessoryButton.isHidden || !accessoryButton.controlIsEnabled ? [] : [accessoryButton]
+    }
+
     var focusableKeyViews: [NSView] {
         let rowKeyViews = rowViews.flatMap(\.keyViewSequence)
-        let controls = [previousButton, nextButton, dismissButton, primaryButton].filter { !$0.isHidden && $0.isEnabled }
-        return rowKeyViews + controls
+        let footerControls = [previousButton, nextButton, dismissButton, primaryButton]
+            .filter { !$0.isHidden && $0.isEnabled }
+        return rowKeyViews + accessoryControls + footerControls
     }
 
     var focusedOrConfiguredRow: AppKitComposerOverlayOptionRowView? {
@@ -79,7 +86,8 @@ extension AppKitComposerOverlayPanelView {
     }
 
     private var focusableControls: [NSView] {
-        [previousButton, nextButton, dismissButton, primaryButton].filter { !$0.isHidden && $0.isEnabled }
+        accessoryControls + [previousButton, nextButton, dismissButton, primaryButton]
+            .filter { !$0.isHidden && $0.isEnabled }
     }
 
     private var focusedRow: AppKitComposerOverlayOptionRowView? {

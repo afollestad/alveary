@@ -52,6 +52,29 @@ These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Na
       dismisses, and `Return` selects the focused row then advances or submits.
       For `ExitPlanMode`, keep the plan markdown in the transcript while only
       the approval confirmation moves into the composer overlay.
+    - **Keep the accessory slot `ExitPlanMode`-only.** `Configuration.accessory`
+      puts a reasoning dropdown immediately left of Dismiss, one trailing action
+      group with the footer buttons, because approving a plan is where the user
+      may want to implement on a different model than they planned on and the
+      overlay covers the composer's own chip. Its menu must open upward:
+      `ComposerReasoningMenuPresenter.upwardEdge(for:)` resolves the
+      anchor-relative edge, since the flipped panel inverts `.maxY`.
+      `AskUserQuestion` leaves the slot `nil`; its answer controls stay the
+      option rows, and its measured geometry must not change.
+        - **Keep the accessory view long-lived.** `accessoryButton` is a stored
+          property, never rebuilt per `configure`. The panel is reconfigured on
+          every `ChatView` render and picking a model mutates SwiftData, which
+          triggers one — a recreated anchor closes the popover mid-interaction.
+          `rebuildRows` reuses rows by id for the same reason.
+        - **Keep the overlay id free of the selection.** It gates
+          `focusFirstOptionAfterLayout()`, so folding the accessory's selection
+          into it re-steals focus on every pick.
+        - **Close the popover with the overlay.** `configure(nil)` must close
+          it; a popover is a window and would otherwise outlive its overlay.
+        - **Tab order is rows, accessory, then footer buttons**, matching
+          reading order. A disabled accessory leaves the key-view loop.
+          `Return`/`Space` on a focused accessory open its menu rather than
+          submitting the overlay; every other key routes back to the panel.
 - User-triggered outbound composer clears must request composer focus through
   `appState.requestComposerFocus()` after the draft is cleared. Do not introduce
   another focus path.
@@ -91,7 +114,7 @@ These capture conversation-view interaction patterns. Keep new UI aligned with t
     - **Do not inline the handler logic back into `ChatView`.** The view-model home is what makes them unit-testable against a `MockAgentsManager`; `ConversationViewModelTests+Settings.swift` depends on that entry point.
     - **Call the handlers directly from `Picker` `set:`.** No outer `Task { await ... }` wrapper. The sync prologue must run on the same cycle as the click so SwiftUI's next render observes the new value; an outer `Task` defers it one MainActor cycle and briefly paints the stale selection.
     - **Use the right write gate.** Model, effort, and permission use `canApplySettingsChange`; provider and worktree use the stricter pre-startup gate. Active/deferred session-setting writes stage, but send-in-flight, setup, handoff steering, reconfiguration, and project-trust blocks still reject writes.
-    - **Keep continuations on the live config.** Prompt answers, queued steering, deferred tool approvals, live approval resumes, and hidden handoff generation are current-turn continuations. They must not consume staged model, effort, speed, or permission settings.
+    - **Keep continuations on the live config.** Prompt answers, queued steering, deferred tool approvals, live approval resumes, and hidden handoff generation are current-turn continuations. They must not consume staged model, effort, speed, or permission settings. An approved `ExitPlanMode` is the one exception, and only for model and effort — see the plan-approval bullet in `Alveary/ViewModels/AGENTS.md`.
     - **Consume staged settings before new visible turns.** Normal sends, queued auto-drain, respawn-before-new-send, and fresh handoff sessions should apply pending settings before sending user-visible content or removing queue rows.
     - **Do *not* gate the fork on `agentsManager.isRunning(conversationId:)`.** Claude's `-p --input-format stream-json` process can exit between turns, so `isRunning` silently drops the fork. `reconfigureSession` already handles a dead process (no-op teardown, then `--resume <id> --fork-session` spawn). Gate through `shouldReconfigureOnSettingChange()` — "thread completed initial setup" — which is the real precondition.
     - **Do *not* add a `!isReconfiguringSession` check at the handler layer.** Concurrent fork attempts are handled inside `reconfigureSession` (`!state.isReconfiguringSession` silently returns), and the composer enters `.progressOnly(.reconfiguringSession)` which disables the pickers while a fork is in flight.

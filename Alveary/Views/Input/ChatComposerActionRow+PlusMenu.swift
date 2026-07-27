@@ -74,20 +74,13 @@ extension ChatComposerActionRowView {
 }
 
 extension ChatComposerActionRowView: NSPopoverDelegate {
-    func popoverWillClose(_ notification: Notification) {
-        guard let popover = notification.object as? NSPopover,
-              popover === reasoningPopover else {
-            return
-        }
-        popover.animates = false
-    }
-
+    // The reasoning popover is not handled here: `ComposerReasoningMenuPresenter` is its own
+    // delegate and owns both its close bookkeeping and its will-close animation suppression.
     func popoverDidClose(_ notification: Notification) {
         guard let popover = notification.object as? NSPopover else {
             return
         }
         finishPlusMenuClose(for: popover)
-        finishReasoningMenuClose(for: popover)
         finishPermissionMenuClose(for: popover)
         finishWorktreeLocationMenuClose(for: popover)
         finishTaskWorkspaceMenuClose(for: popover)

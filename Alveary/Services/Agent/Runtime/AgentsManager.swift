@@ -13,6 +13,27 @@ struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
     let additionalApprovals: [ToolApprovalRequest]
     let sessionApproval: AgentSessionApprovalGrant?
     let config: AgentSpawnConfig
+    /// Forces the deferred respawn path instead of answering a held live hook, so `config` launch
+    /// settings that Claude can only take as flags — model and effort — apply to the resumed tool.
+    let requiresProviderRestart: Bool
+
+    init(
+        conversationId: String,
+        approval: ToolApprovalRequest,
+        resolution: ClaudeToolApprovalResolution,
+        additionalApprovals: [ToolApprovalRequest],
+        sessionApproval: AgentSessionApprovalGrant?,
+        config: AgentSpawnConfig,
+        requiresProviderRestart: Bool = false
+    ) {
+        self.conversationId = conversationId
+        self.approval = approval
+        self.resolution = resolution
+        self.additionalApprovals = additionalApprovals
+        self.sessionApproval = sessionApproval
+        self.config = config
+        self.requiresProviderRestart = requiresProviderRestart
+    }
 }
 
 struct AgentGoalStartMessageRequest: Sendable, Equatable {

@@ -3,6 +3,9 @@ import AppKit
 @MainActor
 class ComposerCompactDropdownButton: NSView {
     var actionHandler: (() -> Void)?
+    /// Lets a host claim keys the dropdown does not act on itself, so a panel that owns Tab, Esc, and
+    /// arrow navigation keeps them when one of its dropdowns holds focus. Returns `true` when handled.
+    var keyEventHandler: ((NSEvent) -> Bool)?
 
     var controlIsEnabled = true
     var controlHeight = ChatComposerActionRowView.defaultSettingsControlHeight
@@ -148,8 +151,14 @@ class ComposerCompactDropdownButton: NSView {
         }
         switch event.keyCode {
         case 36, 49:
+            // Return and Space activate the dropdown. A host that treats those keys as its own
+            // (the overlay panel's submit/select) must still lose here, or a focused dropdown
+            // could never be opened from the keyboard.
             actionHandler?()
         default:
+            guard keyEventHandler?(event) != true else {
+                return
+            }
             super.keyDown(with: event)
         }
     }

@@ -175,14 +175,15 @@ final class ChatComposerActionRowView: NSView {
     var configuration: Configuration?
     private var lastAppliedConfigurationSnapshot: AppliedConfigurationSnapshot?
     var plusPopover: NSPopover?
-    var reasoningPopover: NSPopover?
-    var reasoningPopoverAnchorRect: NSRect?
-    var reasoningMenuController: ComposerReasoningMenuViewController?
+    lazy var reasoningMenuPresenter = ComposerReasoningMenuPresenter(
+        onDisplaySelectionChanged: { [weak self] selection in
+            self?.applyReasoningDisplaySelectionOverride(selection)
+        },
+        onClosed: { [weak self] in
+            self?.reasoningButton.releaseMenuFocusIfNeeded()
+        }
+    )
     var reasoningDisplaySelectionOverride: ReasoningSelection?
-    var reasoningMenuIsPresentedOverride: (() -> Bool)?
-    var reasoningMenuPresentationOverride: (() -> Void)?
-    var reasoningMenuEffortFocusOverride: (() -> Void)?
-    var reasoningMenuModelsFocusOverride: (() -> Void)?
     var permissionPopover: NSPopover?
     var permissionMenuController: ComposerPermissionMenuViewController?
     var worktreePopover: NSPopover?

@@ -206,6 +206,7 @@ extension SnapshotTests {
                         onSelect: {}
                     )
                 ],
+                accessory: exitPlanModeReasoningAccessory,
                 density: exitPlanModeOverlayDensity,
                 titleFont: .systemFont(ofSize: 14, weight: .semibold),
                 primaryTitle: "Submit",

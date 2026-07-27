@@ -110,6 +110,7 @@ extension ChatView {
                     state: state,
                     canInteract: canInteract
                 ),
+                accessory: exitPlanModeReasoningAccessory(canInteract: canInteract),
                 density: exitPlanModeOverlayDensity,
                 titleFont: .systemFont(ofSize: 14, weight: .semibold),
                 primaryTitle: "Submit",
@@ -122,6 +123,19 @@ extension ChatView {
                     submitExitPlanModeApproval(approval)
                 }
             )
+        )
+    }
+
+    /// Approving a plan is the point where the user may want to implement on a different model than
+    /// they planned on, and the overlay covers the composer's own reasoning chip.
+    func exitPlanModeReasoningAccessory(canInteract: Bool) -> AppKitComposerOverlayAccessory? {
+        guard !reasoningConfiguration.modelGroups.isEmpty else {
+            return nil
+        }
+        return AppKitComposerOverlayAccessory(
+            selection: reasoningConfiguration.selection,
+            reasoning: reasoningConfiguration,
+            isEnabled: canInteract
         )
     }
 

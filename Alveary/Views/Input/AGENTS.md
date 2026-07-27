@@ -57,6 +57,10 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
     - **Keep it out of `AppliedConfigurationSnapshot`.** The menu is rebuilt from the stored configuration on each open, so the row never paints these values; including them would force a full relayout on every foreground app switch.
 - Task Workspace controls are mode-specific composer settings, not attachments. The native action row presents current grants, `AppKitChatComposerPanelView` owns the directory picker, and `ConversationViewModel` owns validation/persistence/reconfiguration.
 - Provider and model options are caller-owned inputs populated from `AgentProviderDiscoveryService`; the action row renders them but must not discover providers, refresh models, or read provider config directly.
+- `ComposerReasoningMenuPresenter` owns the reasoning popover's lifecycle for every surface that offers model/effort controls — the composer action row and the `ExitPlanMode` overlay panel. Transient behavior, suppressed animation, anchor reuse on resize, and close bookkeeping live there so the two cannot drift.
+  - **Keep the testing seams on the presenter.** `isPresentedOverride`, `presentationOverride`, `effortFocusOverride`, and `modelsFocusOverride` exist because `AlvearyTests/AGENTS.md` forbids live `NSPopover` host tests on macOS 26, and this popover resizes itself on disclosure expansion — the exact crash pattern. `popover`, `controller`, and `anchorRect` stay settable so tests can install a recording popover.
+  - `ChatComposerActionRowView` keeps its `reasoning*` property names as forwarding onto the presenter; a host that anchors the popover to itself must set `anchorView` alongside `anchorRect`.
+  - Hosts that own their own key handling can claim unhandled dropdown keys through `ComposerCompactDropdownButton.keyEventHandler`. `Return`/`Space` always stay with the dropdown, or a focused control could never be opened from the keyboard.
 - Reasoning controls are caller-owned inputs.
   - Render effort as the oversized snapping slider.
   - Render models as an inline disclosure list, grouped by provider only when multiple non-empty groups are present.

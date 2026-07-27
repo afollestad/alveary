@@ -52,6 +52,7 @@ private extension ConversationViewModel {
         hydratePendingToolApprovalIfNeeded()
         subscribe()
         schedulePendingExitPlanModeFollowUpQuietFallbackIfNeeded()
+        schedulePendingExitPlanModeFollowUpWatchdogIfNeeded()
         scheduleQueueDrainIfNeeded()
     }
 
@@ -64,6 +65,6 @@ private extension ConversationViewModel {
         subscriptionTask = nil
         queueDrainTask?.cancel()
         queueDrainTask = nil
-        cancelPendingExitPlanModeFollowUpQuietTaskForViewDeactivation()
+        cancelPendingExitPlanModeFollowUpTasksForViewDeactivation()
     }
 }

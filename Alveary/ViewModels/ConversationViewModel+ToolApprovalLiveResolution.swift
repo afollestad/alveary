@@ -11,7 +11,8 @@ extension ConversationViewModel {
         _ pendingApproval: PendingToolApproval,
         resolution: ClaudeToolApprovalResolution,
         sessionApproval: AgentSessionApprovalGrant?,
-        config: AgentSpawnConfig
+        config: AgentSpawnConfig,
+        requiresProviderRestart: Bool = false
     ) async throws -> ToolApprovalLiveResolutionResult {
         let additionalApprovals = relatedDeferredToolApprovals(for: pendingApproval.request)
         let sessionApprovalEffective = try await agentsManager.resolveToolApproval(
@@ -21,7 +22,8 @@ extension ConversationViewModel {
                 resolution: resolution,
                 additionalApprovals: additionalApprovals,
                 sessionApproval: sessionApproval,
-                config: config
+                config: config,
+                requiresProviderRestart: requiresProviderRestart
             )
         )
         return ToolApprovalLiveResolutionResult(

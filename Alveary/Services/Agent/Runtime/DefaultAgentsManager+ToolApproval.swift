@@ -8,33 +8,12 @@ extension DefaultAgentsManager {
 
         do {
             let approvals = [request.approval] + request.additionalApprovals
-            let liveResolutionCount = await resolveAgentCLIKitLiveHookApprovals(
-                approvals,
-                resolution: request.resolution,
-                conversationId: request.conversationId,
-                services: services
-            )
-            if liveResolutionCount > 0 {
-                markLiveToolApprovalsResolved(
-                    conversationId: request.conversationId,
-                    context: context
-                )
-                decrementPendingLiveToolApprovals(
-                    conversationId: request.conversationId,
-                    count: liveResolutionCount
-                )
-                return finishAgentCLIKitToolApprovalResolution(request, context: context)
-            }
-
-            if await canResumeAgentCLIKitDeferredApproval(
-                conversationId: request.conversationId,
+            if try await dispatchToolApprovalResolution(
+                request,
+                approvals: approvals,
+                context: context,
                 services: services
             ) {
-                try await resumeAgentCLIKitDeferredApproval(
-                    request,
-                    approvals: approvals,
-                    services: services
-                )
                 return finishAgentCLIKitToolApprovalResolution(request, context: context)
             }
 
@@ -56,6 +35,49 @@ extension DefaultAgentsManager {
         return finishAgentCLIKitToolApprovalResolution(request, context: context)
     }
 
+    /// Returns `true` when a Claude-specific path already handled the resolution, leaving the caller's
+    /// generic `resolveInteraction` fallback for providers without hooks or a deferred respawn.
+    private func dispatchToolApprovalResolution(
+        _ request: AgentToolApprovalResolutionRequest,
+        approvals: [ToolApprovalRequest],
+        context: ToolApprovalResolutionContext,
+        services: AgentCLIKitHostServices
+    ) async throws -> Bool {
+        if request.requiresProviderRestart {
+            try await restartProviderForToolApproval(
+                request,
+                approvals: approvals,
+                context: context,
+                services: services
+            )
+            return true
+        }
+
+        let liveResolutionCount = await resolveAgentCLIKitLiveHookApprovals(
+            approvals,
+            resolution: request.resolution,
+            conversationId: request.conversationId,
+            services: services
+        )
+        if liveResolutionCount > 0 {
+            markLiveToolApprovalsResolved(conversationId: request.conversationId, context: context)
+            decrementPendingLiveToolApprovals(
+                conversationId: request.conversationId,
+                count: liveResolutionCount
+            )
+            return true
+        }
+
+        guard await canResumeAgentCLIKitDeferredApproval(
+            conversationId: request.conversationId,
+            services: services
+        ) else {
+            return false
+        }
+        try await resumeAgentCLIKitDeferredApproval(request, approvals: approvals, services: services)
+        return true
+    }
+
     private func finishAgentCLIKitToolApprovalResolution(
         _ request: AgentToolApprovalResolutionRequest,
         context: ToolApprovalResolutionContext
@@ -65,6 +87,35 @@ extension DefaultAgentsManager {
         eventBuffers[request.conversationId]?.hasSentPendingUserActionNotification = false
         updateStatus(didCancelInteraction ? .idle : .busy, for: request.conversationId)
         return context.sessionApprovalRecordResult.isEffective
+    }
+
+    /// Model and effort only reach Claude as launch flags, so applying a change the user made at the
+    /// plan prompt means replacing the process. Releasing each held hook as a deferred decision is how
+    /// the 115s hook timeout already ends this wait: Claude flushes its `hook_deferred_tool` marker and
+    /// exits, and the deferred respawn below replays the tool against `request.config`.
+    private func restartProviderForToolApproval(
+        _ request: AgentToolApprovalResolutionRequest,
+        approvals: [ToolApprovalRequest],
+        context: ToolApprovalResolutionContext,
+        services: AgentCLIKitHostServices
+    ) async throws {
+        let keys = [context.key] + context.additionalKeys
+        for key in keys {
+            await services.liveHookDecisionProvider.discardDecision(for: key)
+        }
+        // Only the live branch decrements this, and we deliberately skipped it. Marking the keys
+        // resolved is wrong here: that set suppresses re-publication, and the replayed tool is
+        // answered by the transient decision rather than by the host UI.
+        decrementPendingLiveToolApprovals(conversationId: request.conversationId, count: keys.count)
+
+        // Bypass `canResumeAgentCLIKitDeferredApproval`: its deferred-stop precondition cannot have
+        // landed this instant. `resumeAgentCLIKitDeferredApproval` owns that wait, and it polls
+        // process status rather than the event buffer.
+        try await resumeAgentCLIKitDeferredApproval(
+            request,
+            approvals: approvals,
+            services: services
+        )
     }
 
     private func resolveAgentCLIKitLiveHookApprovals(

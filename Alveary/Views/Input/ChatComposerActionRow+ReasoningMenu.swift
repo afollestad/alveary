@@ -1,7 +1,49 @@
 @preconcurrency import AppKit
 
 extension ChatComposerActionRowView {
-    static let reasoningPopoverPreferredEdge: NSRectEdge = .maxY
+    static let reasoningPopoverPreferredEdge = ComposerReasoningMenuPresenter.preferredEdge
+
+    /// Forwarding onto the shared presenter. These stay settable because tests install a recording
+    /// popover and controller rather than showing a live one.
+    var reasoningPopover: NSPopover? {
+        get { reasoningMenuPresenter.popover }
+        set { reasoningMenuPresenter.popover = newValue }
+    }
+
+    var reasoningMenuController: ComposerReasoningMenuViewController? {
+        get { reasoningMenuPresenter.controller }
+        set { reasoningMenuPresenter.controller = newValue }
+    }
+
+    var reasoningPopoverAnchorRect: NSRect? {
+        get { reasoningMenuPresenter.anchorRect }
+        set {
+            reasoningMenuPresenter.anchorRect = newValue
+            // The row is always its own positioning view; keep the two set together so a resize can
+            // reapply the captured anchor.
+            reasoningMenuPresenter.anchorView = newValue == nil ? nil : self
+        }
+    }
+
+    var reasoningMenuIsPresentedOverride: (() -> Bool)? {
+        get { reasoningMenuPresenter.isPresentedOverride }
+        set { reasoningMenuPresenter.isPresentedOverride = newValue }
+    }
+
+    var reasoningMenuPresentationOverride: (() -> Void)? {
+        get { reasoningMenuPresenter.presentationOverride }
+        set { reasoningMenuPresenter.presentationOverride = newValue }
+    }
+
+    var reasoningMenuEffortFocusOverride: (() -> Void)? {
+        get { reasoningMenuPresenter.effortFocusOverride }
+        set { reasoningMenuPresenter.effortFocusOverride = newValue }
+    }
+
+    var reasoningMenuModelsFocusOverride: (() -> Void)? {
+        get { reasoningMenuPresenter.modelsFocusOverride }
+        set { reasoningMenuPresenter.modelsFocusOverride = newValue }
+    }
 
     /// Which reasoning control a programmatic presentation should open on, so `/effort` and `/model` land in place.
     enum ReasoningMenuSection: Equatable {
@@ -44,11 +86,9 @@ extension ChatComposerActionRowView {
             closeReasoningMenu()
             return
         }
-        if let reasoningPopover {
-            if reasoningPopover.isShown {
-                closeReasoningMenu()
-                return
-            }
+        if reasoningMenuPresenter.isShown {
+            closeReasoningMenu()
+            return
         }
 
         presentReasoningMenuIfNeeded()
@@ -60,49 +100,12 @@ extension ChatComposerActionRowView {
             closeReasoningMenu()
             return
         }
-        if reasoningMenuIsPresentedOverride?() == true {
-            return
-        }
-        if let reasoningPopover {
-            guard !reasoningPopover.isShown else {
-                return
-            }
-            finishReasoningMenuClose(for: reasoningPopover)
-        }
 
-        if let reasoningMenuPresentationOverride {
-            reasoningMenuPresentationOverride()
-            return
-        }
-
-        let controller = ComposerReasoningMenuViewController(
+        reasoningMenuPresenter.present(
             configuration: configuration.reasoning,
-            onRequestCloseMainMenu: { [weak self] in
-                self?.closeReasoningMenu()
-            },
-            onDisplaySelectionChanged: { [weak self] selection in
-                self?.applyReasoningDisplaySelectionOverride(selection)
-            },
-            onContentSizeChanged: { [weak self] size in
-                self?.applyReasoningPopoverContentSize(size)
-            }
+            anchorView: self,
+            anchorRect: captureReasoningPopoverAnchorRect()
         )
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = false
-        popover.delegate = self
-        popover.contentViewController = controller
-        popover.contentSize = controller.preferredContentSize
-        reasoningMenuController = controller
-        reasoningPopover = popover
-        let anchorRect = captureReasoningPopoverAnchorRect()
-        reasoningPopoverAnchorRect = anchorRect
-        popover.show(
-            relativeTo: anchorRect,
-            of: self,
-            preferredEdge: Self.reasoningPopoverPreferredEdge
-        )
-        controller.alignContentViewToPopoverHost()
     }
 
     func handleReasoningMenuPresentationRequestIfNeeded() {
@@ -132,21 +135,11 @@ extension ChatComposerActionRowView {
     }
 
     private func focusReasoningMenuEffortControl() {
-        if let reasoningMenuEffortFocusOverride {
-            reasoningMenuEffortFocusOverride()
-            return
-        }
-        reasoningMenuController?.focusEffortControl()
+        reasoningMenuPresenter.focusEffortControl()
     }
 
     private func revealReasoningMenuModelList() {
-        if let reasoningMenuModelsFocusOverride {
-            reasoningMenuModelsFocusOverride()
-            return
-        }
-        // Expands the disclosure and moves focus into the list; rows build synchronously on
-        // first expansion, so they are focusable as soon as this returns.
-        reasoningMenuController?.focusModelList()
+        reasoningMenuPresenter.focusModelList()
     }
 
     private func consumeReasoningMenuPresentationRequest(
@@ -167,31 +160,7 @@ extension ChatComposerActionRowView {
     }
 
     func closeReasoningMenu() {
-        guard let popover = reasoningPopover else {
-            applyReasoningDisplaySelectionOverride(nil)
-            reasoningButton.releaseMenuFocusIfNeeded()
-            return
-        }
-        popover.animates = false
-        popover.performClose(nil)
-        finishReasoningMenuClose(for: popover)
-    }
-
-    func finishReasoningMenuClose(for popover: NSPopover) {
-        guard reasoningPopover === popover else {
-            return
-        }
-        popover.animates = false
-        reasoningMenuController?.cancelEffortPreview()
-        popover.delegate = nil
-        reasoningPopover = nil
-        reasoningPopoverAnchorRect = nil
-        reasoningMenuController = nil
-        // Reconfigure the button back to the persisted selection; configure()
-        // now skips value-identical updates, so a lingering display override
-        // would otherwise stay painted until an unrelated config change.
-        applyReasoningDisplaySelectionOverride(nil)
-        reasoningButton.releaseMenuFocusIfNeeded()
+        reasoningMenuPresenter.close()
     }
 
     func captureReasoningPopoverAnchorRect() -> NSRect {
@@ -199,24 +168,7 @@ extension ChatComposerActionRowView {
     }
 
     func applyReasoningPopoverContentSize(_ size: NSSize) {
-        guard let popover = reasoningPopover,
-              let controller = reasoningMenuController,
-              popover.contentViewController === controller else {
-            return
-        }
-        popover.animates = false
-        popover.contentSize = size
-        if popover.isShown, let anchorRect = reasoningPopoverAnchorRect {
-            // Resizing a shown popover can make AppKit reconsider its edge. Reapply
-            // the captured anchor and original preference so collapse stays above
-            // the composer instead of flipping to the opposite side.
-            popover.show(
-                relativeTo: anchorRect,
-                of: self,
-                preferredEdge: Self.reasoningPopoverPreferredEdge
-            )
-        }
-        controller.alignContentViewToPopoverHost()
+        reasoningMenuPresenter.applyContentSize(size)
     }
 
     func applyReasoningDisplaySelectionOverride(_ selection: ReasoningSelection?) {
