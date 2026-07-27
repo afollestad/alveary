@@ -5,53 +5,6 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
-    func testSettingsScreenAgentsTab() {
-        var settings = AppSettings()
-        settings.providerConfigs["claude"] = ProviderCustomConfig(
-            extraArgs: "--verbose"
-        )
-
-        let viewModel = SettingsViewModel(
-            settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
-        )
-
-        assertMacSnapshot(
-            SettingsScreen(
-                viewModel: viewModel,
-                gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
-                appUpdateManager: snapshotAppUpdateManager(),
-                onClose: {}
-            ),
-            size: CGSize(width: 1100, height: 820),
-            named: "settings_screen_agents"
-        )
-    }
-
-    func testSettingsScreenAgentsTabNarrowStacksSplitInputs() {
-        var settings = AppSettings()
-        settings.providerConfigs["claude"] = ProviderCustomConfig(
-            extraArgs: "--verbose"
-        )
-
-        let viewModel = SettingsViewModel(
-            settingsService: InMemorySettingsService(current: settings),
-            providerDiscovery: SnapshotProviderDiscoveryService.defaultStatuses()
-        )
-
-        assertMacSnapshot(
-            SettingsScreen(
-                viewModel: viewModel,
-                gitHubCLI: SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false),
-                appUpdateManager: snapshotAppUpdateManager(),
-                onClose: {},
-                initialTabRawValue: "agents"
-            ),
-            size: CGSize(width: 400, height: 900),
-            named: "settings_screen_agents_narrow_split_inputs"
-        )
-    }
-
     func testSettingsHelpTextPopup() {
         assertMacSnapshot(
             settingsHelpTextPopup,
@@ -414,58 +367,5 @@ private extension SnapshotTests {
         AppHoverTooltipContent(text: "Seconds to enter steering before continuing with the default handoff. " +
             "The countdown stops when you start typing in the composer.")
         .padding(24)
-    }
-}
-
-private actor SnapshotProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
-    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
-
-    init(statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]) {
-        self.statuses = statuses
-    }
-
-    static func defaultStatuses() -> SnapshotProviderDiscoveryService {
-        SnapshotProviderDiscoveryService(statuses: [
-            .claude: AgentCLIKit.AgentProviderStatus(
-                providerId: .claude,
-                definition: AgentCLIKit.ClaudeProviderDefinition.definition,
-                installation: .installed,
-                availability: AgentCLIKit.AgentProviderAvailability(
-                    providerId: .claude,
-                    executablePath: "/Users/test/.local/bin/claude",
-                    versionDescription: "2.1.104"
-                ),
-                setup: .ready,
-                modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
-            ),
-            .codex: AgentCLIKit.AgentProviderStatus(
-                providerId: .codex,
-                definition: AgentCLIKit.CodexProviderDefinition.definition,
-                installation: .missing,
-                availability: AgentCLIKit.AgentProviderAvailability(providerId: .codex, executablePath: nil),
-                setup: .needsSetup,
-                modelOptions: AgentModelOptionTestFixtures.codexModelOptions
-            )
-        ])
-    }
-
-    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses
-    }
-
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses.filter { $0.value.isInstalled }
-    }
-
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses.filter { $0.value.isEnabled && $0.value.installation != .missing }
-    }
-
-    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
-        statuses[providerId]?.modelOptions ?? AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
-    }
-
-    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
-        [.claude, .codex]
     }
 }

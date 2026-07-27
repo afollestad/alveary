@@ -10,6 +10,7 @@ struct ContentViewDependencies {
     let agentRegistry: AgentRegistry
     let providerRegistry: ProviderRegistry
     let skillsService: SkillsService
+    let globalAgentInstructionsService: GlobalAgentInstructionsService
     let mcpService: MCPService
     let agentsManager: any AgentsManager
     let agentOneShotPromptService: any AgentOneShotPromptService
@@ -48,6 +49,7 @@ struct ContentViewDependencies {
             agentRegistry: component.agentRegistry,
             providerRegistry: component.providerRegistry,
             skillsService: component.skillsService,
+            globalAgentInstructionsService: component.globalAgentInstructionsService,
             mcpService: component.mcpService,
             agentsManager: component.agentsManager,
             agentOneShotPromptService: component.agentOneShotPromptService,

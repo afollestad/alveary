@@ -34,6 +34,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                 ]
             ),
             skillsDirectory: "~/.claude/skills",
+            instructionsPath: "~/.claude/CLAUDE.md",
             mcp: MCPIntegrationDefinition(
                 configPath: "~/.claude.json",
                 serversKeyPath: ["mcpServers"],
@@ -71,6 +72,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
                 ]
             ),
             skillsDirectory: "~/.codex/skills",
+            instructionsPath: "~/.codex/AGENTS.md",
             mcp: MCPIntegrationDefinition(
                 configPath: "~/.codex/config.toml",
                 serversKeyPath: ["mcp_servers"],

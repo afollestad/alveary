@@ -106,6 +106,7 @@ struct SettingsScreen: View {
                 SettingsScreenHeader(
                     title: selectedPage.title,
                     description: selectedPage.description,
+                    refresh: headerRefresh,
                     onClose: onClose
                 )
 
@@ -115,6 +116,22 @@ struct SettingsScreen: View {
             .frame(width: width, alignment: .leading)
         }
         .scrollClipDisabled(false)
+    }
+
+    /// Only the Agents page offers a header refresh; it re-checks every provider status.
+    private var headerRefresh: SettingsScreenHeaderRefresh? {
+        guard selectedPage == .agents else {
+            return nil
+        }
+        return SettingsScreenHeaderRefresh(
+            accessibilityLabel: "Refresh agent statuses",
+            isRefreshing: !viewModel.hasLoadedProviderStatuses,
+            action: {
+                Task {
+                    await viewModel.refreshProviderStatuses()
+                }
+            }
+        )
     }
 
     @ViewBuilder

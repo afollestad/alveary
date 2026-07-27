@@ -23,6 +23,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Alveary/Services/Agent/Transcript/AGENTS.md`: `ChatItemGrouper`.
 - `Alveary/Services/Detection/AGENTS.md`: provider detection.
 - `Alveary/Services/Git/AGENTS.md`: worktrees and GitHub CLI.
+- `Alveary/Services/Instructions/AGENTS.md`: shared global agent instructions and symlink migration.
 - `Alveary/Services/Notification/AGENTS.md`: notifications and badge routing.
 - `Alveary/Services/Onboarding/AGENTS.md`: dependency onboarding checks and installers.
 - `Alveary/Services/Power/AGENTS.md`: keep-awake power assertions.

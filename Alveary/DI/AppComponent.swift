@@ -398,6 +398,10 @@ extension AppComponent {
         return shared { DefaultSkillsService(agentRegistry: agentRegistry) }
     }
 
+    var globalAgentInstructionsService: GlobalAgentInstructionsService {
+        return shared { DefaultGlobalAgentInstructionsService(agentRegistry: agentRegistry) }
+    }
+
     var mcpService: MCPService {
         return shared {
             DefaultMCPService(

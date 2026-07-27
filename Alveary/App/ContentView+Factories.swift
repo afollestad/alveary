@@ -99,6 +99,7 @@ extension ContentView {
             settingsService: dependencies.settingsService,
             providerDiscovery: dependencies.providerDiscovery,
             agentRegistry: dependencies.agentRegistry,
+            globalAgentInstructionsService: dependencies.globalAgentInstructionsService,
             soundPreviewer: soundPreviewer.play
         )
     }

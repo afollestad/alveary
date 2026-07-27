@@ -303,6 +303,33 @@ extension SettingsViewModel {
         }
         return ThreadDefaultResolver.modelOptions(for: providerId, providerStatuses: providerStatuses)
     }
+
+    func providerVersion(for status: AgentCLIKit.AgentProviderStatus?) -> String? {
+        guard let version = status?.availability?.versionDescription?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !version.isEmpty else {
+            return nil
+        }
+        return version
+    }
+
+    func providerExecutablePath(for status: AgentCLIKit.AgentProviderStatus?) -> String? {
+        status?.availability?.executablePath
+    }
+
+    /// The agent card renders version, path, and diagnostics as discrete fields, so the
+    /// status description is redundant when it would repeat them: `statusDescription`
+    /// prefers `diagnostics.first`, and an installed-and-ready provider's description is
+    /// just "version at path" again.
+    func showsStatusDescription(for status: AgentCLIKit.AgentProviderStatus?) -> Bool {
+        guard let status, status.isEnabled else {
+            return true
+        }
+        if !status.diagnostics.isEmpty {
+            return false
+        }
+        return !(status.installation == .installed && status.setup == .ready)
+    }
 }
 
 private extension SettingsViewModel {
@@ -360,9 +387,9 @@ private extension SettingsViewModel {
         if status.setup == .failed {
             return "Setup readiness check failed."
         }
-        let version = status.availability?.versionDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let path = status.availability?.executablePath
-        if let version, !version.isEmpty, let path {
+        let version = providerVersion(for: status)
+        let path = providerExecutablePath(for: status)
+        if let version, let path {
             return "\(version) at \(path)"
         }
         if let path {

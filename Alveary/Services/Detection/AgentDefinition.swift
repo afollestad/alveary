@@ -18,5 +18,7 @@ struct AgentDefinition: Sendable, Equatable {
     let docUrl: String?
     let provider: ProviderDefinition?
     let skillsDirectory: String?
+    /// Tilde-relative path of the agent's global instructions file, such as `~/.claude/CLAUDE.md`.
+    let instructionsPath: String?
     let mcp: MCPIntegrationDefinition?
 }

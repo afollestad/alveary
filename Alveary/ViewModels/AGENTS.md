@@ -18,6 +18,7 @@ These instructions apply to files under `Alveary/ViewModels/`.
 - Final pane discard accepts root-level focus-restoration intent. A replacement root destination and same-target session replacement must pass `restoreFocus: false`; only an actually closed pane may return focus to its invoking screen control.
 - Keep the invoking contextual-pane control ID in the root-lived feature view model, not screen-local state, so dismissal can restore the same control after the screen unmounts and remounts.
     - When a successful mutation removes that control, retarget focus to the screen's persistent header action only while the captured pane target remains active; a delayed completion for an inactive session must not overwrite the newer target's focus owner.
+- `GlobalInstructionsEditorModel` backs the settings AGENTS.md editor and is built once by `SettingsViewModel` so its BlockInputKit document store and draft survive re-renders. Keep the store, undo controller, and dirty baseline `@ObservationIgnored`, guard equality before writing `isDirty`, and never recompute dirtiness by serializing the document per keystroke — reconfiguring `BlockInputView` on every edit resets transient editor UI.
 
 ### File Organization
 

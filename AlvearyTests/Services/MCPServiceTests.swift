@@ -138,7 +138,23 @@ private struct MCPServiceFixture {
             supportsHttp: false
         )
 
-        let registry = ServiceTestAgentRegistry(
+        let registry = Self.makeRegistry(codexIntegration: codexIntegration)
+
+        service = DefaultMCPService(
+            claudeConfigStore: claudeStore,
+            codexConfigStore: codexStore,
+            providerDetection: providerDetection,
+            agentRegistry: registry,
+            bundle: Bundle(for: MCPServiceTests.self)
+        )
+    }
+
+    func cleanup() {
+        try? FileManager.default.removeItem(at: rootDirectory)
+    }
+
+    private static func makeRegistry(codexIntegration: MCPIntegrationDefinition) -> ServiceTestAgentRegistry {
+        ServiceTestAgentRegistry(
             agents: [
                 AgentDefinition(
                     id: "claude",
@@ -147,6 +163,7 @@ private struct MCPServiceFixture {
                     docUrl: nil,
                     provider: nil,
                     skillsDirectory: nil,
+                    instructionsPath: nil,
                     mcp: MCPIntegrationDefinition(
                         configPath: "~/.claude.json",
                         serversKeyPath: ["mcpServers"],
@@ -162,22 +179,11 @@ private struct MCPServiceFixture {
                     docUrl: nil,
                     provider: nil,
                     skillsDirectory: nil,
+                    instructionsPath: nil,
                     mcp: codexIntegration
                 )
             ]
         )
-
-        service = DefaultMCPService(
-            claudeConfigStore: claudeStore,
-            codexConfigStore: codexStore,
-            providerDetection: providerDetection,
-            agentRegistry: registry,
-            bundle: Bundle(for: MCPServiceTests.self)
-        )
-    }
-
-    func cleanup() {
-        try? FileManager.default.removeItem(at: rootDirectory)
     }
 
     func writeCodexServers(_ servers: ServerMap) async throws {

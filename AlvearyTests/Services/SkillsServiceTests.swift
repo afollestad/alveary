@@ -324,6 +324,7 @@ private struct SkillsServiceFixture {
                     docUrl: nil,
                     provider: nil,
                     skillsDirectory: claudeSkillsDirectory.path,
+                    instructionsPath: nil,
                     mcp: nil
                 ),
                 AgentDefinition(
@@ -333,6 +334,7 @@ private struct SkillsServiceFixture {
                     docUrl: nil,
                     provider: nil,
                     skillsDirectory: ampSkillsDirectory.path,
+                    instructionsPath: nil,
                     mcp: nil
                 )
             ]

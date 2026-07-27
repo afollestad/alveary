@@ -9,6 +9,8 @@ final class SettingsViewModel {
     @ObservationIgnored let settingsService: any SettingsService
     @ObservationIgnored let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     @ObservationIgnored let agentRegistry: AgentRegistry
+    /// Built once so the AGENTS.md editor's draft and document store survive re-renders.
+    @ObservationIgnored let instructionsEditor: GlobalInstructionsEditorModel
     @ObservationIgnored private let codeFontFamilyLoader: @MainActor () -> [String]
     @ObservationIgnored private let soundPreviewer: @MainActor (String) -> Void
 
@@ -21,12 +23,18 @@ final class SettingsViewModel {
         settingsService: any SettingsService,
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
+        globalAgentInstructionsService: GlobalAgentInstructionsService? = nil,
         codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies },
         soundPreviewer: @escaping @MainActor (String) -> Void = { _ in }
     ) {
         self.settingsService = settingsService
         self.providerDiscovery = providerDiscovery
         self.agentRegistry = agentRegistry
+        instructionsEditor = GlobalInstructionsEditorModel(
+            service: globalAgentInstructionsService
+                ?? DefaultGlobalAgentInstructionsService(agentRegistry: agentRegistry),
+            agentRegistry: agentRegistry
+        )
         self.codeFontFamilyLoader = codeFontFamilyLoader
         self.soundPreviewer = soundPreviewer
     }
