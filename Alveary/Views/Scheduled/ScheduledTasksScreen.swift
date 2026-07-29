@@ -3,7 +3,6 @@ import SwiftUI
 struct ScheduledTasksScreen: View {
     let viewModel: ScheduledTasksViewModel
 
-    @State private var selectedFilter = ScheduledTasksFilter.all
     @State private var deleteConfirmation: ScheduledTaskRowPresentation?
     @FocusState private var focusedPaneTriggerID: String?
 
@@ -14,18 +13,21 @@ struct ScheduledTasksScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             ScheduledTasksScreenHeader(
-                selectedFilter: $selectedFilter,
+                selectedFilter: Binding(
+                    get: { viewModel.selectedFilter },
+                    set: { viewModel.selectFilter($0) }
+                ),
                 onCreate: { openCreatePane() },
                 createFocus: $focusedPaneTriggerID
             )
 
             GeometryReader { proxy in
                 ScrollView {
-                    let visibleTasks = viewModel.tasks(for: selectedFilter)
+                    let visibleTasks = viewModel.tasks(for: viewModel.selectedFilter)
                     ZStack(alignment: .topLeading) {
                         if visibleTasks.isEmpty {
                             ScheduledTasksEmptyState(
-                                filter: selectedFilter,
+                                filter: viewModel.selectedFilter,
                                 onCreate: {
                                     openCreatePane(focusRestorationID: "scheduled-new-empty")
                                 },
@@ -77,7 +79,7 @@ struct ScheduledTasksScreen: View {
                     )
                 }
                 // The fixed filters can be changed at any scroll depth; each result set starts at the top.
-                .id(selectedFilter.id)
+                .id(viewModel.selectedFilter.id)
             }
         }
         .task {
@@ -120,12 +122,12 @@ struct ScheduledTasksScreen: View {
     }
 
     private var visiblePaneTriggerFocusIDs: Set<String> {
-        let visibleTasks = viewModel.tasks(for: selectedFilter)
+        let visibleTasks = viewModel.tasks(for: viewModel.selectedFilter)
         var ids = Set([ScheduledTaskPaneTarget.create.defaultFocusRestorationID])
         ids.formUnion(visibleTasks.map {
             ScheduledTaskPaneTarget.edit($0.id).defaultFocusRestorationID
         })
-        if selectedFilter == .all, visibleTasks.isEmpty {
+        if viewModel.selectedFilter == .all, visibleTasks.isEmpty {
             ids.insert("scheduled-new-empty")
         }
         return ids

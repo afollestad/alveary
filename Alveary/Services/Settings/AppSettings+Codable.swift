@@ -71,6 +71,7 @@ extension AppSettings {
         case pullRequestsSelectedTab
         case pullRequestsStatusFilters
         case pullRequestsRepositoryFilters
+        case scheduledTasksSelectedTab
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -91,12 +92,15 @@ extension AppSettings {
         try decodeLayout(from: container)
         try decodeContextManagement(from: container)
         try decodeStorage(from: container, storedSchemaVersion: storedSchemaVersion)
-        decodePullRequests(from: container)
+        decodeScreenTabs(from: container)
     }
 
-    private mutating func decodePullRequests(from container: KeyedDecodingContainer<CodingKeys>) {
+    private mutating func decodeScreenTabs(from container: KeyedDecodingContainer<CodingKeys>) {
         if let tab = try? container.decodeIfPresent(String.self, forKey: .pullRequestsSelectedTab) {
             pullRequestsSelectedTab = tab
+        }
+        if let tab = try? container.decodeIfPresent(String.self, forKey: .scheduledTasksSelectedTab) {
+            scheduledTasksSelectedTab = tab
         }
         // Element-tolerant: unknown status strings drop out instead of failing the load.
         if let rawStatuses = try? container.decodeIfPresent([String].self, forKey: .pullRequestsStatusFilters) {

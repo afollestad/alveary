@@ -402,9 +402,13 @@ final class ScheduledTasksViewModelFixture {
 
     init(
         runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in true },
-        currentTimeZone: TimeZone = TimeZone(identifier: "America/Chicago") ?? .current
+        currentTimeZone: TimeZone = TimeZone(identifier: "America/Chicago") ?? .current,
+        configureSettings: ((inout AppSettings) -> Void)? = nil
     ) throws {
         self.currentTimeZone = currentTimeZone
+        if let configureSettings {
+            settingsService.update(configureSettings)
+        }
         container = try ModelContainer(
             for: Project.self,
             AgentThread.self,

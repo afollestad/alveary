@@ -76,6 +76,8 @@ final class ScheduledTasksViewModel {
     private(set) var paneFocusRestorationID = ScheduledTaskPaneTarget.create.defaultFocusRestorationID
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<ScheduledTaskPaneTarget>> = []
     var errorMessage: String?
+    /// The active tab; restored from settings and persisted through `selectFilter(_:)`.
+    private(set) var selectedFilter = ScheduledTasksFilter.all
 
     init(
         modelContext: ModelContext,
@@ -97,9 +99,19 @@ final class ScheduledTasksViewModel {
         runNowAction = runNow
         self.now = now
         self.currentTimeZone = currentTimeZone
+        selectedFilter = ScheduledTasksFilter(rawValue: settingsService.current.scheduledTasksSelectedTab) ?? .all
 
         reload()
         observeChanges()
+    }
+
+    /// Switches the visible tab and persists it as the next launch's initial tab.
+    func selectFilter(_ filter: ScheduledTasksFilter) {
+        guard selectedFilter != filter else {
+            return
+        }
+        selectedFilter = filter
+        settingsService.update { $0.scheduledTasksSelectedTab = filter.rawValue }
     }
 
     deinit {

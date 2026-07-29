@@ -82,9 +82,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     var lastOpenThreadID: PersistentIdentifier?
     var lastOpenConversationID: PersistentIdentifier?
     var voiceInputShortcutMigrationCompleted = true
-    // Raw tab title; the Pull Requests screen falls back to its packaged default
-    // when the stored value no longer names a tab.
+    // Raw tab titles; each screen falls back to its packaged default when the
+    // stored value no longer names a tab.
     var pullRequestsSelectedTab = "All"
+    var scheduledTasksSelectedTab = "All"
     var pullRequestsStatusFilters: Set<PullRequestStatus> = []
     var pullRequestsRepositoryFilters: Set<String> = []
 
