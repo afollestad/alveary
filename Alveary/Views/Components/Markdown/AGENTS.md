@@ -52,7 +52,9 @@ Narrower scopes:
 - SwiftUI markdown rendering uses `AppMarkdownRenderer` under `SwiftUI/Rendering/`.
 - AppKit markdown rendering uses `AppKitMarkdownView` under `AppKit/`.
 - Unknown fenced-code languages must render as plain monospaced code.
-- AppKit transcript markdown renders Markdown/HTML image blocks through BlockInputKit image loading; SwiftUI markdown text still degrades images to alt/source text.
+- Images alone on their line (or with local/relative sources) become `.image` document blocks; remote images sharing a line with text stay in the markdown fragments carrying `AppMarkdownInlineImageAttribute` on their alt-text run (mirrors BlockInputKit's split rule).
+- Both renderers draw inline images once loaded: SwiftUI swaps the alt run for the bitmap in `AppMarkdownInlineText`, AppKit swaps it for a baseline-aligned `NSTextAttachment` in `AppKitMarkdownAttributedStringBuilder` (measurer and renderer must share one store or heights diverge); until the bitmap arrives both show the alt text. Image blocks render through `AppMarkdownImageBlockView` (SwiftUI) and `AppKitMarkdownImageBlockView` (AppKit, its own BlockInputKit loader).
+- All markdown image loads go through the shared `AppMarkdownImageStore` (`Core/`); snapshot hosts inject a preloaded store via the `\.appMarkdownImageStore` environment key so no test touches the network. Single-line label surfaces (`.inline` parsing mode) keep the plain alt-text fallback.
 - The parser supports a small HTML subset: `b`, `strong`, `i`, `em`, `u`, `p`, and `a`.
 - Task-list markers (`[ ]`, `[x]`) render as interactive checkboxes with local cached state.
 

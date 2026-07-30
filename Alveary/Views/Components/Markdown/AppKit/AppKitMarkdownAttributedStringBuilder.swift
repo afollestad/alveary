@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 import SwiftUI
 
@@ -9,7 +10,8 @@ enum AppKitMarkdownAttributedStringBuilder {
         baseFont: NSFont,
         inlineCodeFont: NSFont? = nil,
         weight: NSFont.Weight = .regular,
-        inlineCodeStyle: AppMarkdownInlineCodeStyle
+        inlineCodeStyle: AppMarkdownInlineCodeStyle,
+        imageStore: AppMarkdownImageStore? = nil
     ) -> NSAttributedString {
         let attributed = NSMutableAttributedString(attributedString: NSAttributedString(content))
         let fullRange = NSRange(location: 0, length: attributed.length)
@@ -20,10 +22,20 @@ enum AppKitMarkdownAttributedStringBuilder {
         ], range: fullRange)
 
         var location = 0
+        var inlineImageRuns: [(range: NSRange, info: AppMarkdownInlineImageInfo)] = []
         for run in content.runs {
             let runText = String(content[run.range].characters)
             let range = NSRange(location: location, length: (runText as NSString).length)
             defer { location += range.length }
+            if let info = run[AppMarkdownInlineImageAttribute.self] {
+                // Styling inside the alt text can split one image span into several
+                // runs; coalesce them so the span swaps for a single attachment.
+                if let last = inlineImageRuns.last, last.info == info, NSMaxRange(last.range) == range.location {
+                    inlineImageRuns[inlineImageRuns.count - 1].range = NSUnionRange(last.range, range)
+                } else {
+                    inlineImageRuns.append((range, info))
+                }
+            }
             addAttributes(for: run, to: attributed, context: .init(
                 range: range,
                 baseFont: baseFont,
@@ -31,7 +43,40 @@ enum AppKitMarkdownAttributedStringBuilder {
                 inlineCodeStyle: inlineCodeStyle
             ))
         }
+        replaceInlineImageRuns(inlineImageRuns, in: attributed, baseFont: baseFont, store: imageStore ?? .shared)
         return attributed
+    }
+
+    /// Swaps loaded inline-image alt runs for baseline-aligned text attachments,
+    /// mirroring the SwiftUI renderer; unloaded and failed runs keep their alt
+    /// text and are re-rendered when the store posts a state change.
+    private static func replaceInlineImageRuns(
+        _ runs: [(range: NSRange, info: AppMarkdownInlineImageInfo)],
+        in attributed: NSMutableAttributedString,
+        baseFont: NSFont,
+        store: AppMarkdownImageStore
+    ) {
+        for (range, info) in runs.reversed() {
+            store.ensureLoad(for: BlockInputImage(source: info.source, altText: info.altText), baseURL: nil)
+            guard let nsImage = store.image(forSource: info.source) else {
+                continue
+            }
+            let attachment = NSTextAttachment()
+            attachment.image = nsImage
+            if let accessibleImage = nsImage.copy() as? NSImage {
+                accessibleImage.accessibilityDescription = info.accessibilityLabel
+                attachment.image = accessibleImage
+            }
+            // Negative origin dips the image below the baseline so it centers on
+            // the cap-height midline, matching GitHub and the SwiftUI renderer.
+            let size = info.displaySize(forNaturalSize: nsImage.size)
+            let drop = AppMarkdownInlineImageInfo.baselineDrop(
+                forDisplayHeight: size.height,
+                capHeight: baseFont.capHeight
+            )
+            attachment.bounds = CGRect(origin: CGPoint(x: 0, y: -drop), size: size)
+            attributed.replaceCharacters(in: range, with: NSAttributedString(attachment: attachment))
+        }
     }
 
     static func syntaxHighlightedCode(

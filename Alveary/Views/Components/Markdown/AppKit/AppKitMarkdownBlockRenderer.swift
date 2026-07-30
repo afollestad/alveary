@@ -11,6 +11,7 @@ struct AppKitMarkdownBlockRenderer {
     let onOpenLink: ((URL) -> Void)?
     let onOpenImage: ((BlockInputImage, URL?) -> Void)?
     let heightInvalidationHandler: () -> Void
+    var imageStore: AppMarkdownImageStore = .shared
 
     func views(for blocks: [AppMarkdownDocumentBlock]) -> [NSView] {
         blocks.flatMap { block -> [NSView] in
@@ -80,7 +81,8 @@ struct AppKitMarkdownBlockRenderer {
                     inlineCodeStyle: inlineCodeStyle,
                     typography: typography,
                     onOpenLink: onOpenLink,
-                    heightInvalidationHandler: heightInvalidationHandler
+                    heightInvalidationHandler: heightInvalidationHandler,
+                    imageStore: imageStore
                 )
             )
         default:
@@ -174,7 +176,8 @@ struct AppKitMarkdownBlockRenderer {
                 baseFont: font ?? typography.body,
                 inlineCodeFont: typography.inlineCode,
                 weight: weight,
-                inlineCodeStyle: inlineCodeStyle
+                inlineCodeStyle: inlineCodeStyle,
+                imageStore: imageStore
             ),
             onOpenLink: onOpenLink,
             heightInvalidationHandler: heightInvalidationHandler

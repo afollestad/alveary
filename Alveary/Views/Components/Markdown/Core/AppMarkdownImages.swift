@@ -9,7 +9,10 @@ extension AppMarkdownParser {
         for input: String,
         fullContent: AttributedString? = nil
     ) throws -> [AppMarkdownDocumentBlock] {
+        // Remote images sharing a line with text stay in the markdown fragments and
+        // render inline (GitHub parity); everything else still extracts into blocks.
         let matches = AppMarkdownImageSyntaxParser.imageMatchesOutsideCode(in: input)
+            .filter { $0.isBlockExtractable(in: input) }
         guard !matches.isEmpty else {
             if let fullContent {
                 return [.markdown(fullContent)]
@@ -82,10 +85,39 @@ func appMarkdownByReplacingImageSyntaxWithFallback(in input: String) -> String {
 
     let result = NSMutableString(string: input)
     for match in matches {
-        let fallback = match.image.altText.isEmpty ? match.image.source : match.image.altText
-        result.replaceCharacters(in: match.range, with: fallback)
+        result.replaceCharacters(in: match.range, with: match.image.appMarkdownAltFallback)
     }
     return result as String
+}
+
+/// Replaces image syntax with alt-text fallbacks, wrapping the inline-rendered
+/// subset (remote images sharing a line with text) in private-use markers so the
+/// parser can attach `AppMarkdownInlineImageAttribute` after markdown parsing.
+/// The returned images are ordered left to right, matching the marker pairs.
+func appMarkdownByMarkingInlineImages(
+    in input: String,
+    startMarker: String,
+    endMarker: String
+) -> (text: String, inlineImages: [BlockInputImage]) {
+    let matches = AppMarkdownImageSyntaxParser.imageMatchesOutsideCode(in: input)
+    guard !matches.isEmpty else {
+        return (input, [])
+    }
+
+    var inlineImages: [BlockInputImage] = []
+    let result = NSMutableString(string: input)
+    for match in matches.reversed() {
+        if match.isBlockExtractable(in: input) {
+            result.replaceCharacters(in: match.range, with: match.image.appMarkdownAltFallback)
+        } else {
+            inlineImages.append(match.image)
+            result.replaceCharacters(
+                in: match.range,
+                with: startMarker + match.image.appMarkdownAltFallback + endMarker
+            )
+        }
+    }
+    return (result as String, inlineImages.reversed())
 }
 
 /// Prepares single-line labels and auto-generated titles for compact display.
@@ -264,6 +296,55 @@ enum AppMarkdownImageSyntaxParser {
 struct AppMarkdownImageMatch {
     let range: NSRange
     let image: BlockInputImage
+
+    /// Standalone-block extraction applies to images alone on their line and to
+    /// local/relative sources; inline rendering is remote-only, mirroring
+    /// BlockInputKit's split rule so editors and renderers agree.
+    func isBlockExtractable(in text: String) -> Bool {
+        isAloneOnLine(in: text) || !image.source.appMarkdownIsRemoteImageSource
+    }
+
+    private func isAloneOnLine(in text: String) -> Bool {
+        let nsText = text as NSString
+        guard range.location >= 0, NSMaxRange(range) <= nsText.length else {
+            return false
+        }
+        let lineRange = nsText.lineRange(for: range)
+        let leading = NSRange(location: lineRange.location, length: range.location - lineRange.location)
+        let trailing = NSRange(location: NSMaxRange(range), length: NSMaxRange(lineRange) - NSMaxRange(range))
+        return nsText.appMarkdownIsWhitespaceOnly(in: leading) && nsText.appMarkdownIsWhitespaceOnly(in: trailing)
+    }
+}
+
+extension BlockInputImage {
+    var appMarkdownAltFallback: String {
+        altText.isEmpty ? source : altText
+    }
+}
+
+extension String {
+    var appMarkdownIsRemoteImageSource: Bool {
+        guard let url = URL(string: self),
+              let scheme = url.scheme?.lowercased() else {
+            return false
+        }
+        return scheme == "http" || scheme == "https"
+    }
+}
+
+private extension NSString {
+    func appMarkdownIsWhitespaceOnly(in range: NSRange) -> Bool {
+        guard range.length > 0 else {
+            return true
+        }
+        for offset in range.location..<NSMaxRange(range) {
+            guard let scalar = UnicodeScalar(character(at: offset)),
+                  CharacterSet.whitespacesAndNewlines.contains(scalar) else {
+                return false
+            }
+        }
+        return true
+    }
 }
 
 private func appMarkdownConstrainedImageSize(

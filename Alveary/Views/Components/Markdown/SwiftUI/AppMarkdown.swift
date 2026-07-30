@@ -104,7 +104,7 @@ struct AppMarkdownText: View {
             )
             return parser.documentPreservingSource(for: markdown)
         }
-        return AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle)
+        return AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle, baseURL: baseURL)
     }
 }
 
@@ -174,10 +174,10 @@ struct DeferredAppMarkdownText: View {
     @ViewBuilder
     private func rendered(_ document: AppMarkdownDocument) -> some View {
         if let foregroundColor {
-            AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle)
+            AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle, baseURL: baseURL)
                 .foregroundStyle(foregroundColor)
         } else {
-            AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle)
+            AppMarkdownRenderer(document: document, inlineCodeStyle: inlineCodeStyle, baseURL: baseURL)
         }
     }
 

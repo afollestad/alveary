@@ -1,9 +1,13 @@
+import BlockInputKit
 import Foundation
 
-// Foundation's markdown parser has no native underline intent. These private-use
-// markers survive parsing, then get removed after their enclosed range is underlined.
+// Foundation's markdown parser has no native underline or inline-image intent.
+// These private-use markers survive parsing, then get removed after styling the
+// enclosed range (underline) or attaching the inline-image attribute.
 private let appMarkdownUnderlineStartMarker = "\u{E000}"
 private let appMarkdownUnderlineEndMarker = "\u{E001}"
+private let appMarkdownInlineImageStartMarker = "\u{E002}"
+private let appMarkdownInlineImageEndMarker = "\u{E003}"
 
 enum AppMarkdownParsingMode {
     case structured
@@ -27,7 +31,7 @@ struct AppMarkdownParser {
 
     func document(for input: String) throws -> AppMarkdownDocument {
         let content = try attributedString(for: input)
-        let blockSource = markdownByPreparingSourceForParsing(input, replacingImagesWithFallback: false)
+        let blockSource = markdownByPreparingSourceForParsing(input, imagePreprocessing: .preserveSource).text
         return AppMarkdownDocument(
             content: content,
             blocks: try appMarkdownDocumentBlocks(for: blockSource, fullContent: content)
@@ -38,8 +42,8 @@ struct AppMarkdownParser {
         do {
             return try document(for: input)
         } catch {
-            let content = AttributedString(markdownByPreparingSourceForParsing(input))
-            let blockSource = markdownByPreparingSourceForParsing(input, replacingImagesWithFallback: false)
+            let content = AttributedString(markdownByPreparingSourceForParsing(input).text)
+            let blockSource = markdownByPreparingSourceForParsing(input, imagePreprocessing: .preserveSource).text
             return AppMarkdownDocument(
                 content: content,
                 blocks: appMarkdownDocumentBlocksPreservingSource(for: blockSource, fullContent: content)
@@ -48,29 +52,35 @@ struct AppMarkdownParser {
     }
 
     func attributedString(for input: String) throws -> AttributedString {
-        let input = markdownByPreparingSourceForParsing(input)
         let options: AttributedString.MarkdownParsingOptions
+        let imagePreprocessing: AppMarkdownImagePreprocessing
         switch parsingMode {
         case .structured:
             options = .init()
+            imagePreprocessing = .inlineImageMarkers
         case .inline:
+            // Single-line label surfaces cannot grow lines or load images, so they
+            // keep the plain alt-text fallback.
             options = .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            imagePreprocessing = .altTextFallback
         }
+        let prepared = markdownByPreparingSourceForParsing(input, imagePreprocessing: imagePreprocessing)
 
         var attributedString = try AttributedString(
-            markdown: input,
+            markdown: prepared.text,
             options: options,
             baseURL: baseURL
         )
         applyUnderlineMarkers(to: &attributedString)
+        applyInlineImageMarkers(to: &attributedString, images: prepared.inlineImages)
         attachComposerChips(to: &attributedString)
         return attributedString
     }
 
     private func markdownByPreparingSourceForParsing(
         _ input: String,
-        replacingImagesWithFallback: Bool = true
-    ) -> String {
+        imagePreprocessing: AppMarkdownImagePreprocessing = .altTextFallback
+    ) -> (text: String, inlineImages: [BlockInputImage]) {
         var output = markdownByNormalizingFrontMatter(in: input)
         output = replacingMatchesOutsideCode(
             pattern: #"<u(?:\s[^>]*)?>([\s\S]*?)</u>"#,
@@ -98,10 +108,18 @@ struct AppMarkdownParser {
         ) { source, match in
             "\n\n\(source.substring(with: match.range(at: 1)))\n\n"
         }
-        if replacingImagesWithFallback {
-            output = appMarkdownByReplacingImageSyntaxWithFallback(in: output)
+        switch imagePreprocessing {
+        case .preserveSource:
+            return (output, [])
+        case .altTextFallback:
+            return (appMarkdownByReplacingImageSyntaxWithFallback(in: output), [])
+        case .inlineImageMarkers:
+            return appMarkdownByMarkingInlineImages(
+                in: output,
+                startMarker: appMarkdownInlineImageStartMarker,
+                endMarker: appMarkdownInlineImageEndMarker
+            )
         }
-        return output
     }
 
     private func markdownByNormalizingFrontMatter(in input: String) -> String {
@@ -204,7 +222,11 @@ struct AppMarkdownParser {
     }
 
     private func applyUnderlineMarkers(to attributedString: inout AttributedString) {
-        let pairs = underlineMarkerPairs(in: String(attributedString.characters)).reversed()
+        let pairs = markerPairs(
+            in: String(attributedString.characters),
+            startMarker: appMarkdownUnderlineStartMarker,
+            endMarker: appMarkdownUnderlineEndMarker
+        ).reversed()
         for pair in pairs {
             removeRange(pair.endMarkerRange, from: &attributedString)
             removeRange(pair.startMarkerRange, from: &attributedString)
@@ -219,29 +241,68 @@ struct AppMarkdownParser {
         }
     }
 
-    private func underlineMarkerPairs(in input: String) -> [AppMarkdownUnderlineMarkerPair] {
+    /// Attaches the inline-image attribute to each marker-wrapped alt-text run.
+    /// Marker pairs and `images` are both ordered left to right; a count mismatch
+    /// means the markdown parser mangled a marker, so just strip the markers.
+    private func applyInlineImageMarkers(
+        to attributedString: inout AttributedString,
+        images: [BlockInputImage]
+    ) {
+        let pairs = markerPairs(
+            in: String(attributedString.characters),
+            startMarker: appMarkdownInlineImageStartMarker,
+            endMarker: appMarkdownInlineImageEndMarker
+        )
+        guard !pairs.isEmpty else {
+            return
+        }
+        let orderedImages: [BlockInputImage?] = pairs.count == images.count
+            ? images
+            : Array(repeating: nil, count: pairs.count)
+        for (pair, image) in zip(pairs, orderedImages).reversed() {
+            removeRange(pair.endMarkerRange, from: &attributedString)
+            removeRange(pair.startMarkerRange, from: &attributedString)
+            guard let image else {
+                continue
+            }
+            let contentRange = NSRange(
+                location: pair.contentRange.location - pair.startMarkerRange.length,
+                length: pair.contentRange.length
+            )
+            guard let attributedRange = resolveAttributedRange(for: contentRange, in: attributedString) else {
+                continue
+            }
+            attributedString[attributedRange].appMarkdown.inlineImage = AppMarkdownInlineImageInfo(image: image)
+        }
+    }
+
+    private func markerPairs(
+        in input: String,
+        startMarker: String,
+        endMarker: String
+    ) -> [AppMarkdownMarkerPair] {
         let source = input as NSString
-        let startLength = (appMarkdownUnderlineStartMarker as NSString).length
-        let endLength = (appMarkdownUnderlineEndMarker as NSString).length
-        var pairs: [AppMarkdownUnderlineMarkerPair] = []
+        let startLength = (startMarker as NSString).length
+        let endLength = (endMarker as NSString).length
+        var pairs: [AppMarkdownMarkerPair] = []
         var searchLocation = 0
 
         while searchLocation < source.length {
             let searchRange = NSRange(location: searchLocation, length: source.length - searchLocation)
-            let startRange = source.range(of: appMarkdownUnderlineStartMarker, options: [], range: searchRange)
+            let startRange = source.range(of: startMarker, options: [], range: searchRange)
             guard startRange.location != NSNotFound else {
                 break
             }
 
             let afterStartLocation = startRange.location + startLength
             let endSearchRange = NSRange(location: afterStartLocation, length: source.length - afterStartLocation)
-            let endRange = source.range(of: appMarkdownUnderlineEndMarker, options: [], range: endSearchRange)
+            let endRange = source.range(of: endMarker, options: [], range: endSearchRange)
             guard endRange.location != NSNotFound else {
                 break
             }
 
             pairs.append(
-                AppMarkdownUnderlineMarkerPair(
+                AppMarkdownMarkerPair(
                     startMarkerRange: startRange,
                     contentRange: NSRange(location: afterStartLocation, length: endRange.location - afterStartLocation),
                     endMarkerRange: endRange
@@ -358,8 +419,18 @@ struct AppMarkdownParser {
     }
 }
 
-private struct AppMarkdownUnderlineMarkerPair {
+private struct AppMarkdownMarkerPair {
     let startMarkerRange: NSRange
     let contentRange: NSRange
     let endMarkerRange: NSRange
+}
+
+/// Image-syntax handling applied while preparing markdown source for parsing.
+private enum AppMarkdownImagePreprocessing {
+    /// Keep image syntax verbatim (block-splitting input).
+    case preserveSource
+    /// Replace every image with its alt-text fallback (single-line surfaces).
+    case altTextFallback
+    /// Alt-text fallbacks, with inline-rendered images wrapped in markers.
+    case inlineImageMarkers
 }

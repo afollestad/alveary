@@ -290,7 +290,8 @@ private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
                 baseFont: rendering.typography.body,
                 inlineCodeFont: rendering.typography.inlineCode,
                 weight: isHeader ? .semibold : .regular,
-                inlineCodeStyle: rendering.inlineCodeStyle
+                inlineCodeStyle: rendering.inlineCodeStyle,
+                imageStore: rendering.imageStore
             ),
             onOpenLink: rendering.onOpenLink,
             heightInvalidationHandler: rendering.heightInvalidationHandler
@@ -318,6 +319,7 @@ struct AppKitMarkdownTableRendering {
     let typography: AppKitMarkdownTypography
     let onOpenLink: ((URL) -> Void)?
     let heightInvalidationHandler: () -> Void
+    let imageStore: AppMarkdownImageStore
 }
 
 #if DEBUG

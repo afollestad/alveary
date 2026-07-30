@@ -18,5 +18,6 @@ AppKit markdown rendering for transcript migration lives here.
 - **Reserve table scroller lanes.** Wide tables should reserve vertical space so the overlay bar stays below the last row.
 - **Hug table chrome.** Draw rounded fill and border on a content-height inner chrome view, not the stretched outer measurement view.
 - **Keep measurer parity.** `AppKitMarkdownLayoutMeasurer` must mirror renderer spacing, marker widths, table/code sizing, typography, and overflow reserves; update parity tests with renderer layout changes.
+- **Inline images are attachment swaps keyed to one store.** `AppKitMarkdownAttributedStringBuilder` replaces loaded `AppMarkdownInlineImageAttribute` runs with baseline-aligned `NSTextAttachment`s and kicks loads on the passed `AppMarkdownImageStore`; measurer, renderer, and `AppKitMarkdownView` must share that store instance or measured and drawn heights diverge. `AppKitMarkdownView` rebuilds on the store's state-change notification when the document references the loaded source. Tests must inject a stub store — the default `.shared` store loads over the network.
 - **Stay infrastructure until wired.** Do not route non-transcript markdown surfaces through AppKit unless explicitly requested.
 - **Prefer parity tests.** New AppKit markdown behavior should be tested against the same parser/model fixtures used by SwiftUI.

@@ -1,3 +1,4 @@
+import BlockInputKit
 import Foundation
 import SwiftUI
 
@@ -6,10 +7,67 @@ struct AppMarkdownInlineText: View {
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
 
     @Environment(\.appMarkdownTypography) private var typography
+    @Environment(\.appMarkdownImageStore) private var environmentStore
 
     var body: some View {
-        Text(styledContent)
+        builtText
             .fixedSize(horizontal: false, vertical: true)
+            .task(id: inlineImageInfos) {
+                for info in inlineImageInfos {
+                    store.ensureLoad(for: BlockInputImage(source: info.source, altText: info.altText), baseURL: nil)
+                }
+            }
+    }
+
+    /// Inline-image runs whose bitmap has loaded render as the image at natural
+    /// (or declared) point size, sitting on the text baseline; unloaded and failed
+    /// runs keep showing their alt text.
+    private var builtText: Text {
+        let styled = styledContent
+        guard !inlineImageInfos.isEmpty else {
+            return Text(styled)
+        }
+        var built = Text(verbatim: "")
+        for run in styled.runs[AppMarkdownInlineImageAttribute.self] {
+            let segment: Text
+            if let info = run.0, let nsImage = store.image(forSource: info.source) {
+                segment = inlineImageText(info: info, nsImage: nsImage)
+            } else {
+                segment = Text(AttributedString(styled[run.1]))
+            }
+            built = Text("\(built)\(segment)")
+        }
+        return built
+    }
+
+    private func inlineImageText(info: AppMarkdownInlineImageInfo, nsImage: NSImage) -> Text {
+        guard let sized = nsImage.copy() as? NSImage else {
+            return Text(info.accessibilityLabel)
+        }
+        let displaySize = info.displaySize(forNaturalSize: nsImage.size)
+        sized.size = displaySize
+        sized.accessibilityDescription = info.accessibilityLabel
+        // Body cap height approximates the run's font; comment surfaces render at
+        // body size, and a slight miss in headings beats a baseline-riding badge.
+        let drop = AppMarkdownInlineImageInfo.baselineDrop(
+            forDisplayHeight: displaySize.height,
+            capHeight: NSFont.preferredFont(forTextStyle: .body).capHeight
+        )
+        return Text(Image(nsImage: sized)).baselineOffset(-drop)
+    }
+
+    private var inlineImageInfos: [AppMarkdownInlineImageInfo] {
+        var infos: [AppMarkdownInlineImageInfo] = []
+        for run in content.runs[AppMarkdownInlineImageAttribute.self] {
+            if let info = run.0, !infos.contains(info) {
+                infos.append(info)
+            }
+        }
+        return infos
+    }
+
+    private var store: AppMarkdownImageStore {
+        environmentStore ?? .shared
     }
 
     private var styledContent: AttributedString {

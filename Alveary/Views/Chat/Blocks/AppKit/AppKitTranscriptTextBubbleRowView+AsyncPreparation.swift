@@ -10,7 +10,10 @@ extension AppKitTranscriptTextBubbleRowView {
             isExpanded: isExpanded,
             markdownWidth: markdownWidth,
             inlineCodeStyle: inlineCodeStyle(for: configuration.role),
-            appearance: effectiveAppearance
+            appearance: effectiveAppearance,
+            inlineImageFingerprint: AppMarkdownImageStore.shared.loadStateFingerprint(
+                forMarkdown: configuration.markdown
+            )
         )
     }
 

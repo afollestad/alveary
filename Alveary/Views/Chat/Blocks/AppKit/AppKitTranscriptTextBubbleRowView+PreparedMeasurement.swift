@@ -14,6 +14,9 @@ enum TextBubblePreparedMeasurement {
         let markdownWidth: CGFloat
         let inlineCodeStyle: AppMarkdownInlineCodeStyle
         let appearance: NSAppearance
+        // Captured at construction on the main actor; `key` is also computed from
+        // nonisolated async-preparation contexts that cannot reach the store.
+        let inlineImageFingerprint: String
 
         var key: AppKitMarkdownPreparedLayoutKey {
             AppKitMarkdownPreparedLayoutKey(
@@ -26,7 +29,8 @@ enum TextBubblePreparedMeasurement {
                 inlineCodeStyle: inlineCodeStyle,
                 appearanceName: TextBubblePreparedMeasurement.markdownAppearanceName(for: appearance),
                 isExpanded: isExpanded,
-                showsRetry: configuration.showsRetry
+                showsRetry: configuration.showsRetry,
+                inlineImageFingerprint: inlineImageFingerprint
             )
         }
 

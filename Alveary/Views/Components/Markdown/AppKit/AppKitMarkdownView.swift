@@ -30,12 +30,16 @@ final class AppKitMarkdownView: NSView {
     private var inlineCodeStyle: AppMarkdownInlineCodeStyle
     private var typography: AppKitMarkdownTypography
     private var imageBaseURL: URL?
+    private var inlineImageSources: Set<String> = []
+    private nonisolated(unsafe) var inlineImageObserver: (any NSObjectProtocol)?
+    private let imageStore: AppMarkdownImageStore
 
     init(
         document: AppMarkdownDocument,
         inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard,
         typography: AppKitMarkdownTypography = .default,
         imageBaseURL: URL? = nil,
+        imageStore: AppMarkdownImageStore = .shared,
         onOpenLink: ((URL) -> Void)? = nil,
         onOpenImage: ((BlockInputImage, URL?) -> Void)? = nil
     ) {
@@ -43,16 +47,24 @@ final class AppKitMarkdownView: NSView {
         self.inlineCodeStyle = inlineCodeStyle
         self.typography = typography
         self.imageBaseURL = imageBaseURL
+        self.imageStore = imageStore
         self.onOpenLink = onOpenLink
         self.onOpenImage = onOpenImage
         super.init(frame: .zero)
         setup()
+        observeInlineImageLoads()
         rebuild()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        if let inlineImageObserver {
+            NotificationCenter.default.removeObserver(inlineImageObserver)
+        }
     }
 
     override var isFlipped: Bool {
@@ -116,7 +128,29 @@ final class AppKitMarkdownView: NSView {
         ])
     }
 
+    /// Inline images render as text attachments only once their bitmap is in the
+    /// store, so a finished load for a source this document references requires a
+    /// rebuild to swap the alt text for the image and re-report the height.
+    private func observeInlineImageLoads() {
+        inlineImageObserver = NotificationCenter.default.addObserver(
+            forName: .appMarkdownImageStateDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let source = notification.userInfo?[AppMarkdownImageStore.sourceUserInfoKey] as? String else {
+                return
+            }
+            MainActor.assumeIsolated {
+                guard let self, self.inlineImageSources.contains(source) else {
+                    return
+                }
+                self.rebuild()
+            }
+        }
+    }
+
     private func rebuild() {
+        inlineImageSources = document.inlineImageSources
         stackView.arrangedSubviews.forEach { view in
             stackView.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -131,7 +165,8 @@ final class AppKitMarkdownView: NSView {
             onOpenImage: onOpenImage,
             heightInvalidationHandler: { [weak self] in
                 self?.invalidateMarkdownHeight()
-            }
+            },
+            imageStore: imageStore
         )
         renderer.views(for: document.blocks).forEach { view in
             stackView.addArrangedSubview(view)
