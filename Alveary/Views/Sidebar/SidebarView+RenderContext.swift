@@ -11,6 +11,7 @@ struct SidebarRenderContext {
     let threadOrderAnimation: Animation?
     let dragLogicalOrder: SidebarDragLogicalOrder
     let hasArchivedThreads: Bool
+    let showsPullRequests: Bool
 
     var pinnedItems: [SidebarPinnedItem] { snapshot.pinnedItems }
     var orderedProjects: [Project] { snapshot.orderedProjects }
@@ -45,7 +46,8 @@ extension SidebarView {
                 unpinnableTaskIDs: unpinnableTaskIDs(in: snapshot),
                 projectIDByTaskID: projectIDByTaskID(in: snapshot)
             ),
-            hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty
+            hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty,
+            showsPullRequests: viewModel.settingsService.current.showsPullRequestsInSidebar
         )
     }
 

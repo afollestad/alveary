@@ -61,6 +61,10 @@ struct GraphQLRepositoryNode: Decodable {
     let nameWithOwner: String?
 }
 
+struct GraphQLRefNode: Decodable {
+    let name: String?
+}
+
 struct GraphQLCommitsNode: Decodable {
     let nodes: [GraphQLCommitWrapperNode?]?
 }
@@ -115,11 +119,15 @@ struct PullRequestDetailNode: Decodable {
     let state: String?
     let isDraft: Bool?
     let body: String?
+    /// Whether the signed-in user may edit the pull request's own body.
+    let viewerCanUpdate: Bool?
     let createdAt: Date?
     let updatedAt: Date?
     let author: GraphQLActorNode?
     let headRefName: String?
     let baseRefName: String?
+    /// Null once the head branch is deleted, while `headRefName` keeps the name.
+    let headRef: GraphQLRefNode?
     let additions: Int?
     let deletions: Int?
     let changedFiles: Int?
@@ -127,6 +135,9 @@ struct PullRequestDetailNode: Decodable {
     let commits: GraphQLCommitsNode?
     let comments: GraphQLCommentsNode?
     let reviews: GraphQLReviewsNode?
+    /// Aliased `reviews(states: [PENDING])`. GitHub only ever exposes the
+    /// viewer's own pending review, so a hit here is always the viewer's draft.
+    let pendingReview: GraphQLReviewsNode?
     let reviewThreads: GraphQLReviewThreadsNode?
     let reviewRequests: GraphQLReviewRequestsNode?
     let timelineItems: GraphQLTimelineItemsNode?
@@ -146,7 +157,18 @@ struct GraphQLCommentNode: Decodable {
     let viewerCanUpdate: Bool?
     let viewerCanDelete: Bool?
     let diffHunk: String?
+    /// `PENDING` / `SUBMITTED` on review-thread comments; absent on top-level
+    /// conversation comments, which are never pending.
+    let state: String?
+    /// The review this thread comment was submitted with; nests the thread under
+    /// its review card in the Overview timeline.
+    let pullRequestReview: GraphQLNodeReference?
     let reactionGroups: [GraphQLReactionGroupNode?]?
+}
+
+/// A bare `{ id }` node reference.
+struct GraphQLNodeReference: Decodable {
+    let id: String?
 }
 
 struct GraphQLReactionGroupNode: Decodable {
@@ -165,6 +187,8 @@ struct GraphQLReviewsNode: Decodable {
 
 struct GraphQLReviewNode: Decodable {
     let id: String?
+    let databaseId: Int?
+    let viewerCanUpdate: Bool?
     let author: GraphQLActorNode?
     let state: String?
     let body: String?
@@ -242,4 +266,26 @@ struct GraphQLTimelineCommitNode: Decodable {
 struct GraphQLCommitAuthorNode: Decodable {
     let name: String?
     let user: GraphQLActorNode?
+}
+
+// MARK: - Pending review mutation payloads
+
+/// `addPullRequestReview`'s payload; the created review is PENDING because the
+/// mutation omits `event`.
+struct CreatePendingReviewGraphQLData: Decodable {
+    struct Payload: Decodable {
+        let pullRequestReview: GraphQLNodeReference?
+    }
+
+    let addPullRequestReview: Payload?
+}
+
+/// `addPullRequestReviewThread`'s payload. The thread selection matches the
+/// detail query's, so it maps through `makeReviewThreads`' element mapper.
+struct AddPendingReviewCommentGraphQLData: Decodable {
+    struct Payload: Decodable {
+        let thread: GraphQLReviewThreadNode?
+    }
+
+    let addPullRequestReviewThread: Payload?
 }

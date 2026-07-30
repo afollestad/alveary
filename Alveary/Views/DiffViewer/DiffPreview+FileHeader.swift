@@ -47,7 +47,10 @@ struct DiffPreviewFileHeader: View {
                     .animation(appExpansionAnimation, value: collapseState.isCollapsed)
             }
         }
-        .diffPreviewMinimumContentWidthFrame()
+        // Exact width, not minimum: under the scroll container's nil proposal a
+        // minWidth frame lets a long path's ideal widen the diff. The exact frame
+        // spans the scrollable width and lets the path middle-truncate instead.
+        .diffPreviewExactContentWidthFrame()
     }
 
     private var headerTitle: some View {

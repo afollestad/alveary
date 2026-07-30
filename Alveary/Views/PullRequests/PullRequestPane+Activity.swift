@@ -3,6 +3,7 @@ import SwiftUI
 /// Chronological conversation appended below the Overview content: issue comments
 /// and reviews merged by date, followed by inline review threads.
 struct PullRequestPaneActivitySection: View {
+    let session: PullRequestPaneSession
     let detail: PullRequestDetail
     let viewModel: PullRequestsViewModel
     /// Switches the pane to the Changes tab, where the thread renders inline in the diff.
@@ -16,56 +17,112 @@ struct PullRequestPaneActivitySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Comment-action failures without an open inline editor land here —
+            // the surface the action came from. The Changes tab shows the same
+            // session error, and open editors render it inline instead.
+            if let error = session.composerError, !hasOpenComposer {
+                InlineBanner(
+                    message: error,
+                    severity: .error,
+                    autoDismissAfter: nil,
+                    onDismiss: { viewModel.clearCommentActionError() }
+                )
+            }
+
             ForEach(PullRequestActivityEntry.entries(from: detail)) { entry in
                 if case .thread(let thread) = entry.kind {
-                    PullRequestReviewThreadView(thread: thread, viewModel: viewModel, onOpenFiles: onOpenFiles)
+                    PullRequestReviewThreadView(
+                        thread: thread,
+                        session: session,
+                        viewModel: viewModel,
+                        onOpenFiles: onOpenFiles
+                    )
+                } else if !entry.nestedThreads.isEmpty {
+                    PullRequestActivityReviewGroupView(
+                        entry: entry,
+                        session: session,
+                        viewModel: viewModel,
+                        onOpenFiles: onOpenFiles
+                    )
                 } else {
-                    PullRequestActivityEntryView(entry: entry, viewModel: viewModel)
+                    PullRequestActivityEntryView(entry: entry, session: session, viewModel: viewModel)
                 }
+            }
+        }
+    }
+
+    private var hasOpenComposer: Bool {
+        session.composerAnchor != nil
+            || session.composerRemoteCommentID != nil
+            || session.composerIssueCommentID != nil
+            || session.composerReviewID != nil
+            || session.composerReplyToCommentID != nil
+    }
+}
+
+/// A review card with the threads submitted alongside it nested underneath,
+/// indented behind a connecting rail so the relation reads like GitHub's.
+private struct PullRequestActivityReviewGroupView: View {
+    let entry: PullRequestActivityEntry
+    let session: PullRequestPaneSession
+    let viewModel: PullRequestsViewModel
+    let onOpenFiles: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            PullRequestActivityEntryView(entry: entry, session: session, viewModel: viewModel)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(entry.nestedThreads.enumerated()), id: \.offset) { _, thread in
+                    PullRequestReviewThreadView(
+                        thread: thread,
+                        session: session,
+                        viewModel: viewModel,
+                        onOpenFiles: onOpenFiles
+                    )
+                }
+            }
+            .padding(.leading, 24)
+            .overlay(alignment: .leading) {
+                // An L: the horizontal foot marks where the review's threads end.
+                PullRequestActivityRail()
+                    .padding(.leading, 4)
             }
         }
     }
 }
 
-struct PullRequestActivityEntry: Identifiable {
-    enum Kind {
-        case comment(PullRequestComment)
-        case review(PullRequestReview)
-        case statusEvent(PullRequestTimelineEvent)
-        case thread(PullRequestReviewThread)
-    }
+/// The nested-thread connecting rail: a vertical line down the leading edge that
+/// turns into a horizontal foot along the bottom, so the hierarchy visibly ends.
+///
+/// The turn is the bottom-leading corner of the same continuous rounded rectangle
+/// the thread cards draw, so both roundings read as one shape language. The other
+/// three edges are pushed outside the clip, leaving only the L. A continuous
+/// corner spreads about 1.53x its radius along each edge, which is why the rail
+/// is wider than the turn's radius.
+private struct PullRequestActivityRail: View {
+    private static let cornerRadius = PullRequestReviewThreadView.cardCornerRadius
+    /// Enough room for the whole turn plus the stroke inset, so the foot flattens
+    /// out before the clip cuts it. The rail owns this rather than its caller
+    /// because a narrower box would cut the turn mid-curve.
+    private static let width: CGFloat = 20
+    /// Pushes the trailing and top edges past the clip; any value beyond the
+    /// rail's own bounds works.
+    private static let overhang: CGFloat = 40
 
-    let id: Int
-    let date: Date?
-    let kind: Kind
-
-    static func entries(from detail: PullRequestDetail) -> [PullRequestActivityEntry] {
-        var merged: [(date: Date?, kind: Kind)] = detail.comments.map { ($0.createdAt, .comment($0)) }
-        // Body-less "commented" reviews are inline-comment carriers; their thread
-        // content renders elsewhere, so a card here would be an empty shell.
-        let visibleReviews = detail.reviews.filter { review in
-            switch review.state {
-            case .approved, .changesRequested, .dismissed:
-                return true
-            case .commented, .pending:
-                return !PullRequestMarkdown.sanitized(review.bodyMarkdown).isEmpty || !review.reactions.isEmpty
-            }
-        }
-        merged.append(contentsOf: visibleReviews.map { ($0.submittedAt, .review($0)) })
-        merged.append(contentsOf: detail.timelineEvents.map { ($0.createdAt, .statusEvent($0)) })
-        // Review threads interleave chronologically, dated by their root comment.
-        merged.append(contentsOf: detail.reviewThreads.map { ($0.comments.first?.createdAt, .thread($0)) })
-        let sorted = merged.sorted { lhs, rhs in
-            (lhs.date ?? .distantPast) < (rhs.date ?? .distantPast)
-        }
-        return sorted.enumerated().map { index, entry in
-            PullRequestActivityEntry(id: index, date: entry.date, kind: entry.kind)
-        }
+    var body: some View {
+        UnevenRoundedRectangle(bottomLeadingRadius: Self.cornerRadius, style: .continuous)
+            .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 2)
+            .padding(.top, -Self.overhang)
+            .padding(.trailing, -Self.overhang)
+            .clipped()
+            .frame(width: Self.width)
     }
 }
 
 private struct PullRequestActivityEntryView: View {
     let entry: PullRequestActivityEntry
+    let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
 
     var body: some View {
@@ -90,17 +147,18 @@ private struct PullRequestActivityEntryView: View {
             Text(event.actorLogin)
                 .font(.caption.weight(.medium))
 
+            // One line, ellipsized: commit phrases carry the full headline and
+            // would otherwise wrap these bare rows to two lines.
             Text(Self.phrase(for: event))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
             Spacer(minLength: 0)
 
             if let date = entry.date {
-                Text(date, format: .dateTime.month(.abbreviated).day().year())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                PullRequestTimestampLabel(date: date, referenceDate: viewModel.referenceDate)
             }
         }
         // Bare rows sit between padded cards; extra breathing room keeps the
@@ -171,19 +229,34 @@ private struct PullRequestActivityEntryView: View {
                     Spacer(minLength: 0)
 
                     if let date = entry.date {
-                        Text(date, format: .dateTime.month(.abbreviated).day().year())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        PullRequestTimestampLabel(date: date, referenceDate: viewModel.referenceDate)
+                    }
+
+                    if let comment = actionableComment, !isEditingIssueComment {
+                        PullRequestCommentActionsMenu(
+                            onEdit: comment.viewerCanUpdate ? { viewModel.openIssueCommentEditor(comment) } : nil,
+                            onDelete: comment.viewerCanDelete ? { viewModel.requestDeleteIssueComment(comment) } : nil
+                        )
+                    } else if let review = actionableReview, !isEditingReviewBody {
+                        // Edit only: GitHub cannot delete a submitted review.
+                        PullRequestCommentActionsMenu(
+                            onEdit: { viewModel.openReviewBodyEditor(review) },
+                            onDelete: nil
+                        )
                     }
                 }
             }
 
-            PullRequestCommentBody(
-                markdown: bodyMarkdown,
-                nodeID: nodeID,
-                reactions: reactions,
-                viewModel: viewModel
-            )
+            if isEditingIssueComment || isEditingReviewBody {
+                PullRequestActivityCommentEditor(session: session, viewModel: viewModel)
+            } else if showsCardBody {
+                PullRequestCommentBody(
+                    markdown: bodyMarkdown,
+                    nodeID: nodeID,
+                    reactions: reactions,
+                    viewModel: viewModel
+                )
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -191,6 +264,60 @@ private struct PullRequestActivityEntryView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color.secondary.opacity(0.06))
         )
+    }
+
+    /// The issue comment behind this card when the viewer can act on it — the
+    /// same permission gate as thread comments (`viewerCanUpdate`/`viewerCanDelete`,
+    /// never authorship). Review cards gate through `actionableReview` instead.
+    private var actionableComment: PullRequestComment? {
+        guard case .comment(let comment) = entry.kind,
+              comment.databaseId != nil,
+              comment.viewerCanUpdate || comment.viewerCanDelete else {
+            return nil
+        }
+        return comment
+    }
+
+    /// Editing swaps the card body for the inline editor, keeping the author row.
+    private var isEditingIssueComment: Bool {
+        guard case .comment(let comment) = entry.kind,
+              let databaseId = comment.databaseId else {
+            return false
+        }
+        return session.composerIssueCommentID == databaseId
+    }
+
+    /// The review behind this card when the viewer may rewrite its summary body.
+    /// Same permission gate as comments, but no delete — GitHub only deletes
+    /// pending reviews, never submitted ones. Body-less review cards are bare
+    /// headers (a verdict row or a thread-group header) and get no menu, like
+    /// GitHub.
+    private var actionableReview: PullRequestReview? {
+        guard case .review(let review) = entry.kind,
+              review.databaseId != nil,
+              review.viewerCanUpdate,
+              !PullRequestMarkdown.sanitized(review.bodyMarkdown).isEmpty else {
+            return nil
+        }
+        return review
+    }
+
+    /// Review cards without a summary body render as bare headers: no body, no
+    /// reaction affordance, no menu — matching GitHub's "commented"/verdict rows.
+    /// Reactions that somehow exist on a body-less review still render.
+    private var showsCardBody: Bool {
+        guard case .review(let review) = entry.kind else {
+            return true
+        }
+        return !PullRequestMarkdown.sanitized(review.bodyMarkdown).isEmpty || !review.reactions.isEmpty
+    }
+
+    private var isEditingReviewBody: Bool {
+        guard case .review(let review) = entry.kind,
+              let databaseId = review.databaseId else {
+            return false
+        }
+        return session.composerReviewID == databaseId
     }
 
     private var avatarURL: URL? {
@@ -290,7 +417,7 @@ private struct PullRequestActivityEntryView: View {
     }
 
     /// Only verdict-bearing review cards keep a header glyph; plain comment and
-    /// review headers dropped the chat bubble as redundant next to the author row.
+    /// review headers dropped the chat bubble as redundant beside the author row.
     private var hasVerdictIcon: Bool {
         guard case .review(let review) = entry.kind else {
             return false
@@ -320,7 +447,7 @@ private struct PullRequestActivityEntryView: View {
             case .dismissed:
                 return "\(review.authorLogin) review dismissed"
             case .commented, .pending:
-                return "\(review.authorLogin) reviewed"
+                return "\(review.authorLogin) commented"
             }
         }
     }
@@ -334,108 +461,5 @@ private struct PullRequestActivityEntryView: View {
         case .review(let review):
             return review.bodyMarkdown
         }
-    }
-}
-
-private struct PullRequestReviewThreadView: View {
-    let thread: PullRequestReviewThread
-    let viewModel: PullRequestsViewModel
-    let onOpenFiles: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text(location)
-                    .font(.caption.weight(.medium).monospaced())
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                if thread.isResolved {
-                    badge("Resolved", color: .green)
-                }
-                if thread.isOutdated {
-                    // Orange, matching GitHub's outdated treatment.
-                    badge("Outdated", color: .orange)
-                }
-
-                Spacer(minLength: 0)
-
-                if !thread.isOutdated {
-                    Button("Show in Changes") {
-                        onOpenFiles()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityHint("Switches to the Changes tab")
-                }
-            }
-
-            if let excerpt = thread.diffHunkExcerpt {
-                Text(excerpt)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.secondary.opacity(0.08))
-                    )
-                    .accessibilityLabel("Code context")
-            }
-
-            ForEach(Array(thread.comments.enumerated()), id: \.offset) { _, comment in
-                VStack(alignment: .leading, spacing: 8) {
-                    // Same author treatment as the comment cards above; a thread
-                    // comment is still a comment, so its header must not read lighter.
-                    PullRequestCommentAuthorRow(
-                        login: comment.authorLogin,
-                        avatarURL: comment.authorAvatarURL,
-                        isBot: comment.isBot,
-                        avatarLoader: viewModel.avatarLoader,
-                        authorFont: .subheadline.weight(.medium),
-                        authorIsProminent: true
-                    ) {
-                        Spacer(minLength: 0)
-
-                        if let date = comment.createdAt {
-                            Text(date, format: .dateTime.month(.abbreviated).day().year())
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    PullRequestCommentBody(
-                        markdown: comment.bodyMarkdown,
-                        nodeID: comment.nodeID,
-                        reactions: comment.reactions,
-                        viewModel: viewModel
-                    )
-                }
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.secondary.opacity(0.06))
-        )
-    }
-
-    private var location: String {
-        if let line = thread.line {
-            return "\(thread.path):\(line)"
-        }
-        return thread.path
-    }
-
-    private func badge(_ label: String, color: Color) -> some View {
-        Text(label)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.14)))
-            .foregroundStyle(color)
     }
 }

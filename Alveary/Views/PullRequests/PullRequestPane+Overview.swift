@@ -7,6 +7,12 @@ struct PullRequestPaneOverview: View {
     /// Switches the pane to the Changes tab; activity review threads link there.
     let onOpenFiles: () -> Void
 
+    @State private var scrollPosition = ScrollPosition()
+    /// Whether the reader is parked at the end of the timeline, which is what
+    /// earns an appended entry an automatic scroll. Starts false so the first
+    /// detail cannot scroll a freshly opened pane away from its header.
+    @State private var isFollowingTimeline = false
+
     private var avatarLoader: GitHubAvatarLoader {
         viewModel.avatarLoader
     }
@@ -53,6 +59,7 @@ struct PullRequestPaneOverview: View {
                         Divider()
 
                         PullRequestPaneActivitySection(
+                            session: session,
                             detail: detail,
                             viewModel: viewModel,
                             onOpenFiles: onOpenFiles
@@ -64,10 +71,33 @@ struct PullRequestPaneOverview: View {
             .padding(ContextualPaneLayout.contentInsets())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .modifier(TimelineBottomFollowing(
+            itemCount: timelineItemCount,
+            scrollPosition: $scrollPosition,
+            isFollowing: $isFollowingTimeline
+        ))
+    }
+
+    /// Everything the activity timeline can grow by. Closing, reopening, or
+    /// marking ready appends a status event; replies and reviews land here too.
+    private var timelineItemCount: Int {
+        guard let detail = session.detail else {
+            return 0
+        }
+        return detail.timelineEvents.count
+            + detail.comments.count
+            + detail.reviews.count
+            + detail.reviewThreads.reduce(0) { $0 + $1.comments.count }
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // The header's trailing column (diff stats, the description Edit menu)
+        // aligns to the timeline cards' menu column below: 16pt content inset
+        // plus this pad equals the clearance an interactive control needs to
+        // stay out of the scroll indicator's grab region.
+        let trailingLanePad = AppScrollIndicatorLayout.interactiveTrailingClearance
+            - ContextualPaneLayout.horizontalInset
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 8) {
                 PullRequestStatusIcon(
                     status: session.detail?.status ?? session.summary.status,
@@ -88,6 +118,7 @@ struct PullRequestPaneOverview: View {
 
             metaRow
         }
+        .padding(.trailing, trailingLanePad)
     }
 
     private var metaRow: some View {
@@ -104,6 +135,17 @@ struct PullRequestPaneOverview: View {
             Text("\(baseRefName) \u{2190} \(headRefName)")
                 .lineLimit(1)
                 .truncationMode(.middle)
+
+            Spacer(minLength: 8)
+
+            // The description has no author row of its own, so its Edit menu
+            // rides the meta line. Edit only: a description cannot be deleted.
+            if session.detail?.viewerCanUpdate == true, !session.isEditingDescription {
+                PullRequestCommentActionsMenu(
+                    onEdit: { viewModel.openDescriptionEditor() },
+                    onDelete: nil
+                )
+            }
         }
         .font(.subheadline)
         .foregroundStyle(.secondary)
@@ -203,7 +245,24 @@ struct PullRequestPaneOverview: View {
         }
     }
 
+    @ViewBuilder
     private func description(detail: PullRequestDetail) -> some View {
+        if session.isEditingDescription {
+            // The description opens taller than a comment; everything else about
+            // the editor — attachments included — is the shared comment chrome.
+            PullRequestActivityCommentEditor(
+                session: session,
+                viewModel: viewModel,
+                saveTitle: "Update description",
+                placeholder: "Leave a description",
+                minimumVisibleLineCount: 4
+            )
+        } else {
+            renderedDescription(detail: detail)
+        }
+    }
+
+    private func renderedDescription(detail: PullRequestDetail) -> some View {
         let body = PullRequestMarkdown.sanitized(detail.bodyMarkdown)
         return VStack(alignment: .leading, spacing: 8) {
             if body.isEmpty {

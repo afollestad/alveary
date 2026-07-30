@@ -26,6 +26,7 @@ struct ContentView: View {
     let notificationRouter: NotificationRouter
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
+    private let gitHubAttachmentImageURLResolver: GitHubAttachmentImageURLResolver
     private let voiceInputService: any VoiceInputService
     let voiceInputLifecycleController: VoiceInputLifecycleController
     @State var appUpdateManager: AppUpdateManager
@@ -88,6 +89,7 @@ struct ContentView: View {
         self.notificationRouter = dependencies.notificationRouter
         self.threadActivityRecorder = dependencies.threadActivityRecorder
         self.gitService = dependencies.gitService
+        self.gitHubAttachmentImageURLResolver = dependencies.gitHubAttachmentImageURLResolver
         self.voiceInputService = dependencies.voiceInputService
         self.voiceInputLifecycleController = dependencies.voiceInputLifecycleController
         _appUpdateManager = State(initialValue: dependencies.appUpdateManager)
@@ -107,7 +109,9 @@ struct ContentView: View {
         _scheduledTaskProposalQueueCoordinator = State(
             initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
         )
-        _pullRequestsViewModel = State(initialValue: Self.makePullRequestsViewModel(dependencies: dependencies))
+        _pullRequestsViewModel = State(
+            initialValue: Self.makePullRequestsViewModel(dependencies: dependencies, appState: appState)
+        )
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _archivedThreadsViewModel = State(initialValue: Self.makeArchivedThreadsViewModel(
             dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState
@@ -346,6 +350,7 @@ struct ContentView: View {
         }
         .onAppear {
             wireNotificationManager()
+            wireMarkdownImageFallbackResolver()
             startThreadActivityBackfillIfNeeded()
             restoreLastOpenThreadSelectionIfNeeded()
             replayModelPreparationDeferredRoutingIfAvailable()
@@ -363,6 +368,15 @@ struct ContentView: View {
 }
 
 private extension ContentView {
+    /// Lets the shared markdown image store mint signed GitHub attachment URLs
+    /// when a direct fetch fails (session-gated assets; private repositories).
+    func wireMarkdownImageFallbackResolver() {
+        let resolver = gitHubAttachmentImageURLResolver
+        AppMarkdownImageStore.shared.remoteFallbackURLProvider = { source in
+            await resolver.resolveSignedURL(forSource: source)
+        }
+    }
+
     var isVoiceInputInteractionLocked: Bool {
         _ = voiceInputInteractionLockGeneration
         return voiceInputLifecycleController.isComposerInteractionLocked

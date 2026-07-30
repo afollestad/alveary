@@ -32,6 +32,52 @@ extension SidebarKeyboardNavigationTests {
         XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .archived, .project(project)])
     }
 
+    func testBuildNavigableItemsOmitsPullRequestsRowWhenHidden() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        try context.save()
+
+        let items = buildNavigableItems(
+            projects: [project],
+            expandedProjects: [],
+            activeThreads: { _ in [] },
+            hasArchivedThreads: false,
+            showsPullRequests: false
+        )
+
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(project)])
+    }
+
+    func testBuildNavigableItemsKeepsArchivedRowWhenPullRequestsIsHidden() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        try context.save()
+
+        let items = buildNavigableItems(
+            projects: [project],
+            expandedProjects: [],
+            activeThreads: { _ in [] },
+            hasArchivedThreads: true,
+            showsPullRequests: false
+        )
+
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .archived, .project(project)])
+    }
+
+    func testArrowKeysSkipTheHiddenPullRequestsRow() throws {
+        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
+        try context.save()
+
+        let items = buildNavigableItems(
+            projects: [project],
+            expandedProjects: [],
+            activeThreads: { _ in [] },
+            hasArchivedThreads: false,
+            showsPullRequests: false
+        )
+
+        XCTAssertEqual(navigateVertically(in: items, from: .scheduled, forward: true), .project(project))
+        XCTAssertEqual(navigateVertically(in: items, from: .project(project), forward: false), .scheduled)
+    }
+
     func testArrowKeysTraverseTheArchivedRowLikeOtherTopLevelRows() {
         let items: [SidebarItem] = [.skills, .mcp, .scheduled, .archived]
 

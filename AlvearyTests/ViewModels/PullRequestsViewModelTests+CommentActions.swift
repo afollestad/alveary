@@ -155,7 +155,7 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(service.threadReplies, [
             StubPullRequestsService.ThreadReply(commentID: 987, body: "On it.")
         ])
-        XCTAssertEqual(viewModel.activePaneSession?.pendingReview.comments.count, 0)
+        XCTAssertEqual(viewModel.activePaneSession?.detail?.pendingCommentCount, 0)
         // Success reconciles the placeholder against the server copy.
         XCTAssertEqual(service.detailCallCount, detailCallsBefore + 1)
     }

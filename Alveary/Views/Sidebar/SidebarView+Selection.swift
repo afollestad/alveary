@@ -81,47 +81,58 @@ extension SidebarView {
 
     @ViewBuilder
     func topLevelRows(context: SidebarRenderContext) -> some View {
+        // Both conditional rows can be absent, so the row that ends the group — which owns the
+        // trailing spacing and the `.topLevelTerminal` drag role — comes from the visible list
+        // rather than from either row's own condition.
+        let terminalItem = sidebarTopLevelRowItems(
+            showsPullRequests: context.showsPullRequests,
+            hasArchivedThreads: context.hasArchivedThreads
+        ).last
         topLevelRow(
             title: "Skills",
             icon: .system("puzzlepiece.extension"),
             item: .skills,
-            bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
+            bottomSpacing: topLevelRowBottomSpacing(.skills, terminalItem: terminalItem),
+            isTopLevelTerminal: terminalItem == .skills
         )
         topLevelRow(
             title: "MCP",
             icon: .system("server.rack"),
             item: .mcp,
-            bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
+            bottomSpacing: topLevelRowBottomSpacing(.mcp, terminalItem: terminalItem),
+            isTopLevelTerminal: terminalItem == .mcp
         )
         topLevelRow(
             title: "Scheduled",
             icon: .system("clock"),
             item: .scheduled,
-            bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
+            bottomSpacing: topLevelRowBottomSpacing(.scheduled, terminalItem: terminalItem),
+            isTopLevelTerminal: terminalItem == .scheduled
         )
-        // Whichever row ends the group takes no bottom spacing; the Projects/Pinned
-        // header below owns that boundary.
-        topLevelRow(
-            title: "Pull requests",
-            icon: .asset("PullRequestOcticon"),
-            item: .pullRequests,
-            bottomSpacing: context.hasArchivedThreads ? SidebarRowMetrics.topLevelRowSpacing : 0,
-            isTopLevelTerminal: sidebarTopLevelRowIsTerminal(
-                .pullRequests,
-                hasArchivedThreads: context.hasArchivedThreads
+        if context.showsPullRequests {
+            topLevelRow(
+                title: "Pull requests",
+                icon: .asset("PullRequestOcticon"),
+                item: .pullRequests,
+                bottomSpacing: topLevelRowBottomSpacing(.pullRequests, terminalItem: terminalItem),
+                isTopLevelTerminal: terminalItem == .pullRequests
             )
-        )
+        }
         if context.hasArchivedThreads {
             topLevelRow(
                 title: "Archived",
                 icon: .system("archivebox"),
                 item: .archived,
-                isTopLevelTerminal: sidebarTopLevelRowIsTerminal(
-                    .archived,
-                    hasArchivedThreads: context.hasArchivedThreads
-                )
+                bottomSpacing: topLevelRowBottomSpacing(.archived, terminalItem: terminalItem),
+                isTopLevelTerminal: terminalItem == .archived
             )
         }
+    }
+
+    /// Whichever row ends the group takes no bottom spacing; the Projects/Pinned header
+    /// below owns that boundary.
+    private func topLevelRowBottomSpacing(_ item: SidebarItem, terminalItem: SidebarItem?) -> CGFloat {
+        terminalItem == item ? 0 : SidebarRowMetrics.topLevelRowSpacing
     }
 
     @ViewBuilder
@@ -202,6 +213,21 @@ extension SidebarView {
         claimSidebarFocus()
     }
 
+    /// Hiding the row removes the only way back to the Pull Requests screen, so any selection or
+    /// preserved Settings bookmark pointing at it has to go with it. The toggle lives in Settings,
+    /// so in practice it is the bookmark that would otherwise restore a rowless screen on dismiss.
+    func handlePullRequestsVisibilityChange(showsPullRequests: Bool) {
+        guard !showsPullRequests else {
+            return
+        }
+        if appState.selectedSidebarItem == .pullRequests {
+            appState.selectedSidebarItem = nil
+        }
+        if appState.previousSelection == .pullRequests {
+            appState.previousSelection = nil
+        }
+    }
+
     func syncExpansionWithSelection(_ item: SidebarItem?) {
         if let projectPath = sidebarProjectPathToExpand(
             for: item,
@@ -219,19 +245,20 @@ extension SidebarView {
     }
 }
 
-/// Whichever top-level row ends the group publishes `.topLevelTerminal`, so the empty-`Pinned`
-/// drop target knows where the region above `Projects` begins. `Archived` is conditional, so the
-/// role moves to `Pull Requests` while it is hidden — the same rule that owns the group's trailing
-/// spacing.
-func sidebarTopLevelRowIsTerminal(_ item: SidebarItem, hasArchivedThreads: Bool) -> Bool {
-    switch item {
-    case .archived:
-        return hasArchivedThreads
-    case .pullRequests:
-        return !hasArchivedThreads
-    default:
-        return false
+/// The top-level rows that actually render, in order. `Pull Requests` is user-hideable and
+/// `Archived` appears only with archived threads, so the group's trailing spacing and its
+/// `.topLevelTerminal` role both follow this list's last element rather than either row's own
+/// condition — with both conditional rows hidden that is `Scheduled`. The empty-`Pinned` drop
+/// target aims at whichever row publishes the role, so this must stay the only definition of it.
+func sidebarTopLevelRowItems(showsPullRequests: Bool, hasArchivedThreads: Bool) -> [SidebarItem] {
+    var items: [SidebarItem] = [.skills, .mcp, .scheduled]
+    if showsPullRequests {
+        items.append(.pullRequests)
     }
+    if hasArchivedThreads {
+        items.append(.archived)
+    }
+    return items
 }
 
 func sidebarDraftMaterializedMode(_ notification: Notification) -> AgentThreadMode {

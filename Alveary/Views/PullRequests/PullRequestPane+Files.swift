@@ -4,32 +4,13 @@ struct PullRequestPaneFiles: View {
     let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
 
+    // The delete-comment confirmation dialog lives on `PullRequestPane`, shared
+    // with the Overview timeline, so arming a deletion on either tab presents it.
     var body: some View {
         VStack(spacing: 0) {
             diffStateContent
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .confirmationDialog(
-            "Delete comment?",
-            isPresented: Binding(
-                get: { session.pendingRemoteCommentDeletion != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        viewModel.cancelRemoteCommentDeletion()
-                    }
-                }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("Delete", role: .destructive) {
-                viewModel.confirmRemoteCommentDeletion()
-            }
-            Button("Cancel", role: .cancel) {
-                viewModel.cancelRemoteCommentDeletion()
-            }
-        } message: {
-            Text("The comment is permanently deleted from the pull request on GitHub.")
-        }
     }
 
     @ViewBuilder
@@ -62,8 +43,14 @@ struct PullRequestPaneFiles: View {
     private var loadedContent: some View {
         let files = session.diffFiles ?? []
         // Remote comment actions (delete, and edits with the composer closed) report
-        // failures here; the open composer shows the same error inline instead.
-        if let error = session.composerError, session.composerAnchor == nil {
+        // failures here; open composers and inline editors — including the
+        // Overview timeline's — show the same error inline instead.
+        if let error = session.composerError,
+           session.composerAnchor == nil,
+           session.composerRemoteCommentID == nil,
+           session.composerIssueCommentID == nil,
+           session.composerReviewID == nil,
+           session.composerReplyToCommentID == nil {
             InlineBanner(
                 message: error,
                 severity: .error,
@@ -96,10 +83,14 @@ struct PullRequestPaneFiles: View {
                 commentAnnotations: commentAnnotations,
                 commentInteraction: commentInteraction,
                 // Match Overview's and Activity's top content inset.
-                contentTopInset: ContextualPaneLayout.contentInsets().top
+                contentTopInset: ContextualPaneLayout.contentInsets().top,
+                // The pane inset folds into the scroll content instead of
+                // wrapping the preview, so the scroll bar sits flush with the
+                // pane edge like the Overview tab's while the rows keep the tab
+                // row's and pane title's horizontal alignment.
+                horizontalContentInset: ContextualPaneLayout.horizontalInset
+                    + DiffViewerPaneMetrics.diffPreviewHorizontalInset
             )
-            // Match the tab row's and pane title's horizontal insets.
-            .contextualPaneHorizontalInsets()
 
             let remaining = PullRequestDiffFilePaging.remainingFileCount(
                 total: files.count,
@@ -111,7 +102,9 @@ struct PullRequestPaneFiles: View {
         }
     }
 
-    /// Existing review threads plus the local pending batch, keyed by anchor.
+    /// Review threads keyed by anchor. The viewer's own unsubmitted comments are
+    /// ordinary threads here — GitHub keeps them in `reviewThreads` badged
+    /// `PENDING`, so nothing local has to be merged in.
     private var commentAnnotations: DiffCommentAnnotations {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = true
@@ -126,76 +119,65 @@ struct PullRequestPaneFiles: View {
                     line: line
                 )
                 annotations.threads[anchor] = DiffLineCommentThread(
-                    comments: thread.comments.map { comment in
-                        DiffLineComment(
-                            author: comment.authorLogin,
-                            bodyMarkdown: PullRequestMarkdown.sanitized(comment.bodyMarkdown),
-                            isPending: false,
-                            remoteID: comment.databaseId,
-                            nodeID: comment.nodeID,
-                            canEdit: comment.viewerCanUpdate && comment.databaseId != nil,
-                            canDelete: comment.viewerCanDelete && comment.databaseId != nil,
-                            reactions: comment.reactions.map(\.asCommentReaction),
-                            avatarURL: comment.authorAvatarURL,
-                            isBot: comment.isBot
-                        )
-                    },
+                    comments: thread.comments.map(commentRow(for:)),
                     isResolved: thread.isResolved,
                     isOutdated: thread.isOutdated,
-                    threadID: thread.nodeID
+                    threadID: thread.nodeID,
+                    isPending: thread.isPending
                 )
             }
         }
-        for pending in session.pendingReview.comments {
-            var thread = annotations.threads[pending.anchor] ?? DiffLineCommentThread(comments: [])
-            // Pending comments belong to the signed-in viewer; the detail query's
-            // `viewer` field supplies the same identity GitHub would show.
-            thread.comments.append(DiffLineComment(
-                author: session.detail?.viewerLogin ?? "You",
-                bodyMarkdown: pending.body,
-                isPending: true,
-                avatarURL: session.detail?.viewerAvatarURL
-            ))
-            annotations.threads[pending.anchor] = thread
-        }
         // Edits render inline inside their thread; only new comments and replies
         // get the standalone composer row below it.
-        let isInlineEdit = session.composerRemoteCommentID != nil || editingPendingAnchor != nil
+        let isInlineEdit = session.composerRemoteCommentID != nil
+            || session.composerPendingCommentNodeID != nil
         annotations.composerAnchor = isInlineEdit ? nil : session.composerAnchor
         return annotations
     }
 
-    /// The anchor whose pending-batch comment the composer is editing, if any —
-    /// an open composer over an existing pending comment is an edit, not a new
-    /// comment, so it renders inline.
-    private var editingPendingAnchor: DiffCommentAnchor? {
-        guard let anchor = session.composerAnchor,
-              session.composerRemoteCommentID == nil,
-              session.composerReplyToCommentID == nil,
-              session.pendingReview.comments.contains(where: { $0.anchor == anchor }) else {
-            return nil
-        }
-        return anchor
+    /// A pending comment is addressed by node id, so its menu waits on that
+    /// rather than the REST id a submitted comment needs.
+    private func commentRow(for comment: PullRequestComment) -> DiffLineComment {
+        let hasActionableID = comment.isPending ? comment.nodeID != nil : comment.databaseId != nil
+        return DiffLineComment(
+            author: comment.authorLogin,
+            bodyMarkdown: PullRequestMarkdown.sanitized(comment.bodyMarkdown),
+            isPending: comment.isPending,
+            remoteID: comment.databaseId,
+            nodeID: comment.nodeID,
+            canEdit: comment.viewerCanUpdate && hasActionableID,
+            canDelete: comment.viewerCanDelete && hasActionableID,
+            reactions: comment.reactions.map(\.asCommentReaction),
+            avatarURL: comment.authorAvatarURL,
+            isBot: comment.isBot,
+            relativeAge: comment.createdAt.map {
+                compactRelativeAge(from: $0, relativeTo: viewModel.referenceDate)
+            },
+            absoluteTimestamp: comment.createdAt.map {
+                PullRequestTimestampFormatting.absoluteString(for: $0)
+            }
+        )
     }
 
     private var commentInteraction: DiffCommentInteraction {
         DiffCommentInteraction(
             draft: viewModel.composerDraft,
-            composerMode: { anchor in
+            composerMode: { _ in
                 if viewModel.activePaneSession?.composerRemoteCommentID != nil {
                     return .editRemote
+                }
+                if viewModel.activePaneSession?.composerPendingCommentNodeID != nil {
+                    return .editPending
                 }
                 if viewModel.activePaneSession?.composerReplyToCommentID != nil {
                     return .reply
                 }
-                let hasPending = viewModel.activePaneSession?.pendingReview.comments
-                    .contains { $0.anchor == anchor } ?? false
-                return hasPending ? .editPending : .newComment
+                return .newComment
             },
             composerErrorMessage: session.composerError,
             composerFocusToken: session.composerFocusToken,
             editingRemoteCommentID: session.composerRemoteCommentID,
-            editingPendingAnchor: editingPendingAnchor,
+            editingPendingCommentNodeID: session.composerPendingCommentNodeID,
             reactionOptions: PullRequestReactionContent.pickerOptions,
             avatarLoader: viewModel.avatarLoader,
             onComposerFocusConsumed: {
@@ -207,8 +189,8 @@ struct PullRequestPaneFiles: View {
             onEditRemoteComment: { anchor, comment in
                 viewModel.openRemoteCommentEditor(at: anchor, comment: comment)
             },
-            onDeleteRemoteComment: { anchor, comment in
-                viewModel.requestDeleteRemoteComment(at: anchor, comment: comment)
+            onDeleteRemoteComment: { _, comment in
+                viewModel.requestDeleteRemoteComment(comment: comment)
             },
             onToggleReaction: { comment, content in
                 viewModel.toggleReaction(
@@ -229,9 +211,19 @@ struct PullRequestPaneFiles: View {
             onCancelComposer: {
                 viewModel.cancelCommentComposer()
             },
-            onDeletePending: { anchor in
-                viewModel.removePendingComment(at: anchor)
-            }
+            onDeletePending: { comment in
+                guard let nodeID = comment.nodeID else {
+                    return
+                }
+                viewModel.deletePendingComment(nodeID: nodeID)
+            },
+            onAttachFiles: viewModel.supportsAttachmentUploads ? { files in
+                guard let draft = viewModel.composerDraft else {
+                    return
+                }
+                viewModel.attachFiles(files, to: .composer, draft: draft)
+            } : nil,
+            isUploadingAttachments: viewModel.isUploadingAttachments(to: .composer)
         )
     }
 
@@ -249,11 +241,6 @@ struct PullRequestPaneFiles: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 10)
-        .contextualPaneHorizontalInsets()
-        .background(.bar)
-        .overlay(alignment: .top) {
-            AppSeparatorHairline(surface: .paneHeader)
-        }
+        .contextualPaneFooterChrome()
     }
 }

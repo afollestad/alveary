@@ -4,56 +4,12 @@ import XCTest
 
 @MainActor
 extension PullRequestsViewModelTests {
-    private static let anchor = DiffCommentAnchor(path: "Sources/Parser.swift", side: .right, line: 12)
-
-    func testComposerSaveEditAndRemoveLifecycle() {
-        let service = StubPullRequestsService()
-        let summary = makePullRequestSummary(number: 7)
-        let viewModel = makePullRequestsViewModel(service: service)
-        viewModel.requestDetails(summary)
-
-        viewModel.openCommentComposer(at: Self.anchor)
-        XCTAssertEqual(viewModel.activePaneSession?.composerAnchor, Self.anchor)
-
-        viewModel.updateComposerText("  First draft  ")
-        viewModel.saveComposerComment()
-
-        let saved = viewModel.activePaneSession?.pendingReview.comments
-        XCTAssertEqual(saved?.count, 1)
-        XCTAssertEqual(saved?.first?.body, "First draft")
-        XCTAssertNil(viewModel.activePaneSession?.composerAnchor)
-
-        // Reopening the composer on the same anchor edits the pending comment in place.
-        viewModel.openCommentComposer(at: Self.anchor)
-        XCTAssertEqual(viewModel.activePaneSession?.composerText, "First draft")
-        viewModel.updateComposerText("Revised")
-        viewModel.saveComposerComment()
-        XCTAssertEqual(viewModel.activePaneSession?.pendingReview.comments.map(\.body), ["Revised"])
-
-        viewModel.removePendingComment(at: Self.anchor)
-        XCTAssertEqual(viewModel.activePaneSession?.pendingReview.comments.count, 0)
-    }
-
-    func testSaveComposerIgnoresEmptyDraft() {
-        let service = StubPullRequestsService()
-        let viewModel = makePullRequestsViewModel(service: service)
-        viewModel.requestDetails(makePullRequestSummary(number: 7))
-
-        viewModel.openCommentComposer(at: Self.anchor)
-        viewModel.updateComposerText("   ")
-        viewModel.saveComposerComment()
-
-        XCTAssertEqual(viewModel.activePaneSession?.pendingReview.comments.count, 0)
-        // The composer stays open so the user can keep typing.
-        XCTAssertEqual(viewModel.activePaneSession?.composerAnchor, Self.anchor)
-    }
-
     func testComposerFocusTokenLifecycle() {
         let service = StubPullRequestsService()
         let viewModel = makePullRequestsViewModel(service: service)
         viewModel.requestDetails(makePullRequestSummary(number: 7))
 
-        viewModel.openCommentComposer(at: Self.anchor)
+        viewModel.openCommentComposer(at: pullRequestReviewAnchor)
         let firstToken = viewModel.activePaneSession?.composerFocusToken
         XCTAssertNotNil(firstToken)
 
@@ -61,7 +17,7 @@ extension PullRequestsViewModelTests {
         XCTAssertNil(viewModel.activePaneSession?.composerFocusToken)
 
         // Reopening mints a fresh token so the editor re-claims focus.
-        viewModel.openCommentComposer(at: Self.anchor)
+        viewModel.openCommentComposer(at: pullRequestReviewAnchor)
         XCTAssertNotNil(viewModel.activePaneSession?.composerFocusToken)
         XCTAssertNotEqual(viewModel.activePaneSession?.composerFocusToken, firstToken)
     }
@@ -71,84 +27,98 @@ extension PullRequestsViewModelTests {
         let viewModel = makePullRequestsViewModel(service: service)
         viewModel.requestDetails(makePullRequestSummary(number: 7))
 
-        viewModel.openCommentComposer(at: Self.anchor)
+        viewModel.openCommentComposer(at: pullRequestReviewAnchor)
         viewModel.updateComposerText("Half-written")
         viewModel.cancelCommentComposer()
 
         XCTAssertNil(viewModel.activePaneSession?.composerAnchor)
         XCTAssertEqual(viewModel.activePaneSession?.composerText, "")
-        XCTAssertEqual(viewModel.activePaneSession?.pendingReview.comments.count, 0)
+        XCTAssertEqual(service.createdPendingReviewNodeIDs, [])
     }
 
     func testSubmitValidationMatrix() {
         var draft = PendingReviewDraft()
-        XCTAssertTrue(PullRequestsViewModel.canSubmitReview(event: .approve, draft: draft))
-        XCTAssertFalse(PullRequestsViewModel.canSubmitReview(event: .requestChanges, draft: draft))
-        XCTAssertFalse(PullRequestsViewModel.canSubmitReview(event: .comment, draft: draft))
+        func canSubmit(_ event: PullRequestReviewEvent, pendingCommentCount: Int = 0) -> Bool {
+            PullRequestsViewModel.canSubmitReview(
+                event: event,
+                draft: draft,
+                pendingCommentCount: pendingCommentCount
+            )
+        }
+        XCTAssertTrue(canSubmit(.approve))
+        XCTAssertFalse(canSubmit(.requestChanges))
+        XCTAssertFalse(canSubmit(.comment))
 
-        draft.comments = [PendingReviewComment(id: UUID(), anchor: Self.anchor, body: "Inline")]
-        XCTAssertTrue(PullRequestsViewModel.canSubmitReview(event: .comment, draft: draft))
-        XCTAssertFalse(PullRequestsViewModel.canSubmitReview(event: .requestChanges, draft: draft))
+        // One pending comment is enough for a plain comment review.
+        XCTAssertTrue(canSubmit(.comment, pendingCommentCount: 1))
+        XCTAssertFalse(canSubmit(.requestChanges, pendingCommentCount: 1))
 
-        draft.comments = []
         draft.overallComment = "Needs work"
-        XCTAssertTrue(PullRequestsViewModel.canSubmitReview(event: .requestChanges, draft: draft))
-        XCTAssertTrue(PullRequestsViewModel.canSubmitReview(event: .comment, draft: draft))
+        XCTAssertTrue(canSubmit(.requestChanges))
+        XCTAssertTrue(canSubmit(.comment))
     }
 
-    func testSubmitReviewSuccessClearsDraftAndRefetches() async {
+    func testSubmitReviewFinishesThePendingReviewAndRefetches() async {
         let service = StubPullRequestsService()
-        let summary = makePullRequestSummary(number: 7)
-        service.detailResult = .success(makePullRequestDetail(id: summary.id))
-        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
-        service.submitResult = .success(())
+        let (viewModel, summary) = await makeLoadedPullRequestPane(service: service)
         service.listResult = .success(PullRequestListResult(summaries: [summary], warnings: []))
-        let viewModel = makePullRequestsViewModel(service: service)
-        viewModel.requestDetails(summary)
-        await waitForPaneContent(viewModel, target: .details(summary.id))
 
-        viewModel.openCommentComposer(at: Self.anchor)
+        viewModel.openCommentComposer(at: pullRequestReviewAnchor)
         viewModel.updateComposerText("Inline note")
         viewModel.saveComposerComment()
+        await waitForPullRequestCondition { !service.addedPendingComments.isEmpty }
         viewModel.updateOverallReviewComment("Please fix")
         let detailCallsBeforeSubmit = service.detailCallCount
 
         let success = await viewModel.submitReview(event: .requestChanges)
 
         XCTAssertTrue(success)
-        XCTAssertEqual(service.submittedReviews.count, 1)
-        let submitted = service.submittedReviews[0]
-        XCTAssertEqual(submitted.id, summary.id)
-        XCTAssertEqual(submitted.submission.event, .requestChanges)
-        XCTAssertEqual(submitted.submission.body, "Please fix")
-        XCTAssertEqual(submitted.submission.comments, [
-            PendingReviewSubmission.InlineComment(
-                path: Self.anchor.path,
-                line: Self.anchor.line,
-                side: .right,
-                body: "Inline note"
+        // The existing pending review is finished, not duplicated by a new one.
+        XCTAssertEqual(service.submittedPendingReviews, [
+            StubPullRequestsService.SubmittedPendingReview(
+                reviewNodeID: "PENDING_REVIEW",
+                event: .requestChanges,
+                body: "Please fix"
             )
         ])
-
+        XCTAssertEqual(service.submittedReviews.count, 0)
         XCTAssertEqual(viewModel.activePaneSession?.pendingReview, PendingReviewDraft())
         XCTAssertEqual(service.detailCallCount, detailCallsBeforeSubmit + 1)
     }
 
-    func testSubmitReviewFailureKeepsBatchAndShowsError() async {
+    func testSubmitReviewWithoutPendingReviewPostsSummaryOnly() async {
         let service = StubPullRequestsService()
-        let summary = makePullRequestSummary(number: 7)
-        service.submitResult = .failure(.requestFailed(statusCode: 422))
-        let viewModel = makePullRequestsViewModel(service: service)
-        viewModel.requestDetails(summary)
+        let (viewModel, summary) = await makeLoadedPullRequestPane(service: service)
+        service.submitResult = .success(())
+        service.listResult = .success(PullRequestListResult(summaries: [summary], warnings: []))
 
-        viewModel.openCommentComposer(at: Self.anchor)
+        viewModel.updateOverallReviewComment("Looks good")
+        let success = await viewModel.submitReview(event: .approve)
+
+        XCTAssertTrue(success)
+        XCTAssertEqual(service.submittedPendingReviews, [])
+        // Verdict and summary only — there are no inline comments to carry,
+        // which is why this endpoint takes none any more.
+        XCTAssertEqual(service.submittedReviews, [
+            StubPullRequestsService.SubmittedReview(id: summary.id, event: .approve, body: "Looks good")
+        ])
+    }
+
+    func testSubmitReviewFailureKeepsPendingCommentsAndShowsError() async {
+        let service = StubPullRequestsService()
+        let (viewModel, _) = await makeLoadedPullRequestPane(service: service)
+        service.submitPendingReviewResult = .failure(.requestFailed(statusCode: 422))
+
+        viewModel.openCommentComposer(at: pullRequestReviewAnchor)
         viewModel.updateComposerText("Inline note")
         viewModel.saveComposerComment()
+        await waitForPullRequestCondition { !service.addedPendingComments.isEmpty }
 
         let success = await viewModel.submitReview(event: .comment)
 
         XCTAssertFalse(success)
-        XCTAssertEqual(viewModel.activePaneSession?.pendingReview.comments.count, 1)
+        // The comments are already on GitHub, so a failed submit loses nothing.
+        XCTAssertEqual(viewModel.activePaneSession?.detail?.pendingCommentCount, 1)
         XCTAssertFalse(viewModel.activePaneSession?.pendingReview.isSubmitting ?? true)
         XCTAssertNotNil(viewModel.activePaneSession?.pendingReview.submissionError)
     }
@@ -207,7 +177,7 @@ extension PullRequestsViewModelTests {
             canEdit: true,
             canDelete: true
         )
-        viewModel.openRemoteCommentEditor(at: Self.anchor, comment: remote)
+        viewModel.openRemoteCommentEditor(at: pullRequestReviewAnchor, comment: remote)
         XCTAssertEqual(viewModel.activePaneSession?.composerText, "Original body")
         XCTAssertEqual(viewModel.activePaneSession?.composerRemoteCommentID, 987)
 
@@ -233,7 +203,7 @@ extension PullRequestsViewModelTests {
         // Optimistic edits never refetch — the local body is already exact.
         XCTAssertEqual(service.detailCallCount, detailCallsBefore)
         // The batch stays untouched — remote edits never join the pending review.
-        XCTAssertEqual(viewModel.activePaneSession?.pendingReview.comments.count, 0)
+        XCTAssertEqual(viewModel.activePaneSession?.detail?.pendingCommentCount, 0)
     }
 
     func testRemoteCommentEditFailureRevertsBodyAndReopensComposer() async {
@@ -256,7 +226,7 @@ extension PullRequestsViewModelTests {
             canEdit: true,
             canDelete: true
         )
-        viewModel.openRemoteCommentEditor(at: Self.anchor, comment: remote)
+        viewModel.openRemoteCommentEditor(at: pullRequestReviewAnchor, comment: remote)
         viewModel.updateComposerText("Updated body")
         viewModel.saveComposerComment()
         for _ in 0..<2_000 {
@@ -297,7 +267,7 @@ extension PullRequestsViewModelTests {
             canEdit: true,
             canDelete: true
         )
-        viewModel.requestDeleteRemoteComment(at: Self.anchor, comment: remote)
+        viewModel.requestDeleteRemoteComment(comment: remote)
         XCTAssertEqual(viewModel.activePaneSession?.pendingRemoteCommentDeletion?.remoteID, 654)
 
         viewModel.confirmRemoteCommentDeletion()
@@ -336,7 +306,7 @@ extension PullRequestsViewModelTests {
             canEdit: true,
             canDelete: true
         )
-        viewModel.requestDeleteRemoteComment(at: Self.anchor, comment: remote)
+        viewModel.requestDeleteRemoteComment(comment: remote)
         viewModel.confirmRemoteCommentDeletion()
         for _ in 0..<2_000 {
             if viewModel.activePaneSession?.composerError != nil {
@@ -367,7 +337,7 @@ extension PullRequestsViewModelTests {
             canEdit: true,
             canDelete: true
         )
-        viewModel.requestDeleteRemoteComment(at: Self.anchor, comment: remote)
+        viewModel.requestDeleteRemoteComment(comment: remote)
         viewModel.cancelRemoteCommentDeletion()
 
         XCTAssertNil(viewModel.activePaneSession?.pendingRemoteCommentDeletion)
@@ -386,7 +356,7 @@ extension PullRequestsViewModelTests {
             remoteID: 12,
             canEdit: false
         )
-        viewModel.openRemoteCommentEditor(at: Self.anchor, comment: foreign)
+        viewModel.openRemoteCommentEditor(at: pullRequestReviewAnchor, comment: foreign)
 
         XCTAssertNil(viewModel.activePaneSession?.composerAnchor)
         XCTAssertNil(viewModel.activePaneSession?.composerRemoteCommentID)

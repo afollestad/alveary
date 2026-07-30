@@ -5,13 +5,11 @@ import XCTest
 
 func makeGitHubPullRequestsService(
     shell: MockShellRunner,
-    executablePath: String? = "/opt/homebrew/bin/gh",
-    reviewBodyWriter: (@Sendable (Data) throws -> URL)? = nil
+    executablePath: String? = "/opt/homebrew/bin/gh"
 ) -> GitHubPullRequestsService {
     GitHubPullRequestsService(
         shellRunner: shell,
         executableResolver: PullRequestsExecutablePathResolverFake(path: executablePath),
-        reviewBodyWriter: reviewBodyWriter ?? GitHubPullRequestsService.writeReviewBodyFile,
         transientRetryDelay: .zero
     )
 }
@@ -74,24 +72,5 @@ struct PullRequestsExecutablePathResolverFake: ExecutablePathResolving {
     func resolveExecutablePath(for candidate: String) async -> String? {
         XCTAssertEqual(candidate, "gh")
         return path
-    }
-}
-
-final class ReviewBodyCapture: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storedData: Data?
-
-    var data: Data? {
-        lock.lock()
-        defer { lock.unlock() }
-        return storedData
-    }
-
-    @Sendable
-    func write(_ data: Data) throws -> URL {
-        lock.lock()
-        storedData = data
-        lock.unlock()
-        return try GitHubPullRequestsService.writeReviewBodyFile(data)
     }
 }

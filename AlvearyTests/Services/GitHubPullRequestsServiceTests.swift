@@ -192,71 +192,16 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         XCTAssertEqual(invocations.count, 1)
     }
 
-    func testUpdateReviewCommentPatchesBody() async throws {
-        let shell = MockShellRunner()
-        await shell.enqueue(.success(pullRequestsShellResult(stdout: "{}")))
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        try await service.updateReviewComment(
-            PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
-            commentID: 987,
-            body: "Updated body"
-        )
-
-        let invocations = await shell.invocations
-        let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
-            "api", "repos/octo/alpha/pulls/comments/987",
-            "-X", "PATCH",
-            "-f", "body=Updated body"
-        ])
-    }
-
-    func testDeleteReviewCommentSendsDelete() async throws {
-        let shell = MockShellRunner()
-        await shell.enqueue(.success(pullRequestsShellResult(stdout: "")))
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        try await service.deleteReviewComment(
-            PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
-            commentID: 654
-        )
-
-        let invocations = await shell.invocations
-        let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(invocation.args, [
-            "api", "repos/octo/alpha/pulls/comments/654",
-            "-X", "DELETE"
-        ])
-        XCTAssertEqual(invocations.count, 1)
-    }
-
-    func testUpdateReviewCommentDoesNotRetryTransientFailures() async {
-        let shell = MockShellRunner()
-        await shell.enqueue(.success(pullRequestsShellResult(stderr: "gh: Bad gateway (HTTP 502)", exitCode: 1)))
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        await assertPullRequestsServiceThrows(.requestFailed(statusCode: 502)) {
-            try await service.updateReviewComment(
-                PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
-                commentID: 987,
-                body: "Updated body"
-            )
-        }
-        let invocations = await shell.invocations
-        XCTAssertEqual(invocations.count, 1)
-    }
-
     func testSubmitReviewDoesNotRetryTransientFailures() async {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stderr: "gh: Bad gateway (HTTP 502)", exitCode: 1)))
-        let capture = ReviewBodyCapture()
-        let service = makeGitHubPullRequestsService(shell: shell, reviewBodyWriter: capture.write(_:))
+        let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.requestFailed(statusCode: 502)) {
             try await service.submitReview(
                 PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
-                submission: PendingReviewSubmission(event: .approve, body: "", comments: [])
+                event: .approve,
+                body: ""
             )
         }
         let invocations = await shell.invocations
@@ -328,6 +273,11 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
 
         XCTAssertEqual(detail.reviews.count, 1)
         XCTAssertEqual(detail.reviews[0].state, .approved)
+        XCTAssertEqual(detail.reviews[0].databaseId, 555)
+        XCTAssertTrue(detail.reviews[0].viewerCanUpdate)
+
+        // A present `headRef` means the branch still exists, so Reopen stays live.
+        XCTAssertTrue(detail.headRefExists)
 
         // The top-level `viewer` attributes local pending comments.
         XCTAssertEqual(detail.viewerLogin, "afollestad")
@@ -344,7 +294,9 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
     }
 
     private func assertParserReviewThread(_ detail: PullRequestDetail, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertEqual(detail.reviewThreads.count, 1, file: file, line: line)
+        // The submitted thread plus the viewer's own pending one; pending threads
+        // ride the same connection, badged by their comments' `PENDING` state.
+        XCTAssertEqual(detail.reviewThreads.count, 2, file: file, line: line)
         guard let thread = detail.reviewThreads.first else {
             return
         }
@@ -408,58 +360,41 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
 
     // MARK: - Review submission
 
-    func testSubmitReviewPostsEncodedBatch() async throws {
+    /// Summary-only: inline comments never travel this endpoint any more, they
+    /// are already attached to the pending review `submitPendingReview` finishes.
+    func testSubmitReviewPostsVerdictAndSummary() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stdout: "{}")))
-        let capture = ReviewBodyCapture()
-        let service = makeGitHubPullRequestsService(shell: shell, reviewBodyWriter: capture.write(_:))
-        let submission = PendingReviewSubmission(
-            event: .requestChanges,
-            body: "Please fix the parser edge case.",
-            comments: [
-                PendingReviewSubmission.InlineComment(
-                    path: "Sources/Parser.swift",
-                    line: 12,
-                    side: .right,
-                    body: "This branch loses the trailing newline."
-                )
-            ]
-        )
+        let service = makeGitHubPullRequestsService(shell: shell)
 
         try await service.submitReview(
             PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
-            submission: submission
+            event: .requestChanges,
+            body: "Please fix the parser edge case."
         )
 
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
-        XCTAssertEqual(Array(invocation.args.prefix(4)), ["api", "repos/octo/alpha/pulls/7/reviews", "-X", "POST"])
-        XCTAssertEqual(invocation.args[4], "--input")
-        let bodyPath = try XCTUnwrap(invocation.args.last)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: bodyPath), "Body temp file should be cleaned up")
-
-        let bodyData = try XCTUnwrap(capture.data)
-        let payload = try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
-        XCTAssertEqual(payload?["event"] as? String, "REQUEST_CHANGES")
-        XCTAssertEqual(payload?["body"] as? String, "Please fix the parser edge case.")
-        let comments = payload?["comments"] as? [[String: Any]]
-        XCTAssertEqual(comments?.count, 1)
-        XCTAssertEqual(comments?.first?["path"] as? String, "Sources/Parser.swift")
-        XCTAssertEqual(comments?.first?["line"] as? Int, 12)
-        XCTAssertEqual(comments?.first?["side"] as? String, "RIGHT")
-        XCTAssertEqual(comments?.first?["body"] as? String, "This branch loses the trailing newline.")
+        XCTAssertEqual(invocation.args, [
+            "api", "repos/octo/alpha/pulls/7/reviews",
+            "-X", "POST",
+            "-f", "event=REQUEST_CHANGES",
+            "-f", "body=Please fix the parser edge case."
+        ])
+        // Two scalar fields need no JSON body, so no temp file is written.
+        XCTAssertFalse(invocation.args.contains("--input"))
     }
 
     func testSubmitReviewFailureIsClassified() async {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stderr: "gh: Unprocessable Entity (HTTP 422)", exitCode: 1)))
-        let capture = ReviewBodyCapture()
-        let service = makeGitHubPullRequestsService(shell: shell, reviewBodyWriter: capture.write(_:))
+        let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.requestFailed(statusCode: 422)) {
             try await service.submitReview(
                 PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
-                submission: PendingReviewSubmission(event: .approve, body: "", comments: [])
+                event: .approve,
+                body: ""
             )
         }
     }

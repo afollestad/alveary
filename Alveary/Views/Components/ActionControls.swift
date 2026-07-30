@@ -1,9 +1,54 @@
 import SwiftUI
 
-private let destructiveActionTint = Color(red: 0.74, green: 0.18, blue: 0.17)
-private let secondaryActionTint = Color.primary.opacity(0.12)
 private let iconActionButtonTint = Color.secondary.opacity(0.16)
-private let destructiveIconActionButtonTint = destructiveActionTint.opacity(0.16)
+private let destructiveIconActionButtonTint = ActionButtonTint.destructive.opacity(0.16)
+
+/// Fills shared by the prominent button styles and `SplitActionButton`, so a
+/// split button always matches the plain buttons standing beside it.
+enum ActionButtonTint {
+    static let destructive = Color(red: 0.74, green: 0.18, blue: 0.17)
+    static let secondary = Color.primary.opacity(0.12)
+}
+
+/// Control-size metrics shared by the prominent button styles and
+/// `SplitActionButton`. Duplicating these tables is how the two drift apart.
+enum ActionButtonMetrics {
+    static let cornerRadius = AppCornerRadius.standard
+
+    static func horizontalPadding(for controlSize: ControlSize) -> CGFloat {
+        switch controlSize {
+        case .mini:
+            return 8
+        case .small:
+            return 10
+        case .regular:
+            return 12
+        case .large:
+            return 14
+        case .extraLarge:
+            return 16
+        @unknown default:
+            return 12
+        }
+    }
+
+    static func controlHeight(for controlSize: ControlSize) -> CGFloat {
+        switch controlSize {
+        case .mini:
+            return 22
+        case .small:
+            return 24
+        case .regular:
+            return 30
+        case .large:
+            return 34
+        case .extraLarge:
+            return 38
+        @unknown default:
+            return 30
+        }
+    }
+}
 
 struct DestructiveConfirmationRequest {
     let title: String
@@ -54,7 +99,7 @@ extension View {
     func secondaryActionButtonStyle(expandsHorizontally: Bool = false) -> some View {
         buttonStyle(
             ProminentActionButtonStyle(
-                fillColor: secondaryActionTint,
+                fillColor: ActionButtonTint.secondary,
                 foregroundColor: .primary,
                 borderColor: .primary,
                 expandsHorizontally: expandsHorizontally
@@ -64,7 +109,7 @@ extension View {
 
     func destructiveActionButtonStyle(expandsHorizontally: Bool = false) -> some View {
         buttonStyle(ProminentActionButtonStyle(
-            fillColor: destructiveActionTint,
+            fillColor: ActionButtonTint.destructive,
             foregroundColor: .white,
             expandsHorizontally: expandsHorizontally
         ))
@@ -77,7 +122,7 @@ extension View {
     func destructiveIconActionButtonStyle() -> some View {
         buttonStyle(
             IconActionButtonStyle(
-                foregroundColor: destructiveActionTint,
+                foregroundColor: ActionButtonTint.destructive,
                 backgroundColor: destructiveIconActionButtonTint
             )
         )
@@ -184,41 +229,15 @@ private struct ProminentActionButtonBody: View {
     }
 
     private var horizontalPadding: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 8
-        case .small:
-            return 10
-        case .regular:
-            return 12
-        case .extraLarge:
-            return 16
-        case .large:
-            return 14
-        @unknown default:
-            return 12
-        }
+        ActionButtonMetrics.horizontalPadding(for: controlSize)
     }
 
     private var controlHeight: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 22
-        case .small:
-            return 24
-        case .regular:
-            return 30
-        case .extraLarge:
-            return 38
-        case .large:
-            return 34
-        @unknown default:
-            return 30
-        }
+        ActionButtonMetrics.controlHeight(for: controlSize)
     }
 
     private var cornerRadius: CGFloat {
-        AppCornerRadius.standard
+        ActionButtonMetrics.cornerRadius
     }
 
     private func backgroundColor(isPressed: Bool) -> Color {

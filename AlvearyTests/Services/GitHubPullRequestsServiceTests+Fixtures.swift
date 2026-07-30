@@ -104,6 +104,7 @@ enum PullRequestsServiceFixtures {
         "author": { "login": "alice", "avatarUrl": "https://avatars.example.com/alice" },
         "headRefName": "feat/parser",
         "baseRefName": "main",
+        "headRef": { "name": "feat/parser" },
         "additions": 40,
         "deletions": 9,
         "changedFiles": 3,
@@ -147,6 +148,9 @@ enum PullRequestsServiceFixtures {
           "nodes": [
             {
               "id": "IC_bot1",
+              "databaseId": 321,
+              "viewerCanUpdate": false,
+              "viewerCanDelete": true,
               "author": { "__typename": "Bot", "login": "helper-bot", "avatarUrl": null },
               "body": "Looks promising",
               "createdAt": "2026-07-01T12:00:00Z",
@@ -160,6 +164,8 @@ enum PullRequestsServiceFixtures {
           "nodes": [
             {
               "id": "PRR_1",
+              "databaseId": 555,
+              "viewerCanUpdate": true,
               "author": { "__typename": "User", "login": "carol", "avatarUrl": null },
               "state": "APPROVED",
               "body": "Ship it",
@@ -167,9 +173,20 @@ enum PullRequestsServiceFixtures {
               "reactionGroups": [
                 { "content": "ROCKET", "viewerHasReacted": true, "reactors": { "totalCount": 1 } }
               ]
+            },
+            {
+              "id": "PRR_draft",
+              "databaseId": 556,
+              "viewerCanUpdate": true,
+              "author": { "__typename": "User", "login": "viewer", "avatarUrl": null },
+              "state": "PENDING",
+              "body": "",
+              "submittedAt": null,
+              "reactionGroups": []
             }
           ]
         },
+        "pendingReview": { "nodes": [{ "id": "PRR_draft" }] },
         "reviewRequests": {
           "nodes": [
             {
@@ -234,6 +251,8 @@ enum PullRequestsServiceFixtures {
                     "databaseId": 987,
                     "viewerCanUpdate": true,
                     "viewerCanDelete": false,
+                    "state": "SUBMITTED",
+                    "pullRequestReview": { "id": "PRR_1" },
                     "author": { "login": "carol", "avatarUrl": null },
                     "body": "Handle empty input here.",
                     "createdAt": "2026-07-01T13:00:00Z",
@@ -241,6 +260,30 @@ enum PullRequestsServiceFixtures {
                       { "content": "THUMBS_UP", "viewerHasReacted": true, "reactors": { "totalCount": 2 } },
                       { "content": "EYES", "viewerHasReacted": false, "reactors": { "totalCount": 0 } }
                     ]
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRT_draft",
+              "path": "Sources/Lexer.swift",
+              "line": 4,
+              "diffSide": "LEFT",
+              "isResolved": false,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_draft",
+                    "databaseId": 988,
+                    "viewerCanUpdate": true,
+                    "viewerCanDelete": true,
+                    "state": "PENDING",
+                    "pullRequestReview": { "id": "PRR_draft" },
+                    "author": { "login": "viewer", "avatarUrl": null },
+                    "body": "Not submitted yet.",
+                    "createdAt": "2026-07-03T09:00:00Z",
+                    "reactionGroups": []
                   }
                 ]
               }

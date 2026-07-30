@@ -11,7 +11,8 @@ extension SidebarView {
             expandedProjects: expandedProjects,
             activeThreads: context.activeThreads(for:),
             activeTasks: context.activeTaskThreads,
-            hasArchivedThreads: context.hasArchivedThreads
+            hasArchivedThreads: context.hasArchivedThreads,
+            showsPullRequests: context.showsPullRequests
         )
     }
 
@@ -218,12 +219,13 @@ func buildNavigableItems(
     expandedProjects: Set<String>,
     activeThreads: (Project) -> [AgentThread],
     activeTasks: [AgentThread] = [],
-    hasArchivedThreads: Bool = false
+    hasArchivedThreads: Bool = false,
+    showsPullRequests: Bool = true
 ) -> [SidebarItem] {
-    var items: [SidebarItem] = [.skills, .mcp, .scheduled, .pullRequests]
-    if hasArchivedThreads {
-        items.append(.archived)
-    }
+    var items = sidebarTopLevelRowItems(
+        showsPullRequests: showsPullRequests,
+        hasArchivedThreads: hasArchivedThreads
+    )
     for pinnedItem in pinnedItems {
         items.append(pinnedItem.sidebarItem)
         if case .project(let project) = pinnedItem.kind,

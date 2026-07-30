@@ -106,6 +106,8 @@ func appKitHorizontalOverflowScrollbarReserveValue(for scrollerStyle: NSScroller
     // Overlay scrollers fade over content; reserving their full thickness leaves
     // a permanent gutter. Only reserve space when the system asks for legacy,
     // always-visible scrollers that otherwise consume the final line's space.
+    // Keeping an *interactive* control clear of a floating overlay scroller is
+    // the opposite problem; that one goes through `AppScrollIndicatorLayout`.
     guard scrollerStyle == .legacy else {
         return 0
     }

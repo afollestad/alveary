@@ -271,7 +271,41 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
         throw PullRequestsServiceError.transport("unused")
     }
 
-    func submitReview(_ id: PullRequestIdentifier, submission: PendingReviewSubmission) async throws {
+    func submitReview(_ id: PullRequestIdentifier, event: PullRequestReviewEvent, body: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func createPendingReview(pullRequestNodeID: String) async throws -> String {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func addPendingReviewComment(
+        reviewNodeID: String,
+        path: String,
+        line: Int,
+        side: PullRequestDiffSide,
+        body: String
+    ) async throws -> PullRequestReviewThread {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func updatePendingReviewComment(commentNodeID: String, body: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func deletePendingReviewComment(commentNodeID: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func deletePendingReview(reviewNodeID: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func submitPendingReview(
+        reviewNodeID: String,
+        event: PullRequestReviewEvent,
+        body: String
+    ) async throws {
         throw PullRequestsServiceError.transport("unused")
     }
 
@@ -280,6 +314,30 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
     }
 
     func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func updateIssueComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func deleteIssueComment(_ id: PullRequestIdentifier, commentID: Int) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func updateReview(_ id: PullRequestIdentifier, reviewID: Int, body: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func updatePullRequestBody(_ id: PullRequestIdentifier, body: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func setPullRequestClosed(_ id: PullRequestIdentifier, closed: Bool) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
+    func markPullRequestReadyForReview(nodeID: String) async throws {
         throw PullRequestsServiceError.transport("unused")
     }
 

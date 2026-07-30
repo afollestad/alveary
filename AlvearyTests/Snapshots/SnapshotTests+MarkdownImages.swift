@@ -10,7 +10,7 @@ extension SnapshotTests {
         let fixture = try markdownImagesFixture()
         assertMacSnapshot(
             fixture,
-            size: CGSize(width: 460, height: 360),
+            size: CGSize(width: 460, height: 560),
             named: "markdown_remote_images"
         )
     }
@@ -19,15 +19,16 @@ extension SnapshotTests {
         let fixture = try markdownImagesFixture()
         assertMacSnapshot(
             fixture,
-            size: CGSize(width: 460, height: 360),
+            size: CGSize(width: 460, height: 560),
             named: "markdown_remote_images_dark",
             colorScheme: .dark
         )
     }
 
-    /// One fixture covers the three markdown image states: an inline badge sharing
-    /// a line with bold text (loaded), a standalone image block (loaded), and an
-    /// inline image still loading, which keeps showing its alt text.
+    /// One fixture covers the markdown image states: an inline badge sharing a
+    /// line with bold text (loaded), a standalone image block (loaded), an inline
+    /// image still loading (keeps its alt text), and a standalone block still
+    /// loading (placeholder with the centered working indicator).
     private func markdownImagesFixture() throws -> some View {
         let store = AppMarkdownImageStore(loader: SnapshotUnavailableImageLoader(), diskCache: nil)
         let badgePNG = try appMarkdownTestPNGData(width: 40, height: 20, color: .systemOrange)
@@ -46,6 +47,8 @@ extension SnapshotTests {
         ![Screenshot](https://example.com/photo.png)
 
         Pending ![Pending badge](https://example.com/pending.png) shows alt text.
+
+        ![Loading block](https://example.com/loading.png)
         """
         return AppMarkdownText(markdown: markdown)
             .environment(\.appMarkdownImageStore, store)

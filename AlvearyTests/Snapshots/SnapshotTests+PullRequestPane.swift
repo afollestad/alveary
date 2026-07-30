@@ -31,6 +31,73 @@ extension SnapshotTests {
         )
     }
 
+    /// The header pads its trailing edge so the diff stats and the description's
+    /// Edit menu share the timeline cards' menu column, which also keeps the menu
+    /// out of the scroll indicator's grab region. Without `viewerCanUpdate` the
+    /// menu does not render at all, so the other Overview baselines never see it.
+    func testPullRequestPaneOverviewEditableDescription() {
+        var session = PullRequestPaneSnapshots.loadedSession
+        session.detail?.viewerCanUpdate = true
+
+        assertMacSnapshot(
+            PullRequestPaneOverview(
+                session: session,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                onOpenFiles: {}
+            ),
+            size: CGSize(width: 460, height: 1_400),
+            named: "pull_request_pane_overview_editable_description"
+        )
+    }
+
+    /// Thread cards float on the hunk's code surface (the row carries the shared
+    /// hunk chrome, so the surface flows behind the card instead of a pane-color
+    /// band interrupting it), and their interior trailing padding keeps the
+    /// three-dot menu out of the scroll indicator's grab region. The shared
+    /// fixture's threads are outdated or anchored to paths outside the diff, so
+    /// no other Changes baseline renders a thread row.
+    func testPullRequestPaneFilesCommentThread() {
+        var session = PullRequestPaneSnapshots.loadedSession
+        session.detail?.reviewThreads = [PullRequestPaneSnapshots.diffAnchoredThread]
+
+        assertMacSnapshot(
+            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            size: CGSize(width: 460, height: 520),
+            named: "pull_request_pane_files_comment_thread"
+        )
+    }
+
+    /// Dark mode is where the surface-continuity behind thread cards is visible:
+    /// the code surface and the pane background diverge most there, so a band of
+    /// pane color around the card would show as a clear seam.
+    func testPullRequestPaneFilesCommentThreadDark() {
+        var session = PullRequestPaneSnapshots.loadedSession
+        session.detail?.reviewThreads = [PullRequestPaneSnapshots.diffAnchoredThread]
+
+        assertMacSnapshot(
+            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            size: CGSize(width: 460, height: 520),
+            named: "pull_request_pane_files_comment_thread_dark",
+            colorScheme: .dark
+        )
+    }
+
+    /// The full pane is the only surface where the tab row's Open-on-GitHub
+    /// button and the header's trailing column meet: the button's glyph and the
+    /// diff stats right-align on the shared 28pt trailing column (the Edit
+    /// menu's dots join it in the editable-description baseline). The
+    /// Overview-only baselines cannot catch the tab row drifting off that
+    /// column.
+    func testPullRequestPaneTrailingColumn() async {
+        let fixture = await PullRequestPaneSnapshots.makeLoadedFixture()
+
+        assertMacSnapshot(
+            fixture.pane,
+            size: CGSize(width: 460, height: 400),
+            named: "pull_request_pane_trailing_column"
+        )
+    }
+
     func testPullRequestPaneFiles() async throws {
         let fixture = await PullRequestPaneSnapshots.makeLoadedFixture()
         let session = try XCTUnwrap(fixture.viewModel.paneSessions[fixture.target])
@@ -39,6 +106,20 @@ extension SnapshotTests {
             PullRequestPaneFiles(session: session, viewModel: fixture.viewModel),
             size: CGSize(width: 460, height: 720),
             named: "pull_request_pane_files"
+        )
+    }
+
+    /// A diff past the paging window pins the "Show N more files" bar under the
+    /// diff; it wears the same `contextualPaneFooterChrome()` as the review footer
+    /// directly beneath it, so the two stacked strips must read as one system.
+    func testPullRequestPaneFilesShowMoreFooter() {
+        var session = PullRequestPaneSnapshots.loadedSession
+        session.diffFiles = DiffParser.parse(makeUnifiedDiffFixture(fileCount: 20, addedLinesPerFile: 1))
+
+        assertMacSnapshot(
+            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            size: CGSize(width: 460, height: 320),
+            named: "pull_request_pane_files_show_more"
         )
     }
 
@@ -59,8 +140,13 @@ enum PullRequestPaneSnapshots {
 
     /// A view model that never loads; standalone tab snapshots only need the
     /// avatar loader (letter placeholders for nil URLs) and toggle callbacks.
+    /// The fixed clock sits just after the fixture dates so relative ages stay
+    /// stable.
     static var inertViewModel: PullRequestsViewModel {
-        makePullRequestsViewModel(service: StubPullRequestsService())
+        makePullRequestsViewModel(
+            service: StubPullRequestsService(),
+            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
     }
 
     static var loadedSession: PullRequestPaneSession {
@@ -71,6 +157,30 @@ enum PullRequestPaneSnapshots {
         session.diffState = .loaded
         return session
     }
+
+    /// Anchored to the generated diff's own first added line (`File0.swift`, new
+    /// line 1) and not outdated, so `commentAnnotations` actually inserts a
+    /// thread row into the Changes tab.
+    static let diffAnchoredThread = PullRequestReviewThread(
+        path: "File0.swift",
+        line: 1,
+        side: .right,
+        isResolved: false,
+        isOutdated: false,
+        comments: [
+            PullRequestComment(
+                authorLogin: "priya",
+                authorAvatarURL: nil,
+                bodyMarkdown: "Clamp this before the fetch.",
+                createdAt: Date(timeIntervalSince1970: 1_799_965_000),
+                databaseId: 987,
+                nodeID: "PRRC_diff",
+                viewerCanUpdate: true,
+                viewerCanDelete: true
+            )
+        ],
+        nodeID: "PRT_diff"
+    )
 
     static let summary = makePullRequestSummary(
         number: 41,
@@ -109,7 +219,11 @@ enum PullRequestPaneSnapshots {
                 authorAvatarURL: nil,
                 bodyMarkdown: "Looks promising — one question about the throttle.",
                 createdAt: Date(timeIntervalSince1970: 1_799_950_000),
+                databaseId: 501,
                 nodeID: "IC_1",
+                // Delete-only permissions: the card's menu renders with just Delete,
+                // like a collaborator viewing a bot's comment on GitHub.
+                viewerCanDelete: true,
                 reactions: [
                     PullRequestCommentReaction(content: .thumbsUp, count: 2, viewerHasReacted: false)
                 ],
@@ -123,7 +237,10 @@ enum PullRequestPaneSnapshots {
                 state: .approved,
                 bodyMarkdown: "Ship it.",
                 submittedAt: Date(timeIntervalSince1970: 1_799_960_000),
+                databaseId: 555,
                 nodeID: "PRR_1",
+                // Updatable: the review card's menu offers Edit (never Delete).
+                viewerCanUpdate: true,
                 reactions: [
                     PullRequestCommentReaction(content: .hooray, count: 1, viewerHasReacted: true)
                 ]
@@ -133,7 +250,8 @@ enum PullRequestPaneSnapshots {
                 authorAvatarURL: nil,
                 state: .changesRequested,
                 bodyMarkdown: "",
-                submittedAt: Date(timeIntervalSince1970: 1_799_970_000)
+                submittedAt: Date(timeIntervalSince1970: 1_799_970_000),
+                nodeID: "PRR_2"
             )
         ],
         reviewThreads: [
@@ -150,10 +268,40 @@ enum PullRequestPaneSnapshots {
                         bodyMarkdown: "Consider clamping this before the fetch.",
                         createdAt: Date(timeIntervalSince1970: 1_799_965_000),
                         databaseId: 987,
-                        nodeID: "PRRC_1"
+                        nodeID: "PRRC_1",
+                        // Full permissions: the thread comment's menu offers both actions.
+                        viewerCanUpdate: true,
+                        viewerCanDelete: true
                     )
                 ],
-                nodeID: "PRT_1"
+                nodeID: "PRT_1",
+                // Submitted with priya's review: nests under her verdict card.
+                reviewNodeID: "PRR_2"
+            ),
+            // The viewer's own unsubmitted comment. Its carrier review is dropped
+            // from `reviews`, so it renders as a standalone timeline card wearing
+            // the orange Pending pill, with no Reply/Resolve footer.
+            PullRequestReviewThread(
+                path: "Alveary/Views/PullRequests/PullRequestPane.swift",
+                line: 18,
+                side: .right,
+                isResolved: false,
+                isOutdated: false,
+                comments: [
+                    PullRequestComment(
+                        authorLogin: "afollestad",
+                        authorAvatarURL: nil,
+                        bodyMarkdown: "Queue this rename for the same review.",
+                        createdAt: Date(timeIntervalSince1970: 1_799_975_000),
+                        databaseId: 988,
+                        nodeID: "PRRC_pending",
+                        viewerCanUpdate: true,
+                        viewerCanDelete: true,
+                        isPending: true
+                    )
+                ],
+                nodeID: "PRT_pending",
+                reviewNodeID: "PRR_pending"
             )
         ],
         timelineEvents: [
@@ -209,7 +357,11 @@ enum PullRequestPaneSnapshots {
         let service = StubPullRequestsService()
         service.detailResult = .success(detail)
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 2, addedLinesPerFile: 3))
-        let viewModel = makePullRequestsViewModel(service: service)
+        // Fixed clock just after the fixture dates so relative ages stay stable.
+        let viewModel = makePullRequestsViewModel(
+            service: service,
+            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
         viewModel.requestDetails(summary)
         let target = PullRequestPaneTarget.details(identifier)
         for _ in 0..<2_000 {

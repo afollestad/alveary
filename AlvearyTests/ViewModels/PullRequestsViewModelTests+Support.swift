@@ -8,6 +8,10 @@ func makePullRequestsViewModel(
     service: StubPullRequestsService,
     listCache: PullRequestsListCache? = nil,
     settingsService: (any SettingsService)? = nil,
+    attachmentUploadService: (any GitHubAttachmentUploadService)? = nil,
+    attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
+    attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
+    presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
     now: @escaping () -> Date = Date.init
 ) -> PullRequestsViewModel {
     PullRequestsViewModel(
@@ -15,8 +19,33 @@ func makePullRequestsViewModel(
         avatarLoader: GitHubAvatarLoader(),
         listCache: listCache,
         settingsService: settingsService,
+        attachmentUploadService: attachmentUploadService,
+        attachmentImageSeeder: attachmentImageSeeder,
+        attachmentImageRepositoryRegistrar: attachmentImageRepositoryRegistrar,
+        presentToast: presentToast,
         now: now
     )
+}
+
+/// Records upload calls and returns caller-supplied results so attach tests can
+/// drive success and failure deterministically.
+@MainActor
+final class StubGitHubAttachmentUploadService: GitHubAttachmentUploadService {
+    var available = true
+    var result: Result<[GitHubAttachmentUpload], GitHubAttachmentUploadError> = .success([])
+    private(set) var uploadCalls: [(files: [URL], repository: String)] = []
+    /// Held closed until `openGate()` so a test can observe the in-flight state.
+    var gate: PullRequestsServiceGate?
+
+    func isAvailable() async -> Bool {
+        available
+    }
+
+    func upload(files: [URL], repository: String) async throws -> [GitHubAttachmentUpload] {
+        uploadCalls.append((files: files, repository: repository))
+        await gate?.wait()
+        return try result.get()
+    }
 }
 
 func makePullRequestSummary(
@@ -54,14 +83,22 @@ func makePullRequestSummary(
 func makePullRequestDetail(
     id: PullRequestIdentifier,
     title: String = "Detail title",
+    status: PullRequestStatus = .open,
     comments: [PullRequestComment] = [],
-    reviewThreads: [PullRequestReviewThread] = []
+    reviews: [PullRequestReview] = [],
+    reviewThreads: [PullRequestReviewThread] = [],
+    viewerCanUpdate: Bool = false,
+    headRefExists: Bool = true,
+    // Non-nil by default: production always fetches it, and the ready-for-review
+    // action is gated on it.
+    nodeID: String? = "PR_7",
+    pendingReviewNodeID: String? = nil
 ) -> PullRequestDetail {
-    PullRequestDetail(
+    var detail = PullRequestDetail(
         id: id,
         title: title,
         url: nil,
-        status: .open,
+        status: status,
         authorLogin: "alice",
         authorAvatarURL: nil,
         headRefName: "feat/change",
@@ -75,9 +112,14 @@ func makePullRequestDetail(
         reviewDecision: nil,
         checks: [],
         comments: comments,
-        reviews: [],
-        reviewThreads: reviewThreads
+        reviews: reviews,
+        reviewThreads: reviewThreads,
+        viewerCanUpdate: viewerCanUpdate,
+        headRefExists: headRefExists
     )
+    detail.nodeID = nodeID
+    detail.pendingReviewNodeID = pendingReviewNodeID
+    return detail
 }
 
 /// Builds a syntactically valid unified diff with `fileCount` files, each containing
@@ -160,111 +202,42 @@ final class PullRequestsServiceGate: @unchecked Sendable {
     }
 }
 
+/// The anchor the review and pending-comment suites compose against.
+let pullRequestReviewAnchor = DiffCommentAnchor(path: "Sources/Parser.swift", side: .right, line: 12)
+
+/// A pane whose detail and diff have landed, ready for composing.
 @MainActor
-final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
-    var listResult: Result<PullRequestListResult, PullRequestsServiceError> = .success(
-        PullRequestListResult(summaries: [], warnings: [])
+func makeLoadedPullRequestPane(
+    service: StubPullRequestsService,
+    pendingReviewNodeID: String? = nil,
+    reviewThreads: [PullRequestReviewThread] = []
+) async -> (viewModel: PullRequestsViewModel, summary: PullRequestSummary) {
+    let summary = makePullRequestSummary(number: 7)
+    service.detailResult = .success(
+        makePullRequestDetail(
+            id: summary.id,
+            reviewThreads: reviewThreads,
+            pendingReviewNodeID: pendingReviewNodeID
+        )
     )
-    var listGate: PullRequestsServiceGate?
-    var detailResult: Result<PullRequestDetail, PullRequestsServiceError> = .failure(.transport("unused"))
-    var diffResult: Result<String, PullRequestsServiceError> = .failure(.transport("unused"))
-    var submitResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
-    var updateCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
-    var deleteCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
-    var reactionResult: Result<Void, PullRequestsServiceError> = .success(())
-    var replyResult: Result<Void, PullRequestsServiceError> = .success(())
-    var resolveResult: Result<Void, PullRequestsServiceError> = .success(())
-    var requestReviewResult: Result<Void, PullRequestsServiceError> = .success(())
-    var detailGate: PullRequestsServiceGate?
-    var diffGate: PullRequestsServiceGate?
-    private(set) var listCallCount = 0
-    private(set) var detailCallCount = 0
-    private(set) var diffCallCount = 0
-    struct UpdatedReviewComment: Equatable {
-        let id: PullRequestIdentifier
-        let commentID: Int
-        let body: String
-    }
+    service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+    let viewModel = makePullRequestsViewModel(service: service)
+    viewModel.requestDetails(summary)
+    await waitForPaneContent(viewModel, target: .details(summary.id))
+    return (viewModel, summary)
+}
 
-    struct ReactionMutation: Equatable {
-        let subjectID: String
-        let content: PullRequestReactionContent
-        let isAdd: Bool
-    }
-
-    struct ThreadReply: Equatable {
-        let commentID: Int
-        let body: String
-    }
-
-    struct ThreadResolution: Equatable {
-        let threadID: String
-        let resolved: Bool
-    }
-
-    private(set) var submittedReviews: [(id: PullRequestIdentifier, submission: PendingReviewSubmission)] = []
-    private(set) var updatedComments: [UpdatedReviewComment] = []
-    private(set) var deletedCommentIDs: [Int] = []
-    private(set) var reactionMutations: [ReactionMutation] = []
-    private(set) var threadReplies: [ThreadReply] = []
-    private(set) var threadResolutions: [ThreadResolution] = []
-    private(set) var reviewRequests: [String] = []
-
-    func listInvolvedPullRequests() async throws -> PullRequestListResult {
-        listCallCount += 1
-        await listGate?.wait()
-        return try listResult.get()
-    }
-
-    func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {
-        detailCallCount += 1
-        await detailGate?.wait()
-        return try detailResult.get()
-    }
-
-    func fetchDiff(_ id: PullRequestIdentifier) async throws -> String {
-        diffCallCount += 1
-        await diffGate?.wait()
-        return try diffResult.get()
-    }
-
-    func submitReview(_ id: PullRequestIdentifier, submission: PendingReviewSubmission) async throws {
-        submittedReviews.append((id: id, submission: submission))
-        return try submitResult.get()
-    }
-
-    func updateReviewComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {
-        updatedComments.append(UpdatedReviewComment(id: id, commentID: commentID, body: body))
-        return try updateCommentResult.get()
-    }
-
-    func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws {
-        deletedCommentIDs.append(commentID)
-        return try deleteCommentResult.get()
-    }
-
-    func addReaction(subjectID: String, content: PullRequestReactionContent) async throws {
-        reactionMutations.append(ReactionMutation(subjectID: subjectID, content: content, isAdd: true))
-        return try reactionResult.get()
-    }
-
-    func removeReaction(subjectID: String, content: PullRequestReactionContent) async throws {
-        reactionMutations.append(ReactionMutation(subjectID: subjectID, content: content, isAdd: false))
-        return try reactionResult.get()
-    }
-
-    func replyToReviewComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {
-        threadReplies.append(ThreadReply(commentID: commentID, body: body))
-        return try replyResult.get()
-    }
-
-    func setReviewThreadResolved(threadID: String, resolved: Bool) async throws {
-        threadResolutions.append(ThreadResolution(threadID: threadID, resolved: resolved))
-        return try resolveResult.get()
-    }
-
-    func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws {
-        reviewRequests.append(reviewerLogin)
-        return try requestReviewResult.get()
+/// Spins the main actor until `condition` holds, for the unstructured `Task`s the
+/// optimistic comment paths dispatch.
+@MainActor
+func waitForPullRequestCondition(
+    _ condition: @MainActor () -> Bool,
+    iterations: Int = 2_000
+) async {
+    for _ in 0..<iterations {
+        if condition() {
+            return
+        }
+        await Task.yield()
     }
 }

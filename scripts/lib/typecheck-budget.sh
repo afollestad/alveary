@@ -31,8 +31,9 @@ fi
 #
 # An optional third argument raises the failure threshold above the warning flag. The solver's
 # wall-clock timer bills first-touch framework deserialization to whichever expression in a
-# frontend batch needs it first, so a trivial test statement can report 3-4s on CI while solving
-# in under 100ms locally — noise no restructuring can remove, observed only in test sources.
+# frontend batch needs it first, so a trivial test statement can report several seconds on CI
+# while solving in under 100ms locally — noise no restructuring can remove, observed only in
+# test sources.
 # `test.sh` therefore fails at `TYPECHECK_TEST_BUDGET_MS` (defaulting to the base budget) while
 # the compiler flag stays at the base value everywhere, keeping build settings identical so every
 # step shares one set of products. Sub-threshold reports still surface as plain warnings.

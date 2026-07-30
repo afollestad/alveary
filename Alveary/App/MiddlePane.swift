@@ -189,8 +189,23 @@ func resolveSidebarSelectionBookmark(
     }
 }
 
+/// A hidden `Pull requests` row leaves the screen unreachable, so a bookmark that still points at
+/// it must not restore it. Applied where Settings hands selection back.
+func sidebarSelectionAllowingHiddenPullRequests(
+    _ item: SidebarItem?,
+    showsPullRequests: Bool
+) -> SidebarItem? {
+    guard item == .pullRequests, !showsPullRequests else {
+        return item
+    }
+    return nil
+}
+
 private extension MiddlePane {
     func resolveSidebarBookmark(_ bookmark: AppState.SidebarBookmark) -> SidebarItem? {
-        resolveSidebarSelectionBookmark(bookmark, modelContext: uiModelContext)
+        sidebarSelectionAllowingHiddenPullRequests(
+            resolveSidebarSelectionBookmark(bookmark, modelContext: uiModelContext),
+            showsPullRequests: settingsService.current.showsPullRequestsInSidebar
+        )
     }
 }

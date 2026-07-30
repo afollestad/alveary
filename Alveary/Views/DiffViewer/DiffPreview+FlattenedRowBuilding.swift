@@ -117,7 +117,10 @@ enum FlattenedDiffPreviewRows {
         return "\(fileIndex):\(path)"
     }
 
-    // A line row plus any comment thread and composer rows anchored to it.
+    // A line row plus any comment thread and composer rows anchored to it. The
+    // hunk-row chrome flags (bottom rounding, inter-hunk padding) belong to the
+    // group's final row: a comment row extends the hunk's code surface, so an
+    // anchored line must not round or pad above one.
     // swiftlint:disable:next function_parameter_count
     private static func lineRowGroup(
         id: String,
@@ -126,28 +129,77 @@ enum FlattenedDiffPreviewRows {
         isLastInHunk: Bool,
         bottomPadding: CGFloat,
         commentPath: String,
-        commentAnnotations: DiffCommentAnnotations
+        commentAnnotations: DiffCommentAnnotations,
+        followingLineType: DiffLine.LineType?
     ) -> [FlattenedDiffPreviewRow] {
         let anchor = commentAnnotations.isActive ? commentAnchor(for: line, path: commentPath) : nil
+        let thread = anchor.flatMap { commentAnnotations.threads[$0] }
+        let showsComposer = anchor != nil && commentAnnotations.composerAnchor == anchor
+        let lineIsLast = thread == nil && !showsComposer
+        // The composer renders below the thread, so it is the group's last row
+        // whenever it is present.
+        let threadIsLast = thread != nil && !showsComposer
+        // Only the group's final row borders the following line; interior
+        // boundaries (thread above a composer) stay the anchored line's tint.
+        let trailingWashType = followingLineType ?? line.type
+
         var rows: [FlattenedDiffPreviewRow] = [
             .line(
                 id: id,
                 line: line,
                 gutterLayout: gutterLayout,
-                isLastInHunk: isLastInHunk,
-                bottomPadding: bottomPadding,
+                isLastInHunk: isLastInHunk && lineIsLast,
+                bottomPadding: lineIsLast ? bottomPadding : 0,
                 commentAnchor: anchor
             )
         ]
         if let anchor {
-            if let thread = commentAnnotations.threads[anchor] {
-                rows.append(.commentThread(id: "comment:\(anchor.key)", thread: thread, anchor: anchor))
+            if let thread {
+                rows.append(.commentThread(
+                    id: "comment:\(anchor.key)",
+                    thread: thread,
+                    anchor: anchor,
+                    wash: DiffCommentRowWash(
+                        topLineType: line.type,
+                        bottomLineType: threadIsLast ? trailingWashType : line.type,
+                        gutterLayout: gutterLayout
+                    ),
+                    isLastInHunk: isLastInHunk && threadIsLast,
+                    bottomPadding: threadIsLast ? bottomPadding : 0
+                ))
             }
-            if commentAnnotations.composerAnchor == anchor {
-                rows.append(.commentComposer(id: "composer:\(anchor.key)", anchor: anchor))
+            if showsComposer {
+                rows.append(.commentComposer(
+                    id: "composer:\(anchor.key)",
+                    anchor: anchor,
+                    wash: DiffCommentRowWash(
+                        topLineType: line.type,
+                        bottomLineType: trailingWashType,
+                        gutterLayout: gutterLayout
+                    ),
+                    isLastInHunk: isLastInHunk,
+                    bottomPadding: bottomPadding
+                ))
             }
         }
         return rows
+    }
+
+    /// The next display row's line type, for a comment row's bottom wash band.
+    /// An omitted-context row reads as context; past the hunk's end, `nil`.
+    private static func followingLineType(
+        in displayRows: [DiffHunkDisplayRow],
+        after rowIndex: Int
+    ) -> DiffLine.LineType? {
+        guard displayRows.indices.contains(rowIndex + 1) else {
+            return nil
+        }
+        switch displayRows[rowIndex + 1] {
+        case .line(let line):
+            return line.type
+        case .omitted:
+            return .context
+        }
     }
 
     /// Maps a diff line to the GitHub review-comment anchor for its changed side:
@@ -202,7 +254,8 @@ enum FlattenedDiffPreviewRows {
                         isLastInHunk: isLastInHunk,
                         bottomPadding: bottomPadding,
                         commentPath: commentPath,
-                        commentAnnotations: commentAnnotations
+                        commentAnnotations: commentAnnotations,
+                        followingLineType: followingLineType(in: displayRows, after: rowIndex)
                     ))
                 case .omitted(let summary):
                     rows.append(

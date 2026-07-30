@@ -203,6 +203,17 @@ extension ContentView {
             ScheduledTaskEditorPane(viewModel: scheduledTasksViewModel, target: target, onDismiss: onDismiss)
         case .pullRequest(let target):
             PullRequestPane(viewModel: pullRequestsViewModel, target: target, onDismiss: onDismiss)
+                .environment(\.appMarkdownImagePreviewAction, markdownImagePreviewAction)
+        }
+    }
+
+    /// Routes clicked markdown images in the PR pane (description, comments,
+    /// review threads) into the app image preview modal, matching the chat
+    /// transcript's behavior. The stable id keeps re-renders from invalidating
+    /// the pane's environment.
+    private var markdownImagePreviewAction: AppMarkdownImagePreviewAction {
+        AppMarkdownImagePreviewAction(id: "app-image-preview-modal") { [appState] image, baseURL in
+            appState.presentImagePreview(.markdownImage(image, baseURL: baseURL))
         }
     }
 

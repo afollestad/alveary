@@ -12,8 +12,9 @@ struct DiffCommentEditorControls: View {
         interaction.composerMode(anchor)
     }
 
+    /// Saving mid-upload would post the comment without the attachment's link.
     private var canSave: Bool {
-        !(interaction.draft?.isEffectivelyEmpty ?? true)
+        !(interaction.draft?.isEffectivelyEmpty ?? true) && !interaction.isUploadingAttachments
     }
 
     /// Shared by the Save button and the editor's Cmd+Return shortcut so the
@@ -51,6 +52,13 @@ struct DiffCommentEditorControls: View {
             HStack(spacing: 6) {
                 Spacer(minLength: 0)
 
+                if let onAttachFiles = interaction.onAttachFiles {
+                    PullRequestCommentAttachButton(
+                        isUploading: interaction.isUploadingAttachments,
+                        onPick: onAttachFiles
+                    )
+                }
+
                 Button("Cancel", action: interaction.onCancelComposer)
                     .secondaryActionButtonStyle()
                     .controlSize(.small)
@@ -63,6 +71,10 @@ struct DiffCommentEditorControls: View {
                 .disabled(!canSave)
             }
         }
+        .pullRequestAttachmentDropTarget(
+            isEnabled: interaction.onAttachFiles != nil && !interaction.isUploadingAttachments,
+            onDrop: { interaction.onAttachFiles?($0) }
+        )
     }
 }
 
@@ -72,14 +84,7 @@ struct DiffCommentComposerRow: View {
 
     var body: some View {
         DiffCommentEditorControls(anchor: anchor, interaction: interaction)
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.secondary.opacity(0.08))
-            )
-            .padding(.vertical, 6)
-            .modifier(DiffCommentRowWidthModifier())
+            .modifier(DiffCommentCardChrome())
             .accessibilityElement(children: .contain)
             .accessibilityLabel("New comment on line \(anchor.line) of \(anchor.path)")
     }

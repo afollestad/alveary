@@ -11,13 +11,27 @@ struct PullRequestsScreen: View {
     private let emptyStateVerticalOffset: CGFloat = -91
 
     var body: some View {
-        VStack(spacing: 0) {
-            PullRequestsScreenHeader(viewModel: viewModel)
+        attachmentAccessSheet(
+            VStack(spacing: 0) {
+                PullRequestsScreenHeader(viewModel: viewModel)
 
-            content
-        }
-        .task {
-            await viewModel.refreshForScreen()
+                content
+            }
+            .task {
+                await viewModel.refreshForScreen()
+            }
+        )
+    }
+
+    /// Lifted out of `body` to keep the presentation modifier off the
+    /// type-check budget, like `PullRequestPane`'s delete dialog.
+    private func attachmentAccessSheet<Content: View>(_ content: Content) -> some View {
+        content.sheet(item: $viewModel.attachmentAccessRequest) { _ in
+            PullRequestAttachmentAccessSheet(
+                onOpenSettings: { GitHubAttachmentAccessGuide.openFullDiskAccessSettings() },
+                onRetry: { viewModel.retryAttachmentUpload() },
+                onCancel: { viewModel.dismissAttachmentAccessRequest() }
+            )
         }
     }
 

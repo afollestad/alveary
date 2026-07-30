@@ -18,6 +18,9 @@ final class AppKitMarkdownImageBlockView: NSView {
     private let contentView = AppKitFlippedDynamicColorView()
     private let imageView = NSImageView()
     private let statusLabel = NSTextField(labelWithString: "")
+    /// Centered working indicator while the network load runs; mirrors the
+    /// SwiftUI block view's spinner.
+    private let loadingSpinner = AppKitStatusIndicatorSpinner()
     private var configuration: Configuration?
     private var loadedCacheKey: String?
     private var loadTask: Task<Void, Never>?
@@ -83,6 +86,13 @@ final class AppKitMarkdownImageBlockView: NSView {
             width: max(contentView.bounds.width - 20, 0),
             height: statusLabel.intrinsicContentSize.height
         )
+        let spinnerSide: CGFloat = 16
+        loadingSpinner.frame = NSRect(
+            x: floor((contentView.bounds.width - spinnerSide) / 2),
+            y: floor((contentView.bounds.height - spinnerSide) / 2),
+            width: spinnerSide,
+            height: spinnerSide
+        )
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -139,6 +149,8 @@ final class AppKitMarkdownImageBlockView: NSView {
         statusLabel.font = .preferredFont(forTextStyle: .body)
         statusLabel.textColor = .secondaryLabelColor
         contentView.addSubview(statusLabel)
+
+        contentView.addSubview(loadingSpinner)
 
         applyPlaceholderStyle()
     }
@@ -216,6 +228,7 @@ final class AppKitMarkdownImageBlockView: NSView {
         imageView.image = image
         imageView.isHidden = false
         statusLabel.isHidden = true
+        loadingSpinner.isHidden = true
         contentView.setLayerFillColor(nil)
         contentView.setLayerStrokeColor(nil)
     }
@@ -232,6 +245,8 @@ final class AppKitMarkdownImageBlockView: NSView {
         statusLabel.stringValue = value
         statusLabel.isHidden = value.isEmpty
         imageView.isHidden = !value.isEmpty
+        // The empty status is the loading placeholder; text means failure.
+        loadingSpinner.isHidden = !value.isEmpty
     }
 
     private func applyPlaceholderStyle() {

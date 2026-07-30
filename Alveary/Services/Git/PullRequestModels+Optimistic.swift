@@ -155,6 +155,49 @@ extension PullRequestDetail {
         return nil
     }
 
+    /// Optimistic remote edit of a top-level conversation comment: rewrites the
+    /// body locally and returns the previous body so a failed PATCH can restore it.
+    @discardableResult
+    mutating func updateIssueCommentBody(commentID: Int, body: String) -> String? {
+        guard let index = comments.firstIndex(where: { $0.databaseId == commentID }) else {
+            return nil
+        }
+        let previous = comments[index].bodyMarkdown
+        comments[index].bodyMarkdown = body
+        return previous
+    }
+
+    /// Optimistic remote edit of a review's summary body: rewrites it locally and
+    /// returns the previous body so a failed PUT can restore it.
+    @discardableResult
+    mutating func updateReviewBody(reviewID: Int, body: String) -> String? {
+        guard let index = reviews.firstIndex(where: { $0.databaseId == reviewID }) else {
+            return nil
+        }
+        let previous = reviews[index].bodyMarkdown
+        reviews[index].bodyMarkdown = body
+        return previous
+    }
+
+    /// What a failed optimistic issue-comment deletion needs to reinsert it.
+    struct RemovedIssueComment: Equatable, Sendable {
+        let index: Int
+        let comment: PullRequestComment
+    }
+
+    /// Optimistic remote delete of a top-level conversation comment.
+    mutating func removeIssueComment(commentID: Int) -> RemovedIssueComment? {
+        guard let index = comments.firstIndex(where: { $0.databaseId == commentID }) else {
+            return nil
+        }
+        return RemovedIssueComment(index: index, comment: comments.remove(at: index))
+    }
+
+    /// Reverts `removeIssueComment` after a failed DELETE.
+    mutating func restoreIssueComment(_ removed: RemovedIssueComment) {
+        comments.insert(removed.comment, at: Swift.min(removed.index, comments.endIndex))
+    }
+
     /// Reverts `removeThreadComment` after a failed DELETE. Matches the thread by
     /// node id first so an interleaved refetch cannot misplace the reinsertion.
     mutating func restoreThreadComment(_ removed: RemovedThreadComment) {
@@ -170,5 +213,93 @@ extension PullRequestDetail {
         }
         let index = Swift.min(removed.commentIndex, reviewThreads[threadIndex].comments.endIndex)
         reviewThreads[threadIndex].comments.insert(removed.comment, at: index)
+    }
+}
+
+// MARK: - Pending review threads
+
+// Pending comments live in `reviewThreads` like submitted ones, but are addressed
+// by GraphQL node id rather than the REST ids above, because that is what the
+// pending-review mutations take.
+extension PullRequestDetail {
+    /// Marks a thread node id as Alveary's own placeholder rather than GitHub's,
+    /// so an optimistic thread can be found again once the mutation answers.
+    static func placeholderThreadNodeID() -> String {
+        "alveary-pending-\(UUID().uuidString)"
+    }
+
+    /// Inserts or replaces a thread by node id. Idempotent so a refetch that
+    /// already carried the real thread cannot produce a duplicate.
+    mutating func upsertReviewThread(_ thread: PullRequestReviewThread) {
+        guard let nodeID = thread.nodeID,
+              let index = reviewThreads.firstIndex(where: { $0.nodeID == nodeID }) else {
+            reviewThreads.append(thread)
+            return
+        }
+        reviewThreads[index] = thread
+    }
+
+    /// Swaps the optimistic thread for the server's copy, keeping its position so
+    /// the comment does not jump. A no-op insert when an interleaved refetch
+    /// already removed the placeholder.
+    mutating func replaceReviewThread(nodeID: String, with thread: PullRequestReviewThread) {
+        guard let index = reviewThreads.firstIndex(where: { $0.nodeID == nodeID }) else {
+            upsertReviewThread(thread)
+            return
+        }
+        reviewThreads[index] = thread
+    }
+
+    /// Withdraws a thread by node id; reverts a failed optimistic insert.
+    mutating func removeReviewThread(nodeID: String) {
+        reviewThreads.removeAll { $0.nodeID == nodeID }
+    }
+
+    /// Optimistic pending edit: rewrites the comment's body locally and returns
+    /// the previous body so a failed mutation can restore it.
+    @discardableResult
+    mutating func updateThreadCommentBody(nodeID: String, body: String) -> String? {
+        for threadIndex in reviewThreads.indices {
+            guard let index = reviewThreads[threadIndex].comments
+                .firstIndex(where: { $0.nodeID == nodeID }) else {
+                continue
+            }
+            let previous = reviewThreads[threadIndex].comments[index].bodyMarkdown
+            reviewThreads[threadIndex].comments[index].bodyMarkdown = body
+            return previous
+        }
+        return nil
+    }
+
+    /// Optimistic pending delete, node-id addressed. A thread emptied by the
+    /// removal disappears with it, matching GitHub.
+    mutating func removeThreadComment(nodeID: String) -> RemovedThreadComment? {
+        for threadIndex in reviewThreads.indices {
+            guard let index = reviewThreads[threadIndex].comments
+                .firstIndex(where: { $0.nodeID == nodeID }) else {
+                continue
+            }
+            let comment = reviewThreads[threadIndex].comments[index]
+            let threadNodeID = reviewThreads[threadIndex].nodeID
+            if reviewThreads[threadIndex].comments.count == 1 {
+                let thread = reviewThreads.remove(at: threadIndex)
+                return RemovedThreadComment(
+                    threadIndex: threadIndex,
+                    threadNodeID: threadNodeID,
+                    commentIndex: index,
+                    comment: comment,
+                    thread: thread
+                )
+            }
+            reviewThreads[threadIndex].comments.remove(at: index)
+            return RemovedThreadComment(
+                threadIndex: threadIndex,
+                threadNodeID: threadNodeID,
+                commentIndex: index,
+                comment: comment,
+                thread: nil
+            )
+        }
+        return nil
     }
 }

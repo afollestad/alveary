@@ -9,8 +9,10 @@ extension FlattenedDiffPreviewRows {
 
     private static func minimumScrollableContentWidth(for row: FlattenedDiffPreviewRow) -> CGFloat {
         switch row {
-        case .fileHeader(_, _, let file, _):
-            return fileHeaderWidth(for: file)
+        case .fileHeader:
+            // The header frames to the exact content width and middle-truncates
+            // its path, so it can never fill scroll space it requested.
+            return 0
         case .renameSummary(_, let oldPath, let newPath):
             return max(
                 DiffPreviewWidthEstimator.monospacedTextWidth(oldPath, horizontalPadding: 24),
@@ -29,25 +31,12 @@ extension FlattenedDiffPreviewRows {
                 horizontalPadding: 20
             )
         case .collapsed(_, let summary, let gutterLayout, _, _):
-            return gutterWidth(for: gutterLayout) + DiffPreviewWidthEstimator.monospacedTextWidth(
+            // The omitted-lines text renders proportional semibold caption, not monospaced.
+            return gutterWidth(for: gutterLayout) + DiffPreviewWidthEstimator.proportionalCaptionTextWidth(
                 omittedText(for: summary),
                 horizontalPadding: 20
             )
         }
-    }
-
-    private static func fileHeaderWidth(for file: DiffFile) -> CGFloat {
-        var width = DiffPreviewWidthEstimator.monospacedTextWidth(file.path)
-        if file.isBinary {
-            width += 58
-        }
-        if file.linesAdded > 0 {
-            width += 42
-        }
-        if file.linesDeleted > 0 {
-            width += 42
-        }
-        return width
     }
 
     private static func hunkHeaderText(for hunk: DiffHunk) -> String {

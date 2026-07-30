@@ -163,7 +163,8 @@ struct SettingsScreen: View {
                 branchPrefix: binding(for: \.branchPrefix),
                 commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
-                createWorktreeByDefault: binding(for: \.createWorktreeByDefault)
+                createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
+                showsPullRequestsInSidebar: binding(for: \.showsPullRequestsInSidebar)
             )
         case .handoff:
             HandoffSettingsTabView(
@@ -338,7 +339,7 @@ private extension AppSettings.SettingsPage {
         case .appShots:
             return "Configure app-shot capture, shortcuts, and local context permissions."
         case .git:
-            return "Configure Git defaults and GitHub authentication for new worktrees."
+            return "Configure Git defaults, pull requests, and GitHub authentication."
         case .handoff:
             return "Configure Alveary's Amp-inspired take on compaction: automatic session handoff, steering, and context customization."
         case .notifications:

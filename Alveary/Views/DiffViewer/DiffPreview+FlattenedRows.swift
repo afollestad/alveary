@@ -18,6 +18,11 @@ struct FlattenedDiffPreview: View {
     /// rows at a fixed gap); the PR pane uses it to match its sibling tabs'
     /// top content inset. The diff viewer keeps the default 0.
     let contentTopInset: CGFloat
+    /// Horizontal padding inside the scroll container. The PR pane folds its
+    /// pane inset into this so the scroll bar sits flush with the pane edge
+    /// (host-side padding would inset the scroller with it); the diff viewer
+    /// keeps the default.
+    let horizontalContentInset: CGFloat
     @State private var preparedRows: FlattenedDiffPreviewPreparedRows?
     @State private var preparedRowsID: Int?
 
@@ -32,7 +37,8 @@ struct FlattenedDiffPreview: View {
         openImage: @escaping (DiffImageVersion) async throws -> Void = { _ in },
         commentAnnotations: DiffCommentAnnotations = .none,
         commentInteraction: DiffCommentInteraction? = nil,
-        contentTopInset: CGFloat = 0
+        contentTopInset: CGFloat = 0,
+        horizontalContentInset: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset
     ) {
         self.files = files
         self.imagePreviews = imagePreviews
@@ -45,6 +51,7 @@ struct FlattenedDiffPreview: View {
         self.commentAnnotations = commentAnnotations
         self.commentInteraction = commentInteraction
         self.contentTopInset = contentTopInset
+        self.horizontalContentInset = horizontalContentInset
     }
 
     var body: some View {
@@ -116,7 +123,10 @@ struct FlattenedDiffPreview: View {
     }
 
     private func rowsView(_ preparedRows: FlattenedDiffPreviewPreparedRows) -> some View {
-        DiffPreviewScrollContainer(minimumScrollableContentWidth: preparedRows.minimumScrollableContentWidth) {
+        DiffPreviewScrollContainer(
+            minimumScrollableContentWidth: preparedRows.minimumScrollableContentWidth,
+            horizontalContentPadding: horizontalContentInset
+        ) {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(preparedRows.rows) { row in
                     FlattenedDiffPreviewRenderRow(
@@ -247,8 +257,26 @@ enum FlattenedDiffPreviewRow: Identifiable, Sendable {
     )
     case collapsed(id: String, summary: CollapsedContextSummary, gutterLayout: DiffGutterLayout, isLastInHunk: Bool, bottomPadding: CGFloat)
     case fileContentSpacer(id: String, height: CGFloat)
-    case commentThread(id: String, thread: DiffLineCommentThread, anchor: DiffCommentAnchor)
-    case commentComposer(id: String, anchor: DiffCommentAnchor)
+    // Comment rows carry the hunk-row chrome flags so the code surface flows
+    // continuously behind their floating cards; when one is the hunk's final
+    // row, it owns the bottom rounding its anchored line row gives up. They
+    // also carry a wash so the neighboring lines' tints surround the card
+    // instead of stopping above it.
+    case commentThread(
+        id: String,
+        thread: DiffLineCommentThread,
+        anchor: DiffCommentAnchor,
+        wash: DiffCommentRowWash,
+        isLastInHunk: Bool,
+        bottomPadding: CGFloat
+    )
+    case commentComposer(
+        id: String,
+        anchor: DiffCommentAnchor,
+        wash: DiffCommentRowWash,
+        isLastInHunk: Bool,
+        bottomPadding: CGFloat
+    )
 
     var id: String {
         switch self {
@@ -261,8 +289,8 @@ enum FlattenedDiffPreviewRow: Identifiable, Sendable {
              .line(let id, _, _, _, _, _),
              .collapsed(let id, _, _, _, _),
              .fileContentSpacer(let id, _),
-             .commentThread(let id, _, _),
-             .commentComposer(let id, _):
+             .commentThread(let id, _, _, _, _, _),
+             .commentComposer(let id, _, _, _, _):
             return id
         }
     }
@@ -338,11 +366,21 @@ private struct FlattenedDiffPreviewRenderRow: View {
         case .fileContentSpacer(_, let height):
             Color.clear
                 .frame(height: height)
-        case .commentThread(_, let thread, let anchor):
+        case .commentThread(_, let thread, let anchor, let wash, let isLastInHunk, let bottomPadding):
             DiffCommentThreadRow(thread: thread, anchor: anchor, interaction: commentInteraction)
-        case .commentComposer(_, let anchor):
+                .diffPreviewFlattenedHunkRow(
+                    isLastInHunk: isLastInHunk,
+                    bottomPadding: bottomPadding,
+                    commentWash: wash
+                )
+        case .commentComposer(_, let anchor, let wash, let isLastInHunk, let bottomPadding):
             if let commentInteraction {
                 DiffCommentComposerRow(anchor: anchor, interaction: commentInteraction)
+                    .diffPreviewFlattenedHunkRow(
+                        isLastInHunk: isLastInHunk,
+                        bottomPadding: bottomPadding,
+                        commentWash: wash
+                    )
             }
         }
     }

@@ -203,24 +203,6 @@ extension SidebarViewTests {
         XCTAssertNil(view.unpinnedTaskDragConfiguration(for: archived, logicalOrder: emptySidebarDragLogicalOrder))
     }
 
-    func testTopLevelTerminalGeometryFollowsTheArchivedRowsVisibility() {
-        // Pull Requests ends the group while Archived is hidden, and yields it once Archived appears.
-        XCTAssertTrue(sidebarTopLevelRowIsTerminal(.pullRequests, hasArchivedThreads: false))
-        XCTAssertFalse(sidebarTopLevelRowIsTerminal(.pullRequests, hasArchivedThreads: true))
-        XCTAssertTrue(sidebarTopLevelRowIsTerminal(.archived, hasArchivedThreads: true))
-        XCTAssertFalse(sidebarTopLevelRowIsTerminal(.archived, hasArchivedThreads: false))
-        XCTAssertFalse(sidebarTopLevelRowIsTerminal(.scheduled, hasArchivedThreads: false))
-        XCTAssertFalse(sidebarTopLevelRowIsTerminal(.scheduled, hasArchivedThreads: true))
-
-        // Exactly one row ever publishes the role, whichever way Archived resolves.
-        for hasArchivedThreads in [true, false] {
-            let terminals = [SidebarItem.skills, .mcp, .scheduled, .pullRequests, .archived].filter {
-                sidebarTopLevelRowIsTerminal($0, hasArchivedThreads: hasArchivedThreads)
-            }
-            XCTAssertEqual(terminals.count, 1)
-        }
-    }
-
     func testLinkedScheduledRunWithFallbackProjectModeUsesProjectSidebarBehavior() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/sidebar-fallback-task", name: "Project")

@@ -8,6 +8,8 @@ struct PullRequestPaneReviewFooter: View {
 
     @State private var isExpanded: Bool
     @State private var selectedEvent = PullRequestReviewEvent.comment
+    /// Nil takes the default action; a stale pick falls back the same way.
+    @State private var selectedStateKind: PullRequestStateAction.Kind?
     /// BlockInputKit store for the overall comment; created when the composer
     /// expands, serialized back into the pending draft on collapse or submit.
     @State private var overallDraft: PullRequestCommentDraftBox?
@@ -35,17 +37,28 @@ struct PullRequestPaneReviewFooter: View {
                 InlineBanner(message: error, severity: .error, autoDismissAfter: nil, onDismiss: nil)
             }
 
+            if let error = session.stateChangeError {
+                InlineBanner(
+                    message: error,
+                    severity: .error,
+                    autoDismissAfter: nil,
+                    onDismiss: viewModel.clearPullRequestStateChangeError
+                )
+            }
+
             if isExpanded {
                 summaryComposer
             }
 
+            footerNotes
+
             actionRow
         }
-        .padding(ContextualPaneLayout.contentInsets())
-        .background(.bar)
-        .overlay(alignment: .top) {
-            AppSeparatorHairline(surface: .paneHeader)
-        }
+        .pullRequestAttachmentDropTarget(
+            isEnabled: isExpanded && viewModel.supportsAttachmentUploads && !isUploading,
+            onDrop: attach
+        )
+        .contextualPaneFooterChrome()
     }
 
     /// GitHub rejects Approve and Request changes on your own pull request, so
@@ -119,9 +132,31 @@ struct PullRequestPaneReviewFooter: View {
         allowsVerdictEvents ? selectedEvent : .comment
     }
 
+    private var isUploading: Bool {
+        viewModel.isUploadingAttachments(to: .reviewSummary)
+    }
+
+    /// Inline comments live on GitHub now, so the count comes from the detail.
+    private var pendingCommentCount: Int {
+        session.detail?.pendingCommentCount ?? 0
+    }
+
+    /// Submitting mid-upload would post the review without the attachment's link.
     private var canSubmit: Bool {
         !session.pendingReview.isSubmitting
-            && PullRequestsViewModel.canSubmitReview(event: effectiveEvent, draft: draftForValidation)
+            && !isUploading
+            && PullRequestsViewModel.canSubmitReview(
+                event: effectiveEvent,
+                draft: draftForValidation,
+                pendingCommentCount: pendingCommentCount
+            )
+    }
+
+    private func attach(_ files: [URL]) {
+        guard let overallDraft else {
+            return
+        }
+        viewModel.attachFiles(files, to: .reviewSummary, draft: overallDraft)
     }
 
     /// Shared by the Submit button and the editor's Cmd+Return shortcut so the
@@ -139,36 +174,142 @@ struct PullRequestPaneReviewFooter: View {
         }
     }
 
-    private var actionRow: some View {
-        HStack(spacing: 8) {
-            let count = session.pendingReview.comments.count
-            if count > 0 {
-                Text("\(count) pending comment\(count == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    /// The pending-comment count and any reason the state action is dead. Both
+    /// sit above the buttons: the collapsed row splits its width evenly between
+    /// the two actions, leaving no room for a leading label.
+    @ViewBuilder
+    private var footerNotes: some View {
+        let count = pendingCommentCount
+        if count > 0 {
+            Text("\(count) pending comment\(count == 1 ? "" : "s")")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
 
+        if !isExpanded, let note = effectiveStateAction?.disabledNote {
+            Text(note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// While the detail is unavailable the row still shows its even split, with
+    /// a disabled stand-in titled from the list row's known status — otherwise
+    /// the footer paints a lone trailing button and snaps once the detail lands.
+    private var stateActions: [PullRequestStateAction] {
+        guard session.detail != nil else {
+            return PullRequestStateAction.placeholder(for: session.summary.status).map { [$0] } ?? []
+        }
+        return PullRequestStateAction.available(for: session.detail)
+    }
+
+    /// The selection falls back to the default whenever it no longer matches an
+    /// available action — which is what retires "Mark ready for review" the
+    /// moment the pull request leaves draft. Same guard as `effectiveEvent`.
+    private var effectiveStateAction: PullRequestStateAction? {
+        let actions = stateActions
+        return actions.first { $0.kind == selectedStateKind } ?? actions.first
+    }
+
+    @ViewBuilder
+    private var actionRow: some View {
+        if isExpanded {
+            composingActionRow
+        } else if let action = effectiveStateAction {
+            // Two equal halves, matching the other detail panes' footers.
+            HStack(spacing: ContextualPaneLayout.actionSpacing) {
+                stateActionButton(action, in: stateActions)
+                    .frame(minWidth: ContextualPaneLayout.minimumHorizontalActionWidth, maxWidth: .infinity)
+                startReviewButton(expandsHorizontally: true)
+                    .frame(minWidth: ContextualPaneLayout.minimumHorizontalActionWidth, maxWidth: .infinity)
+            }
+        } else {
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                startReviewButton(expandsHorizontally: false)
+            }
+        }
+    }
+
+    private var composingActionRow: some View {
+        HStack(spacing: 8) {
             Spacer(minLength: 0)
 
-            if isExpanded {
-                Button("Cancel", action: cancelComposer)
-                    .secondaryActionButtonStyle()
-                    .disabled(session.pendingReview.isSubmitting)
-
-                Button(submitTitle) {
-                    submitIfAllowed()
-                }
-                .primaryActionButtonStyle()
-                .disabled(!canSubmit)
-            } else {
-                Button("Submit review...") {
-                    overallDraft = PullRequestCommentDraftBox(
-                        markdown: viewModel.activePaneSession?.pendingReview.overallComment ?? ""
-                    )
-                    isExpanded = true
-                }
-                .primaryActionButtonStyle()
+            if viewModel.supportsAttachmentUploads {
+                PullRequestCommentAttachButton(isUploading: isUploading, onPick: attach)
             }
+
+            Button("Cancel", action: cancelComposer)
+                .secondaryActionButtonStyle()
+                .disabled(session.pendingReview.isSubmitting)
+
+            Button(submitTitle) {
+                submitIfAllowed()
+            }
+            .primaryActionButtonStyle()
+            .disabled(!canSubmit)
+        }
+    }
+
+    private func startReviewButton(expandsHorizontally: Bool) -> some View {
+        Button("Submit review...") {
+            overallDraft = PullRequestCommentDraftBox(
+                markdown: viewModel.activePaneSession?.pendingReview.overallComment ?? ""
+            )
+            isExpanded = true
+        }
+        .primaryActionButtonStyle(expandsHorizontally: expandsHorizontally)
+    }
+
+    /// A single available action stays a plain button; more than one becomes the
+    /// shared split button, whose menu selects (never runs) the other action.
+    @ViewBuilder
+    private func stateActionButton(
+        _ action: PullRequestStateAction,
+        in actions: [PullRequestStateAction]
+    ) -> some View {
+        if actions.count > 1 {
+            SplitActionButton(
+                title: action.title,
+                emphasis: action.isDestructive ? .destructive : .secondary,
+                expandsHorizontally: true,
+                selectedOption: action.kind,
+                options: actions.map(\.kind),
+                optionTitle: { kind in actions.first { $0.kind == kind }?.title ?? "" },
+                action: { run(action) },
+                selectOption: { selectedStateKind = $0 }
+            )
+            .disabled(!action.isEnabled || session.isChangingState)
+            .help(action.disabledNote ?? action.title)
+        } else {
+            plainStateActionButton(action)
+        }
+    }
+
+    @ViewBuilder
+    private func plainStateActionButton(_ action: PullRequestStateAction) -> some View {
+        let button = Button(action.title) {
+            run(action)
+        }
+        .disabled(!action.isEnabled || session.isChangingState)
+        .help(action.disabledNote ?? action.title)
+
+        if action.isDestructive {
+            button.destructiveActionButtonStyle(expandsHorizontally: true)
+        } else {
+            button.secondaryActionButtonStyle(expandsHorizontally: true)
+        }
+    }
+
+    private func run(_ action: PullRequestStateAction) {
+        switch action.kind {
+        case .close:
+            viewModel.setPullRequestClosed(true)
+        case .reopen:
+            viewModel.setPullRequestClosed(false)
+        case .markReady:
+            viewModel.markPullRequestReadyForReview()
         }
     }
 

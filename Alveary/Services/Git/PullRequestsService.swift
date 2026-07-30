@@ -52,7 +52,9 @@ struct PullRequestSummary: Identifiable, Equatable, Sendable, Codable {
     let id: PullRequestIdentifier
     let title: String
     let url: URL?
-    let status: PullRequestStatus
+    /// Mutable so closing or reopening the pull request can update the row in
+    /// place without waiting for the next list fetch.
+    var status: PullRequestStatus
     let authorLogin: String
     let authorAvatarURL: URL?
     let headRefName: String
@@ -122,254 +124,10 @@ struct PullRequestListResult: Equatable, Sendable {
     let warnings: [String]
 }
 
-struct PullRequestCheck: Equatable, Sendable {
-    let name: String
-    let state: PullRequestChecksState
-    let detailsURL: URL?
-}
-
-/// GitHub's fixed reaction palette, in GitHub's picker order.
-enum PullRequestReactionContent: String, CaseIterable, Sendable, Hashable {
-    case thumbsUp = "THUMBS_UP"
-    case thumbsDown = "THUMBS_DOWN"
-    case laugh = "LAUGH"
-    case hooray = "HOORAY"
-    case confused = "CONFUSED"
-    case heart = "HEART"
-    case rocket = "ROCKET"
-    case eyes = "EYES"
-
-    var emoji: String {
-        switch self {
-        case .thumbsUp: return "👍"
-        case .thumbsDown: return "👎"
-        case .laugh: return "😄"
-        case .hooray: return "🎉"
-        case .confused: return "😕"
-        case .heart: return "❤️"
-        case .rocket: return "🚀"
-        case .eyes: return "👀"
-        }
-    }
-}
-
-struct PullRequestCommentReaction: Equatable, Sendable, Hashable {
-    let content: PullRequestReactionContent
-    let count: Int
-    let viewerHasReacted: Bool
-}
-
-struct PullRequestComment: Equatable, Sendable {
-    let authorLogin: String
-    let authorAvatarURL: URL?
-    /// `var` so optimistic remote edits can rewrite it locally.
-    var bodyMarkdown: String
-    let createdAt: Date?
-    /// REST id for review-thread comments; needed to edit a submitted comment.
-    let databaseId: Int?
-    /// GraphQL node id; the reaction mutations address the comment through it.
-    let nodeID: String?
-    /// Permission-based, not authorship-based: GitHub also lets collaborators with
-    /// write access edit or delete other people's comments (`viewerCanUpdate` /
-    /// `viewerCanDelete`).
-    let viewerCanUpdate: Bool
-    let viewerCanDelete: Bool
-    /// Non-empty reaction groups only, in GitHub's palette order.
-    var reactions: [PullRequestCommentReaction]
-    /// GraphQL author `__typename == "Bot"`; drives the Bot pill.
-    let isBot: Bool
-
-    init(
-        authorLogin: String,
-        authorAvatarURL: URL?,
-        bodyMarkdown: String,
-        createdAt: Date?,
-        databaseId: Int? = nil,
-        nodeID: String? = nil,
-        viewerCanUpdate: Bool = false,
-        viewerCanDelete: Bool = false,
-        reactions: [PullRequestCommentReaction] = [],
-        isBot: Bool = false
-    ) {
-        self.authorLogin = authorLogin
-        self.authorAvatarURL = authorAvatarURL
-        self.bodyMarkdown = bodyMarkdown
-        self.createdAt = createdAt
-        self.databaseId = databaseId
-        self.nodeID = nodeID
-        self.viewerCanUpdate = viewerCanUpdate
-        self.viewerCanDelete = viewerCanDelete
-        self.reactions = reactions
-        self.isBot = isBot
-    }
-}
-
-enum PullRequestReviewState: String, Sendable, Equatable {
-    case approved = "APPROVED"
-    case changesRequested = "CHANGES_REQUESTED"
-    case commented = "COMMENTED"
-    case dismissed = "DISMISSED"
-    case pending = "PENDING"
-}
-
-struct PullRequestReview: Equatable, Sendable {
-    let authorLogin: String
-    let authorAvatarURL: URL?
-    let state: PullRequestReviewState
-    let bodyMarkdown: String
-    let submittedAt: Date?
-    /// GraphQL node id; reviews take reactions like comments do.
-    let nodeID: String?
-    var reactions: [PullRequestCommentReaction]
-    let isBot: Bool
-
-    init(
-        authorLogin: String,
-        authorAvatarURL: URL?,
-        state: PullRequestReviewState,
-        bodyMarkdown: String,
-        submittedAt: Date?,
-        nodeID: String? = nil,
-        reactions: [PullRequestCommentReaction] = [],
-        isBot: Bool = false
-    ) {
-        self.authorLogin = authorLogin
-        self.authorAvatarURL = authorAvatarURL
-        self.state = state
-        self.bodyMarkdown = bodyMarkdown
-        self.submittedAt = submittedAt
-        self.nodeID = nodeID
-        self.reactions = reactions
-        self.isBot = isBot
-    }
-}
-
-struct PullRequestReviewThread: Equatable, Sendable {
-    let path: String
-    let line: Int?
-    let side: PullRequestDiffSide
-    var isResolved: Bool
-    let isOutdated: Bool
-    var comments: [PullRequestComment]
-    /// The tail of the diff hunk the thread anchors to, for display context.
-    let diffHunkExcerpt: String?
-    /// GraphQL node id; resolve/unresolve mutations address the thread through it.
-    let nodeID: String?
-
-    init(
-        path: String,
-        line: Int?,
-        side: PullRequestDiffSide,
-        isResolved: Bool,
-        isOutdated: Bool,
-        comments: [PullRequestComment],
-        diffHunkExcerpt: String? = nil,
-        nodeID: String? = nil
-    ) {
-        self.path = path
-        self.line = line
-        self.side = side
-        self.isResolved = isResolved
-        self.isOutdated = isOutdated
-        self.comments = comments
-        self.diffHunkExcerpt = diffHunkExcerpt
-        self.nodeID = nodeID
-    }
-}
-
-/// One row of the Overview "Reviewers" list: a pending request or a past
-/// reviewer's latest verdict.
-struct PullRequestReviewer: Equatable, Sendable {
-    enum State: Equatable, Sendable {
-        case requested
-        case approved
-        case changesRequested
-        case commented
-    }
-
-    let login: String
-    let avatarURL: URL?
-    let isBot: Bool
-    let state: State
-    /// GitHub offers re-request only for reviewers with a submitted review who
-    /// are not already requested again.
-    let canReRequest: Bool
-}
-
-/// A bare timeline entry — GitHub's non-comment conversation rows: state
-/// changes, pushed commits, force pushes, and review-request changes.
-struct PullRequestTimelineEvent: Equatable, Sendable {
-    enum Kind: Equatable, Sendable {
-        case readyForReview
-        case convertToDraft
-        case closed
-        case reopened
-        case merged
-        /// A commit pushed to the head branch; `detail` carries "sha headline".
-        case commit
-        case forcePushed
-        /// `detail` carries the requested reviewer's login or team name.
-        case reviewRequested
-        case reviewRequestRemoved
-    }
-
-    let kind: Kind
-    let actorLogin: String
-    let actorAvatarURL: URL?
-    let createdAt: Date?
-    /// Kind-specific payload: the commit summary or the requested reviewer.
-    var detail: String?
-}
-
-struct PullRequestDetail: Equatable, Sendable {
-    let id: PullRequestIdentifier
-    let title: String
-    let url: URL?
-    let status: PullRequestStatus
-    let authorLogin: String
-    let authorAvatarURL: URL?
-    let headRefName: String
-    let baseRefName: String
-    let createdAt: Date?
-    let updatedAt: Date?
-    let additions: Int
-    let deletions: Int
-    let changedFiles: Int
-    let bodyMarkdown: String
-    let reviewDecision: String?
-    let checks: [PullRequestCheck]
-    var comments: [PullRequestComment]
-    var reviews: [PullRequestReview]
-    var reviewThreads: [PullRequestReviewThread]
-    // `var`s with defaults so the memberwise init keeps existing call sites valid.
-    var timelineEvents: [PullRequestTimelineEvent] = []
-    /// Current review requests plus each past reviewer's latest verdict.
-    var reviewers: [PullRequestReviewer] = []
-    /// The pull request's own node id and reactions — the PR body is reactable too.
-    var nodeID: String?
-    var reactions: [PullRequestCommentReaction] = []
-    /// The signed-in user, for attributing local pending comments before submission.
-    var viewerLogin: String?
-    var viewerAvatarURL: URL?
-}
-
 enum PullRequestReviewEvent: String, Sendable, Equatable {
     case approve = "APPROVE"
     case requestChanges = "REQUEST_CHANGES"
     case comment = "COMMENT"
-}
-
-struct PendingReviewSubmission: Equatable, Sendable {
-    struct InlineComment: Equatable, Sendable {
-        let path: String
-        let line: Int
-        let side: PullRequestDiffSide
-        let body: String
-    }
-
-    let event: PullRequestReviewEvent
-    let body: String
-    let comments: [InlineComment]
 }
 
 enum PullRequestsServiceError: Error, Sendable, Equatable {
@@ -410,12 +168,61 @@ protocol PullRequestsService: Sendable {
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail
     /// Returns the raw unified diff for the pull request.
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String
-    /// Submits a complete review — approval state plus any batched inline comments — in one call.
-    func submitReview(_ id: PullRequestIdentifier, submission: PendingReviewSubmission) async throws
+    /// Posts a verdict and summary as a review of its own. Used only when the
+    /// viewer has no pending review; otherwise `submitPendingReview` finishes
+    /// that one, and its inline comments go with it.
+    func submitReview(
+        _ id: PullRequestIdentifier,
+        event: PullRequestReviewEvent,
+        body: String
+    ) async throws
+    /// Opens an empty PENDING review on the pull request and returns its node id.
+    /// Omitting `event` is what leaves it pending, exactly like starting a review
+    /// on github.com. Only one may exist per viewer per pull request.
+    func createPendingReview(pullRequestNodeID: String) async throws -> String
+    /// Adds one inline comment to the viewer's pending review as a new thread,
+    /// returning the created thread so its ids can replace the optimistic copy.
+    func addPendingReviewComment(
+        reviewNodeID: String,
+        path: String,
+        line: Int,
+        side: PullRequestDiffSide,
+        body: String
+    ) async throws -> PullRequestReviewThread
+    /// Rewrites a pending comment. Addressed by GraphQL node id, unlike the
+    /// REST-addressed `updateReviewComment` for submitted ones.
+    func updatePendingReviewComment(commentNodeID: String, body: String) async throws
+    /// Deletes a pending comment, addressed by GraphQL node id.
+    func deletePendingReviewComment(commentNodeID: String) async throws
+    /// Discards the viewer's whole pending review. Called once its last comment
+    /// is deleted so no empty draft lingers on github.com.
+    func deletePendingReview(reviewNodeID: String) async throws
+    /// Submits the viewer's existing pending review with its verdict and summary,
+    /// publishing every comment already attached to it.
+    func submitPendingReview(
+        reviewNodeID: String,
+        event: PullRequestReviewEvent,
+        body: String
+    ) async throws
     /// Rewrites the body of an already-submitted review comment the viewer may update.
     func updateReviewComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws
+    /// Rewrites the summary body of an already-submitted review the viewer may
+    /// update. There is no delete counterpart: GitHub only deletes pending reviews.
+    func updateReview(_ id: PullRequestIdentifier, reviewID: Int, body: String) async throws
+    /// Edits the pull request's own description. Gated by `viewerCanUpdate`.
+    func updatePullRequestBody(_ id: PullRequestIdentifier, body: String) async throws
+    /// Closes or reopens the pull request. Reopening requires the head branch to
+    /// still exist; GitHub answers 422 otherwise.
+    func setPullRequestClosed(_ id: PullRequestIdentifier, closed: Bool) async throws
+    /// Takes a draft pull request out of draft. Addressed by GraphQL node id —
+    /// GitHub exposes no REST endpoint for it.
+    func markPullRequestReadyForReview(nodeID: String) async throws
     /// Permanently deletes an already-submitted review comment the viewer may delete.
     func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws
+    /// Rewrites the body of a top-level conversation comment the viewer may update.
+    func updateIssueComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws
+    /// Permanently deletes a top-level conversation comment the viewer may delete.
+    func deleteIssueComment(_ id: PullRequestIdentifier, commentID: Int) async throws
     /// Adds the viewer's reaction to a comment, addressed by GraphQL node id.
     func addReaction(subjectID: String, content: PullRequestReactionContent) async throws
     /// Removes the viewer's reaction from a comment, addressed by GraphQL node id.

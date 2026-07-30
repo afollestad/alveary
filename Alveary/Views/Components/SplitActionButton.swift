@@ -1,9 +1,40 @@
 import AppKit
 import SwiftUI
 
+/// Which of the shared action-button fills a `SplitActionButton` wears. Mirrors
+/// `primaryActionButtonStyle()` / `secondaryActionButtonStyle()` /
+/// `destructiveActionButtonStyle()` so a split button can sit beside a plain one
+/// without a second accent voice in the row.
+enum SplitActionButtonEmphasis {
+    case primary
+    case secondary
+    case destructive
+
+    var fill: Color {
+        switch self {
+        case .primary:
+            return AppAccentFill.primary
+        case .secondary:
+            return ActionButtonTint.secondary
+        case .destructive:
+            return ActionButtonTint.destructive
+        }
+    }
+
+    /// Destructive fills are opaque red, so their label goes white like the plain
+    /// destructive style's; the other two read against `.primary`.
+    var foreground: Color {
+        self == .destructive ? .white : .primary
+    }
+}
+
 struct SplitActionButton<Option: Hashable>: View {
     let title: String
-    let systemImage: String
+    /// Optional: footer actions carry text alone.
+    var systemImage: String?
+    var emphasis = SplitActionButtonEmphasis.primary
+    /// Fills the available width, for the even-split pane footer rows.
+    var expandsHorizontally = false
     let selectedOption: Option
     let options: [Option]
     let optionTitle: (Option) -> String
@@ -17,15 +48,16 @@ struct SplitActionButton<Option: Hashable>: View {
     var body: some View {
         HStack(spacing: 0) {
             Button(action: action) {
-                Label(title, systemImage: systemImage)
+                label
                     .lineLimit(1)
                     .padding(.horizontal, horizontalPadding)
+                    .frame(maxWidth: expandsHorizontally ? .infinity : nil)
                     .frame(height: controlHeight)
             }
             .buttonStyle(.plain)
 
             Rectangle()
-                .fill(Color.primary.opacity(isEnabled ? 0.16 : 0.08))
+                .fill(emphasis.foreground.opacity(isEnabled ? 0.16 : 0.08))
                 .frame(width: 1)
                 .padding(.vertical, 4)
 
@@ -47,20 +79,35 @@ struct SplitActionButton<Option: Hashable>: View {
         }
         .font(.body.weight(.semibold))
         .imageScale(.small)
-        .foregroundStyle(.primary.opacity(isEnabled ? 1 : 0.78))
+        .foregroundStyle(emphasis.foreground.opacity(isEnabled ? 1 : 0.78))
+        .frame(maxWidth: expandsHorizontally ? .infinity : nil)
         .frame(height: controlHeight)
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(backgroundColor)
+                // Hover leans toward the label color, like `ProminentActionButtonBody`.
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
+                    .fill(emphasis.foreground.opacity(0.06))
                     .opacity(showsHoverOverlay ? 1 : 0)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(Color.primary.opacity(borderOpacity), lineWidth: borderWidth)
+        )
         .onHover { hovering in
             isHovering = hovering
+        }
+    }
+
+    @ViewBuilder
+    private var label: some View {
+        if let systemImage {
+            Label(title, systemImage: systemImage)
+        } else {
+            Text(title)
         }
     }
 
@@ -69,48 +116,32 @@ struct SplitActionButton<Option: Hashable>: View {
     }
 
     private var backgroundColor: Color {
-        if isEnabled {
-            return AppAccentFill.primary
+        isEnabled ? emphasis.fill : emphasis.fill.opacity(0.38)
+    }
+
+    /// The secondary fill is translucent, so it needs the same hairline border
+    /// `secondaryActionButtonStyle()` draws to read as a control at all.
+    private var borderWidth: CGFloat {
+        emphasis == .secondary ? 1 : 0
+    }
+
+    private var borderOpacity: Double {
+        guard emphasis == .secondary else {
+            return 0
         }
-        return AppAccentFill.primary.opacity(0.38)
+        return isEnabled ? 0.12 : 0.06
     }
 
     private var horizontalPadding: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 8
-        case .small:
-            return 10
-        case .regular:
-            return 12
-        case .large:
-            return 14
-        case .extraLarge:
-            return 16
-        @unknown default:
-            return 12
-        }
+        ActionButtonMetrics.horizontalPadding(for: controlSize)
     }
 
     private var controlHeight: CGFloat {
-        switch controlSize {
-        case .mini:
-            return 22
-        case .small:
-            return 24
-        case .regular:
-            return 30
-        case .large:
-            return 34
-        case .extraLarge:
-            return 38
-        @unknown default:
-            return 30
-        }
+        ActionButtonMetrics.controlHeight(for: controlSize)
     }
 
     private var cornerRadius: CGFloat {
-        AppCornerRadius.standard
+        ActionButtonMetrics.cornerRadius
     }
 
     private var menuWidth: CGFloat {

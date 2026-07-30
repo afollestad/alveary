@@ -214,6 +214,9 @@ struct SidebarView: View {
                 cancelSidebarDragForTeardown()
             }
         }
+        .onChange(of: context.showsPullRequests) { _, showsPullRequests in
+            handlePullRequestsVisibilityChange(showsPullRequests: showsPullRequests)
+        }
         .onChange(of: appState.selectedSidebarItem) { _, item in
             syncExpansionWithSelection(item)
             // Skip the focus claim when a command has requested the composer grab focus

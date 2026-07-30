@@ -10,7 +10,7 @@ extension SnapshotTests {
         draftText: String = "",
         composerMode: DiffCommentComposerMode = .newComment,
         editingRemoteCommentID: Int? = nil,
-        editingPendingAnchor: DiffCommentAnchor? = nil
+        editingPendingCommentNodeID: String? = nil
     ) -> DiffCommentInteraction {
         DiffCommentInteraction(
             draft: PullRequestCommentDraftBox(markdown: draftText),
@@ -18,7 +18,7 @@ extension SnapshotTests {
             composerErrorMessage: nil,
             composerFocusToken: nil,
             editingRemoteCommentID: editingRemoteCommentID,
-            editingPendingAnchor: editingPendingAnchor,
+            editingPendingCommentNodeID: editingPendingCommentNodeID,
             reactionOptions: PullRequestReactionContent.allCases.map {
                 CommentReactionOption(content: $0.rawValue, emoji: $0.emoji)
             },
@@ -40,10 +40,14 @@ extension SnapshotTests {
     func testDiffCommentThreadRow() {
         let thread = DiffLineCommentThread(
             comments: [
+                // The timestamp renders trailing, just left of the menu slot,
+                // matching the Overview timeline's comment cards.
                 DiffLineComment(
                     author: "carol",
                     bodyMarkdown: "Consider clamping this before the fetch.",
-                    isPending: false
+                    isPending: false,
+                    relativeAge: "1d",
+                    absoluteTimestamp: "Jul 28, 2026 at 8:30 PM"
                 ),
                 // An updatable/deletable submitted comment shows the three-dot menu
                 // and its reaction chips (viewer reacted with the second one).
@@ -60,10 +64,16 @@ extension SnapshotTests {
                         CommentReaction(content: "HOORAY", emoji: "🎉", count: 1, viewerHasReacted: true)
                     ]
                 ),
+                // The viewer's own unsubmitted comment: orange Pending pill, the
+                // three-dot menu (addressed by node id, not the REST id), and no
+                // reaction bar — GitHub takes none until the review is submitted.
                 DiffLineComment(
                     author: "You",
                     bodyMarkdown: "Will do — queuing a fix in this review.",
-                    isPending: true
+                    isPending: true,
+                    nodeID: "PRRC_pending",
+                    canEdit: true,
+                    canDelete: true
                 )
             ]
         )
@@ -149,12 +159,69 @@ extension SnapshotTests {
     }
 
     func testPullRequestPaneReviewFooterCollapsed() {
-        let fixture = PullRequestReviewFooterFixture(pendingCommentCount: 2)
+        // With write permission the collapsed row splits evenly between Close PR
+        // and Submit review...; the pending count moves above them.
+        let fixture = PullRequestReviewFooterFixture(pendingCommentCount: 2, status: .open)
 
         assertMacSnapshot(
             fixture.footer(initiallyExpanded: false),
-            size: CGSize(width: 460, height: 80),
+            size: CGSize(width: 460, height: 100),
             named: "pull_request_review_footer_collapsed"
+        )
+    }
+
+    func testPullRequestPaneReviewFooterClosedWithDeletedBranch() {
+        // A closed pull request whose branch is gone: Reopen PR is dead and the
+        // note above says why.
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            status: .closed,
+            headRefExists: false
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_closed_deleted_branch"
+        )
+    }
+
+    func testPullRequestPaneReviewFooterDraft() {
+        // A draft carries two state actions, so the button splits: the primary
+        // side defaults to Mark ready for review, the caret opens the other.
+        let fixture = PullRequestReviewFooterFixture(pendingCommentCount: 0, status: .draft)
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_draft"
+        )
+    }
+
+    func testPullRequestPaneReviewFooterWithoutWritePermission() {
+        // No permission to close: the footer keeps the single trailing action.
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 2,
+            status: .open,
+            viewerCanUpdate: false
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_no_write_access"
+        )
+    }
+
+    func testPullRequestPaneReviewFooterLoading() {
+        // No detail yet: the even split still paints, with a disabled stand-in
+        // titled from the list row's status instead of a lone trailing button.
+        let fixture = PullRequestReviewFooterFixture(pendingCommentCount: 0, summaryStatus: .closed)
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_loading"
         )
     }
 
@@ -180,26 +247,71 @@ extension SnapshotTests {
     }
 }
 
+/// Internal (not file-private) so the pane-footer chrome parity snapshot can
+/// render the real review footer beside a `ContextualPaneFooter`.
 @MainActor
-private struct PullRequestReviewFooterFixture {
+struct PullRequestReviewFooterFixture {
     let viewModel: PullRequestsViewModel
     let session: PullRequestPaneSession
 
-    init(pendingCommentCount: Int, isAuthored: Bool = false) {
+    /// A nil `status` leaves the session without a detail — the still-loading
+    /// case, which renders the disabled stand-in from `summaryStatus`.
+    init(
+        pendingCommentCount: Int,
+        isAuthored: Bool = false,
+        status: PullRequestStatus? = nil,
+        summaryStatus: PullRequestStatus = .open,
+        viewerCanUpdate: Bool = true,
+        headRefExists: Bool = true
+    ) {
         let service = StubPullRequestsService()
         viewModel = makePullRequestsViewModel(service: service)
-        let summary = makePullRequestSummary(number: 7, isAuthored: isAuthored)
+        let summary = makePullRequestSummary(number: 7, status: summaryStatus, isAuthored: isAuthored)
         viewModel.requestDetails(summary)
-        for index in 0..<pendingCommentCount {
-            let anchor = DiffCommentAnchor(path: "Sources/File\(index).swift", side: .right, line: index + 1)
-            viewModel.openCommentComposer(at: anchor)
-            viewModel.updateComposerText("Pending comment \(index + 1)")
-            viewModel.saveComposerComment()
+        // The stubbed detail fetch never resolves, so seed the session directly.
+        // Pending comments live on the detail now, so the count comes from seeded
+        // threads rather than driving the composer, which would need a network
+        // round trip to settle. A nil `status` with no pending comments is the
+        // still-loading case, which deliberately leaves `detail` nil.
+        if status != nil || pendingCommentCount > 0 {
+            viewModel.mutateActiveSession { session in
+                session.detail = makePullRequestDetail(
+                    id: summary.id,
+                    status: status ?? .open,
+                    reviewThreads: (0..<pendingCommentCount).map(Self.pendingThread(index:)),
+                    viewerCanUpdate: viewerCanUpdate,
+                    headRefExists: headRefExists,
+                    pendingReviewNodeID: pendingCommentCount > 0 ? "PRR_pending" : nil
+                )
+            }
         }
         guard let session = viewModel.activePaneSession else {
             fatalError("Expected an active pane session for the footer fixture")
         }
         self.session = session
+    }
+
+    private static func pendingThread(index: Int) -> PullRequestReviewThread {
+        PullRequestReviewThread(
+            path: "Sources/File\(index).swift",
+            line: index + 1,
+            side: .right,
+            isResolved: false,
+            isOutdated: false,
+            comments: [
+                PullRequestComment(
+                    authorLogin: "afollestad",
+                    authorAvatarURL: nil,
+                    bodyMarkdown: "Pending comment \(index + 1)",
+                    createdAt: nil,
+                    nodeID: "PRRC_pending_\(index)",
+                    viewerCanUpdate: true,
+                    viewerCanDelete: true,
+                    isPending: true
+                )
+            ],
+            nodeID: "PRT_pending_\(index)"
+        )
     }
 
     func footer(initiallyExpanded: Bool) -> some View {

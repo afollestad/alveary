@@ -33,37 +33,33 @@ private struct DiffPreviewMinimumContentWidthModifier: ViewModifier {
     }
 }
 
+private struct DiffPreviewExactContentWidthModifier: ViewModifier {
+    @Environment(\.diffPreviewMinimumContentWidth) private var minimumContentWidth
+
+    func body(content: Content) -> some View {
+        // The scroll container proposes nil width in its scroll axes, so a row
+        // without an exact frame reports its untruncated ideal and widens the
+        // diff even when it contributes no scrollable width.
+        if minimumContentWidth > 0 {
+            content.frame(width: minimumContentWidth, alignment: .leading)
+        } else {
+            content.frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 extension View {
     func diffPreviewMinimumContentWidthFrame() -> some View {
         modifier(DiffPreviewMinimumContentWidthModifier())
     }
 
+    func diffPreviewExactContentWidthFrame() -> some View {
+        modifier(DiffPreviewExactContentWidthModifier())
+    }
+
     func diffPreviewIntrinsicMinimumContentWidthFrame() -> some View {
         fixedSize(horizontal: true, vertical: false)
             .diffPreviewMinimumContentWidthFrame()
-    }
-}
-
-enum DiffPreviewWidthEstimator {
-    private static let monospacedCaptionCharacterWidth: CGFloat = 8
-
-    static func monospacedTextWidth<S: StringProtocol>(
-        _ text: S,
-        horizontalPadding: CGFloat = 0
-    ) -> CGFloat {
-        ceil(CGFloat(max(estimatedColumnCount(for: text), 1)) * monospacedCaptionCharacterWidth + horizontalPadding)
-    }
-
-    static func rawPatchWidth(_ rawDiffContent: String) -> CGFloat {
-        rawDiffContent.split(separator: "\n", omittingEmptySubsequences: false)
-            .map { monospacedTextWidth($0) }
-            .max() ?? 0
-    }
-
-    private static func estimatedColumnCount<S: StringProtocol>(for text: S) -> Int {
-        text.reduce(0) { count, character in
-            count + (character == "\t" ? 4 : 1)
-        }
     }
 }
 
@@ -124,6 +120,23 @@ struct DiffGutterLayout: Sendable {
         )
         let digits = max(String(maximumLineNumber).count, 1)
         return CGFloat((digits * 8) + 10)
+    }
+}
+
+extension DiffGutterLayout {
+    /// Width of the line-number columns ahead of the marker column; shared by
+    /// the hover add-comment overlay and the comment-row wash bands.
+    var lineNumberColumnsWidth: CGFloat {
+        let columnWidth = lineNumberWidth + lineNumberTrailingPadding
+        let oldWidth = showsOldLineNumbers ? columnWidth : 0
+        let newWidth = showsNewLineNumbers ? columnWidth : 0
+        return oldWidth + newWidth
+    }
+
+    /// The full gutter width a line row tints darker — line numbers plus the
+    /// `+`/`-` marker column, up to the 1pt separator before the code text.
+    var gutterWidth: CGFloat {
+        lineNumberColumnsWidth + markerWidth
     }
 }
 
@@ -214,6 +227,36 @@ struct DiffCollapsedContextRow: View {
     }
 }
 
+extension DiffLine.LineType {
+    /// The full-row wash a line row paints over the hunk's code surface.
+    /// Comment rows anchored to a line reproduce it in their wash bands so
+    /// the tint surrounds their floating card instead of stopping above it.
+    var diffLineRowWash: Color {
+        switch self {
+        case .context:
+            return .clear
+        case .added:
+            return .green.opacity(0.12)
+        case .deleted:
+            return .red.opacity(0.12)
+        }
+    }
+
+    /// The darker tint layered over `diffLineRowWash` across the gutter
+    /// columns; comment-row wash bands reuse it so the columns continue
+    /// through the row at matching color and opacity.
+    var diffGutterWash: Color {
+        switch self {
+        case .context:
+            return Color.primary.opacity(0.04)
+        case .added:
+            return .green.opacity(0.18)
+        case .deleted:
+            return .red.opacity(0.18)
+        }
+    }
+}
+
 struct DiffLineRow: View {
     let line: DiffLine
     let gutterLayout: DiffGutterLayout
@@ -235,7 +278,7 @@ struct DiffLineRow: View {
                     .frame(width: gutterLayout.markerWidth)
                     .accessibilityHidden(true)
             }
-            .background(gutterBackgroundColor)
+            .background(line.type.diffGutterWash)
 
             Rectangle()
                 .fill(Color.primary.opacity(0.06))
@@ -249,7 +292,7 @@ struct DiffLineRow: View {
                 .fixedSize(horizontal: true, vertical: false)
         }
         .diffPreviewIntrinsicMinimumContentWidthFrame()
-        .background(rowBackgroundColor)
+        .background(line.type.diffLineRowWash)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
     }
@@ -283,28 +326,6 @@ struct DiffLineRow: View {
             return .green
         case .deleted:
             return .red
-        }
-    }
-
-    private var rowBackgroundColor: Color {
-        switch line.type {
-        case .context:
-            return .clear
-        case .added:
-            return .green.opacity(0.12)
-        case .deleted:
-            return .red.opacity(0.12)
-        }
-    }
-
-    private var gutterBackgroundColor: Color {
-        switch line.type {
-        case .context:
-            return Color.primary.opacity(0.04)
-        case .added:
-            return .green.opacity(0.18)
-        case .deleted:
-            return .red.opacity(0.18)
         }
     }
 
@@ -353,7 +374,7 @@ struct RawDiffFallbackView: View {
 }
 
 struct DiffPreviewScrollContainer<Content: View>: View {
-    private let horizontalContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset
+    private let horizontalContentPadding: CGFloat
     private let topContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewTopInset
     private let bottomContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewBottomInset
     private let minimumScrollableContentWidth: CGFloat
@@ -362,9 +383,11 @@ struct DiffPreviewScrollContainer<Content: View>: View {
 
     init(
         minimumScrollableContentWidth: CGFloat = 0,
+        horizontalContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.minimumScrollableContentWidth = minimumScrollableContentWidth
+        self.horizontalContentPadding = horizontalContentPadding
         self.content = content
     }
 

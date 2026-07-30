@@ -13,6 +13,26 @@ final class MiddlePaneSelectionRestorationTests: XCTestCase {
         )
     }
 
+    func testHiddenPullRequestsRowDropsItsRestoredSelection() {
+        // Settings is where the toggle lives, so its preserved bookmark is the path that would
+        // otherwise restore a screen with no sidebar row to leave it by.
+        XCTAssertNil(
+            sidebarSelectionAllowingHiddenPullRequests(.pullRequests, showsPullRequests: false)
+        )
+        XCTAssertEqual(
+            sidebarSelectionAllowingHiddenPullRequests(.pullRequests, showsPullRequests: true),
+            .pullRequests
+        )
+    }
+
+    func testHiddenPullRequestsRowLeavesOtherRestoredSelectionsAlone() {
+        XCTAssertEqual(
+            sidebarSelectionAllowingHiddenPullRequests(.scheduled, showsPullRequests: false),
+            .scheduled
+        )
+        XCTAssertNil(sidebarSelectionAllowingHiddenPullRequests(nil, showsPullRequests: false))
+    }
+
     func testResolveSidebarBookmarkReturnsThreadForActiveThreadBookmark() throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(

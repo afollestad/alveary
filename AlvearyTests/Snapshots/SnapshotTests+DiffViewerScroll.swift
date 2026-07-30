@@ -43,6 +43,62 @@ extension SnapshotTests {
         _ = try host.assertHorizontalOverflow(on: try host.scrollView())
     }
 
+    func testDiffViewerStructuredDiffDoesNotScrollWhenLinesFit() throws {
+        let rawDiff = Self.shortLineStructuredDiff()
+        let diff = try XCTUnwrap(DiffParser.parse(rawDiff).first)
+        let host = DiffPreviewScrollHost(
+            StructuredDiffPreview(diff: diff, rawDiffContent: rawDiff),
+            size: CGSize(width: 600, height: 220)
+        )
+        defer { host.close() }
+
+        // The retired 8pt-per-character estimate reserved scroll space no row
+        // could fill, so a fitting diff still scrolled horizontally.
+        let maxX = try host.horizontalMaxX(in: try host.scrollView())
+        XCTAssertEqual(maxX, 0, accuracy: 0.5)
+    }
+
+    func testDiffViewerLongFilePathDoesNotWidenShortLineDiff() throws {
+        let longPath = String(repeating: "nested-directory/", count: 12) + "file.js"
+        let diff = try XCTUnwrap(DiffParser.parse(Self.tinyLineDiff(path: longPath)).first)
+        let host = DiffPreviewScrollHost(
+            FlattenedDiffPreview(files: [diff], showsFileHeaders: true),
+            size: CGSize(width: 400, height: 220)
+        )
+        defer { host.close() }
+
+        // The file header frames to the exact content width and truncates its
+        // path; its untruncated ideal must not widen the scrollable area.
+        let maxX = try host.horizontalMaxX(in: try host.scrollView())
+        XCTAssertEqual(maxX, 0, accuracy: 0.5)
+    }
+
+    private static func shortLineStructuredDiff() -> String {
+        shortLineDiff(path: "scripts/scroll-to-experience.js")
+    }
+
+    private static func shortLineDiff(path: String) -> String {
+        """
+        diff --git a/\(path) b/\(path)
+        --- a/\(path)
+        +++ b/\(path)
+        @@ -1,4 +1,5 @@
+         (function () {
+        +    // Keep the experience shortcut inert when its target is not present.
+        """
+    }
+
+    private static func tinyLineDiff(path: String) -> String {
+        """
+        diff --git a/\(path) b/\(path)
+        --- a/\(path)
+        +++ b/\(path)
+        @@ -1,2 +1,3 @@
+         (function () {
+        +    let ready = true;
+        """
+    }
+
     private static func longLineStructuredDiff() -> String {
         let longAttribute = String(repeating: "ceiling-thumbnail-segment-", count: 36)
         return """

@@ -42,6 +42,9 @@ final class PullRequestCommentDraftBox {
 struct PullRequestCommentEditor: View {
     let draft: PullRequestCommentDraftBox
     let placeholder: String
+    /// Visible lines before the editor grows. Comments keep two; the PR
+    /// description opens at four, matching how much more it usually holds.
+    var minimumVisibleLineCount = 2
     var isFocused: Binding<Bool>?
     /// Fired on Cmd+Return inside the editor. Hosts run their primary save/submit
     /// action here, including its enablement guard — the shortcut must never
@@ -78,7 +81,7 @@ struct PullRequestCommentEditor: View {
             placeholder: placeholder,
             style: Self.style,
             heightSizing: BlockInputEditorHeightSizing(
-                defaultVisibleLineCount: 3,
+                defaultVisibleLineCount: minimumVisibleLineCount,
                 maximumVisibleLineCount: 10
             ),
             keyboardShortcuts: keyboardShortcuts,

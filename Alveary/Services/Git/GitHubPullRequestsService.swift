@@ -8,13 +8,11 @@ actor GitHubPullRequestsService: PullRequestsService {
     private let shellRunner: any ShellRunner
     private let executableResolver: any ExecutablePathResolving
     private let decoder: JSONDecoder
-    private let reviewBodyWriter: @Sendable (Data) throws -> URL
     private let transientRetryDelay: Duration
 
     init(
         shellRunner: any ShellRunner = DefaultShellRunner(),
         executableResolver: (any ExecutablePathResolving)? = nil,
-        reviewBodyWriter: @escaping @Sendable (Data) throws -> URL = GitHubPullRequestsService.writeReviewBodyFile,
         transientRetryDelay: Duration = .milliseconds(400)
     ) {
         self.shellRunner = shellRunner
@@ -22,7 +20,6 @@ actor GitHubPullRequestsService: PullRequestsService {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         self.decoder = decoder
-        self.reviewBodyWriter = reviewBodyWriter
         self.transientRetryDelay = transientRetryDelay
     }
 
@@ -69,156 +66,11 @@ actor GitHubPullRequestsService: PullRequestsService {
         }
         return result.stdout
     }
-
-    func submitReview(_ id: PullRequestIdentifier, submission: PendingReviewSubmission) async throws {
-        let ghExecutable = try await resolveGitHubCLI()
-        let payload = ReviewSubmissionPayload(submission: submission)
-        let bodyData: Data
-        do {
-            bodyData = try JSONEncoder().encode(payload)
-        } catch {
-            throw PullRequestsServiceError.decodingFailed(error.localizedDescription)
-        }
-        // ShellRunner has no stdin-data mode, so the JSON body travels through a temp file.
-        let bodyFileURL: URL
-        do {
-            bodyFileURL = try reviewBodyWriter(bodyData)
-        } catch {
-            throw PullRequestsServiceError.transport(error.localizedDescription)
-        }
-        defer {
-            try? FileManager.default.removeItem(at: bodyFileURL)
-        }
-        let result = try await runGitHubCLI(
-            executable: ghExecutable,
-            args: [
-                "api", "repos/\(id.nameWithOwner)/pulls/\(id.number)/reviews",
-                "-X", "POST",
-                "--input", bodyFileURL.path
-            ],
-            timeout: .seconds(30)
-        )
-        guard result.succeeded else {
-            throw Self.makeError(from: result)
-        }
-    }
-
-    func updateReviewComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {
-        let ghExecutable = try await resolveGitHubCLI()
-        // A mutation: never retried.
-        let result = try await runGitHubCLI(
-            executable: ghExecutable,
-            args: [
-                "api", "repos/\(id.nameWithOwner)/pulls/comments/\(commentID)",
-                "-X", "PATCH",
-                "-f", "body=\(body)"
-            ],
-            timeout: .seconds(30)
-        )
-        guard result.succeeded else {
-            throw Self.makeError(from: result)
-        }
-    }
-
-    func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws {
-        let ghExecutable = try await resolveGitHubCLI()
-        // A mutation: never retried.
-        let result = try await runGitHubCLI(
-            executable: ghExecutable,
-            args: [
-                "api", "repos/\(id.nameWithOwner)/pulls/comments/\(commentID)",
-                "-X", "DELETE"
-            ],
-            timeout: .seconds(30)
-        )
-        guard result.succeeded else {
-            throw Self.makeError(from: result)
-        }
-    }
-
-    func replyToReviewComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {
-        let ghExecutable = try await resolveGitHubCLI()
-        // A mutation: never retried.
-        let result = try await runGitHubCLI(
-            executable: ghExecutable,
-            args: [
-                "api", "repos/\(id.nameWithOwner)/pulls/\(id.number)/comments/\(commentID)/replies",
-                "-X", "POST",
-                "-f", "body=\(body)"
-            ],
-            timeout: .seconds(30)
-        )
-        guard result.succeeded else {
-            throw Self.makeError(from: result)
-        }
-    }
-
-    func setReviewThreadResolved(threadID: String, resolved: Bool) async throws {
-        let ghExecutable = try await resolveGitHubCLI()
-        // A mutation: never retried.
-        let result = try await runGitHubCLI(
-            executable: ghExecutable,
-            args: Self.threadResolutionArgs(threadID: threadID, resolved: resolved),
-            timeout: .seconds(30)
-        )
-        guard result.succeeded else {
-            throw Self.makeError(from: result)
-        }
-    }
-
-    func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws {
-        let ghExecutable = try await resolveGitHubCLI()
-        // A mutation: never retried.
-        let result = try await runGitHubCLI(
-            executable: ghExecutable,
-            args: [
-                "api", "repos/\(id.nameWithOwner)/pulls/\(id.number)/requested_reviewers",
-                "-X", "POST",
-                "-f", "reviewers[]=\(reviewerLogin)"
-            ],
-            timeout: .seconds(30)
-        )
-        guard result.succeeded else {
-            throw Self.makeError(from: result)
-        }
-    }
-
-    func addReaction(subjectID: String, content: PullRequestReactionContent) async throws {
-        try await runReactionMutation(add: true, subjectID: subjectID, content: content)
-    }
-
-    func removeReaction(subjectID: String, content: PullRequestReactionContent) async throws {
-        try await runReactionMutation(add: false, subjectID: subjectID, content: content)
-    }
-
-    private func runReactionMutation(
-        add: Bool,
-        subjectID: String,
-        content: PullRequestReactionContent
-    ) async throws {
-        let ghExecutable = try await resolveGitHubCLI()
-        // A mutation: never retried.
-        let result = try await runGitHubCLI(
-            executable: ghExecutable,
-            args: Self.reactionArgs(add: add, subjectID: subjectID, content: content),
-            timeout: .seconds(30)
-        )
-        guard result.succeeded else {
-            throw Self.makeError(from: result)
-        }
-    }
 }
 
+// Shared shell plumbing for the reads above and the mutations in
+// `GitHubPullRequestsService+Mutations.swift`.
 extension GitHubPullRequestsService {
-    static func writeReviewBodyFile(_ data: Data) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("alveary-pr-review-\(UUID().uuidString).json")
-        try data.write(to: url, options: [.atomic])
-        return url
-    }
-}
-
-private extension GitHubPullRequestsService {
     func resolveGitHubCLI() async throws -> String {
         guard let path = await executableResolver.resolveExecutablePath(for: "gh") else {
             throw PullRequestsServiceError.ghNotInstalled
@@ -364,27 +216,6 @@ private extension GitHubPullRequestsService {
                 return nil
             }
             return message
-        }
-    }
-}
-
-private struct ReviewSubmissionPayload: Encodable {
-    struct Comment: Encodable {
-        let path: String
-        let line: Int
-        let side: String
-        let body: String
-    }
-
-    let event: String
-    let body: String
-    let comments: [Comment]
-
-    init(submission: PendingReviewSubmission) {
-        event = submission.event.rawValue
-        body = submission.body
-        comments = submission.comments.map { comment in
-            Comment(path: comment.path, line: comment.line, side: comment.side.rawValue, body: comment.body)
         }
     }
 }

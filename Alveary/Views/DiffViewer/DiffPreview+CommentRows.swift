@@ -20,11 +20,13 @@ struct DiffCommentAnchor: Hashable, Sendable {
 struct DiffLineComment: Hashable, Sendable {
     let author: String
     let bodyMarkdown: String
-    /// Pending comments are local batch entries that have not been submitted yet.
+    /// Written into the viewer's draft review on GitHub but not yet submitted.
+    /// Pending comments are edited and deleted by `nodeID`, not `remoteID`.
     let isPending: Bool
     /// REST id of a submitted comment; required to edit it in place.
     let remoteID: Int?
-    /// GraphQL node id of a submitted comment; required to react to it.
+    /// GraphQL node id; required to react to a submitted comment, and to edit or
+    /// delete a pending one.
     let nodeID: String?
     /// Permission-based (GitHub's `viewerCanUpdate`/`viewerCanDelete`), so repo
     /// collaborators get the menu on comments they did not author.
@@ -33,6 +35,11 @@ struct DiffLineComment: Hashable, Sendable {
     let reactions: [CommentReaction]
     let avatarURL: URL?
     let isBot: Bool
+    /// Preformatted at annotation-build time — once per detail change — so the
+    /// lazily recycled rows never touch a date formatter on scroll-back-in. The
+    /// tooltip/accessibility string beside it carries the absolute date and time.
+    let relativeAge: String?
+    let absoluteTimestamp: String?
 
     init(
         author: String,
@@ -44,7 +51,9 @@ struct DiffLineComment: Hashable, Sendable {
         canDelete: Bool = false,
         reactions: [CommentReaction] = [],
         avatarURL: URL? = nil,
-        isBot: Bool = false
+        isBot: Bool = false,
+        relativeAge: String? = nil,
+        absoluteTimestamp: String? = nil
     ) {
         self.author = author
         self.bodyMarkdown = bodyMarkdown
@@ -56,6 +65,8 @@ struct DiffLineComment: Hashable, Sendable {
         self.reactions = reactions
         self.avatarURL = avatarURL
         self.isBot = isBot
+        self.relativeAge = relativeAge
+        self.absoluteTimestamp = absoluteTimestamp
     }
 }
 
@@ -65,10 +76,14 @@ struct DiffLineCommentThread: Hashable, Sendable {
     var isOutdated = false
     /// GraphQL node id of the backing review thread; enables resolve/unresolve.
     var threadID: String?
+    /// The viewer's own unsubmitted thread. GitHub accepts neither replies nor
+    /// resolution on one until the review is submitted, so the footer hides.
+    var isPending = false
 
-    /// The REST id replies attach to — GitHub replies always target the root comment.
+    /// The REST id replies attach to — GitHub replies always target the root
+    /// comment. Pending comments are skipped; they cannot be replied to.
     var replyTargetCommentID: Int? {
-        comments.first { $0.remoteID != nil }?.remoteID
+        comments.first { $0.remoteID != nil && !$0.isPending }?.remoteID
     }
 }
 
@@ -131,8 +146,8 @@ struct DiffCommentInteraction {
     /// place of the comment body; the host suppresses the standalone composer
     /// row (`DiffCommentAnnotations.composerAnchor`) while one is set.
     let editingRemoteCommentID: Int?
-    /// The pending-batch comment (keyed by anchor) being edited inline.
-    let editingPendingAnchor: DiffCommentAnchor?
+    /// The unsubmitted comment being edited inline, by GraphQL node id.
+    let editingPendingCommentNodeID: String?
     /// The reaction palette; empty hides every reaction affordance.
     let reactionOptions: [CommentReactionOption]
     /// Renders author avatars in thread rows when present; the diff viewer's inert
@@ -147,7 +162,13 @@ struct DiffCommentInteraction {
     let onToggleThreadResolved: (DiffCommentAnchor, DiffLineCommentThread) -> Void
     let onSaveDraft: () -> Void
     let onCancelComposer: () -> Void
-    let onDeletePending: (DiffCommentAnchor) -> Void
+    let onDeletePending: (DiffLineComment) -> Void
+    /// Uploads local files and appends their links to the open draft. `nil` on
+    /// the diff viewer's inert path, which hides the attach affordance.
+    var onAttachFiles: (([URL]) -> Void)?
+    /// True while an upload for the open draft is running; the host disables Save
+    /// so a comment cannot post without its attachment link.
+    var isUploadingAttachments = false
 }
 
 // MARK: - Row views
@@ -163,6 +184,59 @@ struct DiffCommentRowWidthModifier: ViewModifier {
         } else {
             content.frame(maxWidth: 640, alignment: .leading)
         }
+    }
+}
+
+/// Interior padding for comment cards: 10pt except trailing, which matches the
+/// Overview timeline cards' 12pt so the three-dot menu sits the same distance
+/// from its card's right edge on both tabs. With the card's 8pt horizontal
+/// outset and the diff content's 6pt inset, trailing controls end 26pt from
+/// the scroll view's edge — 9pt clear of the 17pt overlay indicator lane
+/// (the clicks that dropped were at 3pt clearance or less).
+struct DiffCommentCardInteriorPadding: ViewModifier {
+    static let basePadding: CGFloat = 10
+    static let trailingPadding: CGFloat = 12
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical, Self.basePadding)
+            .padding(.leading, Self.basePadding)
+            .padding(.trailing, Self.trailingPadding)
+    }
+}
+
+/// The full card treatment shared by thread and composer rows: interior
+/// padding, the rounded fill, then an 8pt horizontal / 4pt vertical outset so
+/// the hunk's code surface shows around the card and it reads as floating on
+/// the diff rather than sitting on a full-width backdrop band.
+struct DiffCommentCardChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .modifier(DiffCommentCardInteriorPadding())
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(cardFill)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .modifier(DiffCommentRowWidthModifier())
+    }
+
+    /// Opaque base under the tint: the row's wash bands pass the neighboring
+    /// line colors around the card, and without the base they would also tint
+    /// the card's interior through its translucent fill. The hairline stroke
+    /// and drop shadow keep the card separated when the anchored line is
+    /// context — a clear wash leaves fill and surface nearly the same color.
+    private var cardFill: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(Color(nsColor: .textBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.2), radius: 5, y: 1)
     }
 }
 
@@ -193,14 +267,7 @@ struct DiffCommentThreadRow: View {
                 threadFooter
             }
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-        .padding(.vertical, 6)
-        .modifier(DiffCommentRowWidthModifier())
+        .modifier(DiffCommentCardChrome())
         .onChange(of: thread.isResolved) { _, _ in
             isManuallyExpanded = false
         }
@@ -209,30 +276,7 @@ struct DiffCommentThreadRow: View {
     }
 
     private var resolvedHeader: some View {
-        Button {
-            isManuallyExpanded.toggle()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isManuallyExpanded ? 90 : 0))
-
-                Text("Resolved")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.green)
-
-                Text("\(thread.comments.count) comment\(thread.comments.count == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Resolved conversation, \(thread.comments.count) comments")
-        .accessibilityHint(isManuallyExpanded ? "Collapses the conversation" : "Expands the conversation")
+        PullRequestResolvedThreadHeader(commentCount: thread.comments.count, isExpanded: $isManuallyExpanded)
     }
 
     @ViewBuilder
@@ -246,7 +290,7 @@ struct DiffCommentThreadRow: View {
                 avatarLoader: interaction?.avatarLoader
             ) {
                 if comment.isPending {
-                    orangeCapsuleBadge("Pending")
+                    PullRequestCommentBadge("Pending", color: .orange)
                 }
                 if thread.isResolved {
                     Text("Resolved")
@@ -254,10 +298,16 @@ struct DiffCommentThreadRow: View {
                         .foregroundStyle(.green)
                 }
                 if thread.isOutdated {
-                    orangeCapsuleBadge("Outdated")
+                    PullRequestCommentBadge("Outdated", color: .orange)
                 }
 
                 Spacer(minLength: 0)
+
+                // Timestamp sits trailing, just left of the three-dot menu,
+                // matching the Overview timeline's comment cards.
+                if let relativeAge = comment.relativeAge, let absolute = comment.absoluteTimestamp {
+                    PullRequestTimestampLabel(relative: relativeAge, absolute: absolute)
+                }
 
                 if !isEditing {
                     commentActions(for: comment)
@@ -288,91 +338,61 @@ struct DiffCommentThreadRow: View {
         guard let interaction else {
             return false
         }
-        if let remoteID = comment.remoteID, interaction.editingRemoteCommentID == remoteID {
+        if let remoteID = comment.remoteID, !comment.isPending, interaction.editingRemoteCommentID == remoteID {
             return true
         }
-        return comment.isPending && interaction.editingPendingAnchor == anchor
+        guard comment.isPending, let nodeID = comment.nodeID else {
+            return false
+        }
+        return interaction.editingPendingCommentNodeID == nodeID
     }
 
-    /// Reply and resolve, GitHub style. Both need a submitted thread: replies attach
-    /// to the root remote comment, resolution needs the thread's node id.
+    /// The shared Reply / Resolve footer; needs an interaction plus a submitted
+    /// root comment for replies to attach to. A pending thread offers neither
+    /// until its review is submitted.
     @ViewBuilder
     private var threadFooter: some View {
-        if let interaction, thread.replyTargetCommentID != nil {
-            HStack(spacing: 12) {
-                Button("Reply") {
-                    interaction.onReplyToThread(anchor, thread)
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .foregroundStyle(Color.accentColor)
-                .accessibilityLabel("Reply to thread")
-
-                if thread.threadID != nil {
-                    Button(thread.isResolved ? "Unresolve conversation" : "Resolve conversation") {
-                        interaction.onToggleThreadResolved(anchor, thread)
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 2)
+        if let interaction, !thread.isPending, thread.replyTargetCommentID != nil {
+            PullRequestThreadActionsFooter(
+                isResolved: thread.isResolved,
+                canReply: true,
+                canResolve: thread.threadID != nil,
+                onReply: { interaction.onReplyToThread(anchor, thread) },
+                onToggleResolved: { interaction.onToggleThreadResolved(anchor, thread) }
+            )
         }
     }
 
-    private func orangeCapsuleBadge(_ text: String) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(Color.orange.opacity(0.14)))
-            .foregroundStyle(.orange)
-    }
-
-    /// Pending and submitted comments share the same three-dot menu; only the
-    /// available actions differ (pending: always both, submitted: permission-gated).
+    /// Pending and submitted comments share the same three-dot menu and the same
+    /// permission gating; only the id the actions are addressed by differs — a
+    /// node id when pending, a REST id when submitted. A pending comment still
+    /// awaiting GitHub's answer has neither, so it offers no actions until the
+    /// real thread swaps in.
     @ViewBuilder
     private func commentActions(for comment: DiffLineComment) -> some View {
-        if let interaction {
-            if comment.isPending {
-                actionsMenu(
-                    onEdit: { interaction.onAddComment(anchor) },
-                    onDelete: { interaction.onDeletePending(anchor) }
-                )
-            } else if comment.canEdit || comment.canDelete, comment.remoteID != nil {
-                actionsMenu(
-                    onEdit: comment.canEdit ? { interaction.onEditRemoteComment(anchor, comment) } : nil,
-                    onDelete: comment.canDelete ? { interaction.onDeleteRemoteComment(anchor, comment) } : nil
-                )
-            }
+        let hasActionableID = comment.isPending ? comment.nodeID != nil : comment.remoteID != nil
+        if let interaction, comment.canEdit || comment.canDelete, hasActionableID {
+            PullRequestCommentActionsMenu(
+                onEdit: comment.canEdit ? { interaction.onEditRemoteComment(anchor, comment) } : nil,
+                onDelete: deleteAction(for: comment, interaction: interaction)
+            )
         }
     }
 
-    private func actionsMenu(onEdit: (() -> Void)?, onDelete: (() -> Void)?) -> some View {
-        Menu {
-            if let onEdit {
-                Button("Edit", action: onEdit)
-            }
-            if let onDelete {
-                Button("Delete", role: .destructive, action: onDelete)
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                // The bare glyph is a sliver; give the control a real hit target.
-                .frame(width: 26, height: 20)
-                .contentShape(Rectangle())
+    /// Deleting an unsubmitted comment goes straight through — nothing is
+    /// published yet, so GitHub (and Alveary) skip the confirmation a submitted
+    /// comment's deletion arms.
+    private func deleteAction(
+        for comment: DiffLineComment,
+        interaction: DiffCommentInteraction
+    ) -> (() -> Void)? {
+        guard comment.canDelete else {
+            return nil
         }
-        .menuStyle(.button)
-        .menuIndicator(.hidden)
-        .buttonStyle(.plain)
-        .fixedSize()
-        .help("Comment actions")
-        .accessibilityLabel("Comment actions")
+        if comment.isPending {
+            return { interaction.onDeletePending(comment) }
+        }
+        return { interaction.onDeleteRemoteComment(anchor, comment) }
     }
 }
 
@@ -395,15 +415,16 @@ struct DiffCommentableLineRow<Content: View>: View {
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 16))
-                            // Palette rendering fills the plus cutout white; with a
+                            // Palette rendering fills the plus cutout; with a
                             // single style the glyph is transparent and the hovered
-                            // line's background bleeds through it.
+                            // line's background bleeds through it. Dark fill: a
+                            // white plus washes out against the gold accent circle.
                             .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, Color.accentColor)
+                            .foregroundStyle(Color.black.opacity(0.85), Color.accentColor)
                     }
                     .buttonStyle(DiffCommentPlusButtonStyle())
                     .frame(width: gutterLayout.markerWidth, alignment: .center)
-                    .padding(.leading, lineNumbersWidth)
+                    .padding(.leading, gutterLayout.lineNumberColumnsWidth)
                     .help("Add a comment on this line")
                     .accessibilityLabel("Comment on line \(anchor.line)")
                 }
@@ -414,13 +435,6 @@ struct DiffCommentableLineRow<Content: View>: View {
             .onHover { hovering in
                 isHovered = hovering
             }
-    }
-
-    private var lineNumbersWidth: CGFloat {
-        let columnWidth = gutterLayout.lineNumberWidth + gutterLayout.lineNumberTrailingPadding
-        let oldWidth = gutterLayout.showsOldLineNumbers ? columnWidth : 0
-        let newWidth = gutterLayout.showsNewLineNumbers ? columnWidth : 0
-        return oldWidth + newWidth
     }
 }
 

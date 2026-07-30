@@ -7,6 +7,7 @@ struct GitSettingsTabView: View {
     @Binding var commitMessageGenerationPrompt: String
     @Binding var worktreesBaseDirectory: String
     @Binding var createWorktreeByDefault: Bool
+    @Binding var showsPullRequestsInSidebar: Bool
 
     @State private var gitHubInstalledVersion: String?
     @State private var isGitHubConnected = false
@@ -47,6 +48,20 @@ struct GitSettingsTabView: View {
                     )
                 }
 
+                SettingsFormSection("GitHub") {
+                    SettingsFormRow(showsDivider: false) {
+                        gitHubSection
+                    }
+                }
+
+                SettingsFormSection("Pull requests") {
+                    SettingsToggleRow(
+                        "Show \"Pull requests\" in sidebar",
+                        isOn: $showsPullRequestsInSidebar,
+                        showsDivider: false
+                    )
+                }
+
                 SettingsFormSection("Worktrees") {
                     SettingsToggleRow(
                         "Create worktree by default",
@@ -56,12 +71,6 @@ struct GitSettingsTabView: View {
 
                     SettingsFormRow(showsDivider: false) {
                         SettingsFolderPickerRow("Worktrees directory", path: $worktreesBaseDirectory)
-                    }
-                }
-
-                SettingsFormSection("GitHub") {
-                    SettingsFormRow(showsDivider: false) {
-                        gitHubSection
                     }
                 }
             }

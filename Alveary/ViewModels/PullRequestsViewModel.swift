@@ -27,6 +27,19 @@ final class PullRequestsViewModel {
     // Internal (not private) so the filtering companion can persist filter changes.
     let settingsService: (any SettingsService)?
     private let now: () -> Date
+    /// Internal so the attachments companion can upload; optional because tests
+    /// and previews construct the view model without an uploader.
+    let attachmentUploadService: (any GitHubAttachmentUploadService)?
+    /// Seeds a successful upload's local bytes into the app's image caches so
+    /// the reference renders immediately — GitHub keeps fresh attachment assets
+    /// session-gated, so refetching the uploaded URL can 404 for a while.
+    let attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)?
+    /// Notes the opened pane's repository as a render context for resolving
+    /// signed attachment-image URLs (see `GitHubAttachmentImageURLResolver`).
+    let attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)?
+    /// App-level toast presentation. Attachment failures surface here rather than
+    /// in a pane banner, because the pane may already be closed when one lands.
+    let presentToast: @MainActor @Sendable (String) -> Void
 
     private var hasLoadedListCache = false
 
@@ -49,6 +62,22 @@ final class PullRequestsViewModel {
     /// composer-opening methods and cleared on cancel or successful save.
     var composerDraft: PullRequestCommentDraftBox?
 
+    /// Attachment uploads currently running, by destination editor. View-model
+    /// scoped (not session scoped) so an upload survives closing the pane, and
+    /// mutated by `PullRequestsViewModel+Attachments.swift`.
+    var attachmentUploadsInFlight: Set<PullRequestAttachmentDestination> = []
+
+    /// The in-flight "open a pending review" call per pull request. GitHub allows
+    /// one pending review per viewer, so comments saved in quick succession share
+    /// this task instead of each creating their own. Mutated by
+    /// `PullRequestsViewModel+PendingComments.swift`.
+    @ObservationIgnored
+    var pendingReviewCreationTasks: [PullRequestPaneTarget: Task<String, Error>] = [:]
+
+    /// A failed upload waiting on browser-session access; non-nil presents the
+    /// Full Disk Access guidance sheet. Mutated by the attachments companion.
+    var attachmentAccessRequest: PullRequestAttachmentAccessRequest?
+
     var searchQuery = ""
     /// Empty sets mean "no constraint" — every status / repository passes.
     var selectedStatuses: Set<PullRequestStatus> = []
@@ -66,12 +95,20 @@ final class PullRequestsViewModel {
         avatarLoader: GitHubAvatarLoader,
         listCache: PullRequestsListCache? = nil,
         settingsService: (any SettingsService)? = nil,
+        attachmentUploadService: (any GitHubAttachmentUploadService)? = nil,
+        attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
+        attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
+        presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
         self.avatarLoader = avatarLoader
         self.listCache = listCache
         self.settingsService = settingsService
+        self.attachmentUploadService = attachmentUploadService
+        self.attachmentImageSeeder = attachmentImageSeeder
+        self.attachmentImageRepositoryRegistrar = attachmentImageRepositoryRegistrar
+        self.presentToast = presentToast
         self.now = now
         if let settings = settingsService?.current {
             selectedFilter = PullRequestsFilter(rawValue: settings.pullRequestsSelectedTab) ?? .all
@@ -146,6 +183,15 @@ final class PullRequestsViewModel {
         }
     }
 
+    /// Applies a locally-known status to a list row, so closing or reopening a
+    /// pull request updates its glyph before the next list fetch confirms it.
+    func applyStatus(_ status: PullRequestStatus, toRow id: PullRequestIdentifier) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        items[index].status = status
+    }
+
     func retry() {
         loadPhase = .idle
         requestRefresh()
@@ -218,6 +264,9 @@ final class PullRequestsViewModel {
 
 extension PullRequestsViewModel {
     func requestDetails(_ summary: PullRequestSummary) {
+        // The pane's repository is a candidate context for signed attachment
+        // image URLs; register before its markdown can render.
+        attachmentImageRepositoryRegistrar?(summary.repositoryNameWithOwner)
         let target = PullRequestPaneTarget.details(summary.id)
         if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
             deactivatedPaneDismissals.remove(request)

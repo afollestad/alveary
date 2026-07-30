@@ -13,6 +13,11 @@ extension GitHubPullRequestsServiceTests {
         let comment = try XCTUnwrap(detail.comments.first)
         XCTAssertEqual(comment.nodeID, "IC_bot1")
         XCTAssertTrue(comment.isBot)
+        // Top-level conversation comments carry the same REST id and viewer
+        // permissions as thread comments, driving the Overview's actions menu.
+        XCTAssertEqual(comment.databaseId, 321)
+        XCTAssertFalse(comment.viewerCanUpdate)
+        XCTAssertTrue(comment.viewerCanDelete)
         XCTAssertEqual(comment.reactions, [
             PullRequestCommentReaction(content: .heart, count: 3, viewerHasReacted: false)
         ])
@@ -25,6 +30,9 @@ extension GitHubPullRequestsServiceTests {
         ])
 
         XCTAssertEqual(detail.reviewThreads.first?.nodeID, "PRT_1")
+        // The root comment's review association nests the thread under that
+        // review's Overview card.
+        XCTAssertEqual(detail.reviewThreads.first?.reviewNodeID, "PRR_1")
 
         // Null nodes drop; order is as GitHub returned it.
         XCTAssertEqual(detail.timelineEvents, Self.fixtureTimelineEvents)

@@ -3,12 +3,14 @@ import SwiftUI
 
 /// Renders one standalone markdown image block: placeholder chrome while
 /// loading, the bitmap once it arrives, and an unavailable label on failure.
-/// Clicking a loaded remote image opens its resolved URL.
+/// Clicking a loaded image opens the host's image preview modal when an
+/// `appMarkdownImagePreviewAction` is injected, else its resolved remote URL.
 struct AppMarkdownImageBlockView: View {
     let block: AppMarkdownImageBlock
     var baseURL: URL?
 
     @Environment(\.appMarkdownImageStore) private var environmentStore
+    @Environment(\.appMarkdownImagePreviewAction) private var imagePreviewAction
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -37,13 +39,16 @@ struct AppMarkdownImageBlockView: View {
             constrainedTo: .greatestFiniteMagnitude
         )
         return Button {
-            openResolvedURL()
+            openImage()
         } label: {
+            // Clip before the max-size frame: the frame can be wider than the
+            // fitted image (it expands to the available width), and a clip on
+            // the frame leaves the image's trailing corners square.
             Image(nsImage: nsImage)
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: displaySize.width, maxHeight: displaySize.height, alignment: .leading)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(maxWidth: displaySize.width, maxHeight: displaySize.height, alignment: .leading)
         }
         .buttonStyle(.plain)
     }
@@ -63,6 +68,9 @@ struct AppMarkdownImageBlockView: View {
                 if let text {
                     Text(text)
                         .foregroundStyle(.secondary)
+                } else {
+                    // Centered working indicator while the network load runs.
+                    StatusIndicatorSpinner(color: .secondary, diameter: 16, lineWidth: 2)
                 }
             }
             .frame(width: displaySize.width, height: displaySize.height, alignment: .leading)
@@ -82,7 +90,11 @@ struct AppMarkdownImageBlockView: View {
         )
     }
 
-    private func openResolvedURL() {
+    private func openImage() {
+        if let imagePreviewAction {
+            imagePreviewAction(block.image, baseURL: baseURL)
+            return
+        }
         guard let url = AppMarkdownImageSourceResolver.resolvedURL(for: block.image.source, baseURL: baseURL),
               !url.isFileURL else {
             return

@@ -120,12 +120,29 @@ extension ContentView {
         )
     }
 
-    static func makePullRequestsViewModel(dependencies: ContentViewDependencies) -> PullRequestsViewModel {
-        PullRequestsViewModel(
+    static func makePullRequestsViewModel(
+        dependencies: ContentViewDependencies,
+        appState: AppState
+    ) -> PullRequestsViewModel {
+        let attachmentImageURLResolver = dependencies.gitHubAttachmentImageURLResolver
+        return PullRequestsViewModel(
             service: dependencies.pullRequestsService,
             avatarLoader: dependencies.gitHubAvatarLoader,
             listCache: dependencies.pullRequestsListCache,
-            settingsService: dependencies.settingsService
+            settingsService: dependencies.settingsService,
+            attachmentUploadService: dependencies.gitHubAttachmentUploadService,
+            attachmentImageSeeder: { upload in
+                guard let source = upload.referenceURL?.absoluteString else {
+                    return
+                }
+                await AppMarkdownImageStore.shared.seedRemoteImage(source: source, fileURL: upload.fileURL)
+            },
+            attachmentImageRepositoryRegistrar: { repository in
+                attachmentImageURLResolver.registerRepository(repository)
+            },
+            presentToast: { message in
+                appState.presentUnexpectedError(message: message)
+            }
         )
     }
 

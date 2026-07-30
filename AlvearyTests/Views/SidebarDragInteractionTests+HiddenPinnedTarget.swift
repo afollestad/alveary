@@ -109,6 +109,26 @@ extension SidebarDragInteractionTests {
         XCTAssertEqual(candidate?.indicatorY, 80)
     }
 
+    func testEmptyPinnedTargetFollowsTheTerminalRowWhenPullRequestsIsHidden() throws {
+        let fixture = try SidebarTestFixture()
+        let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/hidden-pinned-no-pull-requests")
+        let sourceItem = SidebarDragItem.unpinnedTask(sourceTask.persistentModelID)
+
+        let candidate = sidebarDropCandidateForLocation(
+            at: CGPoint(x: 100, y: 30),
+            dragging: sourceItem,
+            geometry: hiddenPullRequestsGeometry(),
+            logicalOrder: hiddenPinnedLogicalOrder
+        )
+
+        // `Scheduled` now carries `.topLevelTerminal`, so the extension anchors to it and the
+        // whole group sits one row higher. The target keeps the same shape.
+        XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .pinned, placement: .end))
+        XCTAssertEqual(candidate?.kind, .boundary)
+        XCTAssertEqual(candidate?.hitFrame, CGRect(x: 0, y: 24, width: 200, height: 47.75))
+        XCTAssertEqual(candidate?.indicatorY, 52)
+    }
+
     func testProjectSourceSharesTheExtendedEmptyPinnedTarget() throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Regular", path: "/tmp/hidden-pinned-project")
@@ -145,6 +165,16 @@ private func hiddenPinnedGeometry() -> [SidebarDragGeometryRole: [CGRect]] {
         .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
         .topLevelTerminal: [CGRect(x: 0, y: 40, width: 200, height: 24)],
         .projectsHeader: [CGRect(x: 0, y: 80, width: 200, height: 39.5)]
+    ]
+}
+
+/// The same layout with `Pull requests` hidden: one fewer top-level row, so `Scheduled` publishes
+/// the terminal and everything below it moves up by one row.
+private func hiddenPullRequestsGeometry() -> [SidebarDragGeometryRole: [CGRect]] {
+    [
+        .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
+        .topLevelTerminal: [CGRect(x: 0, y: 12, width: 200, height: 24)],
+        .projectsHeader: [CGRect(x: 0, y: 52, width: 200, height: 39.5)]
     ]
 }
 
