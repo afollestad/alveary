@@ -429,6 +429,7 @@ private enum AppShotNavigationToken: Equatable {
     case skills
     case mcp
     case scheduled
+    case pullRequests
     case archived
     case project(PersistentIdentifier)
     // Effective conversation selection is checked in `isCurrent`; the raw selection cache may be repaired without changing destinations.
@@ -444,6 +445,8 @@ private enum AppShotNavigationToken: Equatable {
             self = .mcp
         case .scheduled:
             self = .scheduled
+        case .pullRequests:
+            self = .pullRequests
         case .archived:
             self = .archived
         case .project(let project):

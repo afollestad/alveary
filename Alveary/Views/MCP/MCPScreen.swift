@@ -16,6 +16,7 @@ struct MCPScreen: View {
                     get: { viewModel.searchQuery },
                     set: { viewModel.searchQuery = $0 }
                 ),
+                isRefreshing: viewModel.isRefreshingProviders,
                 onRefresh: {
                     Task { await viewModel.refreshProviders() }
                 },

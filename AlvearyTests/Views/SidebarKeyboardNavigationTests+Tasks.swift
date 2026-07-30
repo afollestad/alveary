@@ -21,6 +21,7 @@ extension SidebarKeyboardNavigationTests {
             .skills,
             .mcp,
             .scheduled,
+            .pullRequests,
             .thread(pinnedTask),
             .project(project),
             .thread(task)
@@ -37,7 +38,7 @@ extension SidebarKeyboardNavigationTests {
                 activeThreads: { _ in [] },
                 activeTasks: [task]
             ),
-            [.skills, .mcp, .scheduled, .thread(task)]
+            [.skills, .mcp, .scheduled, .pullRequests, .thread(task)]
         )
     }
 }

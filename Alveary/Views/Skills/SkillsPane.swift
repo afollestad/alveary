@@ -59,7 +59,7 @@ private struct NewSkillPane: View {
                         AppTextEditor(text: draft.instructions, minHeight: 260)
                     }
                 }
-                .padding(ContextualPaneLayout.horizontalInset)
+                .padding(ContextualPaneLayout.contentInsets())
             }
 
             footer
@@ -114,7 +114,8 @@ private struct SkillDetailsPane: View {
                     autoDismissAfter: nil,
                     onDismiss: viewModel.clearActivePaneError
                 )
-                .padding([.horizontal, .top], ContextualPaneLayout.horizontalInset)
+                .contextualPaneHorizontalInsets()
+                .padding(.top, 12)
             }
 
             SkillMarkdownContent(
@@ -186,7 +187,7 @@ private struct SkillMarkdownContent: View {
                             return .handled
                         })
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(ContextualPaneLayout.horizontalInset)
+                        .padding(ContextualPaneLayout.contentInsets())
                 }
             }
         }

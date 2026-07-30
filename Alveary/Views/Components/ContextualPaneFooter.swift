@@ -1,9 +1,37 @@
 import SwiftUI
 
 enum ContextualPaneLayout {
-    static let horizontalInset: CGFloat = 12
+    /// 16 points on both sides for the detail/right panes (Skills, MCP,
+    /// Scheduled, Pull requests). This is also the *visible* inset: the resize
+    /// lane's divider line draws flush with the pane's frame edge
+    /// (`RightPaneResizeHandle` trailing-aligns it), so padding and visible
+    /// inset are the same number on both sides.
+    static let horizontalInset: CGFloat = 16
     static let actionSpacing: CGFloat = 12
     static let minimumHorizontalActionWidth: CGFloat = 128
+
+    /// All-edges content insets for pane scroll content.
+    static func contentInsets(vertical: CGFloat = 12) -> EdgeInsets {
+        EdgeInsets(
+            top: vertical,
+            leading: horizontalInset,
+            bottom: vertical,
+            trailing: horizontalInset
+        )
+    }
+}
+
+/// Applies the pane's shared horizontal insets (see `ContextualPaneLayout`).
+private struct ContextualPaneHorizontalInsets: ViewModifier {
+    func body(content: Content) -> some View {
+        content.padding(.horizontal, ContextualPaneLayout.horizontalInset)
+    }
+}
+
+extension View {
+    func contextualPaneHorizontalInsets() -> some View {
+        modifier(ContextualPaneHorizontalInsets())
+    }
 }
 
 struct ContextualPaneFooter<LeadingAction: View, TrailingAction: View, Note: View>: View {
@@ -47,12 +75,12 @@ struct ContextualPaneFooter<LeadingAction: View, TrailingAction: View, Note: Vie
                 }
             }
         }
-        .padding(.horizontal, ContextualPaneLayout.horizontalInset)
+        .contextualPaneHorizontalInsets()
         .padding(.vertical, 16)
         .background(.bar)
         .overlay(alignment: .top) {
             AppSeparatorHairline(surface: .paneHeader)
-                .padding(.horizontal, ContextualPaneLayout.horizontalInset)
+                .contextualPaneHorizontalInsets()
         }
     }
 }

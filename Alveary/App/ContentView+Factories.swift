@@ -120,6 +120,15 @@ extension ContentView {
         )
     }
 
+    static func makePullRequestsViewModel(dependencies: ContentViewDependencies) -> PullRequestsViewModel {
+        PullRequestsViewModel(
+            service: dependencies.pullRequestsService,
+            avatarLoader: dependencies.gitHubAvatarLoader,
+            listCache: dependencies.pullRequestsListCache,
+            settingsService: dependencies.settingsService
+        )
+    }
+
     static func makeScheduledTaskProposalQueueCoordinator(
         dependencies: ContentViewDependencies
     ) -> ScheduledTaskProposalQueueCoordinator {

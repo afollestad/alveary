@@ -29,7 +29,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     func testBuildNavigableItemsWithNoProjects() {
         let items = buildNavigableItems(projects: [], expandedProjects: [], activeThreads: { _ in [] })
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests])
     }
 
     func testBuildNavigableItemsWithCollapsedProjects() throws {
@@ -46,7 +46,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(projectA), .project(projectB)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .project(projectA), .project(projectB)])
     }
 
     func testBuildNavigableItemsPlacesPinnedThreadsAfterScheduledBeforeProjects() throws {
@@ -61,7 +61,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
             activeThreads: { _ in [] }
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .thread(pinned), .project(project)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .thread(pinned), .project(project)])
     }
 
     func testBuildNavigableItemsWithExpandedProject() throws {
@@ -77,7 +77,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(project), .thread(thread)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .project(project), .thread(thread)])
     }
 
     func testBuildNavigableItemsDoesNotDuplicatePinnedThreadsUnderExpandedProject() throws {
@@ -95,7 +95,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .thread(pinned), .project(project), .thread(unpinned)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .thread(pinned), .project(project), .thread(unpinned)])
     }
 
     func testBuildNavigableItemsIncludesExpandedPinnedProjectChildrenBeforeRegularProjects() throws {
@@ -118,6 +118,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
             .skills,
             .mcp,
             .scheduled,
+            .pullRequests,
             .project(pinnedProject),
             .thread(pinnedProjectChild),
             .project(regularProject),
@@ -139,7 +140,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(project), .thread(active)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .project(project), .thread(active)])
     }
 
     func testBuildNavigableItemsMixedExpandedAndCollapsed() throws {
@@ -157,7 +158,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(projectA), .thread(threadA), .project(projectB)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .project(projectA), .thread(threadA), .project(projectB)])
     }
 
     // MARK: - navigateVertically

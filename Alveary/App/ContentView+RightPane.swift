@@ -5,6 +5,7 @@ enum RightPaneDestination: Hashable {
     case skills(SkillsPaneTarget)
     case mcp(MCPPaneTarget)
     case scheduled(ScheduledTaskPaneTarget)
+    case pullRequest(PullRequestPaneTarget)
 
     var widthDomain: RightPaneWidthDomain {
         switch self {
@@ -16,28 +17,50 @@ enum RightPaneDestination: Hashable {
             .mcp
         case .scheduled:
             .scheduled
+        case .pullRequest:
+            .pullRequests
         }
     }
 
     static func resolve(
         selection: SidebarItem?,
-        skillsTarget: SkillsPaneTarget?,
-        mcpTarget: MCPPaneTarget?,
-        scheduledTarget: ScheduledTaskPaneTarget?,
+        targets: RightPaneContextualTargets,
         isDiffViewerRequested: Bool
     ) -> RightPaneDestination? {
         let contextualDestination: RightPaneDestination?
         switch selection {
         case .skills:
-            contextualDestination = skillsTarget.map(RightPaneDestination.skills)
+            contextualDestination = targets.skills.map(RightPaneDestination.skills)
         case .mcp:
-            contextualDestination = mcpTarget.map(RightPaneDestination.mcp)
+            contextualDestination = targets.mcp.map(RightPaneDestination.mcp)
         case .scheduled:
-            contextualDestination = scheduledTarget.map(RightPaneDestination.scheduled)
+            contextualDestination = targets.scheduled.map(RightPaneDestination.scheduled)
+        case .pullRequests:
+            contextualDestination = targets.pullRequest.map(RightPaneDestination.pullRequest)
         default:
             contextualDestination = nil
         }
         return contextualDestination ?? (isDiffViewerRequested ? .diff : nil)
+    }
+}
+
+/// The active contextual-pane target for each sidebar-driven right-pane feature.
+struct RightPaneContextualTargets {
+    let skills: SkillsPaneTarget?
+    let mcp: MCPPaneTarget?
+    let scheduled: ScheduledTaskPaneTarget?
+    let pullRequest: PullRequestPaneTarget?
+
+    init(
+        skills: SkillsPaneTarget? = nil,
+        mcp: MCPPaneTarget? = nil,
+        scheduled: ScheduledTaskPaneTarget? = nil,
+        pullRequest: PullRequestPaneTarget? = nil
+    ) {
+        self.skills = skills
+        self.mcp = mcp
+        self.scheduled = scheduled
+        self.pullRequest = pullRequest
     }
 }
 
@@ -46,6 +69,7 @@ enum RightPaneWidthDomain: Hashable {
     case skills
     case mcp
     case scheduled
+    case pullRequests
 }
 
 enum DiffViewerCommandIntent: Equatable {
@@ -63,6 +87,8 @@ enum DiffViewerCommandIntent: Equatable {
             .deactivateContextAndShowDiff(.mcp)
         case .scheduled:
             .deactivateContextAndShowDiff(.scheduled)
+        case .pullRequest:
+            .deactivateContextAndShowDiff(.pullRequests)
         case nil:
             .showDiff
         }
@@ -74,12 +100,14 @@ struct RightPaneWidths {
     var skills: CGFloat
     var mcp: CGFloat
     var scheduled: CGFloat
+    var pullRequests: CGFloat
 
     init(settings: AppSettings) {
         diff = CGFloat(settings.diffViewerWidth)
         skills = CGFloat(settings.skillsPaneWidth)
         mcp = CGFloat(settings.mcpPaneWidth)
         scheduled = CGFloat(settings.scheduledTasksPaneWidth)
+        pullRequests = CGFloat(settings.pullRequestsPaneWidth)
     }
 }
 
@@ -87,9 +115,12 @@ extension ContentView {
     var rightPaneDestination: RightPaneDestination? {
         RightPaneDestination.resolve(
             selection: appState.selectedSidebarItem,
-            skillsTarget: skillsViewModel.activePaneTarget,
-            mcpTarget: mcpViewModel.activePaneTarget,
-            scheduledTarget: scheduledTasksViewModel.activePaneTarget,
+            targets: RightPaneContextualTargets(
+                skills: skillsViewModel.activePaneTarget,
+                mcp: mcpViewModel.activePaneTarget,
+                scheduled: scheduledTasksViewModel.activePaneTarget,
+                pullRequest: pullRequestsViewModel.activePaneTarget
+            ),
             isDiffViewerRequested: appState.isDiffViewerRequested
         )
     }
@@ -113,6 +144,7 @@ extension ContentView {
                 case .skills: rightPaneWidths.skills
                 case .mcp: rightPaneWidths.mcp
                 case .scheduled: rightPaneWidths.scheduled
+                case .pullRequests: rightPaneWidths.pullRequests
                 }
             },
             set: { width in
@@ -121,6 +153,7 @@ extension ContentView {
                 case .skills: rightPaneWidths.skills = width
                 case .mcp: rightPaneWidths.mcp = width
                 case .scheduled: rightPaneWidths.scheduled = width
+                case .pullRequests: rightPaneWidths.pullRequests = width
                 }
             }
         )
@@ -137,6 +170,8 @@ extension ContentView {
                 $0.mcpPaneWidth = width
             case .scheduled:
                 $0.scheduledTasksPaneWidth = width
+            case .pullRequests:
+                $0.pullRequestsPaneWidth = width
             }
         }
     }
@@ -166,6 +201,8 @@ extension ContentView {
             MCPServerPane(viewModel: mcpViewModel, target: target, onDismiss: onDismiss)
         case .scheduled(let target):
             ScheduledTaskEditorPane(viewModel: scheduledTasksViewModel, target: target, onDismiss: onDismiss)
+        case .pullRequest(let target):
+            PullRequestPane(viewModel: pullRequestsViewModel, target: target, onDismiss: onDismiss)
         }
     }
 
@@ -181,6 +218,8 @@ extension ContentView {
             mcpViewModel.paneSessions[target]?.generation
         case .scheduled(let target):
             scheduledTasksViewModel.paneSessions[target]?.generation
+        case .pullRequest(let target):
+            pullRequestsViewModel.paneSessions[target]?.generation
         }
     }
 
@@ -194,6 +233,9 @@ extension ContentView {
         })
         requests.formUnion(scheduledTasksViewModel.pendingPaneDismissals.map {
             RightPanePresentationIdentity(destination: .scheduled($0.target), generation: $0.generation)
+        })
+        requests.formUnion(pullRequestsViewModel.pendingPaneDismissals.map {
+            RightPanePresentationIdentity(destination: .pullRequest($0.target), generation: $0.generation)
         })
         return requests
     }
@@ -211,6 +253,8 @@ extension ContentView {
             mcpViewModel.deactivatePane(target, generation: generation)
         case .scheduled(let target):
             scheduledTasksViewModel.deactivatePane(target, generation: generation)
+        case .pullRequest(let target):
+            pullRequestsViewModel.deactivatePane(target, generation: generation)
         }
     }
 
@@ -239,6 +283,12 @@ extension ContentView {
                 generation: generation,
                 restoreFocus: rightPaneDestination == nil
             )
+        case .pullRequest(let target):
+            pullRequestsViewModel.dismissPane(
+                target,
+                generation: generation,
+                restoreFocus: rightPaneDestination == nil
+            )
         }
     }
 
@@ -254,6 +304,9 @@ extension ContentView {
             appState.showDiffViewer()
         case .deactivateContextAndShowDiff(.scheduled):
             scheduledTasksViewModel.deactivatePane()
+            appState.showDiffViewer()
+        case .deactivateContextAndShowDiff(.pullRequests):
+            pullRequestsViewModel.deactivatePane()
             appState.showDiffViewer()
         case .showDiff:
             appState.showDiffViewer()

@@ -3,16 +3,26 @@ import XCTest
 @testable import Alveary
 
 final class ContentViewRightPaneRoutingTests: XCTestCase {
+    private static let pullRequestTarget = PullRequestPaneTarget.details(
+        PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
+    )
+
     func testMatchingContextualPaneTakesPrecedenceOverRequestedDiffViewer() {
         XCTAssertEqual(
             RightPaneDestination.resolve(
                 selection: .skills,
-                skillsTarget: .newSkill,
-                mcpTarget: nil,
-                scheduledTarget: nil,
+                targets: RightPaneContextualTargets(skills: .newSkill),
                 isDiffViewerRequested: true
             ),
             .skills(.newSkill)
+        )
+        XCTAssertEqual(
+            RightPaneDestination.resolve(
+                selection: .pullRequests,
+                targets: RightPaneContextualTargets(pullRequest: Self.pullRequestTarget),
+                isDiffViewerRequested: true
+            ),
+            .pullRequest(Self.pullRequestTarget)
         )
     }
 
@@ -25,16 +35,12 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
 
         let scheduledDestination = RightPaneDestination.resolve(
             selection: .scheduled,
-            skillsTarget: nil,
-            mcpTarget: nil,
-            scheduledTarget: .create,
+            targets: RightPaneContextualTargets(scheduled: .create),
             isDiffViewerRequested: appState.isDiffViewerRequested
         )
         let returnedProjectDestination = RightPaneDestination.resolve(
             selection: .project(project),
-            skillsTarget: nil,
-            mcpTarget: nil,
-            scheduledTarget: .create,
+            targets: RightPaneContextualTargets(scheduled: .create),
             isDiffViewerRequested: appState.isDiffViewerRequested
         )
 
@@ -48,9 +54,15 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         XCTAssertEqual(
             RightPaneDestination.resolve(
                 selection: .mcp,
-                skillsTarget: .details("cached"),
-                mcpTarget: nil,
-                scheduledTarget: nil,
+                targets: RightPaneContextualTargets(skills: .details("cached")),
+                isDiffViewerRequested: true
+            ),
+            .diff
+        )
+        XCTAssertEqual(
+            RightPaneDestination.resolve(
+                selection: .pullRequests,
+                targets: RightPaneContextualTargets(skills: .details("cached")),
                 isDiffViewerRequested: true
             ),
             .diff
@@ -70,9 +82,12 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         let destinations = selections.map { selection in
             RightPaneDestination.resolve(
                 selection: selection,
-                skillsTarget: .newSkill,
-                mcpTarget: .addCustom,
-                scheduledTarget: .create,
+                targets: RightPaneContextualTargets(
+                    skills: .newSkill,
+                    mcp: .addCustom,
+                    scheduled: .create,
+                    pullRequest: Self.pullRequestTarget
+                ),
                 isDiffViewerRequested: true
             )
         }
@@ -85,9 +100,14 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         XCTAssertNil(
             RightPaneDestination.resolve(
                 selection: .scheduled,
-                skillsTarget: nil,
-                mcpTarget: nil,
-                scheduledTarget: nil,
+                targets: RightPaneContextualTargets(),
+                isDiffViewerRequested: false
+            )
+        )
+        XCTAssertNil(
+            RightPaneDestination.resolve(
+                selection: .pullRequests,
+                targets: RightPaneContextualTargets(),
                 isDiffViewerRequested: false
             )
         )
@@ -98,6 +118,7 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         XCTAssertEqual(RightPaneDestination.skills(.newSkill).widthDomain, .skills)
         XCTAssertEqual(RightPaneDestination.mcp(.addCustom).widthDomain, .mcp)
         XCTAssertEqual(RightPaneDestination.scheduled(.create).widthDomain, .scheduled)
+        XCTAssertEqual(RightPaneDestination.pullRequest(Self.pullRequestTarget).widthDomain, .pullRequests)
     }
 
     func testDiffViewerCommandIntentUsesRenderedDestination() {
@@ -114,6 +135,10 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         XCTAssertEqual(
             DiffViewerCommandIntent.resolve(destination: .scheduled(.create)),
             .deactivateContextAndShowDiff(.scheduled)
+        )
+        XCTAssertEqual(
+            DiffViewerCommandIntent.resolve(destination: .pullRequest(Self.pullRequestTarget)),
+            .deactivateContextAndShowDiff(.pullRequests)
         )
     }
 }

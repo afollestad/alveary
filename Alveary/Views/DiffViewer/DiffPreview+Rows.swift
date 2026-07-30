@@ -12,6 +12,19 @@ private extension EnvironmentValues {
     }
 }
 
+private struct DiffPreviewViewportContentWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    /// The scroll container's visible content width (viewport minus padding), for
+    /// rows that must fit the pane instead of the horizontally scrollable width.
+    var diffPreviewViewportContentWidth: CGFloat {
+        get { self[DiffPreviewViewportContentWidthKey.self] }
+        set { self[DiffPreviewViewportContentWidthKey.self] = newValue }
+    }
+}
+
 private struct DiffPreviewMinimumContentWidthModifier: ViewModifier {
     @Environment(\.diffPreviewMinimumContentWidth) private var minimumContentWidth
 
@@ -369,6 +382,7 @@ struct DiffPreviewScrollContainer<Content: View>: View {
                         alignment: .topLeading
                     )
                     .environment(\.diffPreviewMinimumContentWidth, contentWidth)
+                    .environment(\.diffPreviewViewportContentWidth, availableWidth)
                     .padding(.horizontal, horizontalContentPadding)
                     .padding(.top, topContentPadding)
                     .padding(.bottom, bottomContentPadding)

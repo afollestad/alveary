@@ -215,6 +215,7 @@ final class AppState {
         case skills
         case mcp
         case scheduled
+        case pullRequests
         case archived
         case projectPath(String)
         case threadId(PersistentIdentifier)
@@ -227,6 +228,8 @@ final class AppState {
                 self = .mcp
             case .scheduled:
                 self = .scheduled
+            case .pullRequests:
+                self = .pullRequests
             case .archived:
                 self = .archived
             case .project(let project):
@@ -307,6 +310,7 @@ enum SidebarItem: Hashable {
     case skills
     case mcp
     case scheduled
+    case pullRequests
     case archived
     case project(Project)
     case thread(AgentThread)
@@ -318,7 +322,7 @@ enum SidebarItem: Hashable {
             return true
         case .thread(let thread):
             return thread.effectiveMode == .project
-        case .skills, .mcp, .scheduled, .archived, .settings:
+        case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings:
             return false
         }
     }
@@ -331,6 +335,8 @@ enum SidebarItem: Hashable {
             hasher.combine("mcp")
         case .scheduled:
             hasher.combine("scheduled")
+        case .pullRequests:
+            hasher.combine("pullRequests")
         case .archived:
             hasher.combine("archived")
         case .settings:
@@ -345,7 +351,7 @@ enum SidebarItem: Hashable {
     static func == (lhs: SidebarItem, rhs: SidebarItem) -> Bool {
         switch (lhs, rhs) {
         case (.skills, .skills), (.mcp, .mcp), (.scheduled, .scheduled),
-            (.archived, .archived), (.settings, .settings):
+            (.pullRequests, .pullRequests), (.archived, .archived), (.settings, .settings):
             return true
         case (.project(let left), .project(let right)):
             return left.path == right.path

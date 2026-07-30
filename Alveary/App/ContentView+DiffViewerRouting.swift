@@ -24,10 +24,10 @@ enum DiffViewerRoutingSelection: Equatable {
                 self = .thread(threadID)
             case .projectPath(let path):
                 self = .project(path)
-            case .skills, .mcp, .scheduled, .archived, nil:
+            case .skills, .mcp, .scheduled, .pullRequests, .archived, nil:
                 self = .none
             }
-        case .skills, .mcp, .scheduled, .archived, nil:
+        case .skills, .mcp, .scheduled, .pullRequests, .archived, nil:
             self = .none
         }
     }

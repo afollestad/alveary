@@ -17,6 +17,7 @@ struct SkillsScreen: View {
                     get: { viewModel.searchQuery },
                     set: { viewModel.searchQuery = $0 }
                 ),
+                isRefreshing: viewModel.isRefreshingCatalog,
                 onRefresh: {
                     Task {
                         await viewModel.refreshCatalog()

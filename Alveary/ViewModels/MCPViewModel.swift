@@ -120,6 +120,7 @@ final class MCPViewModel {
     private(set) var activePaneTarget: MCPPaneTarget?
     private(set) var paneSessions: [MCPPaneTarget: MCPPaneSession] = [:]
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<MCPPaneTarget>> = []
+    private(set) var isRefreshingProviders = false
     private(set) var paneDismissalGeneration = 0
     private(set) var paneFocusRestorationID = MCPPaneTarget.addCustom.defaultFocusRestorationID
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<MCPPaneTarget>> = []
@@ -177,6 +178,13 @@ final class MCPViewModel {
     }
 
     func refreshProviders() async {
+        guard !isRefreshingProviders else {
+            return
+        }
+        isRefreshingProviders = true
+        defer {
+            isRefreshingProviders = false
+        }
         await load()
     }
 

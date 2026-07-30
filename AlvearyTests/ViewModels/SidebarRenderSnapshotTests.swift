@@ -227,6 +227,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
             .skills,
             .mcp,
             .scheduled,
+            .pullRequests,
             .project(pinnedProject),
             .thread(pinnedChild),
             .project(regularProject),

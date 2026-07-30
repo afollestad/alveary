@@ -4,7 +4,9 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
 
 - In SwiftUI, prefer extracted `View` types over `some View` extension properties. Keep trivial one-off stacks inline, and only extract when it clarifies composition.
 - When an extracted child view is used by another view, place it in the same folder with `Parent+Child.swift` naming such as `DiffViewerPane+Header.swift`.
-- For SwiftUI buttons, use the shared `primaryActionButtonStyle()`, `secondaryActionButtonStyle()`, and `destructiveActionButtonStyle()` modifiers from `Components/ActionControls.swift`. Reserve `.plain` and `.borderless` for low-emphasis affordances.
+- For SwiftUI buttons with visible text, use the shared `primaryActionButtonStyle()`, `secondaryActionButtonStyle()`, and `destructiveActionButtonStyle()` modifiers from `Components/ActionControls.swift` — primary or secondary by emphasis, like the Skills header's `New Skill`. Reserve `.plain` and `.borderless` for low-emphasis affordances.
+- Icon-only buttons (no visible text) use `iconActionButtonStyle()` — the chromeless 30pt hover-circle treatment shared by pane close buttons and the header refresh/filter actions — or `destructiveIconActionButtonStyle()` for destructive icon actions. Do not give icon-only buttons capsule text-button chrome.
+- **Every icon-only interactive control needs `.help(...)` and an `.accessibilityLabel`** — not just `iconActionButtonStyle()` buttons. Plain-style glyph buttons, icon-labeled `Menu`s, hover-only affordances, and reaction/emoji controls all qualify: without user-visible text, the hover tooltip is the only discoverable name for sighted users and the label the only name for VoiceOver. Add both at the call site when creating the control, not as a follow-up pass.
 - For icon-bearing action buttons that use the shared prominent button styles, prefer explicit `Image` + `Text` content over `Label`; on macOS the shared style can render `Label` as text-only in some contexts.
 - For selectable list rows such as sidebar items, settings tabs, and diff file lists, use the `.appSelectableRow(...)` modifier from `Components/SelectionRowBackground.swift`. It bundles `contentShape`, tap gesture, press-highlight feedback, accessibility selection traits, and `listRowBackground` into a single call. Do not use `Button` with `.plain` style for list rows.
 - Markdown rendering is local SwiftUI `Text`/layout code; keep clickable rows free of nested hit-test blockers.
@@ -33,7 +35,8 @@ Cross-surface color mapping for status dots/chips in `Sidebar/`, `Chat/`, and `T
 - **Green** = done / success (`.unread`, `.succeeded`). Inline transcript tool rows are the muted shape-only exception documented in `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`.
 - **Red** = error (`.error`, `.failed`).
 - **Orange** = user-cancelled (`.cancelled`).
-- **Secondary** = inert (`.stopped`, `.archived`).
+- **Secondary** = inert (`.stopped`, `.archived`), and draft pull requests (`PullRequestStatus.draft`).
+- **Purple** = merged pull requests (`PullRequestStatus.merged`). Reserved for the merged state so it cannot read as green "success" or red "closed"; open stays green and closed stays red on the same surface.
 - **How to apply:** A new status-dot surface must follow this mapping — do not pick colors per surface. Cases mean the same thing across enums (a `.busy` thread and a `.running` terminal session are both "in-progress"), so they must share a color even though their enum case names differ.
 - **Why:** Before this was unified, `.busy` rendered green in sidebar and conversation tabs while `.succeeded` rendered blue in terminal chips — the same color meant opposite things on different surfaces. A green dot could mean "working" or "done" depending on where you looked.
 

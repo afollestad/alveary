@@ -128,7 +128,7 @@ struct AlvearyApp: App {
     }
 
     private static var aboutCredits: NSAttributedString {
-        let text = "\nMade with ❤️ by Aidan Follestad\n\nWebsite | Ko-fi | Voice Input Credits"
+        let text = "\nMade with ❤️ by Aidan Follestad\n\nWebsite | Ko-fi\n\nVoice Input Credits | Icon Credits"
         let attributed = NSMutableAttributedString(string: text)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
@@ -146,6 +146,9 @@ struct AlvearyApp: App {
         addLink(to: attributed, label: "Ko-fi", urlString: "https://ko-fi.com/aidan1995")
         if let creditsURL = Bundle.main.url(forResource: "VoiceInputAttributions", withExtension: "txt") {
             addLink(to: attributed, label: "Voice Input Credits", url: creditsURL)
+        }
+        if let creditsURL = Bundle.main.url(forResource: "PrimerOcticonsAttribution", withExtension: "txt") {
+            addLink(to: attributed, label: "Icon Credits", url: creditsURL)
         }
         return attributed
     }

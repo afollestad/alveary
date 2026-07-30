@@ -24,6 +24,7 @@ struct MiddlePane: View {
     let skillsViewModel: SkillsViewModel
     let mcpViewModel: MCPViewModel
     let scheduledTasksViewModel: ScheduledTasksViewModel
+    let pullRequestsViewModel: PullRequestsViewModel
     let settingsViewModel: SettingsViewModel
     let archivedThreadsViewModel: ArchivedThreadsViewModel
     let appUpdateManager: AppUpdateManager
@@ -44,6 +45,11 @@ struct MiddlePane: View {
             MCPScreen(viewModel: mcpViewModel)
         case .scheduled:
             ScheduledTasksScreen(viewModel: scheduledTasksViewModel)
+        case .pullRequests:
+            PullRequestsScreen(
+                viewModel: pullRequestsViewModel,
+                onOpenGitSettings: { appState.openSettings(targetPage: .git) }
+            )
         case .archived:
             ArchivedScreen(viewModel: archivedThreadsViewModel)
         case .project(let project):
@@ -157,6 +163,8 @@ func resolveSidebarSelectionBookmark(
         return .mcp
     case .scheduled:
         return .scheduled
+    case .pullRequests:
+        return .pullRequests
     case .archived:
         return .archived
     case .projectPath(let path):

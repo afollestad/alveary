@@ -52,6 +52,16 @@ final class ContentViewLayoutTests: XCTestCase {
         XCTAssertEqual(width, 380 + RightPaneWidthPolicy.resizeHandleThickness)
     }
 
+    func testEffectiveRightPaneWidthRoundsFractionalStoredWidths() {
+        // Older persisted widths were snapped to half-points on Retina; a
+        // fractional pane width makes AppKit-backed scroll content pixel-align a
+        // point short of its trailing inset (measured live: pane scroll area
+        // maxX 1565 against window maxX 1566 with a stored width of 497.5).
+        let width = RightPaneWidthPolicy.effectiveWidth(storedWidth: 497.5, availableWidth: 1_440)
+
+        XCTAssertEqual(width, 498)
+    }
+
     func testHiddenRightPaneLaneTakesNoLayoutSpace() {
         let width = RightPaneWidthPolicy.presentationLaneWidth(paneWidth: 380, progress: 0)
 

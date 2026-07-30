@@ -12,6 +12,12 @@ struct FlattenedDiffPreview: View {
     let onToggleFileCollapse: (String) -> Void
     let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
+    let commentAnnotations: DiffCommentAnnotations
+    let commentInteraction: DiffCommentInteraction?
+    /// Scrolls with the content (unlike host-side padding, which would clip
+    /// rows at a fixed gap); the PR pane uses it to match its sibling tabs'
+    /// top content inset. The diff viewer keeps the default 0.
+    let contentTopInset: CGFloat
     @State private var preparedRows: FlattenedDiffPreviewPreparedRows?
     @State private var preparedRowsID: Int?
 
@@ -23,7 +29,10 @@ struct FlattenedDiffPreview: View {
         collapsedFileIDs: Set<String> = [],
         onToggleFileCollapse: @escaping (String) -> Void = { _ in },
         loadImage: @escaping (DiffImageVersion) async throws -> DiffImagePreviewOutput = { _ in throw DiffImagePreviewLoaderError.unsupportedImage },
-        openImage: @escaping (DiffImageVersion) async throws -> Void = { _ in }
+        openImage: @escaping (DiffImageVersion) async throws -> Void = { _ in },
+        commentAnnotations: DiffCommentAnnotations = .none,
+        commentInteraction: DiffCommentInteraction? = nil,
+        contentTopInset: CGFloat = 0
     ) {
         self.files = files
         self.imagePreviews = imagePreviews
@@ -33,6 +42,9 @@ struct FlattenedDiffPreview: View {
         self.onToggleFileCollapse = onToggleFileCollapse
         self.loadImage = loadImage
         self.openImage = openImage
+        self.commentAnnotations = commentAnnotations
+        self.commentInteraction = commentInteraction
+        self.contentTopInset = contentTopInset
     }
 
     var body: some View {
@@ -44,7 +56,8 @@ struct FlattenedDiffPreview: View {
                     imagePreviews: imagePreviews,
                     showsFileHeaders: showsFileHeaders,
                     allowsFileCollapse: allowsFileCollapse,
-                    collapsedFileIDs: collapsedFileIDs
+                    collapsedFileIDs: collapsedFileIDs,
+                    commentAnnotations: commentAnnotations
                 )
             )
                 .task(id: currentRenderID) {
@@ -61,6 +74,7 @@ struct FlattenedDiffPreview: View {
                     let imagePreviews = imagePreviews
                     let allowsFileCollapse = allowsFileCollapse
                     let collapsedFileIDs = collapsedFileIDs
+                    let commentAnnotations = commentAnnotations
                     let currentRenderID = currentRenderID
                     preparedRows = nil
                     preparedRowsID = nil
@@ -70,7 +84,8 @@ struct FlattenedDiffPreview: View {
                             imagePreviews: imagePreviews,
                             showsFileHeaders: showsFileHeaders,
                             allowsFileCollapse: allowsFileCollapse,
-                            collapsedFileIDs: collapsedFileIDs
+                            collapsedFileIDs: collapsedFileIDs,
+                            commentAnnotations: commentAnnotations
                         )
                     }
                     do {
@@ -110,10 +125,13 @@ struct FlattenedDiffPreview: View {
                         collapsedFileIDs: collapsedFileIDs,
                         onToggleFileCollapse: onToggleFileCollapse,
                         loadImage: loadImage,
-                        openImage: openImage
+                        openImage: openImage,
+                        allowsCommentComposing: commentAnnotations.allowsComposing,
+                        commentInteraction: commentInteraction
                     )
                 }
             }
+            .padding(.top, contentTopInset)
             .appExpansionAnimationOverride(value: collapsedFileIDs)
             .diffPreviewMinimumContentWidthFrame()
             .frame(maxHeight: .infinity, alignment: .topLeading)
@@ -151,6 +169,7 @@ struct FlattenedDiffPreview: View {
         var hasher = Hasher()
         hasher.combine(showsFileHeaders)
         hasher.combine(allowsFileCollapse)
+        hasher.combine(commentAnnotations)
         if allowsFileCollapse {
             for collapsedFileID in collapsedFileIDs.sorted() {
                 hasher.combine(collapsedFileID)
@@ -211,181 +230,6 @@ struct FlattenedDiffPreviewPreparedRows: Sendable {
     let rows: [FlattenedDiffPreviewRow]
     let minimumScrollableContentWidth: CGFloat
 }
-
-enum FlattenedDiffPreviewRows {
-    private static let expandedFileBottomPadding: CGFloat = 12
-
-    static func makeRows(
-        files: [DiffFile],
-        imagePreviews: [String: DiffImagePreview],
-        showsFileHeaders: Bool,
-        allowsFileCollapse: Bool,
-        collapsedFileIDs: Set<String>
-    ) -> FlattenedDiffPreviewPreparedRows {
-        (try? makeRows(
-            files: files,
-            imagePreviews: imagePreviews,
-            showsFileHeaders: showsFileHeaders,
-            allowsFileCollapse: allowsFileCollapse,
-            collapsedFileIDs: collapsedFileIDs,
-            checksCancellation: false
-        )) ?? FlattenedDiffPreviewPreparedRows(rows: [], minimumScrollableContentWidth: 0)
-    }
-
-    static func makeRowsUnlessCancelled(
-        files: [DiffFile],
-        imagePreviews: [String: DiffImagePreview],
-        showsFileHeaders: Bool,
-        allowsFileCollapse: Bool,
-        collapsedFileIDs: Set<String>
-    ) throws -> FlattenedDiffPreviewPreparedRows {
-        try makeRows(
-            files: files,
-            imagePreviews: imagePreviews,
-            showsFileHeaders: showsFileHeaders,
-            allowsFileCollapse: allowsFileCollapse,
-            collapsedFileIDs: collapsedFileIDs,
-            checksCancellation: true
-        )
-    }
-
-    // swiftlint:disable:next function_parameter_count
-    private static func makeRows(
-        files: [DiffFile],
-        imagePreviews: [String: DiffImagePreview],
-        showsFileHeaders: Bool,
-        allowsFileCollapse: Bool,
-        collapsedFileIDs: Set<String>,
-        checksCancellation: Bool
-    ) throws -> FlattenedDiffPreviewPreparedRows {
-        // Keep diff rows flat so LazyVStack can virtualize individual line rows instead of whole hunks.
-        var allRows: [FlattenedDiffPreviewRow] = []
-        var scrollableContentWidth: CGFloat = 0
-        for (fileIndex, file) in files.enumerated() {
-            try checkCancellationIfNeeded(checksCancellation)
-            var rows: [FlattenedDiffPreviewRow] = []
-            let fileID = fileCollapseID(for: file, fileIndex: fileIndex)
-            if showsFileHeaders {
-                rows.append(
-                    .fileHeader(
-                        id: "file-\(fileIndex)-header",
-                        fileID: fileID,
-                        file: file,
-                        topPadding: 0
-                    )
-                )
-            }
-
-            if showsFileHeaders,
-               allowsFileCollapse,
-               collapsedFileIDs.contains(fileID) {
-                // Collapsed commit files still emit their header row so the preview
-                // remains one flat lazy row stream instead of nesting per-file stacks.
-                scrollableContentWidth = max(scrollableContentWidth, minimumScrollableContentWidth(for: rows))
-                allRows.append(contentsOf: rows)
-                continue
-            }
-
-            if file.isRenamed,
-               let oldPath = file.oldPath,
-               let newPath = file.newPath {
-                rows.append(.renameSummary(id: "file-\(fileIndex)-rename", oldPath: oldPath, newPath: newPath))
-            }
-
-            if let imagePreview = imagePreviews[fileID] {
-                rows.append(.imagePreview(id: "file-\(fileIndex)-image", preview: imagePreview))
-            } else if file.isBinary {
-                rows.append(.binaryCallout(id: "file-\(fileIndex)-binary"))
-            } else if file.hunks.isEmpty {
-                rows.append(.emptyCallout(id: "file-\(fileIndex)-empty", isRenamed: file.isRenamed))
-            } else {
-                rows.append(contentsOf: try hunkRows(for: file, fileIndex: fileIndex, checksCancellation: checksCancellation))
-            }
-            if showsFileHeaders {
-                rows.append(.fileContentSpacer(id: "file-\(fileIndex)-bottom-spacer", height: Self.expandedFileBottomPadding))
-            }
-
-            scrollableContentWidth = max(scrollableContentWidth, minimumScrollableContentWidth(for: rows))
-            allRows.append(contentsOf: rows)
-        }
-
-        return FlattenedDiffPreviewPreparedRows(rows: allRows, minimumScrollableContentWidth: scrollableContentWidth)
-    }
-
-    static func fileCollapseID(for file: DiffFile, fileIndex: Int) -> String {
-        let path = file.newPath ?? file.oldPath ?? file.path
-        return "\(fileIndex):\(path)"
-    }
-
-    private static func hunkRows(
-        for file: DiffFile,
-        fileIndex: Int,
-        checksCancellation: Bool
-    ) throws -> [FlattenedDiffPreviewRow] {
-        let lineNumberWidth = lineNumberWidth(for: file)
-        var allRows: [FlattenedDiffPreviewRow] = []
-        for (hunkIndex, hunk) in file.hunks.enumerated() {
-            try checkCancellationIfNeeded(checksCancellation)
-            let gutterLayout = DiffGutterLayout(hunk: hunk, defaultLineNumberWidth: lineNumberWidth)
-            var rows: [FlattenedDiffPreviewRow] = [
-                .hunkHeader(
-                    id: "file-\(fileIndex)-hunk-\(hunkIndex)-header",
-                    hunk: hunk,
-                    topPadding: hunkIndex == 0 ? 0 : 14
-                )
-            ]
-
-            let displayRows = DiffPreviewHunkDisplayRows.makeRows(for: hunk)
-            for (rowIndex, displayRow) in displayRows.enumerated() {
-                try checkCancellationIfNeeded(checksCancellation)
-                let isLastInHunk = rowIndex == displayRows.indices.last
-                let bottomPadding: CGFloat = isLastInHunk && hunkIndex != file.hunks.indices.last ? 14 : 0
-                switch displayRow {
-                case .line(let line):
-                    rows.append(
-                        .line(
-                            id: "file-\(fileIndex)-hunk-\(hunkIndex)-line-\(rowIndex)",
-                            line: line,
-                            gutterLayout: gutterLayout,
-                            isLastInHunk: isLastInHunk,
-                            bottomPadding: bottomPadding
-                        )
-                    )
-                case .omitted(let summary):
-                    rows.append(
-                        .collapsed(
-                            id: "file-\(fileIndex)-hunk-\(hunkIndex)-collapsed-\(rowIndex)",
-                            summary: summary,
-                            gutterLayout: gutterLayout,
-                            isLastInHunk: isLastInHunk,
-                            bottomPadding: bottomPadding
-                        )
-                    )
-                }
-            }
-
-            allRows.append(contentsOf: rows)
-        }
-
-        return allRows
-    }
-
-    private static func lineNumberWidth(for file: DiffFile) -> CGFloat {
-        let maximumLineNumber = max(
-            file.hunks.compactMap { $0.lines.compactMap(\.oldLineNumber).max() }.max() ?? 0,
-            file.hunks.compactMap { $0.lines.compactMap(\.newLineNumber).max() }.max() ?? 0
-        )
-        let digits = max(String(maximumLineNumber).count, 2)
-        return CGFloat((digits * 8) + 8)
-    }
-
-    private static func checkCancellationIfNeeded(_ checksCancellation: Bool) throws {
-        if checksCancellation {
-            try Task.checkCancellation()
-        }
-    }
-}
-
 enum FlattenedDiffPreviewRow: Identifiable, Sendable {
     case fileHeader(id: String, fileID: String, file: DiffFile, topPadding: CGFloat)
     case renameSummary(id: String, oldPath: String, newPath: String)
@@ -393,9 +237,18 @@ enum FlattenedDiffPreviewRow: Identifiable, Sendable {
     case binaryCallout(id: String)
     case emptyCallout(id: String, isRenamed: Bool)
     case hunkHeader(id: String, hunk: DiffHunk, topPadding: CGFloat)
-    case line(id: String, line: DiffLine, gutterLayout: DiffGutterLayout, isLastInHunk: Bool, bottomPadding: CGFloat)
+    case line(
+        id: String,
+        line: DiffLine,
+        gutterLayout: DiffGutterLayout,
+        isLastInHunk: Bool,
+        bottomPadding: CGFloat,
+        commentAnchor: DiffCommentAnchor?
+    )
     case collapsed(id: String, summary: CollapsedContextSummary, gutterLayout: DiffGutterLayout, isLastInHunk: Bool, bottomPadding: CGFloat)
     case fileContentSpacer(id: String, height: CGFloat)
+    case commentThread(id: String, thread: DiffLineCommentThread, anchor: DiffCommentAnchor)
+    case commentComposer(id: String, anchor: DiffCommentAnchor)
 
     var id: String {
         switch self {
@@ -405,9 +258,11 @@ enum FlattenedDiffPreviewRow: Identifiable, Sendable {
              .binaryCallout(let id),
              .emptyCallout(let id, _),
              .hunkHeader(let id, _, _),
-             .line(let id, _, _, _, _),
+             .line(let id, _, _, _, _, _),
              .collapsed(let id, _, _, _, _),
-             .fileContentSpacer(let id, _):
+             .fileContentSpacer(let id, _),
+             .commentThread(let id, _, _),
+             .commentComposer(let id, _):
             return id
         }
     }
@@ -420,7 +275,10 @@ private struct FlattenedDiffPreviewRenderRow: View {
     let onToggleFileCollapse: (String) -> Void
     let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
+    let allowsCommentComposing: Bool
+    let commentInteraction: DiffCommentInteraction?
 
+    @ViewBuilder
     var body: some View {
         switch row {
         case .fileHeader(_, let fileID, let file, let topPadding):
@@ -460,15 +318,32 @@ private struct FlattenedDiffPreviewRenderRow: View {
         case .hunkHeader(_, let hunk, let topPadding):
             DiffPreviewHunkHeader(hunk: hunk)
                 .padding(.top, topPadding)
-        case .line(_, let line, let gutterLayout, let isLastInHunk, let bottomPadding):
-            DiffLineRow(line: line, gutterLayout: gutterLayout)
+        case .line(_, let line, let gutterLayout, let isLastInHunk, let bottomPadding, let commentAnchor):
+            let lineRow = DiffLineRow(line: line, gutterLayout: gutterLayout)
                 .diffPreviewFlattenedHunkRow(isLastInHunk: isLastInHunk, bottomPadding: bottomPadding)
+            if let commentAnchor, allowsCommentComposing, let commentInteraction {
+                DiffCommentableLineRow(
+                    anchor: commentAnchor,
+                    gutterLayout: gutterLayout,
+                    onAddComment: commentInteraction.onAddComment
+                ) {
+                    lineRow
+                }
+            } else {
+                lineRow
+            }
         case .collapsed(_, let summary, let gutterLayout, let isLastInHunk, let bottomPadding):
             DiffCollapsedContextRow(summary: summary, gutterLayout: gutterLayout)
                 .diffPreviewFlattenedHunkRow(isLastInHunk: isLastInHunk, bottomPadding: bottomPadding)
         case .fileContentSpacer(_, let height):
             Color.clear
                 .frame(height: height)
+        case .commentThread(_, let thread, let anchor):
+            DiffCommentThreadRow(thread: thread, anchor: anchor, interaction: commentInteraction)
+        case .commentComposer(_, let anchor):
+            if let commentInteraction {
+                DiffCommentComposerRow(anchor: anchor, interaction: commentInteraction)
+            }
         }
     }
 

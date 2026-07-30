@@ -18,9 +18,12 @@ extension FlattenedDiffPreviewRows {
             )
         case .imagePreview, .binaryCallout, .emptyCallout, .fileContentSpacer:
             return 0
+        case .commentThread, .commentComposer:
+            // Comment content wraps at the viewport instead of extending scrollable width.
+            return 0
         case .hunkHeader(_, let hunk, _):
             return DiffPreviewWidthEstimator.monospacedTextWidth(hunkHeaderText(for: hunk), horizontalPadding: 24)
-        case .line(_, let line, let gutterLayout, _, _):
+        case .line(_, let line, let gutterLayout, _, _, _):
             return gutterWidth(for: gutterLayout) + DiffPreviewWidthEstimator.monospacedTextWidth(
                 line.content.isEmpty ? " " : line.content,
                 horizontalPadding: 20

@@ -53,7 +53,11 @@ struct ScheduledTaskEditorContent: View {
                         ScheduledTaskEditorAgentSection(viewModel: viewModel, draft: $draft)
                     }
                 }
-                .padding(surface == .pane ? ContextualPaneLayout.horizontalInset : 24)
+                .padding(
+                    surface == .pane
+                        ? ContextualPaneLayout.contentInsets()
+                        : EdgeInsets(top: 24, leading: 24, bottom: 24, trailing: 24)
+                )
             }
 
             if surface == .modal {

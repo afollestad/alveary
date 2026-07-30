@@ -50,6 +50,7 @@ final class SkillsViewModel {
     private(set) var catalog: [Skill] = []
     private(set) var searchResults: [Skill] = []
     private(set) var isSearchingSkillsSh = false
+    private(set) var isRefreshingCatalog = false
     private(set) var activePaneTarget: SkillsPaneTarget?
     private(set) var newSkillSession: NewSkillPaneSession?
     private(set) var detailSessions: [String: SkillDetailsPaneSession] = [:]
@@ -310,6 +311,13 @@ final class SkillsViewModel {
     }
 
     func refreshCatalog() async {
+        guard !isRefreshingCatalog else {
+            return
+        }
+        isRefreshingCatalog = true
+        defer {
+            isRefreshingCatalog = false
+        }
         installed = (try? await skillsService.loadInstalled()) ?? []
         catalog = (try? await skillsService.refreshCatalog()) ?? []
         filterVisibleSearchResults()

@@ -15,9 +15,16 @@ enum RightPaneWidthPolicy {
         paneWidth + resizeHandleThickness - presentationLaneWidth(paneWidth: paneWidth, progress: progress)
     }
 
+    /// Clamps to bounds, then rounds to whole points. Fractional widths (older
+    /// persisted values were snapped to half-points on Retina) make the
+    /// AppKit-backed scroll content inside the pane pixel-align a point short of
+    /// its trailing inset while non-scrolling siblings keep the exact edge.
     static func effectiveWidth(storedWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {
         let bounds = bounds(availableWidth: availableWidth)
-        return min(max(storedWidth, CGFloat(bounds.lowerBound)), CGFloat(bounds.upperBound))
+        let lowerBound = CGFloat(bounds.lowerBound)
+        let upperBound = CGFloat(bounds.upperBound)
+        let clamped = min(max(storedWidth, lowerBound), upperBound)
+        return min(max(clamped.rounded(), lowerBound), upperBound)
     }
 
     static func bounds(

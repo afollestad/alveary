@@ -40,6 +40,7 @@ final class SidebarKeyboardNavigationOrderingTests: XCTestCase {
             .skills,
             .mcp,
             .scheduled,
+            .pullRequests,
             .thread(standalonePinned),
             .project(pinnedProject),
             .thread(pinnedChild),

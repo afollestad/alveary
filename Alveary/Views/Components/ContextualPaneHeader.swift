@@ -36,13 +36,13 @@ struct ContextualPaneHeader: View {
             ModalCloseButton(closeAccessibilityLabel, action: onClose)
         }
         .frame(minHeight: PaneHeaderLayout.height - 32)
-        .padding(.horizontal, ContextualPaneLayout.horizontalInset)
+        .contextualPaneHorizontalInsets()
         .padding(.vertical, 16)
         .frame(height: PaneHeaderLayout.height)
         .background(.bar)
         .overlay(alignment: .bottom) {
             AppSeparatorHairline(surface: .paneHeader)
-                .padding(.horizontal, ContextualPaneLayout.horizontalInset)
+                .contextualPaneHorizontalInsets()
         }
     }
 }

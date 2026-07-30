@@ -143,7 +143,7 @@ func shouldNavigateUpOnLeftArrow(
     projectHasVisibleThreads: (Project) -> Bool = { _ in true }
 ) -> Bool {
     switch selection {
-    case .skills, .mcp, .scheduled, .archived:
+    case .skills, .mcp, .scheduled, .pullRequests, .archived:
         return true
     case .thread:
         return true
@@ -159,7 +159,7 @@ func shouldNavigateDownOnRightArrow(
     expandedProjects: Set<String>
 ) -> Bool {
     switch selection {
-    case .skills, .mcp, .scheduled, .archived:
+    case .skills, .mcp, .scheduled, .pullRequests, .archived:
         return true
     case .thread:
         return true
@@ -220,7 +220,7 @@ func buildNavigableItems(
     activeTasks: [AgentThread] = [],
     hasArchivedThreads: Bool = false
 ) -> [SidebarItem] {
-    var items: [SidebarItem] = [.skills, .mcp, .scheduled]
+    var items: [SidebarItem] = [.skills, .mcp, .scheduled, .pullRequests]
     if hasArchivedThreads {
         items.append(.archived)
     }

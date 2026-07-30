@@ -99,7 +99,7 @@ struct MCPServerPane: View {
                         }
                     }
                 }
-                .padding(ContextualPaneLayout.horizontalInset)
+                .padding(ContextualPaneLayout.contentInsets())
             }
 
             footer

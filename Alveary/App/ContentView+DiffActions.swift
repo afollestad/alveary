@@ -36,7 +36,7 @@ enum DiffGitCommitTargetSnapshotResolver {
             )
         case .project(let selectedProject):
             snapshot = projectSnapshot(for: selectedProject, modelContext: modelContext)
-        case .skills, .mcp, .scheduled, .archived, .settings, nil:
+        case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
             snapshot = nil
         }
 

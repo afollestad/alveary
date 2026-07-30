@@ -72,36 +72,49 @@ extension SidebarView {
         viewModel.noteDraftMaterialized(mode: mode)
     }
 
+    /// Top-level rows use SF Symbols except where a domain glyph exists only as an
+    /// asset, such as the Primer pull-request octicon.
+    enum TopLevelIcon {
+        case system(String)
+        case asset(String)
+    }
+
     @ViewBuilder
     func topLevelRows(context: SidebarRenderContext) -> some View {
         topLevelRow(
             title: "Skills",
-            systemImage: "puzzlepiece.extension",
+            icon: .system("puzzlepiece.extension"),
             item: .skills,
             bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
         )
         topLevelRow(
             title: "MCP",
-            systemImage: "server.rack",
+            icon: .system("server.rack"),
             item: .mcp,
+            bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
+        )
+        topLevelRow(
+            title: "Scheduled",
+            icon: .system("clock"),
+            item: .scheduled,
             bottomSpacing: SidebarRowMetrics.topLevelRowSpacing
         )
         // Whichever row ends the group takes no bottom spacing; the Projects/Pinned
         // header below owns that boundary.
         topLevelRow(
-            title: "Scheduled",
-            systemImage: "clock",
-            item: .scheduled,
+            title: "Pull requests",
+            icon: .asset("PullRequestOcticon"),
+            item: .pullRequests,
             bottomSpacing: context.hasArchivedThreads ? SidebarRowMetrics.topLevelRowSpacing : 0,
             isTopLevelTerminal: sidebarTopLevelRowIsTerminal(
-                .scheduled,
+                .pullRequests,
                 hasArchivedThreads: context.hasArchivedThreads
             )
         )
         if context.hasArchivedThreads {
             topLevelRow(
                 title: "Archived",
-                systemImage: "archivebox",
+                icon: .system("archivebox"),
                 item: .archived,
                 isTopLevelTerminal: sidebarTopLevelRowIsTerminal(
                     .archived,
@@ -111,9 +124,27 @@ extension SidebarView {
         }
     }
 
+    @ViewBuilder
+    private func topLevelIconImage(for icon: TopLevelIcon) -> some View {
+        switch icon {
+        case .system(let systemImage):
+            Image(systemName: systemImage)
+                .symbolRenderingMode(.monochrome)
+                .renderingMode(.template)
+                .font(.system(size: 13, weight: .semibold))
+        case .asset(let assetName):
+            // Sized to sit optically level with the 13pt-semibold SF Symbol rows.
+            Image(assetName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 15, height: 15)
+        }
+    }
+
     func topLevelRow(
         title: String,
-        systemImage: String,
+        icon: TopLevelIcon,
         item: SidebarItem,
         bottomSpacing: CGFloat = 0,
         isTopLevelTerminal: Bool = false
@@ -121,10 +152,7 @@ extension SidebarView {
         let isSelected = appState.selectedSidebarItem == item
 
         return HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .symbolRenderingMode(.monochrome)
-                .renderingMode(.template)
-                .font(.system(size: 13, weight: .semibold))
+            topLevelIconImage(for: icon)
                 .frame(width: topLevelIconColumnWidth, alignment: .center)
                 .foregroundColor(topLevelIconColor(isSelected: isSelected))
                 .accessibilityHidden(true)
@@ -193,13 +221,13 @@ extension SidebarView {
 
 /// Whichever top-level row ends the group publishes `.topLevelTerminal`, so the empty-`Pinned`
 /// drop target knows where the region above `Projects` begins. `Archived` is conditional, so the
-/// role moves to `Scheduled` while it is hidden — the same rule that owns the group's trailing
+/// role moves to `Pull Requests` while it is hidden — the same rule that owns the group's trailing
 /// spacing.
 func sidebarTopLevelRowIsTerminal(_ item: SidebarItem, hasArchivedThreads: Bool) -> Bool {
     switch item {
     case .archived:
         return hasArchivedThreads
-    case .scheduled:
+    case .pullRequests:
         return !hasArchivedThreads
     default:
         return false
@@ -233,7 +261,7 @@ func sidebarProjectPathToExpand(
             return nil
         }
         return resolvedThread.project?.path
-    case .skills, .mcp, .scheduled, .archived, .settings, nil:
+    case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
         return nil
     }
 }

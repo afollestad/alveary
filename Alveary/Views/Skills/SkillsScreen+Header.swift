@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SkillsScreenHeader: View {
     @Binding var searchQuery: String
+    let isRefreshing: Bool
     let onRefresh: () -> Void
     let onCreate: () -> Void
     var createFocus: FocusState<String?>.Binding?
@@ -9,16 +10,9 @@ struct SkillsScreenHeader: View {
 
     var body: some View {
         CompactSearchPaneHeader("Search skills", searchQuery: $searchQuery) {
-            Button(action: onRefresh) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Refresh")
-                }
-            }
-            .secondaryActionButtonStyle()
-            .accessibilityLabel("Refresh")
-
             createButton
+
+            PaneRefreshIconButton(isRefreshing: isRefreshing, action: onRefresh)
         }
     }
 

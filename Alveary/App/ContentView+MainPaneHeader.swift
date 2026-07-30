@@ -39,6 +39,9 @@ struct MainPaneHeaderPresentation: Equatable {
         case .scheduled:
             title = .plain("Scheduled")
             showsNewConversationButton = false
+        case .pullRequests:
+            title = .plain("Pull requests")
+            showsNewConversationButton = false
         case .archived:
             title = .plain("Archived")
             showsNewConversationButton = false

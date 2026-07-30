@@ -67,6 +67,10 @@ struct AppStorageProfile: @unchecked Sendable {
         agentCLIKitSupportDirectory.appendingPathComponent("sessions.json")
     }
 
+    var pullRequestsListCacheFileURL: URL {
+        appSupportDirectory.appendingPathComponent("PullRequestsListCache.json")
+    }
+
     var contextWindowCacheFileURL: URL {
         applicationSupportBaseURL
             .appendingPathComponent("Alveary", isDirectory: true)

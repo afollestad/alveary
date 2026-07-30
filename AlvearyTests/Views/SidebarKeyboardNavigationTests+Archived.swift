@@ -15,7 +15,7 @@ extension SidebarKeyboardNavigationTests {
             hasArchivedThreads: false
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(project)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .project(project)])
     }
 
     func testBuildNavigableItemsPlacesArchivedAfterScheduledWhenArchivedThreadsExist() throws {
@@ -29,7 +29,7 @@ extension SidebarKeyboardNavigationTests {
             hasArchivedThreads: true
         )
 
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .archived, .project(project)])
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .archived, .project(project)])
     }
 
     func testArrowKeysTraverseTheArchivedRowLikeOtherTopLevelRows() {

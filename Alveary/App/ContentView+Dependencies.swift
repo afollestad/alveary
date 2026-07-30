@@ -34,6 +34,9 @@ struct ContentViewDependencies {
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
     let diffWorkspaceStore: DiffWorkspaceStore
+    let pullRequestsService: any PullRequestsService
+    let gitHubAvatarLoader: GitHubAvatarLoader
+    let pullRequestsListCache: PullRequestsListCache
     let voiceInputService: any VoiceInputService
     let voiceInputLifecycleController: VoiceInputLifecycleController
     let modelContainer: ModelContainer
@@ -73,6 +76,9 @@ struct ContentViewDependencies {
             threadActivityRecorder: component.threadActivityRecorder,
             gitService: component.gitService,
             diffWorkspaceStore: component.diffWorkspaceStore,
+            pullRequestsService: component.pullRequestsService,
+            gitHubAvatarLoader: component.gitHubAvatarLoader,
+            pullRequestsListCache: component.pullRequestsListCache,
             voiceInputService: component.voiceInputService,
             voiceInputLifecycleController: component.voiceInputLifecycleController,
             modelContainer: component.modelContainer

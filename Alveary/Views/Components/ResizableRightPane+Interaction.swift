@@ -45,16 +45,20 @@ struct RightPaneResizeHandle: View {
     var body: some View {
         let showsHoverFeedback = isInteractionEnabled && isHovering
 
-        ZStack {
-            Rectangle()
-                .fill(showsHoverFeedback ? Color.accentColor : Color(nsColor: .separatorColor))
-                .frame(width: 1)
-
+        // The divider line sits at the lane's trailing edge — flush with the
+        // pane's frame — so the pane's padding is its visible inset. A centered
+        // line put ~4pt of lane between the divider and the pane's content edge,
+        // which made a 16pt padding read as 20pt.
+        ZStack(alignment: .trailing) {
             Rectangle()
                 .fill(showsHoverFeedback ? Color.accentColor.opacity(0.18) : Color.clear)
                 .frame(width: 6)
+
+            Rectangle()
+                .fill(showsHoverFeedback ? Color.accentColor : Color(nsColor: .separatorColor))
+                .frame(width: 1)
         }
-        .frame(width: RightPaneWidthPolicy.resizeHandleThickness)
+        .frame(width: RightPaneWidthPolicy.resizeHandleThickness, alignment: .trailing)
         .contentShape(Rectangle())
         .allowsHitTesting(isInteractionEnabled)
         .accessibilityElement()
@@ -134,11 +138,13 @@ struct RightPaneResizeHandle: View {
         onCommit(committedWidth)
     }
 
+    /// Whole points, not display pixels: a half-point pane width makes the
+    /// AppKit-backed scroll content inside the pane pixel-align a point short of
+    /// the trailing inset while non-scrolling siblings keep the exact edge.
     private func snappedWidth(_ candidate: CGFloat) -> CGFloat {
         let lowerBound = CGFloat(bounds.lowerBound)
         let upperBound = CGFloat(bounds.upperBound)
         let clamped = min(max(candidate, lowerBound), upperBound)
-        let step = max(1 / max(displayScale, 1), 0.5)
-        return (clamped / step).rounded() * step
+        return min(max(clamped.rounded(), lowerBound), upperBound)
     }
 }

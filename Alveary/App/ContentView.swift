@@ -45,6 +45,7 @@ struct ContentView: View {
     @State var mcpViewModel: MCPViewModel
     @State var scheduledTasksViewModel: ScheduledTasksViewModel
     @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
+    @State var pullRequestsViewModel: PullRequestsViewModel
     @State private var settingsViewModel: SettingsViewModel
     @State private var archivedThreadsViewModel: ArchivedThreadsViewModel
     @State var onboardingViewModel: OnboardingViewModel
@@ -106,6 +107,7 @@ struct ContentView: View {
         _scheduledTaskProposalQueueCoordinator = State(
             initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
         )
+        _pullRequestsViewModel = State(initialValue: Self.makePullRequestsViewModel(dependencies: dependencies))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _archivedThreadsViewModel = State(initialValue: Self.makeArchivedThreadsViewModel(
             dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState
@@ -145,6 +147,7 @@ struct ContentView: View {
             skillsViewModel: skillsViewModel,
             mcpViewModel: mcpViewModel,
             scheduledTasksViewModel: scheduledTasksViewModel,
+            pullRequestsViewModel: pullRequestsViewModel,
             settingsViewModel: settingsViewModel,
             archivedThreadsViewModel: archivedThreadsViewModel,
             appUpdateManager: appUpdateManager,

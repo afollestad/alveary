@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MCPScreenHeader: View {
     @Binding var searchQuery: String
+    let isRefreshing: Bool
     let onRefresh: () -> Void
     let onAddServer: () -> Void
     var addFocus: FocusState<String?>.Binding?
@@ -9,16 +10,9 @@ struct MCPScreenHeader: View {
 
     var body: some View {
         CompactSearchPaneHeader("Search servers", searchQuery: $searchQuery) {
-            Button(action: onRefresh) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Refresh")
-                }
-            }
-            .secondaryActionButtonStyle()
-            .accessibilityLabel("Refresh")
-
             addButton
+
+            PaneRefreshIconButton(isRefreshing: isRefreshing, action: onRefresh)
         }
     }
 
