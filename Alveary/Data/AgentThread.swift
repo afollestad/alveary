@@ -27,6 +27,10 @@ final class AgentThread {
     var taskWorkspaceOwnershipStrategyRawValue: String?
     var taskWorkspaceMarkerID: String?
     var taskSourceProjectPath: String?
+    /// JSON-encoded `LinkedPullRequest` list; see `AgentThread+PullRequestLinks.swift`.
+    /// Optional so pre-field stores migrate, and deliberately absent from `init`
+    /// so a forked thread starts with no links.
+    var linkedPullRequestsJSON: String?
     var project: Project?
     var scheduledTaskRun: ScheduledTaskRun?
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.targetThread)

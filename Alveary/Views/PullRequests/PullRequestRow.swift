@@ -123,22 +123,12 @@ struct PullRequestRow: View {
     }
 }
 
-struct PullRequestStatusIcon: View {
-    let status: PullRequestStatus
-    var isAccessibilityHidden = true
-
-    var body: some View {
-        Image(iconAssetName)
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .foregroundStyle(tint)
-            .frame(width: 18, height: 18)
-            .accessibilityHidden(isAccessibilityHidden)
-            .accessibilityLabel(isAccessibilityHidden ? "" : status.accessibilityName)
-    }
-
-    private var iconAssetName: String {
+/// Asset name and tint for a pull request's status, shared by every surface that
+/// draws the glyph at its own size — list rows here, and the thread toolbar
+/// button in `ContentView+PullRequestToolbarButton.swift`.
+enum PullRequestStatusGlyph {
+    /// The 24px artwork, for the larger row icons (18pt frames).
+    static func assetName(for status: PullRequestStatus) -> String {
         switch status {
         case .open:
             return "PullRequestOcticon"
@@ -151,10 +141,26 @@ struct PullRequestStatusIcon: View {
         }
     }
 
+    /// The 16px artwork, for small frames beside SF Symbols — the toolbar. Its
+    /// strokes are drawn bolder for small sizes; the 24px variant renders
+    /// visibly thinner (reads lighter) at the same frame. See `OcticonImage`.
+    static func assetName16(for status: PullRequestStatus) -> String {
+        switch status {
+        case .open:
+            return "PullRequestOcticon16"
+        case .draft:
+            return "PullRequestDraftOcticon16"
+        case .merged:
+            return "PullRequestMergeOcticon16"
+        case .closed:
+            return "PullRequestClosedOcticon16"
+        }
+    }
+
     /// GitHub's own status tinting; the accessibility name carries the state for
     /// anyone who cannot rely on color. Merged uses Primer's merged purple from the
     /// asset catalog — the system `.purple` reads neon against dark backgrounds.
-    private var tint: Color {
+    static func tint(for status: PullRequestStatus) -> Color {
         switch status {
         case .open:
             return .green
@@ -165,6 +171,22 @@ struct PullRequestStatusIcon: View {
         case .closed:
             return .red
         }
+    }
+}
+
+struct PullRequestStatusIcon: View {
+    let status: PullRequestStatus
+    var isAccessibilityHidden = true
+
+    var body: some View {
+        Image(PullRequestStatusGlyph.assetName(for: status))
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(PullRequestStatusGlyph.tint(for: status))
+            .frame(width: 18, height: 18)
+            .accessibilityHidden(isAccessibilityHidden)
+            .accessibilityLabel(isAccessibilityHidden ? "" : status.accessibilityName)
     }
 }
 

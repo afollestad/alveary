@@ -24,17 +24,21 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 
 ## Pane Modes
 
-- **Keep pane edges aligned.** Header controls, selectable row backgrounds, and diff-preview content should render 10pt from the pane's horizontal edges in both Current changes and Commits modes. Use `DiffViewerPaneMetrics` instead of inline padding because macOS `Menu`, `List`, and scroll views add different chrome.
-- **Expose mode through the header menu.** The title-only control is the pane-mode menu:
-    - Keep the full rounded rectangle as the hit target.
-    - Keep the visual label title-only, but keep the accessibility value carrying the current mode and active path.
-    - Keep the rounded border, matching pane background, light pressed state, and right-aligned caret obvious.
-    - Let it expand to the available header width before the action buttons instead of assigning a fixed width.
+- **Keep pane edges aligned.** Header controls, selectable row backgrounds, and diff-preview content should render `ContextualPaneLayout.horizontalInset` from the pane's horizontal edges in both Current changes and Commits modes — the same visible edge as the contextual panes this one shares the right-pane lane with, because the two swap in place and any difference reads as the pane shifting. Use `DiffViewerPaneMetrics` instead of inline padding because macOS `List` and scroll views add different chrome, and keep those constants *derived* from the shared inset rather than hardcoded so the panes cannot drift apart again. `headerLeadingInset` takes the inset directly because the header hosts no chrome-adding control to compensate for; do not reintroduce one without re-deriving that number.
+    - **`diffPreviewContentInset` is not a pane edge.** It is the preview's inset inside its own scroll container, and the pull-request pane adds it to *its* pane inset to fold both into one scroll padding. Changing the diff viewer's edge must not change it, or the pull-request Changes tab moves too.
+- **Expose mode through tab chips.** Mode is a `TabChipButtonStyle` chip row matching the pull-request pane, not a `Menu`:
+    - Keep one chip per `DiffViewerMode`, driving `onModeSelected` so persistence stays on the existing `onModeCommit` path.
+    - Keep the whole capsule as the hit target and let the chips size intrinsically; a `Spacer` absorbs the slack ahead of the action buttons.
+    - Size chips to `diffViewerHeaderChipHeight` rather than the pull-request pane's vertical padding, so the row reads as one band beside the actions.
+    - Keep the accessibility value carrying the current mode and the active path.
+    - **Keep `DiffViewerMode.title` short.** The chips are `fixedSize` horizontally, so unlike the `Menu` they replaced they cannot compress — the chip row plus all four action buttons has to fit `AppSettings.supportedRightPaneWidthRange.lowerBound` (320) or the trailing action is silently clipped away, which is how Discard became unreachable at the narrowest pane. "Current changes" was renamed to "Changes" for exactly this. `testDiffViewerPaneHeaderMinimumWidthAllActions` is the guard; re-record it when a title or action changes and confirm every action still renders.
+- **The close button is reserved space plus a trailing overlay, never an `HStack` sibling.** `DiffViewerPaneHeader` takes an optional `onClose` (the right-pane lane's own `onDismiss`, so the X and ⇧⌘D end in the same place) and reserves `DiffViewerPaneMetrics.headerCloseButtonReservedWidth` for it. As a sibling it would be the trailing element, and this header clips rather than compresses, so it would be the first thing clipped away. Known limit: at the 320pt minimum pane width with all four actions present the row still overflows and the X clips — the same overflow that already made Discard unreachable there. `testDiffViewerPaneHeaderDefaultWidthWithClose` covers the ordinary case and `…MinimumWidthAllActionsWithClose` pins the extreme; re-record both when header metrics change.
 - **Keep header actions compact.** Header actions should be icon-only buttons with text in `.help(...)` and accessibility labels:
-    - Keep the mode menu and icon buttons the same height.
-    - Keep 6pt spacing between the mode menu and action buttons.
-    - Keep action buttons inside `DiffViewerHeaderActionContainer`.
-    - Animate the container's reserved width so the mode menu width changes smoothly when actions appear or disappear.
+    - Keep them on `iconActionButtonStyle()` / `destructiveIconActionButtonStyle()`; do not reintroduce a per-action fill or border. Only Discard differs, tinting its glyph rather than filling its background.
+    - Keep 36pt chips beside the shared 30pt icon buttons, vertically centered — the two are deliberately different footprints.
+    - Keep 6pt spacing between the chip row and the action buttons.
+    - Keep action buttons inside `DiffViewerHeaderActionContainer`, and keep its reserved width derived from `ActionButtonMetrics.iconButtonDiameter`.
+    - Animate the container's reserved width so actions appear and disappear smoothly.
 - **Keep toolbar stats independent.** The main toolbar button always summarizes working-tree changes, regardless of the selected pane mode.
 - **Hide current-change actions outside current changes.** `Commit`, `Stage`, `Unstage`, and `Discard` are current-change actions. Commit mode should render no header actions, and the action container should animate to zero width when no action is available.
 
@@ -60,7 +64,7 @@ Diff Viewer target construction lives under `Alveary/ViewModels/DiffViewer/`; vi
 - **Keep file-row dots consistent.** File-list rows should render fixed-size colored `Circle` views like thread rows; staged rows are green and unstaged rows are secondary.
 - **Claim keyboard focus on row clicks.** File and commit lists own local keyboard focus for arrow-key navigation and scoped Cmd+A. Row clicks must release `chatComposerFocus`, reapply list focus, and keep the list-local `DiffViewerTopListKeyboardMonitor` enabled so Up/Down, Shift-Up/Down, and Cmd+A stay in the diff pane.
 - **Expose full file paths.** File-list row help text should be `FileStatus.path` so truncated paths remain discoverable from any hover point on the row.
-- **Keep right-click selection synchronous.** Context-menu selection uses an AppKit local event monitor so the clicked row is visibly selected before SwiftUI opens the menu. Do not route that first visual selection only through an async `Task`.
+- **Keep right-click selection synchronous.** Context-menu selection goes through the shared `SecondaryClickTarget` (`Alveary/Views/Components/`), whose AppKit local event monitor selects the clicked row before SwiftUI opens the menu. Do not route that first visual selection only through an async `Task`, and do not re-fork a diff-viewer-local copy of the helper.
 - **Anchor keyboard navigation to preview selection.** File-list Up/Down uses `selectedFile` as the anchor; commit-list Up/Down uses `selectedCommit`. Unmodified arrows select the destination with `.single` and clear multi-selection, while Shift-arrow variants extend the custom range selection.
 - **Drive keyboard scroll from key handling.** Up/Down should compute the destination row and request its scroll from the key handler itself; do not wait for selected-row `.onChange` because SwiftUI can coalesce selection publishes during fast key repeat.
 - **Reveal keyboard targets minimally.** Up/Down navigation should scroll the selected file or commit into view with no explicit center anchor for middle rows; first and last rows should scroll the backing `NSScrollView` directly to its content bounds because row anchors can leave SwiftUI `List` insets unscrolled. Ordinary row clicks should not inherit pending keyboard scrolls.

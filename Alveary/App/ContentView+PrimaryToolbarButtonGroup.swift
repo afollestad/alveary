@@ -8,6 +8,11 @@ struct PrimaryToolbarButtonGroup: View {
     let terminalTitle: String
     let terminalDisplayState: TerminalToolbarDisplayState
     let terminalHelpText: String
+    /// Nil hides the pull-request button entirely — no thread selected, or the
+    /// integration is off.
+    let pullRequestState: PullRequestLinksToolbarState?
+    let pullRequestHelpText: String
+    let isPullRequestPopoverPresented: Binding<Bool>
     let diffDisplayState: DiffViewerToolbarDisplayState
     let diffHelpText: String
     let diffAccessibilityLabel: String
@@ -15,12 +20,17 @@ struct PrimaryToolbarButtonGroup: View {
     let settingsBadgeState: AppUpdateToolbarBadgeState
     let onProjectAction: (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void
     let onToggleTerminal: () -> Void
+    let onPullRequestAction: () -> Void
+    let onPullRequestSecondaryAction: () -> Void
+    let pullRequestPopoverContent: () -> AnyView
     let onToggleDiffViewer: () -> Void
     let onOpenSettings: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var animatedProjectActionsSlotWidth: CGFloat
     @State private var areProjectActionsVisible: Bool
+    @State private var animatedPullRequestSlotWidth: CGFloat
+    @State private var isPullRequestButtonVisible: Bool
 
     init(
         selectedThreadID: PersistentIdentifier?,
@@ -29,6 +39,9 @@ struct PrimaryToolbarButtonGroup: View {
         terminalTitle: String,
         terminalDisplayState: TerminalToolbarDisplayState,
         terminalHelpText: String,
+        pullRequestState: PullRequestLinksToolbarState?,
+        pullRequestHelpText: String,
+        isPullRequestPopoverPresented: Binding<Bool>,
         diffDisplayState: DiffViewerToolbarDisplayState,
         diffHelpText: String,
         diffAccessibilityLabel: String,
@@ -36,6 +49,9 @@ struct PrimaryToolbarButtonGroup: View {
         settingsBadgeState: AppUpdateToolbarBadgeState = .none,
         onProjectAction: @escaping (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void,
         onToggleTerminal: @escaping () -> Void,
+        onPullRequestAction: @escaping () -> Void,
+        onPullRequestSecondaryAction: @escaping () -> Void,
+        pullRequestPopoverContent: @escaping () -> AnyView,
         onToggleDiffViewer: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void
     ) {
@@ -45,6 +61,9 @@ struct PrimaryToolbarButtonGroup: View {
         self.terminalTitle = terminalTitle
         self.terminalDisplayState = terminalDisplayState
         self.terminalHelpText = terminalHelpText
+        self.pullRequestState = pullRequestState
+        self.pullRequestHelpText = pullRequestHelpText
+        self.isPullRequestPopoverPresented = isPullRequestPopoverPresented
         self.diffDisplayState = diffDisplayState
         self.diffHelpText = diffHelpText
         self.diffAccessibilityLabel = diffAccessibilityLabel
@@ -52,6 +71,9 @@ struct PrimaryToolbarButtonGroup: View {
         self.settingsBadgeState = settingsBadgeState
         self.onProjectAction = onProjectAction
         self.onToggleTerminal = onToggleTerminal
+        self.onPullRequestAction = onPullRequestAction
+        self.onPullRequestSecondaryAction = onPullRequestSecondaryAction
+        self.pullRequestPopoverContent = pullRequestPopoverContent
         self.onToggleDiffViewer = onToggleDiffViewer
         self.onOpenSettings = onOpenSettings
 
@@ -64,6 +86,11 @@ struct PrimaryToolbarButtonGroup: View {
         )
         _animatedProjectActionsSlotWidth = State(initialValue: initialProjectActionsSlotWidth)
         _areProjectActionsVisible = State(initialValue: initialProjectActionsSlotWidth > 0)
+        let initialPullRequestSlotWidth = PrimaryToolbarGroupWidth.pullRequestSlotWidth(
+            isVisible: pullRequestState != nil
+        )
+        _animatedPullRequestSlotWidth = State(initialValue: initialPullRequestSlotWidth)
+        _isPullRequestButtonVisible = State(initialValue: pullRequestState != nil)
     }
 
     var body: some View {
@@ -73,6 +100,9 @@ struct PrimaryToolbarButtonGroup: View {
             .frame(width: targetToolbarGroupWidth, alignment: .trailing)
             .onChange(of: projectActionButtonCount) { _, _ in
                 updateProjectActionsPresentation()
+            }
+            .onChange(of: pullRequestState != nil) { _, _ in
+                updatePullRequestPresentation()
             }
     }
 
@@ -108,6 +138,17 @@ struct PrimaryToolbarButtonGroup: View {
             .help(terminalHelpText)
             .accessibilityLabel(terminalTitle)
 
+            PrimaryToolbarPullRequestSlot(
+                state: pullRequestState,
+                helpText: pullRequestHelpText,
+                width: animatedPullRequestSlotWidth,
+                isButtonVisible: isPullRequestButtonVisible,
+                isPopoverPresented: isPullRequestPopoverPresented,
+                onAction: onPullRequestAction,
+                onSecondaryAction: onPullRequestSecondaryAction,
+                popoverContent: pullRequestPopoverContent
+            )
+
             DiffViewerToolbarButton(
                 displayState: diffDisplayState,
                 action: onToggleDiffViewer
@@ -127,12 +168,24 @@ struct PrimaryToolbarButtonGroup: View {
     private var targetToolbarGroupWidth: CGFloat {
         PrimaryToolbarGroupWidth.groupWidth(
             projectActionsSlotWidth: targetProjectActionsSlotWidth,
+            pullRequestSlotWidth: targetPullRequestSlotWidth,
             diffStatusWidth: diffDisplayState.statusSlotWidth
         )
     }
 
     private var targetProjectActionsSlotWidth: CGFloat {
         PrimaryToolbarGroupWidth.projectActionsSlotWidth(actionCount: projectActionButtonCount)
+    }
+
+    private var targetPullRequestSlotWidth: CGFloat {
+        PrimaryToolbarGroupWidth.pullRequestSlotWidth(isVisible: pullRequestState != nil)
+    }
+
+    private func updatePullRequestPresentation() {
+        withAnimation(PrimaryToolbarMetrics.statusAnimation) {
+            animatedPullRequestSlotWidth = targetPullRequestSlotWidth
+            isPullRequestButtonVisible = pullRequestState != nil
+        }
     }
 
     private var projectActionButtonCount: Int {
@@ -185,11 +238,25 @@ enum PrimaryToolbarGroupWidth {
             + PrimaryToolbarMetrics.buttonSpacing
     }
 
-    static func groupWidth(projectActionsSlotWidth: CGFloat, diffStatusWidth: CGFloat) -> CGFloat {
+    /// The pull-request button is conditional, so it rides an animated slot like
+    /// the project actions rather than the fixed core-button count.
+    static func pullRequestSlotWidth(isVisible: Bool) -> CGFloat {
+        guard isVisible else {
+            return 0
+        }
+        return PrimaryToolbarMetrics.iconButtonSize + PrimaryToolbarMetrics.buttonSpacing
+    }
+
+    static func groupWidth(
+        projectActionsSlotWidth: CGFloat,
+        pullRequestSlotWidth: CGFloat,
+        diffStatusWidth: CGFloat
+    ) -> CGFloat {
         PrimaryToolbarMetrics.containerHorizontalInset * 2
             + coreToolbarButtonWidth
             + coreToolbarSpacingWidth
             + projectActionsSlotWidth
+            + pullRequestSlotWidth
             + diffStatusWidth
     }
 
@@ -205,8 +272,11 @@ enum PrimaryToolbarMetrics {
     static let containerBorderWidth: CGFloat = 1
     static let iconButtonSize: CGFloat = 30
     static let iconFont = Font.system(size: 16, weight: .medium)
+    /// Octicons are fixed 24pt artwork rather than font-sized symbols, so they
+    /// need an explicit glyph box that optically matches `iconFont` in this row.
+    static let octiconSize: CGFloat = 16
     static let statusFont = Font.body.weight(.medium)
-    static let statusSpacing: CGFloat = 6
+    static let statusSpacing: CGFloat = 2
     static let diffSummarySpacing: CGFloat = 6
     static let diffSummaryTrailingPadding: CGFloat = 4
     static let progressIndicatorSize: CGFloat = 16
@@ -267,6 +337,61 @@ private struct PrimaryToolbarProjectActionsSlot: View {
     }
 }
 
+/// The pull-request button's animated slot. It mounts only for a selected thread
+/// with the integration enabled, so like the project actions it reveals through a
+/// width animation instead of appearing as a raw conditional sibling — otherwise
+/// its insertion fights the diff button's own width animation.
+private struct PrimaryToolbarPullRequestSlot: View {
+    let state: PullRequestLinksToolbarState?
+    let helpText: String
+    let width: CGFloat
+    let isButtonVisible: Bool
+    let isPopoverPresented: Binding<Bool>
+    let onAction: () -> Void
+    let onSecondaryAction: () -> Void
+    let popoverContent: () -> AnyView
+
+    var body: some View {
+        slotContent
+            // `width` is the group-width *reserve*: button plus the extra HStack
+            // spacing its presence adds. The rendered frame is the button alone —
+            // the parent HStack already spaces both sides, so folding the spacing
+            // into the frame would double the trailing gap and read as an uneven
+            // inset. When the button is absent the empty content collapses out of
+            // layout entirely, taking its HStack spacing with it.
+            .frame(
+                width: max(width - PrimaryToolbarMetrics.buttonSpacing, 0),
+                alignment: .trailing
+            )
+            .clipped()
+            .opacity(isButtonVisible ? 1 : 0)
+            .scaleEffect(isButtonVisible ? 1 : 0.92, anchor: .trailing)
+            .animation(PrimaryToolbarMetrics.statusAnimation, value: isButtonVisible)
+    }
+
+    @ViewBuilder
+    private var slotContent: some View {
+        if let state {
+            PullRequestToolbarButton(state: state, action: onAction)
+                .primaryToolbarIconButtonStyle()
+                .help(helpText)
+                .accessibilityLabel(state.accessibilityLabel)
+                .accessibilityValue(state.accessibilityValue)
+                // Secondary click always opens the popover, even when a left
+                // click would open the pane, so another link can be added.
+                .overlay {
+                    SecondaryClickTarget(onSecondaryClick: onSecondaryAction)
+                }
+                // An AppKit popover, not SwiftUI's: only a popover whose window
+                // we own can become `NSApp.keyWindow`, which is what lets the
+                // URL field receive ⌘V. See `AppKitAnchoredPopover`.
+                .appKitPopover(isPresented: isPopoverPresented, preferredEdge: .maxY) {
+                    popoverContent()
+                }
+        }
+    }
+}
+
 private struct PrimaryToolbarContainerBackground: View {
     let colorScheme: ColorScheme
 
@@ -308,96 +433,5 @@ struct PrimaryToolbarProgressSlot: View {
             width: PrimaryToolbarMetrics.iconButtonSize,
             height: PrimaryToolbarMetrics.iconButtonSize
         )
-    }
-}
-
-extension View {
-    func primaryToolbarIconButtonStyle(
-        selector: PrimaryToolbarSelectorShape = .iconCircle,
-        imageScale: Image.Scale = .medium
-    ) -> some View {
-        buttonStyle(PrimaryToolbarIconButtonStyle(selector: selector, imageScale: imageScale))
-    }
-}
-
-enum PrimaryToolbarSelectorShape {
-    case iconCircle
-    case fullCapsule
-}
-
-private struct PrimaryToolbarIconButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    let selector: PrimaryToolbarSelectorShape
-    let imageScale: Image.Scale
-
-    func makeBody(configuration: Configuration) -> some View {
-        PrimaryToolbarIconButtonBody(
-            configuration: configuration,
-            isEnabled: isEnabled,
-            selector: selector,
-            imageScale: imageScale
-        )
-    }
-}
-
-private struct PrimaryToolbarIconButtonBody: View {
-    let configuration: ButtonStyle.Configuration
-    let isEnabled: Bool
-    let selector: PrimaryToolbarSelectorShape
-    let imageScale: Image.Scale
-
-    @State private var isHovering = false
-
-    var body: some View {
-        configuration.label
-            .font(PrimaryToolbarMetrics.iconFont)
-            .imageScale(imageScale)
-            .foregroundStyle(.primary.opacity(foregroundOpacity))
-            .frame(
-                minWidth: PrimaryToolbarMetrics.iconButtonSize,
-                minHeight: PrimaryToolbarMetrics.iconButtonSize
-            )
-            .contentShape(Rectangle())
-            .background(alignment: .leading) {
-                selectorBackground
-            }
-            .opacity(configuration.isPressed && isEnabled ? 0.88 : 1)
-            .scaleEffect(configuration.isPressed && isEnabled ? 0.97 : 1)
-            .animation(PrimaryToolbarMetrics.interactionAnimation, value: isHovering)
-            .animation(PrimaryToolbarMetrics.interactionAnimation, value: configuration.isPressed)
-            .onHover { hovering in
-                isHovering = hovering
-            }
-    }
-
-    private var foregroundOpacity: Double {
-        guard isEnabled else {
-            return 0.45
-        }
-
-        return isHovering ? 0.95 : 0.82
-    }
-
-    @ViewBuilder
-    private var selectorBackground: some View {
-        switch selector {
-        case .iconCircle:
-            Circle()
-                .fill(selectorFill)
-                .frame(
-                    width: PrimaryToolbarMetrics.iconButtonSize,
-                    height: PrimaryToolbarMetrics.iconButtonSize
-                )
-        case .fullCapsule:
-            // The diff button grows to show stats; its selector should cover
-            // that full interactive label, not only the leading icon.
-            Capsule(style: .continuous)
-                .fill(selectorFill)
-        }
-    }
-
-    private var selectorFill: Color {
-        Color.primary.opacity(isHovering && isEnabled ? 0.1 : 0)
     }
 }

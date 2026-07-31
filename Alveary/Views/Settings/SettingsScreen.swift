@@ -164,7 +164,7 @@ struct SettingsScreen: View {
                 commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
-                showsPullRequestsInSidebar: binding(for: \.showsPullRequestsInSidebar)
+                pullRequestsEnabled: binding(for: \.pullRequestsEnabled)
             )
         case .handoff:
             HandoffSettingsTabView(

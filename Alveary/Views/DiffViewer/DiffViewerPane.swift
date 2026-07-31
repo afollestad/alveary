@@ -1,14 +1,30 @@
 import SwiftUI
 
 enum DiffViewerPaneMetrics {
-    // These compensate for macOS Menu/List/ScrollView chrome so rendered edges land on the 10pt pane inset.
-    static let headerLeadingInset: CGFloat = 7
-    static let headerTrailingInset: CGFloat = 11
-    static let selectionBackgroundLeadingInset: CGFloat = 6
-    static let selectionBackgroundTrailingInset: CGFloat = 11
-    static let diffPreviewHorizontalInset: CGFloat = 6
+    // Every rendered horizontal edge lands on `ContextualPaneLayout.horizontalInset`,
+    // so this pane matches the contextual panes it shares the right-pane lane with.
+    // The raw numbers differ because macOS List/ScrollView chrome insets content by
+    // different amounts; the header hosts no such chrome now that mode is a chip row,
+    // so it takes the inset directly. Derive them from the shared constant rather
+    // than hardcoding, so the two panes cannot drift apart again.
+    static let headerLeadingInset = ContextualPaneLayout.horizontalInset
+    /// Exactly the shared inset, with no compensation: the header's trailing
+    /// element is the same `ModalCloseButton` the contextual panes put at that
+    /// inset, so any offset here reads as the two panes' close buttons not
+    /// lining up as they swap in the shared lane.
+    static let headerTrailingInset = ContextualPaneLayout.horizontalInset
+    static let selectionBackgroundLeadingInset = ContextualPaneLayout.horizontalInset - 4
+    static let selectionBackgroundTrailingInset = ContextualPaneLayout.horizontalInset + 1
+    static let diffPreviewHorizontalInset = ContextualPaneLayout.horizontalInset - 4
+    /// The preview's inset *inside* its scroll container — not a pane edge. The
+    /// pull-request pane adds this to its own pane inset to fold both into one
+    /// scroll padding, so it must stay independent of the diff viewer's edge.
+    static let diffPreviewContentInset: CGFloat = 6
     static let diffPreviewTopInset: CGFloat = 1
     static let diffPreviewBottomInset: CGFloat = 14
+    /// Width the header reserves for its trailing close button, so the button
+    /// keeps its own lane instead of competing with the clipping action row.
+    static let headerCloseButtonReservedWidth = ActionButtonMetrics.iconButtonDiameter + 6
 }
 
 struct DiffViewerPane: View {
@@ -19,6 +35,7 @@ struct DiffViewerPane: View {
     @Binding private var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
     let onCommitRequested: () -> Void
+    let onClose: () -> Void
 
     @State private var pendingDiscardFiles: [FileStatus] = []
     @State private var isFileListTopDividerVisible = false
@@ -30,7 +47,8 @@ struct DiffViewerPane: View {
         onModeCommit: @escaping (DiffViewerMode) -> Void = { _ in },
         topSectionFraction: Binding<CGFloat> = .constant(CGFloat(AppSettings.defaultDiffViewerTopSectionFraction)),
         onTopSectionFractionCommit: @escaping (CGFloat) -> Void = { _ in },
-        onCommitRequested: @escaping () -> Void
+        onCommitRequested: @escaping () -> Void,
+        onClose: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.canCommit = canCommit
@@ -39,6 +57,7 @@ struct DiffViewerPane: View {
         _topSectionFraction = topSectionFraction
         self.onTopSectionFractionCommit = onTopSectionFractionCommit
         self.onCommitRequested = onCommitRequested
+        self.onClose = onClose
     }
 
     var body: some View {
@@ -79,7 +98,8 @@ struct DiffViewerPane: View {
                 },
                 onDiscardSelectedFiles: {
                     pendingDiscardFiles = viewModel.selectedFiles
-                }
+                },
+                onClose: onClose
             )
 
             if let gitError = viewModel.gitError {

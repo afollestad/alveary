@@ -205,7 +205,7 @@ private extension MiddlePane {
     func resolveSidebarBookmark(_ bookmark: AppState.SidebarBookmark) -> SidebarItem? {
         sidebarSelectionAllowingHiddenPullRequests(
             resolveSidebarSelectionBookmark(bookmark, modelContext: uiModelContext),
-            showsPullRequests: settingsService.current.showsPullRequestsInSidebar
+            showsPullRequests: settingsService.current.pullRequestsEnabled
         )
     }
 }

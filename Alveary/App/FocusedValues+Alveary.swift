@@ -41,6 +41,16 @@ struct ToggleTerminalPaneActionKey: FocusedValueKey {
     typealias Value = @MainActor () -> Void
 }
 
+/// Published by `ContentView` so the ⇧⌘P "Linked Pull Requests" menu item can run
+/// the same action the toolbar button does — which reads the selected thread's
+/// links and either opens a pane or a view-local popover, neither reachable from
+/// the scene menu. A bare closure is correct here, unlike `DiffViewerCommand`:
+/// only the menu reads this value, so no ancestor of the publisher can be
+/// invalidated by a closure that never compares equal.
+struct TogglePullRequestsActionKey: FocusedValueKey {
+    typealias Value = @MainActor () -> Void
+}
+
 struct DiffViewerCommand: Equatable {
     let title: String
     let action: @MainActor () -> Void
@@ -88,6 +98,11 @@ extension FocusedValues {
     var diffViewerCommand: DiffViewerCommandKey.Value? {
         get { self[DiffViewerCommandKey.self] }
         set { self[DiffViewerCommandKey.self] = newValue }
+    }
+
+    var togglePullRequestsAction: TogglePullRequestsActionKey.Value? {
+        get { self[TogglePullRequestsActionKey.self] }
+        set { self[TogglePullRequestsActionKey.self] = newValue }
     }
 
     var triggerSessionHandoffAction: TriggerSessionHandoffActionKey.Value? {

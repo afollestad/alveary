@@ -89,7 +89,7 @@ struct PullRequestPaneFiles: View {
                 // pane edge like the Overview tab's while the rows keep the tab
                 // row's and pane title's horizontal alignment.
                 horizontalContentInset: ContextualPaneLayout.horizontalInset
-                    + DiffViewerPaneMetrics.diffPreviewHorizontalInset
+                    + DiffViewerPaneMetrics.diffPreviewContentInset
             )
 
             let remaining = PullRequestDiffFilePaging.remainingFileCount(

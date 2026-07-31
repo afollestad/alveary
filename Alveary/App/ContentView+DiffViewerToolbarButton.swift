@@ -25,13 +25,19 @@ private struct DiffViewerToolbarButtonLabel: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Label("Diff Viewer", systemImage: "sidebar.trailing")
-                .labelStyle(.iconOnly)
-                .font(PrimaryToolbarMetrics.iconFont)
-                .frame(
-                    width: PrimaryToolbarMetrics.iconButtonSize,
-                    height: PrimaryToolbarMetrics.iconButtonSize
-                )
+            Label {
+                Text("Diff Viewer")
+            } icon: {
+                OcticonImage(name: "FileDiffOcticon", size: PrimaryToolbarMetrics.octiconSize)
+            }
+            .labelStyle(.iconOnly)
+            // A resizable octicon ignores the font, but keeping it holds the
+            // label's baseline metrics equal to the sibling SF Symbol buttons.
+            .font(PrimaryToolbarMetrics.iconFont)
+            .frame(
+                width: PrimaryToolbarMetrics.iconButtonSize,
+                height: PrimaryToolbarMetrics.iconButtonSize
+            )
 
             DiffViewerToolbarStatusSlot(displayState: displayState)
                 .font(PrimaryToolbarMetrics.statusFont)

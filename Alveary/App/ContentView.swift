@@ -47,6 +47,7 @@ struct ContentView: View {
     @State var scheduledTasksViewModel: ScheduledTasksViewModel
     @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     @State var pullRequestsViewModel: PullRequestsViewModel
+    @State var pullRequestLinksViewModel: PullRequestLinksViewModel
     @State private var settingsViewModel: SettingsViewModel
     @State private var archivedThreadsViewModel: ArchivedThreadsViewModel
     @State var onboardingViewModel: OnboardingViewModel
@@ -56,11 +57,13 @@ struct ContentView: View {
     @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
     @State private var toolbarProjectActionsThreadID: PersistentIdentifier?
     @State var diffViewerDraftRefreshRevision: UInt64 = 0
+    @State var isPullRequestPopoverPresented = false
     @State var lastActiveProjectRecorder: LastActiveProjectRecorder
     @State var gitCommitModalModel: DiffGitCommitModalModel?
-    @State private var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
-    @State private var terminalToolbarTrackedSessionIDs = Set<UUID>()
-    @State private var terminalToolbarResetTask: Task<Void, Never>?
+    // Internal so `ContentView+TerminalToolbar.swift` can own their transitions.
+    @State var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
+    @State var terminalToolbarTrackedSessionIDs = Set<UUID>()
+    @State var terminalToolbarResetTask: Task<Void, Never>?
     @State var didAttemptLaunchSelectionRestore = false
     @State var didStartThreadActivityBackfill = false
     @State var voiceInputInteractionLockGeneration = 0
@@ -109,9 +112,8 @@ struct ContentView: View {
         _scheduledTaskProposalQueueCoordinator = State(
             initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
         )
-        _pullRequestsViewModel = State(
-            initialValue: Self.makePullRequestsViewModel(dependencies: dependencies, appState: appState)
-        )
+        _pullRequestsViewModel = State(initialValue: Self.makePullRequestsViewModel(dependencies: dependencies, appState: appState))
+        _pullRequestLinksViewModel = State(initialValue: Self.makePullRequestLinksViewModel(dependencies: dependencies))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _archivedThreadsViewModel = State(initialValue: Self.makeArchivedThreadsViewModel(
             dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState
@@ -250,6 +252,9 @@ struct ContentView: View {
                     terminalTitle: terminalToggleTitle,
                     terminalDisplayState: terminalToolbarDisplayState,
                     terminalHelpText: "\(terminalToggleTitle) (\(KeyboardShortcut.toggleTerminalPane.displayString))",
+                    pullRequestState: pullRequestLinksToolbarState,
+                    pullRequestHelpText: pullRequestToolbarHelpText,
+                    isPullRequestPopoverPresented: $isPullRequestPopoverPresented,
                     diffDisplayState: diffViewerToolbarDisplayState,
                     diffHelpText: diffViewerToggleHelpText
                         + " (\(KeyboardShortcut.toggleDiffViewer.displayString))",
@@ -260,6 +265,9 @@ struct ContentView: View {
                         runProjectAction(threadID: threadID, action: action)
                     },
                     onToggleTerminal: toggleTerminalPane,
+                    onPullRequestAction: performPullRequestToolbarAction,
+                    onPullRequestSecondaryAction: presentPullRequestPopover,
+                    pullRequestPopoverContent: { AnyView(pullRequestPopoverContent()) },
                     onToggleDiffViewer: toggleDiffViewer,
                     onOpenSettings: {
                         appState.openSettings(targetPage: appUpdateManager.toolbarBadgeState.settingsTargetPage)
@@ -298,6 +306,20 @@ struct ContentView: View {
         // Watching follows the rendered pane; routing is owned by the keyed task below.
         .onChange(of: isDiffViewerRendered, initial: true) { _, isRendered in
             diffViewModel.setWatchingEnabled(isRendered)
+        }
+        // A state change inside the pane (merge, close, reopen, ready for review)
+        // refetches the detail; mirror it into the stored link so the toolbar
+        // glyph updates without waiting for the pane to be reopened.
+        .onChange(of: activeSelectionPullRequestStatus) { _, _ in
+            persistActiveSelectionPullRequestStatus()
+        }
+        // Disabling the integration removes every way back to an open pull-request
+        // pane, so forget it rather than leaving a session that would reappear.
+        .onChange(of: settingsService.current.pullRequestsEnabled) { _, isEnabled in
+            guard !isEnabled else {
+                return
+            }
+            pullRequestsViewModel.deactivatePane()
         }
         .task(id: diffRoutingKey) {
             await routeDiffViewer(key: diffRoutingKey)
@@ -364,6 +386,11 @@ struct ContentView: View {
         // the menu needs a `FocusedValue` hop to reach it.
         .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
         .focusedSceneValue(\.diffViewerCommand, diffViewerCommand)
+        // Nil while the button is hidden, which is what greys out the menu item.
+        .focusedSceneValue(
+            \.togglePullRequestsAction,
+            pullRequestLinksToolbarState == nil ? nil : performPullRequestToolbarAction
+        )
     }
 }
 
@@ -382,77 +409,11 @@ private extension ContentView {
         return voiceInputLifecycleController.isComposerInteractionLocked
     }
 
-    var selectedThreadID: PersistentIdentifier? {
-        guard case .thread(let thread) = appState.selectedSidebarItem,
-              !thread.isDraft else {
-            return nil
-        }
-
-        return thread.persistentModelID
-    }
-
-    var terminalToggleTitle: String {
-        appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal"
-    }
-
     func colorScheme(for theme: String) -> ColorScheme? {
         switch theme {
         case "light": .light
         case "dark": .dark
         default: nil
-        }
-    }
-
-    func toggleTerminalPane() {
-        if appState.isTerminalPaneVisible {
-            appState.hideTerminalPane()
-        } else {
-            ensureDefaultShellSession(focus: true)
-            appState.showTerminalPane()
-        }
-    }
-
-    func handleTerminalRunningSessionIDsChange(_ runningSessionIDs: Set<UUID>) {
-        let liveSessionIDs = Set(terminalManager.sessions.map(\.id))
-        terminalToolbarTrackedSessionIDs.formIntersection(liveSessionIDs)
-
-        if !runningSessionIDs.isEmpty {
-            terminalToolbarResetTask?.cancel()
-            terminalToolbarResetTask = nil
-            terminalToolbarTrackedSessionIDs.formUnion(runningSessionIDs)
-            terminalToolbarDisplayState = .running
-            return
-        }
-
-        guard !terminalToolbarTrackedSessionIDs.isEmpty else {
-            terminalToolbarDisplayState = .idle
-            return
-        }
-
-        let completedSessionIDs = terminalToolbarTrackedSessionIDs
-        terminalToolbarTrackedSessionIDs = []
-
-        guard let outcome = TerminalToolbarCompletionOutcome.outcome(
-            completedSessionIDs: completedSessionIDs,
-            terminalManager: terminalManager
-        ) else {
-            terminalToolbarDisplayState = .idle
-            return
-        }
-
-        terminalToolbarDisplayState = .completed(outcome)
-        scheduleTerminalToolbarReset()
-    }
-
-    func scheduleTerminalToolbarReset() {
-        terminalToolbarResetTask?.cancel()
-        terminalToolbarResetTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else {
-                return
-            }
-            terminalToolbarDisplayState = .idle
-            terminalToolbarResetTask = nil
         }
     }
 

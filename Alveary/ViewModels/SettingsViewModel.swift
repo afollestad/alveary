@@ -117,9 +117,9 @@ final class SettingsViewModel {
         set { settingsService.update { $0.createWorktreeByDefault = newValue } }
     }
 
-    var showsPullRequestsInSidebar: Bool {
-        get { settingsService.current.showsPullRequestsInSidebar }
-        set { settingsService.update { $0.showsPullRequestsInSidebar = newValue } }
+    var pullRequestsEnabled: Bool {
+        get { settingsService.current.pullRequestsEnabled }
+        set { settingsService.update { $0.pullRequestsEnabled = newValue } }
     }
 
     var theme: String {

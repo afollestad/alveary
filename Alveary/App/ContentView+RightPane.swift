@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 enum RightPaneDestination: Hashable {
@@ -36,6 +37,11 @@ enum RightPaneDestination: Hashable {
         case .scheduled:
             contextualDestination = targets.scheduled.map(RightPaneDestination.scheduled)
         case .pullRequests:
+            contextualDestination = targets.pullRequest.map(RightPaneDestination.pullRequest)
+        case .thread, .project:
+            // A thread's or project's linked pull requests open in the same
+            // lane. Origin scoping happens where `targets` is built, so this
+            // branch stays a pure function of its inputs.
             contextualDestination = targets.pullRequest.map(RightPaneDestination.pullRequest)
         default:
             contextualDestination = nil
@@ -119,10 +125,29 @@ extension ContentView {
                 skills: skillsViewModel.activePaneTarget,
                 mcp: mcpViewModel.activePaneTarget,
                 scheduled: scheduledTasksViewModel.activePaneTarget,
-                pullRequest: pullRequestsViewModel.activePaneTarget
+                pullRequest: scopedPullRequestPaneTarget
             ),
             isDiffViewerRequested: appState.isDiffViewerRequested
         )
+    }
+
+    /// The active pull-request pane target, filtered to the surface that opened
+    /// it. Disabling the integration withholds it too, so an unreachable pane
+    /// cannot stay on screen.
+    private var scopedPullRequestPaneTarget: PullRequestPaneTarget? {
+        guard settingsService.current.pullRequestsEnabled else {
+            return nil
+        }
+        switch appState.selectedSidebarItem {
+        case .pullRequests:
+            return pullRequestsViewModel.activePaneTarget(for: .screen)
+        case .thread(let thread):
+            return pullRequestsViewModel.activePaneTarget(for: .thread(thread.persistentModelID))
+        case .project(let project):
+            return pullRequestsViewModel.activePaneTarget(for: .project(project.persistentModelID))
+        default:
+            return nil
+        }
     }
 
     var isDiffViewerRendered: Bool {
@@ -193,7 +218,10 @@ extension ContentView {
                 onTopSectionFractionCommit: { fraction in
                     persistDiffViewerTopSectionFraction(fraction, mode: diffViewerMode)
                 },
-                onCommitRequested: presentGitCommitModal
+                onCommitRequested: presentGitCommitModal,
+                // The lane's own dismissal, so the header X and ⇧⌘D end in the
+                // same place.
+                onClose: onDismiss
             )
         case .skills(let target):
             SkillsPane(viewModel: skillsViewModel, target: target, onDismiss: onDismiss)

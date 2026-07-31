@@ -1,26 +1,32 @@
 import AppKit
 import SwiftUI
 
-struct DiffViewerSecondaryClickSelectionTarget: NSViewRepresentable {
+/// Reports right-clicks and control-clicks inside its own bounds.
+///
+/// SwiftUI has no secondary-click gesture, and `contextMenu` only opens a menu —
+/// too late for callers that need to act on mouse-down (selecting the clicked
+/// row before the menu opens) or that want something other than a menu (opening
+/// a popover). Apply it as an overlay on the control that should respond.
+struct SecondaryClickTarget: NSViewRepresentable {
     let onSecondaryClick: () -> Void
 
-    func makeNSView(context: Context) -> DiffViewerSecondaryClickSelectionView {
-        let view = DiffViewerSecondaryClickSelectionView()
+    func makeNSView(context: Context) -> SecondaryClickTargetView {
+        let view = SecondaryClickTargetView()
         view.onSecondaryClick = onSecondaryClick
         return view
     }
 
-    func updateNSView(_ nsView: DiffViewerSecondaryClickSelectionView, context: Context) {
+    func updateNSView(_ nsView: SecondaryClickTargetView, context: Context) {
         nsView.onSecondaryClick = onSecondaryClick
     }
 
-    static func dismantleNSView(_ nsView: DiffViewerSecondaryClickSelectionView, coordinator: ()) {
+    static func dismantleNSView(_ nsView: SecondaryClickTargetView, coordinator: ()) {
         nsView.dismantle()
     }
 }
 
 @MainActor
-final class DiffViewerSecondaryClickSelectionView: NSView {
+final class SecondaryClickTargetView: NSView {
     var onSecondaryClick: (() -> Void)?
     private var eventMonitor: Any?
 
@@ -32,6 +38,14 @@ final class DiffViewerSecondaryClickSelectionView: NSView {
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setAccessibilityElement(false)
+    }
+
+    /// Never participates in hit testing: the local monitor observes every
+    /// window event with its own bounds check, so this view claiming clicks
+    /// would only swallow them from the control it overlays. Without this, an
+    /// `.overlay` placement eats the control's left-clicks entirely.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 
     override func viewDidMoveToWindow() {
@@ -51,8 +65,8 @@ final class DiffViewerSecondaryClickSelectionView: NSView {
         guard eventMonitor == nil else {
             return
         }
-        // SwiftUI contextMenu selection is too late for native-feeling feedback:
-        // this monitor updates row selection during mouse-down before the menu opens.
+        // A local monitor rather than `rightMouseDown(with:)` so the click is
+        // observed without this overlay swallowing it from the control beneath.
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
             guard let self else {
                 return event

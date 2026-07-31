@@ -45,6 +45,9 @@ final class PullRequestsViewModel {
 
     // Contextual-pane session state; lifecycle in the Pane Sessions extension below.
     private(set) var activePaneTarget: PullRequestPaneTarget?
+    /// The surface that opened `activePaneTarget`; the root filters on it so a
+    /// pane cannot render outside the context it was opened from.
+    private(set) var activePaneOrigin: PullRequestPaneOrigin = .screen
     private(set) var paneSessions: [PullRequestPaneTarget: PullRequestPaneSession] = [:]
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
@@ -263,7 +266,7 @@ final class PullRequestsViewModel {
 // MARK: - Pane Sessions
 
 extension PullRequestsViewModel {
-    func requestDetails(_ summary: PullRequestSummary) {
+    func requestDetails(_ summary: PullRequestSummary, origin: PullRequestPaneOrigin = .screen) {
         // The pane's repository is a candidate context for signed attachment
         // image URLs; register before its markdown can render.
         attachmentImageRepositoryRegistrar?(summary.repositoryNameWithOwner)
@@ -278,6 +281,17 @@ extension PullRequestsViewModel {
             loadPaneContent(target: target, generation: session.generation)
         }
         activePaneTarget = target
+        activePaneOrigin = origin
+    }
+
+    /// The active target, but only when its origin matches the surface asking.
+    /// The root builds `RightPaneContextualTargets` through this so a shared
+    /// pane lane cannot show one context's pull request inside another.
+    func activePaneTarget(for origin: PullRequestPaneOrigin) -> PullRequestPaneTarget? {
+        guard activePaneOrigin == origin else {
+            return nil
+        }
+        return activePaneTarget
     }
 
     func isDetailActive(_ id: PullRequestIdentifier) -> Bool {

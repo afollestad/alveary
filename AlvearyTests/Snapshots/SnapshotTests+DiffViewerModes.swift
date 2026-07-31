@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
-    func testDiffViewerPaneHeaderCurrentChangesDropdown() {
+    func testDiffViewerPaneHeaderCurrentChangesTabs() {
         assertMacSnapshot(
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
@@ -21,11 +21,11 @@ extension SnapshotTests {
                 onDiscardSelectedFiles: {}
             ),
             size: CGSize(width: 460, height: 72),
-            named: "diff_viewer_header_current_changes_dropdown"
+            named: "diff_viewer_header_current_changes_tabs"
         )
     }
 
-    func testDiffViewerPaneHeaderCommitsDropdownHidesFileActions() {
+    func testDiffViewerPaneHeaderCommitsTabsHideFileActions() {
         assertMacSnapshot(
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
@@ -44,11 +44,11 @@ extension SnapshotTests {
                 onDiscardSelectedFiles: {}
             ),
             size: CGSize(width: 460, height: 72),
-            named: "diff_viewer_header_commits_dropdown"
+            named: "diff_viewer_header_commits_tabs"
         )
     }
 
-    func testDiffViewerPaneHeaderCommitsDropdownHidesCommitAction() {
+    func testDiffViewerPaneHeaderCommitsTabsHideCommitAction() {
         assertMacSnapshot(
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
@@ -65,7 +65,7 @@ extension SnapshotTests {
                 onDiscardSelectedFiles: {}
             ),
             size: CGSize(width: 460, height: 72),
-            named: "diff_viewer_header_commits_dropdown_no_actions"
+            named: "diff_viewer_header_commits_tabs_no_actions"
         )
     }
 

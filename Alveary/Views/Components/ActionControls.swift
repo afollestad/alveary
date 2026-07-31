@@ -15,6 +15,10 @@ enum ActionButtonTint {
 enum ActionButtonMetrics {
     static let cornerRadius = AppCornerRadius.standard
 
+    /// Footprint of `iconActionButtonStyle()`. Exposed so surfaces that reserve
+    /// width for a row of icon buttons cannot re-hardcode a diverging number.
+    static let iconButtonDiameter: CGFloat = 30
+
     static func horizontalPadding(for controlSize: ControlSize) -> CGFloat {
         switch controlSize {
         case .mini:
@@ -279,19 +283,27 @@ private struct IconActionButtonBody: View {
     let foregroundColor: Color
     let backgroundColor: Color
 
+    @Environment(\.isFocused) private var isFocused
     @State private var isHovering = false
 
     var body: some View {
         configuration.label
             .font(.system(size: 13, weight: .bold))
             .foregroundStyle(foregroundColor.opacity(foregroundOpacity))
-            .frame(width: 30, height: 30)
+            .frame(
+                width: ActionButtonMetrics.iconButtonDiameter,
+                height: ActionButtonMetrics.iconButtonDiameter
+            )
             .contentShape(Circle())
             .background(
                 Circle()
                     .fill(backgroundColor.opacity(backgroundOpacity))
             )
+            .overlay(focusRing)
+            .opacity(isPressed ? 0.88 : 1)
+            .scaleEffect(isPressed ? 0.97 : 1)
             .buttonStyle(.plain)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.12)) {
                     isHovering = hovering
@@ -299,16 +311,32 @@ private struct IconActionButtonBody: View {
             }
     }
 
+    /// Only visible under Full Keyboard Access / Tab navigation, which is the
+    /// right scope: these buttons are not made focusable on their own.
+    @ViewBuilder
+    private var focusRing: some View {
+        if isFocused, isEnabled {
+            Circle()
+                .strokeBorder(AppAccentFill.primary, lineWidth: 2)
+        }
+    }
+
+    private var isPressed: Bool {
+        configuration.isPressed && isEnabled
+    }
+
     private var foregroundOpacity: Double {
         guard isEnabled else {
             return 0.6
         }
 
-        return isHovering ? 0.95 : 0.8
+        return isHovering || isPressed ? 0.95 : 0.8
     }
 
+    /// Press fills the circle even without hover, because trackpad and keyboard
+    /// activation both press while the pointer is elsewhere.
     private var backgroundOpacity: Double {
-        guard isEnabled, isHovering else {
+        guard isEnabled, isHovering || isPressed else {
             return 0
         }
 

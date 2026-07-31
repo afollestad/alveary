@@ -7,7 +7,7 @@ import XCTest
 extension SnapshotTests {
     func testSidebarViewWithPullRequestsHidden() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
-        sidebar.fixture.settingsService.update { $0.showsPullRequestsInSidebar = false }
+        sidebar.fixture.settingsService.update { $0.pullRequestsEnabled = false }
 
         let appState = AppState()
         appState.selectedSidebarItem = .thread(sidebar.activeThread)

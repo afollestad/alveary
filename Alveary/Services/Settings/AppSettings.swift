@@ -55,9 +55,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var mcpPaneWidth = 380.0
     var scheduledTasksPaneWidth = 380.0
     var pullRequestsPaneWidth = 460.0
-    // The sidebar row is the only entry point to the Pull Requests screen, so hiding it
-    // removes the screen entirely.
-    var showsPullRequestsInSidebar = true
+    // Gates the whole pull-request integration: the sidebar row that leads to the
+    // Pull Requests screen, and the thread toolbar's linked-pull-request button.
+    var pullRequestsEnabled = true
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerCommitsTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerMode = Self.defaultDiffViewerMode

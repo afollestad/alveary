@@ -5,7 +5,7 @@ enum DiffViewerMode: String, Codable, Sendable, Equatable, CaseIterable {
     var title: String {
         switch self {
         case .currentChanges:
-            return "Current changes"
+            return "Changes"
         case .commits:
             return "Commits"
         }

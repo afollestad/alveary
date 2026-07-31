@@ -5,9 +5,9 @@ import XCTest
 
 @MainActor
 extension SettingsServiceTests {
-    /// The key is additive, so settings written before it existed must still load with the row
-    /// visible rather than silently hiding the only entry point to the Pull Requests screen.
-    func testSettingsWithoutTheKeyKeepPullRequestsVisible() throws {
+    /// The key is additive, so settings written before it existed must still load with the
+    /// integration on rather than silently hiding the pull-request surfaces.
+    func testSettingsWithoutTheKeyKeepPullRequestsEnabled() throws {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [
             "defaultProvider": "claude",
@@ -21,14 +21,14 @@ extension SettingsServiceTests {
 
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertTrue(service.current.showsPullRequestsInSidebar)
+        XCTAssertTrue(service.current.pullRequestsEnabled)
     }
 
-    func testStoredHiddenPullRequestsRowDecodes() throws {
+    func testStoredDisabledPullRequestsDecodes() throws {
         let defaults = try makeDefaults()
         let payload: [String: Any] = [
             "defaultProvider": "claude",
-            "showsPullRequestsInSidebar": false
+            "pullRequestsEnabled": false
         ]
         defaults.set(
             try JSONSerialization.data(withJSONObject: payload),
@@ -37,16 +37,16 @@ extension SettingsServiceTests {
 
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertFalse(service.current.showsPullRequestsInSidebar)
+        XCTAssertFalse(service.current.pullRequestsEnabled)
     }
 
-    func testHiddenPullRequestsRowPersistsAcrossReloads() throws {
+    func testDisabledPullRequestsPersistsAcrossReloads() throws {
         let defaults = try makeDefaults()
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        service.update { $0.showsPullRequestsInSidebar = false }
+        service.update { $0.pullRequestsEnabled = false }
 
         let reloadedService = UserDefaultsSettingsService(defaults: defaults)
-        XCTAssertFalse(reloadedService.current.showsPullRequestsInSidebar)
+        XCTAssertFalse(reloadedService.current.pullRequestsEnabled)
     }
 }

@@ -15,12 +15,31 @@ extension SnapshotTests {
         )
     }
 
+    /// Off-base default: the dropdown names the checked-out branch and the
+    /// branch-name field stays hidden, because the commit lands where it is.
+    func testDiffGitCommitModalCurrentBranch() async {
+        let model = diffGitCommitModalModel(
+            targetName: "Disable Steering During Handoff",
+            currentBranch: "feature/current"
+        )
+        await model.load()
+
+        assertMacSnapshot(
+            DiffGitCommitModal(model: model, onClose: {}),
+            size: CGSize(width: 620, height: 400),
+            named: "diff_git_commit_modal_current_branch"
+        )
+    }
+
     func testDiffGitCommitModalNewBranch() async {
         let model = diffGitCommitModalModel(
             targetName: "Disable Steering During Handoff",
             currentBranch: "feature/current"
         )
         await model.load()
+        // Off-base defaults to the current branch, so this layout — dropdown
+        // reading "New branch" over the branch-name field — is now explicit.
+        model.selectNewBranch()
 
         assertMacSnapshot(
             DiffGitCommitModal(model: model, onClose: {}),

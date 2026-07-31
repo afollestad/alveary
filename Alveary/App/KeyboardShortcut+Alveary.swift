@@ -15,6 +15,7 @@ extension KeyboardShortcut {
     static let settings = KeyboardShortcut(",", modifiers: .command)
     static let toggleDiffViewer = KeyboardShortcut("d", modifiers: [.shift, .command])
     static let toggleTerminalPane = KeyboardShortcut("t", modifiers: [.shift, .command])
+    static let togglePullRequests = KeyboardShortcut("p", modifiers: [.shift, .command])
 
     /// Human-readable rendering, e.g. "⇧⌘D" or "⌘↩". Drives tooltip text so it
     /// stays in sync with the bound `KeyEquivalent` + `EventModifiers` without

@@ -3,7 +3,7 @@ import XCTest
 @testable import Alveary
 
 final class ContentViewRightPaneRoutingTests: XCTestCase {
-    private static let pullRequestTarget = PullRequestPaneTarget.details(
+    static let pullRequestTarget = PullRequestPaneTarget.details(
         PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
     )
 
@@ -69,6 +69,11 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         )
     }
 
+    /// Screen-owned contextual targets stay cached while the user navigates
+    /// projects and threads; none of them may mask a requested Diff Viewer there.
+    /// The pull-request target is deliberately absent: a `.thread` selection can
+    /// legitimately render one, and it is scoped by origin upstream in
+    /// `ContentView.rightPaneDestination` — see the `+PullRequests` companion.
     func testRequestedDiffViewerRemainsInSharedWidthDomainAcrossProjectAndThreadSelections() {
         let project = Project(path: "/tmp/diff-project", name: "Project")
         let firstThread = AgentThread(name: "First thread", project: project)
@@ -85,8 +90,7 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
                 targets: RightPaneContextualTargets(
                     skills: .newSkill,
                     mcp: .addCustom,
-                    scheduled: .create,
-                    pullRequest: Self.pullRequestTarget
+                    scheduled: .create
                 ),
                 isDiffViewerRequested: true
             )

@@ -48,7 +48,7 @@ extension SidebarView {
                 owningProjectIDByPinnedThreadID: owningProjectIDByPinnedThreadID(in: snapshot)
             ),
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty,
-            showsPullRequests: viewModel.settingsService.current.showsPullRequestsInSidebar
+            showsPullRequests: viewModel.settingsService.current.pullRequestsEnabled
         )
     }
 

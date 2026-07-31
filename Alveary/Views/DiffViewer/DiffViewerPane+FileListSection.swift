@@ -58,7 +58,9 @@ struct DiffViewerFileListSection: View {
                     }
                 )
                 .background {
-                    DiffViewerSecondaryClickSelectionTarget {
+                    // Selects the clicked row on mouse-down, before SwiftUI's
+                    // `contextMenu` opens, so the feedback reads as native.
+                    SecondaryClickTarget {
                         claimKeyboardFocus()
                         if !isSelected(file) {
                             onSelectFile(file, .single)

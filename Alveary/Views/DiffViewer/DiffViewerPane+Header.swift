@@ -13,12 +13,32 @@ struct DiffViewerPaneHeader: View {
     let onStageSelectedFiles: () -> Void
     let onUnstageSelectedFiles: () -> Void
     let onDiscardSelectedFiles: () -> Void
+    /// Nil omits the close button, which keeps the existing header previews and
+    /// the minimum-width guard measuring the action row on its own.
+    var onClose: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
-            modeMenu
+            modeTabs
+
+            Spacer(minLength: 0)
 
             DiffViewerHeaderActionContainer(actions: headerActions)
+        }
+        // The close button is *reserved* space plus a pinned overlay, not an
+        // `HStack` sibling. This header clips its trailing content rather than
+        // compressing, and at the 320pt minimum pane width the chip row plus
+        // every action already overflows — as a sibling the button would be the
+        // element clipped away. An unreachable action is still reachable from
+        // the toolbar and menu; an unreachable close button is not.
+        .padding(.trailing, onClose == nil ? 0 : DiffViewerPaneMetrics.headerCloseButtonReservedWidth)
+        .overlay(alignment: .trailing) {
+            // Matches the contextual panes' trailing close affordance; those use
+            // `ContextualPaneHeader`, which this header cannot because it owns a
+            // mode chip row instead of a title.
+            if let onClose {
+                ModalCloseButton("Hide Diff Viewer", action: onClose)
+            }
         }
         .animation(diffViewerHeaderActionAnimation, value: headerActionLayoutID)
         .padding(.top, 14)
@@ -42,8 +62,7 @@ struct DiffViewerPaneHeader: View {
             actions.append(DiffViewerHeaderAction(
                 id: "commit",
                 title: "Commit",
-                systemImage: "checkmark.circle",
-                tone: .primary,
+                icon: .octicon("GitCommitOcticon"),
                 isEnabled: canCommit,
                 action: onCommitRequested
             ))
@@ -55,8 +74,7 @@ struct DiffViewerPaneHeader: View {
             actions.append(DiffViewerHeaderAction(
                 id: "stage",
                 title: "Stage",
-                systemImage: "tray.and.arrow.down",
-                tone: .secondary,
+                icon: .octicon("PlusOcticon"),
                 isEnabled: true,
                 action: onStageSelectedFiles
             ))
@@ -66,8 +84,7 @@ struct DiffViewerPaneHeader: View {
             actions.append(DiffViewerHeaderAction(
                 id: "unstage",
                 title: "Unstage",
-                systemImage: "tray.and.arrow.up",
-                tone: .secondary,
+                icon: .octicon("DashOcticon"),
                 isEnabled: true,
                 action: onUnstageSelectedFiles
             ))
@@ -77,8 +94,7 @@ struct DiffViewerPaneHeader: View {
             actions.append(DiffViewerHeaderAction(
                 id: "discard",
                 title: "Discard",
-                systemImage: "arrow.uturn.backward",
-                tone: .destructive,
+                icon: .system("arrow.uturn.backward"),
                 role: .destructive,
                 isEnabled: true,
                 action: onDiscardSelectedFiles
@@ -96,36 +112,25 @@ struct DiffViewerPaneHeader: View {
         headerActions.map { "\($0.id):\($0.isEnabled)" }.joined(separator: "|")
     }
 
-    private var modeMenu: some View {
-        Menu {
-            ForEach(DiffViewerMode.allCases, id: \.self) { mode in
-                Button(mode.title) {
-                    onModeSelected(mode)
+    /// Matches the pull-request pane's tab chips so both panes switch sections
+    /// the same way; the chips size to the header's own control height instead
+    /// of the pane's vertical padding so the row reads as one band.
+    private var modeTabs: some View {
+        HStack(spacing: diffViewerHeaderActionSpacing) {
+            ForEach(DiffViewerMode.allCases, id: \.self) { candidate in
+                Button {
+                    onModeSelected(candidate)
+                } label: {
+                    Text(candidate.title)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 12)
+                        .frame(height: diffViewerHeaderChipHeight)
                 }
+                .buttonStyle(TabChipButtonStyle(isSelected: mode == candidate))
+                .accessibilityAddTraits(mode == candidate ? .isSelected : [])
             }
-        } label: {
-            HStack(spacing: 10) {
-                Text(mode.title)
-                    .font(.headline)
-                    .lineLimit(1)
-
-                Spacer(minLength: 10)
-
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .frame(
-                maxWidth: .infinity,
-                minHeight: diffViewerHeaderControlHeight,
-                maxHeight: diffViewerHeaderControlHeight,
-                alignment: .leading
-            )
-            .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
         }
-        .buttonStyle(DiffViewerModeMenuButtonStyle())
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Diff viewer mode")
         .accessibilityValue("\(mode.title), \(displayDirectory)")
     }
@@ -147,32 +152,25 @@ struct DiffViewerPaneHeader: View {
     }
 }
 
-private let diffViewerHeaderControlHeight: CGFloat = 36
+private let diffViewerHeaderChipHeight: CGFloat = 36
 private let diffViewerHeaderActionSpacing: CGFloat = 6
 private let diffViewerHeaderActionAnimation = Animation.easeInOut(duration: 0.18)
+/// Octicons are fixed artwork rather than font-sized symbols, so header glyphs
+/// state their own box inside the shared icon button's footprint.
+private let diffViewerHeaderOcticonSize: CGFloat = 20
+
+private enum DiffViewerHeaderIcon {
+    case system(String)
+    case octicon(String)
+}
 
 private struct DiffViewerHeaderAction {
     let id: String
     let title: String
-    let systemImage: String
-    let tone: DiffViewerHeaderIconButtonStyle.Tone
+    let icon: DiffViewerHeaderIcon
     var role: ButtonRole?
     let isEnabled: Bool
     let action: () -> Void
-}
-
-private struct DiffViewerModeMenuButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .fill(configuration.isPressed ? Color.primary.opacity(0.06) : Color(nsColor: .windowBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .stroke(Color.primary.opacity(configuration.isPressed ? 0.22 : 0.14), lineWidth: 1)
-            )
-    }
 }
 
 private struct DiffViewerHeaderActionContainer: View {
@@ -181,14 +179,11 @@ private struct DiffViewerHeaderActionContainer: View {
     var body: some View {
         HStack(spacing: diffViewerHeaderActionSpacing) {
             ForEach(actions, id: \.id) { action in
-                Button(role: action.role, action: action.action) {
-                    Image(systemName: action.systemImage)
-                }
-                .buttonStyle(DiffViewerHeaderIconButtonStyle(tone: action.tone))
-                .help(action.title)
-                .accessibilityLabel(action.title)
-                .disabled(!action.isEnabled)
-                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                DiffViewerHeaderActionButton(action: action)
+                    .help(action.title)
+                    .accessibilityLabel(action.title)
+                    .disabled(!action.isEnabled)
+                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
             }
         }
         .padding(.leading, actions.isEmpty ? 0 : diffViewerHeaderActionSpacing)
@@ -202,7 +197,7 @@ private struct DiffViewerHeaderActionContainer: View {
             return 0
         }
 
-        return CGFloat(actions.count) * diffViewerHeaderControlHeight
+        return CGFloat(actions.count) * ActionButtonMetrics.iconButtonDiameter
             + CGFloat(actions.count) * diffViewerHeaderActionSpacing
     }
 
@@ -211,77 +206,32 @@ private struct DiffViewerHeaderActionContainer: View {
     }
 }
 
-private struct DiffViewerHeaderIconButtonStyle: ButtonStyle {
-    enum Tone {
-        case primary
-        case secondary
-        case destructive
-    }
+/// Header actions wear the shared chromeless icon treatment; only Discard
+/// differs, keeping the destructive tint on its glyph rather than a red fill.
+private struct DiffViewerHeaderActionButton: View {
+    let action: DiffViewerHeaderAction
 
-    let tone: Tone
-
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(foregroundColor.opacity(isEnabled ? 1 : 0.55))
-            .frame(width: diffViewerHeaderControlHeight, height: diffViewerHeaderControlHeight)
-            .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
-            .background(
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .fill(backgroundColor(isPressed: configuration.isPressed).opacity(isEnabled ? 1 : 0.38))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .stroke(borderColor.opacity(borderOpacity), lineWidth: borderWidth)
-            )
-            .opacity(configuration.isPressed && isEnabled ? 0.94 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-    }
-
-    private var foregroundColor: Color {
-        switch tone {
-        case .primary, .secondary:
-            return .primary
-        case .destructive:
-            return .white
+    var body: some View {
+        if action.role == .destructive {
+            button.destructiveIconActionButtonStyle()
+        } else {
+            button.iconActionButtonStyle()
         }
     }
 
-    private var borderColor: Color {
-        switch tone {
-        case .primary:
-            return AppAccentFill.primary
-        case .secondary:
-            return .primary
-        case .destructive:
-            return destructiveColor
+    private var button: some View {
+        Button(role: action.role, action: action.action) {
+            glyph
         }
     }
 
-    private var borderOpacity: Double {
-        tone == .secondary ? 0.14 : 0
-    }
-
-    private var borderWidth: CGFloat {
-        tone == .secondary ? 1 : 0
-    }
-
-    private func backgroundColor(isPressed: Bool) -> Color {
-        let baseColor: Color = switch tone {
-        case .primary:
-            AppAccentFill.primary
-        case .secondary:
-            Color(nsColor: .windowBackgroundColor)
-        case .destructive:
-            destructiveColor
+    @ViewBuilder
+    private var glyph: some View {
+        switch action.icon {
+        case .system(let name):
+            Image(systemName: name)
+        case .octicon(let name):
+            OcticonImage(name: name, size: diffViewerHeaderOcticonSize)
         }
-
-        return isPressed ? baseColor.opacity(0.84) : baseColor
-    }
-
-    private var destructiveColor: Color {
-        Color(red: 0.74, green: 0.18, blue: 0.17)
     }
 }

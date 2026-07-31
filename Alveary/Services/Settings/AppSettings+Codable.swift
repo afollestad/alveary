@@ -40,7 +40,7 @@ extension AppSettings {
         case mcpPaneWidth
         case scheduledTasksPaneWidth
         case pullRequestsPaneWidth
-        case showsPullRequestsInSidebar
+        case pullRequestsEnabled
         case diffViewerTopSectionFraction
         case diffViewerCommitsTopSectionFraction
         case diffViewerMode
@@ -169,10 +169,10 @@ extension AppSettings {
             Double.self,
             forKey: .pullRequestsPaneWidth
         ) ?? pullRequestsPaneWidth
-        showsPullRequestsInSidebar = try container.decodeIfPresent(
+        pullRequestsEnabled = try container.decodeIfPresent(
             Bool.self,
-            forKey: .showsPullRequestsInSidebar
-        ) ?? showsPullRequestsInSidebar
+            forKey: .pullRequestsEnabled
+        ) ?? pullRequestsEnabled
         diffViewerTopSectionFraction = try container.decodeIfPresent(
             Double.self,
             forKey: .diffViewerTopSectionFraction

@@ -175,30 +175,6 @@ extension SnapshotTests {
         )
     }
 
-    func testDiffViewerPaneHeaderMixedSelectionActions() {
-        assertMacSnapshot(
-            DiffViewerPaneHeader(
-                activeDirectory: "/tmp/alveary",
-                mode: .currentChanges,
-                contextualAction: .commit,
-                selectedFiles: [
-                    FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
-                    FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
-                ],
-                canCommit: true,
-                showsFileListDivider: false,
-                showsFileActions: true,
-                onModeSelected: { _ in },
-                onCommitRequested: {},
-                onStageSelectedFiles: {},
-                onUnstageSelectedFiles: {},
-                onDiscardSelectedFiles: {}
-            ),
-            size: CGSize(width: 520, height: 72),
-            named: "diff_viewer_header_mixed_selection"
-        )
-    }
-
     func testDiffViewerPanePopulated() async {
         let fixture = SnapshotDiffViewerFixture(
             gitService: SnapshotMockGitService(

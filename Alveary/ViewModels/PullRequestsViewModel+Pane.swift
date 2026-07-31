@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 enum PullRequestPaneTarget: Hashable {
     case details(PullRequestIdentifier)
@@ -7,6 +8,26 @@ enum PullRequestPaneTarget: Hashable {
         switch self {
         case .details(let id):
             return id
+        }
+    }
+}
+
+/// Which surface opened the active pane. The pane lane is shared, so the root
+/// only renders a target whose origin matches the current selection — otherwise
+/// a pull request opened from the Pull Requests screen would follow the user
+/// onto an unrelated thread, and vice versa.
+enum PullRequestPaneOrigin: Hashable {
+    case screen
+    case thread(PersistentIdentifier)
+    case project(PersistentIdentifier)
+
+    /// A link's owner is also the surface its pane opens from.
+    init(owner: PullRequestLinkOwner) {
+        switch owner {
+        case .thread(let id):
+            self = .thread(id)
+        case .project(let id):
+            self = .project(id)
         }
     }
 }

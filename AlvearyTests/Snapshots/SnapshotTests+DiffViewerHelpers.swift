@@ -7,6 +7,9 @@ extension SnapshotTests {
         selectedThread: AgentThread? = nil,
         projectActions: [AlvearyProjectConfig.ProjectAction] = [],
         terminalDisplayState: TerminalToolbarDisplayState = .idle,
+        // Nil matches the pre-existing baselines: no thread selected means no
+        // pull-request button.
+        pullRequestState: PullRequestLinksToolbarState? = nil,
         settingsBadgeState: AppUpdateToolbarBadgeState = .none,
         diffDisplayState: DiffViewerToolbarDisplayState
     ) -> some View {
@@ -18,6 +21,9 @@ extension SnapshotTests {
             terminalTitle: "Show Terminal",
             terminalDisplayState: terminalDisplayState,
             terminalHelpText: "Show Terminal (\(KeyboardShortcut.toggleTerminalPane.displayString))",
+            pullRequestState: pullRequestState,
+            pullRequestHelpText: "Link a pull request (\(KeyboardShortcut.togglePullRequests.displayString))",
+            isPullRequestPopoverPresented: .constant(false),
             diffDisplayState: diffDisplayState,
             diffHelpText: "Show Diff Viewer (\(KeyboardShortcut.toggleDiffViewer.displayString))",
             diffAccessibilityLabel: "Show Diff Viewer",
@@ -25,6 +31,9 @@ extension SnapshotTests {
             settingsBadgeState: settingsBadgeState,
             onProjectAction: { _, _ in },
             onToggleTerminal: {},
+            onPullRequestAction: {},
+            onPullRequestSecondaryAction: {},
+            pullRequestPopoverContent: { AnyView(EmptyView()) },
             onToggleDiffViewer: {},
             onOpenSettings: {}
         )

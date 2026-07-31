@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AppTextEditorChip: Equatable, Sendable {
@@ -25,6 +26,7 @@ struct AppTextField: View {
     private let cornerRadii: RectangleCornerRadii?
     private let borderColor: Color
     private let borderWidth: CGFloat
+    private let focusesOnAppear: Bool
 
     init(
         _ title: String,
@@ -37,7 +39,8 @@ struct AppTextField: View {
         verticalPadding: CGFloat = AppInputStyle.defaultVerticalPadding,
         backgroundColor: Color = AppInputStyle.backgroundColor,
         borderColor: Color = AppInputStyle.borderColor,
-        borderWidth: CGFloat = AppInputStyle.borderWidth
+        borderWidth: CGFloat = AppInputStyle.borderWidth,
+        focusesOnAppear: Bool = false
     ) {
         self._text = text
         self.title = title
@@ -50,6 +53,7 @@ struct AppTextField: View {
         self.backgroundColor = backgroundColor
         self.borderColor = borderColor
         self.borderWidth = borderWidth
+        self.focusesOnAppear = focusesOnAppear
     }
 
     var body: some View {
@@ -73,6 +77,66 @@ struct AppTextField: View {
         .contentShape(Rectangle())
         .onTapGesture {
             isFocused = true
+        }
+        .background {
+            // A fresh `.popover`'s window is not key at mount — the presenting
+            // window keeps key status, SwiftUI drops focus requests for non-key
+            // windows, and ⌘V keeps routing to the presenting window's first
+            // responder (the composer). Claim key at the AppKit level first.
+            if focusesOnAppear {
+                WindowKeyClaimingView()
+            }
+        }
+        .task {
+            guard focusesOnAppear else {
+                return
+            }
+            // Claim focus on mount, then once more a beat later in case the
+            // first request raced the window-key claim above.
+            isFocused = true
+            try? await Task.sleep(for: .milliseconds(80))
+            isFocused = true
+        }
+    }
+}
+
+/// Makes its hosting window key when mounted. Zero-sized, hit-test inert.
+private struct WindowKeyClaimingView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        KeyClaimView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class KeyClaimView: NSView {
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            claimKeyWindow(retriesRemaining: 12)
+        }
+
+        /// A popover window is not yet visible when its content mounts, and
+        /// `makeKey()` on an invisible window is a no-op — so the first attempt
+        /// always fails and `NSApp.keyWindow` stays on the presenting window,
+        /// which is where ⌘V would land. Retry across runloop turns until AppKit
+        /// agrees this window is key, matching the retry shape
+        /// `AppTextEditor+AppKit.swift` uses to claim first responder.
+        private func claimKeyWindow(retriesRemaining: Int) {
+            guard let window, self.window === window else {
+                return
+            }
+            if window.isVisible, window.canBecomeKey {
+                window.makeKey()
+            }
+            guard NSApp.keyWindow !== window, retriesRemaining > 0 else {
+                return
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.claimKeyWindow(retriesRemaining: retriesRemaining - 1)
+            }
         }
     }
 }

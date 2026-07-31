@@ -7,7 +7,7 @@ struct GitSettingsTabView: View {
     @Binding var commitMessageGenerationPrompt: String
     @Binding var worktreesBaseDirectory: String
     @Binding var createWorktreeByDefault: Bool
-    @Binding var showsPullRequestsInSidebar: Bool
+    @Binding var pullRequestsEnabled: Bool
 
     @State private var gitHubInstalledVersion: String?
     @State private var isGitHubConnected = false
@@ -56,8 +56,9 @@ struct GitSettingsTabView: View {
 
                 SettingsFormSection("Pull requests") {
                     SettingsToggleRow(
-                        "Show \"Pull requests\" in sidebar",
-                        isOn: $showsPullRequestsInSidebar,
+                        "Enable pull request integration",
+                        helpText: GitSettingsHelp.pullRequestsEnabled,
+                        isOn: $pullRequestsEnabled,
                         showsDivider: false
                     )
                 }
@@ -188,4 +189,6 @@ private enum GitSettingsHelp {
         "Prompt sent to the agent when generating a commit message from the Git commit modal."
     static let createWorktreeByDefault =
         "New threads default to creating a worktree instead of using the main project folder. You can override this in the composer."
+    static let pullRequestsEnabled =
+        "Show the \"Pull requests\" sidebar row and the toolbar button for linking pull requests to a thread."
 }

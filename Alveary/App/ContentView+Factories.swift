@@ -146,6 +146,17 @@ extension ContentView {
         )
     }
 
+    static func makePullRequestLinksViewModel(
+        dependencies: ContentViewDependencies
+    ) -> PullRequestLinksViewModel {
+        PullRequestLinksViewModel(
+            // Links are UI mutations, so they share the main context with the
+            // sidebar's `@Query` reads.
+            modelContext: dependencies.modelContainer.mainContext,
+            service: dependencies.pullRequestsService
+        )
+    }
+
     static func makeScheduledTaskProposalQueueCoordinator(
         dependencies: ContentViewDependencies
     ) -> ScheduledTaskProposalQueueCoordinator {

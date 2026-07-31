@@ -4,27 +4,27 @@ import XCTest
 
 @MainActor
 extension SettingsViewModelTests {
-    func testShowsPullRequestsInSidebarDefaultsToVisible() {
+    func testPullRequestsEnabledDefaultsToOn() {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 
-        XCTAssertTrue(viewModel.showsPullRequestsInSidebar)
+        XCTAssertTrue(viewModel.pullRequestsEnabled)
     }
 
-    func testShowsPullRequestsInSidebarReadsThroughToTheService() {
+    func testPullRequestsEnabledReadsThroughToTheService() {
         let service = InMemorySettingsService()
-        service.update { $0.showsPullRequestsInSidebar = false }
+        service.update { $0.pullRequestsEnabled = false }
         let viewModel = SettingsViewModel(settingsService: service)
 
-        XCTAssertFalse(viewModel.showsPullRequestsInSidebar)
+        XCTAssertFalse(viewModel.pullRequestsEnabled)
     }
 
-    func testShowsPullRequestsInSidebarWritesThroughToTheService() {
+    func testPullRequestsEnabledWritesThroughToTheService() {
         let service = InMemorySettingsService()
         let viewModel = SettingsViewModel(settingsService: service)
 
-        viewModel.showsPullRequestsInSidebar = false
+        viewModel.pullRequestsEnabled = false
 
-        XCTAssertFalse(service.current.showsPullRequestsInSidebar)
-        XCTAssertFalse(viewModel.showsPullRequestsInSidebar)
+        XCTAssertFalse(service.current.pullRequestsEnabled)
+        XCTAssertFalse(viewModel.pullRequestsEnabled)
     }
 }

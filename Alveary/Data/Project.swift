@@ -14,6 +14,9 @@ final class Project {
     var isPinned: Bool = false
     var sidebarSortOrder: Int?
     var pinnedSortOrder: Int?
+    /// JSON-encoded `LinkedPullRequest` list; see `Project+PullRequestLinks.swift`.
+    /// Optional with no `init` parameter so pre-field stores migrate as unlinked.
+    var linkedPullRequestsJSON: String?
     @Relationship(deleteRule: .cascade, inverse: \AgentThread.project) var threads: [AgentThread]
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.project) var scheduledTasks: [ScheduledTask]
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskProposal.project) var scheduledTaskProposals: [ScheduledTaskProposal]

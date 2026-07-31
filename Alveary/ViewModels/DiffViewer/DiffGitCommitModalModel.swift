@@ -14,6 +14,10 @@ struct DiffGitCommitModalContext: Identifiable, Equatable {
 final class DiffGitCommitModalModel: Identifiable {
     enum BranchSelection: Equatable {
         case base
+        /// Commit onto the branch already checked out, when that is not the base
+        /// branch. This is the default off-base choice: the checkout is already
+        /// where the user wants the commit, so no branch name is needed.
+        case current
         case new
     }
 
@@ -114,6 +118,8 @@ final class DiffGitCommitModalModel: Identifiable {
         switch branchSelection {
         case .base:
             return context.baseBranch
+        case .current:
+            return currentBranch ?? context.baseBranch
         case .new:
             return "New branch"
         }
@@ -123,11 +129,20 @@ final class DiffGitCommitModalModel: Identifiable {
         currentBranch == nil || currentBranch == context.baseBranch
     }
 
+    /// The checked-out branch is only worth offering as its own choice when it
+    /// is not the base branch; otherwise it is the same option twice.
+    var isCurrentBranchSelectable: Bool {
+        guard let currentBranch else {
+            return false
+        }
+        return currentBranch != context.baseBranch
+    }
+
     var preflightMessage: String? {
         if branchSelection == .base,
            let currentBranch,
            currentBranch != context.baseBranch {
-            return "Current branch is `\(currentBranch)`; choose New branch to commit from here."
+            return "Current branch is `\(currentBranch)`; commit to it or choose New branch."
         }
 
         if branchSelection == .new, trimmedNewBranchName.isEmpty {
@@ -170,7 +185,9 @@ final class DiffGitCommitModalModel: Identifiable {
 
         do {
             currentBranch = try await gitService.currentBranch(in: context.directory)
-            branchSelection = currentBranch == context.baseBranch ? .base : .new
+            // Off the base branch, the existing checkout is the expected commit
+            // destination; a new branch stays available but is no longer implied.
+            branchSelection = currentBranch == context.baseBranch ? .base : .current
             try await refreshStagedPreflightIfNeeded()
         } catch {
             errorMessage = "Commit setup failed: \(error.localizedDescription)"
@@ -179,6 +196,11 @@ final class DiffGitCommitModalModel: Identifiable {
 
     func selectBaseBranch() {
         branchSelection = .base
+        errorMessage = nil
+    }
+
+    func selectCurrentBranch() {
+        branchSelection = .current
         errorMessage = nil
     }
 
@@ -313,8 +335,15 @@ private extension DiffGitCommitModalModel {
            let currentBranch,
            currentBranch != context.baseBranch {
             throw DiffGitCommitModalError.message(
-                "Current branch is `\(currentBranch)`; choose New branch to commit from here."
+                "Current branch is `\(currentBranch)`; commit to it or choose New branch."
             )
+        }
+
+        // `.current` commits in place, so it only needs a branch to exist.
+        // Defensive: the re-fetch above leaves `currentBranch` non-nil unless it
+        // threw, so this only fires if that invariant changes.
+        if branchSelection == .current, currentBranch == nil {
+            throw DiffGitCommitModalError.message("No branch is checked out.")
         }
 
         if !includeUnstagedChanges {

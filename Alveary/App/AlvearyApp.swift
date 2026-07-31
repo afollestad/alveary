@@ -66,6 +66,8 @@ struct AlvearyApp: App {
             }
 
             CommandGroup(after: .toolbar) {
+                PullRequestsCommandButton()
+
                 DiffViewerCommandButton()
 
                 ToggleTerminalPaneCommandButton(appState: appState)
@@ -174,6 +176,20 @@ struct AlvearyApp: App {
             ],
             range: NSRange(range, in: attributed.string)
         )
+    }
+}
+
+/// `ContentView` publishes the action only while a thread is selected and the
+/// integration is enabled, so a nil value is exactly when the item should grey out.
+private struct PullRequestsCommandButton: View {
+    @FocusedValue(\.togglePullRequestsAction) private var action
+
+    var body: some View {
+        Button("Linked Pull Requests") {
+            action?()
+        }
+        .keyboardShortcut(.togglePullRequests)
+        .disabled(action == nil)
     }
 }
 
