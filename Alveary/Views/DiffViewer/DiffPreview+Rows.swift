@@ -1,68 +1,6 @@
 import AppKit
 import SwiftUI
 
-private struct DiffPreviewMinimumContentWidthKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 0
-}
-
-private extension EnvironmentValues {
-    var diffPreviewMinimumContentWidth: CGFloat {
-        get { self[DiffPreviewMinimumContentWidthKey.self] }
-        set { self[DiffPreviewMinimumContentWidthKey.self] = newValue }
-    }
-}
-
-private struct DiffPreviewViewportContentWidthKey: EnvironmentKey {
-    static let defaultValue: CGFloat = 0
-}
-
-extension EnvironmentValues {
-    /// The scroll container's visible content width (viewport minus padding), for
-    /// rows that must fit the pane instead of the horizontally scrollable width.
-    var diffPreviewViewportContentWidth: CGFloat {
-        get { self[DiffPreviewViewportContentWidthKey.self] }
-        set { self[DiffPreviewViewportContentWidthKey.self] = newValue }
-    }
-}
-
-private struct DiffPreviewMinimumContentWidthModifier: ViewModifier {
-    @Environment(\.diffPreviewMinimumContentWidth) private var minimumContentWidth
-
-    func body(content: Content) -> some View {
-        content.frame(minWidth: max(minimumContentWidth, 0), alignment: .leading)
-    }
-}
-
-private struct DiffPreviewExactContentWidthModifier: ViewModifier {
-    @Environment(\.diffPreviewMinimumContentWidth) private var minimumContentWidth
-
-    func body(content: Content) -> some View {
-        // The scroll container proposes nil width in its scroll axes, so a row
-        // without an exact frame reports its untruncated ideal and widens the
-        // diff even when it contributes no scrollable width.
-        if minimumContentWidth > 0 {
-            content.frame(width: minimumContentWidth, alignment: .leading)
-        } else {
-            content.frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-extension View {
-    func diffPreviewMinimumContentWidthFrame() -> some View {
-        modifier(DiffPreviewMinimumContentWidthModifier())
-    }
-
-    func diffPreviewExactContentWidthFrame() -> some View {
-        modifier(DiffPreviewExactContentWidthModifier())
-    }
-
-    func diffPreviewIntrinsicMinimumContentWidthFrame() -> some View {
-        fixedSize(horizontal: true, vertical: false)
-            .diffPreviewMinimumContentWidthFrame()
-    }
-}
-
 struct CollapsedContextSummary: Sendable {
     let lineCount: Int
     let oldStart: Int?
@@ -369,48 +307,6 @@ struct RawDiffFallbackView: View {
             .diffPreviewIntrinsicMinimumContentWidthFrame()
             .frame(maxHeight: .infinity, alignment: .topLeading)
             .textSelection(.enabled)
-        }
-    }
-}
-
-struct DiffPreviewScrollContainer<Content: View>: View {
-    private let horizontalContentPadding: CGFloat
-    private let topContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewTopInset
-    private let bottomContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewBottomInset
-    private let minimumScrollableContentWidth: CGFloat
-
-    @ViewBuilder private let content: () -> Content
-
-    init(
-        minimumScrollableContentWidth: CGFloat = 0,
-        horizontalContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.minimumScrollableContentWidth = minimumScrollableContentWidth
-        self.horizontalContentPadding = horizontalContentPadding
-        self.content = content
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let availableWidth = max(proxy.size.width - (horizontalContentPadding * 2), 0)
-            let availableHeight = max(proxy.size.height - topContentPadding - bottomContentPadding, 0)
-            let contentWidth = max(availableWidth, minimumScrollableContentWidth)
-
-            ScrollView([.horizontal, .vertical]) {
-                content()
-                    .frame(
-                        minWidth: contentWidth,
-                        minHeight: availableHeight,
-                        alignment: .topLeading
-                    )
-                    .environment(\.diffPreviewMinimumContentWidth, contentWidth)
-                    .environment(\.diffPreviewViewportContentWidth, availableWidth)
-                    .padding(.horizontal, horizontalContentPadding)
-                    .padding(.top, topContentPadding)
-                    .padding(.bottom, bottomContentPadding)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 }

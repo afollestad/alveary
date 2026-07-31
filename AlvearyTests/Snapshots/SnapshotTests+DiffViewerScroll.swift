@@ -67,10 +67,57 @@ extension SnapshotTests {
         )
         defer { host.close() }
 
-        // The file header frames to the exact content width and truncates its
-        // path; its untruncated ideal must not widen the scrollable area.
+        // The file header frames to the viewport width and truncates its path;
+        // its untruncated ideal must not widen the scrollable area.
         let maxX = try host.horizontalMaxX(in: try host.scrollView())
         XCTAssertEqual(maxX, 0, accuracy: 0.5)
+    }
+
+    func testDiffViewerLongLineDiffStillScrollsWithFileHeaders() throws {
+        let diff = try XCTUnwrap(DiffParser.parse(Self.longLineChangedDiff()).first)
+        let host = DiffPreviewScrollHost(
+            FlattenedDiffPreview(files: [diff], showsFileHeaders: true, allowsFileCollapse: true),
+            size: CGSize(width: 320, height: 240)
+        )
+        defer { host.close() }
+
+        // The file header frames to the viewport so its collapse caret stays on
+        // the pane edge; that clamp must not shrink the scrollable area the
+        // long line still needs.
+        _ = try host.assertHorizontalOverflow(on: try host.scrollView())
+    }
+
+    func testDiffViewerFileHeaderPinsDuringHorizontalScroll() throws {
+        let diff = try XCTUnwrap(DiffParser.parse(Self.longLineChangedDiff()).first)
+        let host = DiffPreviewScrollHost(
+            FlattenedDiffPreview(files: [diff], showsFileHeaders: true, allowsFileCollapse: true),
+            size: CGSize(width: 420, height: 200)
+        )
+        defer { host.close() }
+
+        let scrollView = try host.scrollView()
+        let before = try host.fileHeaderBandPNG()
+        _ = try host.assertHorizontalOverflow(on: scrollView)
+        host.pumpRunLoop()
+
+        // Scrolling right must leave the pinned header band pixel-identical:
+        // the path, badges, and caret stay at the pane's leading edge while
+        // the hunk rows below travel.
+        let after = try host.fileHeaderBandPNG()
+        XCTAssertFalse(before.isEmpty)
+        XCTAssertEqual(before, after)
+    }
+
+    func testDiffViewerLongLineFileHeaderFitsPaneWidth() throws {
+        let diff = try XCTUnwrap(DiffParser.parse(Self.longLineChangedDiff()).first)
+
+        // The path, badges, and collapse caret must all stay inside the pane
+        // even though the diff's lines scroll far past its trailing edge.
+        assertMacSnapshot(
+            FlattenedDiffPreview(files: [diff], showsFileHeaders: true, allowsFileCollapse: true),
+            size: CGSize(width: 420, height: 200),
+            named: "diff_viewer_long_line_file_header_fits_pane"
+        )
     }
 
     private static func shortLineStructuredDiff() -> String {
@@ -114,6 +161,22 @@ extension SnapshotTests {
                          loading="lazy"
                          decoding="async"
                          class="column col-xs-12 col-sm-6 col-md-4 col-lg-3 col-xl-3 col-3 portfolio-image" />
+        """
+    }
+
+    /// A long line paired with real added/deleted lines, so the file header
+    /// renders its `+N` / `-N` badges beside the path. `longLineStructuredDiff`
+    /// cannot: its blank context line ends the hunk at the first line.
+    private static func longLineChangedDiff() -> String {
+        let longAttribute = String(repeating: "ceiling-thumbnail-segment-", count: 36)
+        return """
+        diff --git a/index.html b/index.html
+        --- a/index.html
+        +++ b/index.html
+        @@ -449,2 +449,2 @@
+             <img
+        -            src="images/portfolio/cieling_thumbnail.jpg"
+        +            src="images/portfolio/\(longAttribute)ceiling_thumbnail.jpg"
         """
     }
 
@@ -215,6 +278,37 @@ private final class DiffPreviewScrollHost<Content: View> {
         scrollView.reflectScrolledClipView(scrollView.contentView)
         XCTAssertGreaterThan(scrollView.contentView.bounds.origin.x, 0.5, file: file, line: line)
         return maxX
+    }
+
+    /// Lets `onScrollGeometryChange` deliver its action after a programmatic
+    /// scroll; the SwiftUI bridge dispatches it on a later run-loop turn.
+    func pumpRunLoop(seconds: TimeInterval = 0.05) {
+        RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+        layout()
+    }
+
+    /// PNG of the top band covering the first file header (24pt clears the
+    /// header's ~22pt row without reaching the hunk header ~33pt down).
+    /// `CGImage.cropping` uses top-left image coordinates, so the crop is
+    /// flip-proof regardless of the hosting view's coordinate orientation.
+    func fileHeaderBandPNG(
+        bandHeight: CGFloat = 24,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> Data {
+        layout()
+        let view = controller.view
+        let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds), file: file, line: line)
+        view.cacheDisplay(in: view.bounds, to: rep)
+        let image = try XCTUnwrap(rep.cgImage, file: file, line: line)
+        let scale = CGFloat(image.width) / view.bounds.width
+        let band = try XCTUnwrap(
+            image.cropping(to: CGRect(x: 0, y: 0, width: CGFloat(image.width), height: bandHeight * scale)),
+            file: file,
+            line: line
+        )
+        let bandData = NSBitmapImageRep(cgImage: band).representation(using: .png, properties: [:])
+        return try XCTUnwrap(bandData, file: file, line: line)
     }
 
     private func layout() {

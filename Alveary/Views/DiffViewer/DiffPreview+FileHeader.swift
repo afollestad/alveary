@@ -49,8 +49,12 @@ struct DiffPreviewFileHeader: View {
         }
         // Exact width, not minimum: under the scroll container's nil proposal a
         // minWidth frame lets a long path's ideal widen the diff. The exact frame
-        // spans the scrollable width and lets the path middle-truncate instead.
-        .diffPreviewExactContentWidthFrame()
+        // lets the path middle-truncate instead. It tracks the viewport rather
+        // than the scrollable width so the badges and collapse caret sit on the
+        // pane's trailing edge, and the pin keeps the whole header at the pane's
+        // leading edge while the diff scrolls sideways beneath it.
+        .diffPreviewViewportContentWidthFrame()
+        .diffPreviewViewportPinned()
     }
 
     private var headerTitle: some View {

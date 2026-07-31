@@ -10,8 +10,8 @@ extension FlattenedDiffPreviewRows {
     private static func minimumScrollableContentWidth(for row: FlattenedDiffPreviewRow) -> CGFloat {
         switch row {
         case .fileHeader:
-            // The header frames to the exact content width and middle-truncates
-            // its path, so it can never fill scroll space it requested.
+            // The header frames to the viewport width and middle-truncates its
+            // path, so it can never fill scroll space it requested.
             return 0
         case .renameSummary(_, let oldPath, let newPath):
             return max(
