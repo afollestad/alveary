@@ -26,15 +26,20 @@ enum MainWindowToolbarSpacerPlacement {
     }
 }
 
-/// Keeps SwiftUI's flexible spacer between the two app-owned toolbar items.
+/// Applies the app's window-toolbar policy.
+///
+/// Keeps SwiftUI's flexible spacer between the two app-owned toolbar items —
 /// `NavigationSplitView` otherwise places the spacer before its system items,
-/// leaving the contextual header and primary actions packed together.
-struct AppWindowToolbarSpacerConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> AppWindowToolbarSpacerAnchorView {
-        AppWindowToolbarSpacerAnchorView()
+/// leaving the contextual header and primary actions packed together — and
+/// keeps the toolbar out of the user's hands, because app-owned items draw
+/// their own capsule chrome and labels that the system display-mode options
+/// would break.
+struct AppWindowToolbarConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> AppWindowToolbarAnchorView {
+        AppWindowToolbarAnchorView()
     }
 
-    func updateNSView(_ nsView: AppWindowToolbarSpacerAnchorView, context: Context) {
+    func updateNSView(_ nsView: AppWindowToolbarAnchorView, context: Context) {
         nsView.scheduleUpdate()
     }
 }
@@ -46,13 +51,13 @@ extension View {
                 .frame(width: 0, height: 0)
         }
         .background {
-            AppWindowToolbarSpacerConfigurator()
+            AppWindowToolbarConfigurator()
                 .frame(width: 0, height: 0)
         }
     }
 }
 
-final class AppWindowToolbarSpacerAnchorView: NSView {
+final class AppWindowToolbarAnchorView: NSView {
     private weak var observedToolbar: NSToolbar?
     private var isUpdateScheduled = false
 
@@ -76,6 +81,7 @@ final class AppWindowToolbarSpacerAnchorView: NSView {
             guard let self else { return }
             isUpdateScheduled = false
             observeToolbarIfNeeded()
+            disableToolbarCustomization()
             moveFlexibleSpacerBetweenAppItems()
         }
     }
@@ -105,6 +111,23 @@ final class AppWindowToolbarSpacerAnchorView: NSView {
 
     @objc private func toolbarItemsChanged(_: Notification) {
         scheduleUpdate()
+    }
+
+    /// Clearing both flags leaves the toolbar's context menu empty, which is how
+    /// AppKit is told not to show it at all.
+    private func disableToolbarCustomization() {
+        guard let toolbar = window?.toolbar else {
+            return
+        }
+
+        toolbar.allowsUserCustomization = false
+        toolbar.allowsDisplayModeCustomization = false
+
+        // A toolbar restored from an earlier customization can come back in a
+        // label-showing mode, so put the intended mode back.
+        if toolbar.displayMode != .iconOnly {
+            toolbar.displayMode = .iconOnly
+        }
     }
 
     private func moveFlexibleSpacerBetweenAppItems() {
