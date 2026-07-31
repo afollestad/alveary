@@ -80,12 +80,18 @@ struct SidebarView: View {
         let regularProjects = context.regularProjects
         let activeTaskThreads = context.activeTaskThreads
         let threadOrderAnimation = context.threadOrderAnimation
-        // Project-nested Tasks are sources too, so their items must survive unrelated set churn.
+        // Project-nested Tasks and Project-mode children are sources too, so their items must
+        // survive unrelated set churn.
         let visibleDragItems = Set(
             context.dragLogicalOrder.pinnedItems
                 + context.dragLogicalOrder.regularProjects
                 + context.activeTaskThreads.map { SidebarDragItem.unpinnedTask($0.persistentModelID) }
                 + context.dragLogicalOrder.projectIDByTaskID.keys.map(SidebarDragItem.unpinnedTask)
+                + context.orderedProjects.flatMap { project in
+                    context.activeThreads(for: project)
+                        .filter { $0.effectiveMode == .project }
+                        .map { SidebarDragItem.projectThread($0.persistentModelID) }
+                }
         )
         let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
 

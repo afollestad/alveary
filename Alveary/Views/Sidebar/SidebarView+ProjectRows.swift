@@ -159,17 +159,20 @@ extension SidebarView {
             let threadTopSpacing: CGFloat = thread.persistentModelID == configuration.firstThreadID
                 ? 0
                 : SidebarRowMetrics.interThreadRowSpacing
+            let childDragItem: SidebarDragItem = thread.effectiveMode == .task
+                ? .unpinnedTask(thread.persistentModelID)
+                : .projectThread(thread.persistentModelID)
             sidebarThreadRow(
                 thread,
                 layout: .project,
                 topSpacing: threadTopSpacing,
-                // Only Task children are sources: they can leave for `Tasks`. A Project-mode child
-                // has nowhere to go, so nested rows otherwise stay non-draggable.
-                dragConfiguration: unpinnedTaskDragConfiguration(
+                // Task children can leave for `Tasks` or pin; Project-mode children drag only to
+                // pin. Either way `Pinned` is reached through its whole-section container.
+                dragConfiguration: projectChildDragConfiguration(
                     for: thread,
                     logicalOrder: context.dragLogicalOrder
                 ),
-                opacity: activeSidebarDragItem == .unpinnedTask(thread.persistentModelID)
+                opacity: activeSidebarDragItem == childDragItem
                     ? 0.48
                     : configuration.opacity
             )

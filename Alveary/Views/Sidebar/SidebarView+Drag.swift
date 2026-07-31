@@ -99,8 +99,12 @@ struct SidebarDragLogicalOrder: Equatable {
     /// scheduled-attached Tasks are excluded, matching the disabled context-menu Unpin.
     var unpinnableTaskIDs: Set<PersistentIdentifier> = []
     /// The owning project for every Task thread placed in one, pinned or nested. Gates the
-    /// `Tasks` pull-out target and suppresses the `.into` target for a Task's own project.
+    /// `Tasks` pull-out target and scopes a Task's own project's `.into` target to the unpin drop.
     var projectIDByTaskID: [PersistentIdentifier: PersistentIdentifier] = [:]
+    /// The owning project for every standalone pinned Project-mode thread that may unpin by
+    /// dropping onto that project group. The drop is the drag mirror of context-menu Unpin, so
+    /// scheduled-attached threads are excluded here just as their menu item is disabled.
+    var owningProjectIDByPinnedThreadID: [PersistentIdentifier: PersistentIdentifier] = [:]
 }
 
 struct SidebarDragFinalizationTransition {
@@ -374,15 +378,6 @@ extension SidebarView {
         freezeSidebarDropCandidateForCompletion(session)
         let candidate = session.frozenDropCandidate
         let selectedItem = appState.selectedSidebarItem
-        let selectedThreadBelongsToDraggedProject: Bool
-        // Any mode: a Task placed in the dragged project is one of its children too.
-        if case .project(let projectID) = session.item,
-           case .thread(let selectedThread) = selectedItem {
-            selectedThreadBelongsToDraggedProject = selectedThread.project?.persistentModelID == projectID
-        } else {
-            selectedThreadBelongsToDraggedProject = false
-        }
-
         withAnimation(sidebarDragAnimation) {
             sidebarDragGeometryMissToken = nil
             sidebarDragInteractionState = transition.nextState
@@ -391,29 +386,7 @@ extension SidebarView {
         guard let candidate else {
             return
         }
-        if let access = sidebarTaskProjectAccessDrop(item: session.item, target: candidate.target) {
-            requestTaskProjectAccessDrop(threadID: access.threadID, projectID: access.projectID)
-            return
-        }
-
-        do {
-            let didMove = try viewModel.commitSidebarDrop(
-                dragItem: session.item,
-                target: candidate.target
-            )
-            guard didMove else {
-                return
-            }
-
-            if selectedThreadBelongsToDraggedProject,
-               case .project(let projectID) = session.item,
-               let project = projects.first(where: { $0.persistentModelID == projectID }) {
-                expandedProjects.insert(project.path)
-            }
-            syncExpansionWithSelection(selectedItem)
-        } catch {
-            viewModel.presentSidebarError(error)
-        }
+        commitFinalizedSidebarDrop(session: session, candidate: candidate, selectedItem: selectedItem)
     }
 
     func freezeSidebarDropCandidateForCompletion(_ session: SidebarDragSession) {

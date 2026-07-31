@@ -44,7 +44,8 @@ extension SidebarView {
                 regularProjects: snapshot.regularProjects.map { .project($0.persistentModelID) },
                 projectsHeaderIsSticky: snapshot.pinnedItems.isEmpty,
                 unpinnableTaskIDs: unpinnableTaskIDs(in: snapshot),
-                projectIDByTaskID: projectIDByTaskID(in: snapshot)
+                projectIDByTaskID: projectIDByTaskID(in: snapshot),
+                owningProjectIDByPinnedThreadID: owningProjectIDByPinnedThreadID(in: snapshot)
             ),
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty,
             showsPullRequests: viewModel.settingsService.current.showsPullRequestsInSidebar
@@ -77,6 +78,25 @@ extension SidebarView {
             guard case .thread(let thread) = item.kind,
                   thread.effectiveMode == .task,
                   let projectID = thread.project?.persistentModelID else {
+                continue
+            }
+            map[thread.persistentModelID] = projectID
+        }
+        return map
+    }
+
+    /// The owning project for every standalone pinned Project-mode thread that may unpin by
+    /// dropping onto that project group. Scheduled-attached threads are excluded, matching their
+    /// disabled context-menu Unpin; `setThreadPinned`'s attachment guard is the backstop.
+    func owningProjectIDByPinnedThreadID(
+        in snapshot: SidebarRenderSnapshot
+    ) -> [PersistentIdentifier: PersistentIdentifier] {
+        var map: [PersistentIdentifier: PersistentIdentifier] = [:]
+        for item in snapshot.pinnedItems {
+            guard case .thread(let thread) = item.kind,
+                  thread.effectiveMode == .project,
+                  let projectID = thread.project?.persistentModelID,
+                  viewModel.scheduledTaskAttachmentReason(for: thread) == nil else {
                 continue
             }
             map[thread.persistentModelID] = projectID

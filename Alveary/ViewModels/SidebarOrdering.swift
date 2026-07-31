@@ -5,6 +5,9 @@ enum SidebarDragItem: Hashable {
     case pinnedThread(PersistentIdentifier)
     case pinnedTask(PersistentIdentifier)
     case unpinnedTask(PersistentIdentifier)
+    /// An unpinned Project-mode thread nested under its project. Draggable only to pin: its sole
+    /// target is `Pinned`, because a project's child list has no manual order to reorder against.
+    case projectThread(PersistentIdentifier)
 }
 
 enum SidebarDropSection: Hashable {
@@ -17,7 +20,8 @@ enum SidebarDropPlacement: Hashable {
     case before
     case after
     case end
-    /// Drop onto a container rather than between rows. Reparents; never reorders.
+    /// Drop onto a container rather than between rows. Reparents a Task, or unpins a pinned
+    /// thread dropped onto its owning project; never reorders.
     case into
 }
 
@@ -126,7 +130,7 @@ extension SidebarDragItem {
         switch self {
         case .project:
             false
-        case .pinnedThread, .pinnedTask, .unpinnedTask:
+        case .pinnedThread, .pinnedTask, .unpinnedTask, .projectThread:
             true
         }
     }

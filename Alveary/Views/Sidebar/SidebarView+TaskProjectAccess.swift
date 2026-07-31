@@ -10,7 +10,8 @@ struct SidebarTaskProjectAccessDrop: Equatable {
 /// routing decision is testable without driving a live drag.
 func sidebarTaskProjectAccessDrop(
     item: SidebarDragItem,
-    target: SidebarDropTarget
+    target: SidebarDropTarget,
+    logicalOrder: SidebarDragLogicalOrder
 ) -> SidebarTaskProjectAccessDrop? {
     guard target.placement == .into,
           case .project(let projectID) = target.item else {
@@ -18,8 +19,13 @@ func sidebarTaskProjectAccessDrop(
     }
     switch item {
     case .pinnedTask(let threadID), .unpinnedTask(let threadID):
+        // A drop on the Task's own project is the unpin, which rides the synchronous commit; the
+        // access flow must never claim it or the grant dialog would appear for a pure unpin.
+        guard logicalOrder.projectIDByTaskID[threadID] != projectID else {
+            return nil
+        }
         return SidebarTaskProjectAccessDrop(threadID: threadID, projectID: projectID)
-    case .project, .pinnedThread:
+    case .project, .pinnedThread, .projectThread:
         return nil
     }
 }

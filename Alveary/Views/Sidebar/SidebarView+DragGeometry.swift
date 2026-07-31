@@ -132,7 +132,7 @@ private func sidebarItemDropCandidates(
             viewport: viewport,
             stickyOcclusionMaxY: stickyOcclusionMaxY
         )
-    case .pinnedThread, .pinnedTask, .unpinnedTask:
+    case .pinnedThread, .pinnedTask, .unpinnedTask, .projectThread:
         return sidebarPinnedBoundaryCandidatesIfPinnable(
             dragging: item,
             geometry: geometry,
@@ -231,7 +231,7 @@ private func sidebarTasksSectionDropCandidate(
         accepts = logicalOrder.unpinnableTaskIDs.contains(threadID)
     case .unpinnedTask(let threadID):
         accepts = logicalOrder.projectIDByTaskID[threadID] != nil
-    case .project, .pinnedThread:
+    case .project, .pinnedThread, .projectThread:
         accepts = false
     }
     guard accepts, let tasksHeaderFrame = geometry[.tasksHeader]?.sidebarUnion else {

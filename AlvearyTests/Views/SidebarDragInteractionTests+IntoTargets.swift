@@ -209,6 +209,8 @@ extension SidebarDragInteractionTests {
             projectsHeaderIsSticky: false
         )
 
+        // A project reorders only; a pinned thread without an owning-project entry (no backing
+        // project, or scheduled-attached) has no unpin group either.
         for sourceItem in [
             SidebarDragItem.project(source.persistentModelID),
             .pinnedThread(source.persistentModelID)
@@ -257,22 +259,38 @@ extension SidebarDragInteractionTests {
         let taskID = task.persistentModelID
         let projectID = project.persistentModelID
         let intoTarget = SidebarDropTarget(section: .projects, item: .project(projectID), placement: .into)
+        let order = SidebarDragLogicalOrder(
+            pinnedItems: [],
+            regularProjects: [.project(projectID)],
+            projectsHeaderIsSticky: false
+        )
 
         XCTAssertEqual(
-            sidebarTaskProjectAccessDrop(item: .unpinnedTask(taskID), target: intoTarget),
+            sidebarTaskProjectAccessDrop(item: .unpinnedTask(taskID), target: intoTarget, logicalOrder: order),
             SidebarTaskProjectAccessDrop(threadID: taskID, projectID: projectID)
         )
         XCTAssertEqual(
-            sidebarTaskProjectAccessDrop(item: .pinnedTask(taskID), target: intoTarget),
+            sidebarTaskProjectAccessDrop(item: .pinnedTask(taskID), target: intoTarget, logicalOrder: order),
             SidebarTaskProjectAccessDrop(threadID: taskID, projectID: projectID)
         )
-        XCTAssertNil(sidebarTaskProjectAccessDrop(item: .project(projectID), target: intoTarget))
-        XCTAssertNil(sidebarTaskProjectAccessDrop(item: .pinnedThread(taskID), target: intoTarget))
+        XCTAssertNil(sidebarTaskProjectAccessDrop(item: .project(projectID), target: intoTarget, logicalOrder: order))
+        XCTAssertNil(sidebarTaskProjectAccessDrop(item: .pinnedThread(taskID), target: intoTarget, logicalOrder: order))
         // A reorder onto the same project must keep flowing through the ordering commit.
         XCTAssertNil(sidebarTaskProjectAccessDrop(
             item: .unpinnedTask(taskID),
-            target: SidebarDropTarget(section: .projects, item: .project(projectID), placement: .before)
+            target: SidebarDropTarget(section: .projects, item: .project(projectID), placement: .before),
+            logicalOrder: order
         ))
+        // A drop on the Task's own project is the unpin, which rides the synchronous commit; the
+        // access flow must never claim it or the grant dialog would appear for a pure unpin.
+        let owningOrder = SidebarDragLogicalOrder(
+            pinnedItems: [],
+            regularProjects: [.project(projectID)],
+            projectsHeaderIsSticky: false,
+            projectIDByTaskID: [taskID: projectID]
+        )
+        XCTAssertNil(sidebarTaskProjectAccessDrop(item: .pinnedTask(taskID), target: intoTarget, logicalOrder: owningOrder))
+        XCTAssertNil(sidebarTaskProjectAccessDrop(item: .unpinnedTask(taskID), target: intoTarget, logicalOrder: owningOrder))
     }
 
     func testIneligibleAccessDropExplainsItselfInsteadOfOpeningTheDialog() async throws {

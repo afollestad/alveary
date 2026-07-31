@@ -123,11 +123,21 @@ func sidebarPinnedSectionContainerCandidate(
 /// Whether `Pinned` presents itself as one container rather than a set of insertion boundaries.
 /// Callers must suppress its boundaries when this holds, or the container would eclipse them
 /// anyway by scoring a perfect hit across the whole section.
+///
+/// Sources arriving from outside `Pinned` — an unpinned Task from `Tasks`, or a project-nested
+/// Project-mode thread pinning itself — are choosing membership, not position, so the whole
+/// section is one appending target for both.
 func sidebarPinnedSectionIsContainerTarget(
     dragging item: SidebarDragItem,
     logicalOrder: SidebarDragLogicalOrder
 ) -> Bool {
-    guard case .unpinnedTask = item, !logicalOrder.pinnedItems.isEmpty else {
+    switch item {
+    case .unpinnedTask, .projectThread:
+        break
+    case .project, .pinnedThread, .pinnedTask:
+        return false
+    }
+    guard !logicalOrder.pinnedItems.isEmpty else {
         return false
     }
     return sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder)

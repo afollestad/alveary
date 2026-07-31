@@ -92,6 +92,47 @@ extension SidebarView {
         )
     }
 
+    /// A project's nested child rows: Task children drag as `.unpinnedTask` (they can leave for
+    /// `Tasks` or pin), Project-mode children drag as `.projectThread` (pin is their only move).
+    func projectChildDragConfiguration(
+        for thread: AgentThread,
+        logicalOrder: SidebarDragLogicalOrder
+    ) -> SidebarRowDragConfiguration? {
+        switch thread.effectiveMode {
+        case .task:
+            return unpinnedTaskDragConfiguration(for: thread, logicalOrder: logicalOrder)
+        case .project:
+            return projectThreadDragConfiguration(for: thread, logicalOrder: logicalOrder)
+        }
+    }
+
+    private func projectThreadDragConfiguration(
+        for thread: AgentThread,
+        logicalOrder: SidebarDragLogicalOrder
+    ) -> SidebarRowDragConfiguration? {
+        guard editingThreadID == nil,
+              thread.effectiveMode == .project,
+              !thread.isPinned,
+              !thread.isDraft,
+              thread.archivedAt == nil,
+              // A pinned parent absorbs child pins, so the drop's only destination would render
+              // nothing — withhold the source rather than offer a drag that looks like a no-op.
+              thread.project?.isPinned != true else {
+            return nil
+        }
+
+        let item = SidebarDragItem.projectThread(thread.persistentModelID)
+        return SidebarRowDragConfiguration(
+            isEnabled: sidebarDragSourceIsEnabled(item),
+            onChanged: { location in
+                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
+            },
+            onEnded: { location in
+                finishSidebarDragGesture(item: item, location: location)
+            }
+        )
+    }
+
     func unpinnedTaskDragConfiguration(
         for thread: AgentThread,
         logicalOrder: SidebarDragLogicalOrder

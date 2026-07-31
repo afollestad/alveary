@@ -12,7 +12,8 @@ private struct SidebarIntoTargetSection {
 
 /// Dropping a Task onto a project converts it into one of that project's threads, so the target is
 /// the whole project group — header plus any expanded children — rather than an insertion point.
-/// Only Task sources qualify; Projects and Project-mode threads keep pure reordering semantics.
+/// Pinned sources see exactly one group, their owning project, where dropping unpins them back in
+/// place. Projects and unpinned Project-mode threads keep pure reordering/pinning semantics.
 func sidebarProjectIntoDropCandidates(
     dragging item: SidebarDragItem,
     geometry: [SidebarDragGeometryRole: [CGRect]],
@@ -20,17 +21,14 @@ func sidebarProjectIntoDropCandidates(
     stickyOcclusionMaxY: CGFloat?,
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
-    switch item {
-    case .project, .pinnedThread:
+    guard let includesProject = sidebarIntoTargetProjectFilter(dragging: item, logicalOrder: logicalOrder) else {
         return []
-    case .pinnedTask, .unpinnedTask:
-        break
     }
 
-    // Only `Pinned` publishes insertion boundaries to a Task source, and only while the source can
-    // hold a standalone pin and is not taking the section as one container. `Projects` offers a
-    // Task nothing to reorder against, so banding its groups any wider would turn reachable
-    // `.into` area into dead space.
+    // `Pinned` publishes insertion boundaries to this source only while it can hold a standalone
+    // pin (or already reorders there) and is not taking the section as one container. `Projects`
+    // offers these sources nothing to reorder against, so banding its groups any wider would turn
+    // reachable `.into` area into dead space.
     let pinnedPublishesBoundaries = sidebarSourceCanHoldStandalonePin(item, logicalOrder: logicalOrder)
         && !sidebarPinnedSectionIsContainerTarget(dragging: item, logicalOrder: logicalOrder)
     let sections = [
@@ -47,17 +45,9 @@ func sidebarProjectIntoDropCandidates(
             reservesBoundaryHalfRows: false
         )
     ]
-    // A Task's own project is not a destination: dropping there could only fail validation.
-    let ownProjectID: PersistentIdentifier?
-    switch item {
-    case .pinnedTask(let threadID), .unpinnedTask(let threadID):
-        ownProjectID = logicalOrder.projectIDByTaskID[threadID]
-    case .project, .pinnedThread:
-        ownProjectID = nil
-    }
     return sections.flatMap { entry in
         entry.items.compactMap { candidateItem in
-            guard case .project(let projectID) = candidateItem, projectID != ownProjectID else {
+            guard case .project(let projectID) = candidateItem, includesProject(projectID) else {
                 return nil
             }
             return sidebarProjectIntoDropCandidate(
@@ -67,6 +57,35 @@ func sidebarProjectIntoDropCandidates(
                 viewport: viewport
             )
         }
+    }
+}
+
+/// Which project groups this source may drop into, or `nil` when it has none. Task sources
+/// reparent into any project but their own; pinned sources see exactly one — their owning project,
+/// where dropping unpins in place. A pinned Task's own project appears only while the Task may
+/// unpin at all, the same `unpinnableTaskIDs` gate the `Tasks` container uses; a pinned thread's
+/// gate is baked into `owningProjectIDByPinnedThreadID` itself.
+private func sidebarIntoTargetProjectFilter(
+    dragging item: SidebarDragItem,
+    logicalOrder: SidebarDragLogicalOrder
+) -> ((PersistentIdentifier) -> Bool)? {
+    switch item {
+    case .project, .projectThread:
+        return nil
+    case .pinnedThread(let threadID):
+        guard let owningProjectID = logicalOrder.owningProjectIDByPinnedThreadID[threadID] else {
+            return nil
+        }
+        return { $0 == owningProjectID }
+    case .pinnedTask(let threadID):
+        let owningProjectID = logicalOrder.projectIDByTaskID[threadID]
+        let mayUnpinIntoOwningProject = logicalOrder.unpinnableTaskIDs.contains(threadID)
+        return { $0 != owningProjectID || mayUnpinIntoOwningProject }
+    case .unpinnedTask(let threadID):
+        // A Task's own project is not a reparent destination: dropping there could only fail
+        // validation.
+        let owningProjectID = logicalOrder.projectIDByTaskID[threadID]
+        return { $0 != owningProjectID }
     }
 }
 

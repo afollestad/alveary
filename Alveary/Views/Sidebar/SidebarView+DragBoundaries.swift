@@ -265,8 +265,8 @@ func sidebarItemBoundaryFrames(
     case .pinnedTask(let threadID):
         let frame = geometry[.pinnedTask(threadID)]?.sidebarUnion
         return SidebarDragBoundaryFrames(header: frame, terminal: frame)
-    case .unpinnedTask:
-        // Unpinned tasks are drag sources only; they never appear in logical-order arrays or publish geometry.
+    case .unpinnedTask, .projectThread:
+        // Sources only; neither appears in logical-order arrays or publishes geometry.
         return SidebarDragBoundaryFrames(header: nil, terminal: nil)
     }
 }

@@ -93,4 +93,57 @@ extension SidebarView {
         }
         clearSidebarDragState()
     }
+
+    /// Routes the frozen drop once drag state is cleared: `.into` access grants go to the async
+    /// confirmation flow; everything else — reorders, pins, and the owning-project unpin — rides
+    /// the synchronous commit.
+    func commitFinalizedSidebarDrop(
+        session: SidebarDragSession,
+        candidate: SidebarDropCandidate,
+        selectedItem: SidebarItem?
+    ) {
+        if let access = sidebarTaskProjectAccessDrop(
+            item: session.item,
+            target: candidate.target,
+            logicalOrder: session.logicalOrder
+        ) {
+            requestTaskProjectAccessDrop(threadID: access.threadID, projectID: access.projectID)
+            return
+        }
+        let selectedThreadBelongsToDraggedProject: Bool
+        // Any mode: a Task placed in the dragged project is one of its children too.
+        if case .project(let projectID) = session.item,
+           case .thread(let selectedThread) = selectedItem {
+            selectedThreadBelongsToDraggedProject = selectedThread.project?.persistentModelID == projectID
+        } else {
+            selectedThreadBelongsToDraggedProject = false
+        }
+
+        do {
+            let didMove = try viewModel.commitSidebarDrop(
+                dragItem: session.item,
+                target: candidate.target
+            )
+            guard didMove else {
+                return
+            }
+
+            // The only `.into` drop the synchronous commit accepts is the owning-project unpin,
+            // which lands the row inside that group — expand it so a collapsed project does not
+            // swallow the drop.
+            if candidate.target.placement == .into,
+               case .project(let projectID) = candidate.target.item,
+               let project = projects.first(where: { $0.persistentModelID == projectID }) {
+                expandedProjects.insert(project.path)
+            }
+            if selectedThreadBelongsToDraggedProject,
+               case .project(let projectID) = session.item,
+               let project = projects.first(where: { $0.persistentModelID == projectID }) {
+                expandedProjects.insert(project.path)
+            }
+            syncExpansionWithSelection(selectedItem)
+        } catch {
+            viewModel.presentSidebarError(error)
+        }
+    }
 }
