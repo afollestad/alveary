@@ -184,6 +184,20 @@ extension GitHubPullRequestsService {
         ]
     }
 
+    /// `convertPullRequestToDraft`; the inverse of `readyForReviewArgs`, and
+    /// likewise GraphQL-only — REST cannot put a pull request back into draft.
+    static func convertToDraftArgs(nodeID: String) -> [String] {
+        [
+            "api", "graphql",
+            "-f", """
+            query=mutation($pullRequestId: ID!) {
+              convertPullRequestToDraft(input: { pullRequestId: $pullRequestId }) { clientMutationId }
+            }
+            """,
+            "-f", "pullRequestId=\(nodeID)"
+        ]
+    }
+
     // MARK: - Pending review mutations
 
     /// `addPullRequestReview` **without** an `event`, which is what leaves the

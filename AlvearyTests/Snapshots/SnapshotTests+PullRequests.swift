@@ -341,6 +341,10 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
         throw PullRequestsServiceError.transport("unused")
     }
 
+    func convertPullRequestToDraft(nodeID: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
     func addReaction(subjectID: String, content: PullRequestReactionContent) async throws {
         throw PullRequestsServiceError.transport("unused")
     }

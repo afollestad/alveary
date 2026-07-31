@@ -310,6 +310,8 @@ struct PullRequestPaneReviewFooter: View {
             viewModel.setPullRequestClosed(false)
         case .markReady:
             viewModel.markPullRequestReadyForReview()
+        case .markDraft:
+            viewModel.convertPullRequestToDraft()
         }
     }
 

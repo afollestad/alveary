@@ -70,6 +70,32 @@ extension GitHubPullRequestsServiceTests {
         }
     }
 
+    func testConvertToDraftSendsGraphQLMutation() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(pullRequestsShellResult(stdout: "{}")))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        try await service.convertPullRequestToDraft(nodeID: "PR_41")
+
+        let invocations = await shell.invocations
+        let invocation = try XCTUnwrap(invocations.first)
+        XCTAssertEqual(invocation.args.first, "api")
+        XCTAssertEqual(invocation.args.dropFirst().first, "graphql")
+        XCTAssertTrue(invocation.args.contains { $0.contains("convertPullRequestToDraft") })
+        XCTAssertTrue(invocation.args.contains("pullRequestId=PR_41"))
+        XCTAssertEqual(invocations.count, 1)
+    }
+
+    func testConvertToDraftFailureIsClassified() async {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(pullRequestsShellResult(stderr: "gh: Not Found (HTTP 404)", exitCode: 1)))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        await assertPullRequestsServiceThrows(.requestFailed(statusCode: 404)) {
+            try await service.convertPullRequestToDraft(nodeID: "PR_41")
+        }
+    }
+
     func testStateChangeFailureIsClassified() async {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stderr: "gh: Unprocessable Entity (HTTP 422)", exitCode: 1)))

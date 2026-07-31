@@ -23,6 +23,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var updatePullRequestBodyResult: Result<Void, PullRequestsServiceError> = .success(())
     var setClosedResult: Result<Void, PullRequestsServiceError> = .success(())
     var readyForReviewResult: Result<Void, PullRequestsServiceError> = .success(())
+    var convertToDraftResult: Result<Void, PullRequestsServiceError> = .success(())
     var reactionResult: Result<Void, PullRequestsServiceError> = .success(())
     var replyResult: Result<Void, PullRequestsServiceError> = .success(())
     var resolveResult: Result<Void, PullRequestsServiceError> = .success(())
@@ -101,6 +102,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     private(set) var reviewRequests: [String] = []
     private(set) var stateChanges: [Bool] = []
     private(set) var readyForReviewNodeIDs: [String] = []
+    private(set) var convertToDraftNodeIDs: [String] = []
     private(set) var createdPendingReviewNodeIDs: [String] = []
     private(set) var addedPendingComments: [AddedPendingComment] = []
     private(set) var updatedPendingComments: [UpdatedPendingComment] = []
@@ -246,6 +248,11 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     func markPullRequestReadyForReview(nodeID: String) async throws {
         readyForReviewNodeIDs.append(nodeID)
         return try readyForReviewResult.get()
+    }
+
+    func convertPullRequestToDraft(nodeID: String) async throws {
+        convertToDraftNodeIDs.append(nodeID)
+        return try convertToDraftResult.get()
     }
 
     func updateReview(_ id: PullRequestIdentifier, reviewID: Int, body: String) async throws {

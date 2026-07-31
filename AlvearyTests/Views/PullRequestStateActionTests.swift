@@ -3,7 +3,8 @@ import XCTest
 @testable import Alveary
 
 /// The review footer's state-change policy: permission, merged pull requests, the
-/// deleted head branch that blocks reopening, and the draft-only ready action.
+/// deleted head branch that blocks reopening, and the node-id-gated draft actions
+/// in both directions.
 final class PullRequestStateActionTests: XCTestCase {
     private func detail(
         status: PullRequestStatus,
@@ -55,12 +56,19 @@ final class PullRequestStateActionTests: XCTestCase {
         XCTAssertEqual(PullRequestStateAction.available(for: detail(status: .merged)), [])
     }
 
-    func testOpenPullRequestOnlyCloses() {
+    func testOpenPullRequestLeadsWithCloseThenMarkDraft() {
         let actions = PullRequestStateAction.available(for: detail(status: .open))
-        XCTAssertEqual(actions.map(\.kind), [.close])
-        XCTAssertEqual(actions.first?.title, "Close PR")
-        XCTAssertEqual(actions.first?.isEnabled, true)
+        XCTAssertEqual(actions.map(\.kind), [.close, .markDraft])
+        XCTAssertEqual(actions.map(\.title), ["Close PR", "Mark as draft"])
+        XCTAssertEqual(actions.map(\.isEnabled), [true, true])
         XCTAssertNil(actions.first?.disabledNote)
+        XCTAssertNil(actions.last?.disabledNote)
+    }
+
+    func testOpenWithoutNodeIDCannotMarkDraft() {
+        // The mutation is addressed by node id, exactly like leaving draft.
+        let actions = PullRequestStateAction.available(for: detail(status: .open, nodeID: nil))
+        XCTAssertEqual(actions.map(\.kind), [.close])
     }
 
     func testDraftLeadsWithMarkReadyThenClose() {
@@ -101,6 +109,9 @@ final class PullRequestStateActionTests: XCTestCase {
         XCTAssertEqual(PullRequestStateAction.placeholder(for: .open)?.isDestructive, true)
         XCTAssertEqual(PullRequestStateAction.available(for: detail(status: .closed)).first?.isDestructive, false)
         XCTAssertEqual(PullRequestStateAction.available(for: detail(status: .draft)).first?.isDestructive, false)
+        // Mark as draft rides beside Close PR in the split button and must not
+        // inherit its red when the menu promotes it to the primary side.
+        XCTAssertEqual(PullRequestStateAction.available(for: detail(status: .open)).last?.isDestructive, false)
     }
 
     func testMergedHasNoPlaceholder() {

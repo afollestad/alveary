@@ -217,6 +217,9 @@ protocol PullRequestsService: Sendable {
     /// Takes a draft pull request out of draft. Addressed by GraphQL node id —
     /// GitHub exposes no REST endpoint for it.
     func markPullRequestReadyForReview(nodeID: String) async throws
+    /// Puts an open pull request back into draft. Addressed by GraphQL node id
+    /// for the same reason as its inverse: GitHub exposes no REST endpoint.
+    func convertPullRequestToDraft(nodeID: String) async throws
     /// Permanently deletes an already-submitted review comment the viewer may delete.
     func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws
     /// Rewrites the body of a top-level conversation comment the viewer may update.

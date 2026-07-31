@@ -7,6 +7,7 @@ struct PullRequestStateAction: Equatable, Identifiable {
         case close
         case reopen
         case markReady
+        case markDraft
     }
 
     let kind: Kind
@@ -69,7 +70,12 @@ struct PullRequestStateAction: Equatable, Identifiable {
         case .closed:
             return [reopen(detail)]
         case .open:
-            return [close]
+            // Returning to draft is addressed by node id, like leaving it, so a
+            // loaded pull request without one only offers the close.
+            guard detail == nil || detail?.nodeID != nil else {
+                return [close]
+            }
+            return [close, markDraft]
         case .draft:
             // Leaving draft is the likelier action on a draft, so it leads; the
             // mutation is addressed by node id, so a loaded detail needs one.
@@ -90,6 +96,13 @@ struct PullRequestStateAction: Equatable, Identifiable {
     private static let markReady = PullRequestStateAction(
         kind: .markReady,
         title: "Mark ready for review",
+        isEnabled: true,
+        disabledNote: nil
+    )
+
+    private static let markDraft = PullRequestStateAction(
+        kind: .markDraft,
+        title: "Mark as draft",
         isEnabled: true,
         disabledNote: nil
     )

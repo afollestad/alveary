@@ -159,8 +159,10 @@ extension SnapshotTests {
     }
 
     func testPullRequestPaneReviewFooterCollapsed() {
-        // With write permission the collapsed row splits evenly between Close PR
-        // and Submit review...; the pending count moves above them.
+        // With write permission the collapsed row splits evenly between the state
+        // button and Submit review...; the pending count moves above them. An open
+        // pull request carries two state actions, so the state half is the split
+        // button — Close PR on the primary side, Mark as draft behind the caret.
         let fixture = PullRequestReviewFooterFixture(pendingCommentCount: 2, status: .open)
 
         assertMacSnapshot(

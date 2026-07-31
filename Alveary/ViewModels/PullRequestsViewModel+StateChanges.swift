@@ -1,7 +1,7 @@
 import Foundation
 
-// State changes to the pull request itself — close, reopen, and leaving draft —
-// driven by the review footer's state button.
+// State changes to the pull request itself — close, reopen, and both draft
+// directions — driven by the review footer's state button.
 extension PullRequestsViewModel {
     /// Closes or reopens the active pane's pull request.
     func setPullRequestClosed(_ closed: Bool) {
@@ -19,6 +19,17 @@ extension PullRequestsViewModel {
         }
         performStateChange(optimisticStatus: .open) { service, _ in
             try await service.markPullRequestReadyForReview(nodeID: nodeID)
+        }
+    }
+
+    /// Puts the active pane's open pull request back into draft. The node id is
+    /// resolved up front for the same reason as its inverse.
+    func convertPullRequestToDraft() {
+        guard let nodeID = activePaneSession?.detail?.nodeID else {
+            return
+        }
+        performStateChange(optimisticStatus: .draft) { service, _ in
+            try await service.convertPullRequestToDraft(nodeID: nodeID)
         }
     }
 

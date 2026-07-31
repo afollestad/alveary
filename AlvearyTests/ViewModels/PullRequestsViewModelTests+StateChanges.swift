@@ -3,9 +3,9 @@ import XCTest
 
 @testable import Alveary
 
-/// State changes to the pull request itself — close, reopen, leaving draft: the
-/// status applies to the pane and its list row right away, then the detail
-/// refetches so GitHub's own timeline row lands in the Overview.
+/// State changes to the pull request itself — close, reopen, and both draft
+/// directions: the status applies to the pane and its list row right away, then
+/// the detail refetches so GitHub's own timeline row lands in the Overview.
 @MainActor
 extension PullRequestsViewModelTests {
     private func openedPane(
@@ -13,7 +13,8 @@ extension PullRequestsViewModelTests {
         refetchedStatus: PullRequestStatus? = nil,
         nodeID: String? = "PR_7",
         setClosedResult: Result<Void, PullRequestsServiceError> = .success(()),
-        readyForReviewResult: Result<Void, PullRequestsServiceError> = .success(())
+        readyForReviewResult: Result<Void, PullRequestsServiceError> = .success(()),
+        convertToDraftResult: Result<Void, PullRequestsServiceError> = .success(())
     ) async -> OpenedStatePane {
         let service = StubPullRequestsService()
         let summary = makePullRequestSummary(number: 7, status: status)
@@ -23,6 +24,7 @@ extension PullRequestsViewModelTests {
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         service.setClosedResult = setClosedResult
         service.readyForReviewResult = readyForReviewResult
+        service.convertToDraftResult = convertToDraftResult
         service.listResult = .success(PullRequestListResult(summaries: [summary], warnings: []))
         let viewModel = makePullRequestsViewModel(service: service)
         await viewModel.refresh()
@@ -137,6 +139,57 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(pane.viewModel.activePaneSession?.isChangingState, false)
     }
 
+    func testConvertToDraftSendsNodeIDAndTakesTheRefetchedStatus() async {
+        let pane = await openedPane(status: .open, refetchedStatus: .draft)
+        let detailCallsBefore = pane.service.detailCallCount
+
+        pane.viewModel.convertPullRequestToDraft()
+        await pane.waitForStateChange()
+
+        XCTAssertEqual(pane.service.convertToDraftNodeIDs, ["PR_7"])
+        XCTAssertEqual(pane.service.stateChanges, [])
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .draft)
+        XCTAssertEqual(pane.listedStatus, .draft)
+        // The refetch is what brings the converted-to-draft timeline row in.
+        XCTAssertEqual(pane.service.detailCallCount, detailCallsBefore + 1)
+        XCTAssertNil(pane.viewModel.activePaneSession?.stateChangeError)
+    }
+
+    func testConvertToDraftFailureKeepsOpenAndSurfacesError() async {
+        let pane = await openedPane(
+            status: .open,
+            convertToDraftResult: .failure(.requestFailed(statusCode: 404))
+        )
+        let detailCallsBefore = pane.service.detailCallCount
+
+        pane.viewModel.convertPullRequestToDraft()
+        await pane.waitForStateChange()
+
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .open)
+        XCTAssertEqual(pane.listedStatus, .open)
+        XCTAssertEqual(pane.service.detailCallCount, detailCallsBefore)
+        XCTAssertEqual(
+            pane.viewModel.activePaneSession?.stateChangeError,
+            PullRequestsServiceError.requestFailed(statusCode: 404).localizedDescription
+        )
+    }
+
+    func testConvertToDraftWithoutNodeIDDoesNothing() async {
+        // Same guard as leaving draft: no node id means no mutation to address,
+        // so the optimistic status must not move either.
+        let pane = await openedPane(status: .open, nodeID: nil)
+
+        pane.viewModel.convertPullRequestToDraft()
+        for _ in 0..<50 {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(pane.mutationCount, 0)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .open)
+        XCTAssertEqual(pane.listedStatus, .open)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.isChangingState, false)
+    }
+
     func testStateChangeIgnoresReentryWhileInFlight() async {
         let pane = await openedPane(status: .open, refetchedStatus: .closed)
         let gate = PullRequestsServiceGate()
@@ -169,7 +222,9 @@ private struct OpenedStatePane {
 
     /// Every state mutation the stub has seen, whichever endpoint it used.
     var mutationCount: Int {
-        service.stateChanges.count + service.readyForReviewNodeIDs.count
+        service.stateChanges.count
+            + service.readyForReviewNodeIDs.count
+            + service.convertToDraftNodeIDs.count
     }
 
     /// Settles once the mutation has been sent and the round trip has finished.

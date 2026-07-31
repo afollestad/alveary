@@ -207,6 +207,20 @@ extension GitHubPullRequestsService {
         }
     }
 
+    func convertPullRequestToDraft(nodeID: String) async throws {
+        let ghExecutable = try await resolveGitHubCLI()
+        // A mutation: never retried. Returning to draft has no REST endpoint
+        // either, so it mirrors `markPullRequestReadyForReview` exactly.
+        let result = try await runGitHubCLI(
+            executable: ghExecutable,
+            args: Self.convertToDraftArgs(nodeID: nodeID),
+            timeout: .seconds(30)
+        )
+        guard result.succeeded else {
+            throw Self.makeError(from: result)
+        }
+    }
+
     func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws {
         let ghExecutable = try await resolveGitHubCLI()
         // A mutation: never retried.
