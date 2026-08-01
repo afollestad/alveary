@@ -50,10 +50,11 @@ extension DiffViewerViewModel {
         await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
     }
 
-    /// Rides `performRefresh`: one extra rev-list per refresh rather than a
-    /// second polling pass. A failed probe reads as nothing to push — the flag
-    /// is informational — and nil means the snapshot went stale across the
-    /// probe, so the caller must publish nothing.
+    /// Rides `performRefresh`: two extra probes per refresh rather than a
+    /// second polling pass. A failed probe reads as nothing to push and no
+    /// branch — both are informational — and nil means the snapshot went stale
+    /// across the probes, so the caller must publish nothing. The probes share
+    /// one `isCurrent` guard so the flags and the branch publish atomically.
     func resolvedWorkingState(
         for snapshot: DiffWorkspaceRefreshSnapshot,
         in directory: String
@@ -63,13 +64,27 @@ extension DiffViewerViewModel {
             remoteName: snapshot.target.remoteName,
             in: directory
         )) ?? false
+        let currentBranch = try? await gitService.currentBranch(in: directory)
         guard diffStore.isCurrent(snapshot) else {
             return nil
         }
         return DiffViewerWorkingState(
             hasChanges: !snapshot.files.isEmpty,
-            hasUnpushedCommits: hasUnpushedCommits
+            hasUnpushedCommits: hasUnpushedCommits,
+            currentBranch: Self.displayableBranchName(currentBranch)
         )
+    }
+
+    /// `git rev-parse --abbrev-ref HEAD` prints the literal `HEAD` on a detached
+    /// checkout, which is a worse label than none at all.
+    static func displayableBranchName(_ branch: String?) -> String? {
+        guard let trimmed = branch?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty,
+              trimmed != "HEAD" else {
+            return nil
+        }
+
+        return trimmed
     }
 
     /// Pushes the checked-out branch; the follow-up refresh recomputes

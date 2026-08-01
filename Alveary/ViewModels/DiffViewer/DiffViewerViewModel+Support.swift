@@ -19,13 +19,17 @@ enum DiffWorkspaceLoadState: Equatable {
     case failed
 }
 
-/// What the working tree offers the footer's action ladder: dirty files to
-/// commit, and commits the remote lacks to push. A struct rather than an enum
-/// because the two are independently true — a dirty tree can also sit on
-/// unpushed commits.
+/// The checked-out workspace's published Git state: what the working tree
+/// offers the footer's action ladder — dirty files to commit, and commits the
+/// remote lacks to push — plus the branch the header names. A struct rather
+/// than an enum because the flags are independently true (a dirty tree can also
+/// sit on unpushed commits), and the branch rides along so the four
+/// `workingState = .none` resets clear it too; it can never survive a target
+/// switch. `currentBranch` is nil on a detached HEAD.
 struct DiffViewerWorkingState: Equatable {
     var hasChanges = false
     var hasUnpushedCommits = false
+    var currentBranch: String?
 
     static let none = DiffViewerWorkingState()
 }

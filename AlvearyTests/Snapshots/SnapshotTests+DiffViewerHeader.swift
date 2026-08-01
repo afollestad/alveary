@@ -59,6 +59,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
+                branchName: "main",
                 mode: .currentChanges,
                 selectedFiles: [],
                 showsFileListDivider: false,
@@ -81,6 +82,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
+                branchName: "main",
                 mode: .currentChanges,
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
@@ -96,6 +98,54 @@ extension SnapshotTests {
             ),
             size: CGSize(width: 320, height: 72),
             named: "diff_viewer_header_minimum_width_all_actions_with_close"
+        )
+    }
+
+    /// The branch label is the header's only flexible child, so a long name must
+    /// truncate at its cap instead of pushing the action row off the pane.
+    func testDiffViewerPaneHeaderLongBranchNameTruncates() {
+        assertMacSnapshot(
+            DiffViewerPaneHeader(
+                activeDirectory: "/tmp/alveary",
+                branchName: "alveary/a-deliberately-overlong-feature-branch-name",
+                mode: .currentChanges,
+                selectedFiles: [],
+                showsFileListDivider: false,
+                showsFileActions: true,
+                onModeSelected: { _ in },
+                onStageSelectedFiles: {},
+                onUnstageSelectedFiles: {},
+                onDiscardSelectedFiles: {},
+                onClose: {}
+            ),
+            size: CGSize(width: 380, height: 72),
+            named: "diff_viewer_header_long_branch_name"
+        )
+    }
+
+    /// The narrowest pane, carrying a long branch name *and* every action — the
+    /// case where the branch label competes hardest with the action row. The
+    /// label must yield rather than clip an action away.
+    func testDiffViewerPaneHeaderMinimumWidthLongBranchName() {
+        assertMacSnapshot(
+            DiffViewerPaneHeader(
+                activeDirectory: "/tmp/alveary",
+                branchName: "alveary/a-deliberately-overlong-feature-branch-name",
+                mode: .currentChanges,
+                selectedFiles: [
+                    FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
+                    FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
+                ],
+                showsFileListDivider: false,
+                showsFileActions: true,
+                onModeSelected: { _ in },
+                onStageSelectedFiles: {},
+                onUnstageSelectedFiles: {},
+                onDiscardSelectedFiles: {},
+                onClose: {}
+            ),
+            size: CGSize(width: 320, height: 72),
+            named: "diff_viewer_header_minimum_width_long_branch_name"
         )
     }
 }

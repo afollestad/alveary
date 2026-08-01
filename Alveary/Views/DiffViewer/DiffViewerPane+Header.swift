@@ -2,6 +2,9 @@ import SwiftUI
 
 struct DiffViewerPaneHeader: View {
     let activeDirectory: String?
+    /// Nil on a detached HEAD, a non-Git directory, or before the first refresh
+    /// resolves — the label is simply absent rather than showing a placeholder.
+    var branchName: String?
     let mode: DiffViewerMode
     let selectedFiles: [FileStatus]
     let showsFileListDivider: Bool
@@ -17,6 +20,14 @@ struct DiffViewerPaneHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             modeTabs
+
+            if let branchName {
+                // Priority over the `Spacer`, which is otherwise just as
+                // flexible and takes the whole slack, collapsing the label to
+                // nothing. The action container's fixed frame is unaffected.
+                DiffViewerHeaderBranchLabel(branchName: branchName)
+                    .layoutPriority(1)
+            }
 
             Spacer(minLength: 0)
 
@@ -137,10 +148,47 @@ struct DiffViewerPaneHeader: View {
 
 private let diffViewerHeaderChipHeight: CGFloat = 36
 private let diffViewerHeaderActionSpacing: CGFloat = 6
+/// Caps the branch label so a long name cannot eat the whole header on a wide
+/// pane. Deliberately a maximum only: a `minWidth` would make the label
+/// inflexible and it would compete with the action container's fixed frame
+/// instead of yielding to it, clipping the close button away.
+private let diffViewerHeaderBranchLabelMaxWidth: CGFloat = 180
+private let diffViewerHeaderBranchLeadingSpacing: CGFloat = 10
 private let diffViewerHeaderActionAnimation = Animation.easeInOut(duration: 0.18)
 /// Octicons are fixed artwork rather than font-sized symbols, so header glyphs
 /// state their own box inside the shared icon button's footprint.
 private let diffViewerHeaderOcticonSize: CGFloat = 20
+
+/// Names the checked-out branch beside the mode chips, and is the header's only
+/// flexible child — the chips are `fixedSize` and the action container is a
+/// fixed reserved width — so it is what SwiftUI shrinks first. Its own type
+/// rather than an inline modifier chain so the chain stays off the header
+/// `body`'s type-check budget. `.help` keeps the full name discoverable once
+/// truncated, matching the file list's `.help(file.path)` convention; tail
+/// truncation is right here because branch names disambiguate on their prefix.
+private struct DiffViewerHeaderBranchLabel: View {
+    let branchName: String
+
+    var body: some View {
+        Text(branchName)
+            .font(.subheadline.weight(.medium))
+            // The concrete dynamic color, not the hierarchical `.secondary`
+            // style: this label sits on the header's `.bar` material, and inside
+            // that vibrancy a hierarchical style composites against the material
+            // rather than painting, which renders the glyphs invisible wherever
+            // the backdrop is absent — as in the snapshot host. The chips escape
+            // it only because their capsule fill is opaque.
+            .foregroundStyle(Color(nsColor: .secondaryLabelColor))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: diffViewerHeaderBranchLabelMaxWidth, alignment: .leading)
+            .clipped()
+            .padding(.leading, diffViewerHeaderBranchLeadingSpacing)
+            .help(branchName)
+            .accessibilityLabel("Current branch")
+            .accessibilityValue(branchName)
+    }
+}
 
 private enum DiffViewerHeaderIcon {
     case system(String)

@@ -78,6 +78,7 @@ struct DiffViewerPane: View {
         VStack(spacing: 0) {
             DiffViewerPaneHeader(
                 activeDirectory: viewModel.activeDirectory,
+                branchName: viewModel.workingState.currentBranch,
                 mode: mode,
                 selectedFiles: viewModel.selectedFiles,
                 showsFileListDivider: isFileListTopDividerVisible,

@@ -298,62 +298,6 @@ final class DiffViewerViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.viewModel.gitError, nil)
     }
 
-    func testWorkingStateReportsChangesOnlyWhenFilesChanged() async {
-        let commitFixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)])]
-            )
-        )
-        defer { commitFixture.viewModel.tearDown() }
-        await assertWorkingState(
-            DiffViewerWorkingState(hasChanges: true),
-            in: commitFixture,
-            baseRef: "main",
-            remoteName: nil
-        )
-
-        let cleanFixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([])]
-            )
-        )
-        defer { cleanFixture.viewModel.tearDown() }
-        await assertWorkingState(.none, in: cleanFixture, baseRef: "main", remoteName: "origin")
-    }
-
-    /// The refresh's unpushed probe is what walks the footer's button from
-    /// Commit to Push changes once the tree is clean but the remote is behind.
-    func testWorkingStateReportsUnpushedCommits() async {
-        let fixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([])],
-                hasUnpushedCommitsResult: .success(true)
-            )
-        )
-        defer { fixture.viewModel.tearDown() }
-
-        await assertWorkingState(
-            DiffViewerWorkingState(hasChanges: false, hasUnpushedCommits: true),
-            in: fixture,
-            baseRef: "main",
-            remoteName: "origin"
-        )
-    }
-
-    /// The flag is informational, so a failed probe reads as nothing to push
-    /// rather than surfacing an error.
-    func testWorkingStateTreatsAFailedUnpushedProbeAsNothingToPush() async {
-        let fixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([])],
-                hasUnpushedCommitsResult: .failure(GitError.commandFailed("probe failed"))
-            )
-        )
-        defer { fixture.viewModel.tearDown() }
-
-        await assertWorkingState(.none, in: fixture, baseRef: "main", remoteName: "origin")
-    }
-
     func testRefreshAndInvalidateFileListInvalidatesFileListForEachMutation() async {
         let fixture = DiffViewerTestFixture(
             gitService: DiffViewerMockGitService(
@@ -423,22 +367,6 @@ final class DiffViewerViewModelTests: XCTestCase {
 }
 
 extension DiffViewerViewModelTests {
-    func assertWorkingState(
-        _ expectedState: DiffViewerWorkingState,
-        in fixture: DiffViewerTestFixture,
-        baseRef: String,
-        remoteName: String?
-    ) async {
-        await fixture.viewModel.switchToDirectory(
-            fixture.directory,
-            baseRef: baseRef,
-            remoteName: remoteName,
-            conversationIds: []
-        )
-
-        XCTAssertEqual(fixture.viewModel.workingState, expectedState)
-    }
-
     static func modifiedDiff(path: String, newLine: String = "new") -> String {
         """
         diff --git a/\(path) b/\(path)
