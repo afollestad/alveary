@@ -65,7 +65,7 @@ private extension DiffCreatePullRequestModal {
     var header: some View {
         HStack(alignment: .center, spacing: 12) {
             DiffBranchSelectionMenu(
-                baseBranch: model.context.baseBranch,
+                baseBranch: model.baseBranch,
                 currentBranch: model.currentBranch,
                 selectedTitle: model.selectedBranchTitle,
                 isBaseSelectable: model.isBaseBranchSelectable,

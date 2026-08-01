@@ -58,6 +58,17 @@ final class DiffGitCommitModalModel: Identifiable {
     var errorMessage: String?
     var didCommitSuccessfully = false
     var forcePushRequired = false
+    /// Resolved from the repository during `load()`; nil until then, and when
+    /// the repository records no discoverable default.
+    private(set) var resolvedBaseBranch: String?
+
+    /// The branch this modal treats as the base. `context.baseBranch` is only a
+    /// hint — it comes from `Project.baseRef`, captured once at import — and a
+    /// stale value makes the "you are on base, commit to a new branch" gate fire
+    /// on the wrong branch.
+    var baseBranch: String {
+        resolvedBaseBranch ?? context.baseBranch
+    }
 
     private let gitService: GitService
     private let settingsService: SettingsService
@@ -110,16 +121,16 @@ final class DiffGitCommitModalModel: Identifiable {
     var selectedBranchTitle: String {
         switch branchSelection {
         case .base:
-            return context.baseBranch
+            return baseBranch
         case .current:
-            return currentBranch ?? context.baseBranch
+            return currentBranch ?? baseBranch
         case .new:
             return "New branch"
         }
     }
 
     var isBaseBranchSelectable: Bool {
-        currentBranch == nil || currentBranch == context.baseBranch
+        currentBranch == nil || currentBranch == baseBranch
     }
 
     /// The checked-out branch is only worth offering as its own choice when it
@@ -128,13 +139,13 @@ final class DiffGitCommitModalModel: Identifiable {
         guard let currentBranch else {
             return false
         }
-        return currentBranch != context.baseBranch
+        return currentBranch != baseBranch
     }
 
     var preflightMessage: String? {
         if branchSelection == .base,
            let currentBranch,
-           currentBranch != context.baseBranch {
+           currentBranch != baseBranch {
             return "Current branch is `\(currentBranch)`; commit to it or choose New branch."
         }
 
@@ -177,10 +188,16 @@ final class DiffGitCommitModalModel: Identifiable {
         defer { isLoadingInitialState = false }
 
         do {
+            // Resolve the base first: the on-base check below and every later
+            // read would otherwise be decided against the stale hint.
+            resolvedBaseBranch = await gitService.defaultBranch(
+                remoteName: context.remoteName,
+                in: context.directory
+            )
             currentBranch = try await gitService.currentBranch(in: context.directory)
             // Off the base branch, the existing checkout is the expected commit
             // destination; a new branch stays available but is no longer implied.
-            branchSelection = currentBranch == context.baseBranch ? .base : .current
+            branchSelection = currentBranch == baseBranch ? .base : .current
             try await refreshStagedPreflightIfNeeded()
         } catch {
             errorMessage = "Commit setup failed: \(error.localizedDescription)"
@@ -326,7 +343,7 @@ private extension DiffGitCommitModalModel {
 
         if branchSelection == .base,
            let currentBranch,
-           currentBranch != context.baseBranch {
+           currentBranch != baseBranch {
             throw DiffGitCommitModalError.message(
                 "Current branch is `\(currentBranch)`; commit to it or choose New branch."
             )

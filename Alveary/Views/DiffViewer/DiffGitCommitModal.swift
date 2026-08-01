@@ -76,7 +76,7 @@ private extension DiffGitCommitModal {
 
     var branchMenu: some View {
         DiffBranchSelectionMenu(
-            baseBranch: model.context.baseBranch,
+            baseBranch: model.baseBranch,
             currentBranch: model.currentBranch,
             selectedTitle: model.selectedBranchTitle,
             isBaseSelectable: model.isBaseBranchSelectable,

@@ -17,6 +17,36 @@ extension DiffGitCommitModalModelTests {
         XCTAssertEqual(model.selectedBranchTitle, "main")
     }
 
+    /// The repository's default branch wins over the context's persisted hint,
+    /// so the "you are on base" gate fires on the branch that is actually the
+    /// base rather than whichever one was checked out at project import.
+    func testPrefersTheResolvedDefaultBranchOverTheContextHint() async {
+        let gitService = DiffGitCommitModalMockGitService(
+            statusResults: [],
+            currentBranchResult: .success("trunk"),
+            defaultBranchResult: "trunk"
+        )
+        let model = makeModel(gitService: gitService)
+
+        await model.load()
+
+        XCTAssertEqual(model.baseBranch, "trunk")
+        XCTAssertEqual(model.branchSelection, .base)
+        XCTAssertEqual(model.selectedBranchTitle, "trunk")
+    }
+
+    func testBaseBranchFallsBackToTheContextWhenNoDefaultResolves() async {
+        let gitService = DiffGitCommitModalMockGitService(
+            statusResults: [],
+            currentBranchResult: .success("main")
+        )
+        let model = makeModel(gitService: gitService)
+
+        await model.load()
+
+        XCTAssertEqual(model.baseBranch, "main")
+    }
+
     func testDefaultsToCurrentBranchWhenCurrentBranchDiffersFromBase() async {
         var settings = AppSettings()
         settings.branchPrefix = "af/"

@@ -45,11 +45,22 @@ These instructions cover the services under `Alveary/Services/Git/`, including w
 
 - The ahead-of-base family lives in `CLIGitService+AheadCommits.swift`: count, details, the unpushed check, and their shared ref helpers.
 - `GitService.hasUnpushedCommits(baseBranch:remoteName:in:)` answers "does the checked-out branch have commits its remote does not" — distinct from `commitsAheadOfBase`, which counts against the *base* and stays positive on a fully pushed feature branch. With an upstream it is the `upstream..HEAD` count; with none (never pushed) it falls back to the ahead-of-base count, so a checkout sitting exactly on base does not offer a pointless first push.
-- `GitService.commitsAheadOfBase` and `commitsAheadOfBaseDetails` must share the same compare-ref resolution:
-    - Prefer `remoteName/baseBranch` when `refs/remotes/<remoteName>/<baseBranch>` exists.
-    - When `remoteName` is missing, prefer the current branch upstream, then `origin/baseBranch` if that remote-tracking ref exists.
-    - Fall back to the local `baseBranch` only when no remote compare ref can be resolved.
+- `GitService.commitsAheadOfBase` and `commitsAheadOfBaseDetails` must share the same compare-ref resolution, and it is anchored on the **resolved default branch**, not the caller's `baseBranch`:
+    - Resolve the remote with `effectiveRemoteName`, then the default branch with `resolvedDefaultBranch`. Prefer `<remote>/<default>` when its remote-tracking ref is known to exist, otherwise the local default branch.
+    - Only when nothing resolves does the caller's `baseBranch` come into play: `<remote>/<baseBranch>`, then the local `baseBranch`, then the current branch upstream, then `baseBranch` as-is.
+    - **Treat `baseBranch` as a hint, never the authority.** It comes from `Project.baseRef`, which `SidebarViewModel.resolveBaseRef` captures once at project import and falls back to whichever branch was checked out then — there is no re-detection and no override UI. A project imported on a feature branch used to make this resolve to the current branch's upstream, which turned the Commits tab into "commits not yet pushed". A Task thread carries no project and so no `remoteName` at all, which hit the same path.
+    - **On the default branch the answer is still the unpushed commits**, because the compare ref is the remote-tracking form; off it, the list is everything the default branch does not have yet. Both are wanted.
     - Keep count and detail behavior aligned so contextual actions and commit views agree about which commits are ahead.
+
+## Default Branch
+
+- `CLIGitService+DefaultBranch.swift` owns default-branch resolution: `defaultBranch(remoteName:in:)` for callers that just need the name, `resolvedDefaultBranch(remote:in:)` for callers that already resolved the remote and want to know whether the remote-tracking ref was proven, plus `effectiveRemoteName` and `localBranchExists`.
+- Resolution order: `symbolic-ref refs/remotes/<remote>/HEAD`, then the conventional `<remote>/main` and `<remote>/master` tracking refs, then local `main` and `master`, then nil. Only `git clone` writes that symbolic ref and plenty of working clones lack it, so the conventional probes are load-bearing rather than paranoia.
+- `resolvedDefaultBranch` reports `hasRemoteTrackingRef` so `aheadCompareRef` can build `<remote>/<branch>` without re-running the probe that proved it. Resolving `refs/remotes/<remote>/HEAD` counts, because it is a symbolic ref *to* that tracking ref.
+- `effectiveRemoteName` falls back to the repository's own remotes — a sole remote, else `origin` when present — so callers with no persisted remote metadata (older projects, projectless Task threads) still resolve against a remote instead of silently dropping to the branch upstream.
+- **`GitService.defaultBranch` has a protocol-extension default returning nil.** That leaves a conforming stub on its caller's persisted base branch, which is the pre-resolution behavior; only the CLI implementation and tests exercising resolution override it.
+- The `refs/remotes/<remote>/HEAD` parsing is deliberately duplicated in `SidebarViewModel.parseRemoteHead`. That view model holds a `ShellRunner` rather than a `GitService`, so sharing would mean injecting a new dependency and churning the import-invocation assertions in `SidebarViewModelTests`.
+- **`GitServiceTests+Commits.swift` asserts exact `MockShellRunner` invocation sequences.** Any probe added or removed here shifts those indices, so update the enqueued results and the asserted argv together.
 
 ## Diff Stats
 

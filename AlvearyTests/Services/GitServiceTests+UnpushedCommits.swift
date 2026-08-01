@@ -57,8 +57,8 @@ extension GitServiceTests {
         let shell = MockShellRunner()
         // 1: rev-parse @{upstream} fails -> no upstream.
         await shell.enqueue(.success(shellResult(exitCode: 128)))
-        // 2: show-ref refs/remotes/origin/main -> the compare ref exists.
-        await shell.enqueue(.success(shellResult()))
+        // 2: symbolic-ref refs/remotes/origin/HEAD -> the recorded default.
+        await shell.enqueue(.success(shellResult(stdout: "refs/remotes/origin/main\n")))
         // 3: rev-list origin/main..HEAD --count -> three commits ahead of base.
         await shell.enqueue(.success(shellResult(stdout: "3\n")))
         let service = CLIGitService(shell: shell)
@@ -79,7 +79,7 @@ extension GitServiceTests {
     func testHasUnpushedCommitsWithoutAnUpstreamOnBaseIsFalse() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(.success(shellResult(exitCode: 128)))
-        await shell.enqueue(.success(shellResult()))
+        await shell.enqueue(.success(shellResult(stdout: "refs/remotes/origin/main\n")))
         await shell.enqueue(.success(shellResult(stdout: "0\n")))
         let service = CLIGitService(shell: shell)
 

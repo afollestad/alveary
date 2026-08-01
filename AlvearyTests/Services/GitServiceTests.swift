@@ -349,12 +349,12 @@ final class GitServiceTests: XCTestCase {
         XCTAssertEqual(invocations[1].args, ["restore", "--worktree", "--", "tracked.swift"])
     }
 
-    func testCommitsAheadOfBasePrefersRemoteTrackedRefWhenItExists() async throws {
+    func testCommitsAheadOfBaseCountsAgainstTheResolvedDefaultBranch() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(
             .success(
                 ShellResult(
-                    stdout: "",
+                    stdout: "refs/remotes/origin/main\n",
                     stderr: "",
                     exitCode: 0,
                     stdoutWasTruncated: false,
@@ -381,7 +381,7 @@ final class GitServiceTests: XCTestCase {
         XCTAssertEqual(count, 3)
 
         let invocations = await shell.invocations
-        XCTAssertEqual(invocations[0].args, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"])
+        XCTAssertEqual(invocations[0].args, ["symbolic-ref", "refs/remotes/origin/HEAD"])
         XCTAssertEqual(invocations[1].args, ["rev-list", "origin/main..HEAD", "--count"])
     }
 

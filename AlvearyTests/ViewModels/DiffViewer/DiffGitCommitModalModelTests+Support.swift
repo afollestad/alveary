@@ -63,6 +63,7 @@ actor DiffGitCommitModalMockGitService: GitService {
     private let commitsAheadDetailsResult: Result<[CommitInfo], Error>
     private let diffForCommitResults: [String: String]
     private let hasUnpushedCommitsResult: Result<Bool, Error>
+    private let defaultBranchResult: String?
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
     private var recordedHasStagedChangesCallCount = 0
@@ -87,7 +88,8 @@ actor DiffGitCommitModalMockGitService: GitService {
         commitsAheadResult: Result<Int, Error> = .success(0),
         commitsAheadDetailsResult: Result<[CommitInfo], Error> = .success([]),
         diffForCommitResults: [String: String] = [:],
-        hasUnpushedCommitsResult: Result<Bool, Error> = .success(false)
+        hasUnpushedCommitsResult: Result<Bool, Error> = .success(false),
+        defaultBranchResult: String? = nil
     ) {
         self.statusResults = statusResults
         self.diffStatsResults = diffStatsResults
@@ -104,6 +106,11 @@ actor DiffGitCommitModalMockGitService: GitService {
         self.commitsAheadDetailsResult = commitsAheadDetailsResult
         self.diffForCommitResults = diffForCommitResults
         self.hasUnpushedCommitsResult = hasUnpushedCommitsResult
+        self.defaultBranchResult = defaultBranchResult
+    }
+
+    func defaultBranch(remoteName: String?, in directory: String) async -> String? {
+        defaultBranchResult
     }
 
     func status(in directory: String) async throws -> [FileStatus] {

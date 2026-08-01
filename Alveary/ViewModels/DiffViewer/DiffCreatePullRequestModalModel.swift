@@ -53,6 +53,17 @@ final class DiffCreatePullRequestModalModel: Identifiable {
     var isLoadingInitialState = false
     var phase: OperationPhase = .idle
     var errorMessage: String?
+    /// Resolved from the repository during `load()`; nil until then, and when
+    /// the repository records no discoverable default.
+    private(set) var resolvedBaseBranch: String?
+
+    /// What this pull request merges into. `context.baseBranch` is only a hint —
+    /// it comes from `Project.baseRef`, captured once at import — so a stale
+    /// value would open the pull request against a different branch than the one
+    /// the commit list and the ahead count are measured against.
+    var baseBranch: String {
+        resolvedBaseBranch ?? context.baseBranch
+    }
 
     private let gitService: GitService
     private let pullRequestsService: any PullRequestsService
@@ -97,9 +108,9 @@ final class DiffCreatePullRequestModalModel: Identifiable {
     var selectedBranchTitle: String {
         switch branchSelection {
         case .base:
-            return context.baseBranch
+            return baseBranch
         case .current:
-            return currentBranch ?? context.baseBranch
+            return currentBranch ?? baseBranch
         case .new:
             return "New branch"
         }
@@ -116,7 +127,7 @@ final class DiffCreatePullRequestModalModel: Identifiable {
         guard let currentBranch else {
             return false
         }
-        return currentBranch != context.baseBranch
+        return currentBranch != baseBranch
     }
 
     var preflightMessage: String? {
@@ -129,7 +140,7 @@ final class DiffCreatePullRequestModalModel: Identifiable {
         }
 
         if commitsAhead == 0 {
-            return "No commits ahead of `\(context.baseBranch)` to open a pull request for."
+            return "No commits ahead of `\(baseBranch)` to open a pull request for."
         }
 
         return nil
@@ -165,12 +176,18 @@ final class DiffCreatePullRequestModalModel: Identifiable {
         defer { isLoadingInitialState = false }
 
         do {
+            // Resolve the base first: the on-base check below and every later
+            // read would otherwise be decided against the stale hint.
+            resolvedBaseBranch = await gitService.defaultBranch(
+                remoteName: context.remoteName,
+                in: context.directory
+            )
             currentBranch = try await gitService.currentBranch(in: context.directory)
             // Off base, the checkout is the natural head branch; on base, a new
             // branch is the only way to a valid pull request.
-            branchSelection = currentBranch == context.baseBranch ? .new : .current
+            branchSelection = currentBranch == baseBranch ? .new : .current
             commitsAhead = try await gitService.commitsAheadOfBase(
-                baseBranch: context.baseBranch,
+                baseBranch: baseBranch,
                 remoteName: context.remoteName,
                 in: context.directory
             )
@@ -220,7 +237,7 @@ final class DiffCreatePullRequestModalModel: Identifiable {
             phase = .creating
             let identifier = try await pullRequestsService.createPullRequest(
                 inDirectory: context.directory,
-                baseBranch: context.baseBranch,
+                baseBranch: baseBranch,
                 headBranch: headBranch,
                 title: content.title,
                 body: content.body
@@ -268,7 +285,7 @@ private extension DiffCreatePullRequestModalModel {
             throw DiffCreatePullRequestModalError.message("Create a new branch to open a pull request.")
         }
 
-        if branchSelection == .current, currentBranch == context.baseBranch {
+        if branchSelection == .current, currentBranch == baseBranch {
             throw DiffCreatePullRequestModalError.message("Create a new branch to open a pull request.")
         }
 
@@ -283,14 +300,14 @@ private extension DiffCreatePullRequestModalModel {
         }
 
         let aheadCount = try await gitService.commitsAheadOfBase(
-            baseBranch: context.baseBranch,
+            baseBranch: baseBranch,
             remoteName: context.remoteName,
             in: context.directory
         )
         commitsAhead = aheadCount
         guard aheadCount > 0 else {
             throw DiffCreatePullRequestModalError.message(
-                "No commits ahead of `\(context.baseBranch)` to open a pull request for."
+                "No commits ahead of `\(baseBranch)` to open a pull request for."
             )
         }
     }
@@ -332,7 +349,7 @@ private extension DiffCreatePullRequestModalModel {
 
     func generationContext() async throws -> String {
         let commits = try await gitService.commitsAheadOfBaseDetails(
-            baseBranch: context.baseBranch,
+            baseBranch: baseBranch,
             remoteName: context.remoteName,
             in: context.directory
         )
@@ -343,7 +360,7 @@ private extension DiffCreatePullRequestModalModel {
             generationCommits.append(PullRequestGenerationCommit(subject: commit.message, diff: diff))
         }
         return PullRequestGenerationPromptBuilder.context(
-            baseBranch: context.baseBranch,
+            baseBranch: baseBranch,
             headBranch: branchSelection == .new ? trimmedNewBranchName : (currentBranch ?? ""),
             commitSubjects: commits.map(\.message),
             commits: generationCommits

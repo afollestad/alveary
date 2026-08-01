@@ -27,6 +27,37 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
         XCTAssertTrue(harness.model.isCurrentBranchSelectable)
     }
 
+    /// The repository's default branch wins over the context's persisted hint,
+    /// so the pull request opens against the same branch the commit list and the
+    /// ahead count are measured against.
+    func testLoadPrefersTheResolvedDefaultBranchOverTheContextHint() async throws {
+        let harness = try Harness(currentBranch: "alveary/feature", defaultBranch: "trunk")
+
+        await harness.model.load()
+
+        XCTAssertEqual(harness.model.baseBranch, "trunk")
+        XCTAssertEqual(harness.model.branchSelection, .current)
+    }
+
+    /// A checkout sitting on the *resolved* default still needs a new branch,
+    /// even though the stale hint says otherwise.
+    func testLoadOnTheResolvedDefaultBranchDefaultsToANewBranch() async throws {
+        let harness = try Harness(currentBranch: "trunk", defaultBranch: "trunk")
+
+        await harness.model.load()
+
+        XCTAssertEqual(harness.model.branchSelection, .new)
+        XCTAssertFalse(harness.model.isCurrentBranchSelectable)
+    }
+
+    func testBaseBranchFallsBackToTheContextWhenNoDefaultResolves() async throws {
+        let harness = try Harness(currentBranch: "alveary/feature")
+
+        await harness.model.load()
+
+        XCTAssertEqual(harness.model.baseBranch, "main")
+    }
+
     // MARK: - Preflight
 
     func testNoCommitsAheadBlocksSubmission() async throws {
@@ -196,12 +227,14 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
             currentBranch: String,
             commitsAhead: Int = 1,
             pushResults: [Result<Void, Error>] = [.success(())],
-            generatedText: String = "Generated title\n\nGenerated body."
+            generatedText: String = "Generated title\n\nGenerated body.",
+            defaultBranch: String? = nil
         ) throws {
             gitService = Self.makeGitService(
                 currentBranch: currentBranch,
                 commitsAhead: commitsAhead,
-                pushResults: pushResults
+                pushResults: pushResults,
+                defaultBranch: defaultBranch
             )
             service = StubPullRequestsService()
 
@@ -237,7 +270,8 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
         private static func makeGitService(
             currentBranch: String,
             commitsAhead: Int,
-            pushResults: [Result<Void, Error>]
+            pushResults: [Result<Void, Error>],
+            defaultBranch: String?
         ) -> DiffGitCommitModalMockGitService {
             DiffGitCommitModalMockGitService(
                 statusResults: [],
@@ -252,7 +286,8 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
                         date: Date(timeIntervalSince1970: 100)
                     )
                 ]),
-                diffForCommitResults: ["abc123": "+ cached line"]
+                diffForCommitResults: ["abc123": "+ cached line"],
+                defaultBranchResult: defaultBranch
             )
         }
 

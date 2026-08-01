@@ -106,6 +106,12 @@ protocol GitService: Sendable {
     func currentBranch(in directory: String) async throws -> String
     func currentHeadHash(in directory: String) async throws -> String
     func listFiles(in directory: String) async throws -> [String]
+    /// The repository's default branch, or nil when none can be discovered.
+    /// Callers hold a persisted base branch that is only a hint — it is captured
+    /// once at project import and never re-detected — so anything comparing
+    /// against "the default branch" must resolve it here and keep the persisted
+    /// value as a fallback.
+    func defaultBranch(remoteName: String?, in directory: String) async -> String?
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo]
     /// Whether the checked-out branch has commits its remote does not. Distinct
@@ -119,6 +125,13 @@ protocol GitService: Sendable {
 }
 
 extension GitService {
+    /// Undiscoverable by default, which leaves callers on their persisted base
+    /// branch — the behavior that predates default-branch resolution. Only the
+    /// CLI implementation and tests that exercise the resolution override it.
+    func defaultBranch(remoteName: String?, in directory: String) async -> String? {
+        nil
+    }
+
     func diffStats(in directory: String) async throws -> DiffStats {
         try await diffStats(in: directory, knownStatuses: nil)
     }
