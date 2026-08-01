@@ -75,44 +75,18 @@ private extension DiffGitCommitModal {
     }
 
     var branchMenu: some View {
-        Menu {
-            Button(model.context.baseBranch) {
-                model.selectBaseBranch()
-            }
-            .disabled(!model.isBaseBranchSelectable)
-
-            if model.isCurrentBranchSelectable, let currentBranch = model.currentBranch {
-                Button(currentBranch) {
-                    model.selectCurrentBranch()
-                }
-            }
-
-            Button("+ New branch") {
-                model.selectNewBranch()
-            }
-        } label: {
-            HStack(spacing: 8) {
-                OcticonImage(name: "GitBranchOcticon", size: diffGitCommitModalOcticonSize)
-                    .foregroundStyle(.secondary)
-
-                Text(model.selectedBranchTitle)
-                    .lineLimit(1)
-
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 32)
-            .background(
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(model.controlsDisabled)
-        .accessibilityLabel("Commit branch")
-        .accessibilityValue(model.selectedBranchTitle)
+        DiffBranchSelectionMenu(
+            baseBranch: model.context.baseBranch,
+            currentBranch: model.currentBranch,
+            selectedTitle: model.selectedBranchTitle,
+            isBaseSelectable: model.isBaseBranchSelectable,
+            isCurrentSelectable: model.isCurrentBranchSelectable,
+            isDisabled: model.controlsDisabled,
+            accessibilityLabel: "Commit branch",
+            onSelectBase: model.selectBaseBranch,
+            onSelectCurrent: model.selectCurrentBranch,
+            onSelectNew: model.selectNewBranch
+        )
     }
 
     var footer: some View {

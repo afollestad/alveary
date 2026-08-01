@@ -39,6 +39,7 @@ actor SnapshotMockGitService: GitService {
     private var commitDiffResults: [String]
     private var hasStagedChangesResult: Bool
     private var currentBranchResult: String
+    private var commitsAheadResult: Int
 
     init(
         statusResults: [[FileStatus]],
@@ -49,7 +50,8 @@ actor SnapshotMockGitService: GitService {
         aheadCommitResults: [[CommitInfo]] = [],
         commitDiffResults: [String] = [],
         hasStagedChangesResult: Bool = true,
-        currentBranchResult: String = "feature/chat-input"
+        currentBranchResult: String = "feature/chat-input",
+        commitsAheadResult: Int = 0
     ) {
         self.statusResults = statusResults
         self.diffStatsResults = diffStatsResults
@@ -60,6 +62,7 @@ actor SnapshotMockGitService: GitService {
         self.commitDiffResults = commitDiffResults
         self.hasStagedChangesResult = hasStagedChangesResult
         self.currentBranchResult = currentBranchResult
+        self.commitsAheadResult = commitsAheadResult
     }
 
     func status(in directory: String) async throws -> [FileStatus] {
@@ -127,7 +130,7 @@ actor SnapshotMockGitService: GitService {
     }
 
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int {
-        0
+        commitsAheadResult
     }
 
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {

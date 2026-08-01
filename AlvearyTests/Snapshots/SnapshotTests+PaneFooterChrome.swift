@@ -21,12 +21,23 @@ extension SnapshotTests {
             }
 
             fixture.footer(initiallyExpanded: false)
+
+            DiffViewerPaneFooter(
+                actions: DiffViewerFooterAction.available(
+                    workingState: DiffViewerWorkingState(hasChanges: true, hasUnpushedCommits: true),
+                    canCommit: true,
+                    canCreatePullRequest: true,
+                    canViewPullRequest: false
+                ),
+                isPerformingAction: false,
+                onAction: { _ in }
+            )
         }
         .frame(width: 460)
 
         assertMacSnapshot(
             stacked,
-            size: CGSize(width: 460, height: 160),
+            size: CGSize(width: 460, height: 224),
             named: "pane_footer_chrome_parity"
         )
     }

@@ -9,13 +9,10 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 mode: .currentChanges,
-                contextualAction: .commit,
                 selectedFiles: [],
-                canCommit: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
-                onCommitRequested: {},
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
@@ -30,42 +27,18 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 mode: .commits,
-                contextualAction: .none,
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false)
                 ],
-                canCommit: true,
                 showsFileListDivider: false,
                 showsFileActions: false,
                 onModeSelected: { _ in },
-                onCommitRequested: {},
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
             ),
             size: CGSize(width: 460, height: 72),
             named: "diff_viewer_header_commits_tabs"
-        )
-    }
-
-    func testDiffViewerPaneHeaderCommitsTabsHideCommitAction() {
-        assertMacSnapshot(
-            DiffViewerPaneHeader(
-                activeDirectory: "/tmp/alveary",
-                mode: .commits,
-                contextualAction: .commit,
-                selectedFiles: [],
-                canCommit: true,
-                showsFileListDivider: false,
-                showsFileActions: false,
-                onModeSelected: { _ in },
-                onCommitRequested: {},
-                onStageSelectedFiles: {},
-                onUnstageSelectedFiles: {},
-                onDiscardSelectedFiles: {}
-            ),
-            size: CGSize(width: 460, height: 72),
-            named: "diff_viewer_header_commits_tabs_no_actions"
         )
     }
 

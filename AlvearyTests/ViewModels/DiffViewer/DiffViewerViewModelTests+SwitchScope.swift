@@ -29,7 +29,7 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.diffStatsLoadState, .loaded)
         // A full-scope switch over these statuses resolves `.commit`; stats-only
         // must skip contextual-action work entirely.
-        XCTAssertEqual(fixture.viewModel.contextualAction, .none)
+        XCTAssertEqual(fixture.viewModel.workingState, .none)
     }
 
     func testFullSwitchAfterStatsOnlyUpgradesSameTarget() async {
@@ -56,7 +56,7 @@ extension DiffViewerViewModelTests {
 
         let statusCalls = await fixture.gitService.statusCallCount()
         XCTAssertEqual(statusCalls, 2)
-        XCTAssertEqual(fixture.viewModel.contextualAction, .commit)
+        XCTAssertTrue(fixture.viewModel.workingState.hasChanges)
     }
 
     func testStatsOnlySwitchAfterFullSameTargetIsDeduped() async {
@@ -83,7 +83,7 @@ extension DiffViewerViewModelTests {
 
         let statusCalls = await fixture.gitService.statusCallCount()
         XCTAssertEqual(statusCalls, 1)
-        XCTAssertEqual(fixture.viewModel.contextualAction, .commit)
+        XCTAssertTrue(fixture.viewModel.workingState.hasChanges)
     }
 
     func testRepeatedFullSwitchSameTargetStaysDeduped() async {
@@ -266,7 +266,7 @@ extension DiffViewerViewModelTests {
 
         let statusCalls = await fixture.gitService.statusCallCount()
         XCTAssertEqual(statusCalls, 3)
-        XCTAssertEqual(fixture.viewModel.contextualAction, .commit)
+        XCTAssertTrue(fixture.viewModel.workingState.hasChanges)
     }
 
     func testNewerHiddenRefreshSurvivesOlderFullRefreshCompletionUntilReveal() async {
@@ -318,6 +318,6 @@ extension DiffViewerViewModelTests {
 
         let statusCalls = await fixture.gitService.statusCallCount()
         XCTAssertEqual(statusCalls, 4)
-        XCTAssertEqual(fixture.viewModel.contextualAction, .commit)
+        XCTAssertTrue(fixture.viewModel.workingState.hasChanges)
     }
 }

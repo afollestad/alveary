@@ -237,4 +237,13 @@ protocol PullRequestsService: Sendable {
     func setReviewThreadResolved(threadID: String, resolved: Bool) async throws
     /// Requests (or re-requests) a review from a user by login.
     func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws
+    /// Opens a pull request from the branch checked out in `directory`,
+    /// returning the created pull request's identifier.
+    func createPullRequest(
+        inDirectory directory: String,
+        baseBranch: String,
+        headBranch: String,
+        title: String,
+        body: String
+    ) async throws -> PullRequestIdentifier
 }

@@ -5,6 +5,7 @@ struct GitSettingsTabView: View {
     let gitHubCLI: GitHubCLIService
     @Binding var branchPrefix: String
     @Binding var commitMessageGenerationPrompt: String
+    @Binding var pullRequestGenerationPrompt: String
     @Binding var worktreesBaseDirectory: String
     @Binding var createWorktreeByDefault: Bool
     @Binding var pullRequestsEnabled: Bool
@@ -58,7 +59,15 @@ struct GitSettingsTabView: View {
                     SettingsToggleRow(
                         "Enable pull request integration",
                         helpText: GitSettingsHelp.pullRequestsEnabled,
-                        isOn: $pullRequestsEnabled,
+                        isOn: $pullRequestsEnabled
+                    )
+
+                    SettingsPromptEditorRow(
+                        "Pull request generation prompt",
+                        helpText: GitSettingsHelp.pullRequestGenerationPrompt,
+                        prompt: $pullRequestGenerationPrompt,
+                        defaultPrompt: AppSettings.defaultPullRequestGenerationPrompt,
+                        placeholder: "Write the prompt used to generate pull request titles and descriptions.",
                         showsDivider: false
                     )
                 }
@@ -191,4 +200,6 @@ private enum GitSettingsHelp {
         "New threads default to creating a worktree instead of using the main project folder. You can override this in the composer."
     static let pullRequestsEnabled =
         "Show the \"Pull requests\" sidebar row and the toolbar button for linking pull requests to a thread."
+    static let pullRequestGenerationPrompt =
+        "Prompt sent to the agent when generating a pull request title or description left blank in the create pull request modal."
 }

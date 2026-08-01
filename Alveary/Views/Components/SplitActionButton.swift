@@ -53,6 +53,11 @@ struct SplitActionButton<Option: Hashable>: View {
                     .padding(.horizontal, horizontalPadding)
                     .frame(maxWidth: expandsHorizontally ? .infinity : nil)
                     .frame(height: controlHeight)
+                    // The fill lives on the outer `HStack` so it can span the
+                    // divider and caret, which leaves this label unbacked — and
+                    // a `.plain` button hit-tests its label's own shape, so
+                    // without this only the glyphs took clicks.
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 

@@ -88,6 +88,7 @@ actor DiffViewerMockGitService: GitService {
     private let currentBranchResult: Result<String, Error>
     private let currentHeadHashResult: Result<String, Error>
     private let commitsAheadResult: Result<Int, Error>
+    private let hasUnpushedCommitsResult: Result<Bool, Error>
     private var recordedStatusCallCount = 0
     private var recordedDiffStatsCallCount = 0
     private var recordedDiffCalls: [DiffCall] = []
@@ -120,7 +121,8 @@ actor DiffViewerMockGitService: GitService {
         commitDiffDelays: [Duration] = [],
         currentBranchResult: Result<String, Error> = .success("feature"),
         currentHeadHashResult: Result<String, Error> = .success("abcdef1234567890"),
-        commitsAheadResult: Result<Int, Error> = .success(0)
+        commitsAheadResult: Result<Int, Error> = .success(0),
+        hasUnpushedCommitsResult: Result<Bool, Error> = .success(false)
     ) {
         self.statusResults = statusResults
         self.statusDelays = statusDelays
@@ -140,6 +142,7 @@ actor DiffViewerMockGitService: GitService {
         self.currentBranchResult = currentBranchResult
         self.currentHeadHashResult = currentHeadHashResult
         self.commitsAheadResult = commitsAheadResult
+        self.hasUnpushedCommitsResult = hasUnpushedCommitsResult
     }
 
     func status(in directory: String) async throws -> [FileStatus] {
@@ -237,6 +240,10 @@ actor DiffViewerMockGitService: GitService {
 
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int {
         try commitsAheadResult.get()
+    }
+
+    func hasUnpushedCommits(baseBranch: String, remoteName: String?, in directory: String) async throws -> Bool {
+        try hasUnpushedCommitsResult.get()
     }
 
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {

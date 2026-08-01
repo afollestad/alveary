@@ -12,14 +12,7 @@ struct DiffGitCommitModalContext: Identifiable, Equatable {
 @MainActor
 @Observable
 final class DiffGitCommitModalModel: Identifiable {
-    enum BranchSelection: Equatable {
-        case base
-        /// Commit onto the branch already checked out, when that is not the base
-        /// branch. This is the default off-base choice: the checkout is already
-        /// where the user wants the commit, so no branch name is needed.
-        case current
-        case new
-    }
+    typealias BranchSelection = DiffBranchSelection
 
     enum OperationPhase: Equatable {
         case idle

@@ -342,4 +342,53 @@ extension GitHubPullRequestsService {
             throw Self.makeError(from: result)
         }
     }
+
+    /// The one non-`api` mutation here: GitHub's `createPullRequest` GraphQL
+    /// mutation needs a repository node id, while `gh pr create` resolves the
+    /// repository from the working directory and prints the new URL — which is
+    /// also how the caller learns the identifier. `--body` rides argv because
+    /// `ShellRunner` has no stdin-data mode; `standardInput: .nullDevice` keeps
+    /// an unexpected `gh` prompt from hanging the call. A mutation: never retried.
+    func createPullRequest(
+        inDirectory directory: String,
+        baseBranch: String,
+        headBranch: String,
+        title: String,
+        body: String
+    ) async throws -> PullRequestIdentifier {
+        let ghExecutable = try await resolveGitHubCLI()
+        let result = try await runGitHubCLI(
+            executable: ghExecutable,
+            args: [
+                "pr", "create",
+                "--base", baseBranch,
+                "--head", headBranch,
+                "--title", title,
+                "--body", body
+            ],
+            in: directory,
+            timeout: .seconds(60),
+            standardInput: .nullDevice
+        )
+        guard result.succeeded else {
+            throw Self.makeError(from: result)
+        }
+        guard let identifier = Self.parseCreatedPullRequestIdentifier(fromStdout: result.stdout) else {
+            throw PullRequestsServiceError.decodingFailed(
+                "gh pr create did not print the new pull request's URL"
+            )
+        }
+        return identifier
+    }
+
+    /// `gh pr create` prints the created pull request's URL as its last stdout
+    /// line; earlier lines can carry progress notes, so scan from the end.
+    static func parseCreatedPullRequestIdentifier(fromStdout stdout: String) -> PullRequestIdentifier? {
+        stdout
+            .split(separator: "\n")
+            .reversed()
+            .lazy
+            .compactMap { PullRequestURLParser.identifier(from: String($0).trimmingCharacters(in: .whitespaces)) }
+            .first
+    }
 }

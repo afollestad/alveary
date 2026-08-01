@@ -28,6 +28,42 @@ enum RightPanePresentationPolicy {
     ) -> Bool {
         active == pending
     }
+
+    /// How an arriving presentation should take the lane.
+    enum Reveal: Equatable {
+        /// Slide in: the lane was hidden, presenting, or reversing a collapse
+        /// the user has already watched.
+        case animated
+        /// Appear at once: a replacement that lands before the outgoing pane's
+        /// collapse was drawn, so the lane never visibly left full width.
+        case immediate
+        /// Already settled at full width; nothing to animate.
+        case settled
+    }
+
+    /// `beginDismissal` writes `presentationProgress` synchronously, so the
+    /// progress value cannot distinguish a collapse that has merely been
+    /// *requested* from one the user has seen — hence `unrenderedCollapse`,
+    /// which the component retires after the first drawn frame.
+    ///
+    /// The Git changes footer's back stack is the `immediate` case: closing a
+    /// pull-request pane reveals the Diff Viewer request it was masking in the
+    /// same update, and animating that reads as an unprompted slide.
+    static func reveal<Destination: Hashable>(
+        arriving: RightPanePresentationIdentity<Destination>,
+        unrenderedCollapse: RightPanePresentationIdentity<Destination>?,
+        wasHidden: Bool,
+        wasPresenting: Bool,
+        wasDismissing: Bool
+    ) -> Reveal {
+        if let unrenderedCollapse, unrenderedCollapse != arriving {
+            return .immediate
+        }
+        if wasHidden || wasPresenting || wasDismissing {
+            return .animated
+        }
+        return .settled
+    }
 }
 
 struct RightPaneResizeHandle: View {

@@ -364,4 +364,14 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
     func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws {
         throw PullRequestsServiceError.transport("unused")
     }
+
+    func createPullRequest(
+        inDirectory directory: String,
+        baseBranch: String,
+        headBranch: String,
+        title: String,
+        body: String
+    ) async throws -> PullRequestIdentifier {
+        throw PullRequestsServiceError.transport("unused")
+    }
 }

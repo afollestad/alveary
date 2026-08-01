@@ -19,9 +19,15 @@ enum DiffWorkspaceLoadState: Equatable {
     case failed
 }
 
-enum DiffViewerContextualAction: Equatable {
-    case none
-    case commit
+/// What the working tree offers the footer's action ladder: dirty files to
+/// commit, and commits the remote lacks to push. A struct rather than an enum
+/// because the two are independently true — a dirty tree can also sit on
+/// unpushed commits.
+struct DiffViewerWorkingState: Equatable {
+    var hasChanges = false
+    var hasUnpushedCommits = false
+
+    static let none = DiffViewerWorkingState()
 }
 
 // File rows can appear twice for the same path when staged and unstaged changes coexist.

@@ -3,13 +3,10 @@ import SwiftUI
 struct DiffViewerPaneHeader: View {
     let activeDirectory: String?
     let mode: DiffViewerMode
-    let contextualAction: DiffViewerViewModel.ContextualAction
     let selectedFiles: [FileStatus]
-    let canCommit: Bool
     let showsFileListDivider: Bool
     let showsFileActions: Bool
     let onModeSelected: (DiffViewerMode) -> Void
-    let onCommitRequested: () -> Void
     let onStageSelectedFiles: () -> Void
     let onUnstageSelectedFiles: () -> Void
     let onDiscardSelectedFiles: () -> Void
@@ -54,21 +51,11 @@ struct DiffViewerPaneHeader: View {
         }
     }
 
+    // Commit moved to the pane footer's action ladder; the header keeps only
+    // the selection-scoped file actions, which is what lets the chip row and
+    // close button fit the 320pt minimum width without clipping.
     private var headerActions: [DiffViewerHeaderAction] {
         var actions: [DiffViewerHeaderAction] = []
-
-        switch visibleContextualAction {
-        case .commit:
-            actions.append(DiffViewerHeaderAction(
-                id: "commit",
-                title: "Commit",
-                icon: .octicon("GitCommitOcticon"),
-                isEnabled: canCommit,
-                action: onCommitRequested
-            ))
-        case .none:
-            break
-        }
 
         if showsFileActions && hasUnstagedSelection {
             actions.append(DiffViewerHeaderAction(
@@ -102,10 +89,6 @@ struct DiffViewerPaneHeader: View {
         }
 
         return actions
-    }
-
-    private var visibleContextualAction: DiffViewerViewModel.ContextualAction {
-        mode == .currentChanges ? contextualAction : .none
     }
 
     private var headerActionLayoutID: String {

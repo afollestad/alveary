@@ -28,6 +28,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var replyResult: Result<Void, PullRequestsServiceError> = .success(())
     var resolveResult: Result<Void, PullRequestsServiceError> = .success(())
     var requestReviewResult: Result<Void, PullRequestsServiceError> = .success(())
+    var createPullRequestResult: Result<PullRequestIdentifier, PullRequestsServiceError> = .failure(.transport("unused"))
     var createPendingReviewResult: Result<String, PullRequestsServiceError> = .success("PENDING_REVIEW")
     var addPendingCommentResult: Result<PullRequestReviewThread, PullRequestsServiceError>?
     var updatePendingCommentResult: Result<Void, PullRequestsServiceError> = .success(())
@@ -56,6 +57,14 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
 
     struct ThreadReply: Equatable {
         let commentID: Int
+        let body: String
+    }
+
+    struct CreatedPullRequest: Equatable {
+        let directory: String
+        let baseBranch: String
+        let headBranch: String
+        let title: String
         let body: String
     }
 
@@ -100,6 +109,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     private(set) var threadReplies: [ThreadReply] = []
     private(set) var threadResolutions: [ThreadResolution] = []
     private(set) var reviewRequests: [String] = []
+    private(set) var createdPullRequests: [CreatedPullRequest] = []
     private(set) var stateChanges: [Bool] = []
     private(set) var readyForReviewNodeIDs: [String] = []
     private(set) var convertToDraftNodeIDs: [String] = []
@@ -283,5 +293,24 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     func requestReview(_ id: PullRequestIdentifier, reviewerLogin: String) async throws {
         reviewRequests.append(reviewerLogin)
         return try requestReviewResult.get()
+    }
+
+    func createPullRequest(
+        inDirectory directory: String,
+        baseBranch: String,
+        headBranch: String,
+        title: String,
+        body: String
+    ) async throws -> PullRequestIdentifier {
+        createdPullRequests.append(
+            CreatedPullRequest(
+                directory: directory,
+                baseBranch: baseBranch,
+                headBranch: headBranch,
+                title: title,
+                body: body
+            )
+        )
+        return try createPullRequestResult.get()
     }
 }

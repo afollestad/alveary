@@ -117,19 +117,26 @@ extension GitHubPullRequestsService {
         return (502...504).contains(statusCode)
     }
 
+    /// `directory` is nil for the `gh api` calls, which name their repository
+    /// explicitly; `pr create` resolves the repository from the working
+    /// directory instead, so it is the one caller that passes it.
     func runGitHubCLI(
         executable: String,
         args: [String],
+        in directory: String? = nil,
         timeout: Duration,
-        stdoutLimitBytes: Int? = 64 * 1024
+        stdoutLimitBytes: Int? = 64 * 1024,
+        standardInput: ShellStandardInput = .inherit
     ) async throws -> ShellResult {
         do {
             return try await shellRunner.run(
                 executable: executable,
                 args: args,
+                in: directory,
                 timeout: timeout,
                 stdoutLimitBytes: stdoutLimitBytes,
-                stderrLimitBytes: 64 * 1024
+                stderrLimitBytes: 64 * 1024,
+                standardInput: standardInput
             )
         } catch let error as PullRequestsServiceError {
             throw error

@@ -17,6 +17,11 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
     @State private var liveResizeWidth: CGFloat?
     @State private var presentationProgress: CGFloat
     @State private var pendingDismissal: RightPanePresentationIdentity<Destination>?
+    /// A collapse that has been requested but not yet drawn. `beginDismissal`
+    /// writes `presentationProgress` synchronously, so the value alone cannot
+    /// tell a just-started collapse from one the user has already watched — see
+    /// `RightPanePresentationPolicy.reveal(...)`.
+    @State private var unrenderedCollapse: RightPanePresentationIdentity<Destination>?
     @State private var hiddenPaneCleanup: UUID?
     @State private var resizeHandleActivation: UUID?
     @State private var isResizeHandleInteractive: Bool
@@ -126,6 +131,9 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
             .task(id: pendingDismissal) {
                 await completePendingDismissal()
             }
+            .task(id: unrenderedCollapse) {
+                await retireUnrenderedCollapseAfterFirstFrame()
+            }
             .task(id: hiddenPaneCleanup) {
                 await completeHiddenPaneCleanup()
             }
@@ -165,10 +173,26 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
         deactivateResizeHandle()
         hiddenPaneCleanup = nil
         pendingDismissal = presentation
+        unrenderedCollapse = presentation
         onDeactivate(presentation.destination, presentation.generation)
         withAnimation(RightPaneWidthPolicy.presentationAnimation) {
             presentationProgress = 0
         }
+    }
+
+    /// A collapse stops counting as unrendered once the update that started it
+    /// has been drawn. A replacement arriving in that same update still snaps;
+    /// anything later is a collapse the user has watched, so it reverses
+    /// through the shared animation instead.
+    private func retireUnrenderedCollapseAfterFirstFrame() async {
+        guard unrenderedCollapse != nil else {
+            return
+        }
+        await Task.yield()
+        guard !Task.isCancelled else {
+            return
+        }
+        unrenderedCollapse = nil
     }
 
     private func handleDismissalRequests(
@@ -273,12 +297,33 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
             return
         }
 
-        if wasHidden || wasPresenting || wasDismissing {
+        let reveal = RightPanePresentationPolicy.reveal(
+            arriving: presentation,
+            unrenderedCollapse: unrenderedCollapse,
+            wasHidden: wasHidden,
+            wasPresenting: wasPresenting,
+            wasDismissing: wasDismissing
+        )
+        unrenderedCollapse = nil
+        revealPresentation(reveal)
+    }
+
+    private func revealPresentation(_ reveal: RightPanePresentationPolicy.Reveal) {
+        switch reveal {
+        case .immediate:
+            resizeHandleActivation = nil
+            isResizeHandleInteractive = true
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                presentationProgress = 1
+            }
+        case .animated:
             scheduleResizeHandleActivation()
             withAnimation(RightPaneWidthPolicy.presentationAnimation) {
                 presentationProgress = 1
             }
-        } else {
+        case .settled:
             resizeHandleActivation = nil
             isResizeHandleInteractive = true
             presentationProgress = 1
@@ -381,6 +426,9 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
         }
 
         onDismiss(pendingDismissal.destination, pendingDismissal.generation)
+        // The collapse has fully played by now, so its marker cannot describe
+        // anything a later presentation should snap past.
+        unrenderedCollapse = nil
         guard RightPanePresentationPolicy.shouldTearDown(
             displayed: displayedPresentation,
             completedDismissal: pendingDismissal

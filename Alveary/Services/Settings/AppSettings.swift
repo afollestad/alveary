@@ -77,6 +77,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var notifications = NotificationSettings()
     var branchPrefix = "alveary/"
     var commitMessageGenerationPrompt = Self.defaultCommitMessageGenerationPrompt
+    var pullRequestGenerationPrompt = Self.defaultPullRequestGenerationPrompt
     var gitCommitIncludeUnstagedChanges = true
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
@@ -258,6 +259,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     private mutating func normalizeGitDefaults() {
         if commitMessageGenerationPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             commitMessageGenerationPrompt = Self.defaultCommitMessageGenerationPrompt
+        }
+        if pullRequestGenerationPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pullRequestGenerationPrompt = Self.defaultPullRequestGenerationPrompt
         }
     }
 

@@ -2,7 +2,9 @@
 
 These instructions apply to Diff Viewer coordination and state under `Alveary/ViewModels/DiffViewer/`.
 
-- `DiffViewerViewModel` coordinates routing, watchers, contextual actions, and store delegation. Keep durable Git-backed file/stat/diff state in `DiffWorkspaceStore`.
+- `DiffViewerViewModel` coordinates routing, watchers, the footer's working state, and store delegation. Keep durable Git-backed file/stat/diff state in `DiffWorkspaceStore`.
+    - **`workingState` is a struct, not an enum.** `hasChanges` and `hasUnpushedCommits` are independently true (a dirty tree can sit on unpushed commits), and the footer ladder reads both. The unpushed probe rides `performRefresh` as one extra rev-list (`resolvedWorkingState(for:in:)`), guarded by `diffStore.isCurrent` on both sides of the await; a failed probe reads as nothing to push because the flag is informational.
+    - **Push is a mutation like stage/unstage/discard.** `push(force:in:)` lives in `+GitMutations.swift` and finishes with the same `.localGitMutation` refresh, which is what recomputes `workingState` and walks the footer's button forward. `GitError.nonFastForwardPushRequired` propagates to the pane, which owns the force-push confirmation.
     - **Own commit mode state here.** Ahead commits, selected commit, parsed commit diffs, raw fallback text, and commit load/error state belong on `DiffViewerViewModel`, not in SwiftUI views.
     - **Keep commit file collapse transient.** Per-file collapse state belongs on `DiffViewerViewModel`, keyed by commit hash, pruned when commits are no longer ahead, and cleared on target switch.
     - **Guard commit async publishes.** Commit-list and commit-diff tasks must check the current target plus a generation/load id before publishing so stale work cannot update a newer project, worktree, or selected commit.

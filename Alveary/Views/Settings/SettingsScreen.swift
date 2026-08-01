@@ -162,6 +162,7 @@ struct SettingsScreen: View {
                 gitHubCLI: gitHubCLI,
                 branchPrefix: binding(for: \.branchPrefix),
                 commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
+                pullRequestGenerationPrompt: binding(for: \.pullRequestGenerationPrompt),
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                 pullRequestsEnabled: binding(for: \.pullRequestsEnabled)

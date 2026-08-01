@@ -5,7 +5,6 @@ import Observation
 @MainActor
 @Observable
 final class DiffViewerViewModel {
-    typealias ContextualAction = DiffViewerContextualAction
     typealias RefreshReason = DiffViewerRefreshReason
 
     private typealias RefreshRequest = DiffViewerRefreshRequest
@@ -23,7 +22,7 @@ final class DiffViewerViewModel {
     var isSelectedDiffPending: Bool { diffStore.selectedDiffLoadState == .loading }
     var isLoadingSelectedDiff: Bool { diffStore.isSelectedDiffLoadingIndicatorVisible }
     var isDiffToolbarLoading: Bool { diffStore.isToolbarLoading }
-    private(set) var contextualAction: ContextualAction = .none
+    private(set) var workingState: DiffViewerWorkingState = .none
     var gitError: String? { diffStore.gitError }
     var activeDirectory: String? { diffStore.activeDirectory }
     var isGitRepository: Bool { diffStore.isGitRepository }
@@ -232,7 +231,7 @@ final class DiffViewerViewModel {
         if diffStore.switchToTarget(target.workspaceTarget) {
             workspaceRefreshRevision &+= 1
         }
-        contextualAction = .none
+        workingState = .none
         clearCommitState()
         refreshScheduler.clearPending()
 
@@ -264,14 +263,10 @@ final class DiffViewerViewModel {
         needsFullPaneRefresh = false
         diffStore.clear()
         workspaceRefreshRevision &+= 1
-        contextualAction = .none
+        workingState = .none
         clearCommitState()
         refreshScheduler.clearPending()
     }
-
-    func clearGitError() { diffStore.clearGitError() }
-
-    func presentGitError(_ message: String) { diffStore.presentGitError(message) }
 
     func refresh(in directory: String, reason: RefreshReason, scope: DiffViewerSwitchScope = .full) async {
         let request = makeRefreshRequest(
@@ -440,13 +435,13 @@ private extension DiffViewerViewModel {
         }
 
         if snapshot.error != nil {
-            contextualAction = .none
+            workingState = .none
             diffStore.applyContextualRefreshErrorIfCurrent(snapshot)
             return
         }
 
         if !snapshot.isGitRepository {
-            contextualAction = .none
+            workingState = .none
             diffStore.applyContextualRefreshErrorIfCurrent(snapshot)
             return
         }
@@ -455,12 +450,14 @@ private extension DiffViewerViewModel {
             return
         }
 
-        let action: ContextualAction = snapshot.files.isEmpty ? .none : .commit
         guard diffStore.isCurrent(snapshot) else {
             return
         }
 
-        contextualAction = action
+        guard let resolvedState = await resolvedWorkingState(for: snapshot, in: request.directory) else {
+            return
+        }
+        workingState = resolvedState
         await diffStore.refreshSelectedDiffIfNeeded(snapshot: snapshot, reason: request.reason)
         workspaceRefreshRevision &+= 1
         if shouldReloadCommitsAfterWorkspaceRefresh(snapshot: snapshot, reason: request.reason) {

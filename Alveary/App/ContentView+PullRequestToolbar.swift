@@ -111,16 +111,19 @@ extension ContentView {
         isPullRequestPopoverPresented = true
     }
 
-    func openLinkedPullRequest(_ row: OwnedPullRequestLink) {
+    /// `preservingDiffViewer` is the Git changes pane footer's back stack: the
+    /// pane opens over the still-requested Diff Viewer (a contextual target
+    /// only *masks* the request), so its X reveals the Git changes pane again.
+    /// Every other caller keeps the default, clearing the request so closing
+    /// the pane does not surface a Diff Viewer the user never asked back for.
+    func openLinkedPullRequest(_ row: OwnedPullRequestLink, preservingDiffViewer: Bool = false) {
         guard let selection = selectedPullRequestLinkOwner else {
             return
         }
         isPullRequestPopoverPresented = false
-        // The two panes share one lane and must replace each other. A contextual
-        // target only *masks* a requested Diff Viewer, so without clearing the
-        // request, closing this pane would reveal the Diff Viewer underneath —
-        // the mirror of `toggleDiffViewer` deactivating this pane.
-        appState.hideDiffViewer()
+        if !preservingDiffViewer {
+            appState.hideDiffViewer()
+        }
         // The origin is the *selection* surface — a project selection scopes the
         // pane even when the row's link is stored on a child thread.
         pullRequestsViewModel.requestDetails(row.link.summary, origin: PullRequestPaneOrigin(owner: selection))

@@ -60,6 +60,7 @@ struct ContentView: View {
     @State var isPullRequestPopoverPresented = false
     @State var lastActiveProjectRecorder: LastActiveProjectRecorder
     @State var gitCommitModalModel: DiffGitCommitModalModel?
+    @State var createPullRequestModalModel: DiffCreatePullRequestModalModel?
     // Internal so `ContentView+TerminalToolbar.swift` can own their transitions.
     @State var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
     @State var terminalToolbarTrackedSessionIDs = Set<UUID>()
@@ -352,20 +353,24 @@ struct ContentView: View {
             terminalManager.terminateAllSessions()
         }
 
-        return activityObservedView
-        .sheet(
-            isPresented: $isAddProjectSheetPresented,
-            // Wait for the sheet's dismissal to finish before opening the
-            // `NSOpenPanel`, otherwise the modal pops on top of the still-animating
-            // sheet and stutters the UI.
-            onDismiss: handleAddProjectSheetDismiss,
-            content: addProjectSheetContent
-        )
-        .sheet(item: $gitCommitModalModel) { model in
-            DiffGitCommitModal(model: model) {
-                gitCommitModalModel = nil
+        // The create-pull-request sheet is a lifted helper (type-check budget);
+        // it hosts the third `.sheet` in this chain.
+        return createPullRequestSheetHost(
+            activityObservedView
+            .sheet(
+                isPresented: $isAddProjectSheetPresented,
+                // Wait for the sheet's dismissal to finish before opening the
+                // `NSOpenPanel`, otherwise the modal pops on top of the still-animating
+                // sheet and stutters the UI.
+                onDismiss: handleAddProjectSheetDismiss,
+                content: addProjectSheetContent
+            )
+            .sheet(item: $gitCommitModalModel) { model in
+                DiffGitCommitModal(model: model) {
+                    gitCommitModalModel = nil
+                }
             }
-        }
+        )
         .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
         .task(id: selectedThreadID) {
             await refreshToolbarProjectActions()

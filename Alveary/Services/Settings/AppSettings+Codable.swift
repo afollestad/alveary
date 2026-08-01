@@ -61,6 +61,7 @@ extension AppSettings {
         case notifications
         case branchPrefix
         case commitMessageGenerationPrompt
+        case pullRequestGenerationPrompt
         case gitCommitIncludeUnstagedChanges
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
@@ -237,6 +238,10 @@ extension AppSettings {
             String.self,
             forKey: .commitMessageGenerationPrompt
         ) ?? commitMessageGenerationPrompt
+        pullRequestGenerationPrompt = try container.decodeIfPresent(
+            String.self,
+            forKey: .pullRequestGenerationPrompt
+        ) ?? pullRequestGenerationPrompt
         gitCommitIncludeUnstagedChanges = try container.decodeIfPresent(
             Bool.self,
             forKey: .gitCommitIncludeUnstagedChanges

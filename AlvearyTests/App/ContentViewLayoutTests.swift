@@ -161,6 +161,93 @@ final class ContentViewLayoutTests: XCTestCase {
         ))
     }
 
+    /// The Git changes footer's back stack: closing a pull-request pane reveals
+    /// the Diff Viewer request it was masking in the same update, before the
+    /// collapse has been drawn, so the lane must appear rather than slide.
+    func testReplacingAnUndrawnCollapseRevealsImmediately() {
+        let closing = RightPanePresentationIdentity(
+            destination: RightPaneDestination.pullRequest(.details(.init(owner: "octo", repo: "alpha", number: 7))),
+            generation: UUID()
+        )
+        let revealed = RightPanePresentationIdentity(
+            destination: RightPaneDestination.diff,
+            generation: UUID()
+        )
+
+        XCTAssertEqual(
+            RightPanePresentationPolicy.reveal(
+                arriving: revealed,
+                unrenderedCollapse: closing,
+                // `beginDismissal` already wrote progress to 0, so the lane
+                // reads as hidden and dismissing on this same update.
+                wasHidden: true,
+                wasPresenting: false,
+                wasDismissing: true
+            ),
+            .immediate
+        )
+    }
+
+    /// A collapse the user has actually watched still reverses through the
+    /// shared animation; the component retires the marker after the first
+    /// drawn frame, which is what separates the two cases.
+    func testReversingADrawnCollapseStillAnimates() {
+        let revealed = RightPanePresentationIdentity(
+            destination: RightPaneDestination.diff,
+            generation: UUID()
+        )
+
+        XCTAssertEqual(
+            RightPanePresentationPolicy.reveal(
+                arriving: revealed,
+                unrenderedCollapse: nil,
+                wasHidden: true,
+                wasPresenting: false,
+                wasDismissing: true
+            ),
+            .animated
+        )
+    }
+
+    /// Re-presenting the very pane whose collapse has not drawn yet is a
+    /// cancelled dismissal, not a swap, so it keeps the shared animation.
+    func testCancellingAnUndrawnCollapseForTheSamePaneAnimates() {
+        let presentation = RightPanePresentationIdentity(
+            destination: RightPaneDestination.skills(.newSkill),
+            generation: UUID()
+        )
+
+        XCTAssertEqual(
+            RightPanePresentationPolicy.reveal(
+                arriving: presentation,
+                unrenderedCollapse: presentation,
+                wasHidden: true,
+                wasPresenting: false,
+                wasDismissing: true
+            ),
+            .animated
+        )
+    }
+
+    /// An already-settled lane swapping content animates nothing.
+    func testSettledLaneNeitherAnimatesNorSnaps() {
+        let presentation = RightPanePresentationIdentity(
+            destination: RightPaneDestination.diff,
+            generation: UUID()
+        )
+
+        XCTAssertEqual(
+            RightPanePresentationPolicy.reveal(
+                arriving: presentation,
+                unrenderedCollapse: nil,
+                wasHidden: false,
+                wasPresenting: false,
+                wasDismissing: false
+            ),
+            .settled
+        )
+    }
+
     func testRightPaneDismissalTearsDownOnlyItsCapturedPresentation() {
         let dismissed = RightPanePresentationIdentity(
             destination: RightPaneDestination.skills(.newSkill),

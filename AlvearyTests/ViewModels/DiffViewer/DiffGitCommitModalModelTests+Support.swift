@@ -59,6 +59,10 @@ actor DiffGitCommitModalMockGitService: GitService {
     private var pushResults: [Result<Void, Error>]
     private var forcePushResults: [Result<Void, Error>]
     private let currentBranchResult: Result<String, Error>
+    private let commitsAheadResult: Result<Int, Error>
+    private let commitsAheadDetailsResult: Result<[CommitInfo], Error>
+    private let diffForCommitResults: [String: String]
+    private let hasUnpushedCommitsResult: Result<Bool, Error>
     private var recordedDiffCalls: [DiffCall] = []
     private var recordedSyntheticDiffCalls: [String] = []
     private var recordedHasStagedChangesCallCount = 0
@@ -79,7 +83,11 @@ actor DiffGitCommitModalMockGitService: GitService {
         commitResults: [Result<Void, Error>] = [.success(())],
         pushResults: [Result<Void, Error>] = [.success(())],
         forcePushResults: [Result<Void, Error>] = [.success(())],
-        currentBranchResult: Result<String, Error> = .success("main")
+        currentBranchResult: Result<String, Error> = .success("main"),
+        commitsAheadResult: Result<Int, Error> = .success(0),
+        commitsAheadDetailsResult: Result<[CommitInfo], Error> = .success([]),
+        diffForCommitResults: [String: String] = [:],
+        hasUnpushedCommitsResult: Result<Bool, Error> = .success(false)
     ) {
         self.statusResults = statusResults
         self.diffStatsResults = diffStatsResults
@@ -92,6 +100,10 @@ actor DiffGitCommitModalMockGitService: GitService {
         self.pushResults = pushResults
         self.forcePushResults = forcePushResults
         self.currentBranchResult = currentBranchResult
+        self.commitsAheadResult = commitsAheadResult
+        self.commitsAheadDetailsResult = commitsAheadDetailsResult
+        self.diffForCommitResults = diffForCommitResults
+        self.hasUnpushedCommitsResult = hasUnpushedCommitsResult
     }
 
     func status(in directory: String) async throws -> [FileStatus] {
@@ -167,15 +179,19 @@ actor DiffGitCommitModalMockGitService: GitService {
     }
 
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int {
-        0
+        try commitsAheadResult.get()
     }
 
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo] {
-        []
+        try commitsAheadDetailsResult.get()
     }
 
     func diffForCommit(hash: String, in directory: String) async throws -> String {
-        ""
+        diffForCommitResults[hash] ?? ""
+    }
+
+    func hasUnpushedCommits(baseBranch: String, remoteName: String?, in directory: String) async throws -> Bool {
+        try hasUnpushedCommitsResult.get()
     }
 
     func imageBlob(source: GitImageBlobSource, maxBytes: Int, in directory: String) async throws -> Data {

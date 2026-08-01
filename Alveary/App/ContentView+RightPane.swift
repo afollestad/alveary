@@ -150,6 +150,23 @@ extension ContentView {
         }
     }
 
+    /// Footer ladder gates, all observation-tracked model reads. Create needs
+    /// the commit surface (base branch and remote come from the project) plus
+    /// zero links; View needs exactly one — several go through the toolbar
+    /// popover, which owns that disambiguation.
+    private var canCreatePullRequestFromDiffFooter: Bool {
+        settingsService.current.pullRequestsEnabled
+            && appState.selectedSidebarItem?.canCommitDiffChanges == true
+            && selectedPullRequestLinkOwner != nil
+            && selectedPullRequestLinks.isEmpty
+    }
+
+    private var canViewPullRequestFromDiffFooter: Bool {
+        settingsService.current.pullRequestsEnabled
+            && selectedPullRequestLinkOwner != nil
+            && selectedPullRequestLinks.count == 1
+    }
+
     var isDiffViewerRendered: Bool {
         rightPaneDestination == .diff
     }
@@ -212,6 +229,8 @@ extension ContentView {
                 viewModel: diffViewModel,
                 // Keep render-time gates observation-tracked; action handlers re-resolve backing rows.
                 canCommit: appState.selectedSidebarItem?.canCommitDiffChanges == true,
+                canCreatePullRequest: canCreatePullRequestFromDiffFooter,
+                canViewPullRequest: canViewPullRequestFromDiffFooter,
                 mode: $diffViewerMode,
                 onModeCommit: persistDiffViewerMode,
                 topSectionFraction: activeDiffViewerTopSectionFraction,
@@ -219,6 +238,8 @@ extension ContentView {
                     persistDiffViewerTopSectionFraction(fraction, mode: diffViewerMode)
                 },
                 onCommitRequested: presentGitCommitModal,
+                onCreatePullRequestRequested: presentCreatePullRequestModal,
+                onViewPullRequestRequested: openSinglePullRequestFromDiffFooter,
                 // The lane's own dismissal, so the header X and ⇧⌘D end in the
                 // same place.
                 onClose: onDismiss

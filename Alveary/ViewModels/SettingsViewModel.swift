@@ -252,6 +252,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.commitMessageGenerationPrompt = newValue } }
     }
 
+    var pullRequestGenerationPrompt: String {
+        get { settingsService.current.pullRequestGenerationPrompt }
+        set { settingsService.update { $0.pullRequestGenerationPrompt = newValue } }
+    }
+
     var gitCommitIncludeUnstagedChanges: Bool {
         get { settingsService.current.gitCommitIncludeUnstagedChanges }
         set { settingsService.update { $0.gitCommitIncludeUnstagedChanges = newValue } }

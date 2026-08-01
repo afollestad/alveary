@@ -12,16 +12,13 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 mode: .currentChanges,
-                contextualAction: .commit,
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
                     FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
                 ],
-                canCommit: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
-                onCommitRequested: {},
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
@@ -40,16 +37,13 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 mode: .currentChanges,
-                contextualAction: .commit,
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
                     FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
                 ],
-                canCommit: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
-                onCommitRequested: {},
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {}
@@ -66,13 +60,10 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 mode: .currentChanges,
-                contextualAction: .commit,
                 selectedFiles: [],
-                canCommit: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
-                onCommitRequested: {},
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {},
@@ -91,16 +82,13 @@ extension SnapshotTests {
             DiffViewerPaneHeader(
                 activeDirectory: "/tmp/alveary",
                 mode: .currentChanges,
-                contextualAction: .commit,
                 selectedFiles: [
                     FileStatus(path: "Sources/App.swift", originalPath: nil, status: .modified, isStaged: false),
                     FileStatus(path: "Tests/AppTests.swift", originalPath: nil, status: .modified, isStaged: true)
                 ],
-                canCommit: true,
                 showsFileListDivider: false,
                 showsFileActions: true,
                 onModeSelected: { _ in },
-                onCommitRequested: {},
                 onStageSelectedFiles: {},
                 onUnstageSelectedFiles: {},
                 onDiscardSelectedFiles: {},

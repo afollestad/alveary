@@ -108,6 +108,12 @@ protocol GitService: Sendable {
     func listFiles(in directory: String) async throws -> [String]
     func commitsAheadOfBase(baseBranch: String, remoteName: String?, in directory: String) async throws -> Int
     func commitsAheadOfBaseDetails(baseBranch: String, remoteName: String?, in directory: String) async throws -> [CommitInfo]
+    /// Whether the checked-out branch has commits its remote does not. Distinct
+    /// from `commitsAheadOfBase`, which counts against the *base* branch and so
+    /// stays positive on a fully pushed feature branch. `baseBranch` feeds the
+    /// never-pushed fallback: with no upstream, being ahead of base is what
+    /// makes a first push meaningful.
+    func hasUnpushedCommits(baseBranch: String, remoteName: String?, in directory: String) async throws -> Bool
     func diffForCommit(hash: String, in directory: String) async throws -> String
     func imageBlob(source: GitImageBlobSource, maxBytes: Int, in directory: String) async throws -> Data
 }
@@ -143,5 +149,9 @@ extension GitService {
 
     func forcePushCurrentBranch(remoteName: String?, in directory: String) async throws {
         throw GitError.commandFailed("Force push is not implemented")
+    }
+
+    func hasUnpushedCommits(baseBranch: String, remoteName: String?, in directory: String) async throws -> Bool {
+        throw GitError.commandFailed("Unpushed commit detection is not implemented")
     }
 }

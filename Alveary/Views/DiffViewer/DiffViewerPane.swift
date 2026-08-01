@@ -30,33 +30,47 @@ enum DiffViewerPaneMetrics {
 struct DiffViewerPane: View {
     let viewModel: DiffViewerViewModel
     let canCommit: Bool
+    let canCreatePullRequest: Bool
+    let canViewPullRequest: Bool
     @Binding private var mode: DiffViewerMode
     let onModeCommit: (DiffViewerMode) -> Void
     @Binding private var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
     let onCommitRequested: () -> Void
+    let onCreatePullRequestRequested: () -> Void
+    let onViewPullRequestRequested: () -> Void
     let onClose: () -> Void
 
     @State private var pendingDiscardFiles: [FileStatus] = []
     @State private var isFileListTopDividerVisible = false
+    @State private var isPushInFlight = false
+    @State private var isForcePushConfirmationPresented = false
 
     init(
         viewModel: DiffViewerViewModel,
         canCommit: Bool,
+        canCreatePullRequest: Bool = false,
+        canViewPullRequest: Bool = false,
         mode: Binding<DiffViewerMode> = .constant(.currentChanges),
         onModeCommit: @escaping (DiffViewerMode) -> Void = { _ in },
         topSectionFraction: Binding<CGFloat> = .constant(CGFloat(AppSettings.defaultDiffViewerTopSectionFraction)),
         onTopSectionFractionCommit: @escaping (CGFloat) -> Void = { _ in },
         onCommitRequested: @escaping () -> Void,
+        onCreatePullRequestRequested: @escaping () -> Void = {},
+        onViewPullRequestRequested: @escaping () -> Void = {},
         onClose: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
         self.canCommit = canCommit
+        self.canCreatePullRequest = canCreatePullRequest
+        self.canViewPullRequest = canViewPullRequest
         _mode = mode
         self.onModeCommit = onModeCommit
         _topSectionFraction = topSectionFraction
         self.onTopSectionFractionCommit = onTopSectionFractionCommit
         self.onCommitRequested = onCommitRequested
+        self.onCreatePullRequestRequested = onCreatePullRequestRequested
+        self.onViewPullRequestRequested = onViewPullRequestRequested
         self.onClose = onClose
     }
 
@@ -65,13 +79,10 @@ struct DiffViewerPane: View {
             DiffViewerPaneHeader(
                 activeDirectory: viewModel.activeDirectory,
                 mode: mode,
-                contextualAction: viewModel.contextualAction,
                 selectedFiles: viewModel.selectedFiles,
-                canCommit: canCommit,
                 showsFileListDivider: isFileListTopDividerVisible,
                 showsFileActions: mode == .currentChanges,
                 onModeSelected: selectMode,
-                onCommitRequested: onCommitRequested,
                 onStageSelectedFiles: {
                     guard let directory = viewModel.activeDirectory else {
                         return
@@ -116,8 +127,18 @@ struct DiffViewerPane: View {
                 )
             } else {
                 content
+
+                DiffViewerPaneFooter(
+                    actions: footerActions,
+                    isPerformingAction: isPushInFlight,
+                    onAction: performFooterAction
+                )
             }
         }
+        .modifier(DiffViewerForcePushDialog(
+            isPresented: $isForcePushConfirmationPresented,
+            onForcePush: { performPush(force: true) }
+        ))
         .onAppear(perform: syncCommitModeActivity)
         .onDisappear {
             viewModel.setCommitModeActive(false)
@@ -187,6 +208,45 @@ private extension DiffViewerPane {
                 topSectionFraction: $topSectionFraction,
                 onTopSectionFractionCommit: onTopSectionFractionCommit
             )
+        }
+    }
+
+    var footerActions: [DiffViewerFooterAction] {
+        DiffViewerFooterAction.available(
+            workingState: viewModel.workingState,
+            canCommit: canCommit,
+            canCreatePullRequest: canCreatePullRequest,
+            canViewPullRequest: canViewPullRequest
+        )
+    }
+
+    func performFooterAction(_ kind: DiffViewerFooterAction.Kind) {
+        switch kind {
+        case .commit:
+            onCommitRequested()
+        case .push:
+            performPush(force: false)
+        case .createPullRequest:
+            onCreatePullRequestRequested()
+        case .viewPullRequest:
+            onViewPullRequestRequested()
+        }
+    }
+
+    func performPush(force: Bool) {
+        guard let directory = viewModel.activeDirectory, !isPushInFlight else {
+            return
+        }
+        isPushInFlight = true
+        Task {
+            defer { isPushInFlight = false }
+            do {
+                try await viewModel.push(force: force, in: directory)
+            } catch GitError.nonFastForwardPushRequired(_) {
+                isForcePushConfirmationPresented = true
+            } catch {
+                viewModel.presentGitError("Push failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -283,4 +343,23 @@ private extension DiffViewerPane {
         ].joined(separator: "|")
     }
 
+}
+
+/// Lifted out of `body` (type-check budget); armed when an ordinary push is
+/// rejected as non-fast-forward, mirroring the commit modal's force-push offer.
+private struct DiffViewerForcePushDialog: ViewModifier {
+    @Binding var isPresented: Bool
+    let onForcePush: () -> Void
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            "Force push?",
+            isPresented: $isPresented
+        ) {
+            Button("Force push", role: .destructive, action: onForcePush)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The remote branch has commits this branch does not. Force pushing will overwrite them.")
+        }
+    }
 }

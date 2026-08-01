@@ -172,7 +172,27 @@ final class AppSettingsTests: XCTestCase {
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
         XCTAssertEqual(settings.commitMessageGenerationPrompt, AppSettings.defaultCommitMessageGenerationPrompt)
+        XCTAssertEqual(settings.pullRequestGenerationPrompt, AppSettings.defaultPullRequestGenerationPrompt)
         XCTAssertTrue(settings.gitCommitIncludeUnstagedChanges)
+    }
+
+    func testDefaultPullRequestGenerationPromptStatesTheResponseContract() {
+        let settings = AppSettings()
+
+        XCTAssertTrue(settings.pullRequestGenerationPrompt.hasPrefix("Generate a pull request title"))
+        XCTAssertTrue(
+            settings.pullRequestGenerationPrompt.contains("The first line of your response is the pull request title")
+        )
+    }
+
+    func testNormalizationRestoresAnEmptyPullRequestGenerationPrompt() {
+        var settings = AppSettings()
+        settings.pullRequestGenerationPrompt = "   "
+
+        XCTAssertEqual(
+            settings.normalized().pullRequestGenerationPrompt,
+            AppSettings.defaultPullRequestGenerationPrompt
+        )
     }
 
     func testDecodeDefaultsFontSizesWhenFieldsAreMissing() throws {

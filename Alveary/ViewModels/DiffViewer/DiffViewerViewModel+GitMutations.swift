@@ -4,6 +4,10 @@ import Foundation
 // mutation refreshes the workspace with `.localGitMutation` so the visible
 // status and stats track the change immediately.
 extension DiffViewerViewModel {
+    func clearGitError() { diffStore.clearGitError() }
+
+    func presentGitError(_ message: String) { diffStore.presentGitError(message) }
+
     func stage(files: [FileStatus], in directory: String) async throws {
         try await stage(paths: DiffViewerPathSupport.uniquePaths(files.map(\.path)), in: directory)
     }
@@ -43,6 +47,42 @@ extension DiffViewerViewModel {
 
     func discard(paths: [String], in directory: String) async throws {
         try await gitService.discard(paths: paths, scope: .all, in: directory)
+        await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
+    }
+
+    /// Rides `performRefresh`: one extra rev-list per refresh rather than a
+    /// second polling pass. A failed probe reads as nothing to push — the flag
+    /// is informational — and nil means the snapshot went stale across the
+    /// probe, so the caller must publish nothing.
+    func resolvedWorkingState(
+        for snapshot: DiffWorkspaceRefreshSnapshot,
+        in directory: String
+    ) async -> DiffViewerWorkingState? {
+        let hasUnpushedCommits = (try? await gitService.hasUnpushedCommits(
+            baseBranch: snapshot.target.baseRef,
+            remoteName: snapshot.target.remoteName,
+            in: directory
+        )) ?? false
+        guard diffStore.isCurrent(snapshot) else {
+            return nil
+        }
+        return DiffViewerWorkingState(
+            hasChanges: !snapshot.files.isEmpty,
+            hasUnpushedCommits: hasUnpushedCommits
+        )
+    }
+
+    /// Pushes the checked-out branch; the follow-up refresh recomputes
+    /// `workingState.hasUnpushedCommits`, which is what walks the footer's
+    /// button on to its next action. `GitError.nonFastForwardPushRequired`
+    /// propagates so the pane can offer a force push.
+    func push(force: Bool, in directory: String) async throws {
+        let remoteName = diffStore.activeTarget?.remoteName
+        if force {
+            try await gitService.forcePushCurrentBranch(remoteName: remoteName, in: directory)
+        } else {
+            try await gitService.pushCurrentBranch(remoteName: remoteName, in: directory)
+        }
         await refreshAndInvalidateFileList(in: directory, reason: .localGitMutation)
     }
 }
