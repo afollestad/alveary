@@ -35,10 +35,7 @@ extension SettingsServiceTests {
         let service = UserDefaultsSettingsService(defaults: defaults)
 
         XCTAssertEqual(service.current.permissionMode, "default")
-        XCTAssertEqual(service.current.diffViewerWidth, 520)
-        XCTAssertEqual(service.current.skillsPaneWidth, 380)
-        XCTAssertEqual(service.current.mcpPaneWidth, 380)
-        XCTAssertEqual(service.current.scheduledTasksPaneWidth, 380)
+        XCTAssertEqual(service.current.rightPaneWidth, 520)
         XCTAssertEqual(service.current.diffViewerTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
         XCTAssertEqual(service.current.diffViewerCommitsTopSectionFraction, AppSettings.defaultDiffViewerTopSectionFraction)
     }
@@ -59,38 +56,62 @@ extension SettingsServiceTests {
         XCTAssertEqual(service.current.diffViewerMode, AppSettings.defaultDiffViewerMode)
     }
 
-    func testRightPaneWidthsRoundTripAndClampIndependently() throws {
+    func testRightPaneWidthRoundTripsAndClamps() throws {
         let defaults = try makeDefaults()
         let service = UserDefaultsSettingsService(defaults: defaults)
 
-        service.update {
-            $0.diffViewerWidth = 410
-            $0.skillsPaneWidth = 100
-            $0.mcpPaneWidth = 640
-            $0.scheduledTasksPaneWidth = 2_000
-        }
+        service.update { $0.rightPaneWidth = 410 }
+        XCTAssertEqual(service.current.rightPaneWidth, 410)
+        XCTAssertEqual(UserDefaultsSettingsService(defaults: defaults).current.rightPaneWidth, 410)
 
-        XCTAssertEqual(service.current.diffViewerWidth, 410)
-        XCTAssertEqual(service.current.skillsPaneWidth, 320)
-        XCTAssertEqual(service.current.mcpPaneWidth, 640)
-        XCTAssertEqual(service.current.scheduledTasksPaneWidth, 960)
+        service.update { $0.rightPaneWidth = 100 }
+        XCTAssertEqual(service.current.rightPaneWidth, AppSettings.supportedRightPaneWidthRange.lowerBound)
 
-        let reloaded = UserDefaultsSettingsService(defaults: defaults)
-        XCTAssertEqual(reloaded.current.diffViewerWidth, 410)
-        XCTAssertEqual(reloaded.current.skillsPaneWidth, 320)
-        XCTAssertEqual(reloaded.current.mcpPaneWidth, 640)
-        XCTAssertEqual(reloaded.current.scheduledTasksPaneWidth, 960)
+        service.update { $0.rightPaneWidth = 2_000 }
+        XCTAssertEqual(service.current.rightPaneWidth, AppSettings.supportedRightPaneWidthRange.upperBound)
     }
 
-    func testUpdatingOneContextualPaneWidthLeavesOtherWidthsUnchanged() throws {
+    /// The lane used to persist a width per destination, which resized the main
+    /// pane whenever it switched panes. Stored per-destination widths collapse
+    /// onto the Diff Viewer's, the one users sized most often.
+    func testRetiredPerDestinationWidthsMigrateFromTheDiffViewerWidth() throws {
         let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "diffViewerWidth": 520,
+            "skillsPaneWidth": 400,
+            "mcpPaneWidth": 420,
+            "scheduledTasksPaneWidth": 440,
+            "pullRequestsPaneWidth": 460
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
         let service = UserDefaultsSettingsService(defaults: defaults)
+        XCTAssertEqual(service.current.rightPaneWidth, 520)
 
-        service.update { $0.skillsPaneWidth = 512 }
+        // Re-encoding drops the retired keys, so a later launch reads the shared one.
+        service.update { $0.rightPaneWidth = 500 }
+        let stored = try XCTUnwrap(defaults.data(forKey: UserDefaultsSettingsService.storageKey))
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: stored) as? [String: Any])
+        XCTAssertEqual(object["rightPaneWidth"] as? Double, 500)
+        XCTAssertNil(object["diffViewerWidth"])
+        XCTAssertNil(object["pullRequestsPaneWidth"])
+    }
 
-        XCTAssertEqual(service.current.skillsPaneWidth, 512)
-        XCTAssertEqual(service.current.diffViewerWidth, 380)
-        XCTAssertEqual(service.current.mcpPaneWidth, 380)
-        XCTAssertEqual(service.current.scheduledTasksPaneWidth, 380)
+    /// A newer explicit value wins over a stale retired key left in the payload.
+    func testSharedRightPaneWidthWinsOverTheRetiredDiffViewerWidth() throws {
+        let defaults = try makeDefaults()
+        let payload: [String: Any] = [
+            "rightPaneWidth": 600,
+            "diffViewerWidth": 520
+        ]
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: UserDefaultsSettingsService.storageKey
+        )
+
+        XCTAssertEqual(UserDefaultsSettingsService(defaults: defaults).current.rightPaneWidth, 600)
     }
 }

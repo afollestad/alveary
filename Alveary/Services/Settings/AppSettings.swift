@@ -21,7 +21,6 @@ struct AppSettings: Codable, Sendable, Equatable {
     static let supportedChatFontSizeRange = 11...24
     static let defaultEnterBehavior = ThreadEnterDefaultBehavior.queue
     static let supportedRightPaneWidthRange = 320.0...960.0
-    static let supportedDiffViewerWidthRange = supportedRightPaneWidthRange
     static let supportedDiffViewerSplitRange = 0.25...0.75
     static let defaultDiffViewerTopSectionFraction = 0.5
     static let defaultDiffViewerMode = DiffViewerMode.currentChanges
@@ -50,11 +49,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     var codeFontFamily = Self.defaultCodeFontFamily
     var codeFontSize = 12
     var chatFontSize = 13
-    var diffViewerWidth = 380.0
-    var skillsPaneWidth = 380.0
-    var mcpPaneWidth = 380.0
-    var scheduledTasksPaneWidth = 380.0
-    var pullRequestsPaneWidth = 460.0
+    // One width for the whole right-pane lane. Per-destination widths made the
+    // main pane resize whenever the lane switched panes, which re-wrapped chat
+    // bubbles that the user had not touched.
+    var rightPaneWidth = 380.0
     // Gates the whole pull-request integration: the sidebar row that leads to the
     // Pull Requests screen, and the thread toolbar's linked-pull-request button.
     var pullRequestsEnabled = true
@@ -205,14 +203,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     }
 
     private mutating func normalizeLayoutDefaults() {
-        diffViewerWidth = min(
-            max(diffViewerWidth, Self.supportedDiffViewerWidthRange.lowerBound),
-            Self.supportedDiffViewerWidthRange.upperBound
-        )
-        skillsPaneWidth = Self.normalizedRightPaneWidth(skillsPaneWidth)
-        mcpPaneWidth = Self.normalizedRightPaneWidth(mcpPaneWidth)
-        scheduledTasksPaneWidth = Self.normalizedRightPaneWidth(scheduledTasksPaneWidth)
-        pullRequestsPaneWidth = Self.normalizedRightPaneWidth(pullRequestsPaneWidth)
+        rightPaneWidth = Self.normalizedRightPaneWidth(rightPaneWidth)
         diffViewerTopSectionFraction = min(
             max(diffViewerTopSectionFraction, Self.supportedDiffViewerSplitRange.lowerBound),
             Self.supportedDiffViewerSplitRange.upperBound

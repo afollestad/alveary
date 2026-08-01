@@ -7,7 +7,7 @@ final class ContentViewLayoutTests: XCTestCase {
     func testRightPaneBoundsReserveMainPaneWidth() {
         let bounds = RightPaneWidthPolicy.bounds(availableWidth: 1_000)
 
-        XCTAssertEqual(bounds.lowerBound, AppSettings.supportedDiffViewerWidthRange.lowerBound)
+        XCTAssertEqual(bounds.lowerBound, AppSettings.supportedRightPaneWidthRange.lowerBound)
         XCTAssertEqual(
             bounds.upperBound,
             1_000
@@ -19,14 +19,14 @@ final class ContentViewLayoutTests: XCTestCase {
     func testRightPaneBoundsNeverDropBelowSupportedLowerBound() {
         let bounds = RightPaneWidthPolicy.bounds(availableWidth: 500)
 
-        XCTAssertEqual(bounds.lowerBound, AppSettings.supportedDiffViewerWidthRange.lowerBound)
-        XCTAssertEqual(bounds.upperBound, AppSettings.supportedDiffViewerWidthRange.lowerBound)
+        XCTAssertEqual(bounds.lowerBound, AppSettings.supportedRightPaneWidthRange.lowerBound)
+        XCTAssertEqual(bounds.upperBound, AppSettings.supportedRightPaneWidthRange.lowerBound)
     }
 
     func testRightPaneBoundsNeverExceedSupportedUpperBound() {
         let bounds = RightPaneWidthPolicy.bounds(availableWidth: 2_000)
 
-        XCTAssertEqual(bounds.upperBound, AppSettings.supportedDiffViewerWidthRange.upperBound)
+        XCTAssertEqual(bounds.upperBound, AppSettings.supportedRightPaneWidthRange.upperBound)
     }
 
     func testEffectiveRightPaneWidthClampsStoredWidthToAvailableSpace() {
@@ -43,7 +43,7 @@ final class ContentViewLayoutTests: XCTestCase {
     func testEffectiveRightPaneWidthClampsStoredWidthToSupportedLowerBound() {
         let width = RightPaneWidthPolicy.effectiveWidth(storedWidth: 100, availableWidth: 1_000)
 
-        XCTAssertEqual(width, AppSettings.supportedDiffViewerWidthRange.lowerBound)
+        XCTAssertEqual(width, AppSettings.supportedRightPaneWidthRange.lowerBound)
     }
 
     func testPresentedRightPaneLaneIncludesResizeHandle() {

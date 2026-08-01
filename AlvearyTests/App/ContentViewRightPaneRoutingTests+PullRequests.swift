@@ -71,7 +71,7 @@ extension ContentViewRightPaneRoutingTests {
         )
     }
 
-    func testPullRequestPaneUsesItsOwnWidthDomain() {
-        XCTAssertEqual(RightPaneDestination.pullRequest(Self.pullRequestTarget).widthDomain, .pullRequests)
+    func testPullRequestPaneReportsThePullRequestFeature() {
+        XCTAssertEqual(RightPaneDestination.pullRequest(Self.pullRequestTarget).feature, .pullRequests)
     }
 }

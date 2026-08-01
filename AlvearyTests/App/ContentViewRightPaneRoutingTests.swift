@@ -97,7 +97,7 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         }
 
         XCTAssertEqual(destinations, [.diff, .diff, .diff])
-        XCTAssertEqual(destinations.compactMap(\.self).map(\.widthDomain), [.diff, .diff, .diff])
+        XCTAssertEqual(destinations.compactMap(\.self).map(\.feature), [.diff, .diff, .diff])
     }
 
     func testNoRequestAndNoMatchingContextualTargetProducesNoPane() {
@@ -117,12 +117,12 @@ final class ContentViewRightPaneRoutingTests: XCTestCase {
         )
     }
 
-    func testEachDestinationUsesItsScreenWidthDomain() {
-        XCTAssertEqual(RightPaneDestination.diff.widthDomain, .diff)
-        XCTAssertEqual(RightPaneDestination.skills(.newSkill).widthDomain, .skills)
-        XCTAssertEqual(RightPaneDestination.mcp(.addCustom).widthDomain, .mcp)
-        XCTAssertEqual(RightPaneDestination.scheduled(.create).widthDomain, .scheduled)
-        XCTAssertEqual(RightPaneDestination.pullRequest(Self.pullRequestTarget).widthDomain, .pullRequests)
+    func testEachDestinationReportsItsFeature() {
+        XCTAssertEqual(RightPaneDestination.diff.feature, .diff)
+        XCTAssertEqual(RightPaneDestination.skills(.newSkill).feature, .skills)
+        XCTAssertEqual(RightPaneDestination.mcp(.addCustom).feature, .mcp)
+        XCTAssertEqual(RightPaneDestination.scheduled(.create).feature, .scheduled)
+        XCTAssertEqual(RightPaneDestination.pullRequest(Self.pullRequestTarget).feature, .pullRequests)
     }
 
     func testDiffViewerCommandIntentUsesRenderedDestination() {

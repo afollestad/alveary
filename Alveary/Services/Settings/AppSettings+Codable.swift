@@ -35,11 +35,7 @@ extension AppSettings {
         case codeFontFamily
         case codeFontSize
         case chatFontSize
-        case diffViewerWidth
-        case skillsPaneWidth
-        case mcpPaneWidth
-        case scheduledTasksPaneWidth
-        case pullRequestsPaneWidth
+        case rightPaneWidth
         case pullRequestsEnabled
         case diffViewerTopSectionFraction
         case diffViewerCommitsTopSectionFraction
@@ -78,6 +74,12 @@ extension AppSettings {
 
     private enum LegacyCodingKeys: String, CodingKey {
         case autoTrustWorktrees
+        // The lane used to persist a width per destination — `diffViewerWidth`,
+        // `skillsPaneWidth`, `mcpPaneWidth`, `scheduledTasksPaneWidth`, and
+        // `pullRequestsPaneWidth`. Only the Diff Viewer's is read back, because
+        // it is the pane users sized most often; the rest are dropped on the
+        // next encode.
+        case diffViewerWidth
     }
 
     init(from decoder: any Decoder) throws {
@@ -91,7 +93,7 @@ extension AppSettings {
         decodeLastSettingsPage(from: container)
         try decodeAgentDefaults(from: container, legacyContainer: legacyContainer)
         try decodeAppearance(from: container)
-        try decodeLayout(from: container)
+        try decodeLayout(from: container, legacyContainer: legacyContainer)
         try decodeContextManagement(from: container)
         try decodeStorage(from: container, storedSchemaVersion: storedSchemaVersion)
         decodeScreenTabs(from: container)
@@ -158,18 +160,13 @@ extension AppSettings {
         chatFontSize = try container.decodeIfPresent(Int.self, forKey: .chatFontSize) ?? chatFontSize
     }
 
-    private mutating func decodeLayout(from container: KeyedDecodingContainer<CodingKeys>) throws {
-        diffViewerWidth = try container.decodeIfPresent(Double.self, forKey: .diffViewerWidth) ?? diffViewerWidth
-        skillsPaneWidth = try container.decodeIfPresent(Double.self, forKey: .skillsPaneWidth) ?? skillsPaneWidth
-        mcpPaneWidth = try container.decodeIfPresent(Double.self, forKey: .mcpPaneWidth) ?? mcpPaneWidth
-        scheduledTasksPaneWidth = try container.decodeIfPresent(
-            Double.self,
-            forKey: .scheduledTasksPaneWidth
-        ) ?? scheduledTasksPaneWidth
-        pullRequestsPaneWidth = try container.decodeIfPresent(
-            Double.self,
-            forKey: .pullRequestsPaneWidth
-        ) ?? pullRequestsPaneWidth
+    private mutating func decodeLayout(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        legacyContainer: KeyedDecodingContainer<LegacyCodingKeys>
+    ) throws {
+        rightPaneWidth = try container.decodeIfPresent(Double.self, forKey: .rightPaneWidth)
+            ?? legacyContainer.decodeIfPresent(Double.self, forKey: .diffViewerWidth)
+            ?? rightPaneWidth
         pullRequestsEnabled = try container.decodeIfPresent(
             Bool.self,
             forKey: .pullRequestsEnabled

@@ -8,7 +8,7 @@ enum RightPaneDestination: Hashable {
     case scheduled(ScheduledTaskPaneTarget)
     case pullRequest(PullRequestPaneTarget)
 
-    var widthDomain: RightPaneWidthDomain {
+    var feature: RightPaneFeature {
         switch self {
         case .diff:
             .diff
@@ -70,7 +70,9 @@ struct RightPaneContextualTargets {
     }
 }
 
-enum RightPaneWidthDomain: Hashable {
+/// Which feature owns the lane. The lane's width is shared across all of them,
+/// so this only names the session a command has to deactivate.
+enum RightPaneFeature: Hashable {
     case diff
     case skills
     case mcp
@@ -81,39 +83,19 @@ enum RightPaneWidthDomain: Hashable {
 enum DiffViewerCommandIntent: Equatable {
     case hideDiff
     case showDiff
-    case deactivateContextAndShowDiff(RightPaneWidthDomain)
+    case deactivateContextAndShowDiff(RightPaneFeature)
 
     static func resolve(destination: RightPaneDestination?) -> DiffViewerCommandIntent {
         switch destination {
-        case .diff:
-            .hideDiff
-        case .skills:
-            .deactivateContextAndShowDiff(.skills)
-        case .mcp:
-            .deactivateContextAndShowDiff(.mcp)
-        case .scheduled:
-            .deactivateContextAndShowDiff(.scheduled)
-        case .pullRequest:
-            .deactivateContextAndShowDiff(.pullRequests)
         case nil:
             .showDiff
+        case .diff:
+            .hideDiff
+        case .some(let contextual):
+            // Everything else in the lane is a contextual pane, and its feature
+            // is exactly the session that has to be deactivated first.
+            .deactivateContextAndShowDiff(contextual.feature)
         }
-    }
-}
-
-struct RightPaneWidths {
-    var diff: CGFloat
-    var skills: CGFloat
-    var mcp: CGFloat
-    var scheduled: CGFloat
-    var pullRequests: CGFloat
-
-    init(settings: AppSettings) {
-        diff = CGFloat(settings.diffViewerWidth)
-        skills = CGFloat(settings.skillsPaneWidth)
-        mcp = CGFloat(settings.mcpPaneWidth)
-        scheduled = CGFloat(settings.scheduledTasksPaneWidth)
-        pullRequests = CGFloat(settings.pullRequestsPaneWidth)
     }
 }
 
@@ -178,44 +160,8 @@ extension ContentView {
         )
     }
 
-    func rightPaneWidthBinding(for domain: RightPaneWidthDomain) -> Binding<CGFloat> {
-        Binding(
-            get: {
-                switch domain {
-                case .diff: rightPaneWidths.diff
-                case .skills: rightPaneWidths.skills
-                case .mcp: rightPaneWidths.mcp
-                case .scheduled: rightPaneWidths.scheduled
-                case .pullRequests: rightPaneWidths.pullRequests
-                }
-            },
-            set: { width in
-                switch domain {
-                case .diff: rightPaneWidths.diff = width
-                case .skills: rightPaneWidths.skills = width
-                case .mcp: rightPaneWidths.mcp = width
-                case .scheduled: rightPaneWidths.scheduled = width
-                case .pullRequests: rightPaneWidths.pullRequests = width
-                }
-            }
-        )
-    }
-
-    func persistRightPaneWidth(_ width: CGFloat, domain: RightPaneWidthDomain) {
-        settingsService.update {
-            switch domain {
-            case .diff:
-                $0.diffViewerWidth = width
-            case .skills:
-                $0.skillsPaneWidth = width
-            case .mcp:
-                $0.mcpPaneWidth = width
-            case .scheduled:
-                $0.scheduledTasksPaneWidth = width
-            case .pullRequests:
-                $0.pullRequestsPaneWidth = width
-            }
-        }
+    func persistRightPaneWidth(_ width: CGFloat) {
+        settingsService.update { $0.rightPaneWidth = width }
     }
 
     @ViewBuilder

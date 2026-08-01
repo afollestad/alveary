@@ -37,7 +37,7 @@ struct ContentView: View {
     @State private var viewModelContext: ModelContext
     @State var sidebarViewModel: SidebarViewModel
     @State var diffViewModel: DiffViewerViewModel
-    @State var rightPaneWidths: RightPaneWidths
+    @State var rightPaneWidth: CGFloat
     @State var diffViewerTopSectionFraction: CGFloat
     @State var diffViewerCommitsTopSectionFraction: CGFloat
     @State var diffViewerMode: DiffViewerMode
@@ -100,7 +100,7 @@ struct ContentView: View {
         let settings = dependencies.settingsService.current
         // Keep UI mutations on the main context so sidebar `@Query` reads and view-model saves stay in sync.
         _viewModelContext = State(initialValue: dependencies.modelContainer.mainContext)
-        _rightPaneWidths = State(initialValue: RightPaneWidths(settings: settings))
+        _rightPaneWidth = State(initialValue: CGFloat(settings.rightPaneWidth))
         _diffViewerTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerTopSectionFraction))
         _diffViewerCommitsTopSectionFraction = State(initialValue: CGFloat(settings.diffViewerCommitsTopSectionFraction))
         _diffViewerMode = State(initialValue: settings.diffViewerMode)
@@ -128,7 +128,6 @@ struct ContentView: View {
 
     var body: some View {
         let resolvedRightPaneDestination = rightPaneDestination
-        let widthDomain = resolvedRightPaneDestination?.widthDomain ?? .diff
         let diffRoutingKey = diffViewerRoutingKey
         let middlePane = MiddlePane(
             appState: appState,
@@ -175,10 +174,8 @@ struct ContentView: View {
             ZStack(alignment: .bottom) {
                 ResizableRightPane(
                     destination: resolvedRightPaneDestination,
-                    width: rightPaneWidthBinding(for: widthDomain),
-                    onWidthCommit: { width in
-                        persistRightPaneWidth(width, domain: widthDomain)
-                    },
+                    width: $rightPaneWidth,
+                    onWidthCommit: persistRightPaneWidth,
                     presentationGeneration: rightPanePresentationGeneration,
                     dismissalRequests: rightPaneDismissalRequests,
                     onDeactivate: deactivateRightPane,

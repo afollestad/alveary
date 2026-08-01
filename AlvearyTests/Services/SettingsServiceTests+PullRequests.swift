@@ -12,7 +12,7 @@ extension SettingsServiceTests {
         let payload: [String: Any] = [
             "defaultProvider": "claude",
             "branchPrefix": "feature/",
-            "pullRequestsPaneWidth": 520
+            "rightPaneWidth": 520
         ]
         defaults.set(
             try JSONSerialization.data(withJSONObject: payload),

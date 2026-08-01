@@ -29,7 +29,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.reopenLastThreadAndConversationOnLaunch = false
             $0.turnAwake = TurnAwakeSettings(enabled: true, preventDisplaySleep: false)
             $0.branchPrefix = "feature/"
-            $0.diffViewerWidth = 520
+            $0.rightPaneWidth = 520
             $0.diffViewerTopSectionFraction = 0.35
             $0.diffViewerCommitsTopSectionFraction = 0.65
             $0.diffViewerMode = .commits
@@ -57,7 +57,7 @@ final class SettingsServiceTests: XCTestCase {
             TurnAwakeSettings(enabled: true, preventDisplaySleep: false)
         )
         XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
-        XCTAssertEqual(reloadedService.current.diffViewerWidth, 520)
+        XCTAssertEqual(reloadedService.current.rightPaneWidth, 520)
         XCTAssertEqual(reloadedService.current.diffViewerTopSectionFraction, 0.35)
         XCTAssertEqual(reloadedService.current.diffViewerCommitsTopSectionFraction, 0.65)
         XCTAssertEqual(reloadedService.current.diffViewerMode, .commits)
@@ -250,7 +250,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(service.current.permissionMode, "on-request")
         XCTAssertEqual(service.current.effort, "turbo")
         XCTAssertEqual(service.current.theme, "system")
-        XCTAssertEqual(service.current.diffViewerWidth, 320)
+        XCTAssertEqual(service.current.rightPaneWidth, 320)
         XCTAssertEqual(service.current.diffViewerTopSectionFraction, 0.25)
         XCTAssertEqual(service.current.diffViewerCommitsTopSectionFraction, 0.75)
         XCTAssertEqual(service.current.diffViewerMode, .currentChanges)
@@ -416,7 +416,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.permissionMode = "invalid"
             $0.effort = "turbo"
             $0.theme = "sepia"
-            $0.diffViewerWidth = 10_000
+            $0.rightPaneWidth = 10_000
             $0.sessionHandoffWindowPercentage = 92
             $0.notifications.soundName = "Bonk"
         }
@@ -425,7 +425,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.permissionMode = "invalid"
             $0.effort = "turbo"
             $0.theme = "sepia"
-            $0.diffViewerWidth = 10_000
+            $0.rightPaneWidth = 10_000
             $0.sessionHandoffWindowPercentage = 102
             $0.notifications.soundName = "Bonk"
         }
@@ -434,7 +434,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(userDefaultsService.current.permissionMode, "on-request")
         XCTAssertEqual(userDefaultsService.current.effort, "turbo")
         XCTAssertEqual(userDefaultsService.current.theme, "system")
-        XCTAssertEqual(userDefaultsService.current.diffViewerWidth, 960)
+        XCTAssertEqual(userDefaultsService.current.rightPaneWidth, 960)
         XCTAssertEqual(
             userDefaultsService.current.sessionHandoffWindowPercentage,
             AppSettings.defaultSessionHandoffWindowPercentage
@@ -445,7 +445,7 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(inMemoryService.current.permissionMode, "on-request")
         XCTAssertEqual(inMemoryService.current.effort, "turbo")
         XCTAssertEqual(inMemoryService.current.theme, "system")
-        XCTAssertEqual(inMemoryService.current.diffViewerWidth, 960)
+        XCTAssertEqual(inMemoryService.current.rightPaneWidth, 960)
         XCTAssertEqual(
             inMemoryService.current.sessionHandoffWindowPercentage,
             AppSettings.supportedHandoffPercentageRange.upperBound
