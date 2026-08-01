@@ -142,7 +142,7 @@ private struct DiffViewerToolbarStatusSlot: View {
         }
 
         // Let the slot and following toolbar buttons move before the stats fade in;
-        // otherwise the text can briefly render under the settings button.
+        // otherwise the text can briefly render under its trailing neighbor.
         areStatsVisible = false
         statsVisibilityTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: Self.statsRevealDelayNanoseconds)

@@ -90,12 +90,28 @@ struct PullRequestToolbarButton: View {
         // variants the rows use render visibly thinner at this frame.
         if let status = state.status {
             OcticonImage(
-                name: PullRequestStatusGlyph.assetName16(for: status),
+                name: Self.assetName(for: status),
                 size: PrimaryToolbarMetrics.octiconSize
             )
             .foregroundStyle(PullRequestStatusGlyph.tint(for: status))
         } else {
-            OcticonImage(name: "PullRequestOcticon16", size: PrimaryToolbarMetrics.octiconSize)
+            OcticonImage(name: Self.plainAssetName, size: PrimaryToolbarMetrics.octiconSize)
         }
     }
+
+    /// Draft is the one status that does not use its own artwork here. Primer draws
+    /// it as two thin dashes around a void — at this size, 4.5pt of mark, a 6.0pt
+    /// hole, then 4.5pt more — which reads as a gap in the row rather than a button
+    /// beside the solid diff and settings glyphs. Its `.secondary` tint is already
+    /// unique among the statuses, so color still says "draft" without the sparse
+    /// shape. List rows keep the dashed artwork, where the glyph has room and a
+    /// text label beside it.
+    private static func assetName(for status: PullRequestStatus) -> String {
+        status == .draft
+            ? plainAssetName
+            : PullRequestStatusGlyph.assetName16(for: status)
+    }
+
+    /// The status-neutral pull-request shape, drawn for no links and for draft.
+    private static let plainAssetName = "PullRequestOcticon16"
 }

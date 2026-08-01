@@ -78,7 +78,7 @@ struct PrimaryToolbarButtonGroup: View {
         self.onOpenSettings = onOpenSettings
 
         let initialProjectActionsSlotWidth = PrimaryToolbarGroupWidth.projectActionsSlotWidth(
-            actionCount: Self.projectActionButtonCount(
+            symbols: Self.projectActionSymbols(
                 selectedThreadID: selectedThreadID,
                 projectActions: projectActions,
                 projectActionsThreadID: projectActionsThreadID
@@ -98,7 +98,7 @@ struct PrimaryToolbarButtonGroup: View {
             // Reserve the target width immediately for AppKit; only the
             // trailing-aligned visible capsule animates, so the right edge is fixed.
             .frame(width: targetToolbarGroupWidth, alignment: .trailing)
-            .onChange(of: projectActionButtonCount) { _, _ in
+            .onChange(of: projectActionSymbols) { _, _ in
                 updateProjectActionsPresentation()
             }
             .onChange(of: pullRequestState != nil) { _, _ in
@@ -127,8 +127,11 @@ struct PrimaryToolbarButtonGroup: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
+    // Spacing is per-boundary rather than one `HStack(spacing:)`, because the
+    // octicon glyphs carry less ink than the SF Symbols beside them — see
+    // `PrimaryToolbarOpticalSpacing`.
     private var coreToolbarButtons: some View {
-        HStack(spacing: PrimaryToolbarMetrics.buttonSpacing) {
+        HStack(spacing: 0) {
             TerminalToolbarButton(
                 title: terminalTitle,
                 displayState: terminalDisplayState,
@@ -137,6 +140,16 @@ struct PrimaryToolbarButtonGroup: View {
             .primaryToolbarIconButtonStyle()
             .help(terminalHelpText)
             .accessibilityLabel(terminalTitle)
+
+            DiffViewerToolbarButton(
+                displayState: diffDisplayState,
+                action: onToggleDiffViewer
+            )
+            .primaryToolbarIconButtonStyle(selector: .fullCapsule)
+            .help(diffHelpText)
+            .accessibilityLabel(diffAccessibilityLabel)
+            .accessibilityValue(diffAccessibilityValue)
+            .padding(.leading, PrimaryToolbarOpticalSpacing.beforeDiffViewer)
 
             PrimaryToolbarPullRequestSlot(
                 state: pullRequestState,
@@ -149,19 +162,11 @@ struct PrimaryToolbarButtonGroup: View {
                 popoverContent: pullRequestPopoverContent
             )
 
-            DiffViewerToolbarButton(
-                displayState: diffDisplayState,
-                action: onToggleDiffViewer
-            )
-            .primaryToolbarIconButtonStyle(selector: .fullCapsule)
-            .help(diffHelpText)
-            .accessibilityLabel(diffAccessibilityLabel)
-            .accessibilityValue(diffAccessibilityValue)
-
             PrimaryToolbarSettingsButton(
                 badgeState: settingsBadgeState,
                 action: onOpenSettings
             )
+            .padding(.leading, PrimaryToolbarOpticalSpacing.beforeSettings)
         }
     }
 
@@ -174,7 +179,7 @@ struct PrimaryToolbarButtonGroup: View {
     }
 
     private var targetProjectActionsSlotWidth: CGFloat {
-        PrimaryToolbarGroupWidth.projectActionsSlotWidth(actionCount: projectActionButtonCount)
+        PrimaryToolbarGroupWidth.projectActionsSlotWidth(symbols: projectActionSymbols)
     }
 
     private var targetPullRequestSlotWidth: CGFloat {
@@ -188,8 +193,8 @@ struct PrimaryToolbarButtonGroup: View {
         }
     }
 
-    private var projectActionButtonCount: Int {
-        Self.projectActionButtonCount(
+    private var projectActionSymbols: [String] {
+        Self.projectActionSymbols(
             selectedThreadID: selectedThreadID,
             projectActions: projectActions,
             projectActionsThreadID: projectActionsThreadID
@@ -207,82 +212,22 @@ struct PrimaryToolbarButtonGroup: View {
     // loaded actions stay rendered (their buttons keep targeting the thread
     // they were loaded for) so same-project switches do not collapse and
     // re-expand the slot on every selection change.
-    private static func projectActionButtonCount(
+    //
+    // Symbols rather than a count: the strip's spacing is derived from glyph ink,
+    // so both the reserved width and the rendered padding need the names. The
+    // fallback matches `projectActionButtons`.
+    static func projectActionSymbols(
         selectedThreadID: PersistentIdentifier?,
         projectActions: [AlvearyProjectConfig.ProjectAction],
         projectActionsThreadID: PersistentIdentifier?
-    ) -> Int {
+    ) -> [String] {
         guard selectedThreadID != nil, projectActionsThreadID != nil else {
-            return 0
+            return []
         }
-        return projectActions.count
-    }
-}
-
-enum PrimaryToolbarGroupWidth {
-    static func projectActionStripWidth(actionCount: Int) -> CGFloat {
-        guard actionCount > 0 else {
-            return 0
-        }
-
-        return CGFloat(actionCount) * PrimaryToolbarMetrics.iconButtonSize
-            + CGFloat(actionCount - 1) * PrimaryToolbarMetrics.buttonSpacing
+        return projectActions.map { $0.icon ?? defaultProjectActionSymbol }
     }
 
-    static func projectActionsSlotWidth(actionCount: Int) -> CGFloat {
-        guard actionCount > 0 else {
-            return 0
-        }
-
-        return projectActionStripWidth(actionCount: actionCount)
-            + PrimaryToolbarMetrics.buttonSpacing
-    }
-
-    /// The pull-request button is conditional, so it rides an animated slot like
-    /// the project actions rather than the fixed core-button count.
-    static func pullRequestSlotWidth(isVisible: Bool) -> CGFloat {
-        guard isVisible else {
-            return 0
-        }
-        return PrimaryToolbarMetrics.iconButtonSize + PrimaryToolbarMetrics.buttonSpacing
-    }
-
-    static func groupWidth(
-        projectActionsSlotWidth: CGFloat,
-        pullRequestSlotWidth: CGFloat,
-        diffStatusWidth: CGFloat
-    ) -> CGFloat {
-        PrimaryToolbarMetrics.containerHorizontalInset * 2
-            + coreToolbarButtonWidth
-            + coreToolbarSpacingWidth
-            + projectActionsSlotWidth
-            + pullRequestSlotWidth
-            + diffStatusWidth
-    }
-
-    private static let coreToolbarButtonCount: CGFloat = 3
-    private static let coreToolbarButtonWidth = coreToolbarButtonCount * PrimaryToolbarMetrics.iconButtonSize
-    private static let coreToolbarSpacingWidth = (coreToolbarButtonCount - 1) * PrimaryToolbarMetrics.buttonSpacing
-}
-
-enum PrimaryToolbarMetrics {
-    static let buttonSpacing: CGFloat = 4
-    static let containerHorizontalInset: CGFloat = 8
-    static let containerVerticalInset: CGFloat = 4
-    static let containerBorderWidth: CGFloat = 1
-    static let iconButtonSize: CGFloat = 30
-    static let iconFont = Font.system(size: 16, weight: .medium)
-    /// Octicons are fixed 24pt artwork rather than font-sized symbols, so they
-    /// need an explicit glyph box that optically matches `iconFont` in this row.
-    static let octiconSize: CGFloat = 16
-    static let statusFont = Font.body.weight(.medium)
-    static let statusSpacing: CGFloat = 2
-    static let diffSummarySpacing: CGFloat = 6
-    static let diffSummaryTrailingPadding: CGFloat = 4
-    static let progressIndicatorSize: CGFloat = 16
-    static let badgeDiameter: CGFloat = 8
-    static let statusAnimation = Animation.spring(response: 0.24, dampingFraction: 0.9)
-    static let interactionAnimation = Animation.easeOut(duration: 0.12)
+    static let defaultProjectActionSymbol = "terminal"
 }
 
 private struct PrimaryToolbarProjectActionsSlot: View {
@@ -295,8 +240,10 @@ private struct PrimaryToolbarProjectActionsSlot: View {
 
     var body: some View {
         // Project actions are an animated leading slot so inserting toolbar
-        // children cannot fight the diff button's own width animation.
-        HStack(spacing: PrimaryToolbarMetrics.buttonSpacing) {
+        // children cannot fight the diff button's own width animation. Spacing is
+        // per-boundary, derived from each pair's glyph ink, so it must stay in
+        // step with `PrimaryToolbarGroupWidth.projectActionsSlotWidth`.
+        HStack(spacing: 0) {
             projectActionButtons
         }
         .padding(.trailing, slotTrailingPadding)
@@ -317,23 +264,47 @@ private struct PrimaryToolbarProjectActionsSlot: View {
         if selectedThreadID != nil,
            let projectActionsThreadID,
            !projectActions.isEmpty {
-            ForEach(Array(projectActions.enumerated()), id: \.offset) { _, action in
+            ForEach(Array(projectActions.enumerated()), id: \.offset) { index, action in
                 Button {
                     onProjectAction(projectActionsThreadID, action)
                 } label: {
-                    Label(action.name, systemImage: action.icon ?? "terminal")
-                        .labelStyle(.iconOnly)
+                    Label(
+                        action.name,
+                        systemImage: action.icon ?? PrimaryToolbarButtonGroup.defaultProjectActionSymbol
+                    )
+                    .labelStyle(.iconOnly)
                 }
                 .primaryToolbarIconButtonStyle()
                 .help(action.name)
+                .padding(.leading, leadingSpacing(before: index))
             }
         }
     }
 
+    /// Zero for the first button — the slot's own frame supplies that edge.
+    private func leadingSpacing(before index: Int) -> CGFloat {
+        guard index > 0, index < symbols.count else {
+            return 0
+        }
+        return PrimaryToolbarGlyphInk.spacing(after: symbols[index - 1], before: symbols[index])
+    }
+
     private var slotTrailingPadding: CGFloat {
-        projectActions.isEmpty || selectedThreadID == nil || projectActionsThreadID == nil
-            ? 0
-            : PrimaryToolbarMetrics.buttonSpacing
+        guard let last = symbols.last else {
+            return 0
+        }
+        return PrimaryToolbarGlyphInk.spacing(
+            after: PrimaryToolbarGlyphInk.width(ofSymbol: last),
+            before: PrimaryToolbarGlyphInk.terminalInk
+        )
+    }
+
+    private var symbols: [String] {
+        PrimaryToolbarButtonGroup.projectActionSymbols(
+            selectedThreadID: selectedThreadID,
+            projectActions: projectActions,
+            projectActionsThreadID: projectActionsThreadID
+        )
     }
 }
 
@@ -353,16 +324,13 @@ private struct PrimaryToolbarPullRequestSlot: View {
 
     var body: some View {
         slotContent
-            // `width` is the group-width *reserve*: button plus the extra HStack
-            // spacing its presence adds. The rendered frame is the button alone —
-            // the parent HStack already spaces both sides, so folding the spacing
-            // into the frame would double the trailing gap and read as an uneven
-            // inset. When the button is absent the empty content collapses out of
-            // layout entirely, taking its HStack spacing with it.
-            .frame(
-                width: max(width - PrimaryToolbarMetrics.buttonSpacing, 0),
-                alignment: .trailing
-            )
+            // The row spaces per boundary rather than uniformly, so this slot owns
+            // the leading spacing its presence adds and `width` reserves both. The
+            // padding sits inside the animated frame so a collapse takes the
+            // spacing with it; the settings button supplies the trailing side
+            // either way.
+            .padding(.leading, PrimaryToolbarOpticalSpacing.beforePullRequest)
+            .frame(width: width, alignment: .trailing)
             .clipped()
             .opacity(isButtonVisible ? 1 : 0)
             .scaleEffect(isButtonVisible ? 1 : 0.92, anchor: .trailing)

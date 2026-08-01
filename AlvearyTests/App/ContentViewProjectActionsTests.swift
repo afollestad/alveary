@@ -371,60 +371,6 @@ final class ContentViewProjectActionsTests: XCTestCase {
 
         XCTAssertEqual(ProjectActionTerminalPresentation.maxSessions(settings: settings), 12)
     }
-
-    func testPrimaryToolbarGroupWidthIncludesAnimatedProjectActionSlot() {
-        let twoActionStripWidth = PrimaryToolbarGroupWidth.projectActionStripWidth(actionCount: 2)
-        XCTAssertEqual(
-            twoActionStripWidth,
-            PrimaryToolbarMetrics.iconButtonSize * 2 + PrimaryToolbarMetrics.buttonSpacing
-        )
-
-        let twoActionSlotWidth = PrimaryToolbarGroupWidth.projectActionsSlotWidth(actionCount: 2)
-        XCTAssertEqual(
-            twoActionSlotWidth,
-            twoActionStripWidth + PrimaryToolbarMetrics.buttonSpacing
-        )
-
-        let groupWidth = PrimaryToolbarGroupWidth.groupWidth(
-            projectActionsSlotWidth: twoActionSlotWidth,
-            pullRequestSlotWidth: 0,
-            diffStatusWidth: 42
-        )
-        XCTAssertEqual(
-            groupWidth,
-            PrimaryToolbarMetrics.containerHorizontalInset * 2
-                + PrimaryToolbarMetrics.iconButtonSize * 3
-                + PrimaryToolbarMetrics.buttonSpacing * 2
-                + twoActionSlotWidth
-                + 42
-        )
-    }
-
-    /// The pull-request button is conditional, so it rides its own animated slot
-    /// rather than the fixed core-button count — otherwise the group reserves
-    /// width for a button that is not mounted and its trailing edge shifts.
-    func testPullRequestSlotWidensTheGroupOnlyWhenTheButtonIsMounted() {
-        XCTAssertEqual(PrimaryToolbarGroupWidth.pullRequestSlotWidth(isVisible: false), 0)
-        XCTAssertEqual(
-            PrimaryToolbarGroupWidth.pullRequestSlotWidth(isVisible: true),
-            PrimaryToolbarMetrics.iconButtonSize + PrimaryToolbarMetrics.buttonSpacing
-        )
-
-        let hidden = PrimaryToolbarGroupWidth.groupWidth(
-            projectActionsSlotWidth: 0,
-            pullRequestSlotWidth: PrimaryToolbarGroupWidth.pullRequestSlotWidth(isVisible: false),
-            diffStatusWidth: 0
-        )
-        let visible = PrimaryToolbarGroupWidth.groupWidth(
-            projectActionsSlotWidth: 0,
-            pullRequestSlotWidth: PrimaryToolbarGroupWidth.pullRequestSlotWidth(isVisible: true),
-            diffStatusWidth: 0
-        )
-        XCTAssertEqual(
-            visible - hidden,
-            PrimaryToolbarMetrics.iconButtonSize + PrimaryToolbarMetrics.buttonSpacing
-        )
-    }
 }
 
 private struct DiffCommitTargetFixture {

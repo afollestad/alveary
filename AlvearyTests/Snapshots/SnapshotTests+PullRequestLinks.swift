@@ -36,6 +36,72 @@ extension SnapshotTests {
         }
     }
 
+    /// The full production row — a project action through to settings, mixing SF
+    /// Symbols and octicons. This is the baseline to measure inter-glyph gaps
+    /// against when tuning `PrimaryToolbarOpticalSpacing`.
+    func testPrimaryToolbarButtonGroupProjectActionWithPullRequest() {
+        let thread = AgentThread(name: "Toolbar Action")
+
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                selectedThread: thread,
+                projectActions: [
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "safari",
+                        name: "Open",
+                        command: "open ."
+                    )
+                ],
+                pullRequestState: PullRequestLinksToolbarState(linkCount: 0, status: nil),
+                diffDisplayState: .idle(.empty)
+            )
+            .padding(8),
+            size: CGSize(width: 240, height: 64),
+            named: "primary_toolbar_button_group_project_action_pull_request"
+        )
+    }
+
+    /// The same row in dark mode. Glyph antialiasing differs between appearances,
+    /// so inter-glyph gaps must be measured here too rather than inferred from the
+    /// light baseline.
+    func testPrimaryToolbarButtonGroupProjectActionWithPullRequestDark() {
+        let thread = AgentThread(name: "Toolbar Action")
+
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                selectedThread: thread,
+                projectActions: [
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "safari",
+                        name: "Open",
+                        command: "open ."
+                    )
+                ],
+                pullRequestState: PullRequestLinksToolbarState(linkCount: 0, status: nil),
+                diffDisplayState: .idle(.empty)
+            )
+            .padding(8),
+            size: CGSize(width: 240, height: 64),
+            named: "primary_toolbar_button_group_project_action_pull_request_dark",
+            colorScheme: .dark
+        )
+    }
+
+    /// The diff button's stats slot expands directly into the pull-request
+    /// button's leading edge, so this is the case that catches stats rendering
+    /// under its trailing neighbor.
+    func testPrimaryToolbarButtonGroupLinkedPullRequestWithDiffStats() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                pullRequestState: PullRequestLinksToolbarState(linkCount: 1, status: .open),
+                diffDisplayState: .idle(DiffStats(additions: 120, deletions: 45))
+            )
+            .padding(8),
+            size: CGSize(width: 280, height: 64),
+            named: "primary_toolbar_button_group_pull_request_diff_stats"
+        )
+    }
+
     func testPrimaryToolbarButtonGroupMultipleLinkedPullRequests() {
         assertMacSnapshot(
             primaryToolbarButtonGroup(
