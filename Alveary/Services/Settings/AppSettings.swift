@@ -56,6 +56,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     // Gates the whole pull-request integration: the sidebar row that leads to the
     // Pull Requests screen, and the thread toolbar's linked-pull-request button.
     var pullRequestsEnabled = true
+    // Links pull requests found in new transcript messages without asking.
+    var automaticallyLinkPullRequests = false
+    // Written only by the transcript link prompt's `Never` action; deliberately has
+    // no settings row, so re-enabling prompts happens by turning auto-linking on.
+    var suppressPullRequestLinkPrompts = false
     var diffViewerTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerCommitsTopSectionFraction = Self.defaultDiffViewerTopSectionFraction
     var diffViewerMode = Self.defaultDiffViewerMode

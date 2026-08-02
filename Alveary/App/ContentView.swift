@@ -301,6 +301,9 @@ struct ContentView: View {
             diffViewerDraftRefreshRevision &+= 1
             Task { await refreshToolbarProjectActions() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .pullRequestLinkRequested)) { notification in
+            handlePullRequestLinkRequest(notification)
+        }
         // Watching follows the rendered pane; routing is owned by the keyed task below.
         .onChange(of: isDiffViewerRendered, initial: true) { _, isRendered in
             diffViewModel.setWatchingEnabled(isRendered)

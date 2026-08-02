@@ -24,6 +24,8 @@ final class AppKitTranscriptRowFactory {
         var actionContextID = ""
         var suppressesApprovalControls: (ToolApprovalRequest) -> Bool = { _ in false }
         var selectedApprovalSelection: (ToolApprovalRequest) -> ToolApprovalSelection = { _ in .once }
+        var pullRequestLinkPromptsByMessageID: [String: [PendingPullRequestPrompt]] = [:]
+        var selectedPullRequestPromptSelection: (String) -> PullRequestLinkPromptSelection = { _ in .init() }
         // Row-specific invalidation lets the AppKit container keep rows mounted
         // while remeasuring only the row whose variable-height content changed.
         // The Boolean carries animation intent: expansion rows animate, while
@@ -41,6 +43,9 @@ final class AppKitTranscriptRowFactory {
         var onApproveForSession: (ToolApprovalRequest, ToolApprovalSessionScope) -> Void = { _, _ in }
         var onDeny: (ToolApprovalRequest) -> Void = { _ in }
         var onSelectApprovalSelection: (ToolApprovalRequest, ToolApprovalSelection) -> Void = { _, _ in }
+        var onAcceptPullRequestLinkPrompt: (PendingPullRequestPrompt, Bool) -> Void = { _, _ in }
+        var onDeclinePullRequestLinkPrompt: (PendingPullRequestPrompt, Bool) -> Void = { _, _ in }
+        var onSelectPullRequestPromptSelection: (String, PullRequestLinkPromptSelection) -> Void = { _, _ in }
     }
 
     private var cachedViewsByRowID: [String: NSView] = [:]
@@ -384,7 +389,7 @@ extension AppKitTranscriptRowFactory {
                 imageAttachments: imageAttachments(for: id, configuration: configuration),
                 fileAttachments: fileAttachments(for: id, role: .user, configuration: configuration),
                 configuration: configuration
-            )]
+            )] + pullRequestLinkPromptRows(messageID: id, alignment: .trailing, configuration: configuration)
         case .assistantMessage(let id, let text):
             return [textBubbleRow(
                 id: id,
@@ -393,7 +398,7 @@ extension AppKitTranscriptRowFactory {
                 imageAttachments: imageAttachments(for: id, configuration: configuration),
                 fileAttachments: fileAttachments(for: id, role: .assistant, configuration: configuration),
                 configuration: configuration
-            )]
+            )] + pullRequestLinkPromptRows(messageID: id, alignment: .leading, configuration: configuration)
         case .toolGroup(let id, let tools):
             return [toolGroupRow(id: id, tools: tools, configuration: configuration)]
         case .standaloneTool(let id, let tool):

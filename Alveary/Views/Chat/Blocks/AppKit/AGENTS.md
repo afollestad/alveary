@@ -44,3 +44,9 @@ AppKit-native transcript row primitives live here.
 - **Token async prep.** Off-main markdown document preparation must be accepted only when the row id, content, width, typography, appearance, expansion, and retry inputs still match; stale results may not hydrate or invalidate removed rows.
 - **Mirror user retries.** AppKit user bubbles must preserve the `Not sent` footer and retry callback when a persisted send is retryable.
 - **Keep prompt toggles cheap.** Update existing prompt option rows in place and avoid synchronous whole-window display from click tracking.
+
+### Pull-Request Link Prompts
+
+- `AppKitTranscriptPullRequestPromptView` asks whether a pull request found in the message above should be linked. Its alignment follows the anchoring bubble — user messages trailing, assistant leading — so the question reads as belonging to that message.
+- **Its split menus select, never act**, matching the rule in `Views/Components/AGENTS.md`: the menu swaps `Yes`→`Always` / `No`→`Never`, and only the primary half runs the selected action.
+- **`AppKitTranscriptApprovalSplitControl`'s `primarySymbolName` and `actionStyle` default to the approval look.** Changing those defaults shifts every approval baseline, so keep new callers configuring the properties instead.

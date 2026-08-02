@@ -485,6 +485,7 @@ private extension ConversationViewModel {
 
         modelContext.insert(record)
         state.grouper.append(event: record)
+        scanInsertedMessageRecordForPullRequestLinks(record)
         scheduleContextWindowCacheUpdateIfNeeded(from: record)
         scheduleSave()
     }

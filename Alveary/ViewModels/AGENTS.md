@@ -23,6 +23,11 @@ These instructions apply to files under `Alveary/ViewModels/`.
     - **Validate by fetching.** `link(urlText:owner:)` parses through `PullRequestURLParser` and funnels into `link(_:owner:)`, which proves the pull request exists with `service.fetchDetail(_:)` — the same call producing the stored snapshot — so an opened pane always has a real summary. The identifier overload is the create-pull-request flow's entry point.
     - **Take `PullRequestLinkOwner`, re-resolve after every `await`.** The store never holds a model reference across a suspension — owners carry `PersistentIdentifier`s resolved through the fetch-backed context helpers — and it re-checks for a duplicate after the fetch because a concurrent link could have landed.
     - **Open panes through the browsing view model** (`PullRequestsViewModel.requestDetails(_:)`); the link store owns no pane state.
+    - **Keep detected links off the popover's state.** `linkDetectedPullRequest(_:threadID:)` in `+DetectedLinks.swift` never writes `isLinking` / `linkErrorMessage` — a background link would otherwise disable the popover's button or show an error where nobody is looking — and it throws instead, for the app root to surface. It clears matching pending prompts in the same save as the link.
+- Transcript pull-request detection lives in `ConversationViewModel+PullRequestDetection.swift`, hooked into the two message insert sites (`persistEventRecord`, `insertLocalUserMessage`) plus a rescan after draft materialization, which the draft gate skipped.
+    - **Detect at insert time only.** Fork-copied and rebuilt history never reaches those sites, which is what keeps old transcripts from prompting; the watermark (see `Alveary/Data/AGENTS.md`) fences replays.
+    - **Never write links here.** Both the automatic and accepted paths post `.pullRequestLinkRequested` for `ContentView` to route into `PullRequestLinksViewModel`; decline and Never are local writes.
+    - **Filter prompts at render time, do not delete them.** `pendingPullRequestLinkPromptsByMessageID()` drops already-linked and globally suppressed prompts, so a stale entry cannot resurrect a question, and `Never` stays reversible by turning auto-linking on.
 
 ### Contextual Panes
 

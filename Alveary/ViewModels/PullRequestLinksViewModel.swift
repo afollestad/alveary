@@ -13,9 +13,14 @@ import SwiftData
 @MainActor
 @Observable
 final class PullRequestLinksViewModel {
-    private let modelContext: ModelContext
-    private let service: any PullRequestsService
-    private let now: () -> Date
+    // Internal rather than private so `+DetectedLinks.swift` can reuse them.
+    let modelContext: ModelContext
+    let service: any PullRequestsService
+    let now: () -> Date
+
+    /// Detected links currently being fetched, so a repeated prompt tap or a
+    /// duplicate detection cannot start a second identical fetch.
+    @ObservationIgnored var linkingDetectedIdentifiers: Set<PullRequestIdentifier> = []
 
     /// The failed link attempt's message, cleared when the user edits the field
     /// or the popover closes.

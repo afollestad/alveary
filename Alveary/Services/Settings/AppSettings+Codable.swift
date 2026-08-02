@@ -37,6 +37,8 @@ extension AppSettings {
         case chatFontSize
         case rightPaneWidth
         case pullRequestsEnabled
+        case automaticallyLinkPullRequests
+        case suppressPullRequestLinkPrompts
         case diffViewerTopSectionFraction
         case diffViewerCommitsTopSectionFraction
         case diffViewerMode
@@ -171,6 +173,14 @@ extension AppSettings {
             Bool.self,
             forKey: .pullRequestsEnabled
         ) ?? pullRequestsEnabled
+        automaticallyLinkPullRequests = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .automaticallyLinkPullRequests
+        ) ?? automaticallyLinkPullRequests
+        suppressPullRequestLinkPrompts = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .suppressPullRequestLinkPrompts
+        ) ?? suppressPullRequestLinkPrompts
         diffViewerTopSectionFraction = try container.decodeIfPresent(
             Double.self,
             forKey: .diffViewerTopSectionFraction

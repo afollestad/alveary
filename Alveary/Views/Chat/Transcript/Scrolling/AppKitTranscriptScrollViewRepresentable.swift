@@ -256,7 +256,18 @@ private struct AppKitTranscriptPreparedUpdate {
             transcriptFileAttachmentsByMessageID: rowConfiguration.transcriptFileAttachmentsByMessageID,
             hasUnansweredPrompt: rowConfiguration.hasUnansweredPrompt,
             actionContextID: rowConfiguration.actionContextID,
-            approvalSelections: approvalSelections
+            approvalSelections: approvalSelections,
+            pullRequestLinkPromptsByMessageID: rowConfiguration.pullRequestLinkPromptsByMessageID,
+            pullRequestPromptSelections: pullRequestPromptSelections
+        )
+    }
+
+    private var pullRequestPromptSelections: [String: PullRequestLinkPromptSelection] {
+        Dictionary(
+            rowConfiguration.pullRequestLinkPromptsByMessageID.values.flatMap { prompts in
+                prompts.map { ($0.id, rowConfiguration.selectedPullRequestPromptSelection($0.id)) }
+            },
+            uniquingKeysWith: { _, latest in latest }
         )
     }
 
@@ -295,5 +306,7 @@ private struct AppKitTranscriptPreparedUpdate {
         let hasUnansweredPrompt: Bool
         let actionContextID: String
         let approvalSelections: [String: ToolApprovalSelection]
+        let pullRequestLinkPromptsByMessageID: [String: [PendingPullRequestPrompt]]
+        let pullRequestPromptSelections: [String: PullRequestLinkPromptSelection]
     }
 }

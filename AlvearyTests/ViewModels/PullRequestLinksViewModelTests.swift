@@ -268,7 +268,8 @@ final class PullRequestLinksViewModelTests: XCTestCase {
     }
 
     @MainActor
-    private struct Harness {
+    // Internal so `+DetectedLinks.swift` can build the same fixture.
+    struct Harness {
         let container: ModelContainer
         let context: ModelContext
         let service: StubPullRequestsService

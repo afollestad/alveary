@@ -26,6 +26,7 @@ These instructions cover the services under `Alveary/Services/Git/`, including w
 
 ## Pull Requests
 
+- **`PullRequestURLTextScanner` matches URLs only**, unlike `PullRequestURLParser`, which also accepts the `owner/repo#123` shorthand: in free-form message text that shape is far more often an issue reference. Trimming trailing punctuation off each candidate is load-bearing — the parser rejects a number segment with any trailing non-digit.
 - **File layout.** Reads plus the shared shell/decode/error helpers live in `GitHubPullRequestsService.swift`; every write lives in `+Mutations.swift` — which is why those helpers are internal, not private. GraphQL query text, node-to-model mapping, and wire shapes split across `+GraphQL.swift` / `+GraphQLMapping.swift` / `+GraphQLNodes.swift`; detail-side models live in `PullRequestModels.swift`, and `PullRequestsService.swift` keeps the protocol, list models, and error type.
 
 ### Reads And Resilience

@@ -31,6 +31,14 @@ final class AgentThread {
     /// Optional so pre-field stores migrate, and deliberately absent from `init`
     /// so a forked thread starts with no links.
     var linkedPullRequestsJSON: String?
+    /// JSON-encoded `PendingPullRequestPrompt` list; see
+    /// `AgentThread+PullRequestPrompts.swift`. Optional and absent from `init` for
+    /// the same reasons as `linkedPullRequestsJSON`.
+    var pendingPullRequestPromptsJSON: String?
+    /// Newest message timestamp already scanned for pull-request links. Messages at
+    /// or before it never prompt again, so replayed or rebuilt history stays quiet.
+    /// Absent from `init`, so a fork re-seeds from its own first scanned message.
+    var pullRequestScanWatermark: Date?
     var project: Project?
     var scheduledTaskRun: ScheduledTaskRun?
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.targetThread)

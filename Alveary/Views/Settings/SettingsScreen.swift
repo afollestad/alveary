@@ -165,7 +165,8 @@ struct SettingsScreen: View {
                 pullRequestGenerationPrompt: binding(for: \.pullRequestGenerationPrompt),
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
-                pullRequestsEnabled: binding(for: \.pullRequestsEnabled)
+                pullRequestsEnabled: binding(for: \.pullRequestsEnabled),
+                automaticallyLinkPullRequests: binding(for: \.automaticallyLinkPullRequests)
             )
         case .handoff:
             HandoffSettingsTabView(

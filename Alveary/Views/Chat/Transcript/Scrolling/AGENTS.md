@@ -33,6 +33,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 ### SwiftUI Bridge
 
 - **Adapt through row factories.** Convert `ChatItem` values into cached AppKit row views by stable row id so refreshes do not reset expansion or prompt state.
+- **Add every new row-configuration input to `ContentSignature`.** The bridge coordinator skips the whole row rebuild when the signature is unchanged, so a field it does not enumerate silently never installs or removes its rows. Closure-valued inputs contribute the values they resolve for the current items, the way `approvalSelections` does.
 - **Bridge transient rows.** Pass live thinking, streaming, and interrupted state separately from persisted `ChatItem`s; use stable transient ids.
 - **Render only the newest thought line.** `appKitTranscriptLiveThoughtSummaryText` returns the last renderable line of the accumulated thought, not a join of every line. Live thought text accumulates for a whole turn and providers separate reasoning sections with a blank line, so joining grows the row without bound and reads as one run-on sentence. The completed-thought row shares the same helper and collapses the same way.
 - **Measure the bridge.** The AppKit surface reports the SwiftUI wrapper width so shared bubble-width caps stay aligned with the host layout.

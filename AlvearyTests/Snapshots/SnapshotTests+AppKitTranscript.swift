@@ -397,13 +397,6 @@ extension SnapshotTests {
         )
     }
 
-    private func appKitRowSnapshot<Content: NSView>(
-        _ makeContent: @escaping () -> Content
-    ) -> some View {
-        AppKitTranscriptSnapshotHost(makeContent: makeContent)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
     private static let longAppKitBubbleMarkdown = """
     You said: "Include everything since 'A few ideas worth considering', and repeat what I'm telling you at the top of the output."
 
@@ -426,41 +419,4 @@ extension SnapshotTests {
 
     Recommended first step: delete the six scratch files and leave the unrelated images alone.
     """
-}
-
-private struct AppKitTranscriptSnapshotHost<Content: NSView>: NSViewRepresentable {
-    let makeContent: () -> Content
-
-    func makeNSView(context: Context) -> AppKitTranscriptSnapshotContainerView {
-        AppKitTranscriptSnapshotContainerView(contentView: makeContent())
-    }
-
-    func updateNSView(_ nsView: AppKitTranscriptSnapshotContainerView, context: Context) {
-        nsView.needsLayout = true
-    }
-}
-
-private final class AppKitTranscriptSnapshotContainerView: NSView {
-    private let contentView: NSView
-
-    init(contentView: NSView) {
-        self.contentView = contentView
-        super.init(frame: .zero)
-        addSubview(contentView)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var isFlipped: Bool {
-        true
-    }
-
-    override func layout() {
-        super.layout()
-        contentView.frame = bounds
-        contentView.layoutSubtreeIfNeeded()
-    }
 }

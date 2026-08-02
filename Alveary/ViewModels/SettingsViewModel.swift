@@ -122,6 +122,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.pullRequestsEnabled = newValue } }
     }
 
+    var automaticallyLinkPullRequests: Bool {
+        get { settingsService.current.automaticallyLinkPullRequests }
+        set { settingsService.update { $0.automaticallyLinkPullRequests = newValue } }
+    }
+
     var theme: String {
         get { settingsService.current.theme }
         set { settingsService.update { $0.theme = newValue } }

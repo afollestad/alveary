@@ -57,6 +57,9 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
     - **The stored `PullRequestSummary` is a refetchable cache, not truth** — it lets the toolbar glyph render without a network round trip; the pane prefers fresh `PullRequestDetail` and refreshes the snapshot on open.
     - **Decode failure yields an empty list** (a malformed blob must not make its owner unopenable); setting an empty list clears the column to `nil`, never `[]`.
     - **Nothing enforces uniqueness across owners** — the same pull request may be linked from several threads or projects; only per-owner duplicates are rejected, by the link store.
+- `AgentThread.pendingPullRequestPromptsJSON` and `pullRequestScanWatermark` back transcript link detection (see `Alveary/ViewModels/AGENTS.md`). Both follow the optional/no-`init` contract above, so a fork inherits neither open questions nor its source's scan fence.
+    - **The watermark advances only for a message that yielded identifiers**, so ordinary traffic does not dirty the thread row; a message at or before it never prompts again, fencing replays.
+    - **A prompt is keyed by anchoring message, not just pull request** — `messageEventID` is the `ConversationEventRecord.id` that is also the message's `ChatItem.id`, so the row survives relaunch and full rebuilds under the same bubble.
 - Scheduled-task persistence separates mutable definitions from immutable run provenance:
     - **Keep recurrence structured.** `ScheduledTask` persists flat recurrence fields plus a pinned IANA timezone; use its `recurrence` bridge, never RRULE text.
     - **Snapshot before execution.** `ScheduledTaskRun.init(snapshotting:...)` makes revision, prompt, provider settings, project path, grants, occurrence identity, and claimed directory identities durable across edits and definition deletion. Missing or malformed identity provenance fails closed for execution and recovery.

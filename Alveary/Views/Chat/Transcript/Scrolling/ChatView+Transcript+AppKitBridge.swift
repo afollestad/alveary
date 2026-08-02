@@ -111,7 +111,25 @@ extension ChatTranscriptView {
             }
         }
         configureAppKitApprovalRows(&configuration)
+        configureAppKitPullRequestLinkPrompts(&configuration)
         return configuration
+    }
+
+    func configureAppKitPullRequestLinkPrompts(_ configuration: inout AppKitTranscriptRowFactory.Configuration) {
+        configuration.pullRequestLinkPromptsByMessageID = viewModel.pendingPullRequestLinkPromptsByMessageID()
+        configuration.selectedPullRequestPromptSelection = { promptID in
+            appKitPullRequestPromptSelections[promptID] ?? .init()
+        }
+        configuration.onAcceptPullRequestLinkPrompt = { prompt, always in
+            viewModel.acceptPullRequestLinkPrompt(prompt, always: always)
+        }
+        configuration.onDeclinePullRequestLinkPrompt = { prompt, never in
+            appKitPullRequestPromptSelections[prompt.id] = nil
+            viewModel.declinePullRequestLinkPrompt(prompt, never: never)
+        }
+        configuration.onSelectPullRequestPromptSelection = { promptID, selection in
+            appKitPullRequestPromptSelections[promptID] = selection
+        }
     }
 
     var appKitTranscriptAttachmentsByMessageID: [String: [TranscriptImageAttachment]] {

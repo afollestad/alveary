@@ -3,6 +3,7 @@
 These instructions cover settings UI files under `Alveary/Views/Settings/`.
 
 - Keep settings sections/tabs sorted alphabetically by their visible title everywhere they are displayed. `AppSettings.SettingsPage.allCases` drives the sidebar and compact picker, so update the enum case order, tab switch cases, presentation switches, and snapshots together when adding or renaming a settings tab. Adding a case shifts *every* `SettingsScreen` snapshot, not only the new tab's: wide baselines show the sidebar list and narrow ones show the segmented picker, and both enumerate `allCases`.
+- `AppSettings.suppressPullRequestLinkPrompts` deliberately has no settings row; it is written only by the transcript link prompt's `Never` action, and turning `Automatically link PRs` on is how the user gets out of it. Do not add a control for it.
 - Session-handoff settings live in the Handoff tab (`SettingsScreen+HandoffTabView.swift`), not Threads; do not reintroduce a `Context management` section to the Threads tab.
 - Settings has no archived-threads surface. The sidebar `Archived` row and `Alveary/Views/Archived/` own that entirely; do not reintroduce an `Archived Tasks` section to the Threads tab.
 - The Agents tab renders providers as `SettingsAgentCard` grid cells; the single refresh affordance lives in `SettingsScreenHeader` (Agents page only), so do not reintroduce per-card refresh buttons or a `Models` list.

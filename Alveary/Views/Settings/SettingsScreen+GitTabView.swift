@@ -9,6 +9,7 @@ struct GitSettingsTabView: View {
     @Binding var worktreesBaseDirectory: String
     @Binding var createWorktreeByDefault: Bool
     @Binding var pullRequestsEnabled: Bool
+    @Binding var automaticallyLinkPullRequests: Bool
 
     @State private var gitHubInstalledVersion: String?
     @State private var isGitHubConnected = false
@@ -60,6 +61,13 @@ struct GitSettingsTabView: View {
                         "Enable pull request integration",
                         helpText: GitSettingsHelp.pullRequestsEnabled,
                         isOn: $pullRequestsEnabled
+                    )
+
+                    SettingsToggleRow(
+                        "Automatically link PRs",
+                        helpText: GitSettingsHelp.automaticallyLinkPullRequests,
+                        isOn: $automaticallyLinkPullRequests,
+                        isDisabled: !pullRequestsEnabled
                     )
 
                     SettingsPromptEditorRow(
@@ -200,6 +208,8 @@ private enum GitSettingsHelp {
         "New threads default to creating a worktree instead of using the main project folder. You can override this in the composer."
     static let pullRequestsEnabled =
         "Show the \"Pull requests\" sidebar row and the toolbar button for linking pull requests to a thread."
+    static let automaticallyLinkPullRequests =
+        "Link pull requests to the thread as soon as their GitHub link appears in a message, instead of asking in the transcript."
     static let pullRequestGenerationPrompt =
         "Prompt sent to the agent when generating a pull request title or description left blank in the create pull request modal."
 }

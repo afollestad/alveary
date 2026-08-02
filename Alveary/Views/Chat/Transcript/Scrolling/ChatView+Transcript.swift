@@ -33,6 +33,7 @@ struct ChatTranscriptView: View {
     @State var transcriptContentWidth: CGFloat = 0
     @State var expandedTranscriptRows: Set<String> = []
     @State var appKitToolApprovalSelectionsBySessionID: [String: ToolApprovalSelection] = [:]
+    @State var appKitPullRequestPromptSelections: [String: PullRequestLinkPromptSelection] = [:]
 
     var shouldShowTransientInterruptedNote: Bool {
         !viewModel.state.grouper.items.hasInterruptedNoteAfterLatestUserMessage

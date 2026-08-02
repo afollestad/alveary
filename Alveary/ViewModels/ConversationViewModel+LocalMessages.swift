@@ -27,6 +27,7 @@ extension ConversationViewModel {
         }
         modelContext.insert(record)
         state.grouper.appendLocalUserMessage(id: record.id, text: message)
+        scanInsertedMessageRecordForPullRequestLinks(record)
 
         if !dbConversation.isMain,
            dbConversation.customTitle == nil,

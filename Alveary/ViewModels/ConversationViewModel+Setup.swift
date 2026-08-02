@@ -58,14 +58,15 @@ extension ConversationViewModel {
             conversationTitle: restoresConversationTitle ? dbConversation.title : nil
         )
         let previousAppShotTitleFallback = state.appShotProviderSessionTitleFallback
-        let localUserMessageID = insertLocalUserMessage(
+        let localUserMessage = insertLocalUserMessage(
             outbound.visibleText,
             into: dbConversation,
             imageAttachments: outbound.attachments,
             fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots,
             schedulesSave: materializedThread == nil
-        ).id
+        )
+        let localUserMessageID = localUserMessage.id
 
         if let materializedThread {
             do {
@@ -76,6 +77,10 @@ extension ConversationViewModel {
                 throw error
             }
             publishDraftMaterialized(thread: materializedThread, conversation: dbConversation)
+            // The insert-time scan skipped this message because the thread was still
+            // a draft, and the watermark did not advance, so it is safe to rescan now
+            // that the thread is real.
+            scanInsertedMessageRecordForPullRequestLinks(localUserMessage)
         }
 
         if useCurrentStagedContextWhenOverrideNil && stagedContextOverride == nil {
