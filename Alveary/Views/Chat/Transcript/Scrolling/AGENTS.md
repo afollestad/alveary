@@ -12,10 +12,16 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 - **Cache measurements, not rows.** Keep every row mounted; optimize long transcripts with dirty height measurement keyed by row id and width, not viewport recycling.
 - **Hydrate by viewport margin.** Markdown text rows hydrate after layout and scroll when their fixed shells intersect the visible rect plus the prefetch margin; hydration must not change document height.
 - **Prewarm markdown before layout.** AppKit bridge updates should asynchronously prewarm renderer-neutral markdown documents before installing cold text rows so exact row measurement does not parse markdown on the main actor.
+
+### Measurement And Invalidation
+
 - **Name dirty rows.** Row height invalidation should pass the stable row id when available. Use all-row invalidation only for width or unknown-row changes.
 - **Batch configure invalidations.** If row views invalidate while a bridge is rebuilding rows, collect those row ids and apply them with `configure(rows:dirtyRowIDs:preserveBottomIfFollowing:)`.
 - **Skip unchanged dirty-row frames.** Named dirty-row invalidations that remeasure to the same frames should publish metrics without reapplying downstream frames or restoring anchors; unnamed fallback invalidations stay conservative.
 - **Remeasure typography changes.** Settings-driven `TranscriptTypography` changes are row configuration changes; cached AppKit rows should invalidate dirty heights while preserving anchors.
+
+### Anchors And Frame Animation
+
 - **Restore explicit anchors.** Preserve position by row identity plus offset within row for prepend/pagination, expansion, streaming growth, and turn-end rebuilds.
 - **Publish metrics.** AppKit containers should emit `ChatTranscriptScrollMetrics` after layout, content changes, and scroll moves so follow-mode logic can stay shared.
 - **Cancel stale pagination.** Increment the pagination generation when the user scrolls during an in-flight prepend; never apply an anchor captured under an older generation.
@@ -23,6 +29,9 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 - **Animate row frames together.** Expansion and collapse change one row plus every row below it; collect frame updates and run them in one `NSAnimationContext` transaction so displaced rows move on the same curve instead of lagging behind.
 - **Avoid reentrant layout.** If height invalidation fires while rows are being measured or frames are being applied, ignore or defer it; reentering AppKit layout from those phases causes staggered animations and unstable measured frames.
 - **Clamp horizontal scroll.** The transcript scroll container is vertical-only even when child code blocks own horizontal overflow. Keep `NSClipView.bounds.origin.x` at `0`, and do not fix horizontal drift by changing transcript content width or switching measurement to clip-view width.
+
+### SwiftUI Bridge
+
 - **Adapt through row factories.** Convert `ChatItem` values into cached AppKit row views by stable row id so refreshes do not reset expansion or prompt state.
 - **Bridge transient rows.** Pass live thinking, streaming, and interrupted state separately from persisted `ChatItem`s; use stable transient ids.
 - **Render only the newest thought line.** `appKitTranscriptLiveThoughtSummaryText` returns the last renderable line of the accumulated thought, not a join of every line. Live thought text accumulates for a whole turn and providers separate reasoning sections with a blank line, so joining grows the row without bound and reads as one run-on sentence. The completed-thought row shares the same helper and collapses the same way.

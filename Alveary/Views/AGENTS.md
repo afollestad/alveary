@@ -29,10 +29,10 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
 
 ## Status Dot Colors
 
-Cross-surface color mapping for status dots/chips in `Sidebar/`, `Chat/`, and `Terminal/`. Current surfaces: `SidebarThreadRow.statusColor`, `ConversationTabChip.statusColor`, and `TerminalSessionChip.statusColor`.
+Cross-surface color mapping for status dots/chips in `Sidebar/`, `Chat/`, and `Terminal/`. Current surfaces: `SidebarThreadRow.statusColor`, plus the conversation-tab and terminal-session chips' `statusIndicator: TabChipStatusIndicator` values.
 
 - **Blue** = waiting runtime state (`.waitingForUser` dots). Working states (`.busy`, `.running`) render the shared gray ring spinner (`.secondary`), not a blue dot — the spinning shape carries the "working" signal, so its color stays neutral next to inert gray dots.
-- **Green** = done / success (`.unread`, `.succeeded`). Inline transcript tool rows are the muted shape-only exception documented in `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`.
+- **Green** = done / success (`.unread`, `.succeeded`). Inline transcript tool rows are the muted shape-only exception — they render through `transcriptInlineToolRowColor` with no trailing success/error glyphs (see `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`).
 - **Red** = error (`.error`, `.failed`).
 - **Orange** = user-cancelled (`.cancelled`).
 - **Secondary** = inert (`.stopped`, `.archived`), and draft pull requests (`PullRequestStatus.draft`).
@@ -42,7 +42,7 @@ Cross-surface color mapping for status dots/chips in `Sidebar/`, `Chat/`, and `T
 
 ## Focus And Keyboard Coordination
 
-**This section is the single source of truth for cross-surface focus and keyboard rules.** The nested `Sidebar/`, `Input/`, and `Chat/` AGENTS.md files each open with a "READ FIRST" callout pointing here instead of duplicating these rules — when you change anything below, keep those callouts accurate but do *not* re-inline the details into the nested files.
+**This section is the single source of truth for cross-surface focus and keyboard rules.** Six nested files open with a "READ FIRST" callout pointing here instead of duplicating these rules — `Sidebar/`, `Input/`, `Chat/`, `Chat/Transcript/`, `Chat/Transcript/Scrolling/`, and `Chat/ConversationTabs/`. When you change anything below, keep those callouts accurate but do *not* re-inline the details into the nested files.
 
 These rules apply anywhere a view introduces a new `@FocusState`, `.onKeyPress`, or `.keyboardShortcut`. Scope-specific notes (e.g. sidebar's own keyboard-navigation traversal order) still live in the nested AGENTS.md.
 

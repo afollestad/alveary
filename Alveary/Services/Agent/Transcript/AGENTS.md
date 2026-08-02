@@ -4,15 +4,15 @@ These instructions cover transcript grouping under `Alveary/Services/Agent/Trans
 
 `ChatItemGrouper` turns the stream of `ConversationEventRecord`s into a list of `ChatItem`s rendered by `ChatTranscriptView`. Rules:
 
-- Generic tool calls split into two visual shapes via `ChatItemGrouper.groupability(forToolNamed:)`:
-    - **Groupable (`.toolGroup`):** `Read`, `Grep`, `Glob`, `WebFetch`, `WebSearch`, and MCP tools whose trailing segment starts with a read-only verb (`read_`, `list_`, `get_`, `search_`, `fetch_`, `describe_`, `query_`, `lookup_`, `show_`, `check_`).
-    - **Standalone (`.standaloneTool`):** Command-like tools such as `CommandExecution`, approval-controlled mutating tools, plus anything unknown. Unknown defaults to standalone so a mutating tool can never be silently folded under a group header.
-    - **Skip the classifier for task tools, `AskUserQuestion`, and `Agent`.** `TodoWrite` and AgentCLIKit task tools route to `.taskListBlock`; prompts and sub-agents route to `.promptBlock` / `.subAgentBlock`.
+- Generic tool calls split into `.toolGroup` versus `.standaloneTool` via `ChatItemGrouper.groupability(forToolNamed:)`; the tool lists, the MCP read-only-verb matcher, and the unknown-defaults-to-standalone invariant are documented in `ChatItemGrouper+Classification.swift`. Task tools, `AskUserQuestion`, `Agent`, and plan-mode tools skip the classifier (routing switch in `ChatItemGrouper+Processing.swift`).
 - **Do not auto-close a group when its last in-flight tool completes.** Claude's stream serializes sequential groupable tools as `call → result → call → result …` (even for "parallel" calls from the model's perspective). A completion-triggered seal fractures that burst into many single-entry groups, which is what users actually see on disk. Let groups close only on the explicit close paths below.
 - **Match tool results by `toolId`, not event order alone.** Provider events can persist with a `tool_result` timestamp before the matching `tool_call`; cache unmatched results and consume them when the owning call arrives so no-output commands cannot stay loading forever.
 - **`append(event:)` must re-emit without clearing.** Each streaming event calls `reemitPendingGroup()` (emit-only) rather than `flushGroup()` (emit + clear) at the end of the cycle — otherwise every tool call spawns its own single-entry group during streaming and they only coalesce on the forced full rebuild at turn end. Only close paths (assistant message when all tools done, user message, error, standalone tool, sub-agent, prompt, task list, interrupted stop note) may call `flushGroup()`.
 - **Never render `thinking` events.** `process(_:)` falls through on `type == "thinking"`. The active-turn spinner in `ChatTranscriptView` covers the "something is happening" affordance. Do not reintroduce a transcript row for thinking without an explicit product ask.
 - **Assistant messages close a group only when every pending tool has finished.** Completed batch → assistant is summarizing, so flush first and the message lands below the group. Still-running batch → Claude is introducing the next wave, so leave the group open and let `removeTrailingPendingBlocksIfNeeded` + outer `flushGroup()` re-emit the trailing `.toolGroup` below the message. Every other close-eligible event (user message, error, standalone tool, sub-agent, prompt, task list, interrupted stop note) always closes the group.
+
+### Task Lists
+
 - `TodoWrite` task-list pinning:
     - **Key blocks by tool ID.** `ConversationEventRecord.toolId` comes from Claude's `tool_use.id`; use it for the task-list block ID when present.
     - **Replace matching blocks.** A TodoWrite with the same tool ID updates the existing `.taskListBlock` instead of appending a duplicate.
@@ -25,13 +25,19 @@ These instructions cover transcript grouping under `Alveary/Services/Agent/Trans
     - **Render provider snapshots from records.** Full provider task-list snapshots should arrive as persisted `task_list` records and reuse the same `.taskListBlock` replacement/pinning helpers.
     - **Restore from persisted rows.** Rebuild reducer input from saved tool-call/tool-result records so existing conversations render as one updating `.taskListBlock`.
     - **Hide task-only discovery.** Suppress `ToolSearch(select:TaskCreate,TaskUpdate,TaskList,TaskGet)` rows, but keep mixed or unrelated `ToolSearch` rows visible.
+
+### Prompts
+
 - `AskUserQuestion` prompt blocks:
     - **Default to an `Other` escape hatch.** Parsed prompt questions should synthesize a custom-response option unless the tool input explicitly disables it, so the transcript UI can capture freeform answers even when Claude only provided fixed labels.
     - **Hide duplicate approval chrome.** Persist the deferred `tool_approval` row for restore/resume bookkeeping, but do not render a separate tool-approval card when the transcript already shows the prompt block for that same `AskUserQuestion`.
     - **Prefer the latest unanswered prompt.** If Claude still emits retry chatter and a replacement `AskUserQuestion`, collapse the transcript back to one live prompt block by replacing the older unanswered prompt and dropping any intervening prompt-retry text.
     - **Clear stale prompts after continuation.** If the provider advances from an unanswered prompt to a non-question approval, mark that prompt handled so it no longer blocks later approval controls on restore.
     - **Ignore identical answered replays.** If Claude replays the same parsed question set after the prompt was already answered and no later user message exists, keep the original answered prompt block instead of appending a second copy under a fresh tool ID.
-- **Keep sub-agent logic in `ChatItemGrouper+SubAgent.swift`.** The file owns start/progress/complete handlers, agent tool-call routing, and sub-agent patching helpers. The split exists to keep `+Processing.swift` under the SwiftLint file-length limit.
+
+### Sub-Agents
+
+- **Keep sub-agent logic in `ChatItemGrouper+SubAgent.swift`.** The split exists to keep `+Processing.swift` under the SwiftLint `file_length` limit — merged, the two would trip the error threshold.
 - Parallel sub-agent blocks are updated in place:
     - **Merge by agent ID.** `flushSubAgents()` should replace the existing rendered `.subAgentBlock` that shares any child agent ID instead of appending a fresh block.
     - **Preserve completed siblings.** Approval prompts can interleave beneath a live parallel-agent block during full transcript rebuilds; merging keeps completed child agents in the group while later sibling updates arrive.
@@ -39,11 +45,17 @@ These instructions cover transcript grouping under `Alveary/Services/Agent/Trans
     - **Tolerate out-of-order completion.** Agent task completions and `Agent` tool results can arrive before the matching `Agent` tool call is processed; cache them by tool ID and apply them when the sub-agent row is created.
     - **Honor hidden completion markers.** Persisted `sub_agent_completed` rows are non-rendering markers that terminalize matching incomplete visible tool rows and sub-agent state; real `tool_result` rows remain authoritative for visible tool output/status.
     - **Patch late evicted children.** Parent-scoped tool calls/results can arrive after a sub-agent has been evicted from live state; patch the rendered sub-agent block instead of dropping those late rows.
+
+### Approvals And Plan Mode
+
 - **Render `tool_approval` as its own assistant-side block.** Keep the block concise and leave detailed tool input to existing tool rows rather than dumping JSON into the approval surface. Ordinary permission approvals pin below active tool/activity rows until approved or denied, then release at the next non-activity boundary; `AskUserQuestion` and `ExitPlanMode` stay on their special UI paths.
 - **Terminalize denied tool rows.** A resolved `.denied` approval may not be followed by a `tool_result`; use the approval status to complete the matching tool row as failed/no-output so it cannot stay loading forever.
 - **Keep `Skill` invocations standalone.** Do not group them with generic read-only tools; each skill launch should remain its own transcript row.
 - **Attach fallback `ExitPlanMode` plans locally.** Claude may emit `ExitPlanMode` approval input as `{}` after writing the plan in the most recent assistant message. AgentCLIKit may interleave a `ToolSearch(select:ExitPlanMode)` row before the approval; skip that lookup, then move the assistant text into a display-only `ToolApprovalRequest.planMarkdownFallback` so the approval stack renders the plan directly above the prompt without changing the tool input sent back to Claude.
 - **Seed plan follow-up markdown previews.** A rendered `ExitPlanMode` plan can seed later markdown `Edit`/`MultiEdit` previews when the edit applies unambiguously to that plan. Mark those previews as `exitPlanModeFollowUp` so the AppKit transcript can replace the tool row with an assistant-style plan bubble without auto-expanding unrelated markdown mutation rows.
 - **Batch parallel approval rows.** Same-session, same-family `tool_approval` rows that arrive before their own tool result represent one live hook approval batch. Render them as one approval batch item so a single user decision does not appear to resolve unrelated prompts. Same-family approval-controlled tool calls may join the open batch before their own hook request arrives; use `ClaudeApprovalDisplayPolicy` rather than a local tool-name list, and let path-aware native read-only policy decide whether read/search/list calls are actually approval-bound. Clear the open approval batch on assistant/user messages, errors, stop notes, and tool results for a tool in the approval batch. Unrelated read-only tool results may interleave between parallel hooks and must not split the batch.
+
+### Transcript Notes
+
 - **Use typed transcript notes for subtle lifecycle rows.** `Interrupted`, `Handing off session...` / `Session handed off`, provider context compaction, steering markers, and successful plan-mode transitions should flow through the same `ChatItem.transcriptNote` path so transcript grouping, restore, alignment, and future note-style events share one representation.
 - **Replace compaction starts with terminal notes.** `context_compaction_started` renders `Automatically compacting context`; a later completed/failed record with the same compaction ID must replace that row instead of appending beneath it.

@@ -1,26 +1,43 @@
 ## Scheduled Task Services
 
+### Ownership And Composition
+
 - Keep scheduling app-owned and provider-neutral. Provider processes consume immutable run snapshots; they do not own recurrence or persistence.
 - Validate asynchronously before claiming, capture Project/grant directory identities before async work, then revalidate those identities and re-resolve definition revision, state, and occurrence fields before mutating SwiftData.
 - Use `ScheduledTaskSchedulerCoordinator` for execution composition. Same-source worktree creation and overlapping primary/granted roots must retain their separate lock scopes.
 - Use the shared `ConversationControllerRegistry` background lease and outcome stream. Scheduled execution must not create a second provider subscription.
 - `ScheduledTaskSchedulerCoordinator` owns scheduled keep-awake from claimed/recovered run launch through materialization, lock waits, execution, and failure or cancellation.
+
+### Quiescence And User Stop
+
 - Use coordinator-owned per-run quiescence for Task archive/delete fences. Nonterminal runs use user-stop pending-occurrence clearing; terminal runs only wait for the targeted launch to finish so historical state is not mutated. Never block unrelated scheduled work with the global idle waiter.
 - Executor finalization persists the result and unread state, flushes, and suspends the runtime before the coordinator releases scheduled power. Waiting approvals/questions retain the lease and runtime.
 - Coordinator persistence retries retain power and must never use shared-context rollback; flush or reapply scoped run/conversation mutations without discarding unrelated changes.
 - User stop installs a definition fence before awaiting provider cancellation, rejects new claims, cancels and quiesces queued same-definition claims, and retains scheduled power until the pending occurrence clear is durable and the stopped launch finishes.
 - Coalesce executor stop/cancellation cleanup through the per-run `ActiveScheduledTaskExecution` barrier. Seal and drain it before clearing automated-run state so stale runtime teardown cannot reach a later manual turn.
 - If user stop finds an inactive fallback `tool_deferred` boundary, discard only that waiting runtime while preserving its provider session, supersede every unresolved interaction row, mark any unanswered prompt handled, and emit a durable interruption boundary so run quiescence cannot hang.
+
+### Recovery And Terminal Proof
+
 - Recovery interruptions create missing Task/note provenance for unprepared claims, reconstruct only identity-valid prepared-workspace descriptors, and sanitize changed existing descriptors while preserving ownership-only deletion provenance. Persist terminal state and main-conversation unread routing before badge refresh.
 - Recovery and termination reconciliation must flush preexisting `ModelContext` changes before mutating. If the isolated recovery save fails, roll back that batch and do not publish notifications or flush controllers.
 - Treat only `ScheduledTaskRun.hasKnownTerminalStatus` as terminal proof. Unknown persisted status blocks overlap, Run now, ordinary outbound, and cleanup; unknown trigger/workspace provenance blocks nonterminal execution or resume. Recovery durably interrupts those unsafe nonterminal runs, while known terminal history remains terminal.
 - Age automatic claim recovery from the scheduled occurrence; age Run-now recovery from its explicit trigger time because it may consume an older occurrence.
+
+### Workspace Materialization
+
 - If private-workspace cleanup fails during materialization, retain its descriptor and prepared marker on the Task shell so permanent deletion can retry; clear that provenance only after cleanup succeeds.
 - Scheduled Project-worktree materialization must use identity-aware `WorktreeManager` creation and ownership registration. Preallocate the ownership marker, persist typed cleanup provenance before target creation, update it with target identity and proven branch ownership, and clear it only in the same save that promotes the final Task workspace descriptor. Before worktree removal, durably refresh the associated branch's exact HEAD OID and persist the ownership-retirement fence before deletion; restore retryable ownership only when Git proves that exact ref remains. Legacy cleanup without an OID must leave the branch behind. Never bless or remove a same-path replacement.
 - Preserve persisted Project and grant path strings literally through preflight and immutable run snapshots. Canonicalization validates them; it must not rewrite a symlink replacement into an apparently valid root before comparison.
+
+### Deadlines And Occurrence Coalescing
+
 - `ScheduledTaskLifecycleCoordinator` activates only after launch cleanup, session/orphan cleanup, and provider refresh. Its deadline must rearm after `.scheduledTasksChanged`, scheduler claim completion, wake reconciliation, and system clock/time-zone changes.
 - While a definition has any nonterminal or unknown-status run, hold its due `pendingOccurrenceAt` until that run finishes, but continue considering `nextOccurrenceAt` so newer cadence work can coalesce. Publish claim, recovery-interruption, and terminal changes through `.scheduledTasksChanged` so management state and deadline reconciliation share one durable boundary.
 - Precompute claimed-run recovery readiness from Sendable immutable snapshots through the full provider/workspace/worktree preflight. Recovery's synchronous mutation pass must only consume the resulting safe run IDs.
 - Scheduled transcript notes are display-only provenance. Exclude them from provider context, restore summaries, and forks.
+
+### Natural-Language Proposals
+
 - Natural-language scheduling tools may only list definitions or persist a pending proposal. Strictly validate every incoming key/type despite the advertised JSON Schema; bind conversation, provider settings, permissions, Project paths, and grants from trusted host state. Never expose prompts from list results or mutate a definition before native confirmation.
 - Keep one FIFO proposal per source conversation, assign persisted positive enqueue ordinals for tied timestamps, and scope exact-retry deduplication by process token, request ID, and canonical typed-payload hash. Persist each `pending_confirmation` receipt before returning it; consuming or rejecting the proposal must not let a delayed exact retry open another one. Create/edit/pause/resume/delete confirmation consumes the proposal with the definition mutation; Run now carries the proposal ID into occurrence identity so a cleanup retry cannot launch duplicate work.

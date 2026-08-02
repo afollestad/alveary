@@ -14,24 +14,16 @@ When a test class grows large, split it into companion files named `<BaseTests>+
 
 - **Use an `extension <BaseTests>` in companion files**, not a new `final class`. This matches the convention in the main app (for example `ConversationViewModel+Settings.swift`) and keeps all tests for a single subject under one class so shared fixtures, helpers, and `setUp`/`tearDown` apply uniformly.
   - Why: mixing separate `final class <Base><Topic>Tests: XCTestCase` into `<BaseTests>+<Topic>.swift` files made the `+` convention ambiguous — readers could not tell from the filename whether the file extended the base suite or introduced a parallel one.
-  - How to apply: when adding a new `<BaseTests>+<Topic>.swift` companion, declare `extension <BaseTests> { ... }`. Preserve the base class's actor annotation (for example `@MainActor`) on the extension. Only declare a separate `XCTestCase` subclass when the suite is genuinely independent; in that case do *not* use the `+` filename — name the file after the new class (for example `SidebarViewModelCloneTests.swift`).
+  - How to apply: when adding a new `<BaseTests>+<Topic>.swift` companion, declare `extension <BaseTests> { ... }`. Preserve the base class's actor annotation (for example `@MainActor`) on the extension. Only declare a separate `XCTestCase` subclass when the suite is genuinely independent; in that case do *not* use the `+` filename — name the file after the new class (for example `WorktreeCloneFlowTests.swift`).
 - Support files that define fixtures, mocks, or helper types (for example `*+Support.swift`, `*+Fixtures.swift`) are an accepted exception — those declare separate helper types rather than extending the base suite.
 
 ## Snapshot Testing
 
 ### Running Snapshots
 
-- Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests.
-- Verify snapshot tests with `./scripts/snapshots.sh verify` and record them with `./scripts/snapshots.sh record`.
+- Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests. Its `usage()` covers verify/record forms and focused identifiers.
 - `./scripts/snapshots.sh record` tolerates SnapshotTesting's expected non-zero record exit and then verifies the same identifiers before reporting success.
-- `./scripts/snapshots.sh` defaults to `AlvearyTests/SnapshotTests`, and also accepts focused identifiers like `AlvearyTests/SnapshotTests/testSidebarViewPopulated`.
 - Snapshot failure artifacts default to `.build/snapshot-failures` through `SNAPSHOT_ARTIFACTS`; set that environment variable only when a caller needs a different artifact directory.
-
-Examples:
-```sh
-./scripts/snapshots.sh verify AlvearyTests/SnapshotTests/testSidebarViewPopulated
-./scripts/snapshots.sh record AlvearyTests/SnapshotTests/testSidebarViewPopulated
-```
 
 ### Organizing Baselines
 

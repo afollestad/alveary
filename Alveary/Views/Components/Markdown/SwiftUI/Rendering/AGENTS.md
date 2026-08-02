@@ -13,12 +13,4 @@ Rules for the SwiftUI-only markdown block renderer, tables, and code highlightin
 - **Use markdown typography.** Body text inherits the caller's root font; explicit renderer variants must use `appMarkdownFont(...)`, never raw `.font(...)`. Transcript surfaces inject settings-backed `AppMarkdownTypography`.
 - **Use concise comments.** Add comments only where parsing, block grouping, or run-range conversion is non-obvious.
 
-File map:
-
-- `AppMarkdownRenderer.swift`: parsed document entry point.
-- `AppMarkdownBlockContent.swift`: block dispatch for headings, lists, quotes, rules, tables, and code.
-- `AppMarkdownInlineText.swift`: inline text, link, and inline-code styling.
-- `AppMarkdownCodeBlock.swift`: fenced-code chrome and syntax highlighting.
-- `AppMarkdownList.swift`: ordered, unordered, nested, and task-list rendering.
-- `AppMarkdownTable.swift`: transcript table layout.
-- `AppMarkdownTaskCheckbox.swift`: interactive task checkbox view; shared task state lives in `../../Core/`.
+Files are named for what they render (`AppMarkdownRenderer.swift` is the parsed-document entry point); shared task state lives in `../../Core/`.

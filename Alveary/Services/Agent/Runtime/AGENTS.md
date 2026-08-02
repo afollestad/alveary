@@ -13,6 +13,9 @@ These instructions cover provider-neutral runtime management under `Alveary/Serv
 - Every Alveary-launched Claude process disables native scheduling with `CLAUDE_CODE_DISABLE_CRON=1` and a merged `RemoteTrigger` denial. Preserve existing configured deny-tool values instead of appending a competing variadic option.
 - Host-tool fallback may retry once without tools. Preserve canonical workspace-root strings verbatim in that copy, and let only a current accepting event buffer apply host-tool-unavailable diagnostics; canceled or older replay generations must not disable a replacement runtime.
 - Session handoff uses `startFreshSession(...)` to replace the provider session binding for the same conversation. It must remove old session approvals, drop the old event buffer, and spawn with `forkSession: false`; do not route it through normal settings reconfiguration.
+
+### Notification Gating
+
 - Runtime notification gating is terminal-aware:
     - **Suppress hidden activity.** Hidden runtime turns, including one-shot commit-message generation, must not trigger desktop notifications. Classify terminal events using the turn visibility captured before terminal cleanup resets the buffer state.
     - **Suppress progress token notifications.** `usage_update` token rows are interim usage, not turn completion.
@@ -20,6 +23,9 @@ These instructions cover provider-neutral runtime management under `Alveary/Serv
     - **Suppress resolved denials.** If the user denies a tool approval, later provider token rows that report that same `permission_denial` are confirmation, not a new permission request.
     - **Coalesce pending-action prompts.** Parallel live hooks can produce multiple approval rows for one user decision surface; send one pending-action notification for that batch and reset after resolution/failure, terminal completion/error/stop, or a new runtime generation.
 - Context compaction lifecycle events are transcript-only and must not trigger desktop notifications. When they arrive during root assistant streaming, clear the transient streaming text before rendering the centered transcript note.
+
+### Tool Approval Resolution
+
 - Tool approval can resolve live or through fallback deferral:
     - **Keep the runtime alive for live approval.** Live hook approval must emit a `tool_approval` event without stopping the provider process, setting `hasDeferredToolStop`, or ending the active turn. The process is blocked inside the hook request and should continue naturally after the hook response is recorded.
     - **Allow active-turn approval.** UI approval for a live hook happens while `turnState.isActive` is still true. Do not require the turn to end, do not respawn the provider session, and do not reset/recreate the transcript subscription for this path.
@@ -40,6 +46,9 @@ These instructions cover provider-neutral runtime management under `Alveary/Serv
     - **Resolve AgentCLIKit interactions after deferred respawn.** After fallback deferred approval respawns, feed the saved interaction resolutions through `AgentCLIKit` when the new process is running so runtime bookkeeping cannot reopen resolved prompts. For Claude this writes nothing to the CLI; the actual replay comes from transient hook decisions plus the transcript's deferred-tool marker.
     - **Nudge respawns that cannot replay.** Claude only re-runs a deferred tool on resume when `ClaudeHookTranscriptReader.hasDeferredToolMarker` finds its marker. When the marker is missing, send a best-effort recovery user message after the respawn instead of leaving the turn spinning on a replay that never starts.
     - **Codex deferred respawns never replay.** A fresh Codex App Server process holds none of the dead process's pending server requests, so post-respawn `resolveInteraction` is a silent no-op there. Always deliver the decision as a recovery user message: plan exits are told to call `ExitPlanMode` again (approve) or keep planning (deny), answered questions carry their submitted answers, and prompt dismissals stay silent because dismissal already ends the local turn.
+
+### Unanswered Prompts
+
 - While an app-native interaction prompt is unanswered, treat it as the only actionable pending interaction for that conversation:
     - **Reject deferred tool approvals.** Do not let `approveToolUse` / `denyToolUse` resume the provider while the prompt still needs an answer.
     - **Let the prompt answer proceed.** Prompt submission should still be able to send the structured answer even if a hook-owned approval row is present, including the live path where `turnState.isActive` remains true while the provider waits on the held hook request.

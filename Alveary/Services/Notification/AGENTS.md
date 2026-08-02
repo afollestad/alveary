@@ -17,5 +17,5 @@ These instructions cover `DefaultNotificationManager`, `NotificationRouter`, and
 
 ## Testing seams
 
-- `DefaultNotificationManager` exposes closure properties (`setBadgeCount`, `onPostNotification`, `onDismissDelivered`, `isAppInForeground`, `setActiveConversationProvider`) for tests. The `setBadgeCount` closure is `async`; tests that assert on badge values must call `await manager.awaitPendingBadgeUpdate()` before reading the spy, since submission goes through the chained `Task`.
+- `DefaultNotificationManager` exposes test seams: the `setBadgeCount`, `onPostNotification`, `onDismissDelivered`, `isAppInForeground`, `activeConversationId`, and `playInAppSound` closures, plus the `setActiveConversationProvider` method. Badge assertions must `await manager.awaitPendingBadgeUpdate()` first, since submission goes through the chained `Task`.
 - `NotificationManagerTestFactory` wires a `NotificationSpy` to those seams; prefer that helper over constructing `DefaultNotificationManager` directly in tests unless you need to control chaining or observer wiring explicitly.

@@ -31,7 +31,7 @@ Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 - Programmatic focus must use `requestFirstResponder: UUID?` plus `onFocusRequestConsumed`, not direct writes to `@FocusState`.
 - `handleFocusChange` backfills both the focus binding and the plain `isAppKitFirstResponder` mirror.
 - Body-time reads of first-responder state must use `isAppKitFirstResponder`, not `@FocusState`.
-- `syncFocusIfNeeded()` may claim first responder when focus is `true`; it must not force-resign when focus becomes `false`.
+- `syncFocusIfNeeded()` claims but never force-resigns — see the owning bullet in `Alveary/Views/AGENTS.md`'s Focus And Keyboard Coordination.
 - `claimFirstResponder(on:retriesRemaining:)` polls short main-runloop ticks until the text view has a window.
 - Do not replace the retry with one long sleep.
 - Keep `firstResponderClaimInFlight` deduping around the retry chain.

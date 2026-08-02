@@ -1,75 +1,17 @@
 ## Keep Guidance Current
 
-- Keep `AGENTS.md` information concise to minimize token usage.
-- Keep `AGENTS.md` accurate when changes create useful future-agent context.
-- Put new rules in the narrowest `AGENTS.md` that covers the affected files.
-- Categorize bullets inside of `AGENTS.md` files with their own sections, if there are enough points; split dense rules into short sub-bullets with bold imperative leads.
-- Call out oversized guidance files or sections that should be split.
-- When adding a nested `AGENTS.md`, also add sibling `CLAUDE.md` as `ln -s AGENTS.md CLAUDE.md`, then list the new scope below. `project.yml` already excludes `**/CLAUDE.md`.
+- Keep `AGENTS.md` accurate when changes create useful future-agent context; put new rules in the narrowest `AGENTS.md` that covers the affected files.
+- A bullet states one rule, imperatively. Cap rationale at one clause naming the failure mode; drop discovery narratives, rejected alternatives, and measurements unless the number itself is the constraint.
+- Do not add bullets that restate what the named code already says — prefer improving that code's doc comment. Keep rules the code cannot show: cross-file couplings, deliberate absences, and prohibitions against reintroducing removed behavior.
+- One owner per rule. Cross-reference a rule that lives in another `AGENTS.md` instead of restating it, and when adding guidance, check whether existing guidance now duplicates or supersedes it.
+- Soft budget: ~40 words per bullet, ~1500 words per file. On breach, trim or split into sections rather than letting the file grow. Avoid file-listing maps in small folders; they rot silently.
+- Categorize bullets with `##` sections when there are enough points; split dense rules into short sub-bullets with bold imperative leads.
+- When adding a nested `AGENTS.md`, create its sibling symlink with `ln -s AGENTS.md CLAUDE.md`; that symlink is what loads the file into context. `project.yml` already excludes `**/CLAUDE.md`.
 - Update `README.md` plus scoped guidance when dependencies, project structure, or lint rules change.
 
 ## Scoped Guidance
 
-Read the nearest `AGENTS.md` before editing. Current scopes:
-
-- `AGENTS.md`: repo-wide workflow.
-- `Alveary/App/AGENTS.md`: lifecycle, commands, root layout.
-- `Alveary/Data/AGENTS.md`: SwiftData model invariants.
-- `Alveary/DI/AGENTS.md`: Needle and generated DI.
-- `Alveary/Services/Agent/AGENTS.md`: provider-neutral agent services.
-- `Alveary/Services/Agent/Runtime/AGENTS.md`: runtime, event buffers, deferred tools.
-- `Alveary/Services/Agent/Claude/AGENTS.md`: Claude ownership boundaries.
-- `Alveary/Services/Agent/Claude/Approvals/AGENTS.md`: durable approval persistence and UI display policy.
-- `Alveary/Services/Agent/Transcript/AGENTS.md`: `ChatItemGrouper`.
-- `Alveary/Services/Detection/AGENTS.md`: provider detection.
-- `Alveary/Services/Git/AGENTS.md`: worktrees and GitHub CLI.
-- `Alveary/Services/Instructions/AGENTS.md`: shared global agent instructions and symlink migration.
-- `Alveary/Services/Notification/AGENTS.md`: notifications and badge routing.
-- `Alveary/Services/Onboarding/AGENTS.md`: dependency onboarding checks and installers.
-- `Alveary/Services/Power/AGENTS.md`: keep-awake power assertions.
-- `Alveary/Services/Scheduled/AGENTS.md`: scheduled-task claiming, locking, materialization, execution, and recovery.
-- `Alveary/Services/Session/AGENTS.md`: session persistence.
-- `Alveary/Services/Settings/AGENTS.md`: `.alveary.json`.
-- `Alveary/Services/Shell/AGENTS.md`: process execution and output draining.
-- `Alveary/Services/Terminal/AGENTS.md`: terminal session state and pruning.
-- `Alveary/Services/Updates/AGENTS.md`: app update checks, release metadata, and updater-owned storage.
-- `Alveary/Services/VoiceInput/AGENTS.md`: voice permission, model cache, inference, audio, and lifecycle ownership.
-- `Alveary/ViewModels/AGENTS.md`: view-model coordination.
-- `Alveary/Views/Archived/AGENTS.md`: archived-threads screen.
-- `Alveary/ViewModels/DiffViewer/AGENTS.md`: diff viewer coordination and workspace state.
-- `Alveary/Views/AGENTS.md`: shared SwiftUI, status colors, focus.
-- `Alveary/Views/Components/AGENTS.md`: general shared controls.
-- `Alveary/Views/Components/Accent/AGENTS.md`: accent tokens and dynamic colors.
-- `Alveary/Views/Components/Markdown/AGENTS.md`: markdown rendering and palettes.
-- `Alveary/Views/Components/Markdown/Core/AGENTS.md`: shared markdown parser and model.
-- `Alveary/Views/Components/Markdown/SwiftUI/AGENTS.md`: SwiftUI markdown entry points.
-- `Alveary/Views/Components/Markdown/SwiftUI/Rendering/AGENTS.md`: SwiftUI-only markdown renderer internals.
-- `Alveary/Views/Components/Markdown/AppKit/AGENTS.md`: AppKit markdown renderer internals.
-- `Alveary/Views/Components/TabChips/AGENTS.md`: shared tab-chip shell.
-- `Alveary/Views/Components/TextInput/AGENTS.md`: `AppTextEditor` and AppKit bridge.
-- `Alveary/Views/Chat/AGENTS.md`: chat view and conversation contracts.
-- `Alveary/Views/Chat/Blocks/AGENTS.md`: shared block primitives.
-- `Alveary/Views/Chat/Blocks/AppKit/AGENTS.md`: AppKit transcript row primitives.
-- `Alveary/Views/Chat/Blocks/Prompts/AGENTS.md`: `AskUserQuestion` prompt blocks.
-- `Alveary/Views/Chat/Blocks/Tasks/AGENTS.md`: task-list blocks.
-- `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`: tool rows, groups, and details.
-- `Alveary/Views/Chat/ConversationTabs/AGENTS.md`: conversation tab row.
-- `Alveary/Views/Chat/Transcript/AGENTS.md`: transcript shell and approval plumbing.
-- `Alveary/Views/Chat/Transcript/Links/AGENTS.md`: markdown link resolution.
-- `Alveary/Views/Chat/Transcript/Scrolling/AGENTS.md`: follow-mode and scroll mechanics.
-- `Alveary/Views/DiffViewer/AGENTS.md`: diff viewer pane UI and loading overlays.
-- `Alveary/Views/Input/AGENTS.md`: composer, BlockInputKit bridge, worktree picker.
-- `Alveary/Views/Projects/AGENTS.md`: project settings editor.
-- `Alveary/Views/PullRequests/AGENTS.md`: pull-request browsing screen.
-- `Alveary/Views/Scheduled/AGENTS.md`: scheduled-task management and editor UI.
-- `Alveary/Views/Settings/AGENTS.md`: settings screen tabs and forms.
-- `Alveary/Views/Sidebar/AGENTS.md`: sidebar interactions.
-- `Alveary/Views/Terminal/AGENTS.md`: terminal pane.
-- `AlvearyTests/AGENTS.md`: tests and snapshots.
-- `AlvearyTests/ViewModels/DiffViewer/AGENTS.md`: diff viewer view-model tests.
-- `scripts/ci/AGENTS.md`: release CI helper scripts.
-- `.agents/AGENTS.md`: repo-local agent workflows.
-- `.agents/checks/AGENTS.md`: repo-local review, audit, and check workflows.
+Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a `CLAUDE.md` symlink that auto-loads it, and `find . -name AGENTS.md -not -path './.build/*'` lists them all.
 
 ## Xcode Project
 
@@ -84,40 +26,35 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - First-time setup: `./scripts/setup.sh`.
 - The app pre-build needs `needle 0.25.1`; setup installs `needle` and fails clearly if the installed version does not match.
 - Build: `./scripts/build.sh`.
-- `TYPECHECK_BUDGET_MS=<ms>` fails the build when any function body or expression in this repo's own sources exceeds that type-check time, and prints the offenders. Generated macro buffers and `.build/` dependency sources are excluded because neither is editable here. CI sets the flag job-wide to `3000`, and additionally sets `TYPECHECK_TEST_BUDGET_MS=7000` so test sources only fail at that higher bar (the flag itself never varies per step, keeping build settings identical and products shared). `build.sh`, `test.sh`, and `snapshots.sh` all read it through `scripts/lib/typecheck-budget.sh` so every step compiles with identical settings and keeps sharing products. See the type-check budget bullet in `Alveary/Views/AGENTS.md`.
-    - **Both targets are enforced.** `build.sh` covers app sources and `test.sh` covers test sources, because the two compile different files and a budget on only one lets the other drift. `snapshots.sh` matches the settings but does not enforce.
-    - **Budgeting changes the build settings**, so it forces a full recompile; `build.sh` additionally forces `--no-xcsift`.
-- A local budget run only reports files the build actually recompiled, so an incremental run can pass while an untouched file is over budget. Change the budget value (or clean) to force the full picture; CI always builds clean, so it sees everything.
-- Test-target timings sit far closer to the limit than app code, and CI attribution noise can move a symbol across it between runs — the same `AppDelegateTests` method measured 3962ms on one run and under budget on the next, and a second method has since reported 5265ms around a 5236ms statement with nothing left to simplify. The solver's wall-clock timer bills first-touch framework deserialization to whichever expression in a frontend batch needs it first, so a statement that solves in under 100ms locally can report several seconds on CI no matter how it is written; `TYPECHECK_TEST_BUDGET_MS` is calibrated above that noise ceiling, and a CI-only report in that band on a trivial statement means recalibrate that threshold, not restructure. Recalibrate with real headroom over the newly observed number, not a few hundred milliseconds — each pass costs a red build to discover. App sources have never shown the noise, so `build.sh` keeps failing at the base budget. Genuine cost is still worth removing: prefer explicitly typed helpers over repeating a nested initializer at many call sites (`AppDelegateTests+NotificationSupport.swift` exists for exactly that reason), and hoist large typed literals out of generic assertion calls.
-- Measured on CI, the guard costs one extra full compile per run: the snapshot step's `build-for-testing` recompiles rather than reusing the instrumented products (~2.5k Swift files, ~150s). Every arrangement tried pays that once, so treat it as the price of the guard rather than a misconfiguration to chase.
+- `TYPECHECK_BUDGET_MS=<ms>` fails the build when any function body or expression in this repo's own sources exceeds that type-check time, and prints the offenders. CI sets `3000`, plus `TYPECHECK_TEST_BUDGET_MS=7000` for test sources; every entry point reads `scripts/lib/typecheck-budget.sh`, whose comments cover the mechanism, exclusions, and CI noise. See the type-check budget bullet in `Alveary/Views/AGENTS.md`.
+    - `snapshots.sh` matches the settings but does not enforce. Budgeting changes build settings, forcing a full recompile; `build.sh` additionally forces `--no-xcsift`.
+    - A local budget run only reports files the build actually recompiled, so an incremental run can pass while an untouched file is over budget; change the budget value (or clean) for the full picture. CI always builds clean.
+    - A CI-only over-budget report on a trivial test statement is attribution noise: recalibrate `TYPECHECK_TEST_BUDGET_MS` with real headroom over the observed number instead of restructuring — each pass costs a red build to discover. App sources have never shown the noise, so `build.sh` keeps the base budget.
+    - Genuine cost is still worth removing: prefer explicitly typed helpers over repeating a nested initializer at many call sites (`AppDelegateTests+NotificationSupport.swift`), and hoist large typed literals out of generic assertion calls.
+    - The guard costs one extra full CI compile per run (~150s; the snapshot step's `build-for-testing` recompiles). Treat that as the price of the guard, not a misconfiguration to chase.
+
+### Running And Testing
+
 - Run the built app: `./scripts/run.sh`.
 - Interactive development can also use the `Alveary` scheme in Xcode.
 - Test: `./scripts/test.sh`, or pass focused identifiers as arguments.
 - Lint: `./scripts/lint.sh`.
 - Release CI uses Developer ID signing and notarization secrets in GitHub Actions; do not commit certificate or API-key material.
 - Snapshot workflows use `./scripts/snapshots.sh`; verify snapshots before committing UI changes.
-- Ordered workflows must stay serial, never via `multi_tool_use.parallel`: build-then-run, build-then-test, record-then-verify.
+- Ordered workflows must stay serial, never parallelized: build-then-run, build-then-test, record-then-verify.
 - Add temporary logs early when useful; observe them yourself with `/usr/bin/log`, then remove them after confirming the fix.
 
 ### `xcsift` Output
 
-- Build/test/snapshot wrappers pipe `xcodebuild` through `xcsift -f toon -w` when installed; treat TOON `status` and `summary` as the concise result. `status` is generally `success` or `failed`.
-- `summary:` contains indented count fields such as `errors`, `warnings`, `failed_tests`, and `linker_errors`; it can also include `passed_tests`, `build_time`, `test_time`, and `coverage_percent`.
-- Inspect TOON sections such as `errors[n]{file,line,message}`, `warnings[n]{file,line,message,type}`, `failed_tests`, `linker_errors`, `slow_tests`, `flaky_tests`, `build_info`, and `executables` when present.
-- In `errors[n]{file,line,message}` rows, values are ordered as file path, line number, and quoted message.
-- In `warnings[n]{file,line,message,type}` rows, values are ordered as file path, line number, quoted message, and warning type such as `compile` or `swiftui`.
-- `linker_errors` entries include `symbol`, `architecture`, `referenced_from`, `message`, and `conflicting_files`; duplicate symbol failures list object paths in `conflicting_files`.
-- `failed_tests` entries include `test`, `message`, `file`, `line`, and `duration`; `slow_tests` entries include `test` and `duration`; `flaky_tests` is a list of test names.
-- `build_info` can include `targets[n]{name,duration,phases,depends_on}` rows with per-target timing, phases, and dependencies.
-- `executables[n]{path,name,target}` lists built artifacts with their path, name, and target.
+- Build/test/snapshot wrappers pipe `xcodebuild` through `xcsift -f toon -w` when installed; treat TOON `status` (`success` or `failed`) and the `summary` counts as the concise result.
+- Inspect TOON sections such as `errors[n]{file,line,message}`, `warnings[n]{file,line,message,type}`, `failed_tests`, `linker_errors`, `slow_tests`, `flaky_tests`, `build_info`, and `executables` when present; row headers name their own field order.
 
 ## Lint
 
 - Use `./scripts/lint.sh` for full repo linting.
 - Use SwiftLint from the repo root without `--config` so nested configs apply.
-- The repo hook runs SwiftLint for Swift or `.swiftlint.yml` commits.
 - Install repo hooks with `./scripts/setup.sh` or `./scripts/install-git-hooks.sh`; this sets repo-local `core.hooksPath=.githooks`.
-- New Swift should follow `.swiftlint.yml`: no force unwraps outside tests, no force casts, prefer `let`, max line length 150.
+- New Swift follows `.swiftlint.yml` (no force casts, max line length 150) plus conventions the config does not encode: no force unwraps outside tests, prefer `let`.
 - If a change introduces lint warnings or errors, tell the user before committing.
 
 ## Code Style

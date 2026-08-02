@@ -11,11 +11,17 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 - Render tabs through `SelectableTabChip` in `Alveary/Views/Components/TabChips/`.
 - Keep chip fills `.standard` so inline-code color does not change on selection.
 - Use `TabChipStatusIndicator.spinner(.secondary)` for `.busy` in the same fixed 8x8 slot as dots.
+
+### Inline Rename
+
 - Inline rename uses `editingConversationID` in `ConversationTabChip`; do not replace it with a modal.
 - Editing chips use the Finder-style text background plus 1pt accent stroke.
 - Suppress the close button with `.tabChipShell(..., showsCloseButton: false)` so width stays stable.
 - Gate context-menu rename and the VoiceOver rename action on `editingConversationID == nil`.
 - Do not allow switching rename targets mid-edit; SwiftUI can leave the new row stuck without a field.
+
+### Header Chrome
+
 - Keep full-capsule press feedback and hit area. Do not hand-roll a status-dot + label + close capsule.
 - Keep the header's system `.bar` background and add separators as overlays.
 - Render the bottom header separator with `AppSeparatorHairline(surface: .paneHeader)` so its physical-pixel thickness and resolved tint match the titlebar separator.
@@ -30,6 +36,9 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
     - Set `.id(selectedConversation?.persistentModelID)` so the closure tracks current selection.
     - Use enabled no-op guards; disabled shortcut buttons let ⌘W fall through to Close Window.
     - Keep it out of `.commands` / `CommandGroup` because those surface in the menu bar and can lose to default close handling.
+
+### Removal Safety
+
 - When closing the selected tab, select the visual neighbor first: next, then previous.
 - `onRemove` must re-check `conversations.count > 1` before presenting confirmation.
 - The original main conversation of a scheduled-run Task is durable provenance and is never removable. Hide its close affordance, consume Cmd-W as a no-op, and keep the commit-time guard for stale UI actions.

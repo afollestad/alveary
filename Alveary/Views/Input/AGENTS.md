@@ -49,6 +49,9 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 - Keep presentation pure: compute labels, disabled states, placeholders, action copy, busy return behavior, effort options, and trust blocking from caller-owned inputs.
 - Keep effects elsewhere: no draft mutation, persistence, settings writes, tasks, or service calls in presentation types.
 - Keep the `+` menu presentation-only inside `ChatComposerActionRowView`. File picking, BlockInputKit insertion, and plan-mode mutation must remain callbacks owned by the composer panel or view model.
+
+### Plus Menu
+
 - The `+` menu's app-shot row is a caller-owned input, not a capability the row discovers.
     - **Take the app name and icon pre-resolved.** `Configuration.appShotAttachment` carries an `NSImage` the service layer already published. Opening the menu must never resolve an icon — in particular, never call `NSWorkspace.urlForApplication(withBundleIdentifier:)` on the click path, because that LaunchServices query would run synchronously while the popover builds.
     - **Scale, do not resize.** Full-resolution app icons fill the shared slot through `ComposerPlusMenuRowView.iconScaling`, matching `AppKitAppShotAttachmentCardView`. Do not mutate a shared `NSImage`'s `size`, and do not mark an app icon `isTemplate` or the row's `contentTintColor` flattens it.
@@ -57,6 +60,9 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
     - **Keep it out of `AppliedConfigurationSnapshot`.** The menu is rebuilt from the stored configuration on each open, so the row never paints these values; including them would force a full relayout on every foreground app switch.
 - Task Workspace controls are mode-specific composer settings, not attachments. The native action row presents current grants, `AppKitChatComposerPanelView` owns the directory picker, and `ConversationViewModel` owns validation/persistence/reconfiguration.
 - Provider and model options are caller-owned inputs populated from `AgentProviderDiscoveryService`; the action row renders them but must not discover providers, refresh models, or read provider config directly.
+
+### Reasoning Controls
+
 - `ComposerReasoningMenuPresenter` owns the reasoning popover's lifecycle for every surface that offers model/effort controls — the composer action row and the `ExitPlanMode` overlay panel. Transient behavior, suppressed animation, anchor reuse on resize, and close bookkeeping live there so the two cannot drift.
   - **Keep the testing seams on the presenter.** `isPresentedOverride`, `presentationOverride`, `effortFocusOverride`, and `modelsFocusOverride` exist because `AlvearyTests/AGENTS.md` forbids live `NSPopover` host tests on macOS 26, and this popover resizes itself on disclosure expansion — the exact crash pattern. `popover`, `controller`, and `anchorRect` stay settable so tests can install a recording popover.
   - `ChatComposerActionRowView` keeps its `reasoning*` property names as forwarding onto the presenter; a host that anchors the popover to itself must set `anchorView` alongside `anchorRect`.
@@ -67,6 +73,9 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
   - Resize the inline model list and popover immediately when disclosure changes; do not animate the list expansion. Keep the rotating caret treatment and pinned controls.
   - Render Fast as a separate toggle only when supported: use `bolt` with enablement help while off and accent-tinted `bolt.fill` with disablement help while on.
   - Keep the compact reasoning button's active-only indicator as accent-tinted `bolt.fill`, preserving its compact sizing and spacing.
+
+### Local Commands
+
 - `/fast` is an Alveary local command. Toggle the currently displayed or staged speed: `/fast` only toggles, while `/fast <prompt>` toggles first and sends or queues that prompt with the resulting speed as its next-turn requirement. Do not add a special inline argument hint for it.
 - `/effort` is a model-scoped Alveary local command. Enable, reserve, suggest, and intercept it only while the selected model advertises effort options; preserve provider order and join every canonical value with `|` in its inline hint.
   - Bare `/effort` clears only the command text, preserves attachments, sends nothing, does not request editor focus, and opens the existing reasoning popover.
@@ -75,7 +84,10 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
   - Typed names come from `AgentCLIKit.AgentModelOption.shortName`. Do not derive, slugify, or hardcode short names app-side.
   - Cap the inline hint at roughly one composer line of `|`-joined short names and append `…` when truncated; a provider can report far more models than `/effort` has options.
   - Bare `/model` clears only the command text, preserves attachments, sends nothing, does not request editor focus, and opens the reasoning popover with the Models disclosure expanded and keyboard focus on the selected model row — the counterpart to how bare `/effort` lands on the effort slider.
-  - `/model <name>` matches short name, then option id, then title, case-insensitively, with provider order breaking ties. A `provider:name` qualifier disambiguates; an unknown prefix falls through to whole-string matching so ids containing a colon still resolve. Clear and refocus on applied or unchanged; otherwise retain the draft and attachments and surface the option list or the underlying setting error.
+  - `/model <name>` matching order and the `provider:name` qualifier are documented in `ComposerLocalCommand+ModelOptions.swift`. Clear and refocus on applied or unchanged; otherwise retain the draft and attachments and surface the option list or the underlying setting error.
+
+### Row Rendering
+
 - `ChatComposerActionRow` owns the bottom settings/action row; `ChatComposerActionRowView` owns native AppKit rendering inside the production panel.
 - `configure(_:)` stores every incoming configuration (handlers must fire with fresh closures) but skips `applyConfiguration` when `AppliedConfigurationSnapshot` is unchanged — SwiftUI re-evaluates the composer body far more often than rendered values change. **When adding a rendered value to `Configuration`, add it to `AppliedConfigurationSnapshot` too**, or the row will not repaint when only that value changes. State the row mutates outside `configure` (for example the reasoning display-selection override) must repaint the affected control itself; it can no longer rely on the next configure pass.
 - The leading `+` button must remain square to the dropdown height, with default, hover, pressed, focused, and disabled states clipped to the same circular background.

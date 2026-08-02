@@ -7,10 +7,10 @@ These instructions cover the project settings UI under `Alveary/Views/Projects/`
 
 ## Add Project Sheet
 
-`AddProjectSheet` is the intermediate modal triggered by `AppState.CommandRequest.newProject`. It owns a four-state machine rendered via an internal `Step` enum: `.chooser`, `.cloneForm`, `.cloneRunning`, and `.cloneFailed(String)`. The initial step and `CloneDraft` are injectable through the init for snapshot coverage — do not pass those arguments from production call sites.
+`AddProjectSheet` is the intermediate modal triggered by `AppState.CommandRequest.newProject`, a four-state machine over an internal `Step` enum. The initial step and `CloneDraft` are injectable through the init for snapshot coverage — do not pass those arguments from production call sites.
 
 - "Add From Disk" dismisses the sheet and hands control back to `ContentView.importProjectFromDisk()`, which runs the existing `NSOpenPanel` + `SidebarViewModel.createProject(path:)` flow.
-- "Clone from Git" collects a URL, parent folder, folder name, and optional branch. The folder name auto-derives from the URL until the user edits it (tracked by `CloneDraft.folderNameIsDirty`, which latches on first manual edit and never resets).
+- "Clone from Git" collects a URL, parent folder, folder name, and optional branch; the folder name auto-derives from the URL until the user edits it (`CloneDraft.folderNameIsDirty`).
 - Clone cancellation is not an error: cancel from the running step returns to `.cloneForm` (draft intact); close-during-run (sheet X, Esc) cancels the task via `.onDisappear` and dismisses.
 - Cancellation that races a successful clone commits to success: once `cloneRepository` has returned, `startClone` calls `onProjectCreated` unconditionally rather than guarding on `Task.isCancelled`. Skipping the hand-off after persistence would orphan the cloned project in SwiftData without a sidebar selection pointing at it.
 - `.cloneFailed` offers Retry (re-clones with the same draft) and Back. Back returns all the way to `.chooser`, matching the Back button in `.cloneForm`, so "Back" always means "first modal". The `@State` draft survives the round trip, so reopening the clone form keeps the user's inputs.

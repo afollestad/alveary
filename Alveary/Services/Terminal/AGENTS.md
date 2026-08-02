@@ -4,9 +4,15 @@ These rules cover terminal session state and PTY ownership under `Alveary/Servic
 
 - **Keep sessions metadata-only.** `TerminalSession` tracks tab metadata and status. Do not reintroduce captured output buffers, output trimming, task registration, or `ShellRunner` execution for project actions.
 - **Keep PTYs controller-owned.** `TerminalManager` owns a private `[UUID: controller]` map. SwiftUI may mount controller views, but it must not create or replace PTYs during body recomputation, pane hiding, or tab switching.
+
+## Project Action Injection
+
 - **Inject project actions into interactive zsh.** Project actions launch the login-style interactive shell, source the user's real zsh startup files through a private temporary `ZDOTDIR`, wait for a ZLE readiness marker, and bracketed-paste the configured command through the PTY. Do not put the command in bootstrap files/environment or restore the synthetic `$ command` print wrapper.
 - **Separate action completion from process termination.** A private session-tokened OSC 1337 marker reports the injected command's status from `precmd`; the project-action tab may be succeeded/failed while its shell remains live and interactive. Later shell exit must not replace the action outcome, but closing/pruning still terminates the controller.
 - **Keep the bootstrap private and disposable.** Temporary zsh startup directories use `0700`, files use `0600`, source the original `ZDOTDIR` startup chain, and are removed after readiness, termination, or launch failure. Non-zsh shells and bootstrap failures fall back to `-i -c` execution.
+
+## Lifecycle And SwiftTerm
+
 - **Prune by launch time.** `TerminalManager` enforces max-session limits by removing the lowest `startedAt` session, not the selected tab or visual edge.
 - **Terminate through controllers.** Session pruning and closing should go through `closeSession(id:)` so selection repair stays centralized and controller termination always runs. Hiding the pane or switching tabs must not terminate sessions.
 - **Preserve SwiftTerm forwarding.** If replacing SwiftTerm's weak `terminalDelegate`, retain a proxy and forward process-critical methods back to `LocalProcessTerminalView` (`send`, `sizeChanged`, title, OSC 7 directory, scroll, and range callbacks). The proxy also consumes matching Alveary OSC 1337 action markers. OSC 52 clipboard reads must return `nil`; OSC 52 writes must no-op unless a future user-confirmed policy is added.

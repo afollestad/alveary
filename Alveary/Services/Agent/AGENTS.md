@@ -6,8 +6,14 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - Claude provider runtime, stream decoding, hook transport, provider approval policy, transcript paths, and transcript inspection live in `AgentCLIKit`; Alveary bridges those services but does not duplicate them.
 - Claude approval persistence and UI display policy lives under `Claude/Approvals/`; follow `Claude/Approvals/AGENTS.md` for durable session approvals, approval selections, and approval-row display rules.
 - Transcript grouping code lives under `Transcript/`; follow `Transcript/AGENTS.md` for `ChatItemGrouper` behavior.
+
+### Context And Usage
+
 - `ContextWindowCache` is app-level provider metadata, not conversation history. Keep it in the JSON-backed cache under Application Support, key entries by `providerID:model`, and treat it as advisory: provider-reported result data always wins. Cache writes should stay best-effort/background so turn completion and transcript persistence do not wait on disk I/O.
 - Use `ContextTokenAccounting` for context-window percentages and automatic handoff thresholds. Claude/default cache-read tokens are additive; Codex cached-input tokens are already included in input tokens and must not be added again. Correct legacy Codex rows at read time instead of migrating SwiftData.
+
+### Provider Capabilities
+
 - Provider status and model options come from `AgentCLIKit.AgentProviderDiscoveryService`. Keep settings and composer provider lists wired to that service instead of duplicating Claude/Codex availability or model lists in UI code.
     - **Take typed short model names from the provider.** `AgentModelOption.shortName` is the alias users type (`opus`, `sol`); it falls back to `id` when a provider has no unambiguous alias. Do not derive or slugify short names app-side, and do not assume they differ from `id`.
 - Speed mode is provider-reported capability from `AgentCLIKit.AgentProviderCapabilities.supportsSpeedMode`. Do not add app-owned provider/model speed maps; Claude stays Standard unless AgentCLIKit reports otherwise.
@@ -18,6 +24,9 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - Provider task-list snapshots should persist through Alveary's provider-neutral `task_list` event records; keep provider-specific task parsing in `AgentCLIKit`. Treat interrupted task rows as terminal for the stopped turn, but let later provider snapshots or updates reactivate them.
 - Project trust policy is app-owned, but provider trust state comes from `AgentCLIKit.AgentProjectTrustService`. Keep prompt UI, auto-trust, first-thread gating, and denial cleanup in Alveary while avoiding direct provider config reads.
 - Provider MCP config reads/writes should route through AgentCLIKit config stores for providers that own their config format, including Claude `.claude.json` and Codex `.codex/config.toml`.
+
+### App Shots
+
 - App shots are provider-strategy transport, not visible composer text. Codex app shots use `localImage` attachments with `CodexInputMetadata.isAppshot`; Claude app shots keep text-only transport with hidden AX context and an absolute Markdown screenshot reference. Unsupported providers must block instead of downgrading app shots to ordinary Markdown image links.
 - Keep app-shot capture preparation provider-neutral and storage-independent: window metadata, AX text, and PNG data are prepared first, then stored for the claimed destination through the shared attachment store. Stage through `ConversationState.stageAppShot` so pre-mount destinations update composer non-empty state without requiring a `ChatView`.
 - Keep app-shot screenshots in the conversation attachment store under Application Support. Preserve them while staged, queued, retryable, or transcript-visible, and include the store root in Claude `--add-dir` launch arguments when needed.

@@ -24,7 +24,7 @@ Perform a repo-aware quality audit of the current Alveary changes before they ar
    - File-size pressure.
    - Missing unit or snapshot test coverage.
    - Missing class docs, or code comments.
-   - Missing or stale `AGENTS.md` guidance.
+   - Missing, stale, redundant, re-derivable, or oversized `AGENTS.md` guidance — prune as well as append, per the root `## Keep Guidance Current` rules.
    - Lint risks and Swift style issues.
    - Accessibility issues in UI changes.
 5. Confirm snapshot recording or verification when UI snapshots are affected.
