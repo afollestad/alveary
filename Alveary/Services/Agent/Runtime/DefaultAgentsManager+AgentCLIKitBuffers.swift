@@ -144,7 +144,7 @@ extension DefaultAgentsManager {
             guard !Task.isCancelled else {
                 return
             }
-            await markSchedulingHostToolsUnavailableIfCurrent(
+            await markHostToolsUnavailableIfCurrent(
                 conversationId: conversationId,
                 subscriptionGeneration: subscriptionGeneration,
                 envelopeGeneration: envelope.generation,
@@ -178,7 +178,7 @@ extension DefaultAgentsManager {
         )
     }
 
-    private func markSchedulingHostToolsUnavailableIfCurrent(
+    private func markHostToolsUnavailableIfCurrent(
         conversationId: String,
         subscriptionGeneration: Int,
         envelopeGeneration: Int,
@@ -190,7 +190,7 @@ extension DefaultAgentsManager {
               managedBuffer.acceptsLiveEvents else {
             return
         }
-        await markSchedulingHostToolsUnavailable(
+        await markHostToolsUnavailable(
             conversationId: conversationId,
             requiresRuntimeReplacement: true
         )

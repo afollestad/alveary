@@ -281,7 +281,7 @@ extension AppComponent {
             AgentCLIKit.DefaultAgentRuntime(
                 adapterSet: agentCLIKitProviderAdapterSet,
                 sessionStore: agentCLIKitSessionStore,
-                hostToolHandling: scheduledTaskHostToolHandling
+                hostToolHandling: hostToolHandling
             )
         }
     }

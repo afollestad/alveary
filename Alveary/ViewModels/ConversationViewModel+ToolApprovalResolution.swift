@@ -226,7 +226,7 @@ private extension ConversationViewModel {
         )
         state.lastTurnError = nil
         if !isResolvingLiveHookApproval {
-            state.invalidateSchedulingHostToolRuntimeConfiguration()
+            state.invalidateHostToolRuntimeConfiguration()
             subscribe()
             // The reset above minted a new subscription token and zeroed the event cursor; a staged
             // denied-plan follow-up still keyed to the old identities could never drain.

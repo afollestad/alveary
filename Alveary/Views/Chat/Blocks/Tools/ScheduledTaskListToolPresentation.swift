@@ -38,6 +38,6 @@ enum ScheduledTaskListToolPresentation {
     }
 
     private static func matches(_ toolName: String, hostToolName: String) -> Bool {
-        toolName == hostToolName || toolName == HostToolTranscriptCatalog.toolName(hostToolName)
+        AlvearyHostToolCatalog.matches(reportedName: toolName, hostToolName: hostToolName)
     }
 }

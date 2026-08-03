@@ -377,30 +377,26 @@ extension ScheduledTaskHostToolService {
         )
     }
 
+    /// Scheduling's source check: the shared host-tool resolution, plus the automated-run
+    /// gating that only scheduling needs.
     func resolveSource(
         context: AgentCLIKit.AgentHostToolCallContext
     ) throws -> ScheduledTaskHostToolSource {
-        guard let conversation = modelContext.resolveConversation(
-            conversationID: context.conversationId.rawValue
-        ), let thread = conversation.thread,
-           !thread.isDraft,
-           thread.archivedAt == nil else {
+        let source: HostToolCallSource
+        do {
+            source = try HostToolSourceResolver.resolveSource(context: context, in: modelContext)
+        } catch HostToolSourceError.sourceProviderMismatch {
+            throw ScheduledTaskHostToolServiceError.sourceProviderMismatch
+        } catch {
             throw ScheduledTaskHostToolServiceError.sourceConversationUnavailable
         }
-        if let storedProviderID = conversation.provider,
-           storedProviderID != context.providerId.rawValue {
-            throw ScheduledTaskHostToolServiceError.sourceProviderMismatch
-        }
-        if let scheduledRun = thread.scheduledTaskRun,
+        if let scheduledRun = source.thread.scheduledTaskRun,
            !scheduledRun.hasKnownTerminalStatus {
             throw ScheduledTaskHostToolServiceError.automatedRunCannotSchedule
         }
-        if thread.hasBlockingScheduledTaskRunAttachment {
+        if source.thread.hasBlockingScheduledTaskRunAttachment {
             throw ScheduledTaskHostToolServiceError.automatedRunCannotSchedule
         }
-        return ScheduledTaskHostToolSource(
-            conversation: conversation,
-            thread: thread
-        )
+        return source
     }
 }

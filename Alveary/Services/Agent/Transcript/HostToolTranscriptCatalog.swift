@@ -24,15 +24,13 @@ struct HostToolTranscriptDescriptor: Sendable {
     /// the server prefix while Codex reports the bare host name, and both shapes reach
     /// the transcript, so a descriptor has to answer to either.
     func matches(toolName: String) -> Bool {
-        toolName == hostToolName || toolName == qualifiedToolName
+        AlvearyHostToolCatalog.matches(reportedName: toolName, hostToolName: hostToolName)
     }
 }
 
 enum HostToolTranscriptCatalog {
-    static let hostServerName = "alveary_host"
-
     static func toolName(_ tool: String) -> String {
-        "mcp__\(hostServerName)__\(tool)"
+        AlvearyHostToolCatalog.qualifiedToolName(tool)
     }
 
     static let descriptors: [HostToolTranscriptDescriptor] = [

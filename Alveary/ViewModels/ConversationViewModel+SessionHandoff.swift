@@ -45,13 +45,13 @@ extension ConversationViewModel {
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
-        clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled()
+        clearSessionContinuityNoticeUnlessHostToolsDisabled()
         state.activeRuntimeActivityTurnId = nil
         state.clearStreamingText()
         do {
             if await needsRespawn() {
                 try await startAgentReserved(config: makeSpawnConfig(settingsSource: .currentContinuation))
-                clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled()
+                clearSessionContinuityNoticeUnlessHostToolsDisabled()
                 state.respawnAttempts = 0
             }
 
@@ -311,13 +311,13 @@ private extension ConversationViewModel {
         let pendingSettings = state.pendingSessionSettingsChange
         do {
             let config = try makeSpawnConfig(settingsSource: .nextTurn)
-            let hostToolTransition = try await startFreshRuntimeSessionWithSchedulingHostToolTransition(config: config)
+            let hostToolTransition = try await startFreshRuntimeSessionWithHostToolTransition(config: config)
             finishFreshSessionSettingsApply(pending: pendingSettings, config: config)
-            state.finishSchedulingHostToolRuntimeTransition(
+            state.finishHostToolRuntimeTransition(
                 hostToolTransition,
                 appliedRequestedConfiguration: true
             )
-            clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled()
+            clearSessionContinuityNoticeUnlessHostToolsDisabled()
             resetSubscriptionTrackingForNewSession()
             subscribe()
             recordContextWindowInvalidation()

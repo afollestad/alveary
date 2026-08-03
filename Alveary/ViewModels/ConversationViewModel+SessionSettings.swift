@@ -7,7 +7,7 @@ enum SessionSettingsConfigSource {
     case automatedScheduledRun
 }
 
-enum SchedulingHostToolExposure {
+enum HostToolExposure {
     case currentContinuation
     case ordinaryOutbound
 }
@@ -17,7 +17,7 @@ private struct SpawnSettingsContext {
     let currentContinuationSnapshot: SessionSettingsSnapshot?
 }
 
-private struct SchedulingHostToolConfiguration {
+private struct HostToolServerConfiguration {
     let server: AgentCLIKit.AgentHostToolServerMetadata
     let tools: [AgentCLIKit.AgentHostToolDefinition]
 }
@@ -32,7 +32,7 @@ extension ConversationViewModel {
         initialGoal: String? = nil,
         isAutomatedScheduledTurn: Bool = false,
         settingsSource: SessionSettingsConfigSource = .nextTurn,
-        hostToolExposure: SchedulingHostToolExposure? = nil
+        hostToolExposure: HostToolExposure? = nil
     ) throws -> AgentSpawnConfig {
         guard let dbConversation = dbConversation() else {
             throw AgentError.spawnFailed("Conversation no longer exists")
@@ -59,7 +59,7 @@ extension ConversationViewModel {
         let resolvedAutomatedScheduledTurn = isAutomatedScheduledTurn ||
             settingsSource == .automatedScheduledRun ||
             preservesAutomatedScheduledTurn
-        let schedulingHostTools = schedulingHostToolConfiguration(
+        let hostTools = hostToolConfiguration(
             requestedExposure: hostToolExposure,
             settingsSource: settingsSource,
             isAutomatedScheduledTurn: resolvedAutomatedScheduledTurn
@@ -82,41 +82,41 @@ extension ConversationViewModel {
                 configured: settingsContext.liveConfig?.allowedDirectories ?? [],
                 additional: allowedDirectories
             ),
-            hostToolServer: schedulingHostTools.server,
-            hostTools: schedulingHostTools.tools,
+            hostToolServer: hostTools.server,
+            hostTools: hostTools.tools,
             initialGoal: initialGoal,
             isAutomatedScheduledTurn: resolvedAutomatedScheduledTurn
         )
     }
 
     func effectiveLiveSessionConfig(_ config: AgentSpawnConfig) -> AgentSpawnConfig {
-        state.schedulingHostToolsDisabled ? config.withoutHostTools() : config
+        state.hostToolsDisabled ? config.withoutHostTools() : config
     }
 
-    func clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled() {
-        guard !state.schedulingHostToolsDisabled else {
+    func clearSessionContinuityNoticeUnlessHostToolsDisabled() {
+        guard !state.hostToolsDisabled else {
             return
         }
         state.sessionContinuityNotice = nil
     }
 
-    private func schedulingHostToolConfiguration(
-        requestedExposure: SchedulingHostToolExposure?,
+    private func hostToolConfiguration(
+        requestedExposure: HostToolExposure?,
         settingsSource: SessionSettingsConfigSource,
         isAutomatedScheduledTurn: Bool
-    ) -> SchedulingHostToolConfiguration {
+    ) -> HostToolServerConfiguration {
         let exposure = requestedExposure ?? (settingsSource == .nextTurn ? .ordinaryOutbound : .currentContinuation)
         guard exposure == .ordinaryOutbound,
               !isAutomatedScheduledTurn,
-              !state.schedulingHostToolsDisabled else {
-            return SchedulingHostToolConfiguration(
+              !state.hostToolsDisabled else {
+            return HostToolServerConfiguration(
                 server: AgentCLIKit.AgentHostToolServerMetadata(),
                 tools: []
             )
         }
-        return SchedulingHostToolConfiguration(
-            server: ScheduledTaskHostToolCatalog.serverMetadata,
-            tools: ScheduledTaskHostToolCatalog.tools
+        return HostToolServerConfiguration(
+            server: AlvearyHostToolCatalog.serverMetadata,
+            tools: AlvearyHostToolCatalog.tools
         )
     }
 

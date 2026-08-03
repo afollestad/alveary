@@ -13,7 +13,7 @@ extension ConversationViewModel {
         stagedContextOverride: String?,
         useCurrentStagedContextWhenOverrideNil: Bool,
         respawnSettingsSource: SessionSettingsConfigSource,
-        hostToolExposure: SchedulingHostToolExposure
+        hostToolExposure: HostToolExposure
     ) async throws -> SessionRecoveryStagedContext {
         let recoveryContext = needsSetup
             ? nil
@@ -64,14 +64,14 @@ extension ConversationViewModel {
     }
 
     func startFreshSessionAfterNonresumableResume(config: AgentSpawnConfig) async throws {
-        let hostToolTransition = try await startFreshRuntimeSessionWithSchedulingHostToolTransition(config: config)
+        let hostToolTransition = try await startFreshRuntimeSessionWithHostToolTransition(config: config)
         state.liveSessionConfig = effectiveLiveSessionConfig(config)
         state.runtimeSpeedMode = config.speedMode
-        state.finishSchedulingHostToolRuntimeTransition(
+        state.finishHostToolRuntimeTransition(
             hostToolTransition,
             appliedRequestedConfiguration: true
         )
-        clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled()
+        clearSessionContinuityNoticeUnlessHostToolsDisabled()
         resetSubscriptionTrackingForNewSession()
         subscribe()
         recordContextWindowInvalidation()

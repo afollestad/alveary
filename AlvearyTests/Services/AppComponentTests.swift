@@ -74,7 +74,8 @@ final class AppComponentTests: XCTestCase {
         let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
 
         XCTAssertTrue(component.scheduledTaskHostToolService === component.scheduledTaskHostToolService)
-        _ = component.scheduledTaskHostToolHandling
+        XCTAssertTrue(component.hostToolDispatcher === component.hostToolDispatcher)
+        _ = component.hostToolHandling
         XCTAssertTrue(component.scheduledTaskMutationService === component.scheduledTaskMutationService)
         XCTAssertTrue(
             component.scheduledTaskDefinitionFailureNotifier === component.scheduledTaskDefinitionFailureNotifier

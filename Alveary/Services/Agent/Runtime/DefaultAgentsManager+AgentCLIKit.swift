@@ -36,7 +36,7 @@ extension DefaultAgentsManager {
         startAgentCLIKitStatusTask(conversationId: id, services: services)
 
         do {
-            try await spawnAgentCLIKitWithSchedulingHostToolFallback(
+            try await spawnAgentCLIKitWithHostToolFallback(
                 conversationId: id,
                 runtimeConversationId: runtimeConversationId,
                 config: config,
@@ -206,7 +206,7 @@ extension DefaultAgentsManager {
         services: AgentCLIKitHostServices
     ) async throws {
         prepareAgentCLIKitBufferReplacement(conversationId: conversationId)
-        let effectiveConfig = try await freshAgentCLIKitSessionWithSchedulingHostToolFallback(
+        let effectiveConfig = try await freshAgentCLIKitSessionWithHostToolFallback(
             conversationId: conversationId,
             runtimeConversationId: runtimeConversationId,
             config: config,

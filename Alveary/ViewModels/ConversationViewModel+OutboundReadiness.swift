@@ -2,14 +2,14 @@ import Foundation
 
 struct OutboundRespawnConfiguration {
     let settingsSource: SessionSettingsConfigSource
-    let hostToolExposure: SchedulingHostToolExposure
+    let hostToolExposure: HostToolExposure
 }
 
 extension ConversationViewModel {
     @discardableResult
     func prepareRuntimeForOutbound(
         settingsSource: SessionSettingsConfigSource = .nextTurn,
-        hostToolExposure: SchedulingHostToolExposure = .ordinaryOutbound
+        hostToolExposure: HostToolExposure = .ordinaryOutbound
     ) async throws -> String? {
         guard !needsSetup else {
             return nil
@@ -29,7 +29,7 @@ extension ConversationViewModel {
         switch await agentsManager.outboundReadiness(conversationId: conversation.id) {
         case .ready:
             if hostToolExposure == .ordinaryOutbound {
-                try await reconcileSchedulingHostToolsForOrdinaryOutbound(settingsSource: settingsSource)
+                try await reconcileHostToolsForOrdinaryOutbound(settingsSource: settingsSource)
             }
             return nil
         case .respawnRequired:
@@ -46,7 +46,7 @@ extension ConversationViewModel {
 
     func respawnRuntimeForOutbound(
         settingsSource: SessionSettingsConfigSource,
-        hostToolExposure: SchedulingHostToolExposure = .ordinaryOutbound
+        hostToolExposure: HostToolExposure = .ordinaryOutbound
     ) async throws -> String? {
         let config = try makeSpawnConfig(
             settingsSource: settingsSource,
@@ -120,7 +120,7 @@ extension ConversationViewModel {
     private func recoveryContextAfterSendFailure(
         _ error: Error,
         respawnSettingsSource: SessionSettingsConfigSource,
-        hostToolExposure: SchedulingHostToolExposure
+        hostToolExposure: HostToolExposure
     ) async throws -> String? {
         if isNonresumableProviderSessionError(error) {
             return try await recoverNonresumableSessionForOutboundIfNeeded(
@@ -144,7 +144,7 @@ extension ConversationViewModel {
         )
     }
 
-    private func reconcileSchedulingHostToolsForOrdinaryOutbound(
+    private func reconcileHostToolsForOrdinaryOutbound(
         settingsSource: SessionSettingsConfigSource
     ) async throws {
         let config = try makeSpawnConfig(
@@ -152,7 +152,7 @@ extension ConversationViewModel {
             hostToolExposure: .ordinaryOutbound
         )
         let liveConfig = state.liveSessionConfig
-        guard state.requiresSchedulingHostToolReplacement
+        guard state.requiresHostToolReplacement
                 || liveConfig?.hostToolServer != config.hostToolServer
                 || liveConfig?.hostTools != config.hostTools else {
             return
@@ -161,7 +161,7 @@ extension ConversationViewModel {
         state.isReconfiguringSession = true
         defer { state.isReconfiguringSession = false }
 
-        let hostToolTransition = state.beginSchedulingHostToolRuntimeTransition()
+        let hostToolTransition = state.beginHostToolRuntimeTransition()
         do {
             try await prepareForSpawn(config: config)
             let outcome = try await performRuntimeReconfigure(
@@ -170,7 +170,7 @@ extension ConversationViewModel {
             )
             applyReconfigureResult(outcome, config: config)
         } catch {
-            state.finishSchedulingHostToolRuntimeTransition(
+            state.finishHostToolRuntimeTransition(
                 hostToolTransition,
                 appliedRequestedConfiguration: false
             )

@@ -182,10 +182,7 @@ struct ScheduledTaskHostToolSourceWorkspace {
     let project: Project?
 }
 
-struct ScheduledTaskHostToolSource {
-    let conversation: Conversation
-    let thread: AgentThread
-}
+typealias ScheduledTaskHostToolSource = HostToolCallSource
 
 enum ScheduledTaskHostToolServiceError: LocalizedError {
     case unsupportedTool

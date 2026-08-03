@@ -254,9 +254,7 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
 
         // Both lookups hand user content to the provider, so their use stays gated on an
         // explicit ask rather than being offered as general browsing.
-        let serverInstructions = try XCTUnwrap(
-            ScheduledTaskHostToolCatalog.serverMetadata(timeZoneIdentifier: "UTC").instructions
-        )
+        let serverInstructions = ScheduledTaskHostToolCatalog.instructionsFragment(timeZoneIdentifier: "UTC")
         XCTAssertTrue(serverInstructions.contains("Call list_projects only when"))
         XCTAssertTrue(serverInstructions.contains("list_threads only when"))
     }
@@ -301,9 +299,7 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
 
         assertEveryObjectSchemaDeclaresProperties(proposeTool.inputSchema)
         XCTAssertTrue(proposeTool.description.contains("Use action create"))
-        let serverInstructions = try XCTUnwrap(
-            ScheduledTaskHostToolCatalog.serverMetadata(timeZoneIdentifier: "Pacific/Auckland").instructions
-        )
+        let serverInstructions = ScheduledTaskHostToolCatalog.instructionsFragment(timeZoneIdentifier: "Pacific/Auckland")
         XCTAssertTrue(serverInstructions.contains("propose_scheduled_task"))
         XCTAssertTrue(serverInstructions.contains("action create"))
         XCTAssertTrue(serverInstructions.contains("Never use shell commands"))

@@ -113,7 +113,7 @@ extension ScheduledTaskHostToolService {
     ) -> AgentCLIKit.AgentHostToolResult {
         let message: String
         switch error {
-        case let requestError as ScheduledTaskHostToolRequestError:
+        case let requestError as HostToolRequestError:
             message = requestError.localizedDescription
         case let serviceError as ScheduledTaskHostToolServiceError:
             message = serviceError.localizedDescription

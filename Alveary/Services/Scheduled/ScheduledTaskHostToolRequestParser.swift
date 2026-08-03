@@ -2,17 +2,6 @@ import AgentCLIKit
 import CryptoKit
 import Foundation
 
-enum ScheduledTaskHostToolRequestError: Error, Equatable, LocalizedError, Sendable {
-    case invalidArguments(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidArguments(let message):
-            message
-        }
-    }
-}
-
 struct ScheduledTaskHostToolRequestParser: Sendable {
     private let defaultTimeZoneIdentifierProvider: @Sendable () -> String
     private let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
@@ -44,7 +33,7 @@ struct ScheduledTaskHostToolRequestParser: Sendable {
     }
 
     /// Shared with `+Placement.swift`.
-    func invalid(_ message: String) -> ScheduledTaskHostToolRequestError {
+    func invalid(_ message: String) -> HostToolRequestError {
         .invalidArguments(message)
     }
 }
@@ -367,7 +356,7 @@ private extension ScheduledTaskHostToolRequestParser {
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         let data = try encoder.encode(value)
         guard let string = String(data: data, encoding: .utf8) else {
-            throw ScheduledTaskHostToolRequestError.invalidArguments("The scheduling request could not be encoded.")
+            throw HostToolRequestError.invalidArguments("The scheduling request could not be encoded.")
         }
         return string
     }

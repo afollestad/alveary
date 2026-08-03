@@ -53,7 +53,7 @@ extension ConversationViewModelTests {
         let approvalCalls = await fixture.agentsManager.approvalCalls()
         let approvalCall = try XCTUnwrap(approvalCalls.first)
         XCTAssertTrue(approvalCall.config.hostTools.isEmpty)
-        XCTAssertTrue(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
+        XCTAssertTrue(fixture.viewModel.state.requiresHostToolReplacement)
 
         _ = try await fixture.viewModel.prepareRuntimeForOutbound()
 
@@ -63,7 +63,7 @@ extension ConversationViewModelTests {
             reconfigureCall.config.hostTools.map(\.name),
             ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
-        XCTAssertFalse(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
+        XCTAssertFalse(fixture.viewModel.state.requiresHostToolReplacement)
     }
 
     func testSuppressedPromptDenialForcesNextOrdinaryOutboundToReplacePossibleToolFreeRespawn() async throws {
@@ -80,7 +80,7 @@ extension ConversationViewModelTests {
 
         let approvalCalls = await fixture.agentsManager.approvalCalls()
         XCTAssertTrue(try XCTUnwrap(approvalCalls.first).config.hostTools.isEmpty)
-        XCTAssertTrue(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
+        XCTAssertTrue(fixture.viewModel.state.requiresHostToolReplacement)
 
         _ = try await fixture.viewModel.prepareRuntimeForOutbound()
 
@@ -89,7 +89,7 @@ extension ConversationViewModelTests {
             try XCTUnwrap(reconfigureCalls.first).config.hostTools.map(\.name),
             ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
-        XCTAssertFalse(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
+        XCTAssertFalse(fixture.viewModel.state.requiresHostToolReplacement)
     }
 
     func testHostToolDiagnosticDuringSpawnWinsOverSuccessfulTransitionCompletion() async throws {
@@ -101,12 +101,12 @@ extension ConversationViewModelTests {
         }
         await fixture.agentsManager.waitUntilSpawnEntered()
 
-        fixture.viewModel.state.markSchedulingHostToolsUnavailable(requiresRuntimeReplacement: true)
+        fixture.viewModel.state.markHostToolsUnavailable(requiresRuntimeReplacement: true)
         await fixture.agentsManager.resumePausedSpawn()
         try await startTask.value
 
-        XCTAssertTrue(fixture.viewModel.state.schedulingHostToolsDisabled)
-        XCTAssertTrue(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
+        XCTAssertTrue(fixture.viewModel.state.hostToolsDisabled)
+        XCTAssertTrue(fixture.viewModel.state.requiresHostToolReplacement)
         XCTAssertTrue(try XCTUnwrap(fixture.viewModel.state.liveSessionConfig).hostTools.isEmpty)
     }
 
@@ -115,19 +115,19 @@ extension ConversationViewModelTests {
             reconfigureError: .reconfigureFailed,
             initialAgentIsRunning: true
         )
-        fixture.viewModel.state.invalidateSchedulingHostToolRuntimeConfiguration()
+        fixture.viewModel.state.invalidateHostToolRuntimeConfiguration()
 
         do {
             _ = try await fixture.viewModel.prepareRuntimeForOutbound()
             XCTFail("Expected reconfigure to fail")
         } catch MockAgentsManager.MockError.reconfigureFailed {}
 
-        XCTAssertTrue(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
+        XCTAssertTrue(fixture.viewModel.state.requiresHostToolReplacement)
     }
 
-    func testSessionHandoffSteeringRetainsSchedulingHostToolDiagnostic() throws {
+    func testSessionHandoffSteeringRetainsHostToolDiagnostic() throws {
         let fixture = try ConversationViewModelTestFixture()
-        fixture.viewModel.state.markSchedulingHostToolsUnavailable(requiresRuntimeReplacement: false)
+        fixture.viewModel.state.markHostToolsUnavailable(requiresRuntimeReplacement: false)
         let notice = fixture.viewModel.state.sessionContinuityNotice
 
         fixture.viewModel.beginSessionHandoffSteeringPrompt(startsCountdown: false)

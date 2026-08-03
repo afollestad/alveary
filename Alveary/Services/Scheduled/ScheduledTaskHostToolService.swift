@@ -59,6 +59,17 @@ final class ScheduledTaskHostToolService {
     }
 }
 
+extension ScheduledTaskHostToolService: HostToolFeature {
+    var featureID: String {
+        ScheduledTaskHostToolCatalog.featureID
+    }
+
+    /// Derived from the catalog so routing cannot drift from what the server advertises.
+    var hostToolNames: Set<String> {
+        Set(ScheduledTaskHostToolCatalog.tools.map(\.name))
+    }
+}
+
 private extension ScheduledTaskHostToolService {
     func proposeScheduledTask(
         context: AgentCLIKit.AgentHostToolCallContext,

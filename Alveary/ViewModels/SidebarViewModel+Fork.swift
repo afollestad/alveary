@@ -305,8 +305,8 @@ private extension SidebarViewModel {
                 mode: source.mode.sessionForkMode
             ),
             initialPrompt: nil,
-            hostToolServer: ScheduledTaskHostToolCatalog.serverMetadata,
-            hostTools: ScheduledTaskHostToolCatalog.tools
+            hostToolServer: AlvearyHostToolCatalog.serverMetadata,
+            hostTools: AlvearyHostToolCatalog.tools
         )
     }
 

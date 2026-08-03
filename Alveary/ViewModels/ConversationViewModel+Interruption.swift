@@ -262,7 +262,7 @@ extension ConversationViewModel {
             sessionApproval: nil,
             config: config
         ))
-        state.invalidateSchedulingHostToolRuntimeConfiguration()
+        state.invalidateHostToolRuntimeConfiguration()
     }
 
     func startsPromptDismissalDelayedFallout(_ event: ConversationEvent) -> Bool {

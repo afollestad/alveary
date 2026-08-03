@@ -50,17 +50,17 @@ extension AgentsManagerTests {
         ).manager
         let conversationId = "agentclikit-host-tool-unavailable"
 
-        await manager.markSchedulingHostToolsUnavailable(
+        await manager.markHostToolsUnavailable(
             conversationId: conversationId,
             requiresRuntimeReplacement: true
         )
 
         let state = manager.conversationState(for: conversationId)
-        XCTAssertTrue(state.schedulingHostToolsDisabled)
-        XCTAssertTrue(state.requiresSchedulingHostToolReplacement)
+        XCTAssertTrue(state.hostToolsDisabled)
+        XCTAssertTrue(state.requiresHostToolReplacement)
         XCTAssertEqual(
             state.sessionContinuityNotice,
-            "Natural-language scheduling is unavailable for this task. You can still manage schedules from Scheduled."
+            "Alveary's app tools are unavailable for this task. You can still use Alveary's own screens."
         )
     }
 
@@ -92,7 +92,7 @@ extension AgentsManagerTests {
             description: "current event after stale host-tool diagnostics"
         )
         XCTAssertEqual(event, .message(role: "assistant", content: "current generation", parentToolUseId: nil))
-        XCTAssertFalse(fixture.manager.conversationState(for: fixture.conversationId).schedulingHostToolsDisabled)
+        XCTAssertFalse(fixture.manager.conversationState(for: fixture.conversationId).hostToolsDisabled)
 
         fixture.currentContinuation.yield(hostToolUnavailableEnvelope(
             generation: 2,
@@ -100,7 +100,7 @@ extension AgentsManagerTests {
             conversationId: fixture.conversationId
         ))
         try await waitUntil("expected current host-tool diagnostic to disable scheduling tools") {
-            fixture.manager.conversationState(for: fixture.conversationId).schedulingHostToolsDisabled
+            fixture.manager.conversationState(for: fixture.conversationId).hostToolsDisabled
         }
     }
 
@@ -110,7 +110,7 @@ extension AgentsManagerTests {
             hostTools: [hostToolTestDefinition]
         )
         let failures = [
-            SchedulingHostToolLaunchFailure.codexThreadJSONRPC(
+            HostToolLaunchFailure.codexThreadJSONRPC(
                 method: "thread/start",
                 message: "Unknown configuration key mcp_servers"
             ),
@@ -130,7 +130,7 @@ extension AgentsManagerTests {
 
         for failure in failures {
             XCTAssertEqual(
-                SchedulingHostToolFallbackClassifier.decision(for: failure, config: config),
+                HostToolFallbackClassifier.decision(for: failure, config: config),
                 .retryWithoutHostTools
             )
         }
@@ -142,7 +142,7 @@ extension AgentsManagerTests {
             hostTools: [hostToolTestDefinition]
         )
         let unrelatedFailures = [
-            SchedulingHostToolLaunchFailure.codexThreadJSONRPC(
+            HostToolLaunchFailure.codexThreadJSONRPC(
                 method: "turn/start",
                 message: "Invalid value for mcp_servers.alveary_host"
             ),
@@ -159,7 +159,7 @@ extension AgentsManagerTests {
 
         for failure in unrelatedFailures {
             XCTAssertEqual(
-                SchedulingHostToolFallbackClassifier.decision(for: failure, config: codexConfig),
+                HostToolFallbackClassifier.decision(for: failure, config: codexConfig),
                 .propagate
             )
         }
@@ -170,7 +170,7 @@ extension AgentsManagerTests {
             hostTools: [hostToolTestDefinition]
         )
         XCTAssertEqual(
-            SchedulingHostToolFallbackClassifier.decision(
+            HostToolFallbackClassifier.decision(
                 for: .codexThreadJSONRPC(method: "thread/start", message: "Invalid enabled_tools"),
                 config: claudeConfig
             ),
@@ -180,14 +180,14 @@ extension AgentsManagerTests {
 
     func testFallbackDecisionRequiresConfiguredToolsAndRetainsNativeFallback() {
         XCTAssertEqual(
-            SchedulingHostToolFallbackClassifier.decision(
+            HostToolFallbackClassifier.decision(
                 for: .codexThreadJSONRPC(method: "thread/start", message: "Invalid mcp_servers"),
                 config: hostToolTestConfig()
             ),
             .propagate
         )
         XCTAssertEqual(
-            SchedulingHostToolFallbackClassifier.decision(
+            HostToolFallbackClassifier.decision(
                 for: .hostToolsUnavailable,
                 config: hostToolTestConfig(hostTools: [hostToolTestDefinition])
             ),

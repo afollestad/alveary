@@ -2,7 +2,7 @@ import Foundation
 
 struct ConversationRuntimeReconfigureOutcome {
     let result: AgentSessionReconfigureResult
-    let hostToolTransition: SchedulingHostToolRuntimeTransition
+    let hostToolTransition: HostToolRuntimeTransition
 }
 
 extension ConversationViewModel {
@@ -22,7 +22,7 @@ extension ConversationViewModel {
         state.isReconfiguringSession = true
         defer { state.isReconfiguringSession = false }
 
-        let hostToolTransition = state.beginSchedulingHostToolRuntimeTransition()
+        let hostToolTransition = state.beginHostToolRuntimeTransition()
         do {
             await flushPendingSaveIfNeeded()
             try await prepareForSpawn(config: config)
@@ -33,7 +33,7 @@ extension ConversationViewModel {
             applyReconfigureResult(outcome, config: config)
             return outcome.result
         } catch {
-            state.finishSchedulingHostToolRuntimeTransition(
+            state.finishHostToolRuntimeTransition(
                 hostToolTransition,
                 appliedRequestedConfiguration: false
             )
@@ -56,7 +56,7 @@ extension ConversationViewModel {
 
     func performRuntimeReconfigure(
         config: AgentSpawnConfig,
-        hostToolTransition: SchedulingHostToolRuntimeTransition
+        hostToolTransition: HostToolRuntimeTransition
     ) async throws -> ConversationRuntimeReconfigureOutcome {
         do {
             let result = try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
@@ -72,7 +72,7 @@ extension ConversationViewModel {
 
     func applyReconfigureResult(_ outcome: ConversationRuntimeReconfigureOutcome, config: AgentSpawnConfig) {
         let result = outcome.result
-        state.finishSchedulingHostToolRuntimeTransition(
+        state.finishHostToolRuntimeTransition(
             outcome.hostToolTransition,
             appliedRequestedConfiguration: result != .nextTurnRequired
         )

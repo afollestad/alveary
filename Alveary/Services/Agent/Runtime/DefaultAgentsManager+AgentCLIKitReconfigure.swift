@@ -30,7 +30,7 @@ extension DefaultAgentsManager {
         let runtimeConversationId = services.hostAdapter.conversationId(conversationId)
         let replayCursor = await services.runtime.status(conversationId: runtimeConversationId)?.lastEventIndex
         do {
-            let reconfigure = try await reconfigureAgentCLIKitWithSchedulingHostToolFallback(
+            let reconfigure = try await reconfigureAgentCLIKitWithHostToolFallback(
                 conversationId: conversationId,
                 runtimeConversationId: runtimeConversationId,
                 config: config,

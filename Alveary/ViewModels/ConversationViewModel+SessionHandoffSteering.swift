@@ -86,7 +86,7 @@ extension ConversationViewModel {
         state.lastTurnInterrupted = false
         state.isCancellingTurn = false
         state.lastTurnError = nil
-        clearSessionContinuityNoticeUnlessSchedulingHostToolsDisabled()
+        clearSessionContinuityNoticeUnlessHostToolsDisabled()
         if startsCountdown {
             startSessionHandoffSteeringCountdown()
         }

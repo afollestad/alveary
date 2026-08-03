@@ -2,7 +2,7 @@ import AgentCLIKit
 import Foundation
 
 extension DefaultAgentsManager {
-    func spawnAgentCLIKitWithSchedulingHostToolFallback(
+    func spawnAgentCLIKitWithHostToolFallback(
         conversationId: String,
         runtimeConversationId: AgentCLIKit.AgentConversationID,
         config: AgentSpawnConfig,
@@ -13,10 +13,10 @@ extension DefaultAgentsManager {
             let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: forkSession, services: services)
             try await services.runtime.spawn(conversationId: runtimeConversationId, config: spawnConfig)
         } catch {
-            guard SchedulingHostToolFallbackClassifier.decision(for: error, config: config) == .retryWithoutHostTools else {
+            guard HostToolFallbackClassifier.decision(for: error, config: config) == .retryWithoutHostTools else {
                 throw error
             }
-            await markSchedulingHostToolsUnavailable(
+            await markHostToolsUnavailable(
                 conversationId: conversationId,
                 requiresRuntimeReplacement: false
             )
@@ -30,7 +30,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    func freshAgentCLIKitSessionWithSchedulingHostToolFallback(
+    func freshAgentCLIKitSessionWithHostToolFallback(
         conversationId: String,
         runtimeConversationId: AgentCLIKit.AgentConversationID,
         config: AgentSpawnConfig,
@@ -41,10 +41,10 @@ extension DefaultAgentsManager {
             try await services.runtime.freshSession(conversationId: runtimeConversationId, config: spawnConfig)
             return config
         } catch {
-            guard SchedulingHostToolFallbackClassifier.decision(for: error, config: config) == .retryWithoutHostTools else {
+            guard HostToolFallbackClassifier.decision(for: error, config: config) == .retryWithoutHostTools else {
                 throw error
             }
-            await markSchedulingHostToolsUnavailable(
+            await markHostToolsUnavailable(
                 conversationId: conversationId,
                 requiresRuntimeReplacement: false
             )
@@ -59,7 +59,7 @@ extension DefaultAgentsManager {
         }
     }
 
-    func reconfigureAgentCLIKitWithSchedulingHostToolFallback(
+    func reconfigureAgentCLIKitWithHostToolFallback(
         conversationId: String,
         runtimeConversationId: AgentCLIKit.AgentConversationID,
         config: AgentSpawnConfig,
@@ -76,10 +76,10 @@ extension DefaultAgentsManager {
             )
             return (result, config)
         } catch {
-            guard SchedulingHostToolFallbackClassifier.decision(for: error, config: config) == .retryWithoutHostTools else {
+            guard HostToolFallbackClassifier.decision(for: error, config: config) == .retryWithoutHostTools else {
                 throw error
             }
-            await markSchedulingHostToolsUnavailable(
+            await markHostToolsUnavailable(
                 conversationId: conversationId,
                 requiresRuntimeReplacement: false
             )
@@ -97,36 +97,36 @@ extension DefaultAgentsManager {
         }
     }
 
-    func markSchedulingHostToolsUnavailable(
+    func markHostToolsUnavailable(
         conversationId: String,
         requiresRuntimeReplacement: Bool
     ) async {
         await MainActor.run {
             let state = self.conversationState(for: conversationId)
-            state.markSchedulingHostToolsUnavailable(requiresRuntimeReplacement: requiresRuntimeReplacement)
+            state.markHostToolsUnavailable(requiresRuntimeReplacement: requiresRuntimeReplacement)
         }
     }
 }
 
-enum SchedulingHostToolLaunchFailure: Equatable {
+enum HostToolLaunchFailure: Equatable {
     case hostToolsUnavailable
     case codexThreadJSONRPC(method: String, message: String)
     case unrelated
 }
 
-enum SchedulingHostToolFallbackDecision: Equatable {
+enum HostToolFallbackDecision: Equatable {
     case retryWithoutHostTools
     case propagate
 }
 
-struct SchedulingHostToolFallbackClassifier {
+struct HostToolFallbackClassifier {
     private static let codexThreadBootstrapMethods: Set<String> = [
         "thread/start",
         "thread/resume",
         "thread/fork"
     ]
     private static let codexHostToolPolicyMarkers = [
-        "alveary_host",
+        AlvearyHostToolCatalog.serverName,
         "mcp_servers",
         "enabled_tools",
         "approval_mode"
@@ -135,14 +135,14 @@ struct SchedulingHostToolFallbackClassifier {
     static func decision(
         for error: Error,
         config: AgentSpawnConfig
-    ) -> SchedulingHostToolFallbackDecision {
+    ) -> HostToolFallbackDecision {
         decision(for: launchFailure(from: error), config: config)
     }
 
     static func decision(
-        for failure: SchedulingHostToolLaunchFailure,
+        for failure: HostToolLaunchFailure,
         config: AgentSpawnConfig
-    ) -> SchedulingHostToolFallbackDecision {
+    ) -> HostToolFallbackDecision {
         guard !config.hostTools.isEmpty else {
             return .propagate
         }
@@ -161,7 +161,7 @@ struct SchedulingHostToolFallbackClassifier {
         }
     }
 
-    private static func launchFailure(from error: Error) -> SchedulingHostToolLaunchFailure {
+    private static func launchFailure(from error: Error) -> HostToolLaunchFailure {
         if let error = error as? AgentCLIKit.AgentCLIError,
            error.code == .hostToolsUnavailable {
             return .hostToolsUnavailable

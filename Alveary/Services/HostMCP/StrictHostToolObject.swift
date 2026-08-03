@@ -1,6 +1,17 @@
 import AgentCLIKit
 import Foundation
 
+enum HostToolRequestError: Error, Equatable, LocalizedError, Sendable {
+    case invalidArguments(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidArguments(let message):
+            message
+        }
+    }
+}
+
 /// Reads a tool-argument object with the strictness the AGENTS guidance requires: every key is
 /// allowlisted and every value type-checked, whatever the advertised JSON Schema promised.
 struct StrictHostToolObject {
@@ -15,7 +26,7 @@ struct StrictHostToolObject {
     func requireOnly(_ allowedKeys: Set<String>) throws {
         let unknownKeys = Set(values.keys).subtracting(allowedKeys).sorted()
         guard unknownKeys.isEmpty else {
-            throw ScheduledTaskHostToolRequestError.invalidArguments(
+            throw HostToolRequestError.invalidArguments(
                 "\(path) contains unsupported field(s): \(unknownKeys.joined(separator: ", "))."
             )
         }
@@ -89,7 +100,7 @@ struct StrictHostToolObject {
         return value
     }
 
-    private func invalid(_ message: String) -> ScheduledTaskHostToolRequestError {
+    private func invalid(_ message: String) -> HostToolRequestError {
         .invalidArguments(message)
     }
 }

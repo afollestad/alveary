@@ -2,6 +2,7 @@ import AgentCLIKit
 import Foundation
 
 enum ScheduledTaskHostToolCatalog {
+    static let featureID = "scheduling"
     static let listToolName = "list_scheduled_tasks"
     static let listProjectsToolName = "list_projects"
     static let listThreadsToolName = "list_threads"
@@ -10,32 +11,35 @@ enum ScheduledTaskHostToolCatalog {
     /// Read-only tools that take no arguments.
     static let listToolNames: Set<String> = [listToolName, listProjectsToolName, listThreadsToolName]
 
-    static var serverMetadata: AgentCLIKit.AgentHostToolServerMetadata {
-        serverMetadata(timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
+    /// What scheduling advertises on the shared `alveary_host` server.
+    static var featureCatalog: HostToolFeatureCatalog {
+        HostToolFeatureCatalog(
+            featureID: featureID,
+            tools: tools,
+            instructionsFragment: instructionsFragment(
+                timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier
+            )
+        )
     }
 
-    static func serverMetadata(timeZoneIdentifier: String) -> AgentCLIKit.AgentHostToolServerMetadata {
-        AgentCLIKit.AgentHostToolServerMetadata(
-            name: "alveary_host",
-            title: "Alveary scheduling",
-            instructions: """
-            These tools manage Alveary's local scheduled tasks. Schedule times use the Mac's current local time zone \
-            (\(timeZoneIdentifier)). \
-            Use scheduling tools only when the user explicitly asks to create, list, edit, pause, resume, delete, or run an Alveary \
-            scheduled task. Incidental dates, deadlines, elapsed-time estimates, and phrases such as "later" do not imply a scheduling \
-            request. Ask for clarification before proposing a task when its instructions, recurrence, or target are materially ambiguous. \
-            For a weekdays schedule, days must list every intended day of the week, including weekend days when \
-            requested. Use propose_scheduled_task with action create to create a scheduled task. Call list_scheduled_tasks before edit, \
-            pause, resume, delete, or run_now, then use propose_scheduled_task with that action. Never invent or search for a separate \
-            create_scheduled_task tool. Call list_projects only when the user wants a scheduled task to run in a different Alveary Project \
-            than this conversation's, and list_threads only when they want its results posted into an existing Alveary thread. \
-            Pause, resume, and run_now take effect immediately. Create, edit, and delete only \
-            open Alveary's native confirmation UI; describe those as opened proposals and never claim the schedule changed before \
-            confirmation. Never use shell commands, crontab, launch agents, or workspace files \
-            to discover or manage Alveary scheduled tasks. If these tools are unavailable, say so and direct the user to Alveary's \
-            Scheduled screen instead of attempting a substitute.
-            """
-        )
+    static func instructionsFragment(timeZoneIdentifier: String) -> String {
+        """
+        These tools manage Alveary's local scheduled tasks. Schedule times use the Mac's current local time zone \
+        (\(timeZoneIdentifier)). \
+        Use scheduling tools only when the user explicitly asks to create, list, edit, pause, resume, delete, or run an Alveary \
+        scheduled task. Incidental dates, deadlines, elapsed-time estimates, and phrases such as "later" do not imply a scheduling \
+        request. Ask for clarification before proposing a task when its instructions, recurrence, or target are materially ambiguous. \
+        For a weekdays schedule, days must list every intended day of the week, including weekend days when \
+        requested. Use propose_scheduled_task with action create to create a scheduled task. Call list_scheduled_tasks before edit, \
+        pause, resume, delete, or run_now, then use propose_scheduled_task with that action. Never invent or search for a separate \
+        create_scheduled_task tool. Call list_projects only when the user wants a scheduled task to run in a different Alveary Project \
+        than this conversation's, and list_threads only when they want its results posted into an existing Alveary thread. \
+        Pause, resume, and run_now take effect immediately. Create, edit, and delete only \
+        open Alveary's native confirmation UI; describe those as opened proposals and never claim the schedule changed before \
+        confirmation. Never use shell commands, crontab, launch agents, or workspace files \
+        to discover or manage Alveary scheduled tasks. If these tools are unavailable, say so and direct the user to Alveary's \
+        Scheduled screen instead of attempting a substitute.
+        """
     }
 
     static let tools: [AgentCLIKit.AgentHostToolDefinition] = [
@@ -56,15 +60,15 @@ private extension ScheduledTaskHostToolCatalog {
         conversation runs; a scheduled task otherwise inherits this conversation's workspace. Not a directory listing, and not a \
         substitute for reading the file system.
         """,
-        inputSchema: strictObject(properties: [:], required: []),
-        outputSchema: strictObject(
+        inputSchema: HostToolSchema.strictObject(properties: [:], required: []),
+        outputSchema: HostToolSchema.strictObject(
             properties: [
                 "projects": .object([
                     "type": .string("array"),
-                    "items": strictObject(
+                    "items": HostToolSchema.strictObject(
                         properties: [
-                            "path": stringSchema,
-                            "name": stringSchema
+                            "path": HostToolSchema.stringSchema,
+                            "name": HostToolSchema.stringSchema
                         ],
                         required: ["path", "name"]
                     )
@@ -72,7 +76,7 @@ private extension ScheduledTaskHostToolCatalog {
             ],
             required: ["projects"]
         ),
-        annotations: readOnlyAnnotations
+        annotations: HostToolSchema.readOnlyAnnotations
     )
 
     static let listThreadsTool = AgentCLIKit.AgentHostToolDefinition(
@@ -84,16 +88,16 @@ private extension ScheduledTaskHostToolCatalog {
         proposal, so say so. Call it only when the user asks for a scheduled task's results to go into an existing thread rather than \
         a new one. Never use it to browse conversations or read their contents.
         """,
-        inputSchema: strictObject(properties: [:], required: []),
-        outputSchema: strictObject(
+        inputSchema: HostToolSchema.strictObject(properties: [:], required: []),
+        outputSchema: HostToolSchema.strictObject(
             properties: [
                 "threads": .object([
                     "type": .string("array"),
-                    "items": strictObject(
+                    "items": HostToolSchema.strictObject(
                         properties: [
-                            "id": stringSchema,
-                            "name": stringSchema,
-                            "workspace": stringSchema,
+                            "id": HostToolSchema.stringSchema,
+                            "name": HostToolSchema.stringSchema,
+                            "workspace": HostToolSchema.stringSchema,
                             "is_pinned": .object(["type": .string("boolean")])
                         ],
                         required: ["id", "name", "workspace", "is_pinned"]
@@ -102,17 +106,8 @@ private extension ScheduledTaskHostToolCatalog {
             ],
             required: ["threads"]
         ),
-        annotations: readOnlyAnnotations
+        annotations: HostToolSchema.readOnlyAnnotations
     )
-
-    static var readOnlyAnnotations: AgentCLIKit.AgentHostToolAnnotations {
-        AgentCLIKit.AgentHostToolAnnotations(
-            readOnlyHint: true,
-            destructiveHint: false,
-            idempotentHint: true,
-            openWorldHint: false
-        )
-    }
 
     static let listTool = AgentCLIKit.AgentHostToolDefinition(
         name: listToolName,
@@ -122,18 +117,18 @@ private extension ScheduledTaskHostToolCatalog {
         edit, pause, resume, delete, or run-now. Returns stable IDs, revisions, titles, states, and schedule summaries; it never returns \
         task prompts. Do not call for ordinary project tasks, calendar discussion, deadlines, or incidental time language.
         """,
-        inputSchema: strictObject(properties: [:], required: []),
-        outputSchema: strictObject(
+        inputSchema: HostToolSchema.strictObject(properties: [:], required: []),
+        outputSchema: HostToolSchema.strictObject(
             properties: [
                 "tasks": .object([
                     "type": .string("array"),
-                    "items": strictObject(
+                    "items": HostToolSchema.strictObject(
                         properties: [
-                            "id": stringSchema,
-                            "revision": integerSchema(minimum: 1),
-                            "title": stringSchema,
-                            "state": enumSchema(["active", "paused", "completed"]),
-                            "schedule_summary": stringSchema
+                            "id": HostToolSchema.stringSchema,
+                            "revision": HostToolSchema.integerSchema(minimum: 1),
+                            "title": HostToolSchema.stringSchema,
+                            "state": HostToolSchema.enumSchema(["active", "paused", "completed"]),
+                            "schedule_summary": HostToolSchema.stringSchema
                         ],
                         required: ["id", "revision", "title", "state", "schedule_summary"]
                     )
@@ -141,7 +136,7 @@ private extension ScheduledTaskHostToolCatalog {
             ],
             required: ["tasks"]
         ),
-        annotations: readOnlyAnnotations
+        annotations: HostToolSchema.readOnlyAnnotations
     )
 
     static let proposeTool = AgentCLIKit.AgentHostToolDefinition(
@@ -164,17 +159,17 @@ private extension ScheduledTaskHostToolCatalog {
         it gave back: `applied` means the change is already in effect, and `pending_confirmation` means a proposal was opened and \
         nothing has changed yet.
         """,
-        inputSchema: strictObject(
+        inputSchema: HostToolSchema.strictObject(
             properties: proposalProperties,
             required: ["action"]
         ),
-        outputSchema: strictObject(
+        outputSchema: HostToolSchema.strictObject(
             properties: [
-                "status": enumSchema(["pending_confirmation", "applied", "error"]),
-                "proposal_id": stringSchema,
-                "action": enumSchema(ScheduledTaskProposalAction.allCases.map(\.rawValue)),
-                "title": stringSchema,
-                "message": stringSchema
+                "status": HostToolSchema.enumSchema(["pending_confirmation", "applied", "error"]),
+                "proposal_id": HostToolSchema.stringSchema,
+                "action": HostToolSchema.enumSchema(ScheduledTaskProposalAction.allCases.map(\.rawValue)),
+                "title": HostToolSchema.stringSchema,
+                "message": HostToolSchema.stringSchema
             ],
             required: ["status", "message"]
         ),
@@ -187,20 +182,20 @@ private extension ScheduledTaskHostToolCatalog {
     )
 
     static let proposalProperties: [String: AgentCLIKit.JSONValue] = [
-        "action": enumSchema(ScheduledTaskProposalAction.allCases.map(\.rawValue)),
-        "title": nonEmptyStringSchema,
-        "prompt": nonEmptyStringSchema,
+        "action": HostToolSchema.enumSchema(ScheduledTaskProposalAction.allCases.map(\.rawValue)),
+        "title": HostToolSchema.nonEmptyStringSchema,
+        "prompt": HostToolSchema.nonEmptyStringSchema,
         "schedule": scheduleSchema,
-        "task_id": nonEmptyStringSchema,
-        "revision": integerSchema(minimum: 1),
+        "task_id": HostToolSchema.nonEmptyStringSchema,
+        "revision": HostToolSchema.integerSchema(minimum: 1),
         "changes": changesSchema
     ].merging(placementProperties) { current, _ in current }
 
     static let changesSchema: AgentCLIKit.JSONValue = .object([
         "type": .string("object"),
         "properties": .object([
-            "title": nonEmptyStringSchema,
-            "prompt": nonEmptyStringSchema,
+            "title": HostToolSchema.nonEmptyStringSchema,
+            "prompt": HostToolSchema.nonEmptyStringSchema,
             "schedule": scheduleSchema
         ].merging(placementProperties) { current, _ in current }),
         "minProperties": .number(1),
@@ -208,68 +203,68 @@ private extension ScheduledTaskHostToolCatalog {
     ])
 
     static let placementProperties: [String: AgentCLIKit.JSONValue] = [
-        "destination": enumSchema(["new_thread", "existing_thread"]),
-        "target_thread_id": nonEmptyStringSchema,
+        "destination": HostToolSchema.enumSchema(["new_thread", "existing_thread"]),
+        "target_thread_id": HostToolSchema.nonEmptyStringSchema,
         "workspace": workspaceSchema
     ]
 
-    static let workspaceSchema: AgentCLIKit.JSONValue = strictObject(
+    static let workspaceSchema: AgentCLIKit.JSONValue = HostToolSchema.strictObject(
         properties: [
-            "kind": enumSchema(["project", "private"]),
-            "project_path": nonEmptyStringSchema,
+            "kind": HostToolSchema.enumSchema(["project", "private"]),
+            "project_path": HostToolSchema.nonEmptyStringSchema,
             "granted_roots": .object([
                 "type": .string("array"),
-                "items": nonEmptyStringSchema,
+                "items": HostToolSchema.nonEmptyStringSchema,
                 "uniqueItems": .bool(true)
             ])
         ],
         required: ["kind"]
     )
 
-    static let scheduleSchema: AgentCLIKit.JSONValue = strictNestedUnionObject(
+    static let scheduleSchema: AgentCLIKit.JSONValue = HostToolSchema.strictNestedUnionObject(
         properties: scheduleProperties,
         required: ["kind"],
         branches: [
-            strictObject(
+            HostToolSchema.strictObject(
                 properties: [
-                    "kind": enumSchema(["once"]),
-                    "at": dateTimeSchema
+                    "kind": HostToolSchema.enumSchema(["once"]),
+                    "at": HostToolSchema.dateTimeSchema
                 ],
                 required: ["kind", "at"]
             ),
-            strictObject(
+            HostToolSchema.strictObject(
                 properties: [
-                    "kind": enumSchema(["interval"]),
-                    "minutes": integerSchema(minimum: 1),
-                    "anchor_at": dateTimeSchema
+                    "kind": HostToolSchema.enumSchema(["interval"]),
+                    "minutes": HostToolSchema.integerSchema(minimum: 1),
+                    "anchor_at": HostToolSchema.dateTimeSchema
                 ],
                 required: ["kind", "minutes", "anchor_at"]
             ),
             wallClockScheduleSchema(kind: "daily"),
-            strictObject(
+            HostToolSchema.strictObject(
                 properties: [
-                    "kind": enumSchema(["weekdays"]),
+                    "kind": HostToolSchema.enumSchema(["weekdays"]),
                     "days": weekdayListSchema,
-                    "hour": integerSchema(minimum: 0, maximum: 23),
-                    "minute": integerSchema(minimum: 0, maximum: 59)
+                    "hour": HostToolSchema.integerSchema(minimum: 0, maximum: 23),
+                    "minute": HostToolSchema.integerSchema(minimum: 0, maximum: 59)
                 ],
                 required: ["kind", "days", "hour", "minute"]
             ),
-            strictObject(
+            HostToolSchema.strictObject(
                 properties: [
-                    "kind": enumSchema(["weekly"]),
-                    "weekday": enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
-                    "hour": integerSchema(minimum: 0, maximum: 23),
-                    "minute": integerSchema(minimum: 0, maximum: 59)
+                    "kind": HostToolSchema.enumSchema(["weekly"]),
+                    "weekday": HostToolSchema.enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
+                    "hour": HostToolSchema.integerSchema(minimum: 0, maximum: 23),
+                    "minute": HostToolSchema.integerSchema(minimum: 0, maximum: 59)
                 ],
                 required: ["kind", "weekday", "hour", "minute"]
             ),
-            strictObject(
+            HostToolSchema.strictObject(
                 properties: [
-                    "kind": enumSchema(["monthly"]),
-                    "day": integerSchema(minimum: 1, maximum: 31),
-                    "hour": integerSchema(minimum: 0, maximum: 23),
-                    "minute": integerSchema(minimum: 0, maximum: 59)
+                    "kind": HostToolSchema.enumSchema(["monthly"]),
+                    "day": HostToolSchema.integerSchema(minimum: 1, maximum: 31),
+                    "hour": HostToolSchema.integerSchema(minimum: 0, maximum: 23),
+                    "minute": HostToolSchema.integerSchema(minimum: 0, maximum: 59)
                 ],
                 required: ["kind", "day", "hour", "minute"]
             )
@@ -277,93 +272,35 @@ private extension ScheduledTaskHostToolCatalog {
     )
 
     static let scheduleProperties: [String: AgentCLIKit.JSONValue] = [
-        "kind": enumSchema(["once", "interval", "daily", "weekdays", "weekly", "monthly"]),
-        "at": dateTimeSchema,
-        "minutes": integerSchema(minimum: 1),
-        "anchor_at": dateTimeSchema,
+        "kind": HostToolSchema.enumSchema(["once", "interval", "daily", "weekdays", "weekly", "monthly"]),
+        "at": HostToolSchema.dateTimeSchema,
+        "minutes": HostToolSchema.integerSchema(minimum: 1),
+        "anchor_at": HostToolSchema.dateTimeSchema,
         "days": weekdayListSchema,
-        "weekday": enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
-        "day": integerSchema(minimum: 1, maximum: 31),
-        "hour": integerSchema(minimum: 0, maximum: 23),
-        "minute": integerSchema(minimum: 0, maximum: 59)
+        "weekday": HostToolSchema.enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
+        "day": HostToolSchema.integerSchema(minimum: 1, maximum: 31),
+        "hour": HostToolSchema.integerSchema(minimum: 0, maximum: 23),
+        "minute": HostToolSchema.integerSchema(minimum: 0, maximum: 59)
     ]
 
     static func wallClockScheduleSchema(kind: String) -> AgentCLIKit.JSONValue {
-        strictObject(
+        HostToolSchema.strictObject(
             properties: [
-                "kind": enumSchema([kind]),
-                "hour": integerSchema(minimum: 0, maximum: 23),
-                "minute": integerSchema(minimum: 0, maximum: 59)
+                "kind": HostToolSchema.enumSchema([kind]),
+                "hour": HostToolSchema.integerSchema(minimum: 0, maximum: 23),
+                "minute": HostToolSchema.integerSchema(minimum: 0, maximum: 59)
             ],
             required: ["kind", "hour", "minute"]
         )
     }
 
-    static func strictObject(
-        properties: [String: AgentCLIKit.JSONValue],
-        required: [String]
-    ) -> AgentCLIKit.JSONValue {
-        var schema: [String: AgentCLIKit.JSONValue] = [
-            "type": .string("object"),
-            "properties": .object(properties),
-            "additionalProperties": .bool(false)
-        ]
-        if !required.isEmpty {
-            schema["required"] = .array(required.map(AgentCLIKit.JSONValue.string))
-        }
-        return .object(schema)
-    }
-
-    static func strictNestedUnionObject(
-        properties: [String: AgentCLIKit.JSONValue],
-        required: [String],
-        branches: [AgentCLIKit.JSONValue]
-    ) -> AgentCLIKit.JSONValue {
-        // Keep unions nested: Claude drops tool definitions that use a union at the input-schema root.
-        guard case .object(var schema) = strictObject(properties: properties, required: required) else {
-            preconditionFailure("strictObject must produce an object schema")
-        }
-        schema["oneOf"] = .array(branches)
-        return .object(schema)
-    }
-
-    static var stringSchema: AgentCLIKit.JSONValue {
-        .object(["type": .string("string")])
-    }
-
-    static var nonEmptyStringSchema: AgentCLIKit.JSONValue {
-        .object(["type": .string("string"), "minLength": .number(1)])
-    }
-
-    static var dateTimeSchema: AgentCLIKit.JSONValue {
-        .object(["type": .string("string"), "format": .string("date-time")])
-    }
-
     static var weekdayListSchema: AgentCLIKit.JSONValue {
         .object([
             "type": .string("array"),
-            "items": enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
+            "items": HostToolSchema.enumSchema(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]),
             "minItems": .number(1),
             "maxItems": .number(7),
             "uniqueItems": .bool(true)
         ])
-    }
-
-    static func enumSchema(_ values: [String]) -> AgentCLIKit.JSONValue {
-        .object([
-            "type": .string("string"),
-            "enum": .array(values.map(AgentCLIKit.JSONValue.string))
-        ])
-    }
-
-    static func integerSchema(minimum: Int, maximum: Int? = nil) -> AgentCLIKit.JSONValue {
-        var schema: [String: AgentCLIKit.JSONValue] = [
-            "type": .string("integer"),
-            "minimum": .number(Double(minimum))
-        ]
-        if let maximum {
-            schema["maximum"] = .number(Double(maximum))
-        }
-        return .object(schema)
     }
 }

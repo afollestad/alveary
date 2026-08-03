@@ -202,7 +202,7 @@ extension ConversationViewModel {
         config: AgentSpawnConfig,
         performsCancellationCleanup: Bool = true
     ) async throws {
-        let hostToolTransition = state.beginSchedulingHostToolRuntimeTransition()
+        let hostToolTransition = state.beginHostToolRuntimeTransition()
         do {
             try await prepareForSpawn(config: config)
             try await agentsManager.spawn(id: conversation.id, config: config)
@@ -213,7 +213,7 @@ extension ConversationViewModel {
                 throw CancellationError()
             }
         } catch {
-            state.finishSchedulingHostToolRuntimeTransition(
+            state.finishHostToolRuntimeTransition(
                 hostToolTransition,
                 appliedRequestedConfiguration: false
             )
@@ -221,7 +221,7 @@ extension ConversationViewModel {
         }
         state.liveSessionConfig = effectiveLiveSessionConfig(config)
         state.runtimeSpeedMode = config.speedMode
-        state.finishSchedulingHostToolRuntimeTransition(
+        state.finishHostToolRuntimeTransition(
             hostToolTransition,
             appliedRequestedConfiguration: true
         )
@@ -247,7 +247,7 @@ extension ConversationViewModel {
         marksSessionHandoffSeedTurn: Bool = false,
         failureHandling: LocalUserMessageFailureHandling = .retryable,
         isAutomatedScheduledTurn: Bool = false,
-        hostToolExposure: SchedulingHostToolExposure = .ordinaryOutbound
+        hostToolExposure: HostToolExposure = .ordinaryOutbound
     ) async throws {
         try repairMissingWorktreeIfNeeded()
         let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(

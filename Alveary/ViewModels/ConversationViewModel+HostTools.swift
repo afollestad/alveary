@@ -1,17 +1,17 @@
 import Foundation
 
 extension ConversationViewModel {
-    func startFreshRuntimeSessionWithSchedulingHostToolTransition(
+    func startFreshRuntimeSessionWithHostToolTransition(
         config: AgentSpawnConfig
-    ) async throws -> SchedulingHostToolRuntimeTransition {
-        let hostToolTransition = state.beginSchedulingHostToolRuntimeTransition()
+    ) async throws -> HostToolRuntimeTransition {
+        let hostToolTransition = state.beginHostToolRuntimeTransition()
         do {
             await flushPendingSaveIfNeeded()
             try await prepareForSpawn(config: config)
             try await agentsManager.startFreshSession(conversationId: conversation.id, config: config)
             return hostToolTransition
         } catch {
-            state.finishSchedulingHostToolRuntimeTransition(
+            state.finishHostToolRuntimeTransition(
                 hostToolTransition,
                 appliedRequestedConfiguration: false
             )
