@@ -50,6 +50,13 @@ final class AppKitTranscriptRowFactory {
         var onReviewScheduledProposal: (String) -> Void = { _ in }
         var onRejectScheduledProposal: (String) -> Void = { _ in }
         var onOpenScheduledTask: (String?) -> Void = { _ in }
+        /// Opens a pull-request link widget's pull request in the right-pane lane.
+        var onOpenPullRequest: (PullRequestIdentifier) -> Void = { _ in }
+        /// Selects the thread a thread-management widget names, by its main conversation id.
+        var onOpenThread: (String) -> Void = { _ in }
+        /// The pull request whose pane this transcript asked for and is still waiting on, so its
+        /// card can show progress instead of an affordance that looks like it did nothing.
+        var pendingPullRequestLookup: PullRequestIdentifier?
         /// Alveary's current scheduled tasks plus their Edit action, rendered inside the
         /// list tool's expanded detail.
         var scheduledTaskListActions = ScheduledTaskListToolActions()

@@ -4,13 +4,13 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testOrdinaryProjectAndTaskConfigsExposeOnlySchedulingTools() throws {
+    func testOrdinaryProjectAndTaskConfigsExposeTheWholeHostToolCatalog() throws {
         let projectFixture = try ConversationViewModelTestFixture()
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
 
-        // The scheduling catalog is the whole host-tool surface; nothing else may be exposed.
-        let expectedNames = ScheduledTaskHostToolCatalog.tools.map(\.name)
+        // The merged catalog is the whole host-tool surface; exposure is all-or-nothing.
+        let expectedNames = AlvearyHostToolCatalog.tools.map(\.name)
         let projectConfig = try projectFixture.viewModel.makeSpawnConfig()
         let taskConfig = try scheduledFixture.fixture.viewModel.makeSpawnConfig()
         let continuationConfig = try projectFixture.viewModel.makeSpawnConfig(settingsSource: .currentContinuation)
@@ -20,7 +20,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(continuationConfig.hostTools.isEmpty)
     }
 
-    func testOrdinaryOutboundUpgradesReadyRuntimeWithoutSchedulingTools() async throws {
+    func testOrdinaryOutboundUpgradesReadyRuntimeWithoutHostTools() async throws {
         let fixture = try ConversationViewModelTestFixture(initialAgentIsRunning: true)
         fixture.viewModel.state.liveSessionConfig = try fixture.viewModel.makeSpawnConfig(
             settingsSource: .currentContinuation
@@ -33,7 +33,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(reconfigureCalls.count, 1)
         XCTAssertEqual(
             reconfigure.config.hostTools.map(\.name),
-            ScheduledTaskHostToolCatalog.tools.map(\.name)
+            AlvearyHostToolCatalog.tools.map(\.name)
         )
     }
 
@@ -61,7 +61,7 @@ extension ConversationViewModelTests {
         let reconfigureCall = try XCTUnwrap(reconfigureCalls.first)
         XCTAssertEqual(
             reconfigureCall.config.hostTools.map(\.name),
-            ScheduledTaskHostToolCatalog.tools.map(\.name)
+            AlvearyHostToolCatalog.tools.map(\.name)
         )
         XCTAssertFalse(fixture.viewModel.state.requiresHostToolReplacement)
     }
@@ -87,7 +87,7 @@ extension ConversationViewModelTests {
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(
             try XCTUnwrap(reconfigureCalls.first).config.hostTools.map(\.name),
-            ScheduledTaskHostToolCatalog.tools.map(\.name)
+            AlvearyHostToolCatalog.tools.map(\.name)
         )
         XCTAssertFalse(fixture.viewModel.state.requiresHostToolReplacement)
     }
@@ -135,7 +135,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.state.sessionContinuityNotice, notice)
     }
 
-    func testManualFollowUpResumesAutomatedSessionWithSchedulingTools() async throws {
+    func testManualFollowUpResumesAutomatedSessionWithHostTools() async throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
@@ -154,7 +154,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(spawnCalls[0].config.hostTools.isEmpty)
         XCTAssertEqual(
             spawnCalls[1].config.hostTools.map(\.name),
-            ScheduledTaskHostToolCatalog.tools.map(\.name)
+            AlvearyHostToolCatalog.tools.map(\.name)
         )
         XCTAssertFalse(spawnCalls[1].forkSession)
         XCTAssertEqual(suspendCalls, [fixture.conversation.id])

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import XCTest
 
@@ -135,6 +136,92 @@ final class ThreadLifecycleServiceTests: XCTestCase {
 
         XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<AgentThread>()).isEmpty)
         XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<Conversation>()).isEmpty)
+    }
+
+    func testInsertTaskThreadCreatesAPrivateWorkspaceThread() throws {
+        let fixture = try SidebarTestFixture()
+
+        let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
+            seed: TaskThreadSeed(
+                provider: "codex",
+                permissionMode: "on-request",
+                model: "gpt-5",
+                effort: "high",
+                isDraft: false
+            )
+        )
+
+        XCTAssertEqual(thread.name, "New task")
+        XCTAssertFalse(thread.hasCustomName)
+        XCTAssertEqual(thread.effectiveMode, .task)
+        XCTAssertNil(thread.project)
+        XCTAssertFalse(thread.useWorktree)
+        XCTAssertFalse(thread.isPinned)
+        XCTAssertEqual(thread.conversations.map(\.provider), ["codex"])
+        XCTAssertEqual(thread.conversations.map(\.isMain), [true])
+
+        let workspace = try XCTUnwrap(thread.taskWorkspaceDescriptor)
+        XCTAssertEqual(workspace.ownershipStrategy, .privateOwned)
+        XCTAssertTrue(workspace.grantedRoots.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspace.primaryRoot))
+    }
+
+    func testInsertTaskThreadNamesPinsAndGrantsFromItsSeed() throws {
+        let fixture = try SidebarTestFixture()
+        let granted = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: granted) }
+        let canonical = CanonicalPath.normalize(granted.path)
+
+        let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
+            seed: makeTaskSeed(name: "Scratch", pinned: true, grantedRoots: [canonical])
+        )
+
+        XCTAssertEqual(thread.name, "Scratch")
+        XCTAssertTrue(thread.hasCustomName)
+        XCTAssertTrue(thread.isPinned)
+        XCTAssertEqual(thread.pinnedSortOrder, 0)
+        XCTAssertEqual(thread.taskWorkspaceDescriptor?.grantedRoots, [canonical])
+    }
+
+    /// The private workspace is a directory on disk, so a failed save has to take it back down.
+    func testInsertTaskThreadRemovesItsWorkspaceWhenTheSaveFails() throws {
+        let fixture = try SidebarTestFixture(saveThreadCreation: { _ in throw ThreadLifecycleTestError.saveFailed })
+        let ownership = try XCTUnwrap(
+            fixture.taskWorkspaceOwnershipService as? DefaultTaskWorkspaceOwnershipService
+        )
+
+        XCTAssertThrowsError(try fixture.viewModel.threadLifecycle.insertTaskThread(seed: makeTaskSeed()))
+
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<AgentThread>()).isEmpty)
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<Conversation>()).isEmpty)
+        let leftovers = try FileManager.default.contentsOfDirectory(
+            atPath: ownership.privateWorkspacesRoot.path
+        )
+        XCTAssertEqual(leftovers, [])
+    }
+
+    private func makeTaskSeed(
+        name: String? = nil,
+        pinned: Bool = false,
+        grantedRoots: [String] = []
+    ) -> TaskThreadSeed {
+        TaskThreadSeed(
+            provider: "claude",
+            permissionMode: "default",
+            model: nil,
+            effort: AppSettings.defaultEffortLevel,
+            isDraft: false,
+            name: name,
+            pinned: pinned,
+            grantedRoots: grantedRoots
+        )
+    }
+
+    private func makeTemporaryDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-lifecycle-grants-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
     }
 
     private func makeSeed(name: String? = nil, pinned: Bool = false) -> ProjectThreadSeed {

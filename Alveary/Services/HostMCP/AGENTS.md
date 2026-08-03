@@ -6,9 +6,12 @@ The tools Alveary exposes *to* the agent. Not `Alveary/Services/MCP/`, which con
 
 - Keep this folder feature-neutral. A feature owns its catalog and handler in its own folder (`Services/Scheduled/`, `Services/Threads/`) and enrolls here.
 - Enroll a feature in two places: its `HostToolFeatureCatalog` in `AlvearyHostToolCatalog.featureCatalogs`, and its `HostToolFeature` handler in `AppComponent+HostMCP.swift`. Definitions are consumed statically at spawn; handlers need DI, which is why the two lists exist.
+- **Keep the dispatcher's feature list a closure.** `hostToolDispatcher` is constructed while `agentCLIKitRuntime` is being built, so resolving a feature that reaches `agentsManager` — `ThreadHostToolService` does, via `ThreadLifecycleService` — recurses back through the runtime getter and overflows the stack during DI. `HostToolDispatcher` resolves features on the first call instead, by which time a provider process exists.
 - `AlvearyHostToolCatalog.serverName` is the only place the server name is spelled. AgentCLIKit registers one server per process, so every feature shares that identity, the composed instructions, and `HostToolDispatcher`'s routing.
 - Tool names are unique across features. Composition traps on a duplicate, and `AlvearyHostToolCatalogTests` proves every advertised tool reaches a handler — that parity is the one real risk of splitting static catalogs from DI-built handlers.
 - Keep each `instructionsFragment` to what its own tools need; the preamble already forbids substitutes, invented tools, and unasked-for calls.
+- Enrolled today: `ScheduledTaskHostToolCatalog` (`Services/Scheduled/`) and `ThreadHostToolCatalog` (`Services/Threads/`). A tool one feature directs the model toward may live in another — `propose_scheduled_task` names `list_projects` and `list_threads` — which is safe only because exposure is all-or-nothing per turn.
+- **Derive an exact-retry key through `HostToolDeduplication`.** Every mutating feature keys its receipt ledger the same way, so two features cannot disagree on what "the same call" is.
 
 ### Handler Contract
 

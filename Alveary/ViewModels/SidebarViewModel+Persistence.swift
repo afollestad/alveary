@@ -9,10 +9,6 @@ extension SidebarViewModel {
         try saveDeletionCommit(modelContext)
     }
 
-    func persistThreadCreation() throws {
-        try saveThreadCreation(modelContext)
-    }
-
     func persistPendingSidebarChanges() throws {
         try savePendingSidebarChanges(modelContext)
     }

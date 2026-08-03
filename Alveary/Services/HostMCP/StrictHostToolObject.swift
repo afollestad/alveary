@@ -54,6 +54,20 @@ struct StrictHostToolObject {
         return try requiredNonEmptyString(key)
     }
 
+    func requiredBool(_ key: String) throws -> Bool {
+        guard case .bool(let value)? = values[key] else {
+            throw invalid("\(path).\(key) must be a boolean.")
+        }
+        return value
+    }
+
+    func optionalBool(_ key: String) throws -> Bool? {
+        guard values[key] != nil else {
+            return nil
+        }
+        return try requiredBool(key)
+    }
+
     func requiredObject(_ key: String) throws -> [String: AgentCLIKit.JSONValue] {
         guard case .object(let value)? = values[key] else {
             throw invalid("\(path).\(key) must be an object.")

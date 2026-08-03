@@ -162,6 +162,8 @@ extension AppKitTranscriptToolHeaderRowView {
             return "checklist"
         case .schedule:
             return "clock"
+        case .thread:
+            return "bubble.left.and.bubble.right"
         case .question:
             return "questionmark"
         case .subAgent:

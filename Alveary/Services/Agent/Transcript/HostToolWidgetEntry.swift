@@ -12,6 +12,17 @@ enum HostToolWidgetOutcome: String, Equatable, Sendable {
 /// case here, a parser in `HostToolTranscriptCatalog`, and an AppKit body view.
 enum HostToolWidgetContent: Equatable {
     case scheduledTaskProposal(ScheduledTaskProposalWidgetContent)
+    case pullRequestLink(PullRequestLinkWidgetContent)
+    case threadAction(ThreadActionWidgetContent)
+}
+
+/// What a settled widget's card opens when clicked, and therefore whether it is a control at
+/// all. A feature whose card only reports keeps returning `nil`.
+enum HostToolWidgetTarget: Equatable {
+    case pullRequest(PullRequestIdentifier)
+    /// Sole-main-conversation id of the thread; an archived one lands on the Archived screen,
+    /// which the app root decides because only it can read the thread's state.
+    case thread(String)
 }
 
 /// One host MCP tool call rendered as a first-class transcript widget.
@@ -96,6 +107,41 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             return false
         }
         return content.status == .applied
+    }
+
+    /// The change this widget describes needs no decision and already took effect: an applied
+    /// proposal, or a link or thread mutation whose tool result is itself the outcome.
+    var isSettledWithoutDecision: Bool {
+        switch content {
+        case .scheduledTaskProposal:
+            isAppliedProposal
+        case .pullRequestLink(let content):
+            content.isSettled
+        case .threadAction(let content):
+            content.isSettled
+        }
+    }
+
+    /// What this widget's card opens, once its call has landed. A running or refused call has
+    /// nothing to open, and neither has one whose result never named its target.
+    var openableTarget: HostToolWidgetTarget? {
+        switch content {
+        case .scheduledTaskProposal:
+            // The proposal body carries its own Open action.
+            nil
+        case .pullRequestLink(let content):
+            content.isSettled ? content.identifier.map(HostToolWidgetTarget.pullRequest) : nil
+        case .threadAction(let content):
+            content.isSettled ? content.threadID.map(HostToolWidgetTarget.thread) : nil
+        }
+    }
+
+    /// The pull request this widget can open; `nil` for every other target.
+    var openablePullRequest: PullRequestIdentifier? {
+        guard case .pullRequest(let identifier) = openableTarget else {
+            return nil
+        }
+        return identifier
     }
 
     /// A proposal widget still awaiting the user's decision, with no durable outcome yet.

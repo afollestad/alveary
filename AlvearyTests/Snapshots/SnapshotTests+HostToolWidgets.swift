@@ -123,6 +123,146 @@ extension SnapshotTests {
         )
     }
 
+    /// The link card has no body view: the summary, the pull request's title, and the
+    /// chevron that says the card opens it are the whole widget.
+    func testPullRequestLinkWidget() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.pullRequestLinkWidgetRow(action: .link) },
+            size: CGSize(width: 700, height: 120),
+            named: "pull_request_link_widget"
+        )
+    }
+
+    func testPullRequestLinkWidgetDark() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.pullRequestLinkWidgetRow(action: .link) },
+            size: CGSize(width: 700, height: 120),
+            named: "pull_request_link_widget_dark",
+            colorScheme: .dark
+        )
+    }
+
+    func testPullRequestUnlinkWidget() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.pullRequestLinkWidgetRow(action: .unlink) },
+            size: CGSize(width: 700, height: 120),
+            named: "pull_request_unlink_widget"
+        )
+    }
+
+    /// The spinner takes the chevron's slot, so the card must not change size or drift off the
+    /// summary's optical center. The AppKit ring animates presentation-only, so this renders
+    /// deterministically.
+    func testPullRequestLinkWidgetOpening() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.pullRequestLinkWidgetRow(action: .link, isOpening: true) },
+            size: CGSize(width: 700, height: 120),
+            named: "pull_request_link_widget_opening"
+        )
+    }
+
+    /// A refused call keeps the card, so the reason has somewhere to render.
+    func testPullRequestLinkWidgetFailed() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                self.pullRequestLinkWidgetRow(
+                    action: .link,
+                    status: .failed,
+                    message: "GitHub could not be reached."
+                )
+            },
+            size: CGSize(width: 700, height: 120),
+            named: "pull_request_link_widget_failed"
+        )
+    }
+
+    /// A created thread's card carries the workspace it works in on the detail line; the
+    /// chevron says the card selects that thread.
+    func testThreadCreateWidget() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.threadActionWidgetRow(action: .create, projectPath: "/repos/alveary") },
+            size: CGSize(width: 700, height: 120),
+            named: "thread_create_widget"
+        )
+    }
+
+    func testThreadCreateWidgetDark() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.threadActionWidgetRow(action: .create, projectPath: "/repos/alveary") },
+            size: CGSize(width: 700, height: 120),
+            named: "thread_create_widget_dark",
+            colorScheme: .dark
+        )
+    }
+
+    /// Placement changes have nothing to add under the summary, so the card is one line.
+    func testThreadPinWidget() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.threadActionWidgetRow(action: .pin) },
+            size: CGSize(width: 700, height: 100),
+            named: "thread_pin_widget"
+        )
+    }
+
+    func testThreadArchiveWidget() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.threadActionWidgetRow(action: .archive) },
+            size: CGSize(width: 700, height: 100),
+            named: "thread_archive_widget"
+        )
+    }
+
+    private func threadActionWidgetRow(
+        action: ThreadActionWidgetContent.Action,
+        projectPath: String? = nil,
+        status: ThreadActionWidgetContent.Status = .applied
+    ) -> AppKitTranscriptHostToolWidgetRowView {
+        let entry = HostToolWidgetEntry(
+            id: "tool-thread-action",
+            toolName: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.createThreadToolName),
+            content: .threadAction(
+                ThreadActionWidgetContent(
+                    action: action,
+                    threadID: "conv-1",
+                    name: "Add caching to the diff viewer",
+                    projectPath: projectPath,
+                    message: "Done.",
+                    status: status
+                )
+            ),
+            isComplete: true
+        )
+        let view = AppKitTranscriptHostToolWidgetRowView()
+        view.configure(.init(entry: entry, bubbleMaxWidth: 640))
+        return view
+    }
+
+    private func pullRequestLinkWidgetRow(
+        action: PullRequestLinkWidgetContent.Action,
+        status: PullRequestLinkWidgetContent.Status = .applied,
+        message: String = "Linked it.",
+        isOpening: Bool = false
+    ) -> AppKitTranscriptHostToolWidgetRowView {
+        let entry = HostToolWidgetEntry(
+            id: "tool-pull-request-link",
+            toolName: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.linkPullRequestToolName),
+            content: .pullRequestLink(
+                PullRequestLinkWidgetContent(
+                    action: action,
+                    identifier: PullRequestIdentifier(owner: "acme", repo: "alveary", number: 412),
+                    title: "Add caching to the diff viewer",
+                    message: message,
+                    status: status
+                )
+            ),
+            isComplete: true,
+            isError: status == .failed
+        )
+        let view = AppKitTranscriptHostToolWidgetRowView()
+        view.configure(.init(entry: entry, isOpeningPullRequest: isOpening, bubbleMaxWidth: 640))
+        return view
+    }
+
     func testScheduledTaskProposalWidgetConflict() throws {
         let fixture = try ScheduledTaskProposalSnapshotFixture()
 

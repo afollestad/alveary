@@ -112,6 +112,8 @@ extension ChatTranscriptView {
         }
         configureAppKitApprovalRows(&configuration)
         configureAppKitPullRequestLinkPrompts(&configuration)
+        configureAppKitPullRequestWidgets(&configuration)
+        configureAppKitThreadWidgets(&configuration)
         configureAppKitScheduledProposals(&configuration)
         return configuration
     }

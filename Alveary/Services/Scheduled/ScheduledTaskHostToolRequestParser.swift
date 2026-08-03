@@ -352,13 +352,7 @@ private extension ScheduledTaskHostToolRequestParser {
     }
 
     static func canonicalJSON(_ value: AgentCLIKit.JSONValue) throws -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        let data = try encoder.encode(value)
-        guard let string = String(data: data, encoding: .utf8) else {
-            throw HostToolRequestError.invalidArguments("The scheduling request could not be encoded.")
-        }
-        return string
+        try HostToolDeduplication.canonicalJSON(value)
     }
 
     static func canonicalDate(_ date: Date) -> String {
@@ -369,7 +363,7 @@ private extension ScheduledTaskHostToolRequestParser {
     }
 
     static func sha256(_ value: String) -> String {
-        SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
+        HostToolDeduplication.sha256(value)
     }
 }
 

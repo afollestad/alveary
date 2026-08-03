@@ -48,7 +48,34 @@ final class HostToolDispatcherTests: XCTestCase {
         XCTAssertEqual(result.text, "threads handled archive_thread")
     }
 
-    /// Collision detection is checked through the pure helper because the initializer's
+    /// The dispatcher is constructed while the agent runtime is being built, so resolving a
+    /// feature that reaches `AgentsManager` at construction recurses through the runtime getter
+    /// and overflows the stack during DI. Features must resolve on the first call instead.
+    func testFeaturesResolveOnFirstCallRatherThanAtConstruction() async {
+        let feature = StubHostToolFeature(featureID: "threads", hostToolNames: ["archive_thread"])
+        var resolutionCount = 0
+        let dispatcher = HostToolDispatcher(features: {
+            resolutionCount += 1
+            return [feature]
+        })
+
+        XCTAssertEqual(resolutionCount, 0)
+
+        _ = await dispatcher.handle(
+            context: Self.context(),
+            call: AgentCLIKit.AgentHostToolCall(name: "archive_thread")
+        )
+        _ = await dispatcher.handle(
+            context: Self.context(),
+            call: AgentCLIKit.AgentHostToolCall(name: "archive_thread")
+        )
+
+        // Resolved once, then cached.
+        XCTAssertEqual(resolutionCount, 1)
+        XCTAssertEqual(feature.handledToolNames, ["archive_thread", "archive_thread"])
+    }
+
+    /// Collision detection is checked through the pure helper because the resolver's
     /// `preconditionFailure` cannot be caught.
     func testDuplicateToolNameDetectionFindsNamesClaimedByTwoFeatures() {
         XCTAssertNil(HostToolDispatcher.duplicateToolName(in: [["a", "b"], ["c"]]))

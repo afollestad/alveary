@@ -264,7 +264,8 @@ private struct AppKitTranscriptPreparedUpdate {
             conversationScheduledProposal: rowConfiguration.conversationScheduledProposal(),
             scheduledTaskRows: rowConfiguration.scheduledTaskListActions.rows(),
             isResolvingScheduledProposal: rowConfiguration.isResolvingScheduledProposal,
-            scheduledProposalErrorMessage: rowConfiguration.scheduledProposalErrorMessage
+            scheduledProposalErrorMessage: rowConfiguration.scheduledProposalErrorMessage,
+            pendingPullRequestLookup: rowConfiguration.pendingPullRequestLookup
         )
     }
 
@@ -345,5 +346,6 @@ private struct AppKitTranscriptPreparedUpdate {
         let scheduledTaskRows: [ScheduledTaskListRow]
         let isResolvingScheduledProposal: Bool
         let scheduledProposalErrorMessage: String?
+        let pendingPullRequestLookup: PullRequestIdentifier?
     }
 }

@@ -9,20 +9,124 @@ enum HostToolWidgetSummary {
         switch entry.content {
         case .scheduledTaskProposal(let content):
             proposalText(content, entry: entry, isTargetRunInFlight: isTargetRunInFlight)
+        case .pullRequestLink(let content):
+            pullRequestLinkText(content, entry: entry)
+        case .threadAction(let content):
+            threadActionText(content, entry: entry)
         }
     }
 
     /// Secondary detail line; `nil` when the summary already says everything.
     static func detail(for entry: HostToolWidgetEntry) -> String? {
-        guard case .scheduledTaskProposal(let content) = entry.content,
-              content.action == .create || content.action == .edit else {
-            return nil
+        switch entry.content {
+        case .scheduledTaskProposal(let content):
+            guard content.action == .create || content.action == .edit else {
+                return nil
+            }
+            return content.scheduleSummary
+        case .pullRequestLink(let content):
+            // A refusal has no snapshot to name, so the reason takes the line instead.
+            return content.status == .failed ? content.message : content.title
+        case .threadAction(let content):
+            // Only a created Project thread has a path to show; the rest say everything in
+            // the summary, and a refusal puts its reason here.
+            return content.status == .failed ? content.message : content.projectPath
         }
-        return content.scheduleSummary
     }
 }
 
 private extension HostToolWidgetSummary {
+    /// The link tools apply immediately, so there is no pending or rejected voice here — a
+    /// landed call is past tense, and `already_linked` / `not_linked` say the state was
+    /// already what was asked for rather than that the request did nothing useful.
+    static func pullRequestLinkText(
+        _ content: PullRequestLinkWidgetContent,
+        entry: HostToolWidgetEntry
+    ) -> String {
+        let isLink = content.action == .link
+        guard content.status != .running, !entry.isInterrupted else {
+            return isLink ? "Linking pull request…" : "Unlinking pull request…"
+        }
+        guard content.status != .failed else {
+            return isLink ? "Could not link the pull request" : "Could not unlink the pull request"
+        }
+        let phrase: String
+        switch (content.action, content.status) {
+        case (.link, .unchanged):
+            phrase = "PR already linked to thread"
+        case (.link, _):
+            phrase = "PR linked to thread"
+        case (.unlink, .unchanged):
+            // A thread carrying no links echoes no snapshot, so this is the one case with no
+            // pull request to name — and the only one that may drop the key from its copy.
+            phrase = content.identifier == nil
+                ? "No pull request was linked to the thread"
+                : "PR was not linked to thread"
+        case (.unlink, _):
+            phrase = "PR unlinked from thread"
+        }
+        return append(content.identifier?.displayKey, to: phrase)
+    }
+
+    /// Thread mutations apply immediately too, so there is no pending or rejected voice — a
+    /// landed call is past tense, and an `already_*` status says the thread was already in the
+    /// requested state rather than that the request did nothing useful.
+    static func threadActionText(
+        _ content: ThreadActionWidgetContent,
+        entry: HostToolWidgetEntry
+    ) -> String {
+        let phrases = threadPhrases(for: content.action)
+        guard content.status != .running, !entry.isInterrupted else {
+            return "\(phrases.running)…"
+        }
+        guard content.status != .failed else {
+            return phrases.failed
+        }
+        return append(content.name, to: content.status == .unchanged ? phrases.unchanged : phrases.applied)
+    }
+
+    struct ThreadPhrases {
+        let running: String
+        let applied: String
+        let unchanged: String
+        let failed: String
+    }
+
+    static func threadPhrases(for action: ThreadActionWidgetContent.Action) -> ThreadPhrases {
+        switch action {
+        case .create:
+            ThreadPhrases(
+                running: "Creating thread",
+                applied: "Thread created",
+                // `create_thread` reports no unchanged status; a replayed receipt is still a
+                // thread that now exists.
+                unchanged: "Thread created",
+                failed: "Could not create the thread"
+            )
+        case .pin:
+            ThreadPhrases(
+                running: "Pinning thread",
+                applied: "Thread pinned",
+                unchanged: "Thread already pinned",
+                failed: "Could not pin the thread"
+            )
+        case .unpin:
+            ThreadPhrases(
+                running: "Unpinning thread",
+                applied: "Thread unpinned",
+                unchanged: "Thread was not pinned",
+                failed: "Could not unpin the thread"
+            )
+        case .archive:
+            ThreadPhrases(
+                running: "Archiving thread",
+                applied: "Thread archived",
+                unchanged: "Thread was already archived",
+                failed: "Could not archive the thread"
+            )
+        }
+    }
+
     static func proposalText(
         _ content: ScheduledTaskProposalWidgetContent,
         entry: HostToolWidgetEntry,

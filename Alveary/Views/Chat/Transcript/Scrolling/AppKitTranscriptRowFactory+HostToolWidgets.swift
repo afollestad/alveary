@@ -12,6 +12,8 @@ extension AppKitTranscriptRowFactory {
         view.onReviewScheduledProposal = configuration.onReviewScheduledProposal
         view.onRejectScheduledProposal = configuration.onRejectScheduledProposal
         view.onOpenScheduledTask = configuration.onOpenScheduledTask
+        view.onOpenPullRequest = configuration.onOpenPullRequest
+        view.onOpenThread = configuration.onOpenThread
         // A resolved widget must not adopt the conversation's *next* proposal, so the
         // conversation-scoped fallback only applies while this one is still unresolved.
         let presentation = entry.scheduledProposalID.flatMap(configuration.scheduledProposalPresentation)
@@ -28,6 +30,8 @@ extension AppKitTranscriptRowFactory {
                 isProposalInteractive: presentation.map { configuration.isScheduledProposalInteractive($0.id) } ?? false,
                 isResolving: configuration.isResolvingScheduledProposal,
                 isTargetRunInFlight: targetRow?.hasActiveRun ?? false,
+                isOpeningPullRequest: entry.openablePullRequest != nil
+                    && entry.openablePullRequest == configuration.pendingPullRequestLookup,
                 errorMessage: configuration.scheduledProposalErrorMessage,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography

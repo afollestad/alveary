@@ -151,7 +151,7 @@ private extension SidebarViewModel {
                     )
                 )
             case .task:
-                draft = try createTaskThread(
+                draft = try threadLifecycle.insertTaskThread(
                     seed: TaskThreadSeed(
                         provider: providerID,
                         permissionMode: resolution.permissionMode,
@@ -186,41 +186,6 @@ private extension SidebarViewModel {
                 isDraft: false
             )
         )
-    }
-
-    func createTaskThread(seed: TaskThreadSeed) throws -> AgentThread {
-        if modelContext.hasChanges {
-            try modelContext.save()
-        }
-        let workspace = try taskWorkspaceOwnershipService.createPrivateWorkspace()
-        let thread = AgentThread(
-            name: "New task",
-            permissionMode: seed.permissionMode,
-            effort: seed.effort,
-            model: seed.model,
-            useWorktree: false,
-            isDraft: seed.isDraft,
-            project: nil
-        )
-        thread.mode = .task
-        thread.taskWorkspaceDescriptor = workspace
-        let conversation = Conversation(
-            provider: seed.provider,
-            isMain: true,
-            displayOrder: 0,
-            thread: thread
-        )
-
-        modelContext.insert(thread)
-        modelContext.insert(conversation)
-        do {
-            try persistThreadCreation()
-        } catch {
-            modelContext.rollback()
-            try? taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
-            throw error
-        }
-        return thread
     }
 
     func resolveCachedOrPersistedDraftThread(mode: AgentThreadMode) -> AgentThread? {
@@ -298,14 +263,4 @@ private extension SidebarViewModel {
     func seedEffortLevel() -> String {
         AppSettings.normalizedEffortLevel(settingsService.current.effort)
     }
-}
-
-/// Settings a new Task thread starts with. Project threads use `ProjectThreadSeed`, whose
-/// creation is app-scoped; Task creation stays view-side because it owns a private workspace.
-private struct TaskThreadSeed {
-    let provider: String
-    let permissionMode: String
-    let model: String?
-    let effort: String
-    let isDraft: Bool
 }

@@ -68,6 +68,57 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         XCTAssertNil(fixture.appState.selectedSidebarItem)
     }
 
+    func testTranscriptThreadCardSelectsItsThread() throws {
+        let fixture = try RoutingTestFixture()
+        let conversation = fixture.seedConversation(threadName: "Thread", archivedAt: nil)
+
+        openTranscriptThreadInAppState(
+            conversationId: conversation.id,
+            modelContext: fixture.context,
+            appState: fixture.appState
+        )
+
+        guard case .thread(let thread) = fixture.appState.selectedSidebarItem else {
+            return XCTFail("selectedSidebarItem should resolve to the card's thread")
+        }
+        XCTAssertEqual(thread.persistentModelID, conversation.thread?.persistentModelID)
+    }
+
+    /// An archive card's thread has no sidebar row left, so the card lands on the screen that
+    /// still lists it rather than doing nothing.
+    func testTranscriptThreadCardRoutesAnArchivedThreadToTheArchivedScreen() throws {
+        let fixture = try RoutingTestFixture()
+        let conversation = fixture.seedConversation(threadName: "Archived", archivedAt: Date())
+
+        openTranscriptThreadInAppState(
+            conversationId: conversation.id,
+            modelContext: fixture.context,
+            appState: fixture.appState
+        )
+
+        XCTAssertEqual(fixture.appState.selectedSidebarItem, .archived)
+        XCTAssertTrue(fixture.appState.selectedConversationIDs.isEmpty)
+    }
+
+    func testTranscriptThreadCardIgnoresDraftAndMissingThreads() throws {
+        let fixture = try RoutingTestFixture()
+        let draft = fixture.seedConversation(threadName: "Draft", archivedAt: nil, isDraft: true)
+
+        openTranscriptThreadInAppState(
+            conversationId: draft.id,
+            modelContext: fixture.context,
+            appState: fixture.appState
+        )
+        XCTAssertNil(fixture.appState.selectedSidebarItem)
+
+        openTranscriptThreadInAppState(
+            conversationId: "missing",
+            modelContext: fixture.context,
+            appState: fixture.appState
+        )
+        XCTAssertNil(fixture.appState.selectedSidebarItem)
+    }
+
     func testActiveConversationProviderReturnsNilWhenNoThreadSelected() throws {
         let fixture = try RoutingTestFixture()
         let provider = makeActiveConversationProvider(for: fixture.appState, modelContext: fixture.context)

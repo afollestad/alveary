@@ -308,6 +308,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .pullRequestLinkRequested)) { notification in
             handlePullRequestLinkRequest(notification)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .pullRequestPaneRequested)) { notification in
+            handlePullRequestPaneRequest(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .threadOpenRequested)) { notification in
+            handleThreadOpenRequest(notification)
+        }
         // Watching follows the rendered pane; routing is owned by the keyed task below.
         .onChange(of: isDiffViewerRendered, initial: true) { _, isRendered in
             diffViewModel.setWatchingEnabled(isRendered)

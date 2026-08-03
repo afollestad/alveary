@@ -24,7 +24,10 @@ enum AlvearyHostToolCatalog {
 
     /// Enrollment order, which is also the order feature instructions appear in.
     static var featureCatalogs: [HostToolFeatureCatalog] {
-        [ScheduledTaskHostToolCatalog.featureCatalog]
+        [
+            ScheduledTaskHostToolCatalog.featureCatalog,
+            ThreadHostToolCatalog.featureCatalog
+        ]
     }
 
     static var serverMetadata: AgentCLIKit.AgentHostToolServerMetadata {

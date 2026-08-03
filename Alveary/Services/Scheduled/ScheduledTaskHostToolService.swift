@@ -44,10 +44,6 @@ final class ScheduledTaskHostToolService {
             switch call.name {
             case ScheduledTaskHostToolCatalog.listToolName:
                 return try listScheduledTasks(context: context, arguments: call.arguments)
-            case ScheduledTaskHostToolCatalog.listProjectsToolName:
-                return try listProjects(context: context, arguments: call.arguments)
-            case ScheduledTaskHostToolCatalog.listThreadsToolName:
-                return try listThreads(context: context, arguments: call.arguments)
             case ScheduledTaskHostToolCatalog.proposeToolName:
                 return try proposeScheduledTask(context: context, arguments: call.arguments)
             default:

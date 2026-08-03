@@ -26,6 +26,27 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(ChatItemGrouper.groupability(forToolNamed: "mcp__gdrive__update_file"), .standalone)
     }
 
+    /// Alveary's own host tools ride the same verb matcher: the lookups group with other reads,
+    /// but a thread mutation must stay its own row rather than being folded into an activity
+    /// group where the user would not notice it. A root-level mutation renders as a widget
+    /// before the classifier sees it; this is the nested-call path, which still reaches here.
+    func testAlvearyHostToolsGroupOnlyWhenTheyAreReads() {
+        for toolName in [ThreadHostToolCatalog.listThreadsToolName, ThreadHostToolCatalog.listProjectsToolName] {
+            XCTAssertEqual(
+                ChatItemGrouper.groupability(forToolNamed: AlvearyHostToolCatalog.qualifiedToolName(toolName)),
+                .groupable,
+                toolName
+            )
+        }
+        for toolName in [ThreadHostToolCatalog.createThreadToolName, ThreadHostToolCatalog.archiveThreadToolName] {
+            XCTAssertEqual(
+                ChatItemGrouper.groupability(forToolNamed: AlvearyHostToolCatalog.qualifiedToolName(toolName)),
+                .standalone,
+                toolName
+            )
+        }
+    }
+
     func testToolSearchSummaryFormatsQuery() {
         let stripped = ChatItemGrouper.toolSummary(
             name: "ToolSearch",
@@ -81,6 +102,32 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(
             ChatItemGrouper.toolSummary(name: "CustomTool", input: "{}"),
             "CustomTool"
+        )
+    }
+
+    func testToolSummaryUppercasesAcronymsInDynamicToolNames() {
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(name: "mcp__alveary_host__link_pr", input: "{}"),
+            "Link PR"
+        )
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(name: "unlink_pr", input: "{}"),
+            "Unlink PR"
+        )
+        // A leading acronym still uppercases as a whole word, not just its first letter.
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(name: "mcp__github__pr_status", input: "{}"),
+            "PR status"
+        )
+        // Plural acronyms keep their lowercase tail rather than uppercasing wholesale.
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(name: "mcp__alveary_host__list_linked_prs", input: "{}"),
+            "List linked PRs"
+        )
+        // Only whole words match, so an acronym embedded in a longer word is left alone.
+        XCTAssertEqual(
+            ChatItemGrouper.toolSummary(name: "mcp__linear__prepare_release", input: "{}"),
+            "Prepare release"
         )
     }
 

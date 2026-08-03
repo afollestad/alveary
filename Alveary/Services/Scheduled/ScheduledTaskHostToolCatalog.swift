@@ -4,12 +4,7 @@ import Foundation
 enum ScheduledTaskHostToolCatalog {
     static let featureID = "scheduling"
     static let listToolName = "list_scheduled_tasks"
-    static let listProjectsToolName = "list_projects"
-    static let listThreadsToolName = "list_threads"
     static let proposeToolName = "propose_scheduled_task"
-
-    /// Read-only tools that take no arguments.
-    static let listToolNames: Set<String> = [listToolName, listProjectsToolName, listThreadsToolName]
 
     /// What scheduling advertises on the shared `alveary_host` server.
     static var featureCatalog: HostToolFeatureCatalog {
@@ -33,7 +28,8 @@ enum ScheduledTaskHostToolCatalog {
         requested. Use propose_scheduled_task with action create to create a scheduled task. Call list_scheduled_tasks before edit, \
         pause, resume, delete, or run_now, then use propose_scheduled_task with that action. Never invent or search for a separate \
         create_scheduled_task tool. Call list_projects only when the user wants a scheduled task to run in a different Alveary Project \
-        than this conversation's, and list_threads only when they want its results posted into an existing Alveary thread. \
+        than this conversation's, and list_threads only when they want its results posted into an existing Alveary thread; a scheduled \
+        task can target only some listed threads, and proposing one reports which. \
         Pause, resume, and run_now take effect immediately. Create, edit, and delete only \
         open Alveary's native confirmation UI; describe those as opened proposals and never claim the schedule changed before \
         confirmation. Never use shell commands, crontab, launch agents, or workspace files \
@@ -44,71 +40,11 @@ enum ScheduledTaskHostToolCatalog {
 
     static let tools: [AgentCLIKit.AgentHostToolDefinition] = [
         listTool,
-        listProjectsTool,
-        listThreadsTool,
         proposeTool
     ]
 }
 
 private extension ScheduledTaskHostToolCatalog {
-    static let listProjectsTool = AgentCLIKit.AgentHostToolDefinition(
-        name: listProjectsToolName,
-        title: "List Alveary Projects",
-        description: """
-        List the Alveary Projects registered on this Mac, so a scheduled task can run in one other than this conversation's. Returns \
-        each Project's name and root path. Call it only when the user wants a scheduled task to run somewhere other than where this \
-        conversation runs; a scheduled task otherwise inherits this conversation's workspace. Not a directory listing, and not a \
-        substitute for reading the file system.
-        """,
-        inputSchema: HostToolSchema.strictObject(properties: [:], required: []),
-        outputSchema: HostToolSchema.strictObject(
-            properties: [
-                "projects": .object([
-                    "type": .string("array"),
-                    "items": HostToolSchema.strictObject(
-                        properties: [
-                            "path": HostToolSchema.stringSchema,
-                            "name": HostToolSchema.stringSchema
-                        ],
-                        required: ["path", "name"]
-                    )
-                ])
-            ],
-            required: ["projects"]
-        ),
-        annotations: HostToolSchema.readOnlyAnnotations
-    )
-
-    static let listThreadsTool = AgentCLIKit.AgentHostToolDefinition(
-        name: listThreadsToolName,
-        title: "List threads a scheduled task can post into",
-        description: """
-        List the Alveary threads a scheduled task can post its results into, for propose_scheduled_task's target_thread_id. Returns \
-        each thread's stable ID, name, workspace, and whether it is pinned; an unpinned thread is pinned when the user confirms the \
-        proposal, so say so. Call it only when the user asks for a scheduled task's results to go into an existing thread rather than \
-        a new one. Never use it to browse conversations or read their contents.
-        """,
-        inputSchema: HostToolSchema.strictObject(properties: [:], required: []),
-        outputSchema: HostToolSchema.strictObject(
-            properties: [
-                "threads": .object([
-                    "type": .string("array"),
-                    "items": HostToolSchema.strictObject(
-                        properties: [
-                            "id": HostToolSchema.stringSchema,
-                            "name": HostToolSchema.stringSchema,
-                            "workspace": HostToolSchema.stringSchema,
-                            "is_pinned": .object(["type": .string("boolean")])
-                        ],
-                        required: ["id", "name", "workspace", "is_pinned"]
-                    )
-                ])
-            ],
-            required: ["threads"]
-        ),
-        annotations: HostToolSchema.readOnlyAnnotations
-    )
-
     static let listTool = AgentCLIKit.AgentHostToolDefinition(
         name: listToolName,
         title: "List scheduled tasks",
@@ -173,12 +109,7 @@ private extension ScheduledTaskHostToolCatalog {
             ],
             required: ["status", "message"]
         ),
-        annotations: AgentCLIKit.AgentHostToolAnnotations(
-            readOnlyHint: false,
-            destructiveHint: false,
-            idempotentHint: true,
-            openWorldHint: false
-        )
+        annotations: HostToolSchema.reversibleMutationAnnotations
     )
 
     static let proposalProperties: [String: AgentCLIKit.JSONValue] = [

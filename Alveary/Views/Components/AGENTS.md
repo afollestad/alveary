@@ -52,7 +52,7 @@ General shared controls live here. Narrower scopes:
 
 - Use `StatusIndicatorSpinner` for fixed-size status spinner slots: the 8pt status-dot slots (sidebar rows, tab chips) and the 16pt `PrimaryToolbarProgressSlot`. Do not shrink `ProgressView` into dot slots.
 - `PaneRefreshIconButton` is the shared header refresh control (Skills, MCP, Pull Requests): the icon action button swaps to a 14pt working spinner inside the same 30pt footprint while a refresh is in flight, so layout never shifts.
-- AppKit task-list rows use the `AppKit/AppKitStatusIndicatorSpinner` twin instead of `NSProgressIndicator`.
+- AppKit surfaces use the `AppKit/AppKitStatusIndicatorSpinner` twin instead of `NSProgressIndicator` — task-list rows and the host-tool link card's disclosure slot today.
   Keep the two rings visually matched (track at 25% alpha, 0.7 arc, same spin period).
   AppKit tool-row loading is the scoped exception: it pulses summary text instead of showing a trailing spinner.
 - Working spinners are `.secondary` gray, not blue — the spinning shape carries the "working" signal; blue stays reserved for `.waitingForUser` dots. See **Status Dot Colors** in `Alveary/Views/AGENTS.md`.

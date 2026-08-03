@@ -31,6 +31,10 @@ final class PullRequestLinksViewModel {
     /// can offer a route to Git settings instead of only stating the problem.
     private(set) var linkFailureNeedsGitSettings = false
 
+    /// The durable half. This view model is per-window; the app-scoped `alveary_host` thread tools
+    /// link through the same service, so validation and persistence cannot fork.
+    private let linkService: PullRequestLinkService
+
     init(
         modelContext: ModelContext,
         service: any PullRequestsService,
@@ -39,6 +43,7 @@ final class PullRequestLinksViewModel {
         self.modelContext = modelContext
         self.service = service
         self.now = now
+        linkService = PullRequestLinkService(modelContext: modelContext, service: service, now: now)
     }
 
     func clearLinkError() {
@@ -70,46 +75,26 @@ final class PullRequestLinksViewModel {
         }
         clearLinkError()
 
-        guard let links = modelContext.linkedPullRequests(for: owner) else {
-            return
-        }
-        guard !links.contains(where: { $0.id == identifier }) else {
-            linkErrorMessage = "\(identifier.displayKey) is already linked."
-            return
-        }
-
         isLinking = true
         defer { isLinking = false }
 
-        let detail: PullRequestDetail
         do {
-            detail = try await service.fetchDetail(identifier)
+            // A race the user never asked about stays silent; asking for a link that already
+            // exists is worth saying out loud.
+            if case .alreadyLinked = try await linkService.link(identifier, owner: owner) {
+                linkErrorMessage = "\(identifier.displayKey) is already linked."
+            }
         } catch {
             applyLinkFailure(error)
-            return
         }
-
-        // Re-resolve after the await; the owner may be gone by now, or a
-        // concurrent link for the same pull request may have landed meanwhile.
-        guard let liveLinks = modelContext.linkedPullRequests(for: owner),
-              !liveLinks.contains(where: { $0.id == identifier }) else {
-            return
-        }
-        // One `now()` read feeds both timestamps so the summary's `updatedAt`
-        // fallback and `linkedAt` cannot disagree, and tests keep one clock.
-        let linkedAt = now()
-        let link = LinkedPullRequest(summary: Self.makeSummary(from: detail, linkedAt: linkedAt), linkedAt: linkedAt)
-        modelContext.setLinkedPullRequests(liveLinks + [link], for: owner)
-        save()
     }
 
     func unlink(_ identifier: PullRequestIdentifier, owner: PullRequestLinkOwner) {
-        guard var links = modelContext.linkedPullRequests(for: owner) else {
-            return
+        do {
+            try linkService.unlink(identifier, owner: owner)
+        } catch {
+            linkErrorMessage = error.localizedDescription
         }
-        links.removeAll { $0.id == identifier }
-        modelContext.setLinkedPullRequests(links, for: owner)
-        save()
     }
 
     /// Writes a status the open pane already learned back into the stored
@@ -144,31 +129,10 @@ final class PullRequestLinksViewModel {
         save()
     }
 
-    /// `PullRequestDetail` carries every field the pane falls back to `summary`
-    /// for. The three that need a decision rather than a copy:
-    /// - `updatedAt` is optional on the detail; the link time is the honest stand-in.
-    /// - `isAuthored` gates the review footer's Approve / Request changes buttons
-    ///   until the live detail lands, so an unknown viewer must read as not authored.
-    /// - `isReviewRequested` / `hasReviewed` are involvement-search facts with no
-    ///   detail equivalent, and nothing in the pane reads them.
+    /// `PullRequestLinkService` owns the mapping; this keeps the view-model-facing name its
+    /// companions and tests already use.
     static func makeSummary(from detail: PullRequestDetail, linkedAt: Date = Date()) -> PullRequestSummary {
-        PullRequestSummary(
-            id: detail.id,
-            title: detail.title,
-            url: detail.url,
-            status: detail.status,
-            authorLogin: detail.authorLogin,
-            authorAvatarURL: detail.authorAvatarURL,
-            headRefName: detail.headRefName,
-            baseRefName: detail.baseRefName,
-            updatedAt: detail.updatedAt ?? linkedAt,
-            additions: detail.additions,
-            deletions: detail.deletions,
-            reviewDecision: detail.reviewDecision,
-            isAuthored: detail.viewerLogin != nil && detail.viewerLogin == detail.authorLogin,
-            isReviewRequested: false,
-            hasReviewed: false
-        )
+        PullRequestLinkService.makeSummary(from: detail, linkedAt: linkedAt)
     }
 
     private func applyLinkFailure(_ error: Error) {

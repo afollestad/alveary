@@ -22,7 +22,6 @@ final class SidebarViewModel {
     let threadLifecycle: ThreadLifecycleService
     let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
     let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
-    let saveThreadCreation: @MainActor (ModelContext) throws -> Void
     let savePendingSidebarChanges: @MainActor (ModelContext) throws -> Void
     let saveSidebarOrdering: @MainActor (ModelContext) throws -> Void
     let afterPendingScheduledWorktreeCleanup: @MainActor () async -> Void
@@ -81,13 +80,15 @@ final class SidebarViewModel {
             agentsManager: agentsManager,
             providerSessionActionService: providerSessionActions,
             notificationManager: notificationManager,
+            taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
             invalidateConversationController: invalidateConversationController,
             stopAndWaitForScheduledTaskRun: stopAndWaitForScheduledTaskRun,
-            saveThreadCreation: saveThreadCreation
+            saveThreadCreation: saveThreadCreation,
+            savePendingSidebarChanges: savePendingSidebarChanges,
+            saveSidebarOrdering: saveSidebarOrdering
         )
         self.saveDraftProjectMove = saveDraftProjectMove
         self.saveDeletionCommit = saveDeletionCommit
-        self.saveThreadCreation = saveThreadCreation
         self.savePendingSidebarChanges = savePendingSidebarChanges
         self.saveSidebarOrdering = saveSidebarOrdering
         self.afterPendingScheduledWorktreeCleanup = afterPendingScheduledWorktreeCleanup

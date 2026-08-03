@@ -284,6 +284,25 @@ extension PullRequestsViewModel {
         activePaneOrigin = origin
     }
 
+    /// Opens a pull request the caller has no summary for — a transcript's unlink card names
+    /// one that is deliberately not linked, so no stored snapshot exists to open it with.
+    ///
+    /// An open session or a listed row already carries a usable summary; otherwise the same
+    /// `fetchDetail` that validates a link produces one, and a failure surfaces as a toast
+    /// because there is no pane to render it in.
+    func requestDetails(_ identifier: PullRequestIdentifier, origin: PullRequestPaneOrigin) async {
+        if let summary = paneSessions[.details(identifier)]?.summary ?? items.first(where: { $0.id == identifier }) {
+            requestDetails(summary, origin: origin)
+            return
+        }
+        do {
+            let detail = try await service.fetchDetail(identifier)
+            requestDetails(PullRequestLinkService.makeSummary(from: detail), origin: origin)
+        } catch {
+            presentToast(error.localizedDescription)
+        }
+    }
+
     /// The active target, but only when its origin matches the surface asking.
     /// The root builds `RightPaneContextualTargets` through this so a shared
     /// pane lane cannot show one context's pull request inside another.

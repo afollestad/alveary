@@ -34,8 +34,10 @@ enum HostToolTranscriptCatalog {
     }
 
     static let descriptors: [HostToolTranscriptDescriptor] = [
-        scheduledTaskProposalDescriptor
-    ]
+        scheduledTaskProposalDescriptor,
+        pullRequestLinkDescriptor,
+        pullRequestUnlinkDescriptor
+    ] + threadActionDescriptors
 
     static func descriptor(forToolName toolName: String) -> HostToolTranscriptDescriptor? {
         descriptors.first { $0.matches(toolName: toolName) }
@@ -61,20 +63,88 @@ private extension HostToolTranscriptCatalog {
             }
         )
     }
+
+    static var pullRequestLinkDescriptor: HostToolTranscriptDescriptor {
+        pullRequestDescriptor(
+            hostToolName: ThreadHostToolCatalog.linkPullRequestToolName,
+            action: .link
+        )
+    }
+
+    static var pullRequestUnlinkDescriptor: HostToolTranscriptDescriptor {
+        pullRequestDescriptor(
+            hostToolName: ThreadHostToolCatalog.unlinkPullRequestToolName,
+            action: .unlink
+        )
+    }
+
+    /// Every thread mutation gets a card; the read-only lookups (`list_threads`,
+    /// `list_projects`, `list_linked_prs`) stay ordinary tool rows.
+    static var threadActionDescriptors: [HostToolTranscriptDescriptor] {
+        [
+            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.createThreadToolName, action: .create),
+            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.pinThreadToolName, action: .pin),
+            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.unpinThreadToolName, action: .unpin),
+            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.archiveThreadToolName, action: .archive)
+        ]
+    }
+
+    /// Like the link tools, these apply immediately, so the result is the whole outcome and
+    /// none of them records a `host_tool_outcome` marker to correlate with.
+    static func threadActionDescriptor(
+        hostToolName: String,
+        action: ThreadActionWidgetContent.Action
+    ) -> HostToolTranscriptDescriptor {
+        HostToolTranscriptDescriptor(
+            hostToolName: hostToolName,
+            makeContent: { input, output, isError in
+                guard let content = ThreadActionWidgetParsing.content(
+                    action: action,
+                    input: input,
+                    output: output,
+                    isError: isError
+                ) else {
+                    return nil
+                }
+                return .threadAction(content)
+            },
+            outcomeKey: { _ in nil }
+        )
+    }
+
+    /// Both link tools apply immediately, so their result is the whole outcome and neither
+    /// records a `host_tool_outcome` marker to correlate with.
+    static func pullRequestDescriptor(
+        hostToolName: String,
+        action: PullRequestLinkWidgetContent.Action
+    ) -> HostToolTranscriptDescriptor {
+        HostToolTranscriptDescriptor(
+            hostToolName: hostToolName,
+            makeContent: { input, output, isError in
+                guard let content = PullRequestLinkWidgetParsing.content(
+                    action: action,
+                    input: input,
+                    output: output,
+                    isError: isError
+                ) else {
+                    return nil
+                }
+                return .pullRequestLink(content)
+            },
+            outcomeKey: { _ in nil }
+        )
+    }
 }
 
-/// Pure parsing for the scheduled-task host tools' persisted input/output JSON.
-///
-/// Claude Code serializes a host tool's `structuredContent` with `JSON.stringify`
-/// and emits that as the tool result text, so the persisted output is the tool's
-/// declared output schema verbatim.
+/// Pure parsing for the scheduled-task host tools' persisted input/output JSON, decoded
+/// through `HostToolWidgetJSON`.
 enum ScheduledTaskWidgetParsing {
     static func proposalContent(
         input: String?,
         output: String?,
         isError: Bool
     ) -> ScheduledTaskProposalWidgetContent? {
-        guard let arguments = jsonObject(from: input) else {
+        guard let arguments = HostToolWidgetJSON.object(from: input) else {
             return nil
         }
         let request = try? ScheduledTaskHostToolRequestParser().parse(arguments: arguments).request
@@ -83,7 +153,7 @@ enum ScheduledTaskWidgetParsing {
         }
 
         let details = ProposalDetails(request: request, arguments: arguments)
-        let receipt = jsonObject(from: output).map(ProposalReceipt.init(object:))
+        let receipt = HostToolWidgetJSON.object(from: output).map(ProposalReceipt.init(object:))
         return ScheduledTaskProposalWidgetContent(
             action: action,
             proposedTitle: details.title ?? receipt?.title,
@@ -91,13 +161,13 @@ enum ScheduledTaskWidgetParsing {
             timeZoneIdentifier: details.schedule?.timeZoneIdentifier,
             targetDefinitionID: details.definitionID,
             proposalID: receipt?.proposalID,
-            message: receipt?.message ?? plainTextMessage(from: output),
+            message: receipt?.message ?? HostToolWidgetJSON.plainText(from: output),
             status: status(receipt: receipt, output: output, isError: isError, action: action)
         )
     }
 
     static func proposalID(fromOutput output: String?) -> String? {
-        guard let object = jsonObject(from: output) else {
+        guard let object = HostToolWidgetJSON.object(from: output) else {
             return nil
         }
         return ProposalReceipt(object: object).proposalID
@@ -112,10 +182,10 @@ private extension ScheduledTaskWidgetParsing {
         let message: String?
 
         init(object: [String: AgentCLIKit.JSONValue]) {
-            status = object["status"]?.widgetStringValue
-            proposalID = object["proposal_id"]?.widgetStringValue
-            title = object["title"]?.widgetStringValue
-            message = object["message"]?.widgetStringValue
+            status = HostToolWidgetJSON.string(object["status"])
+            proposalID = HostToolWidgetJSON.string(object["proposal_id"])
+            title = HostToolWidgetJSON.string(object["title"])
+            message = HostToolWidgetJSON.string(object["message"])
         }
     }
 
@@ -144,9 +214,9 @@ private extension ScheduledTaskWidgetParsing {
             case nil:
                 // Strict parsing failed; keep whatever the raw arguments can offer so the
                 // widget still names what the model asked for.
-                title = arguments["title"]?.widgetStringValue
+                title = HostToolWidgetJSON.string(arguments["title"])
                 schedule = nil
-                definitionID = arguments["task_id"]?.widgetStringValue
+                definitionID = HostToolWidgetJSON.string(arguments["task_id"])
             }
         }
     }
@@ -181,39 +251,7 @@ private extension ScheduledTaskWidgetParsing {
         return .pendingConfirmation
     }
 
-    static func plainTextMessage(from output: String?) -> String? {
-        guard let output, jsonObject(from: output) == nil else {
-            return nil
-        }
-        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
     static func rawAction(in arguments: [String: AgentCLIKit.JSONValue]) -> ScheduledTaskProposalAction? {
-        arguments["action"]?.widgetStringValue.flatMap(ScheduledTaskProposalAction.init(rawValue:))
-    }
-
-    static func jsonObject(from string: String?) -> [String: AgentCLIKit.JSONValue]? {
-        guard case let .object(object)? = jsonValue(from: string) else {
-            return nil
-        }
-        return object
-    }
-
-    static func jsonValue(from string: String?) -> AgentCLIKit.JSONValue? {
-        guard let string,
-              let data = string.data(using: .utf8) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(AgentCLIKit.JSONValue.self, from: data)
-    }
-}
-
-private extension AgentCLIKit.JSONValue {
-    var widgetStringValue: String? {
-        guard case let .string(value) = self else {
-            return nil
-        }
-        return value
+        HostToolWidgetJSON.string(arguments["action"]).flatMap(ScheduledTaskProposalAction.init(rawValue:))
     }
 }

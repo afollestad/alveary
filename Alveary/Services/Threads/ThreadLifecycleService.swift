@@ -32,13 +32,47 @@ struct ProjectThreadSeed {
     }
 }
 
+/// Settings a new Task thread starts with. A Task owns a private workspace instead of a Project,
+/// so `grantedRoots` is how it reaches anything outside that workspace; those paths must already
+/// be canonical absolute folders, validated by the caller the way provider and model are.
+struct TaskThreadSeed {
+    let provider: String
+    let permissionMode: String
+    let model: String?
+    let effort: String
+    let isDraft: Bool
+    let name: String?
+    let pinned: Bool
+    let grantedRoots: [String]
+
+    init(
+        provider: String,
+        permissionMode: String,
+        model: String?,
+        effort: String,
+        isDraft: Bool,
+        name: String? = nil,
+        pinned: Bool = false,
+        grantedRoots: [String] = []
+    ) {
+        self.provider = provider
+        self.permissionMode = permissionMode
+        self.model = model
+        self.effort = effort
+        self.isDraft = isDraft
+        self.name = name
+        self.pinned = pinned
+        self.grantedRoots = grantedRoots
+    }
+}
+
 /// App-scoped thread creation and archiving.
 ///
 /// `SidebarViewModel` is per-window, so callers with no window — the `alveary_host` MCP tools —
 /// cannot route through it. This service owns the durable half of those lifecycles (persistence,
 /// runtime teardown, provider-session actions, notifications) and returns what the sidebar needs
 /// to finish the UI half; `SidebarViewModel` delegates rather than keeping a second copy.
-/// Drafts, task threads, restore, delete, fork, and selection routing stay view-side.
+/// Drafts, restore, delete, fork, and selection routing stay view-side.
 @MainActor
 final class ThreadLifecycleService {
     typealias ScheduledTaskRunQuiescence = @MainActor (PersistentIdentifier) async throws -> Void
@@ -49,9 +83,13 @@ final class ThreadLifecycleService {
     // Reached from `ThreadLifecycleService+Archive.swift`.
     let providerSessionActionService: any ProviderSessionActionService
     let notificationManager: any NotificationManager
+    private let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     private let invalidateConversationController: @MainActor (String) -> Void
     private let stopAndWaitForScheduledTaskRun: ScheduledTaskRunQuiescence
     private let saveThreadCreation: @MainActor (ModelContext) throws -> Void
+    // Reached from `ThreadLifecycleService+Pinning.swift`.
+    let savePendingSidebarChanges: @MainActor (ModelContext) throws -> Void
+    let saveSidebarOrdering: @MainActor (ModelContext) throws -> Void
 
     init(
         modelContext: ModelContext,
@@ -59,18 +97,24 @@ final class ThreadLifecycleService {
         agentsManager: any AgentsManager,
         providerSessionActionService: any ProviderSessionActionService = NoopProviderSessionActionService(),
         notificationManager: any NotificationManager,
+        taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService = DefaultTaskWorkspaceOwnershipService(),
         invalidateConversationController: @escaping @MainActor (String) -> Void = { _ in },
         stopAndWaitForScheduledTaskRun: @escaping ScheduledTaskRunQuiescence = { _ in },
-        saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
+        saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.modelContext = modelContext
         self.settingsService = settingsService
         self.agentsManager = agentsManager
         self.providerSessionActionService = providerSessionActionService
         self.notificationManager = notificationManager
+        self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         self.invalidateConversationController = invalidateConversationController
         self.stopAndWaitForScheduledTaskRun = stopAndWaitForScheduledTaskRun
         self.saveThreadCreation = saveThreadCreation
+        self.savePendingSidebarChanges = savePendingSidebarChanges
+        self.saveSidebarOrdering = saveSidebarOrdering
     }
 
     func insertProjectThread(projectPath: String, seed: ProjectThreadSeed) throws -> AgentThread {
@@ -117,6 +161,52 @@ final class ThreadLifecycleService {
             try saveThreadCreation(modelContext)
         } catch {
             modelContext.rollback()
+            throw error
+        }
+        return thread
+    }
+
+    /// Creates a Task thread over a freshly minted private workspace.
+    ///
+    /// Unlike a Project thread, this puts a directory on disk before it persists anything, so a
+    /// failed save has to remove that workspace again; an orphan would otherwise survive until the
+    /// next launch's orphan sweep.
+    func insertTaskThread(seed: TaskThreadSeed) throws -> AgentThread {
+        // Unrelated pending edits must reach the store before a failed insert rolls the context back.
+        if modelContext.hasChanges {
+            try modelContext.save()
+        }
+        let workspace = try taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let thread = AgentThread(
+            name: seed.name ?? "New task",
+            hasCustomName: seed.name != nil,
+            permissionMode: seed.permissionMode,
+            effort: seed.effort,
+            model: seed.model,
+            useWorktree: false,
+            isDraft: seed.isDraft,
+            mode: .task,
+            taskWorkspaceDescriptor: grantedWorkspace(workspace, grantedRoots: seed.grantedRoots),
+            project: nil
+        )
+        let conversation = Conversation(
+            provider: seed.provider,
+            isMain: true,
+            displayOrder: 0,
+            thread: thread
+        )
+
+        modelContext.insert(thread)
+        modelContext.insert(conversation)
+        do {
+            // No pinned-project check: a Task has no project, so nothing can absorb its pin.
+            if seed.pinned {
+                try SidebarPinOrdering.pin(thread, in: modelContext)
+            }
+            try saveThreadCreation(modelContext)
+        } catch {
+            modelContext.rollback()
+            try? taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
             throw error
         }
         return thread
@@ -274,6 +364,25 @@ final class ThreadLifecycleService {
     func uniqueConversationIDs(_ conversationIDs: [String]) -> [String] {
         var seen = Set<String>()
         return conversationIDs.filter { seen.insert($0).inserted }
+    }
+
+    /// The caller already canonicalized these paths, so they are rehydrated rather than resolved
+    /// again: a second resolution could follow a symlink swapped in since validation, granting a
+    /// folder other than the one that was checked.
+    private func grantedWorkspace(
+        _ workspace: TaskWorkspaceDescriptor,
+        grantedRoots: [String]
+    ) -> TaskWorkspaceDescriptor {
+        guard !grantedRoots.isEmpty else {
+            return workspace
+        }
+        return TaskWorkspaceDescriptor(
+            persistedPrimaryRoot: workspace.primaryRoot,
+            persistedGrantedRoots: grantedRoots.filter { $0 != workspace.primaryRoot },
+            ownershipStrategy: workspace.ownershipStrategy,
+            ownershipMarkerID: workspace.ownershipMarkerID,
+            persistedSourceProjectPath: workspace.sourceProjectPath
+        )
     }
 
     private func liveConversations(for threadID: PersistentIdentifier) -> [Conversation] {

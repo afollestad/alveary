@@ -15,6 +15,8 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
         let isResolving: Bool
         /// The widget's target task has a run in flight; drives run-now's tense.
         let isTargetRunInFlight: Bool
+        /// This card's pull request is being fetched before its pane can open.
+        let isOpeningPullRequest: Bool
         let errorMessage: String?
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
@@ -25,6 +27,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
             isProposalInteractive: Bool = false,
             isResolving: Bool = false,
             isTargetRunInFlight: Bool = false,
+            isOpeningPullRequest: Bool = false,
             errorMessage: String? = nil,
             bubbleMaxWidth: CGFloat = .infinity,
             typography: TranscriptTypography = TranscriptTypography()
@@ -34,6 +37,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
             self.isProposalInteractive = isProposalInteractive
             self.isResolving = isResolving
             self.isTargetRunInFlight = isTargetRunInFlight
+            self.isOpeningPullRequest = isOpeningPullRequest
             self.errorMessage = errorMessage
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
@@ -45,12 +49,15 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     var onReviewScheduledProposal: ((String) -> Void)?
     var onRejectScheduledProposal: ((String) -> Void)?
     var onOpenScheduledTask: ((String?) -> Void)?
+    var onOpenPullRequest: ((PullRequestIdentifier) -> Void)?
+    var onOpenThread: ((String) -> Void)?
 
-    private let bubbleView = AppKitFlippedDynamicColorView()
+    private let bubbleView = AppKitHostToolWidgetBubbleView()
     private let contentStack = NSStackView()
     private let headerStack = NSStackView()
     private let iconView = AppKitDynamicTintImageView()
     private let summaryField = NSTextField(labelWithString: "")
+    private let disclosureSlot = AppKitHostToolWidgetDisclosureSlotView()
     private let detailField = NSTextField(labelWithString: "")
     private let proposalBody = AppKitScheduledTaskProposalWidgetView()
 
@@ -83,6 +90,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
         self.configuration = configuration
         updateHeader(configuration)
         updateBody(configuration)
+        updateActivation(configuration)
         updateBubbleAppearance()
         needsLayout = true
         measureAndPublishHeight(force: widthChanged)
@@ -107,6 +115,12 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         translatesAutoresizingMaskIntoConstraints = false
         bubbleView.wantsLayer = true
         bubbleView.layer?.cornerRadius = chatBlockCornerRadius
+        bubbleView.onActivate = { [weak self] in
+            self?.activateCard()
+        }
+        bubbleView.onHoverChanged = { [weak self] _ in
+            self?.updateBubbleAppearance()
+        }
         addSubview(bubbleView)
 
         contentStack.translatesAutoresizingMaskIntoConstraints = false
@@ -156,9 +170,44 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         summaryField.lineBreakMode = .byWordWrapping
         summaryField.maximumNumberOfLines = 0
         summaryField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        disclosureSlot.setContentHuggingPriority(.required, for: .horizontal)
+        disclosureSlot.isHidden = true
         headerStack.addArrangedSubview(iconView)
         headerStack.addArrangedSubview(summaryField)
+        headerStack.addArrangedSubview(disclosureSlot)
         contentStack.addFullWidthArrangedSubview(headerStack)
+    }
+
+    /// A card that names something openable — a pull request, a thread — is itself the control,
+    /// so the whole card takes the click; every other widget keeps its buttons and stays inert.
+    func updateActivation(_ configuration: Configuration) {
+        let isInteractive = configuration.entry.openableTarget != nil
+        disclosureSlot.isHidden = !isInteractive
+        disclosureSlot.configure(
+            size: configuration.typography.size(for: .caption),
+            capHeight: configuration.typography.nsFont(.toolSummary).capHeight,
+            // Only a pull request can keep the user waiting: opening one the thread no longer
+            // links costs a GitHub round trip, so the chevron becomes a spinner rather than
+            // sitting there looking like the click missed. Selecting a thread is local.
+            isWaiting: isInteractive && configuration.isOpeningPullRequest
+        )
+        bubbleView.setAccessibilityLabel(
+            [summaryField.stringValue, detailField.isHidden ? nil : detailField.stringValue]
+                .compactMap { $0 }
+                .joined(separator: ", ")
+        )
+        bubbleView.isInteractive = isInteractive
+    }
+
+    func activateCard() {
+        switch configuration?.entry.openableTarget {
+        case .pullRequest(let identifier):
+            onOpenPullRequest?(identifier)
+        case .thread(let conversationID):
+            onOpenThread?(conversationID)
+        case nil:
+            break
+        }
     }
 
     func updateHeader(_ configuration: Configuration) {
@@ -195,7 +244,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         case .rejected:
             return ("xmark.circle", .secondaryLabelColor)
         case nil:
-            return entry.isAppliedProposal
+            return entry.isSettledWithoutDecision
                 ? ("checkmark.circle", .systemGreen)
                 : ("clock", .secondaryLabelColor)
         }
@@ -203,6 +252,9 @@ private extension AppKitTranscriptHostToolWidgetRowView {
 
     func updateBody(_ configuration: Configuration) {
         switch configuration.entry.content {
+        case .pullRequestLink, .threadAction:
+            // The header and detail lines say everything these cards have to say.
+            proposalBody.isHidden = true
         case .scheduledTaskProposal(let content):
             proposalBody.configure(
                 .init(
@@ -221,7 +273,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     }
 
     func updateBubbleAppearance() {
-        bubbleView.setLayerFillColor(.secondaryLabelColor, alpha: 0.06)
+        bubbleView.setLayerFillColor(.secondaryLabelColor, alpha: bubbleView.isHovered ? 0.11 : 0.06)
     }
 
     static let minimumBubbleWidth: CGFloat = 220
@@ -239,8 +291,11 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     }
 
     func naturalBubbleWidth() -> CGFloat {
+        let disclosureWidth = disclosureSlot.isHidden
+            ? 0
+            : disclosureSlot.intrinsicContentSize.width + headerStack.spacing
         let headerWidth = transcriptToolIconFrameSize + headerStack.spacing
-            + ceil(summaryField.attributedStringValue.size().width)
+            + ceil(summaryField.attributedStringValue.size().width) + disclosureWidth
         let detailWidth = detailField.isHidden ? 0 : ceil(detailField.attributedStringValue.size().width)
         let bodyWidth = proposalBody.isHidden ? 0 : proposalBody.naturalWidth
         return ceil(max(headerWidth, detailWidth, bodyWidth)) + (chatBlockPadding * 2)

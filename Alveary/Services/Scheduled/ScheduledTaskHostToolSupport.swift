@@ -84,15 +84,12 @@ enum ScheduledTaskHostToolSupport {
         requestID: String,
         canonicalPayloadHash: String
     ) -> String {
-        let value = [
-            sourceConversationID,
-            processToken.uuidString.lowercased(),
-            requestID,
-            canonicalPayloadHash
-        ].joined(separator: "\u{0}")
-        return SHA256.hash(data: Data(value.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
+        HostToolDeduplication.key(
+            sourceConversationID: sourceConversationID,
+            processToken: processToken,
+            requestID: requestID,
+            canonicalPayloadHash: canonicalPayloadHash
+        )
     }
 
     static func scheduleSummary(
@@ -232,7 +229,8 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
         case .targetThreadNotFound:
             "That thread no longer exists. Call list_threads again before proposing an existing-thread schedule."
         case .targetThreadIneligible:
-            "That thread cannot receive scheduled runs. Call list_threads and use one of the threads it returns."
+            "That thread cannot receive scheduled runs. Only some listed threads can — a thread nested under a pinned " +
+                "project cannot, because saving the schedule has to pin its target. Call list_threads and pick another one."
         case .definitionNotFound:
             "The scheduled task no longer exists. List scheduled tasks again before proposing a change."
         case let .revisionConflict(expected, actual):

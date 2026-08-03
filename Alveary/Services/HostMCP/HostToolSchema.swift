@@ -46,6 +46,14 @@ enum HostToolSchema {
         .object(["type": .string("string"), "format": .string("date-time")])
     }
 
+    static var booleanSchema: AgentCLIKit.JSONValue {
+        .object(["type": .string("boolean")])
+    }
+
+    static func arraySchema(items: AgentCLIKit.JSONValue) -> AgentCLIKit.JSONValue {
+        .object(["type": .string("array"), "items": items])
+    }
+
     static func enumSchema(_ values: [String]) -> AgentCLIKit.JSONValue {
         .object([
             "type": .string("string"),
@@ -67,6 +75,16 @@ enum HostToolSchema {
     static var readOnlyAnnotations: AgentCLIKit.AgentHostToolAnnotations {
         AgentCLIKit.AgentHostToolAnnotations(
             readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        )
+    }
+
+    /// Mutates, but the change is undoable from Alveary's own UI, so it is not destructive.
+    static var reversibleMutationAnnotations: AgentCLIKit.AgentHostToolAnnotations {
+        AgentCLIKit.AgentHostToolAnnotations(
+            readOnlyHint: false,
             destructiveHint: false,
             idempotentHint: true,
             openWorldHint: false

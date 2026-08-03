@@ -57,8 +57,18 @@ extension ChatItemGrouper {
             return String(name)
         }
 
-        let phrase = words.joined(separator: " ")
+        let phrase = words.map(readableToolNameWord).joined(separator: " ")
         return phrase.prefix(1).uppercased() + phrase.dropFirst()
+    }
+
+    /// Tool names are snake- or kebab-cased, so an acronym always arrives as its own word and
+    /// would otherwise sentence-case into what reads as a typo (`link_pr` → "Link pr"). A map
+    /// rather than a set because plurals keep their lowercase tail (`prs` → "PRs", never "PRS").
+    /// Extend as tools introduce more.
+    private static let toolNameAcronyms: [String: String] = ["pr": "PR", "prs": "PRs"]
+
+    private static func readableToolNameWord(_ word: Substring) -> String {
+        toolNameAcronyms[word.lowercased()] ?? String(word)
     }
 
     func parseTodoWriteInput(_ input: String?) -> [TaskEntry] {

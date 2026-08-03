@@ -272,19 +272,35 @@ extension AppKitTranscriptToolRowTests {
         let writeTool = semanticIconTool(name: "Write", summary: "Writing notes.md")
         let fileChangeTool = semanticIconTool(name: "FileChange", summary: "Changing notes.md")
         let listProjectsTool = semanticIconTool(
-            name: HostToolTranscriptCatalog.toolName(ScheduledTaskHostToolCatalog.listProjectsToolName),
+            name: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.listProjectsToolName),
             summary: "List projects"
         )
         let listThreadsTool = semanticIconTool(
-            name: HostToolTranscriptCatalog.toolName(ScheduledTaskHostToolCatalog.listThreadsToolName),
+            name: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.listThreadsToolName),
             summary: "List threads"
+        )
+        let createThreadTool = semanticIconTool(
+            name: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.createThreadToolName),
+            summary: "Create thread"
+        )
+        let archiveThreadTool = semanticIconTool(
+            name: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.archiveThreadToolName),
+            summary: "Archive thread"
+        )
+        let scheduledTasksTool = semanticIconTool(
+            name: HostToolTranscriptCatalog.toolName(ScheduledTaskHostToolCatalog.listToolName),
+            summary: "List scheduled tasks"
         )
 
         XCTAssertEqual(readTool.transcriptLeadingIconKind, .read)
         XCTAssertEqual(listTool.transcriptLeadingIconKind, .folder)
-        // The Projects lookup matches the sidebar's folder glyph; other scheduling tools keep the clock.
+        // The Projects lookup matches the sidebar's folder glyph; the thread tools share the
+        // conversation bubble, and scheduling keeps the clock.
         XCTAssertEqual(listProjectsTool.transcriptLeadingIconKind, .folder)
-        XCTAssertEqual(listThreadsTool.transcriptLeadingIconKind, .schedule)
+        XCTAssertEqual(listThreadsTool.transcriptLeadingIconKind, .thread)
+        XCTAssertEqual(createThreadTool.transcriptLeadingIconKind, .thread)
+        XCTAssertEqual(archiveThreadTool.transcriptLeadingIconKind, .thread)
+        XCTAssertEqual(scheduledTasksTool.transcriptLeadingIconKind, .schedule)
         XCTAssertEqual(grepTool.transcriptLeadingIconKind, .search)
         XCTAssertEqual(globTool.transcriptLeadingIconKind, .search)
         XCTAssertEqual(editTool.transcriptLeadingIconKind, .edit)

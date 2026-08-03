@@ -39,7 +39,7 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
         let toolNames = AlvearyHostToolCatalog.tools.map(\.name)
         XCTAssertEqual(toolNames, AlvearyHostToolCatalog.featureCatalogs.flatMap(\.toolNames))
         XCTAssertEqual(Set(toolNames).count, toolNames.count)
-        XCTAssertEqual(AlvearyHostToolCatalog.featureCatalogs.map(\.featureID), ["scheduling"])
+        XCTAssertEqual(AlvearyHostToolCatalog.featureCatalogs.map(\.featureID), ["scheduling", "threads"])
     }
 
     func testInstructionsComposeTheNeutralPreambleWithEachFeatureFragment() throws {
@@ -54,22 +54,24 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
             XCTAssertTrue(instructions.contains(fragment))
         }
         XCTAssertTrue(instructions.contains("propose_scheduled_task"))
+        XCTAssertTrue(instructions.contains("create_thread"))
     }
 
     /// Guards the one structural risk of splitting static catalogs from DI-built handlers:
     /// a tool the server advertises that no feature actually answers.
     func testEveryAdvertisedToolIsRoutableAndHandled() async throws {
-        let fixture = try ScheduledTaskHostToolFixture.project()
-        let dispatcher = HostToolDispatcher(features: [fixture.service])
+        let scheduling = try ScheduledTaskHostToolFixture.project()
+        let threads = try ThreadHostToolFixture()
+        let dispatcher = HostToolDispatcher(features: [scheduling.service, threads.service])
 
         XCTAssertEqual(
-            fixture.service.hostToolNames,
-            Set(ScheduledTaskHostToolCatalog.tools.map(\.name))
+            scheduling.service.hostToolNames.union(threads.service.hostToolNames),
+            Set(AlvearyHostToolCatalog.tools.map(\.name))
         )
 
         for tool in AlvearyHostToolCatalog.tools {
             let result = await dispatcher.handle(
-                context: fixture.agentContext(),
+                context: scheduling.agentContext(),
                 call: AgentCLIKit.AgentHostToolCall(name: tool.name)
             )
             XCTAssertNotEqual(
@@ -80,6 +82,11 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
             XCTAssertNotEqual(
                 result.text,
                 ScheduledTaskHostToolServiceError.unsupportedTool.localizedDescription,
+                "\(tool.name) reached its feature but fell through to the unsupported branch"
+            )
+            XCTAssertNotEqual(
+                result.text,
+                ThreadHostToolServiceError.unsupportedTool.localizedDescription,
                 "\(tool.name) reached its feature but fell through to the unsupported branch"
             )
         }

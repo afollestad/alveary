@@ -11,6 +11,9 @@ final class Conversation {
     var providerSessionWorkingDirectory: String?
     var pendingRestoreContext: String?
     var scheduledTaskProposalReceiptsJSON: String?
+    /// Exact-retry ledger for `alveary_host` thread mutations; see
+    /// `Conversation+ThreadHostToolReceipts.swift`. Optional so pre-field stores migrate.
+    var threadHostToolReceiptsJSON: String?
     var isActive: Bool
     var isMain: Bool
     var displayOrder: Int
@@ -43,6 +46,7 @@ final class Conversation {
         self.providerSessionWorkingDirectory = providerSessionWorkingDirectory.map(CanonicalPath.normalize)
         self.pendingRestoreContext = pendingRestoreContext
         self.scheduledTaskProposalReceiptsJSON = nil
+        self.threadHostToolReceiptsJSON = nil
         self.isActive = isActive
         self.isMain = isMain
         self.displayOrder = displayOrder

@@ -258,49 +258,14 @@ extension SidebarViewModel {
     }
 
     func setThreadPinned(_ thread: AgentThread, isPinned: Bool) throws {
-        guard let currentThread = modelContext.resolveThread(id: thread.persistentModelID),
-              currentThread.archivedAt == nil,
-              !currentThread.isDraft,
-              currentThread.effectiveMode == .task || currentThread.project != nil else {
-            throw SidebarViewModelError.threadMissing
-        }
-        // A pinned project absorbs its children regardless of mode, so pinning one is a no-op.
-        if isPinned, currentThread.project?.isPinned == true {
+        let outcome = try threadLifecycle.setThreadPinned(
+            threadID: thread.persistentModelID,
+            isPinned: isPinned
+        )
+        guard outcome == .changed else {
             return
         }
-        try flushPendingSidebarPinChanges()
-
-        do {
-            var didChange = try normalizeSidebarOrdering()
-            guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID),
-                  dbThread.archivedAt == nil,
-                  !dbThread.isDraft,
-                  dbThread.effectiveMode == .task || dbThread.project != nil else {
-                throw SidebarViewModelError.threadMissing
-            }
-            let wasPinned = dbThread.isPinned
-            if !isPinned, wasPinned {
-                try requireNoScheduledTaskAttachment(dbThread)
-            }
-            if isPinned, !wasPinned {
-                try SidebarPinOrdering.pin(dbThread, in: modelContext)
-                didChange = true
-            } else if !isPinned, wasPinned {
-                dbThread.isPinned = false
-                dbThread.pinnedSortOrder = nil
-                didChange = true
-            }
-
-            didChange = try normalizeSidebarOrdering() || didChange
-            guard didChange else {
-                return
-            }
-            try persistSidebarOrdering()
-            refreshThreadOrder(animated: true)
-        } catch {
-            modelContext.rollback()
-            throw error
-        }
+        refreshThreadOrder(animated: true)
     }
 
     func isVisiblePinnedSidebarThread(_ thread: AgentThread) -> Bool {

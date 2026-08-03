@@ -239,30 +239,29 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
     }
 
     func testReadOnlyToolsTakeNoArgumentsAndStayGatedInServerInstructions() throws {
-        let listTools = ScheduledTaskHostToolCatalog.tools.filter {
-            ScheduledTaskHostToolCatalog.listToolNames.contains($0.name)
-        }
-        XCTAssertEqual(listTools.count, 3)
-        for tool in listTools {
-            XCTAssertEqual(tool.annotations.readOnlyHint, true, tool.name)
-            XCTAssertEqual(tool.annotations.idempotentHint, true, tool.name)
-            // A read tool that accepted arguments could be steered into filtering or probing.
-            let root = try object(tool.inputSchema)
-            XCTAssertEqual(root["properties"], .object([:]), tool.name)
-            XCTAssertEqual(root["additionalProperties"], .bool(false), tool.name)
-        }
+        let listTool = try XCTUnwrap(
+            ScheduledTaskHostToolCatalog.tools.first { $0.name == ScheduledTaskHostToolCatalog.listToolName }
+        )
+        XCTAssertEqual(listTool.annotations.readOnlyHint, true)
+        XCTAssertEqual(listTool.annotations.idempotentHint, true)
+        // A read tool that accepted arguments could be steered into filtering or probing.
+        let root = try object(listTool.inputSchema)
+        XCTAssertEqual(root["properties"], .object([:]))
+        XCTAssertEqual(root["additionalProperties"], .bool(false))
 
-        // Both lookups hand user content to the provider, so their use stays gated on an
-        // explicit ask rather than being offered as general browsing.
+        // The two lookups now belong to the thread feature, but scheduling still directs the model
+        // to them, and that use stays gated on an explicit ask rather than general browsing.
         let serverInstructions = ScheduledTaskHostToolCatalog.instructionsFragment(timeZoneIdentifier: "UTC")
         XCTAssertTrue(serverInstructions.contains("Call list_projects only when"))
         XCTAssertTrue(serverInstructions.contains("list_threads only when"))
+        XCTAssertFalse(ScheduledTaskHostToolCatalog.tools.map(\.name).contains("list_projects"))
+        XCTAssertFalse(ScheduledTaskHostToolCatalog.tools.map(\.name).contains("list_threads"))
     }
 
     func testCatalogAdvertisesClosedDomainToolsWithoutTrustedFields() throws {
         XCTAssertEqual(
             ScheduledTaskHostToolCatalog.tools.map(\.name),
-            ["list_scheduled_tasks", "list_projects", "list_threads", "propose_scheduled_task"]
+            ["list_scheduled_tasks", "propose_scheduled_task"]
         )
         let listTool = try XCTUnwrap(ScheduledTaskHostToolCatalog.tools.first)
         let proposeTool = try XCTUnwrap(ScheduledTaskHostToolCatalog.tools.last)

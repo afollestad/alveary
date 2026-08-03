@@ -219,6 +219,70 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(grouper.items.count, 1)
     }
 
+    /// The link tools have no outcome marker: their result is the whole outcome, so the card
+    /// is settled the moment the result patches it.
+    func testPullRequestLinkToolRendersAsAWidgetBlock() throws {
+        let grouper = ChatItemGrouper()
+        let call = ConversationEventRecord(
+            id: "link-call",
+            conversationId: Self.widgetConversationID,
+            type: ConversationEventRecord.toolCallType,
+            toolId: "tool-link",
+            toolName: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.linkPullRequestToolName),
+            toolInput: #"{"url":"https://github.com/octo/alpha/pull/7"}"#
+        )
+        let result = ConversationEventRecord(
+            id: "link-result",
+            conversationId: Self.widgetConversationID,
+            type: ConversationEventRecord.toolResultType,
+            toolId: "tool-link",
+            toolOutput: """
+            {"status":"linked","thread_id":"conv-1","thread_name":"Add caching","message":"Linked it.",\
+            "pull_request":{"repository":"octo/alpha","number":7,"title":"Add caching","status":"open"}}
+            """
+        )
+
+        grouper.update(events: [call, result])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        let entry = try XCTUnwrap(grouper.items.first?.hostToolWidgetEntry)
+        XCTAssertTrue(entry.isComplete)
+        XCTAssertNil(entry.outcomeKey)
+        XCTAssertEqual(entry.openablePullRequest, PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+        XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "PR linked to thread: octo/alpha#7")
+    }
+
+    func testThreadMutationToolRendersAsAWidgetBlock() throws {
+        let grouper = ChatItemGrouper()
+        let call = ConversationEventRecord(
+            id: "pin-call",
+            conversationId: Self.widgetConversationID,
+            type: ConversationEventRecord.toolCallType,
+            toolId: "tool-pin",
+            toolName: HostToolTranscriptCatalog.toolName(ThreadHostToolCatalog.pinThreadToolName),
+            toolInput: #"{"thread_id":"conv-1"}"#
+        )
+        let result = ConversationEventRecord(
+            id: "pin-result",
+            conversationId: Self.widgetConversationID,
+            type: ConversationEventRecord.toolResultType,
+            toolId: "tool-pin",
+            toolOutput: """
+            {"status":"pinned","thread_id":"conv-1","name":"Add caching","is_pinned":true,\
+            "message":"Pinned it."}
+            """
+        )
+
+        grouper.update(events: [call, result])
+
+        XCTAssertEqual(grouper.items.count, 1)
+        let entry = try XCTUnwrap(grouper.items.first?.hostToolWidgetEntry)
+        XCTAssertTrue(entry.isComplete)
+        XCTAssertNil(entry.outcomeKey)
+        XCTAssertEqual(entry.openableTarget, .thread("conv-1"))
+        XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "Thread pinned: Add caching")
+    }
+
     func testInterruptedTurnTerminalizesAPendingWidget() {
         let grouper = ChatItemGrouper()
         let userMessage = ConversationEventRecord(
