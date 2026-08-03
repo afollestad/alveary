@@ -5,6 +5,13 @@ enum ScheduledTaskEditorSurface {
     case modal
 }
 
+/// Replaces the pane footer's Cancel with a Pause/Resume action when the editor
+/// targets an existing task — the pane header's close button already covers dismissal.
+struct ScheduledTaskEditorStateToggle {
+    let isPaused: Bool
+    let action: () -> Void
+}
+
 struct ScheduledTaskEditorContent: View {
     let viewModel: ScheduledTasksViewModel
     @Binding var draft: ScheduledTaskEditorDraft
@@ -14,6 +21,7 @@ struct ScheduledTaskEditorContent: View {
     let errorMessage: String?
     let isSubmitting: Bool
     let surface: ScheduledTaskEditorSurface
+    var stateToggle: ScheduledTaskEditorStateToggle?
     let onDismissError: () -> Void
     let onSubmit: () -> Void
     let onClose: () -> Void
@@ -125,8 +133,13 @@ struct ScheduledTaskEditorContent: View {
             ContextualPaneFooter(
                 note: { dueTimeNote },
                 leadingAction: {
-                    Button("Cancel", action: onClose)
-                        .secondaryActionButtonStyle(expandsHorizontally: true)
+                    if let stateToggle {
+                        Button(stateToggle.isPaused ? "Resume" : "Pause", action: stateToggle.action)
+                            .secondaryActionButtonStyle(expandsHorizontally: true)
+                    } else {
+                        Button("Cancel", action: onClose)
+                            .secondaryActionButtonStyle(expandsHorizontally: true)
+                    }
                 },
                 trailingAction: { submitButton }
             )
@@ -167,21 +180,72 @@ struct ScheduledTaskEditorPane: View {
         )
     }
 
+    private var isProposalReview: Bool {
+        if case .proposal = target {
+            return true
+        }
+        return false
+    }
+
+    private func paneTitle(for session: ScheduledTaskPaneSession) -> String {
+        if isProposalReview {
+            return "Review Scheduled Task Proposal"
+        }
+        return session.draft.isEditing ? "Edit Scheduled Task" : "New Scheduled Task"
+    }
+
+    private func paneSubmitTitle(for session: ScheduledTaskPaneSession) -> String {
+        if isProposalReview {
+            return session.draft.isEditing ? "Confirm changes" : "Confirm and create"
+        }
+        return session.draft.isEditing ? "Save changes" : "Create task"
+    }
+
+    /// The pane header's close button already dismisses, so an existing task's editor
+    /// trades the redundant Cancel for the task's Pause/Resume action. A proposal
+    /// review keeps Cancel — backing out of the review is its primary alternative.
+    private var stateToggle: ScheduledTaskEditorStateToggle? {
+        guard case .edit(let definitionID) = target,
+              let row = viewModel.tasks.first(where: { $0.id == definitionID }),
+              row.state != .completed else {
+            return nil
+        }
+        return ScheduledTaskEditorStateToggle(isPaused: row.state == .paused) { [viewModel] in
+            // Re-resolve at click: the rendered snapshot's state and revision can go
+            // stale if the task is mutated elsewhere between renders.
+            guard let current = viewModel.tasks.first(where: { $0.id == definitionID }) else {
+                return
+            }
+            if current.state == .paused {
+                viewModel.resume(current)
+            } else {
+                viewModel.pause(current)
+            }
+        }
+    }
+
     var body: some View {
         if let session = viewModel.paneSessions[target] {
             ScheduledTaskEditorContent(
                 viewModel: viewModel,
                 draft: draft,
-                title: session.draft.isEditing ? "Edit Scheduled Task" : "New Scheduled Task",
-                subtitle: nil,
-                submitTitle: session.draft.isEditing ? "Save changes" : "Create task",
+                title: paneTitle(for: session),
+                subtitle: isProposalReview ? "Review or adjust the details before Alveary applies anything." : nil,
+                submitTitle: paneSubmitTitle(for: session),
                 errorMessage: session.errorMessage,
                 isSubmitting: session.isSubmitting,
                 surface: .pane,
+                stateToggle: stateToggle,
                 onDismissError: viewModel.clearEditorError,
                 onSubmit: viewModel.submitActivePane,
                 onClose: onDismiss
             )
+            // This pane opens from a transcript, where nothing else calls `load()`;
+            // without it the Agent section falls back to the raw model id as its only
+            // option, and an edit target has no task row for the footer's Pause/Resume.
+            .task(id: target) {
+                await viewModel.load()
+            }
         }
     }
 }

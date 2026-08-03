@@ -23,6 +23,9 @@ final class ChatItemGrouper {
     var agentTaskToolIds: Set<String> = []
     var hiddenAgentTaskToolSearchIds: Set<String> = []
     var todoWriteToolIds: Set<String> = []
+    var hostToolWidgetToolIds: Set<String> = []
+    var hostToolWidgetInputsByToolId: [String: String] = [:]
+    var pendingHostToolOutcomesByKey: [String: PendingHostToolOutcome] = [:]
     var promptToolIds: Set<String> = []
     var transcriptNoteToolKinds: [String: TranscriptNoteKind] = [:]
     var toolApprovalStatusesByToolId: [String: ToolApprovalStatus] = [:]
@@ -90,6 +93,9 @@ final class ChatItemGrouper {
         agentTaskToolIds = []
         hiddenAgentTaskToolSearchIds = []
         todoWriteToolIds = []
+        hostToolWidgetToolIds = []
+        hostToolWidgetInputsByToolId = [:]
+        pendingHostToolOutcomesByKey = [:]
         promptToolIds = []
         transcriptNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
@@ -339,6 +345,7 @@ private extension ChatItem {
         case .userMessage,
              .assistantMessage,
              .taskListBlock,
+             .hostToolWidget,
              .toolApproval,
              .toolApprovalBatch,
              .transcriptNote,

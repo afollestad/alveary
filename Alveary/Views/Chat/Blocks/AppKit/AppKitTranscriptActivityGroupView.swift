@@ -45,7 +45,11 @@ final class AppKitTranscriptActivityGroupView: NSView {
     var onOpenToolImage: ((ToolEntry) -> Void)? {
         didSet {
             nestedRowsView.onOpenToolImage = onOpenToolImage
+        nestedRowsView.scheduledTaskListActions = scheduledTaskListActions
         }
+    }
+    var scheduledTaskListActions = ScheduledTaskListToolActions() {
+        didSet { nestedRowsView.scheduledTaskListActions = scheduledTaskListActions }
     }
     var onExpansionChanged: ((Bool) -> Void)?
     var onChildExpansionChanged: ((String, Bool) -> Void)? {
@@ -136,6 +140,7 @@ final class AppKitTranscriptActivityGroupView: NSView {
         nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
         nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
         nestedRowsView.onOpenToolImage = onOpenToolImage
+        nestedRowsView.scheduledTaskListActions = scheduledTaskListActions
         nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         nestedRowsView.onChildExpansionChanged = onChildExpansionChanged
         addSubview(clipView)
@@ -174,6 +179,7 @@ final class AppKitTranscriptActivityGroupView: NSView {
         nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
         nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
         nestedRowsView.onOpenToolImage = onOpenToolImage
+        nestedRowsView.scheduledTaskListActions = scheduledTaskListActions
         nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
         nestedRowsView.onChildExpansionChanged = onChildExpansionChanged
         nestedRowsView.configure(

@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct AppTextEditorChip: Equatable, Sendable {
@@ -453,13 +452,23 @@ struct AppTextInputContainer<Content: View>: View {
     }
 }
 
-private enum AppInputStyle {
-    static let backgroundColor = Color.secondary.opacity(0.08)
-    static let borderColor = Color.secondary.opacity(0.2)
+/// Single source of truth for Alveary's field and menu chrome, shared by `AppTextField`,
+/// `ScheduledTaskMenuPicker`, and `SettingsMenuPicker` so field and menu surfaces
+/// cannot drift apart.
+enum AppInputStyle {
+    static let backgroundOpacity: CGFloat = 0.08
+    static let borderOpacity: CGFloat = 0.2
+    static let menuBackgroundOpacity: CGFloat = 0.14
+
+    static let backgroundColor = Color.secondary.opacity(backgroundOpacity)
+    static let borderColor = Color.secondary.opacity(borderOpacity)
+    static let menuBackgroundColor = Color.secondary.opacity(menuBackgroundOpacity)
     static let borderWidth: CGFloat = 1
     static let defaultCornerRadius: CGFloat = AppCornerRadius.standard
     static let defaultHorizontalPadding: CGFloat = 14
     static let defaultVerticalPadding: CGFloat = 10
     static let editorHorizontalPadding: CGFloat = 10
     static let editorVerticalPadding: CGFloat = 8
+    static let menuHorizontalPadding: CGFloat = 12
+    static let menuChevronPointSize: CGFloat = 11
 }

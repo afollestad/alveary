@@ -26,6 +26,10 @@ struct ChatTranscriptView: View {
     @Binding var scrollToBottomRequest: Int
 
     @Environment(\.transcriptTypography) var transcriptTypography
+    // Scheduling proposals are confirmed inside transcript widgets; both are optional so
+    // snapshot hosts can render the transcript without the scheduling stack.
+    @Environment(ScheduledTaskProposalQueueCoordinator.self) var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator?
+    @Environment(ScheduledTasksViewModel.self) var scheduledTasksViewModel: ScheduledTasksViewModel?
     @State private var pendingProgrammaticScrollMode: PendingProgrammaticScrollMode?
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State var latestMetrics: ChatTranscriptScrollMetrics?
@@ -34,6 +38,7 @@ struct ChatTranscriptView: View {
     @State var expandedTranscriptRows: Set<String> = []
     @State var appKitToolApprovalSelectionsBySessionID: [String: ToolApprovalSelection] = [:]
     @State var appKitPullRequestPromptSelections: [String: PullRequestLinkPromptSelection] = [:]
+    @State var scheduledProposalRevision = 0
 
     var shouldShowTransientInterruptedNote: Bool {
         !viewModel.state.grouper.items.hasInterruptedNoteAfterLatestUserMessage
@@ -96,6 +101,23 @@ struct ChatTranscriptView: View {
 
     private func transcriptLifecycleObservers<Content: View>(_ content: Content) -> some View {
         content
+            // Proposal confirmation happens outside the provider turn, so the widget's
+            // live state needs its own invalidation signal.
+            // Editing or pausing a task elsewhere changes what the list tool's row renders.
+            .onReceive(NotificationCenter.default.publisher(for: .scheduledTasksChanged)) { _ in
+                scheduledProposalRevision &+= 1
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .scheduledTaskProposalsChanged)) { _ in
+                // The widget's live confirmation state is closure-resolved, so bumping the
+                // revision is enough to re-render it. Regrouping is only for picking up an
+                // outcome marker, and must stay off the active turn — a proposal opens
+                // mid-turn, and full rebuilds there starve streaming and composer work.
+                scheduledProposalRevision &+= 1
+                guard !viewModel.turnState.isActive else {
+                    return
+                }
+                viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
+            }
             .onAppear {
                 viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
                 scrollToBottom(forceFollow: true)

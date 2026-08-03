@@ -60,6 +60,9 @@ extension ToolEntry {
         if name == "Skill" {
             return false
         }
+        if ScheduledTaskListToolPresentation.isListTool(named: name) {
+            return true
+        }
         if let stderr, !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
@@ -114,6 +117,7 @@ extension ChatItem {
         case .userMessage,
              .assistantMessage,
              .taskListBlock,
+             .hostToolWidget,
              .toolApproval,
              .toolApprovalBatch,
              .transcriptNote,

@@ -12,21 +12,27 @@ final class ScheduledTaskHostToolService {
     private let requestParser: ScheduledTaskHostToolRequestParser
     let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
     let currentTimeZone: @MainActor () -> TimeZone
+    let mutationService: ScheduledTaskMutationService
+    let runNowAction: @MainActor (ScheduledTaskRunNowRequest) -> Bool
     private let now: () -> Date
 
     init(
         modelContext: ModelContext,
+        mutationService: ScheduledTaskMutationService,
         notificationCenter: NotificationCenter = .default,
         requestParser: ScheduledTaskHostToolRequestParser = ScheduledTaskHostToolRequestParser(),
         recurrenceCalculator: ScheduledTaskRecurrenceCalculator = ScheduledTaskRecurrenceCalculator(),
         currentTimeZone: @escaping @MainActor () -> TimeZone = { .autoupdatingCurrent },
+        runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in false },
         now: @escaping () -> Date = Date.init
     ) {
         self.modelContext = modelContext
+        self.mutationService = mutationService
         self.notificationCenter = notificationCenter
         self.requestParser = requestParser
         self.recurrenceCalculator = recurrenceCalculator
         self.currentTimeZone = currentTimeZone
+        runNowAction = runNow
         self.now = now
     }
 
@@ -102,35 +108,47 @@ private extension ScheduledTaskHostToolService {
         try flushPendingChanges()
         let requestDate = now()
 
-        let sourceConversationID = context.conversationId.rawValue
         let source = try resolveSource(context: context)
         let sourceConversation = source.conversation
-
-        let retryIdentity = try requestParser.parseRetryIdentity(arguments: arguments)
-        let deduplicationKey = ScheduledTaskHostToolSupport.deduplicationKey(
-            sourceConversationID: sourceConversationID,
-            processToken: context.processToken,
+        let deduplicationKey = try deduplicationKey(
+            context: context,
             requestID: requestID,
-            canonicalPayloadHash: retryIdentity.canonicalPayloadHash
+            arguments: arguments
         )
 
-        let receipt = try sourceConversation.scheduledTaskProposalReceipt(
-            matching: deduplicationKey,
-            currentProcessToken: context.processToken,
+        if let receipt = try replayedReceipt(
+            on: sourceConversation,
+            deduplicationKey: deduplicationKey,
+            processToken: context.processToken,
             at: requestDate
-        )
-        try persistReceiptMaintenanceIfNeeded()
-        if let receipt {
+        ) {
             return pendingResult(receipt: receipt)
         }
 
         let parsedRequest = try requestParser.parse(arguments: arguments)
+        let identity = ScheduledTaskHostToolProposalIdentity(
+            requestID: requestID,
+            deduplicationKey: deduplicationKey,
+            createdAt: requestDate
+        )
+
+        // Pause, resume, and run-now are reversible and revision-checked, so they apply
+        // straight away; only definition changes and deletion need native confirmation.
+        if ScheduledTaskHostToolService.appliesWithoutConfirmation(parsedRequest.request.action) {
+            return try applyImmediately(
+                parsedRequest.request,
+                source: source,
+                identity: identity,
+                context: context
+            )
+        }
 
         if let existingResult = try pendingResultForExistingProposal(
             sourceConversation: sourceConversation,
             deduplicationKey: deduplicationKey,
             sourceProcessToken: context.processToken,
-            createdAt: requestDate
+            createdAt: requestDate,
+            supersedingRequest: parsedRequest.request
         ) {
             return existingResult
         }
@@ -138,24 +156,59 @@ private extension ScheduledTaskHostToolService {
         return try openProposal(
             context: context,
             source: source,
-            identity: ScheduledTaskHostToolProposalIdentity(
-                requestID: requestID,
-                deduplicationKey: deduplicationKey,
-                createdAt: requestDate
-            ),
+            identity: identity,
             parsedRequest: parsedRequest
         )
+    }
+
+    func deduplicationKey(
+        context: AgentCLIKit.AgentHostToolCallContext,
+        requestID: String,
+        arguments: [String: AgentCLIKit.JSONValue]
+    ) throws -> String {
+        let retryIdentity = try requestParser.parseRetryIdentity(arguments: arguments)
+        return ScheduledTaskHostToolSupport.deduplicationKey(
+            sourceConversationID: context.conversationId.rawValue,
+            processToken: context.processToken,
+            requestID: requestID,
+            canonicalPayloadHash: retryIdentity.canonicalPayloadHash
+        )
+    }
+
+    /// An exact retry replays its recorded receipt instead of acting again.
+    func replayedReceipt(
+        on sourceConversation: Conversation,
+        deduplicationKey: String,
+        processToken: UUID,
+        at requestDate: Date
+    ) throws -> ScheduledTaskProposalReceipt? {
+        let receipt = try sourceConversation.scheduledTaskProposalReceipt(
+            matching: deduplicationKey,
+            currentProcessToken: processToken,
+            at: requestDate
+        )
+        try persistReceiptMaintenanceIfNeeded()
+        return receipt
     }
 
     func pendingResultForExistingProposal(
         sourceConversation: Conversation,
         deduplicationKey: String,
         sourceProcessToken: UUID,
-        createdAt: Date
+        createdAt: Date,
+        supersedingRequest: ScheduledTaskProposalRequest
     ) throws -> AgentCLIKit.AgentHostToolResult? {
         guard let existingProposal = modelContext.resolveScheduledTaskProposal(
             sourceConversationID: sourceConversation.id
         ) else {
+            return nil
+        }
+        // A follow-up prompt that revises the same target replaces the unconfirmed
+        // proposal rather than being refused; the superseded widget records a rejection
+        // so the transcript never keeps two live confirmations for one task.
+        if existingProposal.deduplicationKey != deduplicationKey,
+           targetsSameDefinition(existingProposal, as: supersedingRequest) {
+            try rejectSupersededProposal(existingProposal, at: createdAt)
             return nil
         }
         let message = existingProposal.deduplicationKey == deduplicationKey
@@ -170,6 +223,41 @@ private extension ScheduledTaskHostToolService {
         )
         try persist(receipt, on: sourceConversation)
         return pendingResult(receipt: receipt)
+    }
+
+    /// Same definition, or both untargeted creates, counts as the same task.
+    func targetsSameDefinition(
+        _ proposal: ScheduledTaskProposal,
+        as request: ScheduledTaskProposalRequest
+    ) -> Bool {
+        switch request {
+        case .create:
+            return proposal.targetDefinitionID == nil
+        case let .edit(definitionID, _, _),
+             let .pause(definitionID, _),
+             let .resume(definitionID, _),
+             let .delete(definitionID, _),
+             let .runNow(definitionID, _):
+            return proposal.targetDefinitionID == definitionID
+        }
+    }
+
+    func rejectSupersededProposal(_ proposal: ScheduledTaskProposal, at timestamp: Date) throws {
+        let outcomeTarget = ScheduledTaskProposalOutcomeTarget(proposal: proposal)
+        do {
+            modelContext.delete(proposal)
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw ScheduledTaskHostToolServiceError.persistenceFailure
+        }
+        ScheduledTaskProposalOutcomeRecorder.record(
+            outcomeTarget,
+            outcome: .rejected,
+            in: modelContext,
+            at: timestamp
+        )
+        notificationCenter.postScheduledTaskProposalsChanged(object: self)
     }
 
     func openProposal(

@@ -160,6 +160,8 @@ extension AppKitTranscriptToolHeaderRowView {
             return "book"
         case .checklist:
             return "checklist"
+        case .schedule:
+            return "clock"
         case .question:
             return "questionmark"
         case .subAgent:

@@ -3,50 +3,6 @@ import Foundation
 import Observation
 import SwiftData
 
-enum ScheduledTasksViewModelError: Error, LocalizedError {
-    case titleRequired
-    case promptRequired
-    case projectRequired
-    case projectNotFound
-    case existingThreadRequired
-    case existingThreadUnavailable
-    case invalidPersistedDestination
-    case runNowRejected
-
-    var errorDescription: String? {
-        switch self {
-        case .titleRequired:
-            "Enter a title for the scheduled task."
-        case .promptRequired:
-            "Enter instructions for the scheduled task."
-        case .projectRequired:
-            "Choose a project for this scheduled task."
-        case .projectNotFound:
-            "The selected project no longer exists."
-        case .existingThreadRequired:
-            "Choose a pinned thread for this scheduled task."
-        case .existingThreadUnavailable:
-            "The selected pinned thread is no longer available."
-        case .invalidPersistedDestination:
-            "This scheduled task has an invalid persisted destination."
-        case .runNowRejected:
-            "This scheduled task could not be started. It may already be starting or the scheduler may be unavailable."
-        }
-    }
-}
-
-enum ScheduledTaskPaneTarget: Hashable {
-    case create
-    case edit(String)
-}
-
-struct ScheduledTaskPaneSession: Equatable {
-    let generation: UUID
-    var draft: ScheduledTaskEditorDraft
-    var errorMessage: String?
-    var isSubmitting = false
-}
-
 @MainActor
 @Observable
 final class ScheduledTasksViewModel {
@@ -61,6 +17,7 @@ final class ScheduledTasksViewModel {
     @ObservationIgnored let notificationCenter: NotificationCenter
     @ObservationIgnored var changeObservationTask: Task<Void, Never>?
     @ObservationIgnored var threadObservationTask: Task<Void, Never>?
+    @ObservationIgnored var proposalObservationTask: Task<Void, Never>?
 
     private(set) var tasks: [ScheduledTaskRowPresentation] = []
     private(set) var projects: [ScheduledTaskProjectOption] = []
@@ -70,6 +27,8 @@ final class ScheduledTasksViewModel {
     var isLoadingProviders = false
     var pendingRunNowDefinitionIDs = Set<String>()
     private(set) var activePaneTarget: ScheduledTaskPaneTarget?
+    /// Thread that opened the active pane from its transcript; `nil` for screen-opened panes.
+    var proposalPaneOriginThreadID: PersistentIdentifier?
     private(set) var paneSessions: [ScheduledTaskPaneTarget: ScheduledTaskPaneSession] = [:]
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<ScheduledTaskPaneTarget>> = []
     private(set) var paneDismissalGeneration = 0
@@ -117,6 +76,7 @@ final class ScheduledTasksViewModel {
     deinit {
         changeObservationTask?.cancel()
         threadObservationTask?.cancel()
+        proposalObservationTask?.cancel()
     }
 
     func load() async {
@@ -157,6 +117,7 @@ final class ScheduledTasksViewModel {
     }
 
     func requestCreate(focusRestorationID: String? = nil) {
+        proposalPaneOriginThreadID = nil
         paneFocusRestorationID = focusRestorationID ?? ScheduledTaskPaneTarget.create.defaultFocusRestorationID
         errorMessage = nil
         discardCompletedSessionIfNeeded(for: .create)
@@ -172,13 +133,23 @@ final class ScheduledTasksViewModel {
         activePaneTarget = .create
     }
 
-    func requestEdit(definitionID: String, focusRestorationID: String? = nil) {
+    /// Opens the editor pane for a definition, reporting whether it could. A durable entry
+    /// point — a transcript card, a notification — names a task that may have been deleted
+    /// since, so it needs the answer to route elsewhere instead of doing nothing.
+    @discardableResult
+    func requestEdit(definitionID: String, focusRestorationID: String? = nil) -> Bool {
         let target = ScheduledTaskPaneTarget.edit(definitionID)
+        // Build the draft before reusing a cached session: the session can outlive its
+        // definition when the delete happened elsewhere, and the builder is what reports
+        // the vanished row and drops it from the list.
+        guard let draft = makeEditDraft(definitionID: definitionID) else {
+            discardEditSession(definitionID: definitionID)
+            return false
+        }
+        // Screen-opened edits are unscoped; the transcript entry point re-stamps origin.
+        proposalPaneOriginThreadID = nil
         discardCompletedSessionIfNeeded(for: target)
         if paneSessions[target] == nil {
-            guard let draft = makeEditDraft(definitionID: definitionID) else {
-                return
-            }
             paneSessions[target] = ScheduledTaskPaneSession(generation: UUID(), draft: draft)
         }
         if let generation = paneSessions[target]?.generation {
@@ -187,6 +158,82 @@ final class ScheduledTasksViewModel {
         paneFocusRestorationID = focusRestorationID ?? target.defaultFocusRestorationID
         errorMessage = nil
         activePaneTarget = target
+        return true
+    }
+
+    /// Opens the proposal in the shared editor pane so a scheduling proposal is reviewed
+    /// with the same controls and section set as the Scheduled screen.
+    func requestProposalReview(
+        _ presentation: ScheduledTaskProposalPresentation,
+        originThreadID: PersistentIdentifier?
+    ) {
+        guard let definitionDraft = presentation.definitionDraft else {
+            return
+        }
+        let target = ScheduledTaskPaneTarget.proposal(sourceConversationID: presentation.sourceConversationID)
+        discardCompletedSessionIfNeeded(for: target)
+        let draft = makeProposalDraft(
+            definitionDraft,
+            definitionID: presentation.targetDefinitionID,
+            expectedRevision: presentation.expectedDefinitionRevision
+        )
+        if var session = paneSessions[target] {
+            // Reopening for a newer proposal reuses the presentation; only its content moves.
+            if session.proposalID != presentation.id {
+                session.draft = draft
+                session.proposalID = presentation.id
+                session.errorMessage = nil
+                paneSessions[target] = session
+            }
+        } else {
+            paneSessions[target] = ScheduledTaskPaneSession(
+                generation: UUID(),
+                draft: draft,
+                proposalID: presentation.id
+            )
+        }
+        if let generation = paneSessions[target]?.generation {
+            deactivatedPaneDismissals.remove(.init(target: target, generation: generation))
+        }
+        proposalPaneOriginThreadID = originThreadID
+        paneFocusRestorationID = target.defaultFocusRestorationID
+        errorMessage = nil
+        activePaneTarget = target
+    }
+
+    /// Keeps an open proposal review pointed at its conversation's current proposal.
+    ///
+    /// A follow-up prompt supersedes the proposal being reviewed, so the pane reloads the
+    /// replacement in place; if the proposal is simply gone, the pane closes.
+    func refreshActiveProposalPaneIfNeeded() {
+        guard case .proposal(let sourceConversationID)? = activePaneTarget else {
+            return
+        }
+        let target = ScheduledTaskPaneTarget.proposal(sourceConversationID: sourceConversationID)
+        guard var session = paneSessions[target] else {
+            return
+        }
+        guard let proposal = modelContext.resolveScheduledTaskProposal(sourceConversationID: sourceConversationID),
+              let definitionDraft = proposal.definitionDraft else {
+            // The pane's own submit already schedules its dismissal; do not race it.
+            guard !session.isSubmitting,
+                  !pendingPaneDismissals.contains(where: { $0.target == target }) else {
+                return
+            }
+            deactivatePane(target, generation: session.generation)
+            return
+        }
+        guard session.proposalID != proposal.id else {
+            return
+        }
+        session.draft = makeProposalDraft(
+            definitionDraft,
+            definitionID: proposal.targetDefinitionID,
+            expectedRevision: proposal.expectedDefinitionRevision
+        )
+        session.proposalID = proposal.id
+        session.errorMessage = nil
+        paneSessions[target] = session
     }
 
     func deactivatePane() {
@@ -265,7 +312,13 @@ final class ScheduledTasksViewModel {
         paneSessions[target] = session
 
         do {
-            try saveDefinition(session.draft)
+            // A proposal pane consumes its proposal in the same save as the definition
+            // mutation, which is also what stamps the transcript widget's outcome.
+            if case .proposal = target, let proposalID = session.proposalID {
+                try saveDefinition(session.draft, consumingProposalID: proposalID)
+            } else {
+                try saveDefinition(session.draft)
+            }
             guard paneSessions[target]?.generation == generation else {
                 return
             }

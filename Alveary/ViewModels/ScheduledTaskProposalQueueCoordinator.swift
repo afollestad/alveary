@@ -102,14 +102,12 @@ final class ScheduledTaskProposalQueueCoordinator {
         }
     }
 
+    /// Resolves any queued proposal by id, not only the FIFO head, because transcript
+    /// widgets act on the proposal their own conversation opened.
     @discardableResult
     func reject(proposalID: String) -> Bool {
         guard !isResolving else {
             return false
-        }
-        guard currentProposal?.id == proposalID else {
-            reload()
-            return finishRejectedProposalIfAbsent(proposalID)
         }
         isResolving = true
         defer { isResolving = false }
@@ -117,11 +115,20 @@ final class ScheduledTaskProposalQueueCoordinator {
         do {
             try flushPendingChanges()
             guard let proposal = try fetchProposal(id: proposalID) else {
+                // Already consumed or rejected elsewhere; the transcript marker, if any,
+                // was written by whichever path resolved it.
                 reload()
                 return true
             }
+            let outcomeTarget = ScheduledTaskProposalOutcomeTarget(proposal: proposal)
             modelContext.delete(proposal)
             try saveModelContext(modelContext)
+            ScheduledTaskProposalOutcomeRecorder.record(
+                outcomeTarget,
+                outcome: .rejected,
+                in: modelContext,
+                at: now()
+            )
             notificationCenter.postScheduledTaskProposalsChanged(object: self)
             errorMessage = nil
             reload()
@@ -143,7 +150,7 @@ final class ScheduledTaskProposalQueueCoordinator {
         }
         defer { isResolving = false }
 
-        guard let presentation = currentProposal,
+        guard let presentation = presentation(forProposalID: proposalID),
               presentation.conflictMessage == nil,
               presentation.isEditorProposal,
               draft.definitionID == presentation.targetDefinitionID,
@@ -182,6 +189,25 @@ final class ScheduledTaskProposalQueueCoordinator {
 
     func clearError() {
         errorMessage = nil
+    }
+
+    /// Live confirmation state for one queued proposal, addressed by id so a transcript
+    /// widget can render its own proposal regardless of queue position.
+    func presentation(forProposalID proposalID: String) -> ScheduledTaskProposalPresentation? {
+        guard let proposal = try? fetchProposal(id: proposalID) else {
+            return nil
+        }
+        return makePresentation(proposal)
+    }
+
+    /// The conversation's single live proposal. Providers that surface only a host tool's
+    /// text fallback give the transcript no proposal id, so its widget resolves by
+    /// conversation instead — safe because a conversation holds at most one proposal.
+    func presentation(forConversationID conversationID: String) -> ScheduledTaskProposalPresentation? {
+        guard let proposal = modelContext.resolveScheduledTaskProposal(sourceConversationID: conversationID) else {
+            return nil
+        }
+        return makePresentation(proposal)
     }
 }
 
@@ -231,7 +257,7 @@ private extension ScheduledTaskProposalQueueCoordinator {
         guard !isResolving else {
             return false
         }
-        guard currentProposal?.id == proposalID else {
+        guard (try? fetchProposal(id: proposalID)) ?? nil != nil else {
             reload()
             return false
         }
@@ -286,7 +312,7 @@ private extension ScheduledTaskProposalQueueCoordinator {
     }
 
     func applyActionProposal(proposalID: String) throws {
-        guard let presentation = currentProposal else {
+        guard let presentation = presentation(forProposalID: proposalID) else {
             throw ScheduledTaskMutationError.proposalNotFound
         }
         if let conflictMessage = presentation.conflictMessage {
@@ -371,18 +397,6 @@ private extension ScheduledTaskProposalQueueCoordinator {
             return
         }
         try saveModelContext(modelContext)
-    }
-
-    func finishRejectedProposalIfAbsent(_ proposalID: String) -> Bool {
-        do {
-            guard try fetchProposal(id: proposalID) == nil else {
-                return false
-            }
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
     }
 
     func fetchProposal(id: String) throws -> ScheduledTaskProposal? {

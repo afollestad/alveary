@@ -20,6 +20,9 @@ final class ConversationEventRecord {
     static let goalType = "goal"
     static let scheduledTaskNoteType = "scheduled_task_note"
     static let subAgentCompletedType = "sub_agent_completed"
+    /// Hidden marker carrying a host MCP widget's durable resolution. `toolName` holds the
+    /// host tool name, `toolId` the feature's correlation key, `content` the feature payload.
+    static let hostToolOutcomeType = "host_tool_outcome"
     static let taskListType = "task_list"
     static let steeredConversationType = "steered_conversation"
 
@@ -222,6 +225,7 @@ extension ConversationEventRecord {
         case Self.contextWindowInvalidatedType,
              Self.goalType,
              Self.subAgentCompletedType,
+             Self.hostToolOutcomeType,
              "session_init":
             return false
         default:

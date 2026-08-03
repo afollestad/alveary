@@ -36,6 +36,11 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
             subAgentRowsByID.values.forEach { $0.onOpenToolImage = onOpenToolImage }
         }
     }
+    var scheduledTaskListActions = ScheduledTaskListToolActions() {
+        didSet {
+            toolRowsByID.values.forEach { $0.scheduledTaskListActions = scheduledTaskListActions }
+        }
+    }
     var onChildExpansionChanged: ((String, Bool) -> Void)?
 
     private let connectorView = AppKitTranscriptElbowConnectorView()
@@ -151,6 +156,7 @@ final class AppKitTranscriptMixedActivityRowsView: NSView {
         row.onOpenMarkdownLink = onOpenMarkdownLink
         row.onOpenMarkdownImage = onOpenMarkdownImage
         row.onOpenToolImage = onOpenToolImage
+        row.scheduledTaskListActions = scheduledTaskListActions
         row.onExpansionChanged = expansionHandler(for: expansionID)
         row.configure(
             .init(

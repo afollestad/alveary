@@ -15,25 +15,14 @@ extension ChatItemGrouper {
             handleToolCall(event)
         case ConversationEventRecord.toolResultType:
             handleToolResult(event)
-        case ConversationEventRecord.subAgentCompletedType:
-            handleSubAgentCompletedMarker(event)
-        case ConversationEventRecord.taskListType:
-            handleTaskListSnapshot(event)
         case ConversationEventRecord.toolApprovalType:
             handleToolApproval(event)
         case ConversationEventRecord.errorType:
             handleError(event)
-        case ConversationEventRecord.stopType,
-             ConversationEventRecord.steeredConversationType,
-             ConversationEventRecord.scheduledTaskNoteType,
-             ConversationContextCompaction.startedType,
-             ConversationContextCompaction.completedType,
-             ConversationContextCompaction.failedType:
-            handleLifecycleNote(event)
         default:
             // Historical persisted `thinking` rows stay hidden. Provider-exposed live
             // thoughts render only through transient AppKit rows.
-            break
+            processSnapshotOrLifecycleEvent(event)
         }
     }
 
@@ -87,6 +76,9 @@ extension ChatItemGrouper {
         agentTaskToolIds = []
         hiddenAgentTaskToolSearchIds = []
         todoWriteToolIds = []
+        hostToolWidgetToolIds = []
+        hostToolWidgetInputsByToolId = [:]
+        pendingHostToolOutcomesByKey = [:]
         promptToolIds = []
         transcriptNoteToolKinds = [:]
         toolApprovalStatusesByToolId = [:]
@@ -127,6 +119,13 @@ extension ChatItemGrouper {
         }
         if todoWriteToolIds.contains(toolId) {
             pendingToolResultEventsByToolId.removeValue(forKey: toolId)
+            return
+        }
+        // Unlike prompt and task-list tools, a host widget's payload lives in its
+        // result, so the result is applied to the widget rather than swallowed.
+        if hostToolWidgetToolIds.contains(toolId) {
+            pendingToolResultEventsByToolId.removeValue(forKey: toolId)
+            handleHostToolWidgetResult(toolId: toolId, event: event)
             return
         }
         if let transcriptNoteKind = transcriptNoteToolKinds.removeValue(forKey: toolId) {
@@ -217,6 +216,9 @@ private extension ChatItemGrouper {
         case "Agent":
             handleAgentToolCall(event)
         default:
+            if handleHostToolWidgetCallIfNeeded(event) {
+                return
+            }
             if handleAgentTaskToolCallIfNeeded(event) {
                 return
             }

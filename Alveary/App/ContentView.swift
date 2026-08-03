@@ -207,6 +207,10 @@ struct ContentView: View {
         }
         .environment(terminalManager)
         .environment(appShotCoordinator)
+        // Scheduling proposals are confirmed inside transcript widgets, so the queue
+        // coordinator and its editor drafts have to reach the chat surface.
+        .environment(scheduledTaskProposalQueueCoordinator)
+        .environment(scheduledTasksViewModel)
         .task {
             appShotCoordinator.start(settingsService: settingsService)
         }

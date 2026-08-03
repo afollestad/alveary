@@ -22,8 +22,9 @@ enum ScheduledTaskHostToolCatalog {
             For a weekdays schedule, days must list every intended day of the week, including weekend days when \
             requested. Use propose_scheduled_task with action create to create a scheduled task. Call list_scheduled_tasks before edit, \
             pause, resume, delete, or run_now, then use propose_scheduled_task with that action. Never invent or search for a separate \
-            create_scheduled_task tool. A proposal only opens Alveary's native confirmation UI; describe it as an opened proposal and \
-            never claim the schedule changed before confirmation. Never use shell commands, crontab, launch agents, or workspace files \
+            create_scheduled_task tool. Pause, resume, and run_now take effect immediately. Create, edit, and delete only \
+            open Alveary's native confirmation UI; describe those as opened proposals and never claim the schedule changed before \
+            confirmation. Never use shell commands, crontab, launch agents, or workspace files \
             to discover or manage Alveary scheduled tasks. If these tools are unavailable, say so and direct the user to Alveary's \
             Scheduled screen instead of attempting a substitute.
             """
@@ -73,14 +74,16 @@ private extension ScheduledTaskHostToolCatalog {
         name: proposeToolName,
         title: "Propose a scheduled task change",
         description: """
-        Create, edit, pause, resume, delete, or run now an Alveary scheduled task by opening a native confirmation proposal after the user \
-        explicitly requests that action. Use action create for a new scheduled task; there is no separate create_scheduled_task tool. For \
-        create, provide title, prompt, and schedule. For edit, provide task_id, revision, and changes. For pause, resume, delete, or run_now, \
-        provide task_id and revision. For existing definitions, call list_scheduled_tasks first and pass its exact task_id and revision. Ask \
+        Create, edit, pause, resume, delete, or run now an Alveary scheduled task after the user explicitly requests that action. Pause, \
+        resume, and run_now apply immediately and report what changed. Create, edit, and delete open a native confirmation proposal instead \
+        and change nothing until the user confirms. Use action create for a new scheduled task; there is no separate create_scheduled_task \
+        tool. For create, provide title, prompt, and schedule. For edit, provide task_id, revision, and changes. For pause, resume, delete, \
+        or run_now, provide task_id and revision. For existing definitions, call list_scheduled_tasks first and pass its exact task_id and \
+        revision. Ask \
         for clarification instead of guessing materially ambiguous instructions, recurrence, or target. Edit changes may replace \
         title, prompt, or the complete schedule. Provider, model, permissions, workspace, Project, authorization, and folder grants are bound \
-        by Alveary and are intentionally not accepted. This tool never changes a canonical schedule by itself. After it returns, say that a \
-        proposal was opened for confirmation.
+        by Alveary and are intentionally not accepted. After it returns, report the `status` it gave back: `applied` means the \
+        change is already in effect, and `pending_confirmation` means a proposal was opened and nothing has changed yet.
         """,
         inputSchema: strictObject(
             properties: proposalProperties,
@@ -88,9 +91,10 @@ private extension ScheduledTaskHostToolCatalog {
         ),
         outputSchema: strictObject(
             properties: [
-                "status": enumSchema(["pending_confirmation", "error"]),
+                "status": enumSchema(["pending_confirmation", "applied", "error"]),
                 "proposal_id": stringSchema,
                 "action": enumSchema(ScheduledTaskProposalAction.allCases.map(\.rawValue)),
+                "title": stringSchema,
                 "message": stringSchema
             ],
             required: ["status", "message"]

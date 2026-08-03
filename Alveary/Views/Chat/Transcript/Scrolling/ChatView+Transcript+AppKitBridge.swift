@@ -112,6 +112,7 @@ extension ChatTranscriptView {
         }
         configureAppKitApprovalRows(&configuration)
         configureAppKitPullRequestLinkPrompts(&configuration)
+        configureAppKitScheduledProposals(&configuration)
         return configuration
     }
 
@@ -404,6 +405,7 @@ private extension ChatItem {
              .standaloneTool,
              .subAgentBlock,
              .taskListBlock,
+             .hostToolWidget,
              .promptBlock,
              .transcriptNote,
              .error:

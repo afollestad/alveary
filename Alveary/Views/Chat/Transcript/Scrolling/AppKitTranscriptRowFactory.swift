@@ -37,6 +37,22 @@ final class AppKitTranscriptRowFactory {
         var onOpenImageAttachment: (TranscriptImageAttachment) -> Void = { _ in }
         var onOpenFileAttachment: (LocalFileAttachment) -> Void = { _ in }
         var onOpenToolImage: (ToolEntry) -> Void = { _ in }
+        // Host-tool widgets confirm scheduling proposals inline, so the row needs live
+        // proposal state plus its editor draft from the queue coordinator.
+        var scheduledProposalPresentation: (String) -> ScheduledTaskProposalPresentation? = { _ in nil }
+        /// The conversation's own live proposal, for providers whose tool result carries
+        /// no proposal id (Codex emits the plain-text fallback, not structured content).
+        var conversationScheduledProposal: () -> ScheduledTaskProposalPresentation? = { nil }
+        var isScheduledProposalInteractive: (String) -> Bool = { _ in false }
+        var isResolvingScheduledProposal = false
+        var scheduledProposalErrorMessage: String?
+        var onConfirmScheduledProposal: (String) -> Void = { _ in }
+        var onReviewScheduledProposal: (String) -> Void = { _ in }
+        var onRejectScheduledProposal: (String) -> Void = { _ in }
+        var onOpenScheduledTask: (String?) -> Void = { _ in }
+        /// Alveary's current scheduled tasks plus their Edit action, rendered inside the
+        /// list tool's expanded detail.
+        var scheduledTaskListActions = ScheduledTaskListToolActions()
         var onRetryFailedUserMessage: (String) -> Void = { _ in }
         var onRowExpansionChanged: (String, Bool) -> Void = { _, _ in }
         var onApprove: (ToolApprovalRequest) -> Void = { _ in }
@@ -228,7 +244,7 @@ final class AppKitTranscriptRowFactory {
         return .init(id: id, view: view)
     }
 
-    private func textBubbleRow(
+    func textBubbleRow(
         id: String,
         role: AppKitTranscriptTextBubbleRowView.Role,
         markdown: String,
@@ -263,96 +279,6 @@ final class AppKitTranscriptRowFactory {
             )
         )
         return .init(id: id, view: view)
-    }
-
-    private func approvalRows(
-        id: String,
-        approvals: [ToolApprovalRequest],
-        persistedStatus: ToolApprovalStatus?,
-        configuration: Configuration
-    ) -> [AppKitTranscriptLayoutRow] {
-        guard let fallbackApproval = approvals.last else {
-            return []
-        }
-        let approval = actionableApproval(in: approvals, pendingToolApproval: configuration.pendingToolApproval) ?? fallbackApproval
-        var rows: [AppKitTranscriptLayoutRow] = []
-
-        if let planMarkdown = approvalPlanMarkdown(for: approvals, actionableApproval: approval) {
-            rows.append(
-                textBubbleRow(
-                    id: "\(id)-plan",
-                    role: .assistant,
-                    markdown: planMarkdown,
-                    configuration: configuration
-                )
-            )
-        }
-
-        guard !configuration.suppressesApprovalControls(approval) else {
-            return rows
-        }
-
-        let approvalRowID = "\(id)-approval"
-        let view = cachedView(for: approvalRowID, as: AppKitTranscriptToolApprovalBlockView.self)
-        view.onHeightInvalidated = heightInvalidationHandler(for: approvalRowID, configuration: configuration)
-        view.onApprove = { configuration.onApprove(approval) }
-        view.onApproveForSession = { scope in configuration.onApproveForSession(approval, scope) }
-        view.onDeny = { configuration.onDeny(approval) }
-        view.onSelectApprovalSelection = { selection in
-            configuration.onSelectApprovalSelection(approval, selection)
-        }
-        view.configure(
-            .init(
-                approval: approval,
-                approvals: approvals,
-                status: approvalStatus(for: approvals, persistedStatus: persistedStatus, pendingToolApproval: configuration.pendingToolApproval),
-                isBlocked: configuration.hasUnansweredPrompt,
-                selectedApprovalSelection: configuration.selectedApprovalSelection(approval),
-                bubbleMaxWidth: configuration.bubbleMaxWidth,
-                typography: configuration.typography
-            )
-        )
-        rows.append(.init(id: approvalRowID, view: view))
-        return rows
-    }
-
-    private func approvalStatus(
-        for approvals: [ToolApprovalRequest],
-        persistedStatus: ToolApprovalStatus?,
-        pendingToolApproval: PendingToolApproval?
-    ) -> ToolApprovalStatus? {
-        guard let pendingToolApproval,
-              approvals.contains(where: {
-                  pendingToolApproval.request.sessionId == $0.sessionId &&
-                      pendingToolApproval.request.toolUseId == $0.toolUseId
-              })
-        else {
-            return persistedStatus
-        }
-        return pendingToolApproval.status
-    }
-
-    func actionableApproval(
-        in approvals: [ToolApprovalRequest],
-        pendingToolApproval: PendingToolApproval?
-    ) -> ToolApprovalRequest? {
-        guard let pendingToolApproval else {
-            return nil
-        }
-        return approvals.first {
-            pendingToolApproval.request.sessionId == $0.sessionId &&
-                pendingToolApproval.request.toolUseId == $0.toolUseId
-        }
-    }
-
-    func approvalPlanMarkdown(
-        for approvals: [ToolApprovalRequest],
-        actionableApproval: ToolApprovalRequest
-    ) -> String? {
-        guard approvals.count == 1 else {
-            return nil
-        }
-        return approvals.first?.planMarkdown ?? actionableApproval.planMarkdown
     }
 
     func cachedView<View: NSView>(for rowID: String, as type: View.Type) -> View {
@@ -407,6 +333,8 @@ extension AppKitTranscriptRowFactory {
             return [subAgentRow(id: id, agents: agents, configuration: configuration)]
         case .taskListBlock(let id, let tasks):
             return [taskListRow(id: id, tasks: tasks, configuration: configuration)]
+        case .hostToolWidget(let id, let entry):
+            return [hostToolWidgetRow(id: id, entry: entry, configuration: configuration)]
         case .promptBlock(let id, let prompt):
             return [promptRow(id: id, prompt: prompt, configuration: configuration)]
         case .toolApproval(let id, let approval, let status):
@@ -466,6 +394,7 @@ private extension AppKitTranscriptToolGroupView {
         onOpenMarkdownLink = configuration.onOpenMarkdownLink
         onOpenMarkdownImage = configuration.onOpenMarkdownImage
         onOpenToolImage = configuration.onOpenToolImage
+        scheduledTaskListActions = configuration.scheduledTaskListActions
     }
 }
 
@@ -474,6 +403,7 @@ private extension AppKitTranscriptInlineToolRowView {
         onOpenMarkdownLink = configuration.onOpenMarkdownLink
         onOpenMarkdownImage = configuration.onOpenMarkdownImage
         onOpenToolImage = configuration.onOpenToolImage
+        scheduledTaskListActions = configuration.scheduledTaskListActions
     }
 }
 

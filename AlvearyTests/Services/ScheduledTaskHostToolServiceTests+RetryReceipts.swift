@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskHostToolServiceTests {
-    func testExactRetryReturnsSameProposalAndDifferentPendingRequestDoesNotReplaceIt() throws {
+    func testExactRetryReturnsSameProposalAndRevisedRequestSupersedesIt() throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let call = AgentCLIKit.AgentHostToolCall(
             name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -26,9 +26,24 @@ extension ScheduledTaskHostToolServiceTests {
         )
 
         XCTAssertEqual(try proposalID(first), try proposalID(retry))
-        XCTAssertEqual(try proposalID(first), try proposalID(different))
-        XCTAssertTrue(different.text.contains("No second proposal was opened"))
+        // A follow-up prompt revising the same task replaces the unconfirmed proposal.
+        XCTAssertNotEqual(try proposalID(first), try proposalID(different))
+        XCTAssertFalse(different.text.contains("No second proposal was opened"))
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 1)
+        XCTAssertNil(fixture.modelContext.resolveScheduledTaskProposal(id: try proposalID(first)))
+
+        let markers = try fixture.modelContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate { $0.type == "host_tool_outcome" }
+            )
+        )
+        XCTAssertEqual(markers.count, 1)
+        XCTAssertEqual(markers.first?.toolId, try proposalID(first))
+        let content = try XCTUnwrap(markers.first?.content)
+        XCTAssertEqual(HostToolWidgetOutcomeMarker.outcome(fromContent: content), .rejected)
+        // The superseded proposal's captured title rides along so a plain-text-fallback
+        // provider's widget can still name the task.
+        XCTAssertEqual(HostToolWidgetOutcomeMarker.title(fromContent: content), "Daily review")
     }
 
     func testExactRetryAfterProposalRejectionReturnsReceiptWithoutReopeningProposal() throws {
@@ -57,13 +72,10 @@ extension ScheduledTaskHostToolServiceTests {
     func testExactRetryAfterProposalRejectionSurvivesMacTimeZoneChange() throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let timeZone = ScheduledTaskHostToolRetryTimeZoneBox("UTC")
-        let service = ScheduledTaskHostToolService(
-            modelContext: fixture.modelContext,
-            notificationCenter: fixture.notificationCenter,
+        let service = fixture.makeService(
             requestParser: ScheduledTaskHostToolRequestParser(
                 defaultTimeZoneIdentifierProvider: { timeZone.identifier }
-            ),
-            now: { Date(timeIntervalSince1970: 1_000) }
+            )
         )
         let call = AgentCLIKit.AgentHostToolCall(
             name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -133,13 +145,10 @@ extension ScheduledTaskHostToolServiceTests {
     func testExactLegacyRetryAfterProposalConfirmationSurvivesMacTimeZoneChange() throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let timeZone = ScheduledTaskHostToolRetryTimeZoneBox("UTC")
-        let service = ScheduledTaskHostToolService(
-            modelContext: fixture.modelContext,
-            notificationCenter: fixture.notificationCenter,
+        let service = fixture.makeService(
             requestParser: ScheduledTaskHostToolRequestParser(
                 defaultTimeZoneIdentifierProvider: { timeZone.identifier }
-            ),
-            now: { Date(timeIntervalSince1970: 1_000) }
+            )
         )
         let call = AgentCLIKit.AgentHostToolCall(
             name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -214,6 +223,7 @@ extension ScheduledTaskHostToolServiceTests {
             let modelContext = container.mainContext
             let service = ScheduledTaskHostToolService(
                 modelContext: modelContext,
+                mutationService: ScheduledTaskMutationService(modelContext: modelContext),
                 requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC"),
                 now: { Date(timeIntervalSince1970: 1_001) }
             )
@@ -245,6 +255,7 @@ extension ScheduledTaskHostToolServiceTests {
             try modelContext.save()
             let service = ScheduledTaskHostToolService(
                 modelContext: modelContext,
+                mutationService: ScheduledTaskMutationService(modelContext: modelContext),
                 requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC"),
                 now: { Date(timeIntervalSince1970: 1_000) }
             )

@@ -1,6 +1,28 @@
 import Foundation
 
 extension ChatItemGrouper {
+    /// Lower-frequency snapshot, marker, and lifecycle rows, split out of `process(_:)`
+    /// so the hot dispatch stays inside the repo's complexity budget.
+    func processSnapshotOrLifecycleEvent(_ event: ConversationEventRecord) {
+        switch event.type {
+        case ConversationEventRecord.subAgentCompletedType:
+            handleSubAgentCompletedMarker(event)
+        case ConversationEventRecord.hostToolOutcomeType:
+            handleHostToolOutcomeMarker(event)
+        case ConversationEventRecord.taskListType:
+            handleTaskListSnapshot(event)
+        case ConversationEventRecord.stopType,
+             ConversationEventRecord.steeredConversationType,
+             ConversationEventRecord.scheduledTaskNoteType,
+             ConversationContextCompaction.startedType,
+             ConversationContextCompaction.completedType,
+             ConversationContextCompaction.failedType:
+            handleLifecycleNote(event)
+        default:
+            break
+        }
+    }
+
     func handleTranscriptNoteToolCall(_ event: ConversationEventRecord) {
         guard let toolName = event.toolName,
               let noteKind = transcriptNoteKind(forToolNamed: toolName) else {

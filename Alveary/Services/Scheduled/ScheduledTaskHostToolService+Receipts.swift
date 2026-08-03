@@ -6,6 +6,9 @@ extension ScheduledTaskHostToolService {
     func pendingResult(
         receipt: ScheduledTaskProposalReceipt
     ) -> AgentCLIKit.AgentHostToolResult {
+        guard receipt.outcomeStatus != ScheduledTaskHostToolService.appliedStatus else {
+            return appliedResult(receipt: receipt)
+        }
         var structuredContent: [String: AgentCLIKit.JSONValue] = [
             "status": .string("pending_confirmation"),
             "proposal_id": .string(receipt.proposalID),
@@ -13,6 +16,29 @@ extension ScheduledTaskHostToolService {
         ]
         if let action = receipt.action {
             structuredContent["action"] = .string(action.rawValue)
+        }
+        if let title = receipt.title {
+            structuredContent["title"] = .string(title)
+        }
+        return AgentCLIKit.AgentHostToolResult(
+            text: receipt.message,
+            structuredContent: .object(structuredContent)
+        )
+    }
+
+    /// Result for an action that ran without confirmation.
+    func appliedResult(
+        receipt: ScheduledTaskProposalReceipt
+    ) -> AgentCLIKit.AgentHostToolResult {
+        var structuredContent: [String: AgentCLIKit.JSONValue] = [
+            "status": .string(ScheduledTaskHostToolService.appliedStatus),
+            "message": .string(receipt.message)
+        ]
+        if let action = receipt.action {
+            structuredContent["action"] = .string(action.rawValue)
+        }
+        if let title = receipt.title {
+            structuredContent["title"] = .string(title)
         }
         return AgentCLIKit.AgentHostToolResult(
             text: receipt.message,
@@ -31,6 +57,7 @@ extension ScheduledTaskHostToolService {
             deduplicationKey: deduplicationKey,
             proposalID: proposal.id,
             action: proposal.action,
+            title: proposal.targetTitleSnapshot ?? proposal.definitionDraft?.title,
             message: message,
             sourceProcessToken: sourceProcessToken.uuidString.lowercased(),
             createdAt: createdAt
@@ -56,6 +83,9 @@ extension ScheduledTaskHostToolService {
     ) throws {
         do {
             modelContext.insert(proposal)
+            // The proposal is confirmed in that conversation's transcript widget, so the
+            // unread badge is what leads the user back to it from elsewhere in the app.
+            sourceConversation.isUnread = true
             try sourceConversation.recordScheduledTaskProposalReceipt(receipt)
             try modelContext.save()
         } catch {

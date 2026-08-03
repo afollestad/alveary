@@ -49,17 +49,17 @@ struct ScheduledTaskMenuPicker<Value: Hashable>: View {
                     .truncationMode(.tail)
 
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: AppInputStyle.menuChevronPointSize, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, AppInputStyle.menuHorizontalPadding)
             .frame(
                 minHeight: SettingsScreenLayout.settingsControlSurfaceHeight,
                 maxHeight: SettingsScreenLayout.settingsControlSurfaceHeight
             )
             .background(
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .fill(Color.secondary.opacity(0.14))
+                RoundedRectangle(cornerRadius: AppInputStyle.defaultCornerRadius, style: .continuous)
+                    .fill(AppInputStyle.menuBackgroundColor)
             )
             .contentShape(Rectangle())
         }

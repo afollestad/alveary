@@ -5,7 +5,16 @@ import NeedleFoundation
 extension AppComponent {
     var scheduledTaskHostToolService: ScheduledTaskHostToolService {
         return shared {
-            ScheduledTaskHostToolService(modelContext: modelContainer.mainContext)
+            ScheduledTaskHostToolService(
+                modelContext: modelContainer.mainContext,
+                mutationService: scheduledTaskMutationService,
+                runNow: { [weak self] request in
+                    guard let self, scheduledTaskLifecycleCoordinator.canStartManualRuns else {
+                        return false
+                    }
+                    return scheduledTaskSchedulerCoordinator.startRunNow(request)
+                }
+            )
         }
     }
 

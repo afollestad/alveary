@@ -48,7 +48,7 @@ struct SettingsMenuPicker<Value: Hashable>: View {
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 13, weight: .semibold))
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, AppInputStyle.menuHorizontalPadding)
             .frame(
                 minWidth: SettingsScreenLayout.settingsPickerWidth,
                 maxWidth: .infinity,
@@ -57,8 +57,8 @@ struct SettingsMenuPicker<Value: Hashable>: View {
                 alignment: .leading
             )
             .background(
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .fill(Color.secondary.opacity(0.14))
+                RoundedRectangle(cornerRadius: AppInputStyle.defaultCornerRadius, style: .continuous)
+                    .fill(AppInputStyle.menuBackgroundColor)
             )
         }
         .buttonStyle(.plain)

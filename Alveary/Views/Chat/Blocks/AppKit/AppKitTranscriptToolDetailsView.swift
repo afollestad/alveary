@@ -35,6 +35,7 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
             applyToolImageHandler()
         }
     }
+    var scheduledTaskListActions = ScheduledTaskListToolActions()
 
     private var configuration: Configuration?
     private var contentViews: [NSView] = []
@@ -98,6 +99,9 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
     }
 
     private func primaryViews(for tool: ToolEntry, typography: TranscriptTypography) -> [NSView] {
+        if ScheduledTaskListToolPresentation.isListTool(named: tool.name) {
+            return [scheduledTaskListView(typography: typography)]
+        }
         if let fileChange = CodexFileChangePresentation.extract(from: tool) {
             return fileChangeViews(for: fileChange, tool: tool, typography: typography)
         }
@@ -204,6 +208,13 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
             )
         )
         return [block]
+    }
+
+    private func scheduledTaskListView(typography: TranscriptTypography) -> NSView {
+        let view = AppKitScheduledTaskListDetailView()
+        view.onEditScheduledTask = scheduledTaskListActions.onEdit
+        view.configure(rows: scheduledTaskListActions.rows(), typography: typography)
+        return view
     }
 
     private func messageLabel(_ text: String, typography: TranscriptTypography) -> NSTextField {

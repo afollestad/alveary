@@ -91,7 +91,22 @@ final class ScheduledTaskProposalQueueTests: XCTestCase {
         XCTAssertEqual(definitions.first?.prompt, definitionDraft.prompt)
         XCTAssertEqual(definitions.first?.recurrence, definitionDraft.recurrence)
         XCTAssertEqual(try verificationContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
-        XCTAssertEqual(saveRecorder.saveCount, 1)
+        // One save consumes the proposal with the definition; the transcript outcome
+        // marker follows in its own save so a rollback cannot trap inside SwiftData.
+        XCTAssertEqual(saveRecorder.saveCount, 2)
+        let markers = try verificationContext.fetch(
+            FetchDescriptor<ConversationEventRecord>(
+                predicate: #Predicate { $0.type == "host_tool_outcome" }
+            )
+        )
+        // The marker names the definition it produced so the transcript widget can open it.
+        let markerContent = try XCTUnwrap(markers.first?.content)
+        XCTAssertEqual(HostToolWidgetOutcomeMarker.outcome(fromContent: markerContent), .confirmed)
+        XCTAssertEqual(
+            HostToolWidgetOutcomeMarker.definitionID(fromContent: markerContent),
+            definitions.first?.id
+        )
+        XCTAssertEqual(markers.first?.toolId, proposal.id)
         XCTAssertNil(coordinator.currentProposal)
     }
 
@@ -228,9 +243,12 @@ final class ScheduledTaskProposalQueueFixture {
         action: ScheduledTaskProposalAction,
         createdAt: Date? = nil,
         enqueueOrdinal: Int64? = nil,
-        definitionDraft: ScheduledTaskProposalDefinitionDraft? = nil
+        definitionDraft: ScheduledTaskProposalDefinitionDraft? = nil,
+        sourceConversationID: String? = nil
     ) throws -> ScheduledTaskProposal {
-        let conversation = Conversation(id: "conversation-\(id)", provider: "codex")
+        let conversation = sourceConversationID
+            .flatMap { context.resolveConversation(conversationID: $0) }
+            ?? Conversation(id: sourceConversationID ?? "conversation-\(id)", provider: "codex")
         let proposal = ScheduledTaskProposal(
             id: "proposal-\(id)",
             deduplicationKey: "deduplication-\(id)",

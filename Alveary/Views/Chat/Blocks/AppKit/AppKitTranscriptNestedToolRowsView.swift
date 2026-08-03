@@ -30,6 +30,11 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
             rowViews.forEach { $0.onOpenToolImage = onOpenToolImage }
         }
     }
+    var scheduledTaskListActions = ScheduledTaskListToolActions() {
+        didSet {
+            rowViews.forEach { $0.scheduledTaskListActions = scheduledTaskListActions }
+        }
+    }
 
     private let connectorView = AppKitTranscriptElbowConnectorView()
     private var rowViews: [AppKitTranscriptInlineToolRowView] = []
@@ -80,6 +85,7 @@ final class AppKitTranscriptNestedToolRowsView: NSView {
             row.onOpenMarkdownLink = onOpenMarkdownLink
             row.onOpenMarkdownImage = onOpenMarkdownImage
             row.onOpenToolImage = onOpenToolImage
+            row.scheduledTaskListActions = scheduledTaskListActions
             row.configure(.init(tool: tool, showsLeadingIcon: false, typography: configuration.typography))
             if row.superview == nil {
                 addSubview(row)

@@ -53,6 +53,12 @@ final class AppKitTranscriptToolGroupView: NSView {
             nestedRowsView.onOpenToolImage = onOpenToolImage
         }
     }
+    var scheduledTaskListActions = ScheduledTaskListToolActions() {
+        didSet {
+            nestedRowsView.scheduledTaskListActions = scheduledTaskListActions
+            singleToolRow.scheduledTaskListActions = scheduledTaskListActions
+        }
+    }
 
     private let clipView = AppKitTranscriptExpandableClipView()
     private let headerView = AppKitTranscriptToolHeaderRowView()
@@ -192,6 +198,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         singleToolRow.onOpenMarkdownLink = onOpenMarkdownLink
         singleToolRow.onOpenMarkdownImage = onOpenMarkdownImage
         singleToolRow.onOpenToolImage = onOpenToolImage
+        singleToolRow.scheduledTaskListActions = scheduledTaskListActions
         singleToolRow.onUserInitiatedHeightChange = onUserInitiatedHeightChange
     }
 
@@ -199,6 +206,7 @@ final class AppKitTranscriptToolGroupView: NSView {
         nestedRowsView.onOpenMarkdownLink = onOpenMarkdownLink
         nestedRowsView.onOpenMarkdownImage = onOpenMarkdownImage
         nestedRowsView.onOpenToolImage = onOpenToolImage
+        nestedRowsView.scheduledTaskListActions = scheduledTaskListActions
         nestedRowsView.onUserInitiatedHeightChange = onUserInitiatedHeightChange
     }
 

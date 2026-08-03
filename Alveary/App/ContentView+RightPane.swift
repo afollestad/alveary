@@ -39,10 +39,20 @@ enum RightPaneDestination: Hashable {
         case .pullRequests:
             contextualDestination = targets.pullRequest.map(RightPaneDestination.pullRequest)
         case .thread, .project:
-            // A thread's or project's linked pull requests open in the same
-            // lane. Origin scoping happens where `targets` is built, so this
-            // branch stays a pure function of its inputs.
-            contextualDestination = targets.pullRequest.map(RightPaneDestination.pullRequest)
+            // A thread's linked pull requests and its scheduling-proposal review open in
+            // the same lane. Origin scoping happens where `targets` is built, so this
+            // branch stays a pure function of its inputs. Review wins: the user just
+            // asked for it, and a pull-request pane can be reopened from the footer.
+            contextualDestination = targets.scheduled
+                .flatMap { target in
+                    // A transcript can open a proposal review or an existing task's
+                    // editor; creating one is a Scheduled-screen action.
+                    guard target != .create else {
+                        return nil
+                    }
+                    return RightPaneDestination.scheduled(target)
+                }
+                ?? targets.pullRequest.map(RightPaneDestination.pullRequest)
         default:
             contextualDestination = nil
         }
@@ -106,11 +116,29 @@ extension ContentView {
             targets: RightPaneContextualTargets(
                 skills: skillsViewModel.activePaneTarget,
                 mcp: mcpViewModel.activePaneTarget,
-                scheduled: scheduledTasksViewModel.activePaneTarget,
+                scheduled: scopedScheduledPaneTarget,
                 pullRequest: scopedPullRequestPaneTarget
             ),
             isDiffViewerRequested: appState.isDiffViewerRequested
         )
+    }
+
+    /// The scheduled-task editor pane, scoped so a proposal review opened from one
+    /// transcript cannot follow the user onto another thread. The Scheduled screen
+    /// keeps its own unscoped target.
+    private var scopedScheduledPaneTarget: ScheduledTaskPaneTarget? {
+        switch appState.selectedSidebarItem {
+        case .scheduled:
+            // A transcript-opened pane belongs to its thread, not this screen.
+            guard scheduledTasksViewModel.proposalPaneOriginThreadID == nil else {
+                return nil
+            }
+            return scheduledTasksViewModel.activePaneTarget
+        case .thread(let thread):
+            return scheduledTasksViewModel.activeTranscriptPaneTarget(forThreadID: thread.persistentModelID)
+        default:
+            return nil
+        }
     }
 
     /// The active pull-request pane target, filtered to the surface that opened

@@ -7,6 +7,8 @@ extension ScheduledTaskPaneTarget {
             "scheduled-new"
         case .edit(let definitionID):
             "scheduled-edit-\(definitionID)"
+        case .proposal(let sourceConversationID):
+            "scheduled-proposal-\(sourceConversationID)"
         }
     }
 }

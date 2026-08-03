@@ -234,6 +234,7 @@ final class AppKitTranscriptScrollBridgeCoordinator {
     }
 }
 
+@MainActor
 private struct AppKitTranscriptPreparedUpdate {
     let items: [ChatItem]
     let transientRows: AppKitTranscriptTransientRows
@@ -258,8 +259,38 @@ private struct AppKitTranscriptPreparedUpdate {
             actionContextID: rowConfiguration.actionContextID,
             approvalSelections: approvalSelections,
             pullRequestLinkPromptsByMessageID: rowConfiguration.pullRequestLinkPromptsByMessageID,
-            pullRequestPromptSelections: pullRequestPromptSelections
+            pullRequestPromptSelections: pullRequestPromptSelections,
+            scheduledProposalStates: scheduledProposalStates,
+            conversationScheduledProposal: rowConfiguration.conversationScheduledProposal(),
+            scheduledTaskRows: rowConfiguration.scheduledTaskListActions.rows(),
+            isResolvingScheduledProposal: rowConfiguration.isResolvingScheduledProposal,
+            scheduledProposalErrorMessage: rowConfiguration.scheduledProposalErrorMessage
         )
+    }
+
+    /// Host-tool widgets resolve live proposal state through closures, so the signature
+    /// has to carry what those closures currently return for the rendered items.
+    private var scheduledProposalStates: [String: ScheduledProposalState] {
+        Dictionary(
+            items.compactMap { item -> (String, ScheduledProposalState)? in
+                guard let proposalID = item.hostToolWidgetEntry?.scheduledProposalID else {
+                    return nil
+                }
+                return (
+                    proposalID,
+                    ScheduledProposalState(
+                        presentation: rowConfiguration.scheduledProposalPresentation(proposalID),
+                        isInteractive: rowConfiguration.isScheduledProposalInteractive(proposalID)
+                    )
+                )
+            },
+            uniquingKeysWith: { _, latest in latest }
+        )
+    }
+
+    struct ScheduledProposalState: Equatable {
+        let presentation: ScheduledTaskProposalPresentation?
+        let isInteractive: Bool
     }
 
     private var pullRequestPromptSelections: [String: PullRequestLinkPromptSelection] {
@@ -284,6 +315,7 @@ private struct AppKitTranscriptPreparedUpdate {
                  .standaloneTool,
                  .subAgentBlock,
                  .taskListBlock,
+                 .hostToolWidget,
                  .promptBlock,
                  .transcriptNote,
                  .error:
@@ -308,5 +340,10 @@ private struct AppKitTranscriptPreparedUpdate {
         let approvalSelections: [String: ToolApprovalSelection]
         let pullRequestLinkPromptsByMessageID: [String: [PendingPullRequestPrompt]]
         let pullRequestPromptSelections: [String: PullRequestLinkPromptSelection]
+        let scheduledProposalStates: [String: ScheduledProposalState]
+        let conversationScheduledProposal: ScheduledTaskProposalPresentation?
+        let scheduledTaskRows: [ScheduledTaskListRow]
+        let isResolvingScheduledProposal: Bool
+        let scheduledProposalErrorMessage: String?
     }
 }

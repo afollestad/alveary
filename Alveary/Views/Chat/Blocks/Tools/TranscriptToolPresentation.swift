@@ -13,6 +13,7 @@ enum TranscriptToolLeadingIconKind: Equatable {
     case write
     case skill
     case checklist
+    case schedule
     case question
     case subAgent
     case toolGroup
@@ -69,6 +70,8 @@ extension ToolEntry {
             return .skill
         case "TodoWrite":
             return .checklist
+        case let name where ScheduledTaskListToolPresentation.isSchedulingTool(named: name):
+            return .schedule
         default:
             return .genericTool
         }

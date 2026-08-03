@@ -60,6 +60,7 @@ final class ScheduledTaskMutationService {
         definition.grantedRoots = edit.grantedRoots
         let consumesProposal = proposal != nil
 
+        let outcomeTarget = proposal.map(ScheduledTaskProposalOutcomeTarget.init(proposal:))
         do {
             modelContext.insert(definition)
             if let proposal {
@@ -70,6 +71,7 @@ final class ScheduledTaskMutationService {
             modelContext.rollback()
             throw error
         }
+        recordConfirmedOutcome(outcomeTarget, definitionID: definition.id, at: actionDate)
         publishChange(definitionID: definition.id)
         publishProposalConsumption(if: consumesProposal)
         return definition
@@ -224,6 +226,7 @@ final class ScheduledTaskMutationService {
         try validateRevision(definition, expectedRevision: expectedRevision)
         let proposal = try proposalToConsume(id: consumingProposalID)
         let consumesProposal = proposal != nil
+        let outcomeTarget = proposal.map(ScheduledTaskProposalOutcomeTarget.init(proposal:))
         do {
             modelContext.delete(definition)
             if let proposal {
@@ -234,6 +237,8 @@ final class ScheduledTaskMutationService {
             modelContext.rollback()
             throw error
         }
+        // A deleted definition cannot be opened, so the marker records no target.
+        recordConfirmedOutcome(outcomeTarget, definitionID: nil)
         publishChange(definitionID: definitionID)
         publishProposalConsumption(if: consumesProposal)
     }
@@ -287,6 +292,7 @@ final class ScheduledTaskMutationService {
         guard let proposal = modelContext.resolveScheduledTaskProposal(id: id) else {
             throw ScheduledTaskMutationError.proposalNotFound
         }
+        let outcomeTarget = ScheduledTaskProposalOutcomeTarget(proposal: proposal)
         do {
             modelContext.delete(proposal)
             try modelContext.save()
@@ -294,6 +300,7 @@ final class ScheduledTaskMutationService {
             modelContext.rollback()
             throw error
         }
+        recordConfirmedOutcome(outcomeTarget, definitionID: proposal.targetDefinitionID)
         notificationCenter.postScheduledTaskProposalsChanged(object: self)
     }
 }
@@ -328,6 +335,7 @@ private extension ScheduledTaskMutationService {
         try validateRevision(definition, expectedRevision: expectedRevision)
         let proposal = try proposalToConsume(id: consumingProposalID)
         let consumesProposal = proposal != nil
+        let outcomeTarget = proposal.map(ScheduledTaskProposalOutcomeTarget.init(proposal:))
         do {
             let didChange = try mutation(definition)
             if let proposal {
@@ -337,12 +345,31 @@ private extension ScheduledTaskMutationService {
                 return false
             }
             try modelContext.save()
+            recordConfirmedOutcome(outcomeTarget, definitionID: definitionID)
             publishProposalConsumption(if: consumesProposal)
             return didChange
         } catch {
             modelContext.rollback()
             throw error
         }
+    }
+
+    /// Stamps the durable transcript outcome right after the proposal is consumed.
+    func recordConfirmedOutcome(
+        _ target: ScheduledTaskProposalOutcomeTarget?,
+        definitionID: String?,
+        at timestamp: Date = .now
+    ) {
+        guard let target else {
+            return
+        }
+        ScheduledTaskProposalOutcomeRecorder.record(
+            target,
+            outcome: .confirmed,
+            definitionID: definitionID,
+            in: modelContext,
+            at: timestamp
+        )
     }
 
     func validate(

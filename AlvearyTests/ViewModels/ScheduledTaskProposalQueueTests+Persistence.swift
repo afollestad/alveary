@@ -133,7 +133,7 @@ extension ScheduledTaskProposalQueueTests {
         XCTAssertFalse(fixture.context.hasChanges)
     }
 
-    func testRejectDoesNotTreatANoncurrentQueuedProposalAsDismissed() throws {
+    func testRejectResolvesANoncurrentQueuedProposal() throws {
         let fixture = try ScheduledTaskProposalQueueFixture()
         let first = try fixture.insertProposal(
             id: "current",
@@ -155,8 +155,10 @@ extension ScheduledTaskProposalQueueTests {
         let expectedError = try XCTUnwrap(viewModel.editorErrorMessage)
 
         XCTAssertEqual(coordinator.currentProposal?.id, first.id)
-        XCTAssertFalse(coordinator.reject(proposalID: queued.id))
-        XCTAssertNotNil(fixture.context.resolveScheduledTaskProposal(id: queued.id))
+        // Transcript widgets act on their own conversation's proposal, not the queue head.
+        XCTAssertTrue(coordinator.reject(proposalID: queued.id))
+        XCTAssertNil(fixture.context.resolveScheduledTaskProposal(id: queued.id))
+        XCTAssertNotNil(fixture.context.resolveScheduledTaskProposal(id: first.id))
         XCTAssertEqual(viewModel.editorErrorMessage, expectedError)
     }
 
@@ -234,6 +236,7 @@ private final class ScheduledTaskProposalCrossContextFixture {
         )
         hostService = ScheduledTaskHostToolService(
             modelContext: resolvedMainContext,
+            mutationService: mutationService,
             notificationCenter: notificationCenter,
             requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "Etc/UTC"),
             currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current },

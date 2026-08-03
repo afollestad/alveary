@@ -184,6 +184,9 @@ final class ScheduledTaskHostToolFixture {
     let modelContext: ModelContext
     let notificationCenter: NotificationCenter
     let service: ScheduledTaskHostToolService
+    /// Run-now requests the fixture's scheduler accepted, so tests can assert a retry
+    /// did not launch a second run.
+    let startedRunNowRequests = ScheduledTaskRunNowRequestRecorder()
     let conversation: Conversation
     let thread: AgentThread
     let project: Project?
@@ -252,12 +255,51 @@ final class ScheduledTaskHostToolFixture {
             context.insert(sourceThread)
         }
         try context.save()
-        service = ScheduledTaskHostToolService(
+        let recorder = startedRunNowRequests
+        service = Self.makeService(
             modelContext: context,
             notificationCenter: notificationCenter,
             requestParser: ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "Etc/UTC"),
+            runNow: { request in
+                recorder.record(request)
+                return true
+            }
+        )
+    }
+
+    /// Builds the service with the scheduling collaborators the immediate-action path
+    /// needs, so individual tests only override what they care about.
+    static func makeService(
+        modelContext: ModelContext,
+        notificationCenter: NotificationCenter,
+        requestParser: ScheduledTaskHostToolRequestParser,
+        runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in true },
+        now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) }
+    ) -> ScheduledTaskHostToolService {
+        ScheduledTaskHostToolService(
+            modelContext: modelContext,
+            mutationService: ScheduledTaskMutationService(
+                modelContext: modelContext,
+                notificationCenter: notificationCenter,
+                currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current }
+            ),
+            notificationCenter: notificationCenter,
+            requestParser: requestParser,
             currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current },
-            now: { Date(timeIntervalSince1970: 1_000) }
+            runNow: runNow,
+            now: now
+        )
+    }
+
+    func makeService(
+        requestParser: ScheduledTaskHostToolRequestParser,
+        now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) }
+    ) -> ScheduledTaskHostToolService {
+        Self.makeService(
+            modelContext: modelContext,
+            notificationCenter: notificationCenter,
+            requestParser: requestParser,
+            now: now
         )
     }
 
@@ -312,4 +354,15 @@ private final class ScheduledTaskProposalNotificationBox: @unchecked Sendable {
 
 private enum ScheduledTaskHostToolTestError: Error {
     case unexpectedJSON
+}
+
+@MainActor
+final class ScheduledTaskRunNowRequestRecorder {
+    private(set) var requests: [ScheduledTaskRunNowRequest] = []
+
+    var count: Int { requests.count }
+
+    func record(_ request: ScheduledTaskRunNowRequest) {
+        requests.append(request)
+    }
 }

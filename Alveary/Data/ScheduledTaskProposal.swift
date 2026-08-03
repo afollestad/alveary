@@ -45,6 +45,20 @@ enum ScheduledTaskProposalRequest: Equatable, Sendable {
             .runNow
         }
     }
+
+    /// Existing definition the request targets; `nil` for create.
+    var targetDefinitionID: String? {
+        switch self {
+        case .create:
+            nil
+        case let .edit(definitionID, _, _),
+             let .pause(definitionID, _),
+             let .resume(definitionID, _),
+             let .delete(definitionID, _),
+             let .runNow(definitionID, _):
+            definitionID
+        }
+    }
 }
 
 struct ScheduledTaskParsedProposalRequest: Equatable, Sendable {
@@ -57,6 +71,12 @@ struct ScheduledTaskProposalReceipt: Codable, Equatable, Sendable {
     let deduplicationKey: String
     let proposalID: String
     let action: ScheduledTaskProposalAction?
+    /// Target task name, echoed into the tool result so the transcript widget can name
+    /// the task durably after the proposal row is consumed. Optional for older receipts.
+    var title: String?
+    /// `"applied"` when the action ran without confirmation; `nil` means the legacy
+    /// pending-confirmation receipt.
+    var outcomeStatus: String?
     let message: String
     let sourceProcessToken: String
     let createdAt: Date

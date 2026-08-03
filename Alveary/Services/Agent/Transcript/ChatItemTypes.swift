@@ -7,6 +7,7 @@ enum ChatItem: Identifiable, Equatable {
     case standaloneTool(id: String, tool: ToolEntry)
     case subAgentBlock(id: String, agents: [SubAgentEntry])
     case taskListBlock(id: String, tasks: [TaskEntry])
+    case hostToolWidget(id: String, entry: HostToolWidgetEntry)
     case promptBlock(id: String, prompt: PromptEntry)
     case toolApproval(id: String, approval: ToolApprovalRequest, status: ToolApprovalStatus?)
     case toolApprovalBatch(id: String, approvals: [ToolApprovalRequest], status: ToolApprovalStatus?)
@@ -17,8 +18,8 @@ enum ChatItem: Identifiable, Equatable {
         switch self {
         case .userMessage(let id, _), .assistantMessage(let id, _), .toolGroup(let id, _),
              .standaloneTool(let id, _), .subAgentBlock(let id, _), .taskListBlock(let id, _),
-             .promptBlock(let id, _), .toolApproval(let id, _, _), .toolApprovalBatch(let id, _, _),
-             .transcriptNote(let id, _), .error(let id, _):
+             .hostToolWidget(let id, _), .promptBlock(let id, _), .toolApproval(let id, _, _),
+             .toolApprovalBatch(let id, _, _), .transcriptNote(let id, _), .error(let id, _):
             id
         }
     }
@@ -70,6 +71,8 @@ extension [ChatItem] {
                 return .standaloneTool(id: id, tool: tool.terminalizingAsInterruptedIfNeeded)
             case .taskListBlock(let id, let tasks):
                 return .taskListBlock(id: id, tasks: tasks.map(\.terminalizingAsInterruptedIfNeeded))
+            case .hostToolWidget(let id, let entry):
+                return .hostToolWidget(id: id, entry: entry.terminalizingAsInterruptedIfNeeded)
             default:
                 return item
             }

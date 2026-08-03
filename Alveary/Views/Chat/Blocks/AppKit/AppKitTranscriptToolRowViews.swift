@@ -53,6 +53,9 @@ final class AppKitTranscriptInlineToolRowView: NSView {
             detailsView.onOpenToolImage = onOpenToolImage
         }
     }
+    var scheduledTaskListActions = ScheduledTaskListToolActions() {
+        didSet { detailsView.scheduledTaskListActions = scheduledTaskListActions }
+    }
 
     private let clipView = AppKitTranscriptExpandableClipView()
     private let headerView = AppKitTranscriptToolHeaderRowView()
@@ -162,6 +165,7 @@ final class AppKitTranscriptInlineToolRowView: NSView {
         detailsView.onOpenMarkdownLink = onOpenMarkdownLink
         detailsView.onOpenMarkdownImage = onOpenMarkdownImage
         detailsView.onOpenToolImage = onOpenToolImage
+        detailsView.scheduledTaskListActions = scheduledTaskListActions
         addSubview(clipView)
         clipView.addSubview(headerView)
     }

@@ -18,6 +18,14 @@ extension ScheduledTasksViewModel {
             }
         }
 
+        let proposalNotifications = notificationCenter.notifications(named: .scheduledTaskProposalsChanged)
+        proposalObservationTask = Task { @MainActor [weak self] in
+            for await _ in proposalNotifications {
+                guard !Task.isCancelled else { return }
+                self?.refreshActiveProposalPaneIfNeeded()
+            }
+        }
+
         let threadNotifications = notificationCenter.notifications(named: .threadPresentationChanged)
         threadObservationTask = Task { @MainActor [weak self] in
             for await _ in threadNotifications {

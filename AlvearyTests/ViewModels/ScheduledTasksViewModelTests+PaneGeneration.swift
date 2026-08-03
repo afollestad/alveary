@@ -28,12 +28,44 @@ extension ScheduledTasksViewModelTests {
         let fixture = try ScheduledTasksViewModelFixture()
         fixture.viewModel.requestCreate(focusRestorationID: "scheduled-new-empty")
 
-        fixture.viewModel.requestEdit(definitionID: "missing")
+        XCTAssertFalse(fixture.viewModel.requestEdit(definitionID: "missing"))
 
         XCTAssertEqual(fixture.viewModel.activePaneTarget, .create)
         XCTAssertNotNil(fixture.viewModel.paneSessions[.create])
         XCTAssertNil(fixture.viewModel.paneSessions[.edit("missing")])
         XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-new-empty")
+    }
+
+    /// A transcript card names its task forever, so the task can be deleted long after the
+    /// card rendered; the entry point has to say so instead of quietly opening nothing.
+    func testEditRequestForADeletedDefinitionFailsAndRetiresItsCachedSession() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        try fixture.insertDefinition(id: "deleted-edit", title: "Nightly audit", revision: 2)
+        XCTAssertTrue(
+            fixture.viewModel.requestEditFromTranscript(definitionID: "deleted-edit", originThreadID: nil)
+        )
+        let generation = try XCTUnwrap(fixture.viewModel.paneSessions[.edit("deleted-edit")]?.generation)
+
+        // A confirmed delete proposal removes the definition without going through the
+        // screen's own delete, so the cached session outlives it.
+        let definition = try XCTUnwrap(fixture.context.resolveScheduledTask(id: "deleted-edit"))
+        fixture.context.delete(definition)
+        try fixture.context.save()
+
+        XCTAssertFalse(
+            fixture.viewModel.requestEditFromTranscript(definitionID: "deleted-edit", originThreadID: nil)
+        )
+        XCTAssertFalse(fixture.viewModel.requestEdit(definitionID: "deleted-edit"))
+        XCTAssertTrue(
+            fixture.viewModel.pendingPaneDismissals.contains {
+                $0.target == .edit("deleted-edit") && $0.generation == generation
+            }
+        )
+        XCTAssertEqual(
+            fixture.viewModel.errorMessage,
+            ScheduledTaskMutationError.definitionNotFound.localizedDescription
+        )
+        XCTAssertFalse(fixture.viewModel.tasks.contains { $0.id == "deleted-edit" })
     }
 
     func testProposalLoadPreservesManualSessionWhileScreenLoadNormalizesWithoutClearingError() async throws {

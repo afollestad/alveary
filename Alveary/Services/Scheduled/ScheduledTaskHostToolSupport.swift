@@ -139,6 +139,7 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
     case pauseRequiresActiveDefinition
     case resumeRequiresPausedDefinition
     case runNowBlockedByActiveRun
+    case runNowUnavailable
     case invalidStoredSchedule
     case persistenceFailure
 
@@ -170,6 +171,8 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
             "Only a paused scheduled task can be resumed."
         case .runNowBlockedByActiveRun:
             "The scheduled task is already running or waiting for input."
+        case .runNowUnavailable:
+            "The scheduler could not start a run right now. Try again shortly."
         case .invalidStoredSchedule:
             "The scheduled task has an invalid stored schedule and cannot be edited through a proposal."
         case .persistenceFailure:

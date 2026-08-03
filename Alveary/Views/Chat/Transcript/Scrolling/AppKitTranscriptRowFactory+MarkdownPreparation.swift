@@ -31,6 +31,7 @@ extension AppKitTranscriptRowFactory {
         case .toolGroup,
              .subAgentBlock,
              .taskListBlock,
+             .hostToolWidget,
              .promptBlock,
              .transcriptNote,
              .error:

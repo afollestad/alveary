@@ -24,6 +24,7 @@ extension AppKitTranscriptRowFactory {
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         view.onOpenMarkdownImage = configuration.onOpenMarkdownImage
         view.onOpenToolImage = configuration.onOpenToolImage
+        view.scheduledTaskListActions = configuration.scheduledTaskListActions
         view.onExpansionChanged = { expanded in
             configuration.onRowExpansionChanged(id, expanded)
         }
