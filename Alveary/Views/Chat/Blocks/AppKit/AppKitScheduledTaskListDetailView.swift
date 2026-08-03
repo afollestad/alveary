@@ -128,9 +128,28 @@ private extension AppKitScheduledTaskListDetailView {
         }
         definitionIDsByButton = [:]
 
+        guard !configuration.rows.isEmpty else {
+            grid.addRow(with: emptyStateRow(typography: configuration.typography))
+            return
+        }
+
         for row in configuration.rows {
             grid.addRow(with: taskRow(row, typography: configuration.typography))
         }
+    }
+
+    /// Without this the expanded detail is blank when nothing is scheduled, which reads as a
+    /// broken row rather than an answer. The leading placeholder keeps the label in the title
+    /// column, where `rowCenters()` looks for the connector's elbow.
+    func emptyStateRow(typography: TranscriptTypography) -> [NSView] {
+        let label = AppKitTranscriptWidgetLabelFactory.label(
+            "No scheduled tasks",
+            level: .caption,
+            color: .secondaryLabelColor,
+            typography: typography
+        )
+        label.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return [NSGridCell.emptyContentView, label]
     }
 
     func taskRow(

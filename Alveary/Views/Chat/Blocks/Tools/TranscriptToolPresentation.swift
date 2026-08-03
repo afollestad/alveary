@@ -70,6 +70,9 @@ extension ToolEntry {
             return .skill
         case "TodoWrite":
             return .checklist
+        case let name where ScheduledTaskListToolPresentation.isListProjectsTool(named: name):
+            // Match the sidebar's Project rows so the lookup reads as "Projects", not scheduling.
+            return .folder
         case let name where ScheduledTaskListToolPresentation.isSchedulingTool(named: name):
             return .schedule
         default:

@@ -78,23 +78,23 @@ extension ScheduledTasksViewModel {
         return try? modelContext.fetch(descriptor).first
     }
 
-    func makePinnedThreadOptions() throws -> [ScheduledTaskThreadOption] {
+    func makeExistingThreadOptions() throws -> [ScheduledTaskThreadOption] {
         let threads = SidebarPinnedItemOrdering.sorted(
             try modelContext.fetch(FetchDescriptor<AgentThread>())
-                .filter(isEligibleExistingTarget)
+                .filter(\.isEligibleScheduledTaskTarget)
                 .map(SidebarPinnedItem.init(thread:))
         )
             .compactMap { item -> AgentThread? in
                 guard case .thread(let thread) = item.kind else { return nil }
                 return thread
             }
-            .compactMap(pinnedThreadAndMainConversation)
+            .compactMap(targetThreadAndMainConversation)
         let nameCounts = Dictionary(grouping: threads, by: { $0.0.displayName() }).mapValues(\.count)
         let labeledThreads = threads.map { thread, conversation in
             (
                 thread: thread,
                 conversation: conversation,
-                label: pinnedThreadLabel(
+                label: targetThreadLabel(
                     thread,
                     hasDuplicateName: nameCounts[thread.displayName(), default: 0] > 1
                 )
@@ -107,7 +107,7 @@ extension ScheduledTasksViewModel {
                 let duplicateConversationIDs = labeledThreads
                     .filter { $0.label == item.label }
                     .map { $0.conversation.id }
-                let disambiguator = stablePinnedThreadDisambiguator(
+                let disambiguator = stableTargetThreadDisambiguator(
                     for: item.conversation.id,
                     among: duplicateConversationIDs
                 )
@@ -117,24 +117,8 @@ extension ScheduledTasksViewModel {
             }
             return ScheduledTaskThreadOption(
                 conversationID: item.conversation.id,
-                label: label
+                label: item.thread.isPinned ? label : "\(label) · Will be pinned"
             )
-        }
-    }
-
-    func isEligibleExistingTarget(_ thread: AgentThread) -> Bool {
-        guard thread.isPinned,
-              thread.archivedAt == nil,
-              !thread.isDraft,
-              !thread.isForkBootstrapPending,
-              !thread.hasPendingScheduledTaskWorktreeCleanup else {
-            return false
-        }
-        switch thread.effectiveMode {
-        case .project:
-            return thread.project != nil && thread.project?.isPinned != true
-        case .task:
-            return true
         }
     }
 }
@@ -159,8 +143,8 @@ private extension ScheduledTasksViewModel {
             guard let conversation = modelContext.resolveConversation(conversationID: conversationID),
                   conversation.isMain,
                   let thread = conversation.thread,
-                  isEligibleExistingTarget(thread),
-                  thread.conversations.filter(\.isMain).count == 1 else {
+                  thread.isEligibleScheduledTaskTarget,
+                  thread.soleMainConversation != nil else {
                 throw ScheduledTasksViewModelError.existingThreadUnavailable
             }
             return (nil, thread)
@@ -171,13 +155,12 @@ private extension ScheduledTasksViewModel {
         return (project, nil)
     }
 
-    func pinnedThreadAndMainConversation(_ thread: AgentThread) -> (AgentThread, Conversation)? {
-        let mainConversations = thread.conversations.filter(\.isMain)
-        guard mainConversations.count == 1, let main = mainConversations.first else { return nil }
+    func targetThreadAndMainConversation(_ thread: AgentThread) -> (AgentThread, Conversation)? {
+        guard let main = thread.soleMainConversation else { return nil }
         return (thread, main)
     }
 
-    func pinnedThreadLabel(_ thread: AgentThread, hasDuplicateName: Bool) -> String {
+    func targetThreadLabel(_ thread: AgentThread, hasDuplicateName: Bool) -> String {
         guard hasDuplicateName else { return thread.displayName() }
         switch thread.effectiveMode {
         case .project:
@@ -188,7 +171,7 @@ private extension ScheduledTasksViewModel {
         }
     }
 
-    func stablePinnedThreadDisambiguator(
+    func stableTargetThreadDisambiguator(
         for conversationID: String,
         among conversationIDs: [String]
     ) -> String {

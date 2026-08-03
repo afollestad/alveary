@@ -271,9 +271,20 @@ extension AppKitTranscriptToolRowTests {
         let editTool = semanticIconTool(name: "Edit", summary: "Editing AGENTS.md")
         let writeTool = semanticIconTool(name: "Write", summary: "Writing notes.md")
         let fileChangeTool = semanticIconTool(name: "FileChange", summary: "Changing notes.md")
+        let listProjectsTool = semanticIconTool(
+            name: HostToolTranscriptCatalog.toolName(ScheduledTaskHostToolCatalog.listProjectsToolName),
+            summary: "List projects"
+        )
+        let listThreadsTool = semanticIconTool(
+            name: HostToolTranscriptCatalog.toolName(ScheduledTaskHostToolCatalog.listThreadsToolName),
+            summary: "List threads"
+        )
 
         XCTAssertEqual(readTool.transcriptLeadingIconKind, .read)
         XCTAssertEqual(listTool.transcriptLeadingIconKind, .folder)
+        // The Projects lookup matches the sidebar's folder glyph; other scheduling tools keep the clock.
+        XCTAssertEqual(listProjectsTool.transcriptLeadingIconKind, .folder)
+        XCTAssertEqual(listThreadsTool.transcriptLeadingIconKind, .schedule)
         XCTAssertEqual(grepTool.transcriptLeadingIconKind, .search)
         XCTAssertEqual(globTool.transcriptLeadingIconKind, .search)
         XCTAssertEqual(editTool.transcriptLeadingIconKind, .edit)

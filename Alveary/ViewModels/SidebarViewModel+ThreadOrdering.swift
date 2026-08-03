@@ -283,9 +283,7 @@ extension SidebarViewModel {
                 try requireNoScheduledTaskAttachment(dbThread)
             }
             if isPinned, !wasPinned {
-                let appendOrder = try currentPinnedItemCount()
-                dbThread.isPinned = true
-                dbThread.pinnedSortOrder = appendOrder
+                try SidebarPinOrdering.pin(dbThread, in: modelContext)
                 didChange = true
             } else if !isPinned, wasPinned {
                 dbThread.isPinned = false

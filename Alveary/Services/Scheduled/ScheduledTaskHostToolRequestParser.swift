@@ -42,6 +42,11 @@ struct ScheduledTaskHostToolRequestParser: Sendable {
     func parseRetryIdentity(arguments: [String: AgentCLIKit.JSONValue]) throws -> ScheduledTaskParsedProposalRequest {
         try parse(arguments: arguments, validatesExplicitTimeZone: false)
     }
+
+    /// Shared with `+Placement.swift`.
+    func invalid(_ message: String) -> ScheduledTaskHostToolRequestError {
+        .invalidArguments(message)
+    }
 }
 
 private extension ScheduledTaskHostToolRequestParser {
@@ -56,7 +61,7 @@ private extension ScheduledTaskHostToolRequestParser {
         var canonicalTimeZoneIdentity: ScheduledTaskCanonicalTimeZoneIdentity?
         switch action {
         case .create:
-            try object.requireOnly(["action", "title", "prompt", "schedule"])
+            try object.requireOnly(Set(["action", "title", "prompt", "schedule"]).union(Self.placementKeys))
             let parsedSchedule = try parseSchedule(
                 object.requiredObject("schedule"),
                 validatesExplicitTimeZone: validatesExplicitTimeZone
@@ -64,7 +69,8 @@ private extension ScheduledTaskHostToolRequestParser {
             request = .create(
                 title: try object.requiredNonEmptyString("title"),
                 prompt: try object.requiredNonEmptyString("prompt"),
-                schedule: parsedSchedule.schedule
+                schedule: parsedSchedule.schedule,
+                placement: try parsePlacement(in: object)
             )
             canonicalTimeZoneIdentity = parsedSchedule.canonicalTimeZoneIdentity
         case .edit:
@@ -107,9 +113,9 @@ private extension ScheduledTaskHostToolRequestParser {
         validatesExplicitTimeZone: Bool
     ) throws -> ScheduledTaskParsedProposalEditChanges {
         let object = StrictHostToolObject(values, path: "arguments.changes")
-        try object.requireOnly(["title", "prompt", "schedule"])
+        try object.requireOnly(Set(["title", "prompt", "schedule"]).union(Self.placementKeys))
         guard !values.isEmpty else {
-            throw invalid("arguments.changes must contain title, prompt, or schedule.")
+            throw invalid("arguments.changes must contain title, prompt, schedule, destination, or workspace.")
         }
         let parsedSchedule = try object.optionalObject("schedule").map {
             try parseSchedule($0, validatesExplicitTimeZone: validatesExplicitTimeZone)
@@ -118,7 +124,8 @@ private extension ScheduledTaskHostToolRequestParser {
             changes: ScheduledTaskProposalEditChanges(
                 title: try object.optionalNonEmptyString("title"),
                 prompt: try object.optionalNonEmptyString("prompt"),
-                schedule: parsedSchedule?.schedule
+                schedule: parsedSchedule?.schedule,
+                placement: try parsePlacement(in: object)
             ),
             canonicalTimeZoneIdentity: parsedSchedule?.canonicalTimeZoneIdentity
         )
@@ -277,13 +284,16 @@ private extension ScheduledTaskHostToolRequestParser {
     ) -> AgentCLIKit.JSONValue {
         var object: [String: AgentCLIKit.JSONValue] = ["action": .string(request.action.rawValue)]
         switch request {
-        case let .create(title, prompt, schedule):
+        case let .create(title, prompt, schedule, placement):
             object["title"] = .string(title)
             object["prompt"] = .string(prompt)
             guard let timeZoneIdentity else {
                 preconditionFailure("Create requests must include a schedule time-zone identity")
             }
             object["schedule"] = canonicalValue(for: schedule, timeZoneIdentity: timeZoneIdentity)
+            if let placement {
+                object["placement"] = canonicalValue(for: placement)
+            }
         case let .edit(definitionID, expectedRevision, changes):
             object["task_id"] = .string(definitionID)
             object["revision"] = .number(Double(expectedRevision))
@@ -299,6 +309,9 @@ private extension ScheduledTaskHostToolRequestParser {
                     preconditionFailure("Schedule edits must include a time-zone identity")
                 }
                 changeValues["schedule"] = canonicalValue(for: schedule, timeZoneIdentity: timeZoneIdentity)
+            }
+            if let placement = changes.placement {
+                changeValues["placement"] = canonicalValue(for: placement)
             }
             object["changes"] = .object(changeValues)
         case let .pause(definitionID, expectedRevision),
@@ -369,10 +382,6 @@ private extension ScheduledTaskHostToolRequestParser {
     static func sha256(_ value: String) -> String {
         SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
     }
-
-    func invalid(_ message: String) -> ScheduledTaskHostToolRequestError {
-        .invalidArguments(message)
-    }
 }
 
 private struct ScheduledTaskParsedProposalEditChanges {
@@ -396,89 +405,5 @@ private enum ScheduledTaskCanonicalTimeZoneIdentity {
         case .explicit:
             "explicit"
         }
-    }
-}
-
-private struct StrictHostToolObject {
-    let values: [String: AgentCLIKit.JSONValue]
-    let path: String
-
-    init(_ values: [String: AgentCLIKit.JSONValue], path: String) {
-        self.values = values
-        self.path = path
-    }
-
-    func requireOnly(_ allowedKeys: Set<String>) throws {
-        let unknownKeys = Set(values.keys).subtracting(allowedKeys).sorted()
-        guard unknownKeys.isEmpty else {
-            throw ScheduledTaskHostToolRequestError.invalidArguments(
-                "\(path) contains unsupported field(s): \(unknownKeys.joined(separator: ", "))."
-            )
-        }
-    }
-
-    func requiredString(_ key: String) throws -> String {
-        guard case .string(let value)? = values[key] else {
-            throw invalid("\(path).\(key) must be a string.")
-        }
-        return value
-    }
-
-    func requiredNonEmptyString(_ key: String) throws -> String {
-        let value = try requiredString(key).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else {
-            throw invalid("\(path).\(key) must not be empty.")
-        }
-        return value
-    }
-
-    func optionalNonEmptyString(_ key: String) throws -> String? {
-        guard values[key] != nil else {
-            return nil
-        }
-        return try requiredNonEmptyString(key)
-    }
-
-    func requiredObject(_ key: String) throws -> [String: AgentCLIKit.JSONValue] {
-        guard case .object(let value)? = values[key] else {
-            throw invalid("\(path).\(key) must be an object.")
-        }
-        return value
-    }
-
-    func requiredArray(_ key: String) throws -> [AgentCLIKit.JSONValue] {
-        guard case .array(let value)? = values[key] else {
-            throw invalid("\(path).\(key) must be an array.")
-        }
-        return value
-    }
-
-    func optionalObject(_ key: String) throws -> [String: AgentCLIKit.JSONValue]? {
-        guard values[key] != nil else {
-            return nil
-        }
-        return try requiredObject(key)
-    }
-
-    func requiredInteger(_ key: String) throws -> Int {
-        guard case .number(let value)? = values[key],
-              value.isFinite,
-              value.rounded() == value,
-              let integer = Int(exactly: value) else {
-            throw invalid("\(path).\(key) must be an integer.")
-        }
-        return integer
-    }
-
-    func requiredPositiveInteger(_ key: String) throws -> Int {
-        let value = try requiredInteger(key)
-        guard value >= 1 else {
-            throw invalid("\(path).\(key) must be at least 1.")
-        }
-        return value
-    }
-
-    private func invalid(_ message: String) -> ScheduledTaskHostToolRequestError {
-        .invalidArguments(message)
     }
 }

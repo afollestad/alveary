@@ -3,6 +3,7 @@
 - Keep editor state in value snapshots. Re-resolve definitions and Projects through `ScheduledTasksViewModel` when the user commits an action.
 - Route create, edit, pause, resume, delete, and Run now preparation through `ScheduledTaskMutationService`; never mutate `ScheduledTask` rows from a view.
 - Treat edits and deletion as future-definition changes. Active runs continue from their immutable snapshots.
+- Existing-thread targets need not already be pinned: the option list labels unpinned ones `· Will be pinned`, and `ScheduledTaskMutationService` pins the target inside the definition's own save. Unpinned threads under a pinned project stay ineligible, because that project absorbs them and they can never be pinned individually.
 - Keep recurrence fields structured and hide timezone input. Treat the persisted IANA identifier as a derived cache of the Mac's current zone, and rebase future wall-clock occurrences when the system zone changes.
 - Scheduled editor menu controls wrap their selected value at normal widths and compress with tail truncation inside narrow panes. Date fields inherit the host view's timezone so production follows the Mac while snapshots can inject a deterministic timezone.
 - Keep folder grants as native folder selections and display their full paths in accessibility help.

@@ -128,7 +128,7 @@ private extension ScheduledTaskWidgetParsing {
 
         init(request: ScheduledTaskProposalRequest?, arguments: [String: AgentCLIKit.JSONValue]) {
             switch request {
-            case let .create(title, _, schedule):
+            case let .create(title, _, schedule, _):
                 self.title = title
                 self.schedule = schedule
                 definitionID = nil

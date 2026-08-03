@@ -53,7 +53,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                 if threads.isEmpty {
                     SettingsFormRow(showsDivider: false) {
                         SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
-                            Text("Pin a local thread first")
+                            Text("No eligible threads")
                                 .font(.callout)
                                 .foregroundStyle(.tertiary)
                                 .frame(maxWidth: .infinity, alignment: .trailing)

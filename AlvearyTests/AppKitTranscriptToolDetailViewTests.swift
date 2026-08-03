@@ -176,6 +176,13 @@ final class AppKitTranscriptToolDetailViewTests: XCTestCase {
         XCTAssertFalse(view.renderedText.contains("10 /"))
     }
 
+    func testPrettyPrintedJSONCollapsesEmptyContainers() {
+        XCTAssertEqual(prettyPrintedJSON("{ }"), "{}")
+        XCTAssertEqual(prettyPrintedJSON("[ ]"), "[]")
+        XCTAssertEqual(prettyPrintedJSON("not json"), "not json")
+        XCTAssertTrue(prettyPrintedJSON("{\"a\":1}").contains("\"a\" : 1"))
+    }
+
     func testToolOutputPagingReportsUserHeightChangeBeforeInvalidation() {
         let output = (1...20).map { "line \($0)" }.joined(separator: "\n")
         let view = AppKitTranscriptToolOutputView()

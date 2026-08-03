@@ -19,10 +19,28 @@ struct ScheduledTaskProposalEditChanges: Equatable, Sendable {
     let title: String?
     let prompt: String?
     let schedule: ScheduledTaskProposalSchedule?
+    let placement: ScheduledTaskProposalPlacement?
+
+    init(
+        title: String? = nil,
+        prompt: String? = nil,
+        schedule: ScheduledTaskProposalSchedule? = nil,
+        placement: ScheduledTaskProposalPlacement? = nil
+    ) {
+        self.title = title
+        self.prompt = prompt
+        self.schedule = schedule
+        self.placement = placement
+    }
 }
 
 enum ScheduledTaskProposalRequest: Equatable, Sendable {
-    case create(title: String, prompt: String, schedule: ScheduledTaskProposalSchedule)
+    case create(
+        title: String,
+        prompt: String,
+        schedule: ScheduledTaskProposalSchedule,
+        placement: ScheduledTaskProposalPlacement?
+    )
     case edit(definitionID: String, expectedRevision: Int, changes: ScheduledTaskProposalEditChanges)
     case pause(definitionID: String, expectedRevision: Int)
     case resume(definitionID: String, expectedRevision: Int)

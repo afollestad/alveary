@@ -24,7 +24,11 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         )
 
         XCTAssertFalse(result.isError)
-        XCTAssertEqual(result.text, "Found 1 scheduled task.")
+        XCTAssertEqual(
+            result.text,
+            "Found 1 scheduled task:\n" +
+                "- \"Daily review\" (id: definition-1, revision 4, active, every Monday, Wednesday, Friday at 08:05 [Etc/UTC])"
+        )
         let tasks = try array(try object(result.structuredContent)["tasks"])
         let task = try object(try XCTUnwrap(tasks.first))
         XCTAssertEqual(task["id"], .string(definition.id))

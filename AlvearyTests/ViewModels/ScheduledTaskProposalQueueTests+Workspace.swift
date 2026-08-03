@@ -48,4 +48,42 @@ extension ScheduledTaskProposalQueueTests {
         XCTAssertNotNil(fixture.context.resolveScheduledTaskProposal(id: proposal.id))
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<ScheduledTask>()), 0)
     }
+
+    /// A project-workspace proposal is confirmable only while its trusted Project relationship
+    /// still names the same path its draft does. The host tool has to store the Project the draft
+    /// names — including one an edit moved the task to — or this reads as a vanished Project.
+    func testProjectProposalIsConfirmableOnlyWhileItsTrustedProjectMatchesTheDraft() throws {
+        let fixture = try ScheduledTaskProposalQueueFixture()
+        let project = Project(path: "/tmp/queue-project", name: "Queue Project")
+        fixture.context.insert(project)
+        try fixture.context.save()
+        let definitionDraft = fixture.makeDefinitionDraft(
+            title: "Runs in a project",
+            grantedRoots: [],
+            workspaceKind: .project,
+            projectPath: project.path
+        )
+
+        let matched = try fixture.insertProposal(
+            id: "matching-project",
+            action: .create,
+            definitionDraft: definitionDraft,
+            project: project
+        )
+        let coordinator = fixture.makeCoordinator()
+        XCTAssertNil(coordinator.presentation(forProposalID: matched.id)?.conflictMessage)
+
+        // A proposal whose relationship points elsewhere is the "no longer available" case.
+        fixture.context.delete(matched)
+        try fixture.context.save()
+        let mismatched = try fixture.insertProposal(
+            id: "mismatched-project",
+            action: .create,
+            definitionDraft: definitionDraft,
+            project: Project(path: "/tmp/queue-other-project", name: "Other")
+        )
+        coordinator.reload()
+
+        XCTAssertNotNil(coordinator.presentation(forProposalID: mismatched.id)?.conflictMessage)
+    }
 }

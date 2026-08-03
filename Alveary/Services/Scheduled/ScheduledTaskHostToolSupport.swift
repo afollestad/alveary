@@ -7,6 +7,63 @@ struct ScheduledTaskHostToolProposalIdentity {
     let createdAt: Date
 }
 
+/// Everything an edit's draft builders need, resolved once so the destination branches take one
+/// parameter each.
+struct ScheduledTaskHostToolEditContext {
+    let definition: ScheduledTask
+    let changes: ScheduledTaskProposalEditChanges
+    /// The destination already stored on the definition, kept when the request names none.
+    let storedDestination: ScheduledTaskDestination
+    let recurrence: ScheduledTaskRecurrence
+    let timeZoneIdentifier: String
+    let settings: ScheduledTaskProposalAgentSettings
+
+    var title: String { changes.title ?? definition.title }
+    var prompt: String { changes.prompt ?? definition.prompt }
+}
+
+/// What an edit resolved to: the proposed definition, the Project that definition would use, and
+/// the sentence disclosing any requested placement.
+///
+/// `project` is the *draft's* Project, which an edit may have pointed at a different one than the
+/// definition currently uses. The proposal has to store that one, because the confirmation pane
+/// reads a proposal whose trusted Project disagrees with its draft as a vanished Project and
+/// refuses to apply it.
+struct ScheduledTaskHostToolEditedDraft {
+    let draft: ScheduledTaskProposalDefinitionDraft
+    let project: Project?
+    let placementSummary: String?
+}
+
+/// The calling thread a create proposal inherits from, paired with the settings it contributes.
+struct ScheduledTaskHostToolCreateSource {
+    let thread: AgentThread
+    let settings: ScheduledTaskProposalAgentSettings
+}
+
+/// Agent settings a proposed definition carries, all bound from trusted host state — the model
+/// never supplies any of them. Grouped so draft builders take one parameter instead of four.
+struct ScheduledTaskProposalAgentSettings {
+    let providerID: String
+    let model: String?
+    let effort: String
+    let permissionMode: String
+
+    init(sourceThread: AgentThread, providerID: String) {
+        self.providerID = providerID
+        model = sourceThread.model
+        effort = sourceThread.effort
+        permissionMode = sourceThread.permissionMode
+    }
+
+    init(definition: ScheduledTask) {
+        providerID = definition.providerID
+        model = definition.model
+        effort = definition.effort
+        permissionMode = definition.permissionMode
+    }
+}
+
 enum ScheduledTaskHostToolSupport {
     static func validatedStoredGrantedRoots(_ grantedRoots: [String]) throws -> [String] {
         guard ScheduledTask.normalizedUniquePaths(grantedRoots) == grantedRoots else {
@@ -95,6 +152,9 @@ struct ScheduledTaskHostToolProposalResolution {
     let targetScheduleSummarySnapshot: String?
     let definitionDraft: ScheduledTaskProposalDefinitionDraft?
     let project: Project?
+    /// Names a destination or workspace the request asked for, so the tool result discloses it
+    /// before the user opens the confirmation pane. `nil` when everything was inherited.
+    let placementSummary: String?
 
     init(
         targetDefinitionID: String? = nil,
@@ -102,7 +162,8 @@ struct ScheduledTaskHostToolProposalResolution {
         targetTitleSnapshot: String? = nil,
         targetScheduleSummarySnapshot: String? = nil,
         definitionDraft: ScheduledTaskProposalDefinitionDraft? = nil,
-        project: Project? = nil
+        project: Project? = nil,
+        placementSummary: String? = nil
     ) {
         self.targetDefinitionID = targetDefinitionID
         self.expectedDefinitionRevision = expectedDefinitionRevision
@@ -110,6 +171,7 @@ struct ScheduledTaskHostToolProposalResolution {
         self.targetScheduleSummarySnapshot = targetScheduleSummarySnapshot
         self.definitionDraft = definitionDraft
         self.project = project
+        self.placementSummary = placementSummary
     }
 }
 
@@ -127,13 +189,17 @@ struct ScheduledTaskHostToolSource {
 
 enum ScheduledTaskHostToolServiceError: LocalizedError {
     case unsupportedTool
-    case listDoesNotAcceptArguments
+    case listDoesNotAcceptArguments(toolName: String)
     case missingRequestIdentity
     case sourceConversationUnavailable
     case sourceProviderMismatch
     case automatedRunCannotSchedule
     case workspaceUnavailable
     case workspaceRootsChanged
+    case projectNotRegistered(path: String)
+    case grantRootUnavailable(path: String)
+    case targetThreadNotFound
+    case targetThreadIneligible
     case definitionNotFound
     case revisionConflict(expected: Int, actual: Int)
     case pauseRequiresActiveDefinition
@@ -147,8 +213,8 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
         switch self {
         case .unsupportedTool:
             "This Alveary host tool is not available."
-        case .listDoesNotAcceptArguments:
-            "list_scheduled_tasks does not accept arguments."
+        case .listDoesNotAcceptArguments(let toolName):
+            "\(toolName) does not accept arguments."
         case .missingRequestIdentity:
             "Alveary could not verify this scheduling request for safe retry handling."
         case .sourceConversationUnavailable:
@@ -161,6 +227,15 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
             "The trusted workspace for this scheduling proposal is no longer available."
         case .workspaceRootsChanged:
             "The trusted workspace or folder grants changed and must be reviewed before scheduling."
+        case .projectNotRegistered(let path):
+            "\(path) is not a Project in Alveary. Call list_projects and use one of its paths."
+        case .grantRootUnavailable(let path):
+            "\(path) is not an absolute path to an existing folder. granted_roots entries must be absolute paths to " +
+                "folders that already exist; each one is shown to the user for confirmation."
+        case .targetThreadNotFound:
+            "That thread no longer exists. Call list_threads again before proposing an existing-thread schedule."
+        case .targetThreadIneligible:
+            "That thread cannot receive scheduled runs. Call list_threads and use one of the threads it returns."
         case .definitionNotFound:
             "The scheduled task no longer exists. List scheduled tasks again before proposing a change."
         case let .revisionConflict(expected, actual):

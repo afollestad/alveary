@@ -3,7 +3,12 @@ import Foundation
 
 enum ScheduledTaskHostToolCatalog {
     static let listToolName = "list_scheduled_tasks"
+    static let listProjectsToolName = "list_projects"
+    static let listThreadsToolName = "list_threads"
     static let proposeToolName = "propose_scheduled_task"
+
+    /// Read-only tools that take no arguments.
+    static let listToolNames: Set<String> = [listToolName, listProjectsToolName, listThreadsToolName]
 
     static var serverMetadata: AgentCLIKit.AgentHostToolServerMetadata {
         serverMetadata(timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
@@ -22,7 +27,9 @@ enum ScheduledTaskHostToolCatalog {
             For a weekdays schedule, days must list every intended day of the week, including weekend days when \
             requested. Use propose_scheduled_task with action create to create a scheduled task. Call list_scheduled_tasks before edit, \
             pause, resume, delete, or run_now, then use propose_scheduled_task with that action. Never invent or search for a separate \
-            create_scheduled_task tool. Pause, resume, and run_now take effect immediately. Create, edit, and delete only \
+            create_scheduled_task tool. Call list_projects only when the user wants a scheduled task to run in a different Alveary Project \
+            than this conversation's, and list_threads only when they want its results posted into an existing Alveary thread. \
+            Pause, resume, and run_now take effect immediately. Create, edit, and delete only \
             open Alveary's native confirmation UI; describe those as opened proposals and never claim the schedule changed before \
             confirmation. Never use shell commands, crontab, launch agents, or workspace files \
             to discover or manage Alveary scheduled tasks. If these tools are unavailable, say so and direct the user to Alveary's \
@@ -31,10 +38,82 @@ enum ScheduledTaskHostToolCatalog {
         )
     }
 
-    static let tools: [AgentCLIKit.AgentHostToolDefinition] = [listTool, proposeTool]
+    static let tools: [AgentCLIKit.AgentHostToolDefinition] = [
+        listTool,
+        listProjectsTool,
+        listThreadsTool,
+        proposeTool
+    ]
 }
 
 private extension ScheduledTaskHostToolCatalog {
+    static let listProjectsTool = AgentCLIKit.AgentHostToolDefinition(
+        name: listProjectsToolName,
+        title: "List Alveary Projects",
+        description: """
+        List the Alveary Projects registered on this Mac, so a scheduled task can run in one other than this conversation's. Returns \
+        each Project's name and root path. Call it only when the user wants a scheduled task to run somewhere other than where this \
+        conversation runs; a scheduled task otherwise inherits this conversation's workspace. Not a directory listing, and not a \
+        substitute for reading the file system.
+        """,
+        inputSchema: strictObject(properties: [:], required: []),
+        outputSchema: strictObject(
+            properties: [
+                "projects": .object([
+                    "type": .string("array"),
+                    "items": strictObject(
+                        properties: [
+                            "path": stringSchema,
+                            "name": stringSchema
+                        ],
+                        required: ["path", "name"]
+                    )
+                ])
+            ],
+            required: ["projects"]
+        ),
+        annotations: readOnlyAnnotations
+    )
+
+    static let listThreadsTool = AgentCLIKit.AgentHostToolDefinition(
+        name: listThreadsToolName,
+        title: "List threads a scheduled task can post into",
+        description: """
+        List the Alveary threads a scheduled task can post its results into, for propose_scheduled_task's target_thread_id. Returns \
+        each thread's stable ID, name, workspace, and whether it is pinned; an unpinned thread is pinned when the user confirms the \
+        proposal, so say so. Call it only when the user asks for a scheduled task's results to go into an existing thread rather than \
+        a new one. Never use it to browse conversations or read their contents.
+        """,
+        inputSchema: strictObject(properties: [:], required: []),
+        outputSchema: strictObject(
+            properties: [
+                "threads": .object([
+                    "type": .string("array"),
+                    "items": strictObject(
+                        properties: [
+                            "id": stringSchema,
+                            "name": stringSchema,
+                            "workspace": stringSchema,
+                            "is_pinned": .object(["type": .string("boolean")])
+                        ],
+                        required: ["id", "name", "workspace", "is_pinned"]
+                    )
+                ])
+            ],
+            required: ["threads"]
+        ),
+        annotations: readOnlyAnnotations
+    )
+
+    static var readOnlyAnnotations: AgentCLIKit.AgentHostToolAnnotations {
+        AgentCLIKit.AgentHostToolAnnotations(
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        )
+    }
+
     static let listTool = AgentCLIKit.AgentHostToolDefinition(
         name: listToolName,
         title: "List scheduled tasks",
@@ -62,12 +141,7 @@ private extension ScheduledTaskHostToolCatalog {
             ],
             required: ["tasks"]
         ),
-        annotations: AgentCLIKit.AgentHostToolAnnotations(
-            readOnlyHint: true,
-            destructiveHint: false,
-            idempotentHint: true,
-            openWorldHint: false
-        )
+        annotations: readOnlyAnnotations
     )
 
     static let proposeTool = AgentCLIKit.AgentHostToolDefinition(
@@ -81,9 +155,14 @@ private extension ScheduledTaskHostToolCatalog {
         or run_now, provide task_id and revision. For existing definitions, call list_scheduled_tasks first and pass its exact task_id and \
         revision. Ask \
         for clarification instead of guessing materially ambiguous instructions, recurrence, or target. Edit changes may replace \
-        title, prompt, or the complete schedule. Provider, model, permissions, workspace, Project, authorization, and folder grants are bound \
-        by Alveary and are intentionally not accepted. After it returns, report the `status` it gave back: `applied` means the \
-        change is already in effect, and `pending_confirmation` means a proposal was opened and nothing has changed yet.
+        title, prompt, the complete schedule, or where the task runs. Omit destination and workspace to inherit this conversation's; \
+        send destination existing_thread with a target_thread_id from list_threads to post results into an existing thread, or a \
+        workspace with a project_path from list_projects to run in a different Project. granted_roots replaces the folder grants \
+        the task would otherwise inherit; entries must be absolute paths to existing folders, may combine with a project_path, and \
+        every grant is shown to the user for confirmation. Provider, model, effort, permissions, and run location are bound by \
+        Alveary and are intentionally not accepted. After it returns, report the `status` \
+        it gave back: `applied` means the change is already in effect, and `pending_confirmation` means a proposal was opened and \
+        nothing has changed yet.
         """,
         inputSchema: strictObject(
             properties: proposalProperties,
@@ -115,7 +194,7 @@ private extension ScheduledTaskHostToolCatalog {
         "task_id": nonEmptyStringSchema,
         "revision": integerSchema(minimum: 1),
         "changes": changesSchema
-    ]
+    ].merging(placementProperties) { current, _ in current }
 
     static let changesSchema: AgentCLIKit.JSONValue = .object([
         "type": .string("object"),
@@ -123,10 +202,29 @@ private extension ScheduledTaskHostToolCatalog {
             "title": nonEmptyStringSchema,
             "prompt": nonEmptyStringSchema,
             "schedule": scheduleSchema
-        ]),
+        ].merging(placementProperties) { current, _ in current }),
         "minProperties": .number(1),
         "additionalProperties": .bool(false)
     ])
+
+    static let placementProperties: [String: AgentCLIKit.JSONValue] = [
+        "destination": enumSchema(["new_thread", "existing_thread"]),
+        "target_thread_id": nonEmptyStringSchema,
+        "workspace": workspaceSchema
+    ]
+
+    static let workspaceSchema: AgentCLIKit.JSONValue = strictObject(
+        properties: [
+            "kind": enumSchema(["project", "private"]),
+            "project_path": nonEmptyStringSchema,
+            "granted_roots": .object([
+                "type": .string("array"),
+                "items": nonEmptyStringSchema,
+                "uniqueItems": .bool(true)
+            ])
+        ],
+        required: ["kind"]
+    )
 
     static let scheduleSchema: AgentCLIKit.JSONValue = strictNestedUnionObject(
         properties: scheduleProperties,

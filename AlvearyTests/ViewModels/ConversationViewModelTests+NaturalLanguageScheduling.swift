@@ -9,10 +9,8 @@ extension ConversationViewModelTests {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
 
-        let expectedNames = [
-            ScheduledTaskHostToolCatalog.listToolName,
-            ScheduledTaskHostToolCatalog.proposeToolName
-        ]
+        // The scheduling catalog is the whole host-tool surface; nothing else may be exposed.
+        let expectedNames = ScheduledTaskHostToolCatalog.tools.map(\.name)
         let projectConfig = try projectFixture.viewModel.makeSpawnConfig()
         let taskConfig = try scheduledFixture.fixture.viewModel.makeSpawnConfig()
         let continuationConfig = try projectFixture.viewModel.makeSpawnConfig(settingsSource: .currentContinuation)
@@ -35,7 +33,7 @@ extension ConversationViewModelTests {
         XCTAssertEqual(reconfigureCalls.count, 1)
         XCTAssertEqual(
             reconfigure.config.hostTools.map(\.name),
-            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+            ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
     }
 
@@ -63,7 +61,7 @@ extension ConversationViewModelTests {
         let reconfigureCall = try XCTUnwrap(reconfigureCalls.first)
         XCTAssertEqual(
             reconfigureCall.config.hostTools.map(\.name),
-            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+            ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
         XCTAssertFalse(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
     }
@@ -89,7 +87,7 @@ extension ConversationViewModelTests {
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(
             try XCTUnwrap(reconfigureCalls.first).config.hostTools.map(\.name),
-            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+            ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
         XCTAssertFalse(fixture.viewModel.state.requiresSchedulingHostToolReplacement)
     }
@@ -156,7 +154,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(spawnCalls[0].config.hostTools.isEmpty)
         XCTAssertEqual(
             spawnCalls[1].config.hostTools.map(\.name),
-            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+            ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
         XCTAssertFalse(spawnCalls[1].forkSession)
         XCTAssertEqual(suspendCalls, [fixture.conversation.id])

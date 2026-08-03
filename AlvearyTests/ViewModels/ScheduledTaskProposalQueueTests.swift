@@ -244,7 +244,8 @@ final class ScheduledTaskProposalQueueFixture {
         createdAt: Date? = nil,
         enqueueOrdinal: Int64? = nil,
         definitionDraft: ScheduledTaskProposalDefinitionDraft? = nil,
-        sourceConversationID: String? = nil
+        sourceConversationID: String? = nil,
+        project: Project? = nil
     ) throws -> ScheduledTaskProposal {
         let conversation = sourceConversationID
             .flatMap { context.resolveConversation(conversationID: $0) }
@@ -261,7 +262,8 @@ final class ScheduledTaskProposalQueueFixture {
             definitionDraft: definitionDraft,
             enqueueOrdinal: enqueueOrdinal,
             createdAt: createdAt ?? now,
-            sourceConversation: conversation
+            sourceConversation: conversation,
+            project: project
         )
         context.insert(conversation)
         context.insert(proposal)
@@ -304,7 +306,9 @@ final class ScheduledTaskProposalQueueFixture {
         title: String,
         prompt: String = "Do the proposed work.",
         recurrence: ScheduledTaskRecurrence = .daily(hour: 10, minute: 15),
-        grantedRoots: [String] = ["/tmp/proposal-grant"]
+        grantedRoots: [String] = ["/tmp/proposal-grant"],
+        workspaceKind: ScheduledTaskWorkspaceKind = .privateWorkspace,
+        projectPath: String? = nil
     ) -> ScheduledTaskProposalDefinitionDraft {
         ScheduledTaskProposalDefinitionDraft(
             title: title,
@@ -315,10 +319,10 @@ final class ScheduledTaskProposalQueueFixture {
             model: nil,
             effort: "medium",
             permissionMode: "on-request",
-            workspaceKind: .privateWorkspace,
+            workspaceKind: workspaceKind,
             workspaceStrategy: .worktree,
             grantedRoots: grantedRoots,
-            projectPath: nil
+            projectPath: projectPath
         )
     }
 }

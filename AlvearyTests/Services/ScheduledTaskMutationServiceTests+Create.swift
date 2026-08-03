@@ -165,7 +165,7 @@ extension ScheduledTaskMutationServiceTests {
         )
 
         XCTAssertThrowsError(try fixture.service.create(edit: edit)) { error in
-            XCTAssertEqual(error as? ScheduledTaskMutationError, .existingThreadRequiresPinnedThread)
+            XCTAssertEqual(error as? ScheduledTaskMutationError, .existingThreadRequiresAvailableThread)
         }
 
         target.isForkBootstrapPending = false

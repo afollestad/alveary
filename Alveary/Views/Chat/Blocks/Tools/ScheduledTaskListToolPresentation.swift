@@ -25,9 +25,15 @@ enum ScheduledTaskListToolPresentation {
         matches(toolName, hostToolName: ScheduledTaskHostToolCatalog.listToolName)
     }
 
+    /// The Projects lookup renders with the sidebar's folder icon, not the scheduling clock.
+    static func isListProjectsTool(named toolName: String) -> Bool {
+        matches(toolName, hostToolName: ScheduledTaskHostToolCatalog.listProjectsToolName)
+    }
+
     /// Any Alveary scheduling host tool, for shared row chrome such as the clock icon.
     static func isSchedulingTool(named toolName: String) -> Bool {
         isListTool(named: toolName)
+            || matches(toolName, hostToolName: ScheduledTaskHostToolCatalog.listThreadsToolName)
             || matches(toolName, hostToolName: ScheduledTaskHostToolCatalog.proposeToolName)
     }
 

@@ -265,7 +265,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(spawnCalls[0].config.hostTools.isEmpty)
         XCTAssertEqual(
             spawnCalls[1].config.hostTools.map(\.name),
-            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+            ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
         XCTAssertFalse(spawnCalls[1].forkSession)
         XCTAssertEqual(suspendCalls, [fixture.conversation.id])
@@ -377,7 +377,7 @@ extension ConversationViewModelTests {
         XCTAssertFalse(spawn.config.isAutomatedScheduledTurn)
         XCTAssertEqual(
             spawn.config.hostTools.map(\.name),
-            [ScheduledTaskHostToolCatalog.listToolName, ScheduledTaskHostToolCatalog.proposeToolName]
+            ScheduledTaskHostToolCatalog.tools.map(\.name)
         )
         XCTAssertNil(fixture.viewModel.state.messageQueue.peekNext())
     }

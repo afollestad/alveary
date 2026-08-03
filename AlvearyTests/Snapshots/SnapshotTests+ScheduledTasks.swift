@@ -116,7 +116,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
-                threads: fixture.viewModel.pinnedThreads,
+                threads: fixture.viewModel.existingThreadTargets,
                 draft: .constant(draft)
             )
             .padding(24),
@@ -125,7 +125,7 @@ extension SnapshotTests {
         )
     }
 
-    func testScheduledTaskEditorExistingThreadWithoutPinnedTasks() throws {
+    func testScheduledTaskEditorExistingThreadWithoutEligibleThreads() throws {
         let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
         var draft = fixture.viewModel.makeNewDraft()
         draft.destination = .existingThread
@@ -133,7 +133,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
-                threads: fixture.viewModel.pinnedThreads,
+                threads: fixture.viewModel.existingThreadTargets,
                 draft: .constant(draft)
             )
             .padding(24),
@@ -152,7 +152,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
-                threads: fixture.viewModel.pinnedThreads,
+                threads: fixture.viewModel.existingThreadTargets,
                 draft: .constant(draft)
             )
             .padding(24),
@@ -177,6 +177,27 @@ extension SnapshotTests {
             .padding(24),
             size: CGSize(width: 760, height: 220),
             named: "scheduled_task_editor_existing_thread_selected"
+        )
+    }
+
+    func testScheduledTaskEditorUnpinnedExistingThread() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.destination = .existingThread
+        draft.targetConversationID = "unpinned-main"
+        let threads = [
+            ScheduledTaskThreadOption(conversationID: "unpinned-main", label: "Release chat · Will be pinned")
+        ]
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: threads,
+                draft: .constant(draft)
+            )
+            .padding(24),
+            size: CGSize(width: 760, height: 220),
+            named: "scheduled_task_editor_existing_thread_requires_pin"
         )
     }
 

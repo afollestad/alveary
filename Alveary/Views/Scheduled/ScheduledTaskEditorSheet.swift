@@ -54,7 +54,7 @@ struct ScheduledTaskEditorContent: View {
                     ScheduledTaskEditorRecurrenceSection(draft: $draft)
                     ScheduledTaskEditorWorkspaceSection(
                         projects: viewModel.projects,
-                        threads: viewModel.pinnedThreads,
+                        threads: viewModel.existingThreadTargets,
                         draft: $draft
                     )
                     if draft.destination == .newThread {
@@ -83,7 +83,7 @@ struct ScheduledTaskEditorContent: View {
         .onChange(of: draft.modelSelection) { _, _ in
             viewModel.normalizeProviderDependentFields(&draft)
         }
-        .onChange(of: viewModel.pinnedThreads) { _, options in
+        .onChange(of: viewModel.existingThreadTargets) { _, options in
             guard draft.destination == .existingThread,
                   let targetConversationID = draft.targetConversationID,
                   !options.contains(where: { $0.conversationID == targetConversationID }) else {

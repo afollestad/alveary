@@ -62,6 +62,7 @@ final class ScheduledTaskMutationService {
 
         let outcomeTarget = proposal.map(ScheduledTaskProposalOutcomeTarget.init(proposal:))
         do {
+            try pinTargetThreadIfNeeded(edit)
             modelContext.insert(definition)
             if let proposal {
                 modelContext.delete(proposal)
@@ -138,7 +139,7 @@ final class ScheduledTaskMutationService {
             }
             if destination == .existingThread,
                definition.targetThread == nil {
-                throw ScheduledTaskMutationError.existingThreadRequiresPinnedThread
+                throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
             }
             guard let recurrence = definition.recurrence else {
                 throw ScheduledTaskMutationError.invalidRecurrence
@@ -179,6 +180,7 @@ final class ScheduledTaskMutationService {
         ) { definition in
             let timeZoneIdentifier = self.currentTimeZone().identifier
             try self.validate(edit, timeZoneIdentifier: timeZoneIdentifier)
+            try self.pinTargetThreadIfNeeded(edit)
             let nextOccurrence = try self.recurrenceCalculator.nextOccurrence(
                 strictlyAfter: actionDate,
                 recurrence: edit.recurrence,
@@ -372,6 +374,18 @@ private extension ScheduledTaskMutationService {
         )
     }
 
+    /// Pins an existing-thread target inside the caller's save.
+    ///
+    /// Both the Scheduled editor and the host tool may name an unpinned thread, and an unpinned
+    /// thread has no sidebar row of its own, so the schedule would otherwise post into a place
+    /// the user cannot open. Unpinning is then blocked while the schedule exists.
+    func pinTargetThreadIfNeeded(_ edit: ScheduledTaskDefinitionEdit) throws {
+        guard edit.destination == .existingThread, let targetThread = edit.targetThread else {
+            return
+        }
+        try SidebarPinOrdering.pin(targetThread, in: modelContext)
+    }
+
     func validate(
         _ edit: ScheduledTaskDefinitionEdit,
         timeZoneIdentifier: String
@@ -382,17 +396,16 @@ private extension ScheduledTaskMutationService {
                 throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
             }
             guard edit.targetThread == nil else {
-                throw ScheduledTaskMutationError.existingThreadRequiresPinnedThread
+                throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
             }
         case .existingThread:
             guard let targetThread = edit.targetThread,
-                  targetThread.isPinned,
                   targetThread.archivedAt == nil,
                   !targetThread.isDraft,
                   !targetThread.isForkBootstrapPending,
                   !targetThread.hasPendingScheduledTaskWorktreeCleanup,
                   targetThread.conversations.filter(\.isMain).count == 1 else {
-                throw ScheduledTaskMutationError.existingThreadRequiresPinnedThread
+                throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
             }
         }
         guard ScheduledTask.normalizedUniquePaths(edit.grantedRoots) == edit.grantedRoots else {

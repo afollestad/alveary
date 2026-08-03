@@ -31,7 +31,7 @@ extension ScheduledTasksViewModelTests {
         fixture.context.insert(project)
         try fixture.context.save()
         fixture.viewModel.reload()
-        XCTAssertEqual(fixture.viewModel.pinnedThreads.map(\.conversationID), [conversation.id])
+        XCTAssertEqual(fixture.viewModel.existingThreadTargets.map(\.conversationID), [conversation.id])
 
         var draft = fixture.viewModel.makeNewDraft()
         draft.title = "Continue existing work"
@@ -110,7 +110,7 @@ extension ScheduledTasksViewModelTests {
 
         fixture.viewModel.reload()
 
-        XCTAssertEqual(fixture.viewModel.pinnedThreads.map(\.conversationID), [newerMain.id, olderMain.id])
+        XCTAssertEqual(fixture.viewModel.existingThreadTargets.map(\.conversationID), [newerMain.id, olderMain.id])
     }
 
     func testPinnedThreadOptionsStablyDisambiguateMatchingContextLabels() throws {
@@ -127,7 +127,7 @@ extension ScheduledTasksViewModelTests {
 
         fixture.viewModel.reload()
 
-        let labels = Dictionary(uniqueKeysWithValues: fixture.viewModel.pinnedThreads.map {
+        let labels = Dictionary(uniqueKeysWithValues: fixture.viewModel.existingThreadTargets.map {
             ($0.conversationID, $0.label)
         })
         XCTAssertEqual(labels[firstMain.id], "Duplicate — Tasks · task-one")
@@ -176,7 +176,7 @@ extension ScheduledTasksViewModelTests {
 
         fixture.viewModel.reload()
 
-        XCTAssertFalse(fixture.viewModel.pinnedThreads.contains { $0.conversationID == conversation.id })
+        XCTAssertFalse(fixture.viewModel.existingThreadTargets.contains { $0.conversationID == conversation.id })
     }
 
     func testPinnedThreadOptionsExcludeForkTargetUntilBootstrapCompletes() throws {
@@ -194,14 +194,14 @@ extension ScheduledTasksViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.reload()
-        XCTAssertFalse(fixture.viewModel.pinnedThreads.contains { $0.conversationID == conversation.id })
+        XCTAssertFalse(fixture.viewModel.existingThreadTargets.contains { $0.conversationID == conversation.id })
 
         target.isForkBootstrapPending = false
         target.hasCompletedInitialSetup = true
         try fixture.context.save()
         fixture.viewModel.reload()
 
-        XCTAssertTrue(fixture.viewModel.pinnedThreads.contains { $0.conversationID == conversation.id })
+        XCTAssertTrue(fixture.viewModel.existingThreadTargets.contains { $0.conversationID == conversation.id })
     }
 
     func testThreadPresentationChangeRefreshesPinnedThreadLabel() async throws {
@@ -212,16 +212,16 @@ extension ScheduledTasksViewModelTests {
         fixture.context.insert(target)
         try fixture.context.save()
         fixture.viewModel.reload()
-        XCTAssertEqual(fixture.viewModel.pinnedThreads.first?.label, "Before rename")
+        XCTAssertEqual(fixture.viewModel.existingThreadTargets.first?.label, "Before rename")
 
         target.name = "After rename"
         try fixture.context.save()
         fixture.notificationCenter.post(name: .threadPresentationChanged, object: target)
-        for _ in 0 ..< 20 where fixture.viewModel.pinnedThreads.first?.label != "After rename" {
+        for _ in 0 ..< 20 where fixture.viewModel.existingThreadTargets.first?.label != "After rename" {
             await Task.yield()
         }
 
-        XCTAssertEqual(fixture.viewModel.pinnedThreads.first?.label, "After rename")
+        XCTAssertEqual(fixture.viewModel.existingThreadTargets.first?.label, "After rename")
     }
 
     func testExistingThreadRowUsesTargetMainConversationProvider() throws {
@@ -248,6 +248,109 @@ extension ScheduledTasksViewModelTests {
         fixture.viewModel.reload()
 
         XCTAssertEqual(fixture.viewModel.tasks.first?.providerID, "codex")
+    }
+
+    func testExistingThreadOptionsOfferUnpinnedThreadsAndSayTheyWillBePinned() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let target = AgentThread(name: "Release chat", mode: .task)
+        let conversation = Conversation(id: "unpinned-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        fixture.context.insert(target)
+        try fixture.context.save()
+
+        fixture.viewModel.reload()
+
+        let option = try XCTUnwrap(
+            fixture.viewModel.existingThreadTargets.first { $0.conversationID == conversation.id }
+        )
+        XCTAssertEqual(option.label, "Release chat · Will be pinned")
+    }
+
+    /// A pinned project absorbs its children, so an unpinned child can never be pinned on its
+    /// own and must not be offered as a target the save would try to pin.
+    func testExistingThreadOptionsExcludeUnpinnedThreadInsideAPinnedProject() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let project = Project(path: "/tmp/absorbing-project", name: "Absorbing Project")
+        project.isPinned = true
+        let target = AgentThread(name: "Absorbed child", mode: .task, project: project)
+        let conversation = Conversation(id: "absorbed-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        project.threads = [target]
+        fixture.context.insert(project)
+        try fixture.context.save()
+
+        fixture.viewModel.reload()
+
+        XCTAssertFalse(fixture.viewModel.existingThreadTargets.contains { $0.conversationID == conversation.id })
+    }
+
+    func testSavingAnExistingThreadSchedulePinsAnUnpinnedTarget() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let pinnedNeighbor = AgentThread(name: "Already pinned", isPinned: true, mode: .task)
+        pinnedNeighbor.pinnedSortOrder = 0
+        let target = AgentThread(name: "Release chat", mode: .task)
+        let conversation = Conversation(id: "unpinned-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        fixture.context.insert(pinnedNeighbor)
+        fixture.context.insert(target)
+        try fixture.context.save()
+        fixture.viewModel.reload()
+
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.title = "Continue existing work"
+        draft.prompt = "Review the latest state."
+        draft.destination = .existingThread
+        draft.targetConversationID = conversation.id
+
+        XCTAssertTrue(fixture.viewModel.save(draft))
+
+        let definition = try XCTUnwrap(fixture.fetchDefinitions().first)
+        XCTAssertEqual(definition.targetThread?.persistentModelID, target.persistentModelID)
+        XCTAssertTrue(target.isPinned)
+        XCTAssertEqual(target.pinnedSortOrder, 1)
+    }
+
+    /// The seam between the host tool and the confirmation pane: a proposal that names an
+    /// unpinned thread has to survive `makeProposalDraft` — whose picker options would otherwise
+    /// drop an unlisted target — and pin that thread when it is confirmed.
+    func testConfirmingAnExistingThreadProposalTargetsAndPinsTheThread() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let target = AgentThread(name: "Release chat", mode: .task)
+        let conversation = Conversation(id: "unpinned-main", provider: "codex", thread: target)
+        target.conversations = [conversation]
+        fixture.context.insert(target)
+        try fixture.context.save()
+        fixture.viewModel.reload()
+
+        let definitionDraft = ScheduledTaskProposalDefinitionDraft(
+            title: "Continue existing work",
+            prompt: "Review the latest state.",
+            destination: .existingThread,
+            targetConversationID: conversation.id,
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "UTC",
+            providerID: "codex",
+            model: nil,
+            effort: "medium",
+            permissionMode: "default",
+            workspaceKind: .privateWorkspace,
+            workspaceStrategy: .worktree,
+            grantedRoots: [],
+            projectPath: nil
+        )
+        let draft = fixture.viewModel.makeProposalDraft(
+            definitionDraft,
+            definitionID: nil,
+            expectedRevision: nil
+        )
+        XCTAssertEqual(draft.targetConversationID, conversation.id)
+
+        XCTAssertTrue(fixture.viewModel.save(draft))
+
+        let definition = try XCTUnwrap(fixture.fetchDefinitions().first)
+        XCTAssertEqual(definition.destination, .existingThread)
+        XCTAssertEqual(definition.targetThread?.persistentModelID, target.persistentModelID)
+        XCTAssertTrue(target.isPinned)
     }
 
     func testRunNowClaimResolutionSurfacesSchedulerRejection() async throws {

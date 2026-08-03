@@ -110,6 +110,19 @@ extension SnapshotTests {
         )
     }
 
+    /// With nothing scheduled the detail still renders a row, so expanding never reads as broken.
+    func testScheduledTaskListToolExpandedDetailWhenEmpty() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitScheduledTaskListDetailView()
+                view.configure(rows: [], typography: TranscriptTypography())
+                return view
+            },
+            size: CGSize(width: 640, height: 60),
+            named: "scheduled_task_list_tool_detail_empty"
+        )
+    }
+
     func testScheduledTaskProposalWidgetConflict() throws {
         let fixture = try ScheduledTaskProposalSnapshotFixture()
 

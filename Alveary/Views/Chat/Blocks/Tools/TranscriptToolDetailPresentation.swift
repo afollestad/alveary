@@ -329,5 +329,12 @@ func prettyPrintedJSON(_ content: String) -> String {
           let pretty = String(data: prettyData, encoding: .utf8) else {
         return content
     }
+    // JSONSerialization spreads an empty container across two lines; collapse it.
+    if let dictionary = object as? [String: Any], dictionary.isEmpty {
+        return "{}"
+    }
+    if let array = object as? [Any], array.isEmpty {
+        return "[]"
+    }
     return pretty
 }

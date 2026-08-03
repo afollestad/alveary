@@ -21,7 +21,7 @@ final class ScheduledTasksViewModel {
 
     private(set) var tasks: [ScheduledTaskRowPresentation] = []
     private(set) var projects: [ScheduledTaskProjectOption] = []
-    private(set) var pinnedThreads: [ScheduledTaskThreadOption] = []
+    private(set) var existingThreadTargets: [ScheduledTaskThreadOption] = []
     var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
     var providerOrdering: [String] = []
     var isLoadingProviders = false
@@ -99,7 +99,7 @@ final class ScheduledTasksViewModel {
                 )
             )
             projects = fetchedProjects.map { ScheduledTaskProjectOption(path: $0.path, name: $0.name) }
-            pinnedThreads = try makePinnedThreadOptions()
+            existingThreadTargets = try makeExistingThreadOptions()
         } catch {
             errorMessage = error.localizedDescription
         }

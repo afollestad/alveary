@@ -90,7 +90,7 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
     case invalidRecurrence
     case invalidDestination
     case projectWorkspaceRequiresProject
-    case existingThreadRequiresPinnedThread
+    case existingThreadRequiresAvailableThread
     case workspaceRootsChanged
     case revisionConflict(expected: Int, actual: Int)
     case runNowBlockedByActiveRun
@@ -110,8 +110,8 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
             "Scheduled task destination is invalid."
         case .projectWorkspaceRequiresProject:
             "Project schedules require a project."
-        case .existingThreadRequiresPinnedThread:
-            "Existing-thread schedules require an available pinned thread."
+        case .existingThreadRequiresAvailableThread:
+            "Existing-thread schedules require an available thread."
         case .workspaceRootsChanged:
             "The selected project or folder grants changed and must be reviewed before saving."
         case let .revisionConflict(expected, actual):

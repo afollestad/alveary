@@ -100,7 +100,10 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
 
     private func primaryViews(for tool: ToolEntry, typography: TranscriptTypography) -> [NSView] {
         if ScheduledTaskListToolPresentation.isListTool(named: tool.name) {
-            return [scheduledTaskListView(typography: typography)]
+            // The list view reads live definitions, so a failed call would otherwise answer with
+            // a task list and never show why it failed.
+            return errorSurfaceViews(for: tool, typography: typography)
+                ?? [scheduledTaskListView(typography: typography)]
         }
         if let fileChange = CodexFileChangePresentation.extract(from: tool) {
             return fileChangeViews(for: fileChange, tool: tool, typography: typography)
@@ -133,17 +136,27 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         return views
     }
 
+    /// The failure text for a tool whose detail otherwise renders something other than its raw
+    /// output, so the error cannot be lost behind a rendered view. `nil` when the tool succeeded
+    /// or reported nothing.
+    private func errorSurfaceViews(for tool: ToolEntry, typography: TranscriptTypography) -> [NSView]? {
+        guard tool.isError,
+              let output = tool.output,
+              !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        let surface = AppKitTranscriptCodeSurfaceView()
+        surface.configure(.plain(content: output, tint: .systemRed, typography: typography))
+        return [surface]
+    }
+
     private func fileChangeViews(
         for fileChange: CodexFileChangePresentation,
         tool: ToolEntry,
         typography: TranscriptTypography
     ) -> [NSView] {
-        if tool.isError,
-           let output = tool.output,
-           !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let surface = AppKitTranscriptCodeSurfaceView()
-            surface.configure(.plain(content: output, tint: .systemRed, typography: typography))
-            return [surface]
+        if let errorViews = errorSurfaceViews(for: tool, typography: typography) {
+            return errorViews
         }
 
         return fileChange.changes.map { change in
@@ -165,12 +178,8 @@ final class AppKitTranscriptToolDetailsView: AppKitDynamicColorView {
         snapshot: MinimalToolContent.Snapshot,
         typography: TranscriptTypography
     ) -> [NSView] {
-        if tool.isError,
-           let output = tool.output,
-           !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let surface = AppKitTranscriptCodeSurfaceView()
-            surface.configure(.plain(content: output, tint: .systemRed, typography: typography))
-            return [surface]
+        if let errorViews = errorSurfaceViews(for: tool, typography: typography) {
+            return errorViews
         }
 
         if tool.isImage {

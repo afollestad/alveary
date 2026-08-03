@@ -21,9 +21,9 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
         case .projectNotFound:
             "The selected project no longer exists."
         case .existingThreadRequired:
-            "Choose a pinned thread for this scheduled task."
+            "Choose a thread for this scheduled task."
         case .existingThreadUnavailable:
-            "The selected pinned thread is no longer available."
+            "The selected thread is no longer available."
         case .invalidPersistedDestination:
             "This scheduled task has an invalid persisted destination."
         case .runNowRejected:

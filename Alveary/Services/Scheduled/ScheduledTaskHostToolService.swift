@@ -44,6 +44,10 @@ final class ScheduledTaskHostToolService {
             switch call.name {
             case ScheduledTaskHostToolCatalog.listToolName:
                 return try listScheduledTasks(context: context, arguments: call.arguments)
+            case ScheduledTaskHostToolCatalog.listProjectsToolName:
+                return try listProjects(context: context, arguments: call.arguments)
+            case ScheduledTaskHostToolCatalog.listThreadsToolName:
+                return try listThreads(context: context, arguments: call.arguments)
             case ScheduledTaskHostToolCatalog.proposeToolName:
                 return try proposeScheduledTask(context: context, arguments: call.arguments)
             default:
@@ -56,47 +60,6 @@ final class ScheduledTaskHostToolService {
 }
 
 private extension ScheduledTaskHostToolService {
-    func listScheduledTasks(
-        context: AgentCLIKit.AgentHostToolCallContext,
-        arguments: [String: AgentCLIKit.JSONValue]
-    ) throws -> AgentCLIKit.AgentHostToolResult {
-        guard arguments.isEmpty else {
-            throw ScheduledTaskHostToolServiceError.listDoesNotAcceptArguments
-        }
-        _ = try resolveSource(context: context)
-        let definitions: [ScheduledTask]
-        do {
-            definitions = try modelContext.fetch(
-                FetchDescriptor<ScheduledTask>(
-                    sortBy: [
-                        SortDescriptor(\ScheduledTask.createdAt),
-                        SortDescriptor(\ScheduledTask.id)
-                    ]
-                )
-            )
-        } catch {
-            throw ScheduledTaskHostToolServiceError.persistenceFailure
-        }
-
-        let tasks = definitions.map { definition in
-            AgentCLIKit.JSONValue.object([
-                "id": .string(definition.id),
-                "revision": .number(Double(definition.revision)),
-                "title": .string(definition.title),
-                "state": .string(definition.state.rawValue),
-                "schedule_summary": .string(ScheduledTaskHostToolSupport.scheduleSummary(
-                    for: definition,
-                    timeZoneIdentifier: currentTimeZone().identifier
-                ))
-            ])
-        }
-        let countDescription = definitions.count == 1 ? "1 scheduled task" : "\(definitions.count) scheduled tasks"
-        return AgentCLIKit.AgentHostToolResult(
-            text: "Found \(countDescription).",
-            structuredContent: .object(["tasks": .array(tasks)])
-        )
-    }
-
     func proposeScheduledTask(
         context: AgentCLIKit.AgentHostToolCallContext,
         arguments: [String: AgentCLIKit.JSONValue]
@@ -281,7 +244,9 @@ private extension ScheduledTaskHostToolService {
         let receipt = makeReceipt(
             deduplicationKey: identity.deduplicationKey,
             proposal: proposal,
-            message: Self.pendingConfirmationMessage,
+            message: [Self.pendingConfirmationMessage, resolution.placementSummary]
+                .compactMap { $0 }
+                .joined(separator: " "),
             sourceProcessToken: context.processToken,
             createdAt: identity.createdAt
         )

@@ -123,7 +123,7 @@ extension SidebarViewModelTests {
                 edit: lateAttachmentEdit(targetThread: thread)
             )
         ) { error in
-            XCTAssertEqual(error as? ScheduledTaskMutationError, .existingThreadRequiresPinnedThread)
+            XCTAssertEqual(error as? ScheduledTaskMutationError, .existingThreadRequiresAvailableThread)
         }
 
         await completionGate.release()
