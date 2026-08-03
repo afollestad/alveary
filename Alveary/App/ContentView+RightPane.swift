@@ -227,6 +227,7 @@ extension ContentView {
         case .pullRequest(let target):
             PullRequestPane(viewModel: pullRequestsViewModel, target: target, onDismiss: onDismiss)
                 .environment(\.appMarkdownImagePreviewAction, markdownImagePreviewAction)
+                .environment(\.pullRequestLinkedOwnerOpenAction, linkedOwnerOpenAction)
         }
     }
 
@@ -237,6 +238,27 @@ extension ContentView {
     private var markdownImagePreviewAction: AppMarkdownImagePreviewAction {
         AppMarkdownImagePreviewAction(id: "app-image-preview-modal") { [appState] image, baseURL in
             appState.presentImagePreview(.markdownImage(image, baseURL: baseURL))
+        }
+    }
+
+    /// Selects a linked thread or project from the pane's linked-owners section.
+    /// The row hands back an owner id rather than a model, so the selection is
+    /// built from a freshly resolved row. No pane dismissal: origin scoping
+    /// already unmounts the pane once the selection moves off its origin.
+    private var linkedOwnerOpenAction: PullRequestLinkedOwnerOpenAction {
+        PullRequestLinkedOwnerOpenAction(id: "app-sidebar-selection") { [appState, uiModelContext] owner in
+            switch owner {
+            case .thread(let id):
+                guard let thread = uiModelContext.resolveThread(id: id) else {
+                    return
+                }
+                appState.selectedSidebarItem = .thread(thread)
+            case .project(let id):
+                guard let project = uiModelContext.resolveProject(id: id) else {
+                    return
+                }
+                appState.selectedSidebarItem = .project(project)
+            }
         }
     }
 

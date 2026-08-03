@@ -46,6 +46,10 @@ struct PullRequestPaneOverview: View {
                     // no divider between them — with Reviewers and Checks below it.
                     description(detail: detail)
 
+                    // Local column reads, so this lands in the detail's first
+                    // frame rather than reflowing the pane a second time.
+                    PullRequestPaneLinkedOwners(identifier: session.summary.id)
+
                     if !detail.reviewers.isEmpty {
                         reviewersSection(detail.reviewers)
                     }
@@ -343,7 +347,7 @@ private struct PullRequestCheckRow: View {
             } label: {
                 rowContent(showsLinkGlyph: true)
             }
-            .buttonStyle(PullRequestCheckRowButtonStyle())
+            .buttonStyle(PullRequestPaneRowButtonStyle())
             .accessibilityLabel("\(check.name), \(stateAccessibilityName)")
             .accessibilityHint("Opens the check's details page")
         } else {
@@ -402,44 +406,5 @@ private struct PullRequestCheckRow: View {
         case .pending:
             return "in progress"
         }
-    }
-}
-
-/// Full-width row button with the shared selectable-row hover and pressed fills.
-/// The rows sit in a plain `VStack`, so the fill renders as a direct background
-/// instead of going through `listRowBackground`.
-private struct PullRequestCheckRowButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        PullRequestCheckRowButtonBody(configuration: configuration)
-    }
-}
-
-private struct PullRequestCheckRowButtonBody: View {
-    let configuration: ButtonStyle.Configuration
-
-    @State private var isHovering = false
-
-    var body: some View {
-        configuration.label
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                AppSelectionRowBackground(
-                    isSelected: false,
-                    isPressed: configuration.isPressed,
-                    isHovered: isHovering,
-                    leadingInset: 0,
-                    trailingInset: 0,
-                    topInset: 0,
-                    bottomInset: 0
-                )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous))
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.12)) {
-                    isHovering = hovering
-                }
-            }
     }
 }

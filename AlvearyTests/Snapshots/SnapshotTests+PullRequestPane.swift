@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import XCTest
 
@@ -6,48 +7,75 @@ import XCTest
 extension SnapshotTests {
     // Tall enough to show the divider and the appended activity timeline —
     // comment cards, review cards, status-event rows, and review threads.
-    func testPullRequestPaneOverview() {
-        assertMacSnapshot(
-            PullRequestPaneOverview(
-                session: PullRequestPaneSnapshots.loadedSession,
-                viewModel: PullRequestPaneSnapshots.inertViewModel,
-                onOpenFiles: {}
-            ),
+    // The Overview's linked-owners section queries SwiftData, so every host of
+    // it needs a container; an empty store leaves the section unrendered.
+    func testPullRequestPaneOverview() async throws {
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
             size: CGSize(width: 460, height: 1_400),
             named: "pull_request_pane_overview"
-        )
-    }
-
-    func testPullRequestPaneOverviewDark() {
-        assertMacSnapshot(
+        ) {
             PullRequestPaneOverview(
                 session: PullRequestPaneSnapshots.loadedSession,
                 viewModel: PullRequestPaneSnapshots.inertViewModel,
                 onOpenFiles: {}
-            ),
+            )
+        }
+    }
+
+    func testPullRequestPaneOverviewDark() async throws {
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
             size: CGSize(width: 460, height: 1_400),
             named: "pull_request_pane_overview_dark",
             colorScheme: .dark
-        )
+        ) {
+            PullRequestPaneOverview(
+                session: PullRequestPaneSnapshots.loadedSession,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                onOpenFiles: {}
+            )
+        }
     }
 
     /// The header pads its trailing edge so the diff stats and the description's
     /// Edit menu share the timeline cards' menu column, which also keeps the menu
     /// out of the scroll indicator's grab region. Without `viewerCanUpdate` the
     /// menu does not render at all, so the other Overview baselines never see it.
-    func testPullRequestPaneOverviewEditableDescription() {
+    func testPullRequestPaneOverviewEditableDescription() async throws {
         var session = PullRequestPaneSnapshots.loadedSession
         session.detail?.viewerCanUpdate = true
 
-        assertMacSnapshot(
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
+            size: CGSize(width: 460, height: 1_400),
+            named: "pull_request_pane_overview_editable_description"
+        ) {
             PullRequestPaneOverview(
                 session: session,
                 viewModel: PullRequestPaneSnapshots.inertViewModel,
                 onOpenFiles: {}
-            ),
+            )
+        }
+    }
+
+    /// The linked-owners section: a project and a live thread both linking this
+    /// pull request, so the header names both kinds and each glyph renders. The
+    /// third thread links nothing and must stay out of the list.
+    func testPullRequestPaneOverviewLinkedOwners() async throws {
+        let container = try PullRequestPaneSnapshots.makeLinkedOwnersContainer()
+
+        await assertMacModelSnapshot(
+            modelContainer: container,
             size: CGSize(width: 460, height: 1_400),
-            named: "pull_request_pane_overview_editable_description"
-        )
+            named: "pull_request_pane_overview_linked_owners"
+        ) {
+            PullRequestPaneOverview(
+                session: PullRequestPaneSnapshots.loadedSession,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                onOpenFiles: {}
+            )
+        }
     }
 
     /// Thread cards float on the hunk's code surface (the row carries the shared
@@ -88,14 +116,16 @@ extension SnapshotTests {
     /// menu's dots join it in the editable-description baseline). The
     /// Overview-only baselines cannot catch the tab row drifting off that
     /// column.
-    func testPullRequestPaneTrailingColumn() async {
+    func testPullRequestPaneTrailingColumn() async throws {
         let fixture = await PullRequestPaneSnapshots.makeLoadedFixture()
 
-        assertMacSnapshot(
-            fixture.pane,
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
             size: CGSize(width: 460, height: 400),
             named: "pull_request_pane_trailing_column"
-        )
+        ) {
+            fixture.pane
+        }
     }
 
     func testPullRequestPaneFiles() async throws {
@@ -123,20 +153,59 @@ extension SnapshotTests {
         )
     }
 
-    func testPullRequestPaneLoading() {
+    func testPullRequestPaneLoading() async throws {
         let fixture = PullRequestPaneSnapshots.makeLoadingFixture()
 
-        assertMacSnapshot(
-            fixture.pane,
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
             size: CGSize(width: 460, height: 500),
             named: "pull_request_pane_loading"
-        )
+        ) {
+            fixture.pane
+        }
     }
 }
 
 @MainActor
 enum PullRequestPaneSnapshots {
     static let identifier = PullRequestIdentifier(owner: "octo", repo: "alveary", number: 41)
+
+    /// An empty store for the Overview's linked-owners queries: the section
+    /// renders nothing, which is what every baseline except the linked-owners
+    /// one expects.
+    static func makeModelContainer() throws -> ModelContainer {
+        try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+    }
+
+    /// A project and one of its threads linking the fixture pull request, plus a
+    /// thread that links nothing.
+    static func makeLinkedOwnersContainer() throws -> ModelContainer {
+        let container = try makeModelContainer()
+        let context = ModelContext(container)
+        let project = Project(path: "/tmp/alveary", name: "alveary")
+        context.insert(project)
+        let linkedThread = AgentThread(name: "Pull request pane polish", project: project)
+        let unlinkedThread = AgentThread(name: "Unrelated work", project: project)
+        context.insert(linkedThread)
+        context.insert(unlinkedThread)
+        let link = LinkedPullRequest(
+            summary: summary,
+            linkedAt: Date(timeIntervalSince1970: 1_799_930_000)
+        )
+        project.linkedPullRequests = [link]
+        linkedThread.linkedPullRequests = [link]
+        try context.save()
+        return container
+    }
 
     /// A view model that never loads; standalone tab snapshots only need the
     /// avatar loader (letter placeholders for nil URLs) and toggle callbacks.
