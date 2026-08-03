@@ -134,23 +134,32 @@ private extension SidebarViewModel {
             guard let providerID = resolution.providerID else {
                 throw SidebarViewModelError.noReadyThreadDefaultProvider
             }
-            let seed = ThreadCreationSeed(
-                provider: providerID,
-                permissionMode: resolution.permissionMode,
-                model: resolution.storedThreadModel,
-                effort: resolution.effort,
-                isDraft: true,
-                mode: mode
-            )
             let draft: AgentThread
             switch mode {
             case .project:
                 guard let destinationPath = pendingDraftProjectPaths[.project] ?? requestedProjectPath else {
                     throw SidebarViewModelError.projectMissing
                 }
-                draft = try createThread(projectPath: destinationPath, seed: seed)
+                draft = try threadLifecycle.insertProjectThread(
+                    projectPath: destinationPath,
+                    seed: ProjectThreadSeed(
+                        provider: providerID,
+                        permissionMode: resolution.permissionMode,
+                        model: resolution.storedThreadModel,
+                        effort: resolution.effort,
+                        isDraft: true
+                    )
+                )
             case .task:
-                draft = try createTaskThread(seed: seed)
+                draft = try createTaskThread(
+                    seed: TaskThreadSeed(
+                        provider: providerID,
+                        permissionMode: resolution.permissionMode,
+                        model: resolution.storedThreadModel,
+                        effort: resolution.effort,
+                        isDraft: true
+                    )
+                )
             }
             cachedDraftThreadIDs[mode] = draft.persistentModelID
             return draft.persistentModelID
@@ -167,70 +176,19 @@ private extension SidebarViewModel {
         effort: String
     ) async throws -> AgentThread {
         let dbProject = try requireProject(project)
-        return try insertThread(
+        return try threadLifecycle.insertProjectThread(
             project: dbProject,
-            seed: ThreadCreationSeed(
+            seed: ProjectThreadSeed(
                 provider: provider,
                 permissionMode: permissionMode,
                 model: threadModel,
                 effort: effort,
-                isDraft: false,
-                mode: .project
+                isDraft: false
             )
         )
     }
 
-    func createThread(
-        projectPath: String,
-        seed: ThreadCreationSeed
-    ) throws -> AgentThread {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == projectPath
-        })
-        guard let project = try modelContext.fetch(descriptor).first else {
-            throw SidebarViewModelError.projectMissing
-        }
-        return try insertThread(
-            project: project,
-            seed: seed
-        )
-    }
-
-    func insertThread(project: Project, seed: ThreadCreationSeed) throws -> AgentThread {
-        precondition(seed.mode == .project)
-        if modelContext.hasChanges {
-            try modelContext.save()
-        }
-        let thread = AgentThread(
-            name: "New thread",
-            permissionMode: seed.permissionMode,
-            effort: seed.effort,
-            model: seed.model,
-            useWorktree: settingsService.current.createWorktreeByDefault && project.isGitRepository,
-            isDraft: seed.isDraft,
-            project: project
-        )
-        thread.mode = .project
-        let conversation = Conversation(
-            provider: seed.provider,
-            isMain: true,
-            displayOrder: 0,
-            thread: thread
-        )
-
-        modelContext.insert(thread)
-        modelContext.insert(conversation)
-        do {
-            try persistThreadCreation()
-        } catch {
-            modelContext.rollback()
-            throw error
-        }
-        return thread
-    }
-
-    func createTaskThread(seed: ThreadCreationSeed) throws -> AgentThread {
-        precondition(seed.mode == .task)
+    func createTaskThread(seed: TaskThreadSeed) throws -> AgentThread {
         if modelContext.hasChanges {
             try modelContext.save()
         }
@@ -342,11 +300,12 @@ private extension SidebarViewModel {
     }
 }
 
-private struct ThreadCreationSeed {
+/// Settings a new Task thread starts with. Project threads use `ProjectThreadSeed`, whose
+/// creation is app-scoped; Task creation stays view-side because it owns a private workspace.
+private struct TaskThreadSeed {
     let provider: String
     let permissionMode: String
     let model: String?
     let effort: String
     let isDraft: Bool
-    let mode: AgentThreadMode
 }

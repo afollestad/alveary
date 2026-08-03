@@ -8,9 +8,7 @@ extension SidebarViewModel {
     }
 
     func regularProjects(from projects: [Project]) -> [Project] {
-        projects
-            .filter { !$0.isPinned }
-            .sorted(by: compareRegularProjects)
+        SidebarOrderNormalization.regularProjects(from: projects)
     }
 
     func ensureSidebarOrderingInitialized() throws {
@@ -122,13 +120,11 @@ extension SidebarViewModel {
         excludingProjectIDs: Set<PersistentIdentifier> = [],
         excludingThreadIDs: Set<PersistentIdentifier> = []
     ) throws -> Bool {
-        let projects = try allProjects().filter { !excludingProjectIDs.contains($0.persistentModelID) }
-        let threads = try allThreads().filter { !excludingThreadIDs.contains($0.persistentModelID) }
-        var didChange = clearInvalidProjectOrders(projects)
-        didChange = clearInvalidPinnedThreadOrders(threads) || didChange
-        didChange = renumberRegularProjects(projects) || didChange
-        didChange = renumberPinnedItems(projects: projects, threads: threads) || didChange
-        return didChange
+        try SidebarOrderNormalization.normalize(
+            in: modelContext,
+            excludingProjectIDs: excludingProjectIDs,
+            excludingThreadIDs: excludingThreadIDs
+        )
     }
 
     func refreshThreadOrder(animated: Bool) {
@@ -146,109 +142,17 @@ extension SidebarViewModel {
 
     // Shared with `SidebarViewModel+SidebarOrderingCommit.swift`.
     func allProjects() throws -> [Project] {
-        try modelContext.fetch(FetchDescriptor<Project>())
+        try SidebarOrderNormalization.allProjects(in: modelContext)
     }
 
     func allThreads() throws -> [AgentThread] {
-        try modelContext.fetch(FetchDescriptor<AgentThread>())
+        try SidebarOrderNormalization.allThreads(in: modelContext)
     }
 }
 
 private extension SidebarViewModel {
-    func clearInvalidProjectOrders(_ projects: [Project]) -> Bool {
-        var didChange = false
-        for project in projects {
-            if project.isPinned {
-                if project.sidebarSortOrder != nil {
-                    project.sidebarSortOrder = nil
-                    didChange = true
-                }
-                if let pinnedSortOrder = project.pinnedSortOrder, pinnedSortOrder < 0 {
-                    project.pinnedSortOrder = nil
-                    didChange = true
-                }
-            } else {
-                if project.pinnedSortOrder != nil {
-                    project.pinnedSortOrder = nil
-                    didChange = true
-                }
-                if let sidebarSortOrder = project.sidebarSortOrder, sidebarSortOrder < 0 {
-                    project.sidebarSortOrder = nil
-                    didChange = true
-                }
-            }
-        }
-        return didChange
-    }
-
-    func clearInvalidPinnedThreadOrders(_ threads: [AgentThread]) -> Bool {
-        var didChange = false
-        for thread in threads {
-            if isVisiblePinnedSidebarThread(thread) {
-                if let pinnedSortOrder = thread.pinnedSortOrder, pinnedSortOrder < 0 {
-                    thread.pinnedSortOrder = nil
-                    didChange = true
-                }
-            } else if thread.pinnedSortOrder != nil {
-                thread.pinnedSortOrder = nil
-                didChange = true
-            }
-        }
-        return didChange
-    }
-
-    func renumberRegularProjects(_ projects: [Project]) -> Bool {
-        var didChange = false
-        for (index, project) in regularProjects(from: projects).enumerated() where project.sidebarSortOrder != index {
-            project.sidebarSortOrder = index
-            didChange = true
-        }
-        return didChange
-    }
-
-    func renumberPinnedItems(projects: [Project], threads: [AgentThread]) -> Bool {
-        var didChange = false
-        let items = sidebarPinnedItems(projects: projects, threads: threads)
-        for (index, item) in SidebarPinnedItemOrdering.sorted(items).enumerated() {
-            didChange = assignPinnedSortOrder(index, to: item) || didChange
-        }
-        return didChange
-    }
-
-    func assignPinnedSortOrder(_ index: Int, to item: SidebarPinnedItem) -> Bool {
-        switch item.kind {
-        case .project(let project) where project.pinnedSortOrder != index:
-            project.pinnedSortOrder = index
-            return true
-        case .thread(let thread) where thread.pinnedSortOrder != index:
-            thread.pinnedSortOrder = index
-            return true
-        default:
-            return false
-        }
-    }
-
     func sidebarPinnedItems(projects: [Project], threads: [AgentThread]) -> [SidebarPinnedItem] {
-        let projectItems = projects
-            .filter(\.isPinned)
-            .map { project in
-                SidebarPinnedItem(
-                    project: project,
-                    activityDate: latestUnarchivedThreadModifiedAt(for: project, threads: threads)
-                )
-            }
-        let threadItems = threads
-            .filter(isVisiblePinnedSidebarThread)
-            .map(SidebarPinnedItem.init(thread:))
-        return projectItems + threadItems
-    }
-
-    func latestUnarchivedThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
-        // Mode-agnostic, matching `SidebarRenderSnapshot`: any thread in the project is a child.
-        threads
-            .filter { $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
-            .compactMap(\.modifiedAt)
-            .max()
+        SidebarOrderNormalization.sidebarPinnedItems(projects: projects, threads: threads)
     }
 
     func sidebarDragOrder() throws -> SidebarDragOrder {

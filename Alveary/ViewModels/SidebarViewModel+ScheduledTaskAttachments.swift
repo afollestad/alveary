@@ -6,9 +6,7 @@ extension SidebarViewModel {
     }
 
     func requireNoScheduledTaskAttachment(_ thread: AgentThread) throws {
-        if let error = scheduledTaskAttachmentError(for: thread) {
-            throw error
-        }
+        try threadLifecycle.requireNoScheduledTaskAttachment(thread)
     }
 
     func requireNoScheduledTaskAttachments(in project: Project) throws {
@@ -27,12 +25,6 @@ extension SidebarViewModel {
     }
 
     private func scheduledTaskAttachmentError(for thread: AgentThread) -> SidebarViewModelError? {
-        if let definition = thread.blockingScheduledTaskAttachment {
-            return .scheduledTaskAttachment(definition.title)
-        }
-        if thread.hasBlockingScheduledTaskRunAttachment {
-            return .activeScheduledTaskRunAttachment
-        }
-        return nil
+        threadLifecycle.scheduledTaskAttachmentError(for: thread)
     }
 }

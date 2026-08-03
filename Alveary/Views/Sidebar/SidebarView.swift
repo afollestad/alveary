@@ -243,6 +243,7 @@ struct SidebarView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftProjectChanged), perform: handleDraftProjectChanged)
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftMaterialized), perform: handleDraftMaterialized)
+        .onReceive(NotificationCenter.default.publisher(for: .threadLifecycleChanged), perform: handleThreadLifecycleChanged)
         .animation(threadOrderAnimation, value: threadOrderVersion)
         .animation(nil, value: statusVersion)
 

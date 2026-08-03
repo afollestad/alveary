@@ -88,6 +88,24 @@ extension SidebarView {
         }
     }
 
+    /// An archive that ran outside this window — the host MCP's `archive_thread`, another window —
+    /// leaves the selection on a row that no longer renders. Route away exactly the way this
+    /// window's own archive action does. The local path already moved selection before posting,
+    /// so it reaches this as a no-op.
+    func handleThreadLifecycleChanged(_ notification: Notification) {
+        guard let threadID = notification.userInfo?[ThreadLifecycleNotificationKey.threadID] as? PersistentIdentifier,
+              sidebarSelectionToken(appState.selectedSidebarItem) == .thread(threadID),
+              let thread = viewModel.archivedThread(id: threadID) else {
+            return
+        }
+        let replacementItem = thread.effectiveMode == .task
+            ? selectionAfterDeletingThread(thread)
+            : thread.project.map(SidebarItem.project)
+        completeThreadRemovalRouting(
+            beginThreadRemovalRouting(thread, replacementItem: replacementItem)
+        )
+    }
+
     func renameThread(_ thread: AgentThread, to newName: String) {
         guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
             viewModel.presentSidebarError(SidebarThreadActionError.renameTargetMissing)

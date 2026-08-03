@@ -304,19 +304,7 @@ extension SidebarViewModel {
     }
 
     func isVisiblePinnedSidebarThread(_ thread: AgentThread) -> Bool {
-        guard thread.archivedAt == nil,
-              !thread.isDraft,
-              thread.isPinned else {
-            return false
-        }
-        // A pinned thread is absorbed by a pinned project regardless of mode; a projectless Task
-        // has nothing to be absorbed by.
-        switch thread.effectiveMode {
-        case .project:
-            return thread.project != nil && thread.project?.isPinned != true
-        case .task:
-            return thread.project?.isPinned != true
-        }
+        SidebarOrderNormalization.isVisiblePinnedSidebarThread(thread)
     }
 }
 

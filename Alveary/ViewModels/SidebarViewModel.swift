@@ -16,8 +16,10 @@ final class SidebarViewModel {
     let providerSessionActionService: any ProviderSessionActionService
     let attachmentStore: any ConversationAttachmentStore
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
-    private let invalidateConversationController: @MainActor (String) -> Void
-    let stopAndWaitForScheduledTaskRun: ScheduledTaskRunQuiescence
+    /// Shared implementation of thread creation and archiving. The sidebar owns the UI half
+    /// (ordering refresh, selection routing, diagnostics presentation) and delegates the rest,
+    /// so an app-scoped caller such as the host MCP runs exactly the same lifecycle.
+    let threadLifecycle: ThreadLifecycleService
     let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
     let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
     let saveThreadCreation: @MainActor (ModelContext) throws -> Void
@@ -73,8 +75,16 @@ final class SidebarViewModel {
         self.providerSessionActionService = providerSessionActions
         self.attachmentStore = attachmentStore
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
-        self.invalidateConversationController = invalidateConversationController
-        self.stopAndWaitForScheduledTaskRun = stopAndWaitForScheduledTaskRun
+        threadLifecycle = ThreadLifecycleService(
+            modelContext: modelContext,
+            settingsService: settingsService,
+            agentsManager: agentsManager,
+            providerSessionActionService: providerSessionActions,
+            notificationManager: notificationManager,
+            invalidateConversationController: invalidateConversationController,
+            stopAndWaitForScheduledTaskRun: stopAndWaitForScheduledTaskRun,
+            saveThreadCreation: saveThreadCreation
+        )
         self.saveDraftProjectMove = saveDraftProjectMove
         self.saveDeletionCommit = saveDeletionCommit
         self.saveThreadCreation = saveThreadCreation
@@ -114,57 +124,25 @@ final class SidebarViewModel {
     func presentGeneralSidebarError(_ error: Error) { sidebarError = error.localizedDescription }
 
     private func invalidateConversationControllers(_ conversationIDs: [String]) {
-        for conversationID in conversationIDs {
-            invalidateConversationController(conversationID)
-        }
+        threadLifecycle.invalidateConversationControllers(conversationIDs)
     }
 
     func archiveThread(
         _ thread: AgentThread,
         onPersistenceCommit: @escaping @MainActor () -> Void = {}
     ) async throws {
-        var dbThread = try requireThread(thread)
-        try requireNoScheduledTaskAttachment(dbThread)
-        guard !dbThread.isDraft else {
-            throw SidebarViewModelError.threadMissing
-        }
-        dbThread = try await quiesceScheduledTaskRunIfNeeded(for: dbThread)
-        let snapshot = try makeThreadArchiveSnapshot(dbThread)
-        let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
-        try backfillProviderSessionBindings(from: providerSessionResolution.records)
-        if let currentThread = modelContext.resolveThread(id: snapshot.threadID) {
-            try requireNoScheduledTaskAttachment(currentThread)
-        }
-        await beginConversationTeardowns(snapshot.conversationIDs)
-        if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
-            // Attachment state can change while provider resolution and runtime teardown await.
-            // Recheck on the main actor immediately before the durable lifecycle mutation.
-            try requireNoScheduledTaskAttachment(dbThread)
-            if modelContext.hasChanges {
-                try modelContext.save()
-            }
-            do {
-                dbThread.isPinned = false
-                dbThread.pinnedSortOrder = nil
-                dbThread.archivedAt = Date()
-                _ = try normalizeSidebarOrderingForLifecycle()
-                try modelContext.save()
-                onPersistenceCommit()
-                refreshThreadOrder(animated: true)
-                postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
-            } catch {
-                modelContext.rollback()
-                throw error
-            }
-        }
-        notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
-        invalidateConversationControllers(snapshot.conversationIDs)
-
-        let teardownError = await conversationTeardownError(snapshot.conversationIDs)
-        let diagnostics = await providerSessionActionService.archiveSessions(providerSessionResolution)
-        presentProviderSessionActionDiagnostics(diagnostics)
-        if let teardownError {
-            throw SidebarViewModelError.archiveCleanupFailed(teardownError)
+        do {
+            let diagnostics = try await threadLifecycle.archiveThread(
+                threadID: thread.persistentModelID,
+                onPersistenceCommit: { [self] in
+                    onPersistenceCommit()
+                    refreshThreadOrder(animated: true)
+                }
+            )
+            presentProviderSessionActionDiagnostics(diagnostics)
+        } catch let error as ThreadArchiveCleanupError {
+            presentProviderSessionActionDiagnostics(error.diagnostics)
+            throw SidebarViewModelError.archiveCleanupFailed(error.underlying)
         }
     }
 
@@ -328,9 +306,7 @@ final class SidebarViewModel {
 
 extension SidebarViewModel {
     private func beginConversationTeardowns(_ conversationIDs: [String]) async {
-        for conversationId in uniqueConversationIDs(conversationIDs) {
-            await agentsManager.kill(conversationId: conversationId)
-        }
+        await threadLifecycle.beginConversationTeardowns(conversationIDs)
     }
 
     func presentProviderSessionActionDiagnostics(_ diagnostics: [ProviderSessionActionDiagnostic]) {
@@ -339,59 +315,12 @@ extension SidebarViewModel {
         }
     }
 
-    private func backfillProviderSessionBindings(from records: [AgentCLIKit.AgentSessionRecord]) throws {
-        guard !records.isEmpty else {
-            return
-        }
-
-        for record in records {
-            guard let conversation = modelContext.resolveConversation(conversationID: record.conversationId.rawValue) else {
-                continue
-            }
-            conversation.providerSessionId = record.providerSessionId.rawValue
-            conversation.providerSessionProviderId = record.providerId.rawValue
-            conversation.providerSessionWorkingDirectory = record.workingDirectory?.path
-        }
-        try modelContext.save()
-    }
-
     private func conversationTeardownError(_ conversationIDs: [String]) async -> Error? {
-        do {
-            try await awaitConversationTeardowns(conversationIDs)
-            return nil
-        } catch {
-            return error
-        }
+        await threadLifecycle.conversationTeardownError(conversationIDs)
     }
 
     private func awaitConversationTeardowns(_ conversationIDs: [String]) async throws {
-        let conversationIDs = uniqueConversationIDs(conversationIDs)
-        let agentsManager = agentsManager
-        var errors = [Error?](repeating: nil, count: conversationIDs.count)
-
-        await withTaskGroup(of: (Int, Error?).self) { group in
-            for (index, conversationId) in conversationIDs.enumerated() {
-                group.addTask {
-                    do {
-                        try await agentsManager.destroyRuntime(conversationId: conversationId)
-                        return (index, nil)
-                    } catch { return (index, error) }
-                }
-            }
-
-            for await (index, error) in group {
-                errors[index] = error
-            }
-        }
-
-        if let firstError = errors.compactMap({ $0 }).first {
-            throw firstError
-        }
-    }
-
-    private func uniqueConversationIDs(_ conversationIDs: [String]) -> [String] {
-        var seen = Set<String>()
-        return conversationIDs.filter { seen.insert($0).inserted }
+        try await threadLifecycle.awaitConversationTeardowns(conversationIDs)
     }
 
     func resolvePreferredRemoteName(in directory: String, currentBranch: String) async throws -> String? {

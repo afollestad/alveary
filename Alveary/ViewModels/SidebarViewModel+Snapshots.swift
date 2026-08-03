@@ -129,10 +129,7 @@ extension SidebarViewModel {
     }
 
     func requireThread(_ thread: AgentThread) throws -> AgentThread {
-        guard let dbThread = modelContext.resolveThread(id: thread.persistentModelID) else {
-            throw SidebarViewModelError.threadMissing
-        }
-        return dbThread
+        try threadLifecycle.requireThread(id: thread.persistentModelID)
     }
 
     func threadLifecyclePersistenceState(id: PersistentIdentifier) -> ThreadLifecyclePersistenceState {
@@ -143,14 +140,7 @@ extension SidebarViewModel {
     }
 
     func makeThreadArchiveSnapshot(_ thread: AgentThread) throws -> ThreadArchiveSnapshot {
-        let dbThread = try requireThread(thread)
-        let threadID = dbThread.persistentModelID
-        return ThreadArchiveSnapshot(
-            threadID: threadID,
-            mode: dbThread.effectiveMode,
-            conversationIDs: liveConversationIDs(for: threadID),
-            providerSessionAction: providerSessionActionSnapshot(for: dbThread)
-        )
+        try threadLifecycle.makeThreadArchiveSnapshot(thread)
     }
 
     func makeThreadCleanupSnapshot(_ thread: AgentThread) throws -> ThreadCleanupSnapshot {
@@ -444,35 +434,11 @@ extension SidebarViewModel {
     }
 
     private func liveConversationIDs(for threadID: PersistentIdentifier) -> [String] {
-        liveConversations(for: threadID).map(\.id)
+        threadLifecycle.liveConversationIDs(for: threadID)
     }
 
     private func providerSessionActionSnapshot(for thread: AgentThread) -> ProviderSessionActionSnapshot {
-        let threadID = thread.persistentModelID
-        let workingDirectory = thread.primaryWorkingDirectory.map {
-            URL(fileURLWithPath: $0, isDirectory: true)
-        }
-        return ProviderSessionActionSnapshot(
-            conversations: liveConversations(for: threadID).map {
-                ProviderSessionConversationSnapshot(
-                    conversationID: $0.id,
-                    providerID: $0.provider,
-                    providerSessionID: $0.providerSessionId,
-                    providerSessionProviderID: $0.providerSessionProviderId,
-                    providerSessionWorkingDirectory: $0.providerSessionWorkingDirectory
-                )
-            },
-            workingDirectory: workingDirectory
-        )
-    }
-
-    private func liveConversations(for threadID: PersistentIdentifier) -> [Conversation] {
-        let descriptor = FetchDescriptor<Conversation>(
-            predicate: #Predicate { conversation in
-                conversation.thread?.persistentModelID == threadID
-            }
-        )
-        return (try? modelContext.fetch(descriptor)) ?? []
+        threadLifecycle.providerSessionActionSnapshot(for: thread)
     }
 }
 
