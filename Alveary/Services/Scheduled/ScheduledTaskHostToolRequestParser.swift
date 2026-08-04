@@ -103,19 +103,23 @@ private extension ScheduledTaskHostToolRequestParser {
     ) throws -> ScheduledTaskParsedProposalEditChanges {
         let object = StrictHostToolObject(values, path: "arguments.changes")
         try object.requireOnly(Set(["title", "prompt", "schedule"]).union(Self.placementKeys))
-        guard !values.isEmpty else {
-            throw invalid("arguments.changes must contain title, prompt, schedule, destination, or workspace.")
-        }
         let parsedSchedule = try object.optionalObject("schedule").map {
             try parseSchedule($0, validatesExplicitTimeZone: validatesExplicitTimeZone)
         }
+        let changes = ScheduledTaskProposalEditChanges(
+            title: try object.optionalNonEmptyString("title"),
+            prompt: try object.optionalNonEmptyString("prompt"),
+            schedule: parsedSchedule?.schedule,
+            placement: try parsePlacement(in: object)
+        )
+        // Emptiness is judged after parsing, not on the raw keys: a blank optional value reads as
+        // an omitted one, so `{"title": ""}` names no change and would otherwise draft an edit
+        // identical to the stored definition.
+        guard changes != ScheduledTaskProposalEditChanges() else {
+            throw invalid("\(object.path) must contain title, prompt, schedule, destination, or workspace.")
+        }
         return ScheduledTaskParsedProposalEditChanges(
-            changes: ScheduledTaskProposalEditChanges(
-                title: try object.optionalNonEmptyString("title"),
-                prompt: try object.optionalNonEmptyString("prompt"),
-                schedule: parsedSchedule?.schedule,
-                placement: try parsePlacement(in: object)
-            ),
+            changes: changes,
             canonicalTimeZoneIdentity: parsedSchedule?.canonicalTimeZoneIdentity
         )
     }

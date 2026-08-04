@@ -43,9 +43,19 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
             ["project_path": .number(7)],
             containing: "arguments.project_path must be a string."
         )
+    }
+
+    /// A blank optional field is the same call as one that omits it, so a blank `project_path`
+    /// names no placement and inherits the caller's — and still cannot stand in for the one a
+    /// project thread requires.
+    func testABlankProjectPathNamesNoPlacement() throws {
+        XCTAssertEqual(
+            try parser.parseCreate(arguments: ["project_path": .string("   ")]).workspace,
+            .inherit(grantedRoots: [])
+        )
         assertInvalid(
-            ["project_path": .string("   ")],
-            containing: "arguments.project_path must not be empty."
+            ["mode": .string("project"), "project_path": .string("   ")],
+            containing: "arguments.project_path is required for a project thread."
         )
     }
 

@@ -208,6 +208,30 @@ final class ScheduledTaskHostToolRequestParserTests: XCTestCase {
         assertInvalid(pause, parser: parser, containing: "title")
     }
 
+    /// An edit that names no change would draft the stored definition back over itself, and a
+    /// blank optional value names none — it reads as an omitted key.
+    func testAnEditMustNameAtLeastOneRealChange() throws {
+        let parser = ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC")
+        for changes in [[:], ["title": .string("   ")], ["prompt": .string("")]]
+            as [[String: AgentCLIKit.JSONValue]] {
+            assertInvalid(
+                edit(changes: changes),
+                parser: parser,
+                containing: "arguments.changes must contain title, prompt, schedule, destination, or workspace."
+            )
+        }
+        XCTAssertNoThrow(try parser.parse(arguments: edit(changes: ["title": .string("Daily review")])))
+    }
+
+    private func edit(changes: [String: AgentCLIKit.JSONValue]) -> [String: AgentCLIKit.JSONValue] {
+        [
+            "action": .string("edit"),
+            "task_id": .string("task-1"),
+            "revision": .number(1),
+            "changes": .object(changes)
+        ]
+    }
+
     func testCanonicalPayloadHashIgnoresObjectOrderAndNormalizesDatesAndWhitespace() throws {
         let parser = ScheduledTaskHostToolRequestParser(defaultTimeZoneIdentifier: "UTC")
         let first: [String: AgentCLIKit.JSONValue] = [

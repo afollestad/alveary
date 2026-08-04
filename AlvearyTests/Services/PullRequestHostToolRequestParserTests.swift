@@ -127,6 +127,27 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
         }
     }
 
+    /// Models emit `""` for an optional field they have nothing to say for, and the two spellings
+    /// mean the same call — so the blank one may not be refused, nor hash differently.
+    func testABlankOptionalFieldReadsAsAnOmittedOne() throws {
+        let blank = try parser.parseReviewProposal(
+            arguments: ["url": .string(Self.url), "event": .string("comment"), "body": .string("")]
+        )
+        XCTAssertNil(blank.body)
+
+        let omitted = try parser.parseReviewProposal(
+            arguments: ["url": .string(Self.url), "event": .string("comment")]
+        )
+        XCTAssertEqual(blank.canonicalPayloadHash, omitted.canonicalPayloadHash)
+
+        // Only emptiness is forgiven; a value of the wrong type is still a refusal.
+        XCTAssertThrowsError(
+            try parser.parseReviewProposal(
+                arguments: ["url": .string(Self.url), "event": .string("comment"), "body": .number(1)]
+            )
+        )
+    }
+
     /// The retry hash must distinguish requests that differ in any field the mutation uses, and
     /// must include the tool name so two tools cannot replay each other's receipts.
     func testCanonicalHashesDifferByFieldAndTool() throws {

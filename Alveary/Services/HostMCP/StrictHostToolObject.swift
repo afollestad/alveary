@@ -47,11 +47,16 @@ struct StrictHostToolObject {
         return value
     }
 
+    /// A present-but-blank value reads as an omitted one, because that is what the caller meant:
+    /// models emit `""` for an optional field they have nothing to say for, and refusing the whole
+    /// call costs a turn to relearn what leaving the key out already does. A non-string value is
+    /// still refused — only emptiness is forgiven.
     func optionalNonEmptyString(_ key: String) throws -> String? {
         guard values[key] != nil else {
             return nil
         }
-        return try requiredNonEmptyString(key)
+        let value = try requiredString(key).trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
     }
 
     func requiredBool(_ key: String) throws -> Bool {
