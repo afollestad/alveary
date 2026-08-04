@@ -51,6 +51,9 @@ final class ScheduledTaskProposalQueueCoordinator {
     @ObservationIgnored private var scheduleObservationTask: Task<Void, Never>?
 
     private(set) var currentProposal: ScheduledTaskProposalPresentation?
+    /// Every conversation holding a queued proposal, not just the FIFO head's. Thread status
+    /// reads this to show the waiting dot; see `ConversationDecisionAttention`.
+    private(set) var pendingSourceConversationIDs: Set<String> = []
     private(set) var isResolving = false
     var errorMessage: String?
 
@@ -94,6 +97,7 @@ final class ScheduledTaskProposalQueueCoordinator {
                 proposals = try fetchQueuedProposals()
             }
             currentProposal = proposals.first.map(makePresentation)
+            pendingSourceConversationIDs = Set(proposals.map(\.sourceConversationID))
             if currentProposal == nil {
                 errorMessage = nil
             }

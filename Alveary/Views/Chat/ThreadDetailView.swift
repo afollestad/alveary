@@ -25,6 +25,12 @@ struct ThreadDetailView: View {
     var diffViewerSwitchScope: @MainActor () -> DiffViewerSwitchScope = { .toolbarStatsOnly }
 
     @Environment(\.modelContext) var uiModelContext
+    // Waiting-dot sources the runtime cannot report, so a tab chip agrees with its sidebar row.
+    @Environment(UnresolvedApprovalRegistry.self) var unresolvedApprovalRegistry: UnresolvedApprovalRegistry?
+    @Environment(ScheduledTaskProposalQueueCoordinator.self)
+    var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator?
+    @Environment(PullRequestReviewProposalCoordinator.self)
+    var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator?
     @State var conversationActionError: String?
     @State private var editingConversationID: PersistentIdentifier?
     @State private var pendingDeleteConversation: Conversation?
@@ -42,6 +48,7 @@ struct ThreadDetailView: View {
 
     var body: some View {
         let conversations = conversations
+        let decisionAttention = decisionAttention
         let selectedConversation = appState.selectedConversation(in: thread, conversations: conversations)
         let selectedConversationID = selectedConversation?.persistentModelID
         let conversationIDs = Set(conversations.map(\.id))
@@ -79,7 +86,12 @@ struct ThreadDetailView: View {
                             conversations: conversations,
                             selectedConversation: conversation,
                             statusVersion: statusVersion,
-                            statusForConversation: { $0.displayStatus(runtime: agentsManager.status(for: $0.id)) },
+                            statusForConversation: {
+                                $0.displayStatus(
+                                    runtime: agentsManager.status(for: $0.id),
+                                    awaitsUserDecision: decisionAttention.awaitsDecision($0)
+                                )
+                            },
                             onSelect: { appState.selectConversation($0, in: thread) },
                             onCommitRename: { renameConversation($0, to: $1) },
                             onRemove: { conversation in
@@ -250,7 +262,7 @@ struct ThreadDetailView: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .agentStatusChanged)) { notification in
-            guard let conversationId = notification.userInfo?["conversationId"] as? String,
+            guard let conversationId = notification.userInfo?[AgentStatusChangedKey.conversationID] as? String,
                   conversationIDs.contains(conversationId) else {
                 return
             }

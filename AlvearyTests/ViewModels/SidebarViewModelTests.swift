@@ -394,23 +394,23 @@ final class SidebarViewModelTests: XCTestCase {
         await fixture.agentsManager.setStatus(.busy, for: "busy")
         await fixture.agentsManager.setStatus(.waitingForUser, for: "waiting")
         await fixture.agentsManager.setStatus(.error, for: "error")
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .busy)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread, attention: .none), .busy)
 
         await fixture.agentsManager.setStatus(.neutral, for: "busy")
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .waitingForUser)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread, attention: .none), .waitingForUser)
 
         await fixture.agentsManager.setStatus(.neutral, for: "waiting")
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .error)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread, attention: .none), .error)
 
         await fixture.agentsManager.setStatus(.neutral, for: "error")
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .unread)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread, attention: .none), .unread)
 
         thread.conversations.first { $0.id == "unread" }?.isUnread = false
         try fixture.context.save()
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .stopped)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread, attention: .none), .stopped)
 
         try fixture.markThreadArchived(thread)
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .archived)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread, attention: .none), .archived)
     }
 
     func testDefaultThreadCleanupActionReflectsSettingsService() throws {

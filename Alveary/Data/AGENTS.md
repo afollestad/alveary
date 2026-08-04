@@ -78,6 +78,7 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
 ## Model Context Helpers
 
 - `ModelContext+Resolve.swift` hosts shared typed lookups such as `resolveThread(id:)`; prefer them over ad-hoc `model(for:) as?` casts, and add sibling resolvers when another model grows a second call site.
+- `ModelContext+ToolApprovalResolution.swift` owns whether a `tool_approval` row with no `toolApprovalStatus` is still actionable. A `nil` status only means nobody answered — the provider can run the tool or end the turn without Alveary stamping the row — so transcript restore and the sidebar's waiting dot both ask here rather than reading the column directly.
 - Fetch-backed resolvers (`resolveThread` / `resolveConversation` / `resolveProject`) are the safe choice after an `await`: `modelContext.model(for:)` can return a non-nil zombie whose next persisted-property read traps, while the fetch helpers materialize only still-live rows and return `nil` otherwise.
 - `ConversationEventRecord.type` and `.role` are persisted discriminators. Use the `static let` constants on the model (`messageType`, `toolCallType`, `toolApprovalType`, `userRole`, …), never a repeated literal — a typo silently stops matching rows instead of failing to build. Test fixtures may keep literals; asserting the raw persisted value is what catches an accidental constant rename.
 

@@ -15,7 +15,7 @@ extension SidebarViewModelTests {
         try insertForkSourceEvents(in: fixture, conversation: sourceConversation)
         var observedBusyStatusDuringFork = false
         await fixture.agentsManager.setSpawnObserver { _ in
-            observedBusyStatusDuringFork = fixture.viewModel.threadStatus(for: thread) == .busy
+            observedBusyStatusDuringFork = fixture.viewModel.threadStatus(for: thread, attention: .none) == .busy
         }
 
         let forkedThread = try await fixture.viewModel.forkThreadIntoLocal(thread)
@@ -27,7 +27,7 @@ extension SidebarViewModelTests {
         try assertLocalForkThread(forkedThread, conversation: forkedConversation, spawnCall: spawnCall)
         try assertCopiedForkEvents(in: fixture, conversationID: forkedConversation.id)
         XCTAssertTrue(observedBusyStatusDuringFork)
-        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread), .stopped)
+        XCTAssertEqual(fixture.viewModel.threadStatus(for: thread, attention: .none), .stopped)
     }
 
     func testForkThreadIntoWorktreeCreatesWorktreeBeforeProviderFork() async throws {

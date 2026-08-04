@@ -417,7 +417,7 @@ private extension DefaultScheduledTaskRunExecutor {
         NotificationCenter.default.post(
             name: .agentStatusChanged,
             object: nil,
-            userInfo: ["conversationId": conversationID]
+            userInfo: [AgentStatusChangedKey.conversationID: conversationID]
         )
     }
 

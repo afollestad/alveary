@@ -8,6 +8,7 @@ struct ContentViewBootstrapState {
     let lastActiveProjectRecorder: LastActiveProjectRecorder
     let diffViewModel: DiffViewerViewModel
     let reviewProposalCoordinator: PullRequestReviewProposalCoordinator
+    let archivedThreadsViewModel: ArchivedThreadsViewModel
 }
 
 extension ContentView {
@@ -28,7 +29,12 @@ extension ContentView {
             ),
             lastActiveProjectRecorder: makeLastActiveProjectRecorder(dependencies: dependencies),
             diffViewModel: makeDiffViewModel(dependencies: dependencies),
-            reviewProposalCoordinator: makePullRequestReviewProposalCoordinator(dependencies: dependencies)
+            reviewProposalCoordinator: makePullRequestReviewProposalCoordinator(dependencies: dependencies),
+            archivedThreadsViewModel: makeArchivedThreadsViewModel(
+                dependencies: dependencies,
+                sidebarViewModel: sidebarViewModel,
+                appState: appState
+            )
         )
     }
 
@@ -169,6 +175,15 @@ extension ContentView {
             pullRequestsService: dependencies.pullRequestsService,
             avatarLoader: dependencies.gitHubAvatarLoader
         )
+    }
+
+    /// Shares the main context rather than taking its own like the proposal coordinators below.
+    /// It only reads, and approval rows are written to the main context behind a debounced save —
+    /// a private context would not see one until that save landed, leaving the dot late.
+    static func makeUnresolvedApprovalRegistry(
+        dependencies: ContentViewDependencies
+    ) -> UnresolvedApprovalRegistry {
+        UnresolvedApprovalRegistry(modelContext: dependencies.modelContainer.mainContext)
     }
 
     static func makeScheduledTaskProposalQueueCoordinator(

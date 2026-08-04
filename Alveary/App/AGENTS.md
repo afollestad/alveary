@@ -99,7 +99,7 @@ These instructions cover the app entry point, `AppDelegate`, and the root `Conte
 ### First Appear And Root Modals
 
 - On first appear, sync the dock badge with `notificationManager.refreshBadgeCount()`; do not also call `handleAppVisibilityChanged()` — mark-read of the restored conversation is driven by `ThreadDetailView`'s selection task (see `Alveary/Views/Chat/AGENTS.md`), and the extra call duplicates it plus an extra chained badge task.
-- Root modal priority: onboarding, then image preview, then the oldest persisted scheduling proposal. Proposals advance FIFO, Escape/reject removes only the visible one, and stale/deleted definition conflicts stay visible but cannot mutate state. A changed modal ID must replace its hosting view so modal-local `@State` cannot leak into the next proposal.
+- Root modal priority: onboarding, then image preview. Scheduling proposals are **not** modal — they are confirmed in their own transcript widget, which is why `ScheduledTaskProposalQueueCoordinator` reaches the chat surface through the environment rather than the root. Do not reintroduce a root proposal modal.
 
 ## Command Dispatch
 

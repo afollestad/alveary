@@ -32,6 +32,13 @@ struct SidebarView: View {
 
     @Environment(\.modelContext) var uiModelContext
     @Environment(\.accessibilityReduceMotion) var accessibilityReduceMotion
+    // Waiting-dot sources the runtime cannot report. Optional because previews and snapshot
+    // hosts mount the sidebar without the app root's environment.
+    @Environment(UnresolvedApprovalRegistry.self) var unresolvedApprovalRegistry: UnresolvedApprovalRegistry?
+    @Environment(ScheduledTaskProposalQueueCoordinator.self)
+    var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator?
+    @Environment(PullRequestReviewProposalCoordinator.self)
+    var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator?
     @Query var queriedProjects: [Project]
     // One observation-backed query feeds the whole render pass. Drafts are included so
     // draft-driven refreshes stay tracked; `SidebarRenderSnapshot` filters them out.
@@ -264,7 +271,7 @@ struct SidebarView: View {
 
         return SidebarThreadRow(
             thread: thread,
-            status: viewModel.threadStatus(for: thread),
+            status: viewModel.threadStatus(for: thread, attention: decisionAttention),
             isSelected: isSelected,
             layout: layout,
             editingThreadID: $editingThreadID,

@@ -174,7 +174,10 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
             NotificationCenter.default.post(
                 name: .agentStatusChanged,
                 object: nil,
-                userInfo: ["conversationId": conversationId, "signal": signal]
+                userInfo: [
+                    AgentStatusChangedKey.conversationID: conversationId,
+                    AgentStatusChangedKey.signal: signal
+                ]
             )
         }
     }
@@ -186,7 +189,10 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
             NotificationCenter.default.post(
                 name: .agentStatusChanged,
                 object: nil,
-                userInfo: ["conversationId": conversationId, "signal": ActivitySignal.neutral]
+                userInfo: [
+                    AgentStatusChangedKey.conversationID: conversationId,
+                    AgentStatusChangedKey.signal: ActivitySignal.neutral
+                ]
             )
         }
     }

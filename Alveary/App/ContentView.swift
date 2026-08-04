@@ -47,6 +47,7 @@ struct ContentView: View {
     @State var scheduledTasksViewModel: ScheduledTasksViewModel
     @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     @State var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator
+    @State var unresolvedApprovalRegistry: UnresolvedApprovalRegistry
     @State var pullRequestsViewModel: PullRequestsViewModel
     @State var pullRequestLinksViewModel: PullRequestLinksViewModel
     @State private var settingsViewModel: SettingsViewModel
@@ -55,8 +56,9 @@ struct ContentView: View {
     @State var terminalManager = TerminalManager()
     @State var appShotCoordinator: AppShotCoordinator
     @State var appShotCaptureController: AppShotCaptureController
-    @State private var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
-    @State private var toolbarProjectActionsThreadID: PersistentIdentifier?
+    // Internal so `ContentView+RootToolbar.swift` can build the button group.
+    @State var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
+    @State var toolbarProjectActionsThreadID: PersistentIdentifier?
     @State var diffViewerDraftRefreshRevision: UInt64 = 0
     @State var isPullRequestPopoverPresented = false
     @State var lastActiveProjectRecorder: LastActiveProjectRecorder
@@ -115,12 +117,11 @@ struct ContentView: View {
             initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
         )
         _pullRequestReviewProposalCoordinator = State(initialValue: bootstrapState.reviewProposalCoordinator)
+        _unresolvedApprovalRegistry = State(initialValue: Self.makeUnresolvedApprovalRegistry(dependencies: dependencies))
         _pullRequestsViewModel = State(initialValue: Self.makePullRequestsViewModel(dependencies: dependencies, appState: appState))
         _pullRequestLinksViewModel = State(initialValue: Self.makePullRequestLinksViewModel(dependencies: dependencies))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
-        _archivedThreadsViewModel = State(initialValue: Self.makeArchivedThreadsViewModel(
-            dependencies: dependencies, sidebarViewModel: bootstrapState.sidebarViewModel, appState: appState
-        ))
+        _archivedThreadsViewModel = State(initialValue: bootstrapState.archivedThreadsViewModel)
         _onboardingViewModel = State(initialValue: Self.makeOnboardingViewModel(dependencies: dependencies))
         _appShotCoordinator = State(initialValue: bootstrapState.appShotCoordinator)
         _appShotCaptureController = State(initialValue: bootstrapState.appShotCaptureController)
@@ -129,9 +130,42 @@ struct ContentView: View {
     }
 
     var body: some View {
-        let resolvedRightPaneDestination = rightPaneDestination
-        let diffRoutingKey = diffViewerRoutingKey
-        let middlePane = MiddlePane(
+        // Every group below is its own type-check scope; see the type-check budget
+        // bullets in `Alveary/Views/AGENTS.md`.
+        rootSheetHost(rootActivityObservers(rootSelectionObservers(rootWindowView)))
+            .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
+            .task(id: selectedThreadID) {
+                await refreshToolbarProjectActions()
+            }
+            .onAppear {
+                wireNotificationManager()
+                wireMarkdownImageFallbackResolver()
+                startThreadActivityBackfillIfNeeded()
+                restoreLastOpenThreadSelectionIfNeeded()
+                replayModelPreparationDeferredRoutingIfAvailable()
+                // Mark-read of the active conversation is handled by `ThreadDetailView` once
+                // the restored selection mounts; just sync the dock badge on launch.
+                notificationManager.refreshBadgeCount()
+            }
+            // Publish the terminal-toggle action so the ⇧⌘T menu item in
+            // `AlvearyApp.commands` runs the same default-shell-then-flip sequence
+            // as the toolbar button — `terminalManager` is view-local `@State`, so
+            // the menu needs a `FocusedValue` hop to reach it.
+            .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
+            .focusedSceneValue(\.diffViewerCommand, diffViewerCommand)
+            // Nil while the button is hidden, which is what greys out the menu item.
+            .focusedSceneValue(
+                \.togglePullRequestsAction,
+                pullRequestLinksToolbarState == nil ? nil : performPullRequestToolbarAction
+            )
+    }
+}
+
+/// The root window's view tree, split into one helper per modifier group so no
+/// single getter carries the whole hierarchy's type-check cost.
+private extension ContentView {
+    var middlePane: MiddlePane {
+        MiddlePane(
             appState: appState,
             modelContext: viewModelContext,
             gitHubCLI: gitHubCLI,
@@ -164,49 +198,66 @@ struct ContentView: View {
                 appState.clearPendingSettingsTargetPage(page)
             }
         )
+    }
 
-        let rootWindowView = NavigationSplitView(columnVisibility: $splitVisibility) {
-            SidebarView(
-                viewModel: sidebarViewModel,
-                appState: appState,
-                voiceInputLifecycleController: voiceInputLifecycleController
-            )
-                .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
-        } detail: {
-            ZStack(alignment: .bottom) {
-                ResizableRightPane(
-                    destination: resolvedRightPaneDestination,
-                    width: $rightPaneWidth,
-                    onWidthCommit: persistRightPaneWidth,
-                    presentationGeneration: rightPanePresentationGeneration,
-                    dismissalRequests: rightPaneDismissalRequests,
-                    onDeactivate: deactivateRightPane,
-                    onDismiss: dismissRightPane,
-                    mainContent: { middlePane },
-                    paneContent: rightPaneContent
+    var rootWindowView: some View {
+        rootWindowChrome(
+            NavigationSplitView(columnVisibility: $splitVisibility) {
+                SidebarView(
+                    viewModel: sidebarViewModel,
+                    appState: appState,
+                    voiceInputLifecycleController: voiceInputLifecycleController
                 )
+                    .navigationSplitViewColumnWidth(min: 280, ideal: 320, max: 380)
+            } detail: {
+                rootDetailPane
+            }
+        )
+    }
 
-                if appState.isTerminalPaneVisible {
-                    TerminalPane(
-                        height: $terminalPaneHeight,
-                        onHeightCommit: persistTerminalPaneHeight,
-                        canViewThread: canViewThread,
-                        onViewThread: viewThread,
-                        onNewShell: {
-                            createTerminalShellSession(focus: true)
-                        },
-                        onClose: appState.hideTerminalPane
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1)
-                }
+    var rootDetailPane: some View {
+        // Built here rather than inside `mainContent` so its observation reads stay
+        // on this body evaluation, as they were when `body` constructed it directly.
+        let mainPane = middlePane
+        let resolvedRightPaneDestination = rightPaneDestination
+
+        return ZStack(alignment: .bottom) {
+            ResizableRightPane(
+                destination: resolvedRightPaneDestination,
+                width: $rightPaneWidth,
+                onWidthCommit: persistRightPaneWidth,
+                presentationGeneration: rightPanePresentationGeneration,
+                dismissalRequests: rightPaneDismissalRequests,
+                onDeactivate: deactivateRightPane,
+                onDismiss: dismissRightPane,
+                mainContent: { mainPane },
+                paneContent: rightPaneContent
+            )
+
+            if appState.isTerminalPaneVisible {
+                TerminalPane(
+                    height: $terminalPaneHeight,
+                    onHeightCommit: persistTerminalPaneHeight,
+                    canViewThread: canViewThread,
+                    onViewThread: viewThread,
+                    onNewShell: {
+                        createTerminalShellSession(focus: true)
+                    },
+                    onClose: appState.hideTerminalPane
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(1)
             }
-            .clipped()
-            .overlay(alignment: .top) {
-                AppSeparatorHairline(surface: .titlebar)
-            }
-            .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
         }
+        .clipped()
+        .overlay(alignment: .top) {
+            AppSeparatorHairline(surface: .titlebar)
+        }
+        .animation(.spring(response: 0.32, dampingFraction: 0.9), value: appState.isTerminalPaneVisible)
+    }
+
+    func rootWindowChrome<Content: View>(_ content: Content) -> some View {
+        content
         .environment(terminalManager)
         .environment(appShotCoordinator)
         // Scheduling proposals are confirmed inside transcript widgets, so the queue
@@ -215,6 +266,13 @@ struct ContentView: View {
         .environment(scheduledTasksViewModel)
         // Review submissions are confirmed inside transcript widgets too.
         .environment(pullRequestReviewProposalCoordinator)
+        // Sidebar rows and conversation-tab chips read this for the waiting dot.
+        .environment(unresolvedApprovalRegistry)
+        .task {
+            // Deliberately not in its `init`: it scans the event store, and `init` runs during
+            // `ContentView` construction. A dot a frame late beats a slower launch.
+            unresolvedApprovalRegistry.start()
+        }
         .task {
             appShotCoordinator.start(settingsService: settingsService)
         }
@@ -239,52 +297,18 @@ struct ContentView: View {
         }
         .toolbar(removing: .title)
         .toolbar {
-            ToolbarItem(id: MainWindowToolbarItemID.header, placement: .navigation) {
-                MainPaneToolbarHeader(
-                    presentation: MainPaneHeaderPresentation(selection: appState.selectedSidebarItem),
-                    onNewConversation: headerNewConversationAction
-                )
-                .padding(.leading, MainPaneToolbarLayout.leadingPadding)
-            }
-            .sharedBackgroundVisibility(.hidden)
-
-            ToolbarSpacer(.flexible)
-
-            ToolbarItem(id: MainWindowToolbarItemID.actions, placement: .primaryAction) {
-                PrimaryToolbarButtonGroup(
-                    selectedThreadID: selectedThreadID,
-                    projectActions: toolbarProjectActions,
-                    projectActionsThreadID: toolbarProjectActionsThreadID,
-                    terminalTitle: terminalToggleTitle,
-                    terminalDisplayState: terminalToolbarDisplayState,
-                    terminalHelpText: "\(terminalToggleTitle) (\(KeyboardShortcut.toggleTerminalPane.displayString))",
-                    pullRequestState: pullRequestLinksToolbarState,
-                    pullRequestHelpText: pullRequestToolbarHelpText,
-                    isPullRequestPopoverPresented: $isPullRequestPopoverPresented,
-                    diffDisplayState: diffViewerToolbarDisplayState,
-                    diffHelpText: diffViewerToggleHelpText
-                        + " (\(KeyboardShortcut.toggleDiffViewer.displayString))",
-                    diffAccessibilityLabel: isDiffViewerRendered ? "Hide Diff Viewer" : "Show Diff Viewer",
-                    diffAccessibilityValue: diffViewerToggleAccessibilityValue,
-                    settingsBadgeState: appUpdateManager.toolbarBadgeState,
-                    onProjectAction: { threadID, action in
-                        runProjectAction(threadID: threadID, action: action)
-                    },
-                    onToggleTerminal: toggleTerminalPane,
-                    onPullRequestAction: performPullRequestToolbarAction,
-                    onPullRequestSecondaryAction: presentPullRequestPopover,
-                    pullRequestPopoverContent: { AnyView(pullRequestPopoverContent()) },
-                    onToggleDiffViewer: toggleDiffViewer,
-                    onOpenSettings: {
-                        appState.openSettings(targetPage: appUpdateManager.toolbarBadgeState.settingsTargetPage)
-                    }
-                )
-                .padding(.trailing, MainPaneToolbarLayout.trailingPadding)
-            }
-            .sharedBackgroundVisibility(.hidden)
+            rootToolbarContent
         }
+    }
 
-        let selectionObservedView = rootWindowView
+    /// Both selection-driven observer groups, composed in the order the chain had
+    /// when it was one run of modifiers.
+    func rootSelectionObservers<Content: View>(_ content: Content) -> some View {
+        rootRoutingObservers(rootLayoutObservers(content))
+    }
+
+    func rootLayoutObservers<Content: View>(_ content: Content) -> some View {
+        content
         .onChange(of: appState.isLeftPaneVisible) { _, isVisible in
             splitVisibility = isVisible ? .all : .detailOnly
         }
@@ -301,6 +325,12 @@ struct ContentView: View {
         .onChange(of: appShotCoordinator.triggerID) { _, _ in
             appShotCaptureController.captureIfIdle()
         }
+    }
+
+    func rootRoutingObservers<Content: View>(_ content: Content) -> some View {
+        let diffRoutingKey = diffViewerRoutingKey
+
+        return content
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftProjectChanged)) { _ in
             diffViewerDraftRefreshRevision &+= 1
             Task { await refreshToolbarProjectActions() }
@@ -339,8 +369,10 @@ struct ContentView: View {
         .task(id: diffRoutingKey) {
             await routeDiffViewer(key: diffRoutingKey)
         }
+    }
 
-        let activityObservedView = selectionObservedView
+    func rootActivityObservers<Content: View>(_ content: Content) -> some View {
+        content
         .onChange(of: appState.pendingCommand) { _, command in
             handlePendingCommand(command)
         }
@@ -366,11 +398,13 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             terminalManager.terminateAllSessions()
         }
+    }
 
+    func rootSheetHost<Content: View>(_ content: Content) -> some View {
         // The create-pull-request sheet is a lifted helper (type-check budget);
         // it hosts the third `.sheet` in this chain.
-        return createPullRequestSheetHost(
-            activityObservedView
+        createPullRequestSheetHost(
+            content
             .sheet(
                 isPresented: $isAddProjectSheetPresented,
                 // Wait for the sheet's dismissal to finish before opening the
@@ -384,31 +418,6 @@ struct ContentView: View {
                     gitCommitModalModel = nil
                 }
             }
-        )
-        .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
-        .task(id: selectedThreadID) {
-            await refreshToolbarProjectActions()
-        }
-        .onAppear {
-            wireNotificationManager()
-            wireMarkdownImageFallbackResolver()
-            startThreadActivityBackfillIfNeeded()
-            restoreLastOpenThreadSelectionIfNeeded()
-            replayModelPreparationDeferredRoutingIfAvailable()
-            // Mark-read of the active conversation is handled by `ThreadDetailView` once
-            // the restored selection mounts; just sync the dock badge on launch.
-            notificationManager.refreshBadgeCount()
-        }
-        // Publish the terminal-toggle action so the ⇧⌘T menu item in
-        // `AlvearyApp.commands` runs the same default-shell-then-flip sequence
-        // as the toolbar button — `terminalManager` is view-local `@State`, so
-        // the menu needs a `FocusedValue` hop to reach it.
-        .focusedSceneValue(\.toggleTerminalPaneAction, toggleTerminalPane)
-        .focusedSceneValue(\.diffViewerCommand, diffViewerCommand)
-        // Nil while the button is hidden, which is what greys out the menu item.
-        .focusedSceneValue(
-            \.togglePullRequestsAction,
-            pullRequestLinksToolbarState == nil ? nil : performPullRequestToolbarAction
         )
     }
 }

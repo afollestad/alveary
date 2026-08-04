@@ -116,10 +116,7 @@ extension ConversationViewModel {
             return [:]
         }
 
-        let conversationID = conversation.id
-        let visible = thread.pendingPullRequestLinkPrompts
-            .filter { $0.conversationID == conversationID && !thread.isPullRequestLinked($0.identifier) }
-            .sorted { $0.createdAt < $1.createdAt }
+        let visible = thread.unansweredPullRequestLinkPrompts(conversationID: conversation.id)
         return Dictionary(grouping: visible, by: \.messageEventID)
     }
 

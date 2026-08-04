@@ -52,6 +52,21 @@ extension SidebarView {
         )
     }
 
+    /// Waiting-dot sources the runtime cannot report, read fresh per row.
+    ///
+    /// Not a `SidebarRenderContext` field because `sidebarThreadRow` does not take the context.
+    /// That is safe here in a way a fetch would not be: every set is cached observable state on
+    /// the coordinators, so this copies references rather than touching SwiftData — which is what
+    /// the **Render Snapshot** rule is actually guarding.
+    var decisionAttention: ConversationDecisionAttention {
+        ConversationDecisionAttention(
+            approvals: unresolvedApprovalRegistry,
+            scheduledProposals: scheduledTaskProposalQueueCoordinator,
+            reviewProposals: pullRequestReviewProposalCoordinator,
+            settings: viewModel.settingsService.current
+        )
+    }
+
     func unpinnableTaskIDs(in snapshot: SidebarRenderSnapshot) -> Set<PersistentIdentifier> {
         var ids: Set<PersistentIdentifier> = []
         for item in snapshot.pinnedItems {

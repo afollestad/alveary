@@ -172,10 +172,10 @@ final class DiffViewerViewModel {
             // `.agentStatusChanged` is shared between runtime transitions (posted with a `signal`
             // userInfo key) and unread-flag flips from `DefaultNotificationManager` (no `signal`).
             // Only the former may have touched the filesystem, so skip the rescan otherwise.
-            guard notification.userInfo?["signal"] is ActivitySignal else {
+            guard notification.userInfo?[AgentStatusChangedKey.signal] is ActivitySignal else {
                 return
             }
-            let conversationId = notification.userInfo?["conversationId"] as? String
+            let conversationId = notification.userInfo?[AgentStatusChangedKey.conversationID] as? String
             Task { @MainActor in
                 guard let self, let directory = self.activeDirectory else {
                     return

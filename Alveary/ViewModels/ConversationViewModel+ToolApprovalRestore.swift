@@ -164,65 +164,18 @@ extension ConversationViewModel {
         ).first
     }
 
+    /// Shared with the sidebar's waiting dot through `UnresolvedApprovalRegistry`; the fetch
+    /// shapes live on `ModelContext` so the two cannot disagree about what "still open" means.
     private func hasResolutionAfterApproval(
         conversationID: String,
         toolUseId: String,
         approvalRecord: ConversationEventRecord
     ) -> Bool {
-        let approvalTimestamp = approvalRecord.timestamp
-        if hasToolResultAfterApproval(
+        modelContext.hasToolApprovalResolution(
             conversationID: conversationID,
             toolUseId: toolUseId,
-            approvalTimestamp: approvalTimestamp
-        ) {
-            return true
-        }
-
-        return laterTokensResolveApproval(
-            conversationID: conversationID,
-            approvalTimestamp: approvalTimestamp
+            approvalTimestamp: approvalRecord.timestamp
         )
-    }
-
-    private func hasToolResultAfterApproval(
-        conversationID: String,
-        toolUseId: String,
-        approvalTimestamp: Date
-    ) -> Bool {
-        let recordType = ConversationEventRecord.toolResultType
-        return (try? modelContext.fetch(
-            FetchDescriptor<ConversationEventRecord>(
-                predicate: #Predicate {
-                    $0.conversationId == conversationID &&
-                        $0.type == recordType &&
-                        $0.toolId == toolUseId &&
-                        $0.timestamp > approvalTimestamp
-                }
-            )
-        ).isEmpty == false) ?? false
-    }
-
-    private func laterTokensResolveApproval(
-        conversationID: String,
-        approvalTimestamp: Date
-    ) -> Bool {
-        let recordType = ConversationEventRecord.tokensType
-        let laterTokens = (try? modelContext.fetch(
-            FetchDescriptor<ConversationEventRecord>(
-                predicate: #Predicate {
-                    $0.conversationId == conversationID &&
-                        $0.type == recordType &&
-                        $0.timestamp > approvalTimestamp
-                }
-            )
-        )) ?? []
-        return laterTokens.contains { token in
-            guard let stopReason = token.stopReason else {
-                return false
-            }
-            return stopReason != "tool_deferred" &&
-                stopReason != ConversationEvent.interimUsageStopReason
-        }
     }
 
     private func hasExitPlanModeImplementationActivityAfterApproval(

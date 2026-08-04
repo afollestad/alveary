@@ -148,7 +148,7 @@ extension ScheduledTaskSchedulerCoordinator {
             NotificationCenter.default.post(
                 name: .agentStatusChanged,
                 object: nil,
-                userInfo: ["conversationId": conversationID]
+                userInfo: [AgentStatusChangedKey.conversationID: conversationID]
             )
             if case let .failed(message) = result, let message {
                 notificationManager.handleEvent(.error(message: message), conversationId: conversationID)

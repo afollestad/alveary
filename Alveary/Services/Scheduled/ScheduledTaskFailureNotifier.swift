@@ -18,7 +18,7 @@ struct ScheduledTaskFailureNotifier {
         notificationCenter.post(
             name: .agentStatusChanged,
             object: nil,
-            userInfo: ["conversationId": conversationID]
+            userInfo: [AgentStatusChangedKey.conversationID: conversationID]
         )
         notificationManager.handleEvent(.error(message: message), conversationId: conversationID)
     }

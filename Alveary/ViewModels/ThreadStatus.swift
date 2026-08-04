@@ -10,28 +10,39 @@ enum ThreadStatus: Sendable, Equatable {
 }
 
 extension Conversation {
+    /// `awaitsUserDecision` covers the transcript surfaces the runtime cannot see — see
+    /// `ConversationDecisionAttention`. It ranks exactly like `.waitingForUser`, so `.busy` still
+    /// wins and the dot appears once work settles, and it beats `.unread`: a pending scheduled
+    /// proposal marks its conversation unread, and green already means "done".
     @MainActor
-    func displayStatus(runtime: ActivitySignal) -> ThreadStatus {
+    func displayStatus(runtime: ActivitySignal, awaitsUserDecision: Bool) -> ThreadStatus {
         if thread?.archivedAt != nil {
             return .archived
         }
 
-        switch runtime {
-        case .busy:
+        // Same precedence the thread-level fold below applies: busy, waiting, error, unread.
+        if runtime == .busy {
             return .busy
-        case .waitingForUser:
-            return .waitingForUser
-        case .error:
-            return .error
-        case .idle, .stopped, .neutral:
-            return isUnread ? .unread : .stopped
         }
+        if runtime == .waitingForUser || awaitsUserDecision {
+            return .waitingForUser
+        }
+        if runtime == .error {
+            return .error
+        }
+        return isUnread ? .unread : .stopped
     }
 }
 
 extension AgentThread {
+    /// `awaitsUserDecisionFor` covers the transcript surfaces the runtime cannot see — see
+    /// `ConversationDecisionAttention`. A decision in any conversation raises the whole thread,
+    /// the same way an unread one does.
     @MainActor
-    func displayStatus(runtimeFor: (Conversation) -> ActivitySignal) -> ThreadStatus {
+    func displayStatus(
+        runtimeFor: (Conversation) -> ActivitySignal,
+        awaitsUserDecisionFor: (Conversation) -> Bool
+    ) -> ThreadStatus {
         if archivedAt != nil {
             return .archived
         }
@@ -45,7 +56,7 @@ extension AgentThread {
             if signal == .busy {
                 return .busy
             }
-            if signal == .waitingForUser {
+            if signal == .waitingForUser || awaitsUserDecisionFor(conversation) {
                 isWaitingForUser = true
             }
             if signal == .error {

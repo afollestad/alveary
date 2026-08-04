@@ -38,6 +38,13 @@ final class PullRequestReviewProposalCoordinator {
     /// Keyed by proposal id: a transcript widget acts on the proposal its own conversation opened,
     /// not on a queue head.
     private(set) var presentations: [String: PullRequestReviewProposalPresentation] = [:]
+    /// Every conversation holding a pending review submission. `presentations` only ever holds
+    /// pending proposals, so it needs no stored mirror. Thread status reads this to show the
+    /// waiting dot; see `ConversationDecisionAttention`.
+    var pendingSourceConversationIDs: Set<String> {
+        Set(presentations.values.map(\.sourceConversationID))
+    }
+
     private(set) var submittingProposalIDs: Set<String> = []
     private(set) var errorMessages: [String: String] = [:]
     /// The diff-with-comments preview each card renders, loaded on demand.

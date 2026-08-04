@@ -230,7 +230,7 @@ final class DefaultNotificationManager: NotificationManager {
         NotificationCenter.default.post(
             name: .agentStatusChanged,
             object: nil,
-            userInfo: ["conversationId": conversationId]
+            userInfo: [AgentStatusChangedKey.conversationID: conversationId]
         )
         return true
     }

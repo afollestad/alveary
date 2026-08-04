@@ -18,11 +18,17 @@ extension SidebarViewModel {
         return exists && isDirectory.boolValue
     }
 
-    func threadStatus(for thread: AgentThread) -> ThreadStatus {
+    func threadStatus(
+        for thread: AgentThread,
+        attention: ConversationDecisionAttention
+    ) -> ThreadStatus {
         if activeForkSourceThreadIDs.contains(thread.persistentModelID), thread.archivedAt == nil {
             return .busy
         }
-        return thread.displayStatus { agentsManager.status(for: $0.id) }
+        return thread.displayStatus(
+            runtimeFor: { agentsManager.status(for: $0.id) },
+            awaitsUserDecisionFor: attention.awaitsDecision
+        )
     }
 
 }
