@@ -1,0 +1,350 @@
+/* Theme-independent layout for alveary.af.codes.
+   Layered on top of a trimmed Spectre.css build, where 1rem = 20px.
+   Color tokens live in index-light.css / index-dark.css. */
+
+:root {
+    --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+
+body {
+    background: var(--bg);
+    color: var(--fg);
+}
+
+/* Spectre styles every anchor purple. Scope it back out; links here are
+   either hero buttons or footer text. */
+a,
+a:visited {
+    color: inherit;
+}
+
+/* Sections --------------------------------------------------------------- */
+
+.section-hero {
+    /* .top-actions is absolute; without this it would anchor to the initial
+       containing block instead of the hero. */
+    position: relative;
+    padding: 4.4rem .5rem 2.2rem;
+}
+
+.section-feature {
+    padding: 2.6rem .5rem;
+}
+
+/* Top actions ------------------------------------------------------------ */
+
+.top-actions {
+    position: absolute;
+    top: .85rem;
+    right: 1.5rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.top-btn {
+    align-items: center;
+    background: none;
+    border: none;
+    border-radius: .1rem;
+    cursor: pointer;
+    display: inline-flex;
+    height: 2rem;
+    justify-content: center;
+    padding: .2rem;
+    width: 2rem;
+    color: inherit;
+    opacity: .7;
+    transition: opacity .2s ease, color .2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .top-btn:hover {
+        opacity: 1;
+    }
+}
+
+.top-btn:focus-visible {
+    opacity: 1;
+}
+
+.theme-toggle .icon-sun,
+.theme-toggle .icon-moon {
+    display: none;
+}
+
+/* App icon --------------------------------------------------------------- */
+
+/* Composites AppIcon.icon for the web: the gradient plate comes from the
+   theme sheets, the bee is the layer artwork. Corner radius approximates the
+   macOS squircle. */
+.app-icon {
+    width: 7.5rem;
+    aspect-ratio: 1;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+    border-radius: 22.37%;
+}
+
+.app-icon .bee {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 90%;
+    /* icon.json: scale 0.9, y translation -14.25pt of 1024 = -1.39% of the
+       icon, which is -1.55% of the bee's own box. Cancels the ~1.24% low bias
+       baked into the artwork, landing it optically centered. */
+    transform: translateY(-1.55%);
+}
+
+/* Typography ------------------------------------------------------------- */
+
+h1,
+.section-feature h2 {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+h1 {
+    font-size: 1.8rem;
+    margin: 1rem 0 0;
+}
+
+.section-feature h2 {
+    font-size: 1.3rem;
+    margin-bottom: .6rem;
+}
+
+.tagline {
+    max-width: 30rem;
+    margin: .75rem auto 0;
+    font-size: .9rem;
+    line-height: 1.5rem;
+    color: var(--secondary);
+}
+
+.feature-copy {
+    margin: 0 auto 1.8rem;
+    font-size: .85rem;
+    line-height: 1.4rem;
+    color: var(--secondary);
+}
+
+.section-accent {
+    width: 2.2rem;
+    height: 4px;
+    margin: 0 auto 1.1rem;
+    border-radius: 2px;
+    background: var(--accent);
+}
+
+/* Buttons ---------------------------------------------------------------- */
+
+.cta-row {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-top: 1.6rem;
+}
+
+.btn-hero {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    height: 2.4rem;
+    padding: 0 1.3rem;
+    border-radius: .5rem;
+    font-size: .85rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), filter .2s ease;
+}
+
+.btn-hero,
+.btn-hero:hover,
+.btn-hero:focus,
+.btn-hero:active,
+.btn-hero:visited {
+    text-decoration: none;
+}
+
+.btn-download,
+.btn-download:hover,
+.btn-download:focus,
+.btn-download:visited {
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: 0 2px 6px var(--cta-shadow);
+}
+
+.btn-ghost,
+.btn-ghost:hover,
+.btn-ghost:focus,
+.btn-ghost:visited {
+    color: var(--fg);
+    border: 1px solid var(--hairline-strong);
+    font-weight: 600;
+    box-shadow: none;
+}
+
+.btn-hero:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-hero:hover {
+        transform: scale(1.03);
+    }
+
+    .btn-download:hover {
+        filter: brightness(1.05);
+    }
+}
+
+/* Screenshots ------------------------------------------------------------ */
+
+.screenshot {
+    width: 100%;
+    aspect-ratio: 3104 / 1954;
+    object-fit: cover;
+    border: 1px solid var(--screenshot-border);
+    border-radius: 16px;
+    background-color: rgba(128, 128, 128, .1);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .2)) drop-shadow(0 4px 8px rgba(0, 0, 0, .15));
+}
+
+.screenshot-hero {
+    margin-top: 2.6rem;
+}
+
+/* Footer ----------------------------------------------------------------- */
+
+.site-footer {
+    padding: 2.4rem .5rem 2rem;
+    text-align: center;
+    font-size: .7rem;
+    color: var(--secondary);
+}
+
+.site-footer p {
+    margin: 0;
+}
+
+.site-footer a,
+.site-footer a:visited {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Spectre suppresses the UA outline on anchors and substitutes a purple
+   box-shadow focus ring; replace both with the accent outline. */
+.site-footer a:focus {
+    box-shadow: none;
+}
+
+.site-footer a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .site-footer a:hover {
+        color: var(--fg);
+        text-decoration: underline;
+    }
+}
+
+/* Scroll-to-top ---------------------------------------------------------- */
+
+/* Do NOT rename this to a generic "back to top" name (jump-to-top, back-to-top,
+   scroll-to-top): ad-block cosmetic filters hide those id/class names, which
+   makes the button vanish in browsers with a content blocker. */
+.overview-return {
+    position: fixed;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--fab-border);
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--fab-fg);
+    background: var(--fab-bg);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    backdrop-filter: blur(12px) saturate(160%);
+    box-shadow: 0 4px 16px var(--fab-shadow);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(0.5rem);
+    transition: opacity .25s ease, transform .3s cubic-bezier(0.34, 1.56, 0.64, 1), visibility .25s ease;
+    z-index: 300;
+}
+
+.overview-return.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .overview-return.visible:hover {
+        transform: translateY(0) scale(1.05);
+    }
+}
+
+/* Responsive ------------------------------------------------------------- */
+
+@media (max-width: 600px) {
+    .section-hero {
+        padding: 3.6rem .5rem 1.4rem;
+    }
+
+    .section-feature {
+        padding: 1.6rem .5rem;
+    }
+
+    .site-footer {
+        padding: 1.6rem .5rem 1.4rem;
+    }
+
+    .app-icon {
+        width: 5.5rem;
+    }
+
+    h1 {
+        font-size: 1.4rem;
+    }
+
+    .section-feature h2 {
+        font-size: 1.1rem;
+    }
+
+    .screenshot-hero {
+        margin-top: 2rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+    }
+
+    .btn-hero:hover,
+    .overview-return.visible:hover {
+        transform: none;
+    }
+}

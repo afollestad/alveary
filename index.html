@@ -1,146 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta
-      name="description"
-      content="Alveary is a native macOS app for orchestrating AI coding agents."
-    >
+    <title>Alveary</title>
+    <meta name="description"
+        content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
+
     <meta name="theme-color" content="#f7f7f4" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0b0b0a" media="(prefers-color-scheme: dark)">
-    <title>Alveary</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #f7f7f4;
-        color: #11110f;
-        --background: #f7f7f4;
-        --foreground: #11110f;
-        --secondary: #62625c;
-        --accent: #f6c755;
-        --accent-wash: rgb(246 199 85 / 12%);
-        --action-shadow: rgb(17 17 15 / 14%);
-      }
 
-      @media (prefers-color-scheme: dark) {
-        :root {
-          background: #0b0b0a;
-          color: #f7f7f4;
-          --background: #0b0b0a;
-          --foreground: #f7f7f4;
-          --secondary: #aaa9a2;
-          --accent-wash: rgb(246 199 85 / 8%);
-          --action-shadow: rgb(0 0 0 / 45%);
-        }
-      }
+    <meta property="og:title" content="Alveary">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://alveary.af.codes">
+    <meta property="og:description"
+        content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
+    <!-- TODO: add og:image once real screenshots replace the placeholders. -->
+    <meta name="twitter:card" content="summary">
 
-      * {
-        box-sizing: border-box;
-      }
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.png" type="image/png" sizes="96x96">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-      body {
-        margin: 0;
-        background:
-          radial-gradient(circle at 82% 18%, var(--accent-wash), transparent 26rem),
-          var(--background);
-        color: var(--foreground);
-      }
+    <link rel="stylesheet" href="styles/spectre.min.css">
+    <link rel="stylesheet" href="styles/index-common.css">
 
-      main {
-        width: min(72rem, 100%);
-        min-height: 100vh;
-        min-height: 100svh;
-        margin: 0 auto;
-        padding: clamp(1.5rem, 5vw, 4rem);
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-      }
+    <link rel="stylesheet" href="styles/index-dark.css" id="theme-dark" media="(prefers-color-scheme: dark)">
+    <link rel="stylesheet" href="styles/index-light.css" id="theme-light"
+        media="(prefers-color-scheme: no-preference), (prefers-color-scheme: light)">
 
-      .wordmark {
-        display: inline-flex;
-        gap: 0.65rem;
-        align-items: center;
-        margin: 0;
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-      }
+    <script src="scripts/dark-mode.js" type="text/javascript"></script>
+</head>
 
-      .mark {
-        width: 0.7rem;
-        height: 0.7rem;
-        border-radius: 0.2rem;
-        background: var(--accent);
-      }
+<body>
+    <section class="section-hero text-center" id="overview">
+        <div class="top-actions">
+            <button class="top-btn theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+                <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+        </div>
 
-      section {
-        max-width: 44rem;
-        padding: clamp(5rem, 14vh, 10rem) 0;
-        align-self: center;
-      }
+        <div class="container grid-lg">
+            <div class="app-icon" aria-hidden="true">
+                <img class="bee bee-light" src="images/app-icon-bee-light.png" alt="" decoding="async">
+                <img class="bee bee-dark" src="images/app-icon-bee-dark.png" alt="" decoding="async">
+            </div>
 
-      h1 {
-        margin: 0;
-        font-size: clamp(3.25rem, 9vw, 7.25rem);
-        font-weight: 720;
-        letter-spacing: -0.065em;
-        line-height: 0.92;
-      }
+            <h1>Alveary</h1>
+            <p class="tagline">
+                Run Claude Code, Codex, and other AI coding agents (soon) from one native macOS workspace — with an
+                embedded terminal, voice input, and deep Git integration.
+            </p>
 
-      .description {
-        max-width: 35rem;
-        margin: 2rem 0 0;
-        color: var(--secondary);
-        font-size: clamp(1.05rem, 2vw, 1.3rem);
-        line-height: 1.6;
-      }
+            <div class="cta-row">
+                <a class="btn-hero btn-download"
+                    href="https://github.com/afollestad/alveary/releases/latest/download/Alveary.app.zip">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download for macOS
+                </a>
+                <a class="btn-hero btn-ghost" href="https://github.com/afollestad/alveary">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/>
+                    </svg>
+                    View on GitHub
+                </a>
+            </div>
 
-      a {
-        display: inline-flex;
-        gap: 0.7rem;
-        align-items: center;
-        margin-top: 2.25rem;
-        padding: 0.9rem 1.1rem;
-        border-radius: 0.7rem;
-        background: var(--accent);
-        box-shadow: 0 0.35rem 1.2rem var(--action-shadow);
-        color: #11110f;
-        font-size: 0.9rem;
-        font-weight: 700;
-        text-decoration: none;
-      }
+            <!-- Placeholder. To swap in the real shot: commit images/screenshot-main.png,
+                 change the extension below, and rewrite the alt text. -->
+            <img class="screenshot screenshot-hero" src="images/screenshot-main.svg"
+                alt="Placeholder for the Alveary main window screenshot" decoding="async" fetchpriority="high">
+        </div>
+    </section>
 
-      a:hover,
-      a:focus-visible {
-        text-decoration: underline;
-        text-underline-offset: 0.2em;
-      }
+    <section class="section-feature text-center">
+        <div class="container grid-lg">
+            <div class="section-accent" aria-hidden="true"></div>
+            <h2>Scheduled Tasks</h2>
+            <div class="columns">
+                <div class="column col-10 col-sm-12 col-mx-auto">
+                    <p class="feature-copy">
+                        Run agents on a schedule. Every task is persisted and recovers automatically after
+                        interruptions, so long-running work keeps moving while you're away.
+                    </p>
+                </div>
+            </div>
+            <!-- Placeholder. See the swap note in the hero section. -->
+            <img class="screenshot" src="images/screenshot-scheduled-tasks.svg"
+                alt="Placeholder for the scheduled tasks screenshot" loading="lazy" decoding="async">
+        </div>
+    </section>
 
-      footer {
-        color: var(--secondary);
-        font-size: 0.78rem;
-        letter-spacing: 0.04em;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <header>
-        <p class="wordmark"><span class="mark" aria-hidden="true"></span>Alveary</p>
-      </header>
-      <section>
-        <h1>Your agents.<br>One native workspace.</h1>
-        <p class="description">
-          Alveary is a native macOS app for orchestrating AI coding agents. The full website is coming soon.
+    <section class="section-feature text-center">
+        <div class="container grid-lg">
+            <div class="section-accent" aria-hidden="true"></div>
+            <h2>Pull Requests</h2>
+            <div class="columns">
+                <div class="column col-10 col-sm-12 col-mx-auto">
+                    <p class="feature-copy">
+                        Tasks can run in their own Git worktree, keeping agents out of your working copy. Inspect
+                        changes, create and manage pull requests, and review them — all without leaving the app.
+                    </p>
+                </div>
+            </div>
+            <!-- Placeholder. See the swap note in the hero section. -->
+            <img class="screenshot" src="images/screenshot-pull-requests.svg"
+                alt="Placeholder for the pull requests screenshot" loading="lazy" decoding="async">
+        </div>
+    </section>
+
+    <footer class="site-footer">
+        <p>
+            Alveary · Built for macOS ·
+            <a href="https://github.com/afollestad/alveary">Open source</a> ·
+            <a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0</a>
         </p>
-        <a href="https://github.com/afollestad/alveary/releases/latest/download/Alveary.app.zip">
-          Download the latest release <span aria-hidden="true">→</span>
-        </a>
-      </section>
-      <footer>Built for macOS.</footer>
-    </main>
-  </body>
+    </footer>
+
+    <!-- Do NOT rename this to a generic "back to top" name (jump-to-top, back-to-top,
+         scroll-to-top): ad-block cosmetic filters hide those id/class names, which
+         makes the button vanish in browsers with a content blocker. -->
+    <button class="overview-return" id="overview-return" aria-label="Scroll to top">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5"/>
+            <polyline points="5 12 12 5 19 12"/>
+        </svg>
+    </button>
+
+    <script src="scripts/overview-return.js" type="text/javascript"></script>
+</body>
+
 </html>

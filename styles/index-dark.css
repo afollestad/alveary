@@ -1,0 +1,61 @@
+/* Dark theme.
+   Don't forget to update the theme colors in scripts/dark-mode.js if --bg changes. */
+
+:root {
+    color-scheme: dark;
+
+    --bg: #0b0b0a;
+    --fg: #f7f7f4;
+    --secondary: #aaa9a2;
+    --accent: #F2AC00;
+    --on-accent: #11110f;
+    --hairline-strong: rgba(247, 247, 244, .25);
+    --cta-shadow: rgba(0, 0, 0, .5);
+    --screenshot-border: rgba(247, 247, 244, .16);
+    --fab-bg: rgba(22, 24, 32, .5);
+    --fab-border: rgba(255, 255, 255, .4);
+    --fab-fg: #ffffff;
+    --fab-shadow: rgba(0, 0, 0, .35);
+}
+
+/* The app icon's gradient is seeded from a Display P3 color. Upgrade in a
+   separate block so browsers without P3 keep the sRGB value above rather than
+   dropping the custom property entirely. */
+@supports (color: color(display-p3 0 0 0)) {
+    :root {
+        --accent: color(display-p3 0.907 0.686 0.21);
+    }
+}
+
+html {
+    background: var(--bg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .top-btn:hover {
+        color: var(--accent);
+    }
+}
+
+.theme-toggle .icon-sun {
+    display: block;
+}
+
+.theme-toggle .icon-moon {
+    display: none;
+}
+
+/* macOS renders the dark appearance on a dark plate — the gold "matched
+   yellow" bee is drawn for that, and would vanish on the gold gradient. */
+.app-icon {
+    background: linear-gradient(180deg, #3a3a37 0%, #232320 70%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(247, 247, 244, .06);
+}
+
+.app-icon .bee-light {
+    display: none;
+}
+
+.app-icon .bee-dark {
+    display: block;
+}

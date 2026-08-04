@@ -1,0 +1,74 @@
+/* Light theme.
+   Don't forget to update the theme colors in scripts/dark-mode.js if --bg changes. */
+
+:root {
+    color-scheme: light;
+
+    --bg: #f7f7f4;
+    --fg: #11110f;
+    --secondary: #62625c;
+    --accent: #F2AC00;
+    --on-accent: #11110f;
+    --hairline-strong: rgba(17, 17, 15, .25);
+    --cta-shadow: rgba(17, 17, 15, .18);
+    --screenshot-border: rgba(17, 17, 15, .18);
+    --fab-bg: rgba(247, 247, 244, .6);
+    --fab-border: rgba(17, 17, 15, .15);
+    --fab-fg: #11110f;
+    --fab-shadow: rgba(17, 17, 15, .2);
+}
+
+/* The app icon's gradient is seeded from a Display P3 color. Upgrade in a
+   separate block so browsers without P3 keep the sRGB value above rather than
+   dropping the custom property entirely. */
+@supports (color: color(display-p3 0 0 0)) {
+    :root {
+        --accent: color(display-p3 0.907 0.686 0.21);
+    }
+}
+
+html {
+    background: var(--bg);
+}
+
+.top-btn {
+    color: #1a1a1a;
+    opacity: .85;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .top-btn:hover {
+        color: var(--accent);
+    }
+}
+
+.theme-toggle .icon-sun {
+    display: none;
+}
+
+.theme-toggle .icon-moon {
+    display: block;
+}
+
+/* Gradient plate from AppIcon.icon: vertical, lighter tint at the top down to
+   the seed color at 70%. */
+.app-icon {
+    background: linear-gradient(180deg, #F7C133 0%, #F2AC00 70%);
+    box-shadow: 0 4px 12px rgba(17, 17, 15, .18);
+}
+
+@supports (color: color(display-p3 0 0 0)) {
+    .app-icon {
+        background: linear-gradient(180deg,
+            color(display-p3 0.95 0.77 0.33) 0%,
+            color(display-p3 0.907 0.686 0.21) 70%);
+    }
+}
+
+.app-icon .bee-light {
+    display: block;
+}
+
+.app-icon .bee-dark {
+    display: none;
+}

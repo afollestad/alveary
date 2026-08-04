@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3104" height="1954" viewBox="0 0 3104 1954" role="img" aria-label="Screenshot coming soon">
+  <rect width="3104" height="1954" fill="#1b1b18"/>
+  <rect width="3104" height="120" fill="#232320"/>
+  <circle cx="90" cy="60" r="20" fill="#3a3a37"/>
+  <circle cx="160" cy="60" r="20" fill="#3a3a37"/>
+  <circle cx="230" cy="60" r="20" fill="#3a3a37"/>
+  <text x="1552" y="990" text-anchor="middle" fill="#62625c"
+        font-family="ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="64" font-weight="500" letter-spacing="8">SCREENSHOT COMING SOON</text>
+  <rect x="1452" y="1054" width="200" height="6" rx="3" fill="#F2AC00" opacity="0.55"/>
+</svg>
