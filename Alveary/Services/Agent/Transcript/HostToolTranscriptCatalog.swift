@@ -36,7 +36,9 @@ enum HostToolTranscriptCatalog {
     static let descriptors: [HostToolTranscriptDescriptor] = [
         scheduledTaskProposalDescriptor,
         pullRequestLinkDescriptor,
-        pullRequestUnlinkDescriptor
+        pullRequestUnlinkDescriptor,
+        pullRequestReviewProposalDescriptor,
+        pullRequestListDescriptor
     ] + threadActionDescriptors
 
     static func descriptor(forToolName toolName: String) -> HostToolTranscriptDescriptor? {
@@ -61,6 +63,47 @@ private extension HostToolTranscriptCatalog {
             outcomeKey: { output in
                 ScheduledTaskWidgetParsing.proposalID(fromOutput: output)
             }
+        )
+    }
+
+    /// The one pull request tool that decides nothing on its own, so it is also the only one
+    /// here that records a `host_tool_outcome` marker to resolve its card.
+    static var pullRequestReviewProposalDescriptor: HostToolTranscriptDescriptor {
+        HostToolTranscriptDescriptor(
+            hostToolName: PullRequestHostToolCatalog.proposeReviewToolName,
+            makeContent: { input, output, isError in
+                guard let content = PullRequestReviewProposalWidgetParsing.content(
+                    input: input,
+                    output: output,
+                    isError: isError
+                ) else {
+                    return nil
+                }
+                return .pullRequestReviewProposal(content)
+            },
+            outcomeKey: { output in
+                PullRequestReviewProposalWidgetParsing.proposalID(fromOutput: output)
+            }
+        )
+    }
+
+    /// The one read-only lookup with a card. Its rows each open a different pull request, so it
+    /// needs block-level chrome the way a lookup that only reports does not; it decides nothing,
+    /// so like the link tools it records no outcome marker.
+    static var pullRequestListDescriptor: HostToolTranscriptDescriptor {
+        HostToolTranscriptDescriptor(
+            hostToolName: PullRequestHostToolCatalog.listToolName,
+            makeContent: { input, output, isError in
+                guard let content = PullRequestListWidgetParsing.content(
+                    input: input,
+                    output: output,
+                    isError: isError
+                ) else {
+                    return nil
+                }
+                return .pullRequestList(content)
+            },
+            outcomeKey: { _ in nil }
         )
     }
 

@@ -15,6 +15,9 @@ enum TranscriptToolLeadingIconKind: Equatable {
     case checklist
     case schedule
     case thread
+    /// Renders the `PullRequestOcticon` asset the sidebar row and toolbar button use, so a pull
+    /// request reads the same everywhere in the app.
+    case pullRequest
     case question
     case subAgent
     case toolGroup
@@ -74,6 +77,10 @@ extension ToolEntry {
         case let name where ThreadHostToolPresentation.isListProjectsTool(named: name):
             // Match the sidebar's Project rows so the lookup reads as "Projects", not threads.
             return .folder
+        case let name where PullRequestHostToolPresentation.isPullRequestTool(named: name):
+            // Checked before the thread tools: `link_pr` and friends live in that feature but are
+            // about a pull request, which is what the row should show.
+            return .pullRequest
         case let name where ThreadHostToolPresentation.isThreadTool(named: name):
             return .thread
         case let name where ScheduledTaskListToolPresentation.isSchedulingTool(named: name):

@@ -14,6 +14,12 @@ final class Conversation {
     /// Exact-retry ledger for `alveary_host` thread mutations; see
     /// `Conversation+ThreadHostToolReceipts.swift`. Optional so pre-field stores migrate.
     var threadHostToolReceiptsJSON: String?
+    /// Exact-retry ledger for `alveary_host` pull request mutations; see
+    /// `Conversation+PullRequestHostToolReceipts.swift`. Optional so pre-field stores migrate.
+    var pullRequestHostToolReceiptsJSON: String?
+    /// The one review submission awaiting this conversation's confirmation; see
+    /// `Conversation+PullRequestReviewProposal.swift`. Optional so pre-field stores migrate.
+    var pullRequestReviewProposalJSON: String?
     var isActive: Bool
     var isMain: Bool
     var displayOrder: Int
@@ -47,6 +53,8 @@ final class Conversation {
         self.pendingRestoreContext = pendingRestoreContext
         self.scheduledTaskProposalReceiptsJSON = nil
         self.threadHostToolReceiptsJSON = nil
+        self.pullRequestHostToolReceiptsJSON = nil
+        self.pullRequestReviewProposalJSON = nil
         self.isActive = isActive
         self.isMain = isMain
         self.displayOrder = displayOrder

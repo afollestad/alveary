@@ -11,12 +11,17 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
         let entry: HostToolWidgetEntry
         /// Live confirmation state; `nil` once the proposal is resolved or gone.
         let proposalPresentation: ScheduledTaskProposalPresentation?
+        /// Live review-confirmation state, with the diff preview and picked verdict.
+        let reviewProposal: ReviewProposalWidgetState?
         let isProposalInteractive: Bool
         let isResolving: Bool
         /// The widget's target task has a run in flight; drives run-now's tense.
         let isTargetRunInFlight: Bool
         /// This card's pull request is being fetched before its pane can open.
         let isOpeningPullRequest: Bool
+        /// The pull request the transcript is waiting on, for cards whose rows each name a
+        /// different one and so cannot use the single `isOpeningPullRequest` flag.
+        let pendingPullRequestLookup: PullRequestIdentifier?
         let errorMessage: String?
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
@@ -24,20 +29,24 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
         init(
             entry: HostToolWidgetEntry,
             proposalPresentation: ScheduledTaskProposalPresentation? = nil,
+            reviewProposal: ReviewProposalWidgetState? = nil,
             isProposalInteractive: Bool = false,
             isResolving: Bool = false,
             isTargetRunInFlight: Bool = false,
             isOpeningPullRequest: Bool = false,
+            pendingPullRequestLookup: PullRequestIdentifier? = nil,
             errorMessage: String? = nil,
             bubbleMaxWidth: CGFloat = .infinity,
             typography: TranscriptTypography = TranscriptTypography()
         ) {
             self.entry = entry
             self.proposalPresentation = proposalPresentation
+            self.reviewProposal = reviewProposal
             self.isProposalInteractive = isProposalInteractive
             self.isResolving = isResolving
             self.isTargetRunInFlight = isTargetRunInFlight
             self.isOpeningPullRequest = isOpeningPullRequest
+            self.pendingPullRequestLookup = pendingPullRequestLookup
             self.errorMessage = errorMessage
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
@@ -51,6 +60,9 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     var onOpenScheduledTask: ((String?) -> Void)?
     var onOpenPullRequest: ((PullRequestIdentifier) -> Void)?
     var onOpenThread: ((String) -> Void)?
+    var onConfirmReviewProposal: ((String, PullRequestReviewEvent) -> Void)?
+    var onRejectReviewProposal: ((String) -> Void)?
+    var onSelectReviewVerdict: ((String, PullRequestReviewEvent) -> Void)?
 
     private let bubbleView = AppKitHostToolWidgetBubbleView()
     private let contentStack = NSStackView()
@@ -60,6 +72,8 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     private let disclosureSlot = AppKitHostToolWidgetDisclosureSlotView()
     private let detailField = NSTextField(labelWithString: "")
     private let proposalBody = AppKitScheduledTaskProposalWidgetView()
+    private let reviewProposalBody = AppKitReviewProposalWidgetView()
+    private let pullRequestListBody = AppKitPullRequestListWidgetView()
 
     private var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
@@ -141,6 +155,10 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         detailField.maximumNumberOfLines = 1
         contentStack.addFullWidthArrangedSubview(detailField)
 
+        setupProposalBodies()
+    }
+
+    func setupProposalBodies() {
         proposalBody.translatesAutoresizingMaskIntoConstraints = false
         proposalBody.onConfirm = { [weak self] proposalID in
             self?.onConfirmScheduledProposal?(proposalID)
@@ -155,6 +173,31 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             self?.onOpenScheduledTask?(definitionID)
         }
         contentStack.addFullWidthArrangedSubview(proposalBody)
+
+        reviewProposalBody.translatesAutoresizingMaskIntoConstraints = false
+        reviewProposalBody.onConfirm = { [weak self] proposalID, event in
+            self?.onConfirmReviewProposal?(proposalID, event)
+        }
+        reviewProposalBody.onReject = { [weak self] proposalID in
+            self?.onRejectReviewProposal?(proposalID)
+        }
+        reviewProposalBody.onSelectEvent = { [weak self] proposalID, event in
+            self?.onSelectReviewVerdict?(proposalID, event)
+        }
+        reviewProposalBody.onOpenPullRequest = { [weak self] identifier in
+            self?.onOpenPullRequest?(identifier)
+        }
+        contentStack.addFullWidthArrangedSubview(reviewProposalBody)
+
+        pullRequestListBody.translatesAutoresizingMaskIntoConstraints = false
+        pullRequestListBody.onOpenPullRequest = { [weak self] identifier in
+            self?.onOpenPullRequest?(identifier)
+        }
+        // Expanding the list adds rows below the fold, so the row has to republish its height.
+        pullRequestListBody.onHeightInvalidated = { [weak self] in
+            self?.measureAndPublishHeight(force: true)
+        }
+        contentStack.addFullWidthArrangedSubview(pullRequestListBody)
     }
 
     func setupHeader() {
@@ -251,10 +294,40 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     }
 
     func updateBody(_ configuration: Configuration) {
+        reviewProposalBody.isHidden = true
+        pullRequestListBody.isHidden = true
         switch configuration.entry.content {
         case .pullRequestLink, .threadAction:
             // The header and detail lines say everything these cards have to say.
             proposalBody.isHidden = true
+        case .pullRequestList(let content):
+            proposalBody.isHidden = true
+            pullRequestListBody.configure(
+                .init(
+                    content: content,
+                    openingIdentifier: configuration.pendingPullRequestLookup,
+                    typography: configuration.typography
+                )
+            )
+            pullRequestListBody.isHidden = !pullRequestListBody.hasContent
+        case .pullRequestReviewProposal(let content):
+            proposalBody.isHidden = true
+            let state = configuration.reviewProposal ?? ReviewProposalWidgetState()
+            reviewProposalBody.configure(
+                .init(
+                    content: content,
+                    presentation: state.presentation,
+                    preview: state.preview,
+                    selectedEvent: state.selectedEvent,
+                    canSubmit: state.canSubmit,
+                    isInteractive: configuration.isProposalInteractive,
+                    isSubmitting: state.isSubmitting,
+                    outcome: configuration.entry.outcome,
+                    errorMessage: state.errorMessage ?? configuration.errorMessage,
+                    typography: configuration.typography
+                )
+            )
+            reviewProposalBody.isHidden = !reviewProposalBody.hasContent
         case .scheduledTaskProposal(let content):
             proposalBody.configure(
                 .init(
@@ -298,7 +371,9 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             + ceil(summaryField.attributedStringValue.size().width) + disclosureWidth
         let detailWidth = detailField.isHidden ? 0 : ceil(detailField.attributedStringValue.size().width)
         let bodyWidth = proposalBody.isHidden ? 0 : proposalBody.naturalWidth
-        return ceil(max(headerWidth, detailWidth, bodyWidth)) + (chatBlockPadding * 2)
+        let reviewWidth = reviewProposalBody.isHidden ? 0 : reviewProposalBody.naturalWidth
+        let listWidth = pullRequestListBody.isHidden ? 0 : pullRequestListBody.naturalWidth
+        return ceil(max(headerWidth, detailWidth, bodyWidth, reviewWidth, listWidth)) + (chatBlockPadding * 2)
     }
 
     func measureAndPublishHeight(force: Bool) {

@@ -17,6 +17,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var submitResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
     var updateCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
     var deleteCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
+    var addIssueCommentResult: Result<Void, PullRequestsServiceError> = .success(())
     var updateIssueCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
     var deleteIssueCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
     var updateReviewResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
@@ -31,6 +32,9 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var createPullRequestResult: Result<PullRequestIdentifier, PullRequestsServiceError> = .failure(.transport("unused"))
     var createPendingReviewResult: Result<String, PullRequestsServiceError> = .success("PENDING_REVIEW")
     var addPendingCommentResult: Result<PullRequestReviewThread, PullRequestsServiceError>?
+    /// Consumed one per call, before `addPendingCommentResult`, so a batch test can fail a
+    /// specific comment in the middle of a run.
+    var addPendingCommentResults: [Result<PullRequestReviewThread, PullRequestsServiceError>] = []
     var updatePendingCommentResult: Result<Void, PullRequestsServiceError> = .success(())
     var deletePendingCommentResult: Result<Void, PullRequestsServiceError> = .success(())
     var deletePendingReviewResult: Result<Void, PullRequestsServiceError> = .success(())
@@ -86,6 +90,11 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
         let body: String
     }
 
+    struct AddedIssueComment: Equatable {
+        let id: PullRequestIdentifier
+        let body: String
+    }
+
     struct SubmittedReview: Equatable {
         let id: PullRequestIdentifier
         let event: PullRequestReviewEvent
@@ -101,6 +110,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     private(set) var submittedReviews: [SubmittedReview] = []
     private(set) var updatedComments: [UpdatedReviewComment] = []
     private(set) var deletedCommentIDs: [Int] = []
+    private(set) var addedIssueComments: [AddedIssueComment] = []
     private(set) var updatedIssueComments: [UpdatedReviewComment] = []
     private(set) var deletedIssueCommentIDs: [Int] = []
     private(set) var updatedReviews: [UpdatedReviewComment] = []
@@ -159,6 +169,9 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
         addedPendingComments.append(
             AddedPendingComment(reviewNodeID: reviewNodeID, path: path, line: line, side: side, body: body)
         )
+        if !addPendingCommentResults.isEmpty {
+            return try addPendingCommentResults.removeFirst().get()
+        }
         // Default: echo back a thread shaped like GitHub's, with ids derived from
         // the body so a test can assert which comment it is.
         guard let addPendingCommentResult else {
@@ -233,6 +246,11 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws {
         deletedCommentIDs.append(commentID)
         return try deleteCommentResult.get()
+    }
+
+    func addIssueComment(_ id: PullRequestIdentifier, body: String) async throws {
+        addedIssueComments.append(AddedIssueComment(id: id, body: body))
+        return try addIssueCommentResult.get()
     }
 
     func updateIssueComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {

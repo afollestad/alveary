@@ -23,22 +23,20 @@ enum ThreadHostToolCatalog {
     }
 
     static let instructionsFragment = """
-    These tools manage Alveary's own threads — the workspaces in its sidebar — not files, branches, or anything in the user's \
-    project. Use them only when the user explicitly asks to list, create, or archive an Alveary thread; wanting a task done \
-    is not a request for a new thread. Call list_projects to find a Project path for create_thread, and list_threads before \
-    archive_thread so you use a real thread ID. A created thread works either in one of the user's Projects or in its own \
-    private empty workspace; leaving create_thread's placement unset puts it wherever this conversation's thread already \
-    works, so name a different one only when the user asks for it. create_thread applies immediately and cannot be undone by these tools; if it \
-    carries an initial prompt, that prompt starts running in the background right away and its work does not appear in this \
-    conversation. archive_thread also applies immediately, stops whatever that thread is doing, and is reversible only by the \
-    user from Alveary's Archived screen. No tool here deletes or restores a thread, so never claim a thread was deleted or \
-    offer to restore one. A conversation cannot archive its own thread. pin_thread and unpin_thread move a thread in and \
-    out of the sidebar's Pinned section and change nothing about the work it holds. link_pr and unlink_pr attach and detach a GitHub \
-    pull request to an Alveary thread for the user's own reference, and list_linked_prs shows which ones a thread already \
-    carries; they change only Alveary's local record and never touch the pull request on GitHub, so never describe unlink_pr \
-    as closing, merging, or deleting a pull request. Do not ask the user which pull request to unlink — call unlink_pr \
-    without a url and it either resolves the thread's only linked pull request or lists the candidates for you. Report each \
-    tool's returned `status` rather than describing the change in your own terms.
+    These tools manage Alveary's own threads — the workspaces in its sidebar — not files, branches, or anything in the \
+    user's project. Use them only when the user explicitly asks to list, create, or archive an Alveary thread; wanting a \
+    task done is not a request for a new thread. Call list_projects for a Project path, and list_threads for a real thread \
+    ID. Leaving create_thread's placement unset puts the new thread wherever this conversation's thread already works, so \
+    name a Project or a private workspace only when the user asks for one. create_thread applies immediately, and an \
+    initial prompt starts running in the background right away — its work does not appear in this conversation. \
+    archive_thread also applies immediately, stops whatever that thread is doing, and is reversible only by the user from \
+    Alveary's Archived screen. No tool here deletes or restores a thread, so never claim a thread was deleted or offer to \
+    restore one. A conversation cannot archive its own thread. link_pr and unlink_pr change only Alveary's local record \
+    and never touch the pull request on GitHub, so never describe unlink_pr as closing, merging, or deleting one; call it \
+    without a url and it resolves the thread's only linked pull request or lists the candidates, so do not ask the user \
+    which to remove. list_linked_prs answers only "what is this thread linked to"; it knows nothing the user did not link \
+    by hand, so never answer "list my pull requests" or "what needs my review" with it — list_involved_prs searches GitHub \
+    for those. Report each tool's returned `status` rather than describing the change in your own terms.
     """
 
     /// Tools whose error results carry a `status` field, matching their output schema.
@@ -258,11 +256,13 @@ private extension ThreadHostToolCatalog {
         name: listPullRequestsToolName,
         title: "List an Alveary thread's linked pull requests",
         description: """
-        List the GitHub pull requests linked to an Alveary thread. Returns each one's repository, number, title, status, URL, \
-        and when it was linked, newest link first. Omit thread_id for the thread hosting this conversation; pass one from \
-        list_threads to read another. This reads Alveary's own record — it does not search GitHub, and it returns only what \
-        link_pr attached, so a pull request the user has open elsewhere will not appear here. The snapshot is from link \
-        time and may be stale; use it to identify a pull request, not to report its current state.
+        List the pull requests attached by hand to one Alveary thread, as bookmarks on that thread. Call this only when the \
+        user asks what a thread is linked to. It is the wrong tool for "list my pull requests", "what needs my review", or \
+        any other request to see the user's pull requests — it reads Alveary's local bookmarks, not GitHub, so answering \
+        those with it reports an empty or misleadingly short list as if it were the truth; list_involved_prs searches \
+        GitHub and is the tool for all of them. Returns each link newest first. Omit thread_id for the thread hosting this \
+        conversation; pass one from list_threads to read another. Each snapshot is from link time and may be stale: use it \
+        to identify a pull request, then get_pr for its current state.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: ["thread_id": HostToolSchema.nonEmptyStringSchema],

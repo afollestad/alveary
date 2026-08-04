@@ -265,7 +265,25 @@ private struct AppKitTranscriptPreparedUpdate {
             scheduledTaskRows: rowConfiguration.scheduledTaskListActions.rows(),
             isResolvingScheduledProposal: rowConfiguration.isResolvingScheduledProposal,
             scheduledProposalErrorMessage: rowConfiguration.scheduledProposalErrorMessage,
+            reviewProposalStates: reviewProposalStates,
+            conversationReviewProposal: rowConfiguration.conversationReviewProposal(),
             pendingPullRequestLookup: rowConfiguration.pendingPullRequestLookup
+        )
+    }
+
+    /// Review-proposal cards resolve their diff preview, verdict, and in-flight state through
+    /// closures too, so the signature carries what those return for the rendered items —
+    /// otherwise a loaded preview or a failed submission would never reach the card.
+    private var reviewProposalStates: [String: ReviewProposalWidgetState] {
+        Dictionary(
+            items.compactMap { item -> (String, ReviewProposalWidgetState)? in
+                guard let proposalID = item.hostToolWidgetEntry?.reviewProposalID,
+                      let state = rowConfiguration.reviewProposalState(proposalID) else {
+                    return nil
+                }
+                return (proposalID, state)
+            },
+            uniquingKeysWith: { _, latest in latest }
         )
     }
 
@@ -346,6 +364,8 @@ private struct AppKitTranscriptPreparedUpdate {
         let scheduledTaskRows: [ScheduledTaskListRow]
         let isResolvingScheduledProposal: Bool
         let scheduledProposalErrorMessage: String?
+        let reviewProposalStates: [String: ReviewProposalWidgetState]
+        let conversationReviewProposal: ReviewProposalWidgetState?
         let pendingPullRequestLookup: PullRequestIdentifier?
     }
 }

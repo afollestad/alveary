@@ -11,7 +11,13 @@ extension AppComponent {
     /// eagerly would recurse back through this getter.
     var hostToolDispatcher: HostToolDispatcher {
         return shared {
-            HostToolDispatcher(features: { [self.scheduledTaskHostToolService, self.threadHostToolService] })
+            HostToolDispatcher(features: {
+                [
+                    self.scheduledTaskHostToolService,
+                    self.threadHostToolService,
+                    self.pullRequestHostToolService
+                ]
+            })
         }
     }
 

@@ -115,6 +115,7 @@ extension ChatTranscriptView {
         configureAppKitPullRequestWidgets(&configuration)
         configureAppKitThreadWidgets(&configuration)
         configureAppKitScheduledProposals(&configuration)
+        configureAppKitReviewProposals(&configuration)
         return configuration
     }
 

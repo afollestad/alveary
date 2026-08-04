@@ -26,7 +26,8 @@ enum AlvearyHostToolCatalog {
     static var featureCatalogs: [HostToolFeatureCatalog] {
         [
             ScheduledTaskHostToolCatalog.featureCatalog,
-            ThreadHostToolCatalog.featureCatalog
+            ThreadHostToolCatalog.featureCatalog,
+            PullRequestHostToolCatalog.featureCatalog
         ]
     }
 
@@ -52,10 +53,12 @@ enum AlvearyHostToolCatalog {
     }
 
     static let instructionsPreamble = """
-    These tools act on Alveary itself, the macOS app hosting this conversation; they do not touch the user's code or files. \
-    Use each one only for the purpose its own description states, and only when the user explicitly asks for it. \
-    Never substitute shell commands, config files, or the file system for one of these tools, and never invent a tool this \
-    server does not list. If a tool is unavailable or fails, say so and point the user at the matching Alveary screen instead \
-    of attempting a workaround.
+    These tools act on Alveary, the macOS app hosting this conversation, and on the GitHub pull requests it tracks for the \
+    user; they never touch the user's code or files. Use each one only for the purpose its own description states, and only \
+    when the user explicitly asks for it. When a tool here covers what was asked, it is the only correct way to answer: \
+    never reach for the gh CLI, a git command, a web search, another MCP server, config files, or the file system to do \
+    something a tool on this server already does, and never invent a tool this server does not list. Read the whole list \
+    before deciding nothing here fits. If a tool is unavailable or fails, say so and point the user at the matching Alveary \
+    screen instead of attempting a workaround.
     """
 }

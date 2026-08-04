@@ -1,0 +1,72 @@
+import Foundation
+
+extension ChatTranscriptView {
+    /// Wires the review-proposal card: the diff preview it renders, the verdict picker, and the
+    /// confirm/reject decision that submits to GitHub.
+    ///
+    /// Unlike the scheduling proposal beside it, confirming here is asynchronous, so the card
+    /// reads its in-flight state from the coordinator rather than a single `isResolving` flag.
+    func configureAppKitReviewProposals(_ configuration: inout AppKitTranscriptRowFactory.Configuration) {
+        // State resolves through closures, so a proposal notification re-renders by bumping this
+        // revision rather than by changing any stored input.
+        _ = reviewProposalRevision
+        guard let coordinator = pullRequestReviewProposalCoordinator else {
+            return
+        }
+        let conversationID = viewModel.conversation.id
+        configuration.reviewProposalState = { proposalID in
+            Self.reviewProposalState(
+                proposalID: proposalID,
+                conversationID: conversationID,
+                coordinator: coordinator
+            )
+        }
+        configuration.conversationReviewProposal = {
+            // A provider that emits only the text fallback gives the card no proposal id, and a
+            // conversation holds one review proposal at a time.
+            guard let proposalID = coordinator.presentations.values
+                .first(where: { $0.sourceConversationID == conversationID })?.id else {
+                return nil
+            }
+            return Self.reviewProposalState(
+                proposalID: proposalID,
+                conversationID: conversationID,
+                coordinator: coordinator
+            )
+        }
+        configuration.onSelectReviewVerdict = { proposalID, event in
+            coordinator.selectEvent(event, forProposalID: proposalID)
+        }
+        configuration.onConfirmReviewProposal = { proposalID, event in
+            Task { await coordinator.confirm(proposalID: proposalID, event: event) }
+        }
+        configuration.onRejectReviewProposal = { proposalID in
+            coordinator.reject(proposalID: proposalID)
+        }
+    }
+
+    private static func reviewProposalState(
+        proposalID: String,
+        conversationID: String,
+        coordinator: PullRequestReviewProposalCoordinator
+    ) -> ReviewProposalWidgetState? {
+        guard let presentation = coordinator.presentation(forProposalID: proposalID) else {
+            return nil
+        }
+        // A forked or unrelated conversation renders the same widget read-only.
+        guard presentation.sourceConversationID == conversationID else {
+            return ReviewProposalWidgetState()
+        }
+        // Loading is lazy: a card only fetches its diff once it is actually on screen.
+        coordinator.ensurePreview(proposalID: proposalID)
+        let event = coordinator.selectedEvent(forProposalID: proposalID) ?? presentation.proposedEvent
+        return ReviewProposalWidgetState(
+            presentation: presentation,
+            preview: coordinator.preview(forProposalID: proposalID),
+            selectedEvent: event,
+            canSubmit: coordinator.canSubmit(proposalID: proposalID, event: event),
+            isSubmitting: coordinator.isSubmitting(proposalID: proposalID),
+            errorMessage: coordinator.errorMessage(forProposalID: proposalID)
+        )
+    }
+}

@@ -108,12 +108,23 @@ extension ChatItemGrouper {
         // proposal's resolution from adopting an unrelated running action. Otherwise the
         // grouper is per-conversation and a conversation holds one proposal at a time,
         // so the newest unresolved proposal widget is that proposal.
+        //
+        // Every keyless pairing stays inside the feature that wrote the marker: scheduling and
+        // pull-request reviews both open confirmations, and adopting the other's card would
+        // report a decision the user never made.
         let index = items.firstIndex { item in
-            guard let entry = item.hostToolWidgetEntry, entry.isProposalAwaitingOutcomeMarker else {
+            guard let entry = item.hostToolWidgetEntry,
+                  Self.marker(event, belongsTo: entry),
+                  entry.isProposalAwaitingOutcomeMarker else {
                 return false
             }
             return pending.definitionID != nil && entry.resolvedScheduledTaskID == pending.definitionID
-        } ?? items.lastIndex { $0.hostToolWidgetEntry?.isUnresolvedProposal == true }
+        } ?? items.lastIndex { item in
+            guard let entry = item.hostToolWidgetEntry, Self.marker(event, belongsTo: entry) else {
+                return false
+            }
+            return entry.isUnresolvedProposal || entry.isUnresolvedReviewProposal
+        }
         guard let index else {
             return
         }
@@ -122,6 +133,18 @@ extension ChatItemGrouper {
 }
 
 private extension ChatItemGrouper {
+    /// Whether a marker and a widget come from the same host tool. The marker records the
+    /// qualified name while a widget carries whatever its provider reported, so both resolve
+    /// through the descriptor. A marker without a tool name predates this scoping and matches
+    /// anything, as it did before.
+    static func marker(_ event: ConversationEventRecord, belongsTo entry: HostToolWidgetEntry) -> Bool {
+        guard let markerToolName = event.toolName,
+              let descriptor = HostToolTranscriptCatalog.descriptor(forToolName: markerToolName) else {
+            return true
+        }
+        return descriptor.matches(toolName: entry.toolName)
+    }
+
     func applyPendingHostToolOutcome(_ pending: PendingHostToolOutcome, at index: Int) {
         guard let entry = items[index].hostToolWidgetEntry else {
             return

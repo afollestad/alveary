@@ -11,6 +11,7 @@ final class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
 
     private(set) var isHovered = false
     private var trackingArea: NSTrackingArea?
+    private var scrollObserver: (any NSObjectProtocol)?
 
     var isInteractive = false {
         didSet {
@@ -34,6 +35,25 @@ final class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         refreshTrackingArea()
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        // Released on the way out, not in `deinit`, which cannot touch main-actor state — and a
+        // closing window does not always run `viewDidMoveToWindow` for its views again.
+        guard newWindow == nil, let scrollObserver else {
+            return
+        }
+        NotificationCenter.default.removeObserver(scrollObserver)
+        self.scrollObserver = nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observeEnclosingScroll()
+        // Rows are recycled into and out of the transcript under a stationary pointer, so the
+        // hover state a reused view arrives with may already be wrong.
+        refreshHoverFromPointerLocation()
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -84,6 +104,41 @@ final class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
         }
         self.isHovered = isHovered
         onHoverChanged?(isHovered)
+    }
+
+    /// Scrolling moves the content under the pointer without moving the pointer, and AppKit
+    /// delivers no `mouseExited` for that — the row the cursor started over keeps its highlight
+    /// while the cursor is now over a different one. Re-deriving hover from the pointer's actual
+    /// location on every scroll frame is what unsticks it.
+    private func observeEnclosingScroll() {
+        if let scrollObserver {
+            NotificationCenter.default.removeObserver(scrollObserver)
+            self.scrollObserver = nil
+        }
+        guard let clipView = enclosingScrollView?.contentView else {
+            return
+        }
+        clipView.postsBoundsChangedNotifications = true
+        scrollObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: clipView,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshHoverFromPointerLocation()
+            }
+        }
+    }
+
+    private func refreshHoverFromPointerLocation() {
+        guard isInteractive, let window, window.isKeyWindow else {
+            setHovered(false)
+            return
+        }
+        let pointer = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        // The pointer can sit inside this view's bounds while the view is scrolled out of the
+        // clip view, so the visible rect has to agree before the row claims the highlight.
+        setHovered(bounds.contains(pointer) && visibleRect.contains(pointer))
     }
 
     private func refreshTrackingArea() {

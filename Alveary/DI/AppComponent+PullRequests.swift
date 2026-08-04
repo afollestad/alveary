@@ -13,6 +13,18 @@ extension AppComponent {
         }
     }
 
+    /// The `alveary_host` pull request tools. App-scoped so its pending-review serialization spans
+    /// every conversation that can reach GitHub.
+    var pullRequestHostToolService: PullRequestHostToolService {
+        return shared {
+            PullRequestHostToolService(
+                modelContext: modelContainer.mainContext,
+                pullRequestsService: pullRequestsService,
+                settingsService: settingsService
+            )
+        }
+    }
+
     var pullRequestsService: any PullRequestsService {
         return shared {
             GitHubPullRequestsService(

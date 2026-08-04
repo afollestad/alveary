@@ -1,4 +1,6 @@
-## Tool Rows And Details
+## Tool Rows
+
+- **A pull request tool row draws the shared `PullRequestOcticon`, not an SF Symbol.** `TranscriptToolLeadingIconKind.pullRequest` is the one asset-backed kind: `assetName(for:)` resolves it and the row scales that octicon to the icon metric as a template image, so it takes the row tint like every other glyph. `PullRequestHostToolPresentation.isPullRequestTool` spans both catalogs — the threads feature's `link_pr`/`unlink_pr`/`list_linked_prs` are about a pull request, so they take this icon rather than the thread bubble — and is checked before the thread tools for that reason. And Details
 
 Rules for tool rows, groups, sub-agents, headers, and expanded details.
 

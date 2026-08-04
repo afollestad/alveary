@@ -50,6 +50,15 @@ final class AppKitTranscriptRowFactory {
         var onReviewScheduledProposal: (String) -> Void = { _ in }
         var onRejectScheduledProposal: (String) -> Void = { _ in }
         var onOpenScheduledTask: (String?) -> Void = { _ in }
+        // A review proposal confirms inline too, so its card needs the coordinator's live state:
+        // the loaded diff preview, the picked verdict, and whether a submission is in flight.
+        var reviewProposalState: (String) -> ReviewProposalWidgetState? = { _ in nil }
+        /// The conversation's own live review proposal, for providers whose tool result carries
+        /// no proposal id.
+        var conversationReviewProposal: () -> ReviewProposalWidgetState? = { nil }
+        var onConfirmReviewProposal: (String, PullRequestReviewEvent) -> Void = { _, _ in }
+        var onRejectReviewProposal: (String) -> Void = { _ in }
+        var onSelectReviewVerdict: (String, PullRequestReviewEvent) -> Void = { _, _ in }
         /// Opens a pull-request link widget's pull request in the right-pane lane.
         var onOpenPullRequest: (PullRequestIdentifier) -> Void = { _ in }
         /// Selects the thread a thread-management widget names, by its main conversation id.

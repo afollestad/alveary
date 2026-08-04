@@ -222,6 +222,8 @@ protocol PullRequestsService: Sendable {
     func convertPullRequestToDraft(nodeID: String) async throws
     /// Permanently deletes an already-submitted review comment the viewer may delete.
     func deleteReviewComment(_ id: PullRequestIdentifier, commentID: Int) async throws
+    /// Posts a new top-level conversation comment on the pull request.
+    func addIssueComment(_ id: PullRequestIdentifier, body: String) async throws
     /// Rewrites the body of a top-level conversation comment the viewer may update.
     func updateIssueComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws
     /// Permanently deletes a top-level conversation comment the viewer may delete.

@@ -89,8 +89,8 @@ func makePullRequestDetail(
     reviewThreads: [PullRequestReviewThread] = [],
     viewerCanUpdate: Bool = false,
     headRefExists: Bool = true,
-    // Non-nil by default: production always fetches it, and the ready-for-review
-    // action is gated on it.
+    // Non-nil by default: production always fetches it, and both draft
+    // directions are gated on it.
     nodeID: String? = "PR_7",
     pendingReviewNodeID: String? = nil
 ) -> PullRequestDetail {

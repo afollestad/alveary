@@ -7,6 +7,7 @@ struct ContentViewBootstrapState {
     let appShotCaptureController: AppShotCaptureController
     let lastActiveProjectRecorder: LastActiveProjectRecorder
     let diffViewModel: DiffViewerViewModel
+    let reviewProposalCoordinator: PullRequestReviewProposalCoordinator
 }
 
 extension ContentView {
@@ -26,7 +27,8 @@ extension ContentView {
                 sidebarViewModel: sidebarViewModel
             ),
             lastActiveProjectRecorder: makeLastActiveProjectRecorder(dependencies: dependencies),
-            diffViewModel: makeDiffViewModel(dependencies: dependencies)
+            diffViewModel: makeDiffViewModel(dependencies: dependencies),
+            reviewProposalCoordinator: makePullRequestReviewProposalCoordinator(dependencies: dependencies)
         )
     }
 
@@ -154,6 +156,17 @@ extension ContentView {
             // sidebar's `@Query` reads.
             modelContext: dependencies.modelContainer.mainContext,
             service: dependencies.pullRequestsService
+        )
+    }
+
+    /// Its own `ModelContext`, matching the scheduling coordinator below: proposal resolution
+    /// saves outside any view's editing context.
+    static func makePullRequestReviewProposalCoordinator(
+        dependencies: ContentViewDependencies
+    ) -> PullRequestReviewProposalCoordinator {
+        PullRequestReviewProposalCoordinator(
+            modelContext: ModelContext(dependencies.modelContainer),
+            pullRequestsService: dependencies.pullRequestsService
         )
     }
 

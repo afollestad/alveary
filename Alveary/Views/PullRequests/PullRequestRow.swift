@@ -160,6 +160,21 @@ enum PullRequestStatusGlyph {
     /// GitHub's own status tinting; the accessibility name carries the state for
     /// anyone who cannot rely on color. Merged uses Primer's merged purple from the
     /// asset catalog — the system `.purple` reads neon against dark backgrounds.
+    /// The AppKit half of `tint(for:)`, for the transcript's native rows. Kept beside it so the
+    /// two cannot drift into different colors for the same state.
+    static func nsTint(for status: PullRequestStatus) -> NSColor {
+        switch status {
+        case .open:
+            return .systemGreen
+        case .draft:
+            return .secondaryLabelColor
+        case .merged:
+            return NSColor(named: "PullRequestMergedColor") ?? .systemPurple
+        case .closed:
+            return .systemRed
+        }
+    }
+
     static func tint(for status: PullRequestStatus) -> Color {
         switch status {
         case .open:

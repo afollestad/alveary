@@ -50,8 +50,19 @@ enum HostToolSchema {
         .object(["type": .string("boolean")])
     }
 
-    static func arraySchema(items: AgentCLIKit.JSONValue) -> AgentCLIKit.JSONValue {
-        .object(["type": .string("array"), "items": items])
+    static func arraySchema(
+        items: AgentCLIKit.JSONValue,
+        minItems: Int? = nil,
+        maxItems: Int? = nil
+    ) -> AgentCLIKit.JSONValue {
+        var schema: [String: AgentCLIKit.JSONValue] = ["type": .string("array"), "items": items]
+        if let minItems {
+            schema["minItems"] = .number(Double(minItems))
+        }
+        if let maxItems {
+            schema["maxItems"] = .number(Double(maxItems))
+        }
+        return .object(schema)
     }
 
     static func enumSchema(_ values: [String]) -> AgentCLIKit.JSONValue {

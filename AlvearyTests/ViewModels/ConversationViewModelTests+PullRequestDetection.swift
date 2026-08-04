@@ -31,6 +31,55 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.thread.pendingPullRequestLinkPrompts, [])
     }
 
+    /// A `list_involved_prs` answer names every pull request the user touches; without this the
+    /// transcript stacked one question per row under the bubble.
+    func testAMessageListingManyPullRequestsPromptsForNone() throws {
+        let fixture = try makeDetectionFixture()
+        let listing = (1...8)
+            .map { "https://github.com/octo/alpha/pull/\($0)" }
+            .joined(separator: "\n")
+
+        fixture.viewModel.scanInsertedMessageRecordForPullRequestLinks(
+            try insertAssistantMessage(in: fixture, content: listing)
+        )
+
+        XCTAssertEqual(fixture.thread.pendingPullRequestLinkPrompts, [])
+        // Scanned and deliberately empty, so the message is fenced rather than re-asked later.
+        XCTAssertEqual(fixture.thread.pullRequestScanWatermark, Date(timeIntervalSince1970: 100))
+    }
+
+    /// Automatic linking is the same judgement: a listing is not eight pull requests the user
+    /// wants bookmarked on this thread.
+    func testAMessageListingManyPullRequestsLinksNoneAutomatically() throws {
+        let fixture = try makeDetectionFixture(automaticallyLinkPullRequests: true)
+        let observer = PullRequestLinkRequestObserver()
+        let listing = (1...8)
+            .map { "https://github.com/octo/alpha/pull/\($0)" }
+            .joined(separator: "\n")
+
+        fixture.viewModel.scanInsertedMessageRecordForPullRequestLinks(
+            try insertAssistantMessage(in: fixture, content: listing)
+        )
+
+        XCTAssertTrue(observer.requests.isEmpty)
+    }
+
+    func testAMessageDiscussingAFewPullRequestsStillPrompts() throws {
+        let fixture = try makeDetectionFixture()
+        let discussion = (1...ConversationViewModel.maximumDetectedPullRequestsPerMessage)
+            .map { "https://github.com/octo/alpha/pull/\($0)" }
+            .joined(separator: " and ")
+
+        fixture.viewModel.scanInsertedMessageRecordForPullRequestLinks(
+            try insertAssistantMessage(in: fixture, content: discussion)
+        )
+
+        XCTAssertEqual(
+            fixture.thread.pendingPullRequestLinkPrompts.count,
+            ConversationViewModel.maximumDetectedPullRequestsPerMessage
+        )
+    }
+
     func testSuppressedPromptsWithoutAutomaticLinkingDoNothing() throws {
         let fixture = try makeDetectionFixture(suppressPullRequestLinkPrompts: true)
         let observer = PullRequestLinkRequestObserver()

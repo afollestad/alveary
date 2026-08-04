@@ -263,6 +263,27 @@ extension AppKitTranscriptToolRowTests {
         XCTAssertEqual(statusView.statusSymbolTintColorForTesting?.resolved(for: header.appKitRenderingAppearance), expectedHoverColor)
     }
 
+    /// Pull request tools take the octicon the sidebar and toolbar use — including the ones that
+    /// live in the threads feature, because the subject is a pull request, not a thread.
+    func testPullRequestToolNamesUseThePullRequestIcon() {
+        let hostToolNames = PullRequestHostToolCatalog.tools.map(\.name) + [
+            ThreadHostToolCatalog.linkPullRequestToolName,
+            ThreadHostToolCatalog.unlinkPullRequestToolName,
+            ThreadHostToolCatalog.listPullRequestsToolName
+        ]
+
+        for hostToolName in hostToolNames {
+            let qualified = semanticIconTool(
+                name: HostToolTranscriptCatalog.toolName(hostToolName),
+                summary: hostToolName
+            )
+            XCTAssertEqual(qualified.transcriptLeadingIconKind, .pullRequest, hostToolName)
+            // Codex reports the bare name; it must resolve the same way.
+            let bare = semanticIconTool(name: hostToolName, summary: hostToolName)
+            XCTAssertEqual(bare.transcriptLeadingIconKind, .pullRequest, hostToolName)
+        }
+    }
+
     func testToolNamesUseSemanticLeadingIconKinds() {
         let readTool = semanticIconTool(name: "Read", summary: "Reading AGENTS.md")
         let listTool = semanticIconTool(name: "LS", summary: "Listing directory")

@@ -317,6 +317,10 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
         throw PullRequestsServiceError.transport("unused")
     }
 
+    func addIssueComment(_ id: PullRequestIdentifier, body: String) async throws {
+        throw PullRequestsServiceError.transport("unused")
+    }
+
     func updateIssueComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {
         throw PullRequestsServiceError.transport("unused")
     }

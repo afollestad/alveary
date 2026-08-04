@@ -11,6 +11,10 @@ enum HostToolWidgetSummary {
             proposalText(content, entry: entry, isTargetRunInFlight: isTargetRunInFlight)
         case .pullRequestLink(let content):
             pullRequestLinkText(content, entry: entry)
+        case .pullRequestReviewProposal(let content):
+            reviewProposalText(content, entry: entry)
+        case .pullRequestList(let content):
+            pullRequestListText(content, entry: entry)
         case .threadAction(let content):
             threadActionText(content, entry: entry)
         }
@@ -27,6 +31,12 @@ enum HostToolWidgetSummary {
         case .pullRequestLink(let content):
             // A refusal has no snapshot to name, so the reason takes the line instead.
             return content.status == .failed ? content.message : content.title
+        case .pullRequestReviewProposal(let content):
+            // The summary body is what the review would say, so it is the detail worth showing;
+            // a refusal puts its reason here instead.
+            return content.status == .failed ? content.message : content.body
+        case .pullRequestList(let content):
+            return pullRequestListDetail(content)
         case .threadAction(let content):
             // Only a created Project thread has a path to show; the rest say everything in
             // the summary, and a refusal puts its reason here.
@@ -66,6 +76,106 @@ private extension HostToolWidgetSummary {
             phrase = "PR unlinked from thread"
         }
         return append(content.identifier?.displayKey, to: phrase)
+    }
+
+    /// The rows say everything the card needs, so the detail line carries only what they cannot:
+    /// that the list is short of the real total, or incomplete because GitHub refused part of it.
+    /// The message is never dumped here — it is the whole list, dozens of lines, in one slot.
+    static func pullRequestListDetail(_ content: PullRequestListWidgetContent) -> String? {
+        if content.status == .failed {
+            return content.message
+        }
+        var parts: [String] = []
+        if content.hiddenRowCount > 0 {
+            parts.append("\(content.hiddenRowCount) more not shown")
+        }
+        if content.hasWarnings {
+            parts.append("Some organization results were unavailable")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Names the scope that was searched, because "reviewing" and "authored" answer different
+    /// questions and an unqualified count would read as the user's whole set.
+    static func pullRequestListText(
+        _ content: PullRequestListWidgetContent,
+        entry: HostToolWidgetEntry
+    ) -> String {
+        guard content.status != .running, !entry.isInterrupted else {
+            return "Finding pull requests…"
+        }
+        guard content.status != .failed else {
+            return "Could not list pull requests"
+        }
+        guard content.status != .listedWithoutRows else {
+            // The call landed but nothing was readable to list, so the copy stays neutral rather
+            // than claiming a count or an empty result.
+            return "Listed pull requests"
+        }
+        guard !content.rows.isEmpty else {
+            return scopedListPhrase("No pull requests", filter: content.filter)
+        }
+        let count = content.rows.count == 1 ? "1 pull request" : "\(content.rows.count) pull requests"
+        return scopedListPhrase(count, filter: content.filter)
+    }
+
+    static func scopedListPhrase(_ phrase: String, filter: PullRequestHostToolListFilter?) -> String {
+        switch filter {
+        case .authored:
+            "\(phrase) you opened"
+        case .reviewing:
+            "\(phrase) to review"
+        case .all, nil:
+            "\(phrase) you are involved in"
+        }
+    }
+
+    /// A review proposal always waits on the user, so the resolved copy names the verdict the
+    /// user actually submitted — which the outcome marker carries, because they may confirm a
+    /// different one than the model proposed.
+    static func reviewProposalText(
+        _ content: PullRequestReviewProposalWidgetContent,
+        entry: HostToolWidgetEntry
+    ) -> String {
+        guard content.status != .running, !entry.isInterrupted else {
+            return "Preparing review…"
+        }
+        guard content.status != .failed else {
+            return "Could not prepare the review"
+        }
+        let key = content.identifier?.displayKey
+        let submitted = entry.outcomeTitle
+            .flatMap(PullRequestHostToolRequestParser.reviewEvent(from:)) ?? content.event
+        switch entry.outcome {
+        case .confirmed:
+            return append(key, to: confirmedReviewPhrase(submitted))
+        case .rejected:
+            return append(key, to: "Review not submitted")
+        case nil:
+            return append(key, to: pendingReviewPhrase(content.event))
+        }
+    }
+
+    static func pendingReviewPhrase(_ event: PullRequestReviewEvent) -> String {
+        switch event {
+        case .approve:
+            "Approve pull request?"
+        case .requestChanges:
+            "Request changes on pull request?"
+        case .comment:
+            "Submit review comment?"
+        }
+    }
+
+    static func confirmedReviewPhrase(_ event: PullRequestReviewEvent) -> String {
+        switch event {
+        case .approve:
+            "Pull request approved"
+        case .requestChanges:
+            "Changes requested"
+        case .comment:
+            "Review comment submitted"
+        }
     }
 
     /// Thread mutations apply immediately too, so there is no pending or rejected voice — a

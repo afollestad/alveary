@@ -237,6 +237,24 @@ extension GitHubPullRequestsService {
         }
     }
 
+    func addIssueComment(_ id: PullRequestIdentifier, body: String) async throws {
+        let ghExecutable = try await resolveGitHubCLI()
+        // A mutation: never retried. PR conversation comments are issue comments,
+        // so they live under the issues endpoint, not pulls.
+        let result = try await runGitHubCLI(
+            executable: ghExecutable,
+            args: [
+                "api", "repos/\(id.nameWithOwner)/issues/\(id.number)/comments",
+                "-X", "POST",
+                "-f", "body=\(body)"
+            ],
+            timeout: .seconds(30)
+        )
+        guard result.succeeded else {
+            throw Self.makeError(from: result)
+        }
+    }
+
     func updateIssueComment(_ id: PullRequestIdentifier, commentID: Int, body: String) async throws {
         let ghExecutable = try await resolveGitHubCLI()
         // A mutation: never retried. PR conversation comments are issue comments,

@@ -9,6 +9,11 @@ import SwiftData
 /// `PullRequestLinksViewModel`, so both the automatic and accepted paths post
 /// `.pullRequestLinkRequested` rather than writing links here.
 extension ConversationViewModel {
+    /// Above this, one message is taken to be listing pull requests rather than discussing one.
+    /// Three covers "I opened these two, which supersede that one"; a tool-driven listing runs to
+    /// dozens.
+    static let maximumDetectedPullRequestsPerMessage = 3
+
     func scanInsertedMessageRecordForPullRequestLinks(_ record: ConversationEventRecord) {
         guard record.type == ConversationEventRecord.messageType,
               record.role == ConversationEventRecord.userRole || record.role == ConversationEventRecord.assistantRole,
@@ -38,6 +43,21 @@ extension ConversationViewModel {
 
         let identifiers = PullRequestURLTextScanner.identifiers(in: content)
         guard !identifiers.isEmpty else {
+            return
+        }
+        // A message naming this many pull requests is enumerating them — a `list_involved_prs`
+        // answer, a release summary — not discussing one, and every identifier in it would
+        // otherwise become its own question stacked under the bubble (or, with automatic linking
+        // on, its own link). Detection is for the pull request a conversation is about, so a
+        // listing is skipped whole rather than truncated to an arbitrary few.
+        guard identifiers.count <= Self.maximumDetectedPullRequestsPerMessage else {
+            // The watermark still advances: the message was scanned and deliberately produced
+            // nothing, and re-scanning it later would reach the same conclusion.
+            thread.pullRequestScanWatermark = max(
+                thread.pullRequestScanWatermark ?? .distantPast,
+                record.timestamp
+            )
+            scheduleSave()
             return
         }
         thread.pullRequestScanWatermark = max(thread.pullRequestScanWatermark ?? .distantPast, record.timestamp)

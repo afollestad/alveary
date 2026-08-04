@@ -13,6 +13,8 @@ enum HostToolWidgetOutcome: String, Equatable, Sendable {
 enum HostToolWidgetContent: Equatable {
     case scheduledTaskProposal(ScheduledTaskProposalWidgetContent)
     case pullRequestLink(PullRequestLinkWidgetContent)
+    case pullRequestReviewProposal(PullRequestReviewProposalWidgetContent)
+    case pullRequestList(PullRequestListWidgetContent)
     case threadAction(ThreadActionWidgetContent)
 }
 
@@ -117,6 +119,12 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             isAppliedProposal
         case .pullRequestLink(let content):
             content.isSettled
+        case .pullRequestReviewProposal:
+            // Submitting always needs the user, so this card is never settled by its own result.
+            false
+        case .pullRequestList(let content):
+            // A read decides nothing, so a landed one is settled the moment it returns.
+            content.status == .listed || content.status == .listedWithoutRows
         case .threadAction(let content):
             content.isSettled
         }
@@ -131,6 +139,12 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             nil
         case .pullRequestLink(let content):
             content.isSettled ? content.identifier.map(HostToolWidgetTarget.pullRequest) : nil
+        case .pullRequestReviewProposal:
+            // The card carries its own Review… action, so the whole bubble is not a button.
+            nil
+        case .pullRequestList:
+            // Each row opens a different pull request, so the rows are the controls, not the card.
+            nil
         case .threadAction(let content):
             content.isSettled ? content.threadID.map(HostToolWidgetTarget.thread) : nil
         }
@@ -147,6 +161,21 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
     /// A proposal widget still awaiting the user's decision, with no durable outcome yet.
     var isUnresolvedProposal: Bool {
         guard outcome == nil, case .scheduledTaskProposal(let content) = content else {
+            return false
+        }
+        return content.status == .pendingConfirmation
+    }
+
+    /// Confirmation identity for a review proposal, and whether it is still awaiting one.
+    var reviewProposalID: String? {
+        guard case .pullRequestReviewProposal(let content) = content else {
+            return nil
+        }
+        return content.proposalID
+    }
+
+    var isUnresolvedReviewProposal: Bool {
+        guard outcome == nil, case .pullRequestReviewProposal(let content) = content else {
             return false
         }
         return content.status == .pendingConfirmation

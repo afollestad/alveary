@@ -30,6 +30,9 @@ struct ChatTranscriptView: View {
     // snapshot hosts can render the transcript without the scheduling stack.
     @Environment(ScheduledTaskProposalQueueCoordinator.self) var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator?
     @Environment(ScheduledTasksViewModel.self) var scheduledTasksViewModel: ScheduledTasksViewModel?
+    /// Review submissions are confirmed inside transcript widgets too; optional for the same
+    /// reason, so a snapshot host can render without the pull request stack.
+    @Environment(PullRequestReviewProposalCoordinator.self) var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator?
     @State private var pendingProgrammaticScrollMode: PendingProgrammaticScrollMode?
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State var latestMetrics: ChatTranscriptScrollMetrics?
@@ -39,6 +42,7 @@ struct ChatTranscriptView: View {
     @State var appKitToolApprovalSelectionsBySessionID: [String: ToolApprovalSelection] = [:]
     @State var appKitPullRequestPromptSelections: [String: PullRequestLinkPromptSelection] = [:]
     @State var scheduledProposalRevision = 0
+    @State var reviewProposalRevision = 0
 
     var shouldShowTransientInterruptedNote: Bool {
         !viewModel.state.grouper.items.hasInterruptedNoteAfterLatestUserMessage
@@ -117,6 +121,22 @@ struct ChatTranscriptView: View {
                     return
                 }
                 viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .pullRequestReviewProposalsChanged)) { _ in
+                // Same shape as the scheduling proposal above: the card's live state is
+                // closure-resolved, and the rebuild is only for its outcome marker.
+                reviewProposalRevision &+= 1
+                guard !viewModel.turnState.isActive else {
+                    return
+                }
+                viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(for: .reviewProposalCardStateChanged)
+            ) { _ in
+                // Verdict picks, the loading diff preview, and submitting transitions re-render
+                // the card but change no persisted records, so they skip the rebuild.
+                reviewProposalRevision &+= 1
             }
             .onAppear {
                 viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)

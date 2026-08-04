@@ -46,6 +46,7 @@ struct ContentView: View {
     @State var mcpViewModel: MCPViewModel
     @State var scheduledTasksViewModel: ScheduledTasksViewModel
     @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
+    @State var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator
     @State var pullRequestsViewModel: PullRequestsViewModel
     @State var pullRequestLinksViewModel: PullRequestLinksViewModel
     @State private var settingsViewModel: SettingsViewModel
@@ -113,6 +114,7 @@ struct ContentView: View {
         _scheduledTaskProposalQueueCoordinator = State(
             initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
         )
+        _pullRequestReviewProposalCoordinator = State(initialValue: bootstrapState.reviewProposalCoordinator)
         _pullRequestsViewModel = State(initialValue: Self.makePullRequestsViewModel(dependencies: dependencies, appState: appState))
         _pullRequestLinksViewModel = State(initialValue: Self.makePullRequestLinksViewModel(dependencies: dependencies))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
@@ -211,6 +213,8 @@ struct ContentView: View {
         // coordinator and its editor drafts have to reach the chat surface.
         .environment(scheduledTaskProposalQueueCoordinator)
         .environment(scheduledTasksViewModel)
+        // Review submissions are confirmed inside transcript widgets too.
+        .environment(pullRequestReviewProposalCoordinator)
         .task {
             appShotCoordinator.start(settingsService: settingsService)
         }

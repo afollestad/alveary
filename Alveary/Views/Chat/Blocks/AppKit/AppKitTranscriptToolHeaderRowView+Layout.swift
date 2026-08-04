@@ -136,6 +136,19 @@ extension AppKitTranscriptToolHeaderRowView {
         onHeightInvalidated?()
     }
 
+    /// Asset-backed icons, for kinds whose glyph is shared with the rest of the app rather than
+    /// drawn from SF Symbols. `nil` means the kind renders `systemSymbolName(for:)`.
+    func assetName(for kind: TranscriptToolLeadingIconKind) -> String? {
+        switch kind {
+        case .pullRequest:
+            // The same octicon the sidebar row and toolbar button use, so a pull request reads
+            // identically wherever it appears.
+            return "PullRequestOcticon"
+        default:
+            return nil
+        }
+    }
+
     // Keep this switch exhaustive so new semantic icon cases cannot silently fall back to a generic glyph.
     // swiftlint:disable:next cyclomatic_complexity
     func systemSymbolName(for kind: TranscriptToolLeadingIconKind) -> String {
@@ -164,6 +177,10 @@ extension AppKitTranscriptToolHeaderRowView {
             return "clock"
         case .thread:
             return "bubble.left.and.bubble.right"
+        case .pullRequest:
+            // Unused: this kind draws `assetName(for:)`'s octicon instead. Kept exhaustive so the
+            // switch still fails to compile when a new kind is added.
+            return "arrow.triangle.pull"
         case .question:
             return "questionmark"
         case .subAgent:
