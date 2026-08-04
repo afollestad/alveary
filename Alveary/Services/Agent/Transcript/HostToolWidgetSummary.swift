@@ -20,6 +20,20 @@ enum HostToolWidgetSummary {
         }
     }
 
+    /// The substring of `text(for:)` the card draws in bold: the pull request it names, which is
+    /// the one part of that line that differs card to card. A card that names a thread or a task
+    /// emphasizes nothing — those already carry the user's own words.
+    static func emphasis(for entry: HostToolWidgetEntry) -> String? {
+        switch entry.content {
+        case .pullRequestReviewProposal(let content):
+            content.identifier?.displayKey
+        case .pullRequestLink(let content):
+            content.identifier?.displayKey
+        case .scheduledTaskProposal, .pullRequestList, .threadAction:
+            nil
+        }
+    }
+
     /// Secondary detail line; `nil` when the summary already says everything.
     static func detail(for entry: HostToolWidgetEntry) -> String? {
         switch entry.content {
@@ -152,18 +166,25 @@ private extension HostToolWidgetSummary {
         case .rejected:
             return append(key, to: "Review not submitted")
         case nil:
-            return append(key, to: pendingReviewPhrase(content.event))
+            return pendingReviewPhrase(content.event, key: key)
         }
     }
 
-    static func pendingReviewPhrase(_ event: PullRequestReviewEvent) -> String {
+    /// The one phrase that asks rather than states, so it takes the pull request into the question
+    /// itself — `append`'s colon would land after the question mark.
+    ///
+    /// The comment verdict's copy names the review, never "a comment": one submission publishes
+    /// every pending comment attached to it, so a singular noun misreports the common case, and a
+    /// comment review may carry only a summary body and no line comments at all.
+    static func pendingReviewPhrase(_ event: PullRequestReviewEvent, key: String?) -> String {
+        let subject = key ?? "pull request"
         switch event {
         case .approve:
-            "Approve pull request?"
+            return "Approve \(subject)?"
         case .requestChanges:
-            "Request changes on pull request?"
+            return "Request changes on \(subject)?"
         case .comment:
-            "Submit review comment?"
+            return key.map { "Submit review of \($0)?" } ?? "Submit review?"
         }
     }
 
@@ -174,7 +195,7 @@ private extension HostToolWidgetSummary {
         case .requestChanges:
             "Changes requested"
         case .comment:
-            "Review comment submitted"
+            "Review submitted"
         }
     }
 

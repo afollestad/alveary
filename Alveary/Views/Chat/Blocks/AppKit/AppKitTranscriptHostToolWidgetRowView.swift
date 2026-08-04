@@ -63,6 +63,11 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     var onConfirmReviewProposal: ((String, PullRequestReviewEvent) -> Void)?
     var onRejectReviewProposal: ((String) -> Void)?
     var onSelectReviewVerdict: ((String, PullRequestReviewEvent) -> Void)?
+    /// Fetches comment-author avatars. Kept off `Configuration`, which is `Equatable`: the loader
+    /// is an actor, and it is app-lifetime constant rather than per-render input.
+    var avatarLoader: GitHubAvatarLoader?
+    /// Opens a link inside a review proposal's pending comment body.
+    var onOpenMarkdownLink: ((URL) -> Void)?
 
     private let bubbleView = AppKitHostToolWidgetBubbleView()
     private let contentStack = NSStackView()
@@ -187,6 +192,14 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         reviewProposalBody.onOpenPullRequest = { [weak self] identifier in
             self?.onOpenPullRequest?(identifier)
         }
+        // A comment card's markdown body grows when an inline image lands, which moves everything
+        // below it in the card.
+        reviewProposalBody.onHeightInvalidated = { [weak self] in
+            self?.measureAndPublishHeight(force: true)
+        }
+        reviewProposalBody.onOpenMarkdownLink = { [weak self] url in
+            self?.onOpenMarkdownLink?(url)
+        }
         contentStack.addFullWidthArrangedSubview(reviewProposalBody)
 
         pullRequestListBody.translatesAutoresizingMaskIntoConstraints = false
@@ -255,11 +268,13 @@ private extension AppKitTranscriptHostToolWidgetRowView {
 
     func updateHeader(_ configuration: Configuration) {
         let entry = configuration.entry
-        summaryField.font = configuration.typography.nsFont(.toolSummary)
+        let font = configuration.typography.nsFont(.toolSummary)
+        summaryField.font = font
         summaryField.textColor = .labelColor
-        summaryField.stringValue = HostToolWidgetSummary.text(
-            for: entry,
-            isTargetRunInFlight: configuration.isTargetRunInFlight
+        summaryField.attributedStringValue = Self.summaryString(
+            HostToolWidgetSummary.text(for: entry, isTargetRunInFlight: configuration.isTargetRunInFlight),
+            emphasizing: HostToolWidgetSummary.emphasis(for: entry),
+            font: font
         )
 
         let detail = HostToolWidgetSummary.detail(for: entry)
@@ -268,13 +283,62 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         detailField.stringValue = detail ?? ""
         detailField.isHidden = detail == nil
 
+        applyIcon(for: entry, typography: configuration.typography)
+    }
+
+    /// The summary's own subject carries the weight, so the pull request a review proposal asks
+    /// about reads out of the sentence around it. The colour is set as an attribute because
+    /// `attributedStringValue` supersedes `textColor`; `labelColor` stays dynamic through it.
+    static func summaryString(_ summary: String, emphasizing name: String?, font: NSFont) -> NSAttributedString {
+        let attributed = NSMutableAttributedString(
+            string: summary,
+            attributes: [.font: font, .foregroundColor: NSColor.labelColor]
+        )
+        guard let name, let emphasized = summary.range(of: name) else {
+            return attributed
+        }
+        attributed.addAttribute(
+            .font,
+            value: NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask),
+            range: NSRange(emphasized, in: summary)
+        )
+        return attributed
+    }
+
+    /// A pending review proposal names its pull request with GitHub's own octicon; every other
+    /// state keeps the shell's status glyph, which is what carries the outcome.
+    func applyIcon(for entry: HostToolWidgetEntry, typography: TranscriptTypography) {
+        let size = typography.size(for: .toolIcon)
+        if awaitsReviewDecision(entry), let octicon = pullRequestOcticon(size: size) {
+            // The asset is artwork, not a symbol, so a stale symbol configuration would rescale it.
+            iconView.symbolConfiguration = nil
+            iconView.image = octicon
+            iconView.setDynamicContentTintColor(.secondaryLabelColor)
+            return
+        }
         let symbol = statusSymbol(for: entry)
         iconView.image = NSImage(systemSymbolName: symbol.name, accessibilityDescription: nil)
-        iconView.symbolConfiguration = .init(
-            pointSize: configuration.typography.size(for: .toolIcon),
-            weight: .regular
-        )
+        iconView.symbolConfiguration = .init(pointSize: size, weight: .regular)
         iconView.setDynamicContentTintColor(symbol.tint)
+    }
+
+    func awaitsReviewDecision(_ entry: HostToolWidgetEntry) -> Bool {
+        guard case .pullRequestReviewProposal = entry.content else {
+            return false
+        }
+        return !entry.isError && entry.outcome == nil && !entry.isSettledWithoutDecision
+    }
+
+    /// Fixed-canvas octicon artwork does not size by font, so it is redrawn at the icon size the
+    /// way the pull-request list card's rows do it.
+    func pullRequestOcticon(size: CGFloat) -> NSImage? {
+        guard let asset = NSImage(named: PullRequestStatusGlyph.assetName16(for: .open)) else {
+            return nil
+        }
+        return NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            asset.draw(in: rect)
+            return true
+        }
     }
 
     func statusSymbol(for entry: HostToolWidgetEntry) -> (name: String, tint: NSColor) {
@@ -313,6 +377,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         case .pullRequestReviewProposal(let content):
             proposalBody.isHidden = true
             let state = configuration.reviewProposal ?? ReviewProposalWidgetState()
+            reviewProposalBody.avatarLoader = avatarLoader
             reviewProposalBody.configure(
                 .init(
                     content: content,

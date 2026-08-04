@@ -99,6 +99,72 @@ extension HostToolTranscriptCatalogTests {
         )
     }
 
+    /// The pending copy is the one phrase that asks, so the pull request belongs inside the
+    /// question — appending it would put the shared colon after the question mark.
+    func testThePendingSummaryNamesThePullRequestInsideTheQuestion() throws {
+        for (event, expected) in [
+            ("approve", "Approve octo/alpha#7?"),
+            ("request_changes", "Request changes on octo/alpha#7?"),
+            ("comment", "Submit review of octo/alpha#7?")
+        ] {
+            let entry = try Self.reviewEntry(event: event)
+            XCTAssertEqual(HostToolWidgetSummary.text(for: entry), expected)
+        }
+    }
+
+    /// Resolved copy states rather than asks, so it keeps the shared `phrase: name` shape.
+    func testResolvedReviewSummariesKeepTheSharedColonShape() throws {
+        let confirmed = try Self.reviewEntry(event: "approve").withOutcome(.confirmed, title: "approve")
+        XCTAssertEqual(HostToolWidgetSummary.text(for: confirmed), "Pull request approved: octo/alpha#7")
+
+        let rejected = try Self.reviewEntry(event: "approve").withOutcome(.rejected)
+        XCTAssertEqual(HostToolWidgetSummary.text(for: rejected), "Review not submitted: octo/alpha#7")
+    }
+
+    /// The card draws this substring in bold, so it has to be a range of the summary itself.
+    func testTheEmphasizedNameIsThePullRequestTheSummaryAlreadyNames() throws {
+        let entry = try Self.reviewEntry(event: "approve")
+        let emphasis = try XCTUnwrap(HostToolWidgetSummary.emphasis(for: entry))
+        XCTAssertEqual(emphasis, "octo/alpha#7")
+        XCTAssertTrue(HostToolWidgetSummary.text(for: entry).contains(emphasis))
+
+        // The link cards name a pull request the same way, so they weight it the same way.
+        let linked = try XCTUnwrap(
+            PullRequestLinkWidgetParsing.content(
+                action: .link,
+                input: Self.linkInput,
+                output: Self.linkedOutput,
+                isError: false
+            )
+        )
+        let linkEntry = HostToolWidgetEntry(
+            id: "tool-2",
+            toolName: ThreadHostToolCatalog.linkPullRequestToolName,
+            content: .pullRequestLink(linked),
+            isComplete: true
+        )
+        let linkEmphasis = try XCTUnwrap(HostToolWidgetSummary.emphasis(for: linkEntry))
+        XCTAssertEqual(linkEmphasis, "octo/alpha#7")
+        XCTAssertTrue(HostToolWidgetSummary.text(for: linkEntry).contains(linkEmphasis))
+    }
+
+    static func reviewEntry(event: String) throws -> HostToolWidgetEntry {
+        let content = try XCTUnwrap(
+            PullRequestReviewProposalWidgetParsing.content(
+                input: #"{"event":"\#(event)","url":"https://github.com/octo/alpha/pull/7"}"#,
+                output: reviewOutput,
+                isError: false
+            )
+        )
+        return HostToolWidgetEntry(
+            id: "tool-1",
+            toolName: PullRequestHostToolCatalog.proposeReviewToolName,
+            content: .pullRequestReviewProposal(content),
+            isComplete: true,
+            outcomeKey: content.proposalID
+        )
+    }
+
     static let reviewInput = """
     {"body":"Looks good to me.","event":"approve","url":"https://github.com/octo/alpha/pull/7"}
     """

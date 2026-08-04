@@ -139,9 +139,11 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             nil
         case .pullRequestLink(let content):
             content.isSettled ? content.identifier.map(HostToolWidgetTarget.pullRequest) : nil
-        case .pullRequestReviewProposal:
-            // The card carries its own Review… action, so the whole bubble is not a button.
-            nil
+        case .pullRequestReviewProposal(let content):
+            // While the decision is open the card carries its own Open PR action, so the bubble is
+            // not a button. Resolving drops that whole row — including a rejection, which decides
+            // nothing about the pull request — so from then on the card is the only way back to it.
+            outcome == nil ? nil : content.identifier.map(HostToolWidgetTarget.pullRequest)
         case .pullRequestList:
             // Each row opens a different pull request, so the rows are the controls, not the card.
             nil

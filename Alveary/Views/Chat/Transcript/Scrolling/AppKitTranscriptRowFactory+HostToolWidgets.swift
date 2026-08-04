@@ -17,6 +17,8 @@ extension AppKitTranscriptRowFactory {
         view.onConfirmReviewProposal = configuration.onConfirmReviewProposal
         view.onRejectReviewProposal = configuration.onRejectReviewProposal
         view.onSelectReviewVerdict = configuration.onSelectReviewVerdict
+        view.avatarLoader = configuration.reviewProposalAvatarLoader
+        view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         // A resolved widget must not adopt the conversation's *next* proposal, so the
         // conversation-scoped fallback only applies while this one is still unresolved.
         let presentation = entry.scheduledProposalID.flatMap(configuration.scheduledProposalPresentation)

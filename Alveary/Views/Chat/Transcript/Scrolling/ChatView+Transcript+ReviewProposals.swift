@@ -14,6 +14,7 @@ extension ChatTranscriptView {
             return
         }
         let conversationID = viewModel.conversation.id
+        configuration.reviewProposalAvatarLoader = coordinator.avatarLoader
         configuration.reviewProposalState = { proposalID in
             Self.reviewProposalState(
                 proposalID: proposalID,

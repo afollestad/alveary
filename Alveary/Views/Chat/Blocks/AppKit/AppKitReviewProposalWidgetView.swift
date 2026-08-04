@@ -52,9 +52,16 @@ final class AppKitReviewProposalWidgetView: NSView {
     var onReject: ((String) -> Void)?
     var onSelectEvent: ((String, PullRequestReviewEvent) -> Void)?
     var onOpenPullRequest: ((PullRequestIdentifier) -> Void)?
+    /// A comment card's markdown body can change height after an inline image loads.
+    var onHeightInvalidated: (() -> Void)?
+    /// Kept off `Configuration`, which is `Equatable`: the loader is an actor, and it is constant
+    /// for the app's lifetime, so it is identity rather than render input.
+    var avatarLoader: GitHubAvatarLoader?
+    /// Opens a link inside a pending comment's markdown body.
+    var onOpenMarkdownLink: ((URL) -> Void)?
 
     private let stack = NSStackView()
-    private let verdictControl = NSSegmentedControl()
+    private let verdictControl = AppKitTranscriptApprovalSplitControl()
     private let diffView = AppKitReviewProposalDiffView()
     private var configuration: Configuration?
 
@@ -73,16 +80,18 @@ final class AppKitReviewProposalWidgetView: NSView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
         verdictControl.translatesAutoresizingMaskIntoConstraints = false
-        verdictControl.segmentStyle = .rounded
-        verdictControl.trackingMode = .selectOne
+        verdictControl.segmentCount = 2
+        verdictControl.trackingMode = .momentary
+        verdictControl.controlSize = .small
+        verdictControl.actionStyle = .primary
         verdictControl.target = self
-        verdictControl.action = #selector(handleVerdictChange)
-        verdictControl.segmentCount = Self.selectableEvents.count
-        for (index, event) in Self.selectableEvents.enumerated() {
-            verdictControl.setLabel(Self.verdictLabel(event), forSegment: index)
+        verdictControl.action = #selector(handleVerdictControl)
+        diffView.onHeightInvalidated = { [weak self] in
+            self?.onHeightInvalidated?()
         }
-        // The segments name the choices; this names what is being chosen.
-        verdictControl.setAccessibilityLabel("Review verdict")
+        diffView.onOpenLink = { [weak self] url in
+            self?.onOpenMarkdownLink?(url)
+        }
     }
 
     @available(*, unavailable)
@@ -106,7 +115,11 @@ final class AppKitReviewProposalWidgetView: NSView {
             guard let rowStack = row as? NSStackView else {
                 return max(widest, ceil(row.fittingSize.width))
             }
-            let buttons = rowStack.arrangedSubviews.filter { $0 is AppKitTranscriptApprovalButton }
+            // The split control is an `NSSegmentedControl`, not a button; missing it here would
+            // under-size the card by the whole submit control.
+            let buttons = rowStack.arrangedSubviews.filter {
+                $0 is AppKitTranscriptApprovalButton || $0 is AppKitTranscriptApprovalSplitControl
+            }
             guard !buttons.isEmpty else {
                 return max(widest, ceil(row.fittingSize.width))
             }
@@ -139,14 +152,38 @@ final class AppKitReviewProposalWidgetView: NSView {
         }
     }
 
+    /// Leading glyph naming the verdict the primary half would submit.
+    static func verdictSymbolName(_ event: PullRequestReviewEvent) -> String {
+        switch event {
+        case .approve:
+            "checkmark"
+        case .requestChanges:
+            "exclamationmark.circle"
+        case .comment:
+            "bubble.left"
+        }
+    }
+
     @objc
-    private func handleVerdictChange() {
+    private func handleVerdictControl() {
+        switch verdictControl.selectedSegment {
+        case 0:
+            handleConfirm()
+        case 1:
+            showVerdictMenu()
+        default:
+            break
+        }
+    }
+
+    @objc
+    private func handleVerdictMenuItem(_ item: NSMenuItem) {
         guard let proposalID = configuration?.presentation?.id,
-              verdictControl.selectedSegment >= 0,
-              verdictControl.selectedSegment < Self.selectableEvents.count else {
+              item.tag >= 0,
+              item.tag < Self.selectableEvents.count else {
             return
         }
-        onSelectEvent?(proposalID, Self.selectableEvents[verdictControl.selectedSegment])
+        onSelectEvent?(proposalID, Self.selectableEvents[item.tag])
     }
 
     @objc
@@ -167,7 +204,7 @@ final class AppKitReviewProposalWidgetView: NSView {
     }
 
     @objc
-    private func handleReview() {
+    private func handleOpenPullRequest() {
         guard let identifier = configuration?.presentation?.identifier
             ?? configuration?.content.identifier else {
             return
@@ -194,10 +231,7 @@ private extension AppKitReviewProposalWidgetView {
         addPendingCommentSummary(configuration)
         addDiffPreview(configuration)
         addBanners(configuration)
-        stack.addFullWidthArrangedSubview(verdictRow(configuration))
-        if let actions = actionRow(configuration) {
-            stack.addFullWidthArrangedSubview(actions)
-        }
+        stack.addFullWidthArrangedSubview(actionRow(configuration))
     }
 
     func addPendingCommentSummary(_ configuration: Configuration) {
@@ -243,6 +277,8 @@ private extension AppKitReviewProposalWidgetView {
         guard case .loaded(let preview) = configuration.preview, !preview.isEmpty else {
             return
         }
+        // Before `configure`, which skips an unchanged preview and would leave the cards without it.
+        diffView.avatarLoader = avatarLoader
         diffView.configure(preview: preview, typography: configuration.typography)
         stack.addFullWidthArrangedSubview(diffView)
     }
@@ -275,39 +311,73 @@ private extension AppKitReviewProposalWidgetView {
         return messages
     }
 
-    func verdictRow(_ configuration: Configuration) -> NSView {
-        let selected = configuration.selectedEvent ?? configuration.content.event
-        verdictControl.selectedSegment = Self.selectableEvents.firstIndex(of: selected) ?? 0
+    /// GitHub rejects approving or requesting changes on your own pull request, so the card refuses
+    /// them rather than letting a confirmation fail at submission.
+    func isSelfReviewVerdict(_ event: PullRequestReviewEvent, _ configuration: Configuration) -> Bool {
         let viewerIsAuthor = configuration.preview?.loadedPreview?.viewerIsAuthor ?? false
-        for (index, event) in Self.selectableEvents.enumerated() {
-            // GitHub rejects approving or requesting changes on your own pull request, so the
-            // card refuses them rather than letting a confirmation fail at submission.
-            let isSelfReviewVerdict = viewerIsAuthor && (event == .approve || event == .requestChanges)
-            verdictControl.setEnabled(!configuration.isSubmitting && !isSelfReviewVerdict, forSegment: index)
-        }
-        let row = NSStackView(views: [verdictControl])
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 8
-        return row
+        return viewerIsAuthor && (event == .approve || event == .requestChanges)
     }
 
-    func actionRow(_ configuration: Configuration) -> NSView? {
-        let review = button(title: "Review…", style: .secondary, action: #selector(handleReview))
-        review.isEnabled = (configuration.presentation?.identifier ?? configuration.content.identifier) != nil
+    /// One split button carries both halves of the decision: the primary submits the selected
+    /// verdict, and the menu only changes which verdict that is.
+    func updateVerdictControl(_ configuration: Configuration) {
+        let selected = configuration.selectedEvent ?? configuration.content.event
+        let title = configuration.isSubmitting ? "Submitting…" : Self.verdictLabel(selected)
+        verdictControl.setLabel(title, forSegment: 0)
+        verdictControl.primarySymbolName = Self.verdictSymbolName(selected)
+        // The face shows only the verdict, so the spoken label names the whole action.
+        verdictControl.setAccessibilityLabel("Submit review: \(Self.verdictLabel(selected))")
+        // Only the primary half refuses an unsubmittable verdict; the menu stays live so a viewer
+        // reviewing their own pull request can still switch to the verdict GitHub does allow.
+        verdictControl.isEnabled = !configuration.isSubmitting
+        verdictControl.setEnabled(
+            configuration.canSubmit && !isSelfReviewVerdict(selected, configuration),
+            forSegment: 0
+        )
+        verdictControl.setEnabled(true, forSegment: 1)
+        // Segment widths are what make a click resolve to the right half, not just chrome.
+        verdictControl.setWidth(verdictControl.preferredContentWidth, forSegment: 0)
+        verdictControl.setWidth(AppKitTranscriptApprovalSplitControl.menuWidth, forSegment: 1)
+    }
 
+    func showVerdictMenu() {
+        guard let configuration else {
+            return
+        }
+        let selected = configuration.selectedEvent ?? configuration.content.event
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        for (index, event) in Self.selectableEvents.enumerated() {
+            let item = NSMenuItem(
+                title: Self.verdictLabel(event),
+                action: #selector(handleVerdictMenuItem(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.tag = index
+            item.state = event == selected ? .on : .off
+            item.isEnabled = !isSelfReviewVerdict(event, configuration)
+            menu.addItem(item)
+        }
+        // Anchored in the control's own space; this view is Auto Layout, so a parent-frame origin
+        // would drift with the row's packing.
+        menu.popUp(
+            positioning: nil,
+            at: NSPoint(x: 0, y: verdictControl.bounds.maxY + 2),
+            in: verdictControl
+        )
+    }
+
+    func actionRow(_ configuration: Configuration) -> NSView {
         let reject = button(title: "Cancel", style: .secondary, action: #selector(handleReject))
         reject.isEnabled = !configuration.isSubmitting
 
-        let confirm = button(
-            title: configuration.isSubmitting ? "Submitting…" : "Submit review",
-            style: .primary,
-            action: #selector(handleConfirm)
-        )
-        confirm.isEnabled = !configuration.isSubmitting && configuration.canSubmit
+        let open = button(title: "Open PR", style: .secondary, action: #selector(handleOpenPullRequest))
+        open.isEnabled = (configuration.presentation?.identifier ?? configuration.content.identifier) != nil
 
-        let row = NSStackView(views: [review, reject, confirm])
+        updateVerdictControl(configuration)
+
+        let row = NSStackView(views: [reject, open, verdictControl])
         row.translatesAutoresizingMaskIntoConstraints = false
         row.orientation = .horizontal
         row.alignment = .centerY

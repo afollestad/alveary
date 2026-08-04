@@ -27,6 +27,33 @@ extension SnapshotTests {
         )
     }
 
+    /// GitHub refuses approve and request-changes on your own pull request, so the split button's
+    /// primary half is disabled on the proposed verdict rather than failing at submission.
+    func testReviewProposalWidgetSelfReviewVerdictDisabled() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewProposalSnapshotFixture.widgetRow(viewerIsAuthor: true)
+            },
+            size: CGSize(width: 700, height: 360),
+            named: "review_proposal_widget_self_review"
+        )
+    }
+
+    /// The comment card's chrome, mirroring the Changes tab: the `Bot` pill beside the author and
+    /// a markdown-rendered body rather than the plain text the card used to show.
+    func testReviewProposalWidgetBotCommentWithMarkdown() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewProposalSnapshotFixture.widgetRow(
+                    commentBody: "Use `withTaskCancellationHandler` here, per [the docs](https://example.com).",
+                    commentIsBot: true
+                )
+            },
+            size: CGSize(width: 700, height: 360),
+            named: "review_proposal_widget_bot_comment"
+        )
+    }
+
     /// The card stays usable while its diff loads; the decision does not depend on it.
     func testReviewProposalWidgetLoadingPreview() {
         assertMacSnapshot(
@@ -92,7 +119,10 @@ enum ReviewProposalSnapshotFixture {
         isSubmitting: Bool = false,
         errorMessage: String? = nil,
         outcome: HostToolWidgetOutcome? = nil,
-        submittedEvent: String? = nil
+        submittedEvent: String? = nil,
+        viewerIsAuthor: Bool = false,
+        commentBody: String = "This retries forever when the server keeps answering 503.",
+        commentIsBot: Bool = false
     ) -> AppKitTranscriptHostToolWidgetRowView {
         let content = PullRequestReviewProposalWidgetContent(
             event: .approve,
@@ -118,7 +148,13 @@ enum ReviewProposalSnapshotFixture {
                 entry: entry,
                 reviewProposal: ReviewProposalWidgetState(
                     presentation: presentation,
-                    preview: preview ?? .loaded(loadedPreview),
+                    preview: preview ?? .loaded(
+                        loadedPreview(
+                            viewerIsAuthor: viewerIsAuthor,
+                            commentBody: commentBody,
+                            commentIsBot: commentIsBot
+                        )
+                    ),
                     selectedEvent: .approve,
                     canSubmit: true,
                     isSubmitting: isSubmitting,
@@ -145,7 +181,11 @@ enum ReviewProposalSnapshotFixture {
     }
 
     /// One commented hunk, which is what the card is for: the pending comments on their lines.
-    static var loadedPreview: PullRequestReviewProposalPreview {
+    static func loadedPreview(
+        viewerIsAuthor: Bool = false,
+        commentBody: String = "This retries forever when the server keeps answering 503.",
+        commentIsBot: Bool = false
+    ) -> PullRequestReviewProposalPreview {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = false
         annotations.threads[
@@ -154,9 +194,10 @@ enum ReviewProposalSnapshotFixture {
             comments: [
                 DiffLineComment(
                     author: "viewer",
-                    bodyMarkdown: "This retries forever when the server keeps answering 503.",
+                    bodyMarkdown: commentBody,
                     isPending: true,
-                    nodeID: "PENDING_COMMENT_1"
+                    nodeID: "PENDING_COMMENT_1",
+                    isBot: commentIsBot
                 )
             ],
             isPending: true
@@ -176,7 +217,7 @@ enum ReviewProposalSnapshotFixture {
             annotations: annotations,
             pendingCommentCount: 2,
             hiddenFileCount: 0,
-            viewerIsAuthor: false
+            viewerIsAuthor: viewerIsAuthor
         )
     }
 }

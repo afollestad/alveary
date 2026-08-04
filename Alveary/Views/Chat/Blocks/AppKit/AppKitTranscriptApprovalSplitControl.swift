@@ -67,6 +67,17 @@ final class AppKitTranscriptApprovalSplitControl: NSSegmentedControl {
         needsDisplay = true
     }
 
+    /// The halves dim independently, so a caller can refuse the current selection while leaving
+    /// the menu live to change it. Both default to the control's own state, which is what keeps
+    /// callers that never touch per-segment enablement rendering exactly as before.
+    private var isPrimaryEnabled: Bool {
+        isEnabled && isEnabled(forSegment: 0)
+    }
+
+    private var isMenuEnabled: Bool {
+        isEnabled && segmentCount > 1 && isEnabled(forSegment: 1)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         let path = NSBezierPath(
             roundedRect: bounds,
@@ -98,15 +109,20 @@ final class AppKitTranscriptApprovalSplitControl: NSSegmentedControl {
     }
 
     private var foregroundColor: NSColor {
-        .labelColor.appKitResolvedColor(in: self, alpha: isEnabled ? 1 : 0.78)
+        foregroundColor(enabled: isPrimaryEnabled)
     }
 
+    private func foregroundColor(enabled: Bool) -> NSColor {
+        .labelColor.appKitResolvedColor(in: self, alpha: enabled ? 1 : 0.78)
+    }
+
+    /// The fill follows the primary half, because it is the half the fill invites a click on.
     private var fillColor: NSColor {
         switch actionStyle {
         case .primary:
-            return AppAccentFill.primaryNSColor.appKitResolvedColor(in: self, alpha: isEnabled ? 1 : 0.38)
+            return AppAccentFill.primaryNSColor.appKitResolvedColor(in: self, alpha: isPrimaryEnabled ? 1 : 0.38)
         case .secondary:
-            return NSColor.labelColor.appKitResolvedColor(in: self, alpha: isEnabled ? 0.12 : 0.06)
+            return NSColor.labelColor.appKitResolvedColor(in: self, alpha: isPrimaryEnabled ? 0.12 : 0.06)
         }
     }
 
@@ -141,17 +157,16 @@ final class AppKitTranscriptApprovalSplitControl: NSSegmentedControl {
     }
 
     private func drawChevron(in rect: NSRect) {
-        drawSymbol("chevron.down", in: NSRect(
-            x: floor(rect.midX - 5),
-            y: floor(rect.midY - 5),
-            width: 10,
-            height: 10
-        ))
+        drawSymbol(
+            "chevron.down",
+            in: NSRect(x: floor(rect.midX - 5), y: floor(rect.midY - 5), width: 10, height: 10),
+            color: foregroundColor(enabled: isMenuEnabled)
+        )
     }
 
-    private func drawSymbol(_ name: String, in rect: NSRect) {
+    private func drawSymbol(_ name: String, in rect: NSRect, color: NSColor? = nil) {
         let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-            .applying(.init(hierarchicalColor: foregroundColor))
+            .applying(.init(hierarchicalColor: color ?? foregroundColor))
         guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration) else {
             return

@@ -59,6 +59,10 @@ final class AppKitTranscriptRowFactory {
         var onConfirmReviewProposal: (String, PullRequestReviewEvent) -> Void = { _, _ in }
         var onRejectReviewProposal: (String) -> Void = { _ in }
         var onSelectReviewVerdict: (String, PullRequestReviewEvent) -> Void = { _, _ in }
+        /// Fetches the avatars on a review proposal's comment cards. Deliberately absent from
+        /// `ContentSignature`: it is an app-lifetime actor set before the first render, so it is
+        /// row identity rather than render input, and it is not `Equatable`.
+        var reviewProposalAvatarLoader: GitHubAvatarLoader?
         /// Opens a pull-request link widget's pull request in the right-pane lane.
         var onOpenPullRequest: (PullRequestIdentifier) -> Void = { _ in }
         /// Selects the thread a thread-management widget names, by its main conversation id.

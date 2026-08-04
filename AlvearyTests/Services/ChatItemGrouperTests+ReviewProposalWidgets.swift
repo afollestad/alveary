@@ -22,6 +22,33 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(resolved?.outcome, .confirmed)
         // The user may confirm a verdict other than the one proposed, so the marker carries it.
         XCTAssertEqual(resolved?.outcomeTitle, "request_changes")
+        // Resolving drops the card's own Open PR button, so the bubble becomes the way back.
+        XCTAssertEqual(
+            resolved?.openableTarget,
+            .pullRequest(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+        )
+    }
+
+    /// Cancelling decides nothing about the pull request, so that card has to stay openable too.
+    func testARejectedReviewProposalStillOpensItsPullRequest() {
+        let grouper = ChatItemGrouper()
+        let marker = ConversationEventRecord(
+            id: "review-outcome",
+            conversationId: Self.reviewWidgetConversationID,
+            type: ConversationEventRecord.hostToolOutcomeType,
+            content: HostToolWidgetOutcomeMarker.content(for: .rejected, title: nil),
+            toolId: "review-1",
+            toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.proposeReviewToolName)
+        )
+
+        grouper.update(events: [reviewProposalCall(), reviewProposalResult(), marker])
+
+        let resolved = grouper.items.first?.hostToolWidgetEntry
+        XCTAssertEqual(resolved?.outcome, .rejected)
+        XCTAssertEqual(
+            resolved?.openableTarget,
+            .pullRequest(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+        )
     }
 
     /// The grouper patches a rendered widget only when its parser returns content, so a parser

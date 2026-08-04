@@ -31,6 +31,9 @@ final class PullRequestReviewProposalCoordinator {
     @ObservationIgnored private let notificationCenter: NotificationCenter
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var observationTask: Task<Void, Never>?
+    /// Handed to the transcript so a card's comment avatars come from the same cache the
+    /// pull-request pane fills. Optional because tests build the coordinator without one.
+    @ObservationIgnored let avatarLoader: GitHubAvatarLoader?
 
     /// Keyed by proposal id: a transcript widget acts on the proposal its own conversation opened,
     /// not on a queue head.
@@ -47,11 +50,13 @@ final class PullRequestReviewProposalCoordinator {
     init(
         modelContext: ModelContext,
         pullRequestsService: any PullRequestsService,
+        avatarLoader: GitHubAvatarLoader? = nil,
         notificationCenter: NotificationCenter = .default,
         now: @escaping () -> Date = Date.init
     ) {
         self.modelContext = modelContext
         self.pullRequestsService = pullRequestsService
+        self.avatarLoader = avatarLoader
         self.notificationCenter = notificationCenter
         self.now = now
         reload()

@@ -1,17 +1,36 @@
 import AppKit
 
-/// The pending review comments on the diff lines they were written against, rendered natively.
+/// The pending review comments on the diff lines they were written against, rendered natively with
+/// the same gutter a fenced diff block gets.
 ///
 /// This deliberately does not host `FlattenedDiffPreview`: that view wraps its rows in a
 /// `ScrollView`, which reports no intrinsic height, so a transcript row measuring itself from its
-/// content gets a collapsed card with its controls laid over the clipped diff. A transcript card
-/// cannot scroll anyway — the preview is already narrowed to the commented hunks, and the whole
-/// diff stays one Review… away — so plain stacked rows are both simpler and stable.
+/// content gets a collapsed card with its controls laid over the clipped diff. It is not one
+/// `AppKitDiffCodeBlockView` either — that view puts every row in a single text view, which cannot
+/// interleave comment cards, and per-hunk segments would each compute their own gutter width and
+/// vertical padding. So the rows stack, and each draws its own slice through
+/// `AppKitDiffGutterPainter`. A transcript card cannot scroll anyway — the preview is already
+/// narrowed to the commented hunks, and the whole diff stays one Open PR away.
 @MainActor
 final class AppKitReviewProposalDiffView: NSView {
+    /// A comment card's markdown body can grow after an inline image loads, so the card's height
+    /// change has to reach the transcript row that measured it.
+    var onHeightInvalidated: (() -> Void)?
+    /// Absent in snapshots and previews, which is what makes avatars fall back to their initials.
+    var avatarLoader: GitHubAvatarLoader?
+    /// Opens a link inside a comment's markdown body.
+    var onOpenLink: ((URL) -> Void)?
+
     private let stack = NSStackView()
     private var renderedPreview: PullRequestReviewProposalPreview?
     private var renderedTypography: TranscriptTypography?
+    /// Rebuilt views are reused rather than reconstructed. The chat font-size setting is a live
+    /// slider, so every step reconfigures this view; rebuilding from scratch would recreate a
+    /// markdown body and refire an avatar load per comment on each one.
+    private var rowViewPool: [AppKitReviewProposalDiffRowView] = []
+    private var cardViewPool: [AppKitReviewProposalCommentCardView] = []
+    /// Summed at rebuild, because the widget queries it while measuring itself.
+    private var widestRow: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -19,7 +38,7 @@ final class AppKitReviewProposalDiffView: NSView {
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 2
+        stack.spacing = 0
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -52,75 +71,143 @@ final class AppKitReviewProposalDiffView: NSView {
     }
 
     /// The widest rendered row, so the card can size to its content like every other widget body.
+    /// Comment cards wrap, so only the diff rows have a natural width worth honouring.
     var naturalWidth: CGFloat {
-        stack.arrangedSubviews.reduce(CGFloat.zero) { widest, row in
-            max(widest, ceil(row.fittingSize.width))
-        }
+        widestRow
     }
 }
 
 private extension AppKitReviewProposalDiffView {
+    /// One stacked entry: a diff line drawn with the gutter, or a comment floating over it.
+    enum Item {
+        case row(DiffCodeHighlighting.Row)
+        case comment(DiffLineComment, DiffCommentAnchor, anchoredKind: DiffCodeHighlighting.LineKind)
+    }
+
     func rebuild(preview: PullRequestReviewProposalPreview, typography: TranscriptTypography) {
+        // Detached, not discarded: the pools below hand the same views back, so a rebuild costs
+        // reconfiguration instead of reconstruction. Removing from the superview is what retires
+        // each view's full-width constraint, which `addFullWidthArrangedSubview` makes anew.
         stack.arrangedSubviews.forEach { view in
             stack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
-        for file in preview.files {
-            stack.addFullWidthArrangedSubview(fileHeader(file.path, typography: typography))
-            for hunk in file.hunks {
-                appendHunk(hunk, file: file, preview: preview, typography: typography)
+        let items = items(in: preview)
+        let font = NSFont.monospacedSystemFont(ofSize: typography.size(for: .caption), weight: .regular)
+        // One metrics value for the whole preview, so every file's gutter lines up.
+        let metrics = AppKitDiffCodeBlockMetrics(rows: items.compactMap(\.row), font: font)
+        let context = AppKitReviewProposalCommentContext(typography: typography, avatarLoader: avatarLoader)
+        var rowCount = 0
+        var cardCount = 0
+        widestRow = 0
+        for (index, item) in items.enumerated() {
+            switch item {
+            case .row(let row):
+                let view = rowView(at: rowCount)
+                rowCount += 1
+                view.configure(row: row, metrics: metrics, font: font)
+                widestRow = max(widestRow, view.naturalWidth)
+                stack.addFullWidthArrangedSubview(view)
+            case .comment(let comment, let anchor, let anchoredKind):
+                let view = cardView(at: cardCount)
+                cardCount += 1
+                view.configure(
+                    comment: comment,
+                    anchor: anchor,
+                    wash: AppKitReviewProposalCommentWash(
+                        top: anchoredKind,
+                        bottom: Self.followingRowKind(after: index, in: items)
+                    ),
+                    metrics: metrics,
+                    context: context
+                )
+                stack.addFullWidthArrangedSubview(view)
             }
+        }
+        rowViewPool.removeSubrange(rowCount...)
+        cardViewPool.removeSubrange(cardCount...)
+    }
+
+    func rowView(at index: Int) -> AppKitReviewProposalDiffRowView {
+        if index < rowViewPool.count {
+            return rowViewPool[index]
+        }
+        let view = AppKitReviewProposalDiffRowView()
+        rowViewPool.append(view)
+        return view
+    }
+
+    func cardView(at index: Int) -> AppKitReviewProposalCommentCardView {
+        if index < cardViewPool.count {
+            return cardViewPool[index]
+        }
+        let view = AppKitReviewProposalCommentCardView()
+        view.onHeightInvalidated = { [weak self] in
+            self?.onHeightInvalidated?()
+        }
+        view.onOpenLink = { [weak self] url in
+            self?.onOpenLink?(url)
+        }
+        cardViewPool.append(view)
+        return view
+    }
+
+    /// The kind the card's lower wash band continues. A card at the end of the preview has no
+    /// following line, so its band falls back to the untinted context wash.
+    static func followingRowKind(after index: Int, in items: [Item]) -> DiffCodeHighlighting.LineKind {
+        items[(index + 1)...].lazy.compactMap(\.row).first?.kind ?? .context
+    }
+
+    func items(in preview: PullRequestReviewProposalPreview) -> [Item] {
+        preview.files.flatMap { file in
+            [Item.row(DiffCodeHighlighting.Row(kind: .fileHeader, text: file.path, oldNumber: nil, newNumber: nil))]
+                + file.hunks.flatMap { hunk in
+                    items(in: hunk, file: file, preview: preview)
+                }
         }
     }
 
     /// Lines within `contextRadius` of a commented line render; the rest collapse into ellipsis
     /// rows. A hunk can span hundreds of lines and the card cannot scroll, so the anchor context
-    /// is the part worth the height — the whole diff stays one Review… away.
+    /// is the part worth the height — the whole diff stays one Open PR away.
     static let contextRadius = 3
 
-    func appendHunk(
-        _ hunk: DiffHunk,
+    func items(
+        in hunk: DiffHunk,
         file: DiffFile,
-        preview: PullRequestReviewProposalPreview,
-        typography: TranscriptTypography
-    ) {
+        preview: PullRequestReviewProposalPreview
+    ) -> [Item] {
         let anchoredIndexes = hunk.lines.indices.filter { index in
             !threads(at: hunk.lines[index], path: file.path, preview: preview).isEmpty
         }
+        var items: [Item] = []
         var didElide = false
         for (index, line) in hunk.lines.enumerated() {
             let isNearAnchor = anchoredIndexes.contains { abs($0 - index) <= Self.contextRadius }
             guard isNearAnchor else {
                 if !didElide {
-                    stack.addFullWidthArrangedSubview(elisionRow(typography: typography))
+                    items.append(.row(DiffCodeHighlighting.Row(kind: .hunkHeader, text: "⋯", oldNumber: nil, newNumber: nil)))
                     didElide = true
                 }
                 continue
             }
             didElide = false
-            stack.addFullWidthArrangedSubview(lineRow(line, typography: typography))
-            for thread in threads(at: line, path: file.path, preview: preview) {
-                for comment in thread.comments {
-                    stack.addFullWidthArrangedSubview(commentRow(comment, typography: typography))
-                }
+            let kind = DiffCodeHighlighting.LineKind(line.type)
+            items.append(
+                .row(
+                    DiffCodeHighlighting.Row(
+                        kind: kind,
+                        text: line.content,
+                        oldNumber: line.oldLineNumber,
+                        newNumber: line.newLineNumber
+                    )
+                )
+            )
+            for (anchor, thread) in threads(at: line, path: file.path, preview: preview) {
+                items.append(contentsOf: thread.comments.map { .comment($0, anchor, anchoredKind: kind) })
             }
         }
-    }
-
-    func elisionRow(typography: TranscriptTypography) -> NSView {
-        let label = NSTextField(labelWithString: "⋯")
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = NSFont.monospacedSystemFont(ofSize: typography.size(for: .caption), weight: .regular)
-        label.textColor = .tertiaryLabelColor
-        let container = AppKitFlippedDynamicColorView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
-            label.topAnchor.constraint(equalTo: container.topAnchor),
-            label.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-        ])
-        return container
+        return items
     }
 
     /// A comment anchors on whichever side's number it was written against, matching the GitHub
@@ -129,7 +216,7 @@ private extension AppKitReviewProposalDiffView {
         at line: DiffLine,
         path: String,
         preview: PullRequestReviewProposalPreview
-    ) -> [DiffLineCommentThread] {
+    ) -> [(anchor: DiffCommentAnchor, thread: DiffLineCommentThread)] {
         var anchors: [DiffCommentAnchor] = []
         if let newLine = line.newLineNumber {
             anchors.append(DiffCommentAnchor(path: path, side: .right, line: newLine))
@@ -137,97 +224,17 @@ private extension AppKitReviewProposalDiffView {
         if let oldLine = line.oldLineNumber {
             anchors.append(DiffCommentAnchor(path: path, side: .left, line: oldLine))
         }
-        return anchors.compactMap { preview.annotations.threads[$0] }
-    }
-
-    func fileHeader(_ path: String, typography: TranscriptTypography) -> NSView {
-        let label = NSTextField(labelWithString: path)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = NSFont.systemFont(ofSize: typography.size(for: .caption), weight: .semibold)
-        label.textColor = .secondaryLabelColor
-        label.lineBreakMode = .byTruncatingHead
-        label.maximumNumberOfLines = 1
-        let container = AppKitFlippedDynamicColorView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 6),
-            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -2)
-        ])
-        return container
-    }
-
-    func lineRow(_ line: DiffLine, typography: TranscriptTypography) -> NSView {
-        let row = AppKitFlippedDynamicColorView()
-        row.translatesAutoresizingMaskIntoConstraints = false
-        row.wantsLayer = true
-        if let tint = Self.tint(for: line.type) {
-            row.setLayerFillColor(tint.color, alpha: tint.alpha)
+        return anchors.compactMap { anchor in
+            preview.annotations.threads[anchor].map { (anchor, $0) }
         }
-        let label = NSTextField(labelWithString: "\(Self.marker(for: line.type))\(line.content)")
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.font = NSFont.monospacedSystemFont(ofSize: typography.size(for: .caption), weight: .regular)
-        label.textColor = .labelColor
-        label.lineBreakMode = .byTruncatingTail
-        label.maximumNumberOfLines = 1
-        row.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 4),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: row.trailingAnchor, constant: -4),
-            label.topAnchor.constraint(equalTo: row.topAnchor, constant: 1),
-            label.bottomAnchor.constraint(equalTo: row.bottomAnchor, constant: -1)
-        ])
+    }
+}
+
+private extension AppKitReviewProposalDiffView.Item {
+    var row: DiffCodeHighlighting.Row? {
+        guard case .row(let row) = self else {
+            return nil
+        }
         return row
-    }
-
-    /// The comment as it will be published, attributed and indented under its line.
-    func commentRow(_ comment: DiffLineComment, typography: TranscriptTypography) -> NSView {
-        let container = AppKitFlippedDynamicColorView()
-        container.translatesAutoresizingMaskIntoConstraints = false
-        let author = NSTextField(labelWithString: comment.author)
-        author.translatesAutoresizingMaskIntoConstraints = false
-        author.font = NSFont.systemFont(ofSize: typography.size(for: .caption), weight: .semibold)
-        author.textColor = .secondaryLabelColor
-        let body = NSTextField(wrappingLabelWithString: comment.bodyMarkdown)
-        body.translatesAutoresizingMaskIntoConstraints = false
-        body.font = NSFont.systemFont(ofSize: typography.size(for: .caption))
-        body.textColor = .labelColor
-        body.isSelectable = false
-        container.addSubview(author)
-        container.addSubview(body)
-        NSLayoutConstraint.activate([
-            author.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            author.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-            author.topAnchor.constraint(equalTo: container.topAnchor, constant: 4),
-            body.leadingAnchor.constraint(equalTo: author.leadingAnchor),
-            body.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            body.topAnchor.constraint(equalTo: author.bottomAnchor, constant: 2),
-            body.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -4)
-        ])
-        return container
-    }
-
-    static func marker(for type: DiffLine.LineType) -> String {
-        switch type {
-        case .added:
-            "+"
-        case .deleted:
-            "-"
-        case .context:
-            " "
-        }
-    }
-
-    static func tint(for type: DiffLine.LineType) -> (color: NSColor, alpha: CGFloat)? {
-        switch type {
-        case .added:
-            (.systemGreen, 0.14)
-        case .deleted:
-            (.systemRed, 0.14)
-        case .context:
-            nil
-        }
     }
 }
