@@ -51,7 +51,11 @@ Narrower scopes:
 
 - SwiftUI markdown rendering uses `AppMarkdownRenderer` under `SwiftUI/Rendering/`.
 - AppKit markdown rendering uses `AppKitMarkdownView` under `AppKit/`.
-- Unknown fenced-code languages must render as plain monospaced code.
+- Unknown fenced-code languages must render as plain monospaced code, with diffs the one exception.
+- **`DiffCodeHighlighting` turns a diff fence into rows**, claiming `diff`/`patch` and any unlabeled fence carrying a hunk header. A fence naming a language the highlighter knows keeps that language.
+    - **`DiffParser` does the parsing wherever it can**, which is the only source of line numbers. It needs the `diff --git` headers a chat-quoted patch almost never has, so a fragment falls back to classifying lines by the same prefixes — and those rows show no numbers rather than inventing a starting line.
+    - **Changed rows reuse `DiffLine.LineType.diffLineRowWash`** so the transcript and the Changes tab cannot drift apart.
+    - **AppKit draws columns, SwiftUI colors text.** Only the AppKit renderer has a gutter view; `highlighted(_:colorScheme:)` is the SwiftUI path and tints inline.
 - Images alone on their line (or with local/relative sources) become `.image` document blocks; remote images sharing a line with text stay in the markdown fragments carrying `AppMarkdownInlineImageAttribute` on their alt-text run (mirrors BlockInputKit's split rule).
 - Both renderers draw inline images once loaded: SwiftUI swaps the alt run for the bitmap in `AppMarkdownInlineText`, AppKit swaps it for a baseline-aligned `NSTextAttachment` in `AppKitMarkdownAttributedStringBuilder` (measurer and renderer must share one store or heights diverge); until the bitmap arrives both show the alt text. Image blocks render through `AppMarkdownImageBlockView` (SwiftUI) and `AppKitMarkdownImageBlockView` (AppKit, its own BlockInputKit loader); both center a status spinner in the placeholder while the load runs, and the SwiftUI view clips the bitmap *before* its max-size frame — the frame can be wider than the fitted image, and clipping the frame leaves the image's trailing corners square.
 - All markdown image loads go through the shared `AppMarkdownImageStore` (`Core/`); snapshot hosts inject a preloaded store via the `\.appMarkdownImageStore` environment key so no test touches the network. Single-line label surfaces (`.inline` parsing mode) keep the plain alt-text fallback.

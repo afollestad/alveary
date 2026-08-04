@@ -8,6 +8,7 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
     private let languageHint: String?
     private let codeFont: NSFont
     private weak var textView: AppKitMarkdownTextView?
+    private weak var diffView: AppKitDiffCodeBlockView?
 
     init(
         code: String,
@@ -31,7 +32,7 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
     }
 
     override var intrinsicContentSize: NSSize {
-        let documentSize = codeDocumentSize()
+        let documentSize = documentSize()
         return NSSize(
             width: NSView.noIntrinsicMetric,
             height: documentSize.height + horizontalScrollbarReserve(forDocumentWidth: documentSize.width)
@@ -43,8 +44,7 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
         // NSScrollView does not reliably size an AppKit document view from our
         // transcript probe frames; commit the code document size explicitly so
         // code text remains visible while bubble height is recalculated.
-        let documentSize = codeDocumentSize()
-        textView?.frame = NSRect(origin: .zero, size: documentSize)
+        let documentSize = documentSize()
         scrollView.documentView?.frame = NSRect(origin: .zero, size: documentSize)
         scrollView.clampHorizontalScrollOffset()
     }
@@ -60,7 +60,37 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
         layer?.borderWidth = 1
         layer?.cornerRadius = AppKitMarkdownMetrics.codeCornerRadius
         updateLayerColors()
+        setupScrollView(documentView: diffRows.map(diffDocumentView(rows:)) ?? plainDocumentView())
+    }
 
+    /// A diff draws its own gutter and washes; every other language is highlighted text.
+    private var diffRows: [DiffCodeHighlighting.Row]? {
+        guard AppKitMarkdownCodeBlockView.rendersAsDiff(code: code, languageHint: languageHint) else {
+            return nil
+        }
+        return DiffCodeHighlighting.rows(in: appKitCodeDisplayContent(code))
+    }
+
+    static func rendersAsDiff(code: String, languageHint: String?) -> Bool {
+        let language = SyntaxHighlighter.normalizedLanguage(languageHint ?? "")
+        return DiffCodeHighlighting.rendersAsDiff(
+            language: language,
+            isRecognizedLanguage: SyntaxHighlighter.recognizesLanguage(language),
+            source: appKitCodeDisplayContent(code)
+        )
+    }
+
+    private func diffDocumentView(rows: [DiffCodeHighlighting.Row]) -> NSView {
+        let view = AppKitDiffCodeBlockView()
+        view.onHeightInvalidated = { [weak self] in
+            self?.invalidateIntrinsicContentSize()
+        }
+        view.configure(rows: rows, font: codeFont)
+        diffView = view
+        return view
+    }
+
+    private func plainDocumentView() -> NSView {
         let textView = AppKitMarkdownTextView(
             content: attributedCode(),
             wrapsToContainerWidth: false,
@@ -74,12 +104,15 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
         )
         textView.textContainerInset = NSSize(width: 12, height: 10)
         textView.translatesAutoresizingMaskIntoConstraints = true
+        return textView
+    }
 
+    private func setupScrollView(documentView: NSView) {
         scrollView.borderType = .noBorder
         scrollView.hasHorizontalScroller = true
         scrollView.hasVerticalScroller = false
         scrollView.drawsBackground = false
-        scrollView.documentView = textView
+        scrollView.documentView = documentView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(scrollView)
         NSLayoutConstraint.activate([
@@ -100,7 +133,11 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
         )
     }
 
-    private func codeDocumentSize() -> NSSize {
+    private func documentSize() -> NSSize {
+        if let diffView {
+            let size = diffView.intrinsicContentSize
+            return NSSize(width: max(bounds.width, size.width), height: size.height)
+        }
         guard let textView,
               let layoutManager = textView.layoutManager,
               let textContainer = textView.textContainer else {
@@ -109,7 +146,7 @@ final class AppKitMarkdownCodeBlockView: AppKitDynamicColorView {
         layoutManager.ensureLayout(for: textContainer)
         let usedRect = layoutManager.usedRect(for: textContainer)
         return NSSize(
-            width: max(bounds.width, ceil(usedRect.width + textView.textContainerInset.width * 2)),
+            width: max(bounds.width, ceil(textView.measuredContentWidth() + textView.textContainerInset.width * 2)),
             height: ceil(usedRect.height + textView.textContainerInset.height * 2)
         )
     }

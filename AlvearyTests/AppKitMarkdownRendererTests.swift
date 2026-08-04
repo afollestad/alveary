@@ -108,6 +108,20 @@ final class AppKitMarkdownRendererTests: XCTestCase {
         )
     }
 
+    /// An unwrapped text view's container is unbounded, and `usedRect(for:)` answers with that
+    /// container's own clamped width — ten million points — so a code block that fits its bubble
+    /// still sized a document to scroll for miles and reserved a scroller lane the measurer never did.
+    func testCodeBlockNarrowerThanItsBlockDoesNotOverflow() throws {
+        let codeBlock = AppKitMarkdownCodeBlockView(code: "let value = 1", languageHint: "swift")
+        codeBlock.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
+        codeBlock.layoutSubtreeIfNeeded()
+
+        let scrollView = try XCTUnwrap(codeBlock.descendants(of: NSScrollView.self).first)
+
+        XCTAssertEqual(scrollView.documentView?.frame.width, 320)
+        XCTAssertEqual(codeBlock.intrinsicContentSize.height, scrollView.documentView?.frame.height)
+    }
+
     func testScrollbarReserveOnlyAppliesToLegacyScrollers() {
         XCTAssertEqual(appKitHorizontalOverflowScrollbarReserveValue(for: .overlay), 0)
         XCTAssertGreaterThan(appKitHorizontalOverflowScrollbarReserveValue(for: .legacy), 0)

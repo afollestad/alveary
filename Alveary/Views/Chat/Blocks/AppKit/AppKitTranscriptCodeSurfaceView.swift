@@ -18,6 +18,7 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
 
     private let scrollView = AppKitHorizontalOverflowScrollView()
     private var textView: AppKitMarkdownTextView?
+    private var diffView: AppKitDiffCodeBlockView?
     private var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
 
@@ -44,7 +45,7 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
             return
         }
         self.configuration = configuration
-        rebuildTextView()
+        rebuildDocumentView()
         refreshAppearance()
         needsLayout = true
         invalidateTranscriptHeight(force: true)
@@ -54,9 +55,14 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
         let textSize = measuredTextSize()
         let height = ceil(textSize.height)
         scrollView.frame = NSRect(x: 0, y: 0, width: max(bounds.width, 0), height: height)
-        if let textView {
-            textView.frame = NSRect(x: 0, y: 0, width: max(textSize.width, bounds.width), height: ceil(textSize.height))
-        }
+        // The scroll view never sizes a document view on its own, and the diff renderer is a plain
+        // `NSView` rather than a self-sizing text view, so commit the size for whichever is mounted.
+        scrollView.documentView?.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: max(textSize.width, bounds.width),
+            height: height
+        )
         scrollView.clampHorizontalScrollOffset()
         super.layout()
         invalidateTranscriptHeight(force: false)
@@ -80,6 +86,7 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
             setLayerStrokeColor(provider: { AppMarkdownCodeBlockPalette.borderNSColor(for: $0) })
         }
         textView?.textStorage?.setAttributedString(attributedContent(for: configuration))
+        diffView?.needsDisplay = true
     }
 
     private func setup() {
@@ -97,8 +104,21 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
         addSubview(scrollView)
     }
 
-    private func rebuildTextView() {
+    private func rebuildDocumentView() {
         guard let configuration else {
+            return
+        }
+        textView?.removeFromSuperview()
+        textView = nil
+        diffView = nil
+        if let diff = diffRows(for: configuration) {
+            let diffView = AppKitDiffCodeBlockView()
+            diffView.onHeightInvalidated = { [weak self] in
+                self?.invalidateTranscriptHeight(force: true)
+            }
+            diffView.configure(rows: diff.rows, font: diff.typography.codeNSFont)
+            scrollView.documentView = diffView
+            self.diffView = diffView
             return
         }
         let textView = AppKitMarkdownTextView(
@@ -116,6 +136,19 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
         textView.textContainerInset = NSSize(width: 12, height: 10)
         scrollView.documentView = textView
         self.textView = textView
+    }
+
+    /// A diff renders through the shared gutter view instead of highlighted text; `.plain` output
+    /// is never a diff, because its tint is the caller's own signal.
+    private func diffRows(
+        for configuration: Configuration
+    ) -> (rows: [DiffCodeHighlighting.Row], typography: TranscriptTypography)? {
+        guard case .highlighted(let content, let language, let preservesPrefixes, let typography) = configuration,
+              !preservesPrefixes,
+              AppKitMarkdownCodeBlockView.rendersAsDiff(code: content, languageHint: language) else {
+            return nil
+        }
+        return (DiffCodeHighlighting.rows(in: appKitCodeDisplayContent(content)), typography)
     }
 
     private func attributedContent(for configuration: Configuration) -> NSAttributedString {
@@ -148,6 +181,9 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
     }
 
     private func measuredTextSize() -> NSSize {
+        if let diffView {
+            return diffView.intrinsicContentSize
+        }
         guard let textView else {
             return .zero
         }
@@ -161,7 +197,7 @@ final class AppKitTranscriptCodeSurfaceView: AppKitDynamicColorView {
         layoutManager.ensureLayout(for: textContainer)
         let usedRect = layoutManager.usedRect(for: textContainer)
         return NSSize(
-            width: ceil(usedRect.width + (textView.textContainerInset.width * 2)),
+            width: ceil(textView.measuredContentWidth() + (textView.textContainerInset.width * 2)),
             height: ceil(usedRect.height + (textView.textContainerInset.height * 2))
         )
     }

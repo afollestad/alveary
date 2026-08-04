@@ -34,6 +34,70 @@ extension SnapshotTests {
         )
     }
 
+    /// A diff quoted the way a model writes one: a bare path, an abbreviated hunk marker, and
+    /// change lines with no `diff --git` header for `DiffParser` to anchor on.
+    func testAppKitTranscriptAssistantDiffBubble() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitTranscriptTextBubbleRowView()
+                view.configure(
+                    .init(
+                        role: .assistant,
+                        markdown: """
+                        The pull request touches two files:
+
+                        ```diff
+                        README.md
+                        @@
+                        -This is the source of my personal website.
+                        +This is the source for my personal website.
+                        +
+                        +The site is published with GitHub Pages.
+                        ```
+                        """,
+                        bubbleMaxWidth: 560
+                    )
+                )
+                return view
+            },
+            size: CGSize(width: 640, height: 300),
+            named: "appkit_transcript_assistant_diff_bubble"
+        )
+    }
+
+    /// The same diff with its headers intact, so `DiffParser` supplies the line-number columns.
+    func testAppKitTranscriptAssistantNumberedDiffBubble() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitTranscriptTextBubbleRowView()
+                view.configure(
+                    .init(
+                        role: .assistant,
+                        markdown: """
+                        The pull request touches two files:
+
+                        ```diff
+                        diff --git a/README.md b/README.md
+                        --- a/README.md
+                        +++ b/README.md
+                        @@ -1,2 +1,4 @@
+                         # af.codes
+                        -This is the source of my personal website.
+                        +This is the source for my personal website.
+                        +
+                        +The site is published with GitHub Pages.
+                        ```
+                        """,
+                        bubbleMaxWidth: 560
+                    )
+                )
+                return view
+            },
+            size: CGSize(width: 640, height: 320),
+            named: "appkit_transcript_assistant_numbered_diff_bubble"
+        )
+    }
+
     func testAppKitTranscriptUserBubble() {
         assertMacSnapshot(
             appKitRowSnapshot {

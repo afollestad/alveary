@@ -18,6 +18,11 @@ AppKit markdown rendering for transcript migration lives here.
 ### Measurement, Overflow, And Tables
 
 - **Own height.** AppKit views that can change intrinsic height must invalidate themselves and call their height-invalidation handler.
+- **A diff block draws its own gutter; only the code is text.** `AppKitDiffCodeBlockView` puts the line numbers, marker, and washes outside the text view, so they cannot be selected or copied and a row's fill spans the full width — `.backgroundColor` would stop at the last glyph. Rows align to the text view's line fragments, which is exact only because code blocks never wrap.
+- **`AppKitDiffGutterPainter` owns those columns for every surface that draws them.** The review-proposal card stacks one view per line and paints each through it; a new gutter-drawing surface goes through it too rather than reimplementing the washes and hairline. Its rects are measured from the gutter's left edge, matching `AppKitDiffCodeBlockMetrics`' columns.
+- **Share the diff block's metrics with the measurer.** `AppKitDiffCodeBlockMetrics` and `AppKitDiffCodeBlockContent` are what keep a measured diff and a drawn one agreeing on where the code starts.
+- **Size unwrapped code from `AppKitMarkdownTextView.measuredContentWidth()`.** Its container is unbounded, so `usedRect(for:)` answers with that container's own clamped width — ten million points — and a document sized from it scrolls past the last glyph and always reserves a scroller lane.
+- **Cache the diff block's line geometry and palette.** The transcript redraws on scroll, so re-running text layout — or rebuilding swatches from their SwiftUI tokens — costs O(lines) every frame. Only content and font invalidate the geometry; width cannot, because the text container is unbounded.
 - **Use shared AppKit primitives.** Views that cache dynamic `NSColor` values into layer `CGColor`s should use `Components/AppKit` helpers so theme changes do not require one-off appearance observers in each leaf view.
 - **Size scroll documents explicitly.** Code blocks and tables use `NSScrollView` for horizontal overflow; keep their document views frame-sized from natural content so transcript height probes cannot collapse or stretch the rendered blocks.
 - **Constrain table width.** Tables should hug natural width until they exceed the bubble cap; wide tables should scroll internally.

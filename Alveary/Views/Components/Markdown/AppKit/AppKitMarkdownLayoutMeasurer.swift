@@ -147,6 +147,9 @@ struct AppKitMarkdownLayoutMeasurer {
         width: CGFloat
     ) -> AppKitMarkdownLayoutMeasurement {
         let code = codeBlockText(content)
+        if AppKitMarkdownCodeBlockView.rendersAsDiff(code: code, languageHint: languageHint) {
+            return measureDiffCodeBlock(appKitCodeDisplayContent(code), width: width)
+        }
         let attributed = AppKitMarkdownAttributedStringBuilder.syntaxHighlightedCode(
             appKitCodeDisplayContent(code),
             language: languageHint ?? "",
@@ -161,6 +164,26 @@ struct AppKitMarkdownLayoutMeasurer {
         return AppKitMarkdownLayoutMeasurement(
             contentHeight: ceil(documentHeight + reserve),
             naturalContentWidth: max(textNaturalWidth, codeBlockMinimumNaturalWidth),
+            fallbackRequired: false
+        )
+    }
+
+    /// Mirrors `AppKitDiffCodeBlockView`: only the code is laid out, and the gutter is a fixed
+    /// leading offset the shared metrics resolve from the same rows.
+    private func measureDiffCodeBlock(_ source: String, width: CGFloat) -> AppKitMarkdownLayoutMeasurement {
+        let rows = DiffCodeHighlighting.rows(in: source)
+        let metrics = AppKitDiffCodeBlockMetrics(rows: rows, font: typography.codeBlock)
+        let attributed = AppKitDiffCodeBlockContent.attributedString(rows: rows, font: typography.codeBlock)
+        let textSize = measuredTextSize(attributed, width: .greatestFiniteMagnitude, wraps: false)
+        let naturalWidth = ceil(
+            metrics.contentLeading + textSize.width + AppKitDiffCodeBlockMetrics.contentTrailingPadding
+        )
+        let documentWidth = max(width, naturalWidth)
+        let documentHeight = ceil(textSize.height + AppKitDiffCodeBlockMetrics.verticalPadding * 2)
+        let reserve = documentWidth > width + 0.5 ? appKitHorizontalOverflowScrollbarReserve : 0
+        return AppKitMarkdownLayoutMeasurement(
+            contentHeight: ceil(documentHeight + reserve),
+            naturalContentWidth: max(naturalWidth, codeBlockMinimumNaturalWidth),
             fallbackRequired: false
         )
     }

@@ -130,6 +130,25 @@ final class AppKitMarkdownTextView: NSTextView, NSTextViewDelegate {
         super.scrollWheel(with: event)
     }
 
+    /// How far the widest laid-out line actually reaches, measured fragment by fragment.
+    ///
+    /// `usedRect(for:)` cannot answer this for an unwrapped view: its container is unbounded, and
+    /// the layout manager reports that container's own clamped width — ten million points — so a
+    /// document sized from it scrolls far past the last glyph and always reserves a scroller lane.
+    func measuredContentWidth() -> CGFloat {
+        guard let layoutManager, let textContainer else {
+            return 0
+        }
+        layoutManager.ensureLayout(for: textContainer)
+        var widest: CGFloat = 0
+        layoutManager.enumerateLineFragments(
+            forGlyphRange: NSRange(location: 0, length: layoutManager.numberOfGlyphs)
+        ) { _, usedRect, _, _, _ in
+            widest = max(widest, usedRect.maxX)
+        }
+        return ceil(widest)
+    }
+
     private func measuredHeight() -> CGFloat {
         guard let layoutManager, let textContainer else {
             return 0
