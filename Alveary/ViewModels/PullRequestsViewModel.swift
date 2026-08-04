@@ -267,10 +267,31 @@ final class PullRequestsViewModel {
 
 extension PullRequestsViewModel {
     func requestDetails(_ summary: PullRequestSummary, origin: PullRequestPaneOrigin = .screen) {
+        openPane(target: .details(summary.id), summary: summary, origin: origin)
+    }
+
+    /// Opens a pull request the caller has no summary for — a transcript's unlink card names
+    /// one that is deliberately not linked, so no stored snapshot exists to open it with.
+    ///
+    /// A listed row already carries a usable summary; otherwise the pane opens without one and
+    /// its own `loadDetail` backfills it, so the wait and any failure render in the pane rather
+    /// than blocking the open behind a `fetchDetail`.
+    func requestDetails(_ identifier: PullRequestIdentifier, origin: PullRequestPaneOrigin) {
+        guard let summary = items.first(where: { $0.id == identifier }) else {
+            openPane(target: .details(identifier), summary: nil, origin: origin)
+            return
+        }
+        requestDetails(summary, origin: origin)
+    }
+
+    private func openPane(
+        target: PullRequestPaneTarget,
+        summary: PullRequestSummary?,
+        origin: PullRequestPaneOrigin
+    ) {
         // The pane's repository is a candidate context for signed attachment
         // image URLs; register before its markdown can render.
-        attachmentImageRepositoryRegistrar?(summary.repositoryNameWithOwner)
-        let target = PullRequestPaneTarget.details(summary.id)
+        attachmentImageRepositoryRegistrar?(target.identifier.nameWithOwner)
         if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
             deactivatedPaneDismissals.remove(request)
             dismissPane(target, generation: request.generation, restoreFocus: false)
@@ -279,28 +300,13 @@ extension PullRequestsViewModel {
             let session = PullRequestPaneSession(generation: UUID(), summary: summary)
             paneSessions[target] = session
             loadPaneContent(target: target, generation: session.generation)
+        } else if let summary, paneSessions[target]?.summary == nil {
+            // An identifier-opened session still waiting on its detail; a caller
+            // holding a snapshot can fill the header now rather than after the fetch.
+            paneSessions[target]?.summary = summary
         }
         activePaneTarget = target
         activePaneOrigin = origin
-    }
-
-    /// Opens a pull request the caller has no summary for — a transcript's unlink card names
-    /// one that is deliberately not linked, so no stored snapshot exists to open it with.
-    ///
-    /// An open session or a listed row already carries a usable summary; otherwise the same
-    /// `fetchDetail` that validates a link produces one, and a failure surfaces as a toast
-    /// because there is no pane to render it in.
-    func requestDetails(_ identifier: PullRequestIdentifier, origin: PullRequestPaneOrigin) async {
-        if let summary = paneSessions[.details(identifier)]?.summary ?? items.first(where: { $0.id == identifier }) {
-            requestDetails(summary, origin: origin)
-            return
-        }
-        do {
-            let detail = try await service.fetchDetail(identifier)
-            requestDetails(PullRequestLinkService.makeSummary(from: detail), origin: origin)
-        } catch {
-            presentToast(error.localizedDescription)
-        }
     }
 
     /// The active target, but only when its origin matches the surface asking.
@@ -315,24 +321,6 @@ extension PullRequestsViewModel {
 
     func isDetailActive(_ id: PullRequestIdentifier) -> Bool {
         activePaneTarget == .details(id)
-    }
-
-    /// Moves the detail selection to the adjacent row in visual order, clamping at
-    /// the ends; with no active selection, Down selects the first row and Up the last.
-    @discardableResult
-    func selectAdjacentRow(in rows: [PullRequestSummary], forward: Bool) -> PullRequestIdentifier? {
-        guard !rows.isEmpty else {
-            return nil
-        }
-        let nextIndex: Int
-        if let currentIndex = rows.firstIndex(where: { isDetailActive($0.id) }) {
-            nextIndex = min(max(currentIndex + (forward ? 1 : -1), 0), rows.count - 1)
-        } else {
-            nextIndex = forward ? 0 : rows.count - 1
-        }
-        let summary = rows[nextIndex]
-        requestDetails(summary)
-        return summary.id
     }
 
     /// Route-only deactivation; preserves the session for another root pane.
@@ -450,6 +438,11 @@ extension PullRequestsViewModel {
             session.detail = detail
             session.detailError = nil
             session.isLoadingDetail = false
+            if session.summary == nil {
+                // An identifier-opened pane has no snapshot; the detail it just
+                // fetched is what one would have been derived from anyway.
+                session.summary = PullRequestLinkService.makeSummary(from: detail)
+            }
             onFinish?(&session)
             paneSessions[target] = session
         } catch {

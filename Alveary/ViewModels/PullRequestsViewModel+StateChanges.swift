@@ -70,10 +70,10 @@ extension PullRequestsViewModel {
                 await loadDetail(target: target, generation: generation) { session in
                     session.isChangingState = false
                     if let status = session.detail?.status {
-                        session.summary.status = status
+                        session.summary?.status = status
                     }
                 }
-                if let settled = paneSessions[target]?.summary.status {
+                if let settled = paneSessions[target]?.summary?.status {
                     applyStatus(settled, toRow: target.identifier)
                 }
             } catch {
@@ -93,7 +93,7 @@ extension PullRequestsViewModel {
         generation: UUID
     ) {
         updateSession(target, generation: generation) { session in
-            session.summary.status = status
+            session.summary?.status = status
         }
         applyStatus(status, toRow: target.identifier)
     }

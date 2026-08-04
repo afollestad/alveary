@@ -54,8 +54,9 @@ extension PullRequestsViewModel {
             return
         }
         // Capture the repository now; the session backing it may be discarded
-        // while the upload runs.
-        guard let repository = activePaneSession?.summary.repositoryNameWithOwner else {
+        // while the upload runs. The target names it even before the session has
+        // a summary, which an identifier-opened pane lacks until its detail lands.
+        guard let repository = activePaneTarget?.identifier.nameWithOwner else {
             return
         }
         attachFiles(files, to: destination, repository: repository, draft: draft, using: attachmentUploadService)

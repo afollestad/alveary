@@ -46,7 +46,7 @@ extension PullRequestsViewModelTests {
         await pane.waitForStateChange()
 
         XCTAssertEqual(pane.service.stateChanges, [true])
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .closed)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .closed)
         XCTAssertEqual(pane.viewModel.activePaneSession?.detail?.status, .closed)
         XCTAssertEqual(pane.listedStatus, .closed)
         // The refetch is what brings the closed timeline row into the Overview.
@@ -62,7 +62,7 @@ extension PullRequestsViewModelTests {
         await pane.waitForStateChange()
 
         XCTAssertEqual(pane.service.stateChanges, [false])
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .draft)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .draft)
         XCTAssertEqual(pane.listedStatus, .draft)
     }
 
@@ -76,7 +76,7 @@ extension PullRequestsViewModelTests {
         pane.viewModel.setPullRequestClosed(true)
         await pane.waitForStateChange()
 
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .open)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .open)
         XCTAssertEqual(pane.listedStatus, .open)
         XCTAssertEqual(pane.service.detailCallCount, detailCallsBefore)
         XCTAssertEqual(
@@ -97,7 +97,7 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(pane.service.readyForReviewNodeIDs, ["PR_7"])
         XCTAssertEqual(pane.service.stateChanges, [])
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .open)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .open)
         XCTAssertEqual(pane.listedStatus, .open)
         // The refetch is what brings the ready-for-review timeline row in.
         XCTAssertEqual(pane.service.detailCallCount, detailCallsBefore + 1)
@@ -114,7 +114,7 @@ extension PullRequestsViewModelTests {
         pane.viewModel.markPullRequestReadyForReview()
         await pane.waitForStateChange()
 
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .draft)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .draft)
         XCTAssertEqual(pane.listedStatus, .draft)
         XCTAssertEqual(pane.service.detailCallCount, detailCallsBefore)
         XCTAssertEqual(
@@ -134,7 +134,7 @@ extension PullRequestsViewModelTests {
         }
 
         XCTAssertEqual(pane.mutationCount, 0)
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .draft)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .draft)
         XCTAssertEqual(pane.listedStatus, .draft)
         XCTAssertEqual(pane.viewModel.activePaneSession?.isChangingState, false)
     }
@@ -148,7 +148,7 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(pane.service.convertToDraftNodeIDs, ["PR_7"])
         XCTAssertEqual(pane.service.stateChanges, [])
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .draft)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .draft)
         XCTAssertEqual(pane.listedStatus, .draft)
         // The refetch is what brings the converted-to-draft timeline row in.
         XCTAssertEqual(pane.service.detailCallCount, detailCallsBefore + 1)
@@ -165,7 +165,7 @@ extension PullRequestsViewModelTests {
         pane.viewModel.convertPullRequestToDraft()
         await pane.waitForStateChange()
 
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .open)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .open)
         XCTAssertEqual(pane.listedStatus, .open)
         XCTAssertEqual(pane.service.detailCallCount, detailCallsBefore)
         XCTAssertEqual(
@@ -185,7 +185,7 @@ extension PullRequestsViewModelTests {
         }
 
         XCTAssertEqual(pane.mutationCount, 0)
-        XCTAssertEqual(pane.viewModel.activePaneSession?.summary.status, .open)
+        XCTAssertEqual(pane.viewModel.activePaneSession?.summary?.status, .open)
         XCTAssertEqual(pane.listedStatus, .open)
         XCTAssertEqual(pane.viewModel.activePaneSession?.isChangingState, false)
     }

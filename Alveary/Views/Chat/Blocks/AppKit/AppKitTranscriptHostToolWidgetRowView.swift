@@ -17,11 +17,6 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
         let isResolving: Bool
         /// The widget's target task has a run in flight; drives run-now's tense.
         let isTargetRunInFlight: Bool
-        /// This card's pull request is being fetched before its pane can open.
-        let isOpeningPullRequest: Bool
-        /// The pull request the transcript is waiting on, for cards whose rows each name a
-        /// different one and so cannot use the single `isOpeningPullRequest` flag.
-        let pendingPullRequestLookup: PullRequestIdentifier?
         let errorMessage: String?
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
@@ -33,8 +28,6 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
             isProposalInteractive: Bool = false,
             isResolving: Bool = false,
             isTargetRunInFlight: Bool = false,
-            isOpeningPullRequest: Bool = false,
-            pendingPullRequestLookup: PullRequestIdentifier? = nil,
             errorMessage: String? = nil,
             bubbleMaxWidth: CGFloat = .infinity,
             typography: TranscriptTypography = TranscriptTypography()
@@ -45,8 +38,6 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
             self.isProposalInteractive = isProposalInteractive
             self.isResolving = isResolving
             self.isTargetRunInFlight = isTargetRunInFlight
-            self.isOpeningPullRequest = isOpeningPullRequest
-            self.pendingPullRequestLookup = pendingPullRequestLookup
             self.errorMessage = errorMessage
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
@@ -241,11 +232,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         disclosureSlot.isHidden = !isInteractive
         disclosureSlot.configure(
             size: configuration.typography.size(for: .caption),
-            capHeight: configuration.typography.nsFont(.toolSummary).capHeight,
-            // Only a pull request can keep the user waiting: opening one the thread no longer
-            // links costs a GitHub round trip, so the chevron becomes a spinner rather than
-            // sitting there looking like the click missed. Selecting a thread is local.
-            isWaiting: isInteractive && configuration.isOpeningPullRequest
+            capHeight: configuration.typography.nsFont(.toolSummary).capHeight
         )
         bubbleView.setAccessibilityLabel(
             [summaryField.stringValue, detailField.isHidden ? nil : detailField.stringValue]
@@ -367,11 +354,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         case .pullRequestList(let content):
             proposalBody.isHidden = true
             pullRequestListBody.configure(
-                .init(
-                    content: content,
-                    openingIdentifier: configuration.pendingPullRequestLookup,
-                    typography: configuration.typography
-                )
+                .init(content: content, typography: configuration.typography)
             )
             pullRequestListBody.isHidden = !pullRequestListBody.hasContent
         case .pullRequestReviewProposal(let content):

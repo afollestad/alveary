@@ -53,12 +53,14 @@ extension ContentView {
     /// after the refetch, so watching `detail` would lag every state change by a
     /// round trip. The same refetch settles the summary afterwards (a reopened
     /// draft comes back `.draft`), so this both reacts instantly and stays right.
+    /// A pane opened from an identifier alone has no summary until its first
+    /// detail lands, and the stored snapshot carries the glyph until then.
     var activeSelectionPullRequestStatus: PullRequestStatus? {
         guard let owner = selectedPullRequestLinkOwner,
               let target = pullRequestsViewModel.activePaneTarget(for: PullRequestPaneOrigin(owner: owner)) else {
             return nil
         }
-        return pullRequestsViewModel.paneSessions[target]?.summary.status
+        return pullRequestsViewModel.paneSessions[target]?.summary?.status
     }
 
     /// The stored snapshot is a cache, so reconcile it as soon as the open pane
@@ -68,7 +70,7 @@ extension ContentView {
     func persistActiveSelectionPullRequestStatus() {
         guard let selection = selectedPullRequestLinkOwner,
               let target = pullRequestsViewModel.activePaneTarget(for: PullRequestPaneOrigin(owner: selection)),
-              let status = pullRequestsViewModel.paneSessions[target]?.summary.status,
+              let status = pullRequestsViewModel.paneSessions[target]?.summary?.status,
               let row = selectedPullRequestLinks.first(where: { $0.id == target.identifier }) else {
             return
         }

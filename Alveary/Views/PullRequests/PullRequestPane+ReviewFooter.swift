@@ -64,7 +64,13 @@ struct PullRequestPaneReviewFooter: View {
     /// GitHub rejects Approve and Request changes on your own pull request, so
     /// they only appear for other people's PRs; your own submit as a comment.
     private var allowsVerdictEvents: Bool {
-        if session.summary.isAuthored {
+        guard let summary = session.summary else {
+            // An identifier-opened pane knows nothing about authorship until its
+            // first detail lands; withhold the verdicts rather than offer one
+            // GitHub would reject. `effectiveEvent` demotes a stale selection.
+            return false
+        }
+        if summary.isAuthored {
             return false
         }
         if let detail = session.detail, let viewer = detail.viewerLogin {
@@ -197,9 +203,13 @@ struct PullRequestPaneReviewFooter: View {
     /// While the detail is unavailable the row still shows its even split, with
     /// a disabled stand-in titled from the list row's known status — otherwise
     /// the footer paints a lone trailing button and snaps once the detail lands.
+    /// An identifier-opened pane has no status to title one with until then.
     private var stateActions: [PullRequestStateAction] {
         guard session.detail != nil else {
-            return PullRequestStateAction.placeholder(for: session.summary.status).map { [$0] } ?? []
+            guard let status = session.summary?.status else {
+                return []
+            }
+            return PullRequestStateAction.placeholder(for: status).map { [$0] } ?? []
         }
         return PullRequestStateAction.available(for: session.detail)
     }

@@ -44,42 +44,13 @@ final class PullRequestLinkWidgetRowTests: XCTestCase {
         XCTAssertNil(pressableCard(in: host))
     }
 
-    /// The fetch behind an unlinked pull request is a GitHub round trip, so the card has to show
-    /// the wait — and only the card that asked for it.
-    func testCardWaitingOnItsPullRequestSpinsInsteadOfShowingTheChevron() {
-        let waiting = host(for: entry(status: .applied), pendingLookup: Self.pullRequest)
-        XCTAssertEqual(animatingSpinnerCount(in: waiting), 1)
-
-        let idle = host(for: entry(status: .applied))
-        XCTAssertEqual(animatingSpinnerCount(in: idle), 0)
-
-        let otherPullRequest = host(
-            for: entry(status: .applied),
-            pendingLookup: PullRequestIdentifier(owner: "octo", repo: "alpha", number: 9)
-        )
-        XCTAssertEqual(animatingSpinnerCount(in: otherPullRequest), 0)
-    }
-
-    /// Swapping the chevron for the spinner must not resize the card under the pointer — in
-    /// either axis, since a taller card also shifts every row beneath it.
-    func testWaitingDoesNotResizeTheCard() throws {
-        let idle = try XCTUnwrap(cardFrame(in: host(for: entry(status: .applied))))
-        let waiting = try XCTUnwrap(
-            cardFrame(in: host(for: entry(status: .applied), pendingLookup: Self.pullRequest))
-        )
-        XCTAssertEqual(idle.width, waiting.width, accuracy: 0.5)
-        XCTAssertEqual(idle.height, waiting.height, accuracy: 0.5)
-    }
-
     private func host(
         for entry: HostToolWidgetEntry,
-        pendingLookup: PullRequestIdentifier? = nil,
         onOpen: @escaping @MainActor (PullRequestIdentifier) -> Void = { _ in }
     ) -> NSView {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = 640
         configuration.onOpenPullRequest = onOpen
-        configuration.pendingPullRequestLookup = pendingLookup
 
         let factory = AppKitTranscriptRowFactory()
         let item = ChatItem.hostToolWidget(id: "host-tool-link", entry: entry)
@@ -126,17 +97,6 @@ final class PullRequestLinkWidgetRowTests: XCTestCase {
             }
         }
         return nil
-    }
-
-    /// The spinner is inserted only while waiting, so its presence is the whole assertion.
-    private func animatingSpinnerCount(in view: NSView) -> Int {
-        let own = view is AppKitStatusIndicatorSpinner ? 1 : 0
-        return own + view.subviews.reduce(0) { $0 + animatingSpinnerCount(in: $1) }
-    }
-
-    /// The bubble is the laid-out card inside the row, which itself fills the transcript.
-    private func cardFrame(in view: NSView) -> NSRect? {
-        pressableCard(in: view)?.frame
     }
 
     private func labels(in view: NSView) -> [String] {

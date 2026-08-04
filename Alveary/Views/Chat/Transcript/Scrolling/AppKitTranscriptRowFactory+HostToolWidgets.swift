@@ -41,9 +41,6 @@ extension AppKitTranscriptRowFactory {
                     ?? (review?.presentation != nil),
                 isResolving: configuration.isResolvingScheduledProposal,
                 isTargetRunInFlight: targetRow?.hasActiveRun ?? false,
-                isOpeningPullRequest: entry.openablePullRequest != nil
-                    && entry.openablePullRequest == configuration.pendingPullRequestLookup,
-                pendingPullRequestLookup: configuration.pendingPullRequestLookup,
                 errorMessage: configuration.scheduledProposalErrorMessage,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography

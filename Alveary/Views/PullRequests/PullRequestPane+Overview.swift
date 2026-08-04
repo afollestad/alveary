@@ -30,7 +30,13 @@ struct PullRequestPaneOverview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                headerSection
+                // A pane opened from an identifier alone has no snapshot until its
+                // first fetch backfills one, so the spinner or error banner below
+                // stands in for the header. A loaded detail always has a summary
+                // beside it, so this gate never hides a populated header.
+                if let summary = session.summary {
+                    headerSection(summary: summary)
+                }
 
                 if let error = session.detailError {
                     InlineBanner(message: error, severity: .error, autoDismissAfter: nil, onDismiss: nil)
@@ -48,7 +54,7 @@ struct PullRequestPaneOverview: View {
 
                     // Local column reads, so this lands in the detail's first
                     // frame rather than reflowing the pane a second time.
-                    PullRequestPaneLinkedOwners(identifier: session.summary.id)
+                    PullRequestPaneLinkedOwners(identifier: detail.id)
 
                     if !detail.reviewers.isEmpty {
                         reviewersSection(detail.reviewers)
@@ -94,7 +100,7 @@ struct PullRequestPaneOverview: View {
             + detail.reviewThreads.reduce(0) { $0 + $1.comments.count }
     }
 
-    private var headerSection: some View {
+    private func headerSection(summary: PullRequestSummary) -> some View {
         // The header's trailing column (diff stats, the description Edit menu)
         // aligns to the timeline cards' menu column below: 16pt content inset
         // plus this pad equals the clearance an interactive control needs to
@@ -104,33 +110,36 @@ struct PullRequestPaneOverview: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 8) {
                 PullRequestStatusIcon(
-                    status: session.detail?.status ?? session.summary.status,
+                    status: session.detail?.status ?? summary.status,
                     isAccessibilityHidden: false
                 )
                 .frame(height: Self.titleFirstLineHeight)
 
-                Text(session.detail?.title ?? session.summary.title)
+                Text(session.detail?.title ?? summary.title)
                     .font(.title3.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
 
                 Spacer(minLength: 8)
 
-                diffStats
+                diffStats(summary: summary)
                     .frame(height: Self.titleFirstLineHeight)
             }
 
-            metaRow
+            metaRow(summary: summary)
         }
         .padding(.trailing, trailingLanePad)
     }
 
-    private var metaRow: some View {
-        HStack(spacing: 8) {
+    private func metaRow(summary: PullRequestSummary) -> some View {
+        let authorLogin = session.detail?.authorLogin ?? summary.authorLogin
+        let baseRefName = session.detail?.baseRefName ?? summary.baseRefName
+        let headRefName = session.detail?.headRefName ?? summary.headRefName
+        return HStack(spacing: 8) {
             HStack(spacing: 5) {
                 PullRequestAvatarView(
                     login: authorLogin,
-                    url: session.detail?.authorAvatarURL ?? session.summary.authorAvatarURL,
+                    url: session.detail?.authorAvatarURL ?? summary.authorAvatarURL,
                     loader: avatarLoader
                 )
                 Text(authorLogin)
@@ -155,11 +164,11 @@ struct PullRequestPaneOverview: View {
         .foregroundStyle(.secondary)
     }
 
-    private var diffStats: some View {
+    private func diffStats(summary: PullRequestSummary) -> some View {
         HStack(spacing: 4) {
-            Text("+\(session.detail?.additions ?? session.summary.additions)")
+            Text("+\(session.detail?.additions ?? summary.additions)")
                 .foregroundStyle(.green)
-            Text("-\(session.detail?.deletions ?? session.summary.deletions)")
+            Text("-\(session.detail?.deletions ?? summary.deletions)")
                 .foregroundStyle(.red)
         }
         .font(.subheadline.weight(.medium))
@@ -299,18 +308,6 @@ struct PullRequestPaneOverview: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var authorLogin: String {
-        session.detail?.authorLogin ?? session.summary.authorLogin
-    }
-
-    private var baseRefName: String {
-        session.detail?.baseRefName ?? session.summary.baseRefName
-    }
-
-    private var headRefName: String {
-        session.detail?.headRefName ?? session.summary.headRefName
     }
 
 }

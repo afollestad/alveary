@@ -16,21 +16,12 @@ extension ContentView {
 
         // A still-linked pull request opens through the ordinary path, which also refreshes
         // the stored snapshot. An unlink card names one that is deliberately not linked, so
-        // it has no stored summary and the pane fetches its own.
+        // it has no stored summary and the pane loads its own detail.
         if let row = selectedPullRequestLinks.first(where: { $0.id == request.identifier }) {
             openLinkedPullRequest(row)
             return
         }
         appState.hideDiffViewer()
-        // Marked before the hop so the card's spinner appears on the click's own cycle; the
-        // fetch is a `gh` round trip, which is exactly the wait the card has to account for.
-        appState.beginPullRequestPaneLookup(request)
-        Task {
-            await pullRequestsViewModel.requestDetails(
-                request.identifier,
-                origin: .thread(request.threadID)
-            )
-            appState.endPullRequestPaneLookup(request)
-        }
+        pullRequestsViewModel.requestDetails(request.identifier, origin: .thread(request.threadID))
     }
 }

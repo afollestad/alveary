@@ -42,8 +42,10 @@ enum PullRequestDiffState: Equatable {
 struct PullRequestPaneSession: Equatable {
     let generation: UUID
     /// The list row that opened the pane; keeps the header and overview populated
-    /// while the full detail fetch is in flight.
-    var summary: PullRequestSummary
+    /// while the full detail fetch is in flight. Nil when the pane was opened from
+    /// an identifier alone — a transcript unlink card names a pull request no
+    /// stored snapshot covers — until `loadDetail` backfills it.
+    var summary: PullRequestSummary?
     var detail: PullRequestDetail?
     var detailError: String?
     var isLoadingDetail = true

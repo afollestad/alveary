@@ -150,17 +150,6 @@ extension SnapshotTests {
         )
     }
 
-    /// The spinner takes the chevron's slot, so the card must not change size or drift off the
-    /// summary's optical center. The AppKit ring animates presentation-only, so this renders
-    /// deterministically.
-    func testPullRequestLinkWidgetOpening() {
-        assertMacSnapshot(
-            appKitRowSnapshot { self.pullRequestLinkWidgetRow(action: .link, isOpening: true) },
-            size: CGSize(width: 700, height: 120),
-            named: "pull_request_link_widget_opening"
-        )
-    }
-
     /// A refused call keeps the card, so the reason has somewhere to render.
     func testPullRequestLinkWidgetFailed() {
         assertMacSnapshot(
@@ -240,8 +229,7 @@ extension SnapshotTests {
     private func pullRequestLinkWidgetRow(
         action: PullRequestLinkWidgetContent.Action,
         status: PullRequestLinkWidgetContent.Status = .applied,
-        message: String = "Linked it.",
-        isOpening: Bool = false
+        message: String = "Linked it."
     ) -> AppKitTranscriptHostToolWidgetRowView {
         let entry = HostToolWidgetEntry(
             id: "tool-pull-request-link",
@@ -259,7 +247,7 @@ extension SnapshotTests {
             isError: status == .failed
         )
         let view = AppKitTranscriptHostToolWidgetRowView()
-        view.configure(.init(entry: entry, isOpeningPullRequest: isOpening, bubbleMaxWidth: 640))
+        view.configure(.init(entry: entry, bubbleMaxWidth: 640))
         return view
     }
 

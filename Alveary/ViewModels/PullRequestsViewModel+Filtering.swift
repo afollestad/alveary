@@ -145,6 +145,26 @@ extension PullRequestsViewModel {
         }
     }
 
+    /// Moves the detail selection to the adjacent row in visual order, clamping at
+    /// the ends; with no active selection, Down selects the first row and Up the last.
+    /// Callers pass the rows `visibleRows(for:)` produced, so arrow keys walk exactly
+    /// what the screen shows.
+    @discardableResult
+    func selectAdjacentRow(in rows: [PullRequestSummary], forward: Bool) -> PullRequestIdentifier? {
+        guard !rows.isEmpty else {
+            return nil
+        }
+        let nextIndex: Int
+        if let currentIndex = rows.firstIndex(where: { isDetailActive($0.id) }) {
+            nextIndex = min(max(currentIndex + (forward ? 1 : -1), 0), rows.count - 1)
+        } else {
+            nextIndex = forward ? 0 : rows.count - 1
+        }
+        let summary = rows[nextIndex]
+        requestDetails(summary)
+        return summary.id
+    }
+
     private func matchesRepositoryFilter(_ summary: PullRequestSummary) -> Bool {
         selectedRepositories.isEmpty || selectedRepositories.contains(summary.repositoryNameWithOwner)
     }

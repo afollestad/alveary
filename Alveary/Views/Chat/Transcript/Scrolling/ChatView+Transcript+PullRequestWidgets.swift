@@ -6,9 +6,6 @@ extension ChatTranscriptView {
     /// scoped to this transcript's thread.
     func configureAppKitPullRequestWidgets(_ configuration: inout AppKitTranscriptRowFactory.Configuration) {
         let threadID = viewModel.conversation.thread?.persistentModelID
-        configuration.pendingPullRequestLookup = appState.pendingPullRequestPaneLookup.flatMap { lookup in
-            lookup.threadID == threadID ? lookup.identifier : nil
-        }
         configuration.onOpenPullRequest = { identifier in
             guard let threadID else {
                 return

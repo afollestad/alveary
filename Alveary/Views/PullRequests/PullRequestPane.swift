@@ -113,7 +113,7 @@ struct PullRequestPane: View {
     /// Prefer the API-provided URL; the constructed fallback covers stale sessions.
     private var pullRequestURL: URL? {
         let session = viewModel.paneSessions[target]
-        if let url = session?.detail?.url ?? session?.summary.url {
+        if let url = session?.detail?.url ?? session?.summary?.url {
             return url
         }
         let id = target.identifier

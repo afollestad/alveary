@@ -23,24 +23,6 @@ final class AppState {
     // thread view mounts (e.g. ⌘N). The sidebar's `selectedSidebarItem`
     // `.onChange` hook skips its usual focus claim while this is non-nil.
     var pendingComposerFocusToken: UUID?
-    /// The pull request a transcript link card asked to open while Alveary is still fetching the
-    /// summary its pane needs, so that card can show progress in place of its chevron. One at a
-    /// time — the ask is a click — and carrying the asking thread keeps an identical card in
-    /// another thread's transcript from spinning too.
-    private(set) var pendingPullRequestPaneLookup: PullRequestPaneRequest?
-
-    func beginPullRequestPaneLookup(_ request: PullRequestPaneRequest) {
-        pendingPullRequestPaneLookup = request
-    }
-
-    /// A superseded lookup leaves the newer one alone; otherwise a slow first fetch would clear
-    /// the card the user is actually waiting on.
-    func endPullRequestPaneLookup(_ request: PullRequestPaneRequest) {
-        guard pendingPullRequestPaneLookup == request else {
-            return
-        }
-        pendingPullRequestPaneLookup = nil
-    }
 
     func openSettings(targetPage: AppSettings.SettingsPage? = nil) {
         if selectedSidebarItem != .settings {

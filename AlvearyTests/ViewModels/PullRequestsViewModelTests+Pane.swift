@@ -16,7 +16,7 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(viewModel.activePaneTarget, target)
         XCTAssertTrue(viewModel.isDetailActive(summary.id))
-        XCTAssertEqual(viewModel.paneSessions[target]?.summary.id, summary.id)
+        XCTAssertEqual(viewModel.paneSessions[target]?.summary?.id, summary.id)
 
         await waitForPaneContent(viewModel, target: target)
         XCTAssertEqual(viewModel.paneSessions[target]?.detail?.title, "Detail title")
@@ -227,6 +227,92 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.selectAdjacentRow(in: rows, forward: true)?.number, 3)
         XCTAssertEqual(viewModel.selectAdjacentRow(in: rows, forward: true)?.number, 3)
         XCTAssertTrue(viewModel.isDetailActive(rows[2].id))
+    }
+
+    // MARK: - Opening from an identifier alone
+
+    /// A transcript's unlink card names a pull request no snapshot covers, so the pane has to
+    /// open on the click's own cycle and load its own detail rather than waiting on a fetch.
+    func testRequestDetailsByIdentifierOpensPaneBeforeTheDetailLoads() async {
+        let service = StubPullRequestsService()
+        let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
+        let detailGate = PullRequestsServiceGate()
+        service.detailGate = detailGate
+        service.detailResult = .success(makePullRequestDetail(id: identifier))
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+        let viewModel = makePullRequestsViewModel(service: service)
+        let target = PullRequestPaneTarget.details(identifier)
+
+        viewModel.requestDetails(identifier, origin: .screen)
+
+        XCTAssertEqual(viewModel.activePaneTarget, target)
+        XCTAssertNil(viewModel.paneSessions[target]?.summary)
+        XCTAssertEqual(viewModel.paneSessions[target]?.isLoadingDetail, true)
+
+        detailGate.open()
+        await waitForPaneContent(viewModel, target: target)
+    }
+
+    /// The detail is what a summary would have been derived from, so it backfills one — which is
+    /// what restores the footer's authorship gate and the toolbar's status glyph.
+    func testIdentifierOpenedPaneBackfillsItsSummaryFromTheDetail() async {
+        let service = StubPullRequestsService()
+        let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
+        var detail = makePullRequestDetail(id: identifier, title: "Add caching", status: .draft)
+        detail.viewerLogin = "alice"
+        service.detailResult = .success(detail)
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+        let viewModel = makePullRequestsViewModel(service: service)
+        let target = PullRequestPaneTarget.details(identifier)
+
+        viewModel.requestDetails(identifier, origin: .screen)
+        await waitForPaneContent(viewModel, target: target)
+
+        let summary = viewModel.paneSessions[target]?.summary
+        XCTAssertEqual(summary?.id, identifier)
+        XCTAssertEqual(summary?.title, "Add caching")
+        XCTAssertEqual(summary?.status, .draft)
+        // The fixture's author is `alice`, so a matching viewer is the authored case.
+        XCTAssertEqual(summary?.isAuthored, true)
+    }
+
+    /// The failure renders in the pane's own banner now, so nothing may be toasted and the pane
+    /// stays open with no summary to show.
+    func testIdentifierOpenedPaneSurfacesDetailFailureInTheSession() async {
+        let service = StubPullRequestsService()
+        let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
+        service.detailResult = .failure(.transport("no network"))
+        service.diffResult = .failure(.transport("no network"))
+        var toasts: [String] = []
+        let viewModel = makePullRequestsViewModel(service: service, presentToast: { toasts.append($0) })
+        let target = PullRequestPaneTarget.details(identifier)
+
+        viewModel.requestDetails(identifier, origin: .screen)
+        await waitForPaneContent(viewModel, target: target)
+
+        XCTAssertEqual(viewModel.activePaneTarget, target)
+        XCTAssertNotNil(viewModel.paneSessions[target]?.detailError)
+        XCTAssertNil(viewModel.paneSessions[target]?.summary)
+        XCTAssertTrue(toasts.isEmpty)
+    }
+
+    /// A listed row already carries a usable snapshot, so the pane opens with a populated header
+    /// and still pays exactly one detail fetch — the pane's own.
+    func testRequestDetailsByIdentifierReusesAListedRow() async {
+        let service = StubPullRequestsService()
+        let summary = makePullRequestSummary(number: 7, title: "Listed title")
+        service.listResult = .success(PullRequestListResult(summaries: [summary], warnings: []))
+        service.detailResult = .success(makePullRequestDetail(id: summary.id))
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+        let viewModel = makePullRequestsViewModel(service: service)
+        let target = PullRequestPaneTarget.details(summary.id)
+        await viewModel.refresh()
+
+        viewModel.requestDetails(summary.id, origin: .screen)
+
+        XCTAssertEqual(viewModel.paneSessions[target]?.summary?.title, "Listed title")
+        await waitForPaneContent(viewModel, target: target)
+        XCTAssertEqual(service.detailCallCount, 1)
     }
 }
 

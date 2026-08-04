@@ -9,8 +9,6 @@ import AppKit
 final class AppKitPullRequestListWidgetView: NSView {
     struct Configuration: Equatable {
         let content: PullRequestListWidgetContent
-        /// The pull request whose pane is being fetched, so its row can show it is working.
-        let openingIdentifier: PullRequestIdentifier?
         let typography: TranscriptTypography
     }
 
@@ -66,7 +64,7 @@ final class AppKitPullRequestListWidgetView: NSView {
             return
         }
         // A different list is a different question, so it opens collapsed again; a reconfigure
-        // that only moves the pending-open row must not fold the list back up under the user.
+        // that only changes typography must not fold the list back up under the user.
         if self.configuration?.content != configuration.content {
             isExpanded = false
         }
@@ -187,10 +185,7 @@ private extension AppKitPullRequestListWidgetView {
         slot.setContentHuggingPriority(.required, for: .horizontal)
         slot.configure(
             size: configuration.typography.size(for: .caption),
-            capHeight: configuration.typography.nsFont(.toolSummary).capHeight,
-            // Opening a pull request costs a GitHub round trip, so the row that is waiting swaps
-            // its chevron for a spinner rather than looking like the click missed.
-            isWaiting: configuration.openingIdentifier == row.identifier
+            capHeight: configuration.typography.nsFont(.toolSummary).capHeight
         )
 
         let content = NSStackView(views: [icon, lines, slot])

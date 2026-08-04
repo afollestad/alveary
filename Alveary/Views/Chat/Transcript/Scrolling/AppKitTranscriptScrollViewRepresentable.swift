@@ -266,8 +266,7 @@ private struct AppKitTranscriptPreparedUpdate {
             isResolvingScheduledProposal: rowConfiguration.isResolvingScheduledProposal,
             scheduledProposalErrorMessage: rowConfiguration.scheduledProposalErrorMessage,
             reviewProposalStates: reviewProposalStates,
-            conversationReviewProposal: rowConfiguration.conversationReviewProposal(),
-            pendingPullRequestLookup: rowConfiguration.pendingPullRequestLookup
+            conversationReviewProposal: rowConfiguration.conversationReviewProposal()
         )
     }
 
@@ -366,6 +365,5 @@ private struct AppKitTranscriptPreparedUpdate {
         let scheduledProposalErrorMessage: String?
         let reviewProposalStates: [String: ReviewProposalWidgetState]
         let conversationReviewProposal: ReviewProposalWidgetState?
-        let pendingPullRequestLookup: PullRequestIdentifier?
     }
 }
