@@ -74,7 +74,10 @@ extension ConversationViewModelTests {
         XCTAssertEqual(spawnConfig.planModeEnabled, run.planModeEnabledSnapshot)
         XCTAssertEqual(spawnConfig.speedMode?.rawValue, run.speedModeSnapshot)
         XCTAssertTrue(spawnConfig.isAutomatedScheduledTurn)
-        XCTAssertTrue(spawnConfig.hostTools.isEmpty)
+        XCTAssertEqual(
+            spawnConfig.hostTools.map(\.name),
+            AlvearyHostToolCatalog.tools.map(\.name)
+        )
         fixture.viewModel.finishAutomatedScheduledRunExecution()
         XCTAssertNil(fixture.runtimeStore.automatedScheduledRunID(threadKey: fixture.conversation.id))
     }
@@ -147,7 +150,10 @@ extension ConversationViewModelTests {
         XCTAssertEqual(config.planModeEnabled, run.planModeEnabledSnapshot)
         XCTAssertEqual(config.speedMode?.rawValue, run.speedModeSnapshot)
         XCTAssertTrue(config.isAutomatedScheduledTurn)
-        XCTAssertTrue(config.hostTools.isEmpty)
+        XCTAssertEqual(
+            config.hostTools.map(\.name),
+            AlvearyHostToolCatalog.tools.map(\.name)
+        )
         XCTAssertTrue(fixture.thread.hasCompletedInitialSetup)
     }
 
@@ -190,9 +196,11 @@ extension ConversationViewModelTests {
         XCTAssertEqual(freshSessionCalls.count, 1)
         XCTAssertEqual(sentMessages.count, 1)
         XCTAssertTrue(spawnConfig.isAutomatedScheduledTurn)
-        XCTAssertTrue(spawnConfig.hostTools.isEmpty)
+        XCTAssertEqual(
+            spawnConfig.hostTools.map(\.name),
+            AlvearyHostToolCatalog.tools.map(\.name)
+        )
         XCTAssertEqual(freshConfig, spawnConfig)
-        XCTAssertTrue(freshConfig.hostTools.isEmpty)
         XCTAssertTrue(sentMessage.contains("Restoring context from local history."))
         XCTAssertTrue(sentMessage.contains("User: Inspect the current implementation."))
         XCTAssertTrue(sentMessage.contains("Assistant: The implementation needs a follow-up."))

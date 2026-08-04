@@ -151,7 +151,10 @@ extension ConversationViewModelTests {
         XCTAssertEqual(spawnCalls.count, 2)
         XCTAssertTrue(spawnCalls[0].config.isAutomatedScheduledTurn)
         XCTAssertFalse(spawnCalls[1].config.isAutomatedScheduledTurn)
-        XCTAssertTrue(spawnCalls[0].config.hostTools.isEmpty)
+        XCTAssertEqual(
+            spawnCalls[0].config.hostTools.map(\.name),
+            AlvearyHostToolCatalog.tools.map(\.name)
+        )
         XCTAssertEqual(
             spawnCalls[1].config.hostTools.map(\.name),
             AlvearyHostToolCatalog.tools.map(\.name)

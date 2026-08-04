@@ -61,8 +61,7 @@ extension ConversationViewModel {
             preservesAutomatedScheduledTurn
         let hostTools = hostToolConfiguration(
             requestedExposure: hostToolExposure,
-            settingsSource: settingsSource,
-            isAutomatedScheduledTurn: resolvedAutomatedScheduledTurn
+            settingsSource: settingsSource
         )
 
         return AgentSpawnConfig(
@@ -100,14 +99,17 @@ extension ConversationViewModel {
         state.sessionContinuityNotice = nil
     }
 
+    /// Automated scheduled turns attach the catalog like any ordinary outbound spawn; which tools
+    /// actually serve them is each feature's service gate, not an exposure decision here.
     private func hostToolConfiguration(
         requestedExposure: HostToolExposure?,
-        settingsSource: SessionSettingsConfigSource,
-        isAutomatedScheduledTurn: Bool
+        settingsSource: SessionSettingsConfigSource
     ) -> HostToolServerConfiguration {
-        let exposure = requestedExposure ?? (settingsSource == .nextTurn ? .ordinaryOutbound : .currentContinuation)
+        // An automated scheduled spawn is a fresh outbound turn, so it defaults to ordinary
+        // exposure; only a continuation of a live session defaults to none.
+        let exposure = requestedExposure
+            ?? (settingsSource == .currentContinuation ? .currentContinuation : .ordinaryOutbound)
         guard exposure == .ordinaryOutbound,
-              !isAutomatedScheduledTurn,
               !state.hostToolsDisabled else {
             return HostToolServerConfiguration(
                 server: AgentCLIKit.AgentHostToolServerMetadata(),

@@ -95,7 +95,7 @@ extension ConversationViewModel {
                     useCurrentStagedContextWhenOverrideNil: false,
                     respawnSettingsSource: .automatedScheduledRun,
                     isAutomatedScheduledTurn: true,
-                    hostToolExposure: .currentContinuation
+                    hostToolExposure: .ordinaryOutbound
                 )
             }
         }
@@ -119,7 +119,7 @@ extension ConversationViewModel {
         let config = try makeSpawnConfig(
             isAutomatedScheduledTurn: true,
             settingsSource: .automatedScheduledRun,
-            hostToolExposure: .currentContinuation
+            hostToolExposure: .ordinaryOutbound
         )
         await agentsManager.suspendRuntime(conversationId: conversation.id)
         try Task.checkCancellation()

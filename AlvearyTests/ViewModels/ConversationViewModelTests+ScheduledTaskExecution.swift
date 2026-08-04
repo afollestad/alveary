@@ -53,7 +53,7 @@ extension ConversationViewModelTests {
         )
     }
 
-    func testAutomatedScheduledTurnUsesRestrictedLaunchAndPreservesPrompt() async throws {
+    func testAutomatedScheduledTurnAttachesHostToolsAndPreservesPrompt() async throws {
         let scheduledFixture = try ScheduledConversationViewModelFixture()
         defer { scheduledFixture.removeFiles() }
         let fixture = scheduledFixture.fixture
@@ -63,7 +63,10 @@ extension ConversationViewModelTests {
         let spawnCalls = await fixture.agentsManager.spawnCalls()
         let spawn = try XCTUnwrap(spawnCalls.first)
         XCTAssertTrue(spawn.config.isAutomatedScheduledTurn)
-        XCTAssertTrue(spawn.config.hostTools.isEmpty)
+        XCTAssertEqual(
+            spawn.config.hostTools.map(\.name),
+            AlvearyHostToolCatalog.tools.map(\.name)
+        )
         XCTAssertEqual(spawn.config.initialPrompt, "Run the scheduled audit.")
         XCTAssertTrue(try fixture.dbThread().hasCompletedInitialSetup)
         XCTAssertEqual(try fixture.userMessages().map(\.content), ["Run the scheduled audit."])
@@ -262,7 +265,10 @@ extension ConversationViewModelTests {
         let destroyCalls = await fixture.agentsManager.destroyCalls()
         XCTAssertTrue(spawnCalls[0].config.isAutomatedScheduledTurn)
         XCTAssertFalse(spawnCalls[1].config.isAutomatedScheduledTurn)
-        XCTAssertTrue(spawnCalls[0].config.hostTools.isEmpty)
+        XCTAssertEqual(
+            spawnCalls[0].config.hostTools.map(\.name),
+            AlvearyHostToolCatalog.tools.map(\.name)
+        )
         XCTAssertEqual(
             spawnCalls[1].config.hostTools.map(\.name),
             AlvearyHostToolCatalog.tools.map(\.name)
