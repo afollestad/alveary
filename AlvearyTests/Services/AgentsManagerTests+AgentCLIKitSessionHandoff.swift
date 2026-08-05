@@ -93,6 +93,40 @@ extension AgentsManagerTests {
         await fixture.manager.kill(conversationId: conversationId)
     }
 
+    /// A handoff spawns fresh, so the runtime never sees the previous session replaced; the manager itself must
+    /// archive it (and the lineage on its record) with the provider before removing the record.
+    func testAgentCLIKitStartFreshSessionArchivesPreviousProviderSession() async throws {
+        let adapter = ArchivingModelEchoingAgentCLIKitAdapter()
+        let fixture = makeAgentCLIKitFixture(
+            adapter: adapter,
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let conversationId = "agentclikit-fresh-session-archive"
+        let runtimeConversationId = AgentCLIKit.AgentConversationID(rawValue: conversationId)
+        try await fixture.sessionStore.save(AgentCLIKit.AgentSessionRecord(
+            conversationId: runtimeConversationId,
+            providerId: .claude,
+            providerSessionId: "session-1",
+            workingDirectory: URL(fileURLWithPath: "/tmp"),
+            generation: 1
+        ))
+
+        try await fixture.manager.startFreshSession(
+            conversationId: conversationId,
+            config: spawnConfig(workingDirectory: "/tmp", model: "fresh")
+        )
+        let archivedSessionIds = await adapter.archiveRecorder.archivedSessionIds()
+        let previousRecord = try await fixture.sessionStore.record(
+            conversationId: runtimeConversationId,
+            providerId: .claude
+        )
+
+        XCTAssertEqual(archivedSessionIds, ["session-1"])
+        XCTAssertNotEqual(previousRecord?.providerSessionId, "session-1")
+        await fixture.manager.kill(conversationId: conversationId)
+    }
+
     private func seedAgentCLIKitSessionApproval(
         _ fixture: AgentCLIKitManagerFixture,
         conversationId: String
@@ -118,5 +152,60 @@ extension AgentsManagerTests {
         ))
         _ = await fixture.approvalStore.recordSessionApproval(approvalGrant)
         return (runtimeConversationId, approvalRequest)
+    }
+}
+
+/// Echoes the launch model like `ModelEchoingAgentCLIKitAdapter`, but reports session-archiving support and records
+/// which sessions the host archives, so handoff cleanup is observable.
+private struct ArchivingModelEchoingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let archiveRecorder = SessionArchiveRecorder()
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"],
+        capabilities: AgentCLIKit.AgentProviderCapabilities(supportsSessionArchiving: true)
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: [
+                "-c",
+                "printf 'message:%s\\n' \"$1\"",
+                "agent",
+                spawnConfig.model ?? "default"
+            ],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let message = line.removingPrefix("message:") {
+            return [.message(AgentCLIKit.AgentMessageEvent(role: .assistant, text: message))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        Data()
+    }
+
+    func archiveSession(_ record: AgentCLIKit.AgentSessionRecord) async throws {
+        await archiveRecorder.record(record.providerSessionId)
+    }
+}
+
+private actor SessionArchiveRecorder {
+    private var sessionIds: [AgentCLIKit.AgentSessionID] = []
+
+    func record(_ sessionId: AgentCLIKit.AgentSessionID) {
+        sessionIds.append(sessionId)
+    }
+
+    func archivedSessionIds() -> [AgentCLIKit.AgentSessionID] {
+        sessionIds
     }
 }

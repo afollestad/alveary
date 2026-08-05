@@ -148,52 +148,6 @@ final class ProviderSessionActionServiceTests: XCTestCase {
         XCTAssertEqual(unarchivedSessionIDs, ["session-1"])
     }
 
-    func testDeletesMatchingProviderRecords() async throws {
-        let state = ProviderActionAdapterState()
-        let service = try await makeService(
-            records: [
-                sessionRecord(conversationId: "main", providerId: .codex, sessionId: "session-1", workingDirectory: "/tmp/project")
-            ],
-            state: state
-        )
-
-        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
-            conversationIDs: ["main"],
-            providerIDs: ["codex"],
-            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
-        ))
-        let diagnostics = await service.deleteSessions(resolution)
-
-        let deletedSessionIDs = await state.deletedSessionIDs
-
-        XCTAssertEqual(diagnostics, [])
-        XCTAssertEqual(deletedSessionIDs, ["session-1"])
-    }
-
-    func testDeleteFallsBackToArchiveWhenProviderDeleteFails() async throws {
-        let state = ProviderActionAdapterState(failingDeleteSessionIDs: ["session-1"])
-        let service = try await makeService(
-            records: [
-                sessionRecord(conversationId: "main", providerId: .codex, sessionId: "session-1", workingDirectory: "/tmp/project")
-            ],
-            state: state
-        )
-
-        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
-            conversationIDs: ["main"],
-            providerIDs: ["codex"],
-            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
-        ))
-        let diagnostics = await service.deleteSessions(resolution)
-
-        let archivedSessionIDs = await state.archivedSessionIDs
-        let deletedSessionIDs = await state.deletedSessionIDs
-
-        XCTAssertEqual(diagnostics, [])
-        XCTAssertEqual(deletedSessionIDs, [])
-        XCTAssertEqual(archivedSessionIDs, ["session-1"])
-    }
-
     func testProviderActionFailureDoesNotStopOtherRecords() async throws {
         let state = ProviderActionAdapterState(failingArchiveSessionIDs: ["session-a"])
         let service = try await makeService(
@@ -359,7 +313,8 @@ final class ProviderSessionActionServiceTests: XCTestCase {
         XCTAssertEqual(updated.providerSessionWorkingDirectory, "/tmp/alveary-project")
     }
 
-    private func makeService(
+    // Shared with the `+Deletion.swift` companion, so these stay internal.
+    func makeService(
         records: [AgentCLIKit.AgentSessionRecord],
         state: ProviderActionAdapterState
     ) async throws -> AgentCLIKitProviderSessionActionService {
@@ -369,9 +324,14 @@ final class ProviderSessionActionServiceTests: XCTestCase {
         )
     }
 
-    private func makeService(
+    func makeService(
         store: AgentCLIKit.InMemoryAgentSessionStore,
-        state: ProviderActionAdapterState
+        state: ProviderActionAdapterState,
+        capabilities: AgentCLIKit.AgentProviderCapabilities = AgentCLIKit.AgentProviderCapabilities(
+            supportsSessionArchiving: true,
+            supportsSessionUnarchiving: true,
+            supportsSessionDeletion: true
+        )
     ) async throws -> AgentCLIKitProviderSessionActionService {
         return AgentCLIKitProviderSessionActionService(
             sessionStore: store,
@@ -381,14 +341,7 @@ final class ProviderSessionActionServiceTests: XCTestCase {
                 ])
             },
             providerLookup: providerRegistry(definitions: [
-                providerDefinition(
-                    id: .codex,
-                    displayName: "Codex",
-                    capabilities: AgentCLIKit.AgentProviderCapabilities(
-                        supportsSessionArchiving: true,
-                        supportsSessionUnarchiving: true
-                    )
-                )
+                providerDefinition(id: .codex, displayName: "Codex", capabilities: capabilities)
             ])
         )
     }
@@ -410,7 +363,7 @@ final class ProviderSessionActionServiceTests: XCTestCase {
         )
     }
 
-    private func sessionRecord(
+    func sessionRecord(
         conversationId: AgentCLIKit.AgentConversationID,
         providerId: AgentCLIKit.AgentProviderID,
         sessionId: AgentCLIKit.AgentSessionID,

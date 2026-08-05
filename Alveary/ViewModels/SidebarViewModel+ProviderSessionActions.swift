@@ -2,6 +2,10 @@ import AgentCLIKit
 import Foundation
 
 extension SidebarViewModel {
+    /// Resolves the provider sessions a deletion should clean up.
+    ///
+    /// Missing bindings are kept rather than dropped: a conversation whose provider session cannot be resolved leaves
+    /// a live provider-side session behind, and reporting that beats deleting the thread in silence.
     func deleteProviderSessionResolution(
         for snapshot: ProviderSessionActionSnapshot
     ) async -> ProviderSessionActionResolution {
@@ -9,7 +13,7 @@ extension SidebarViewModel {
         return ProviderSessionActionResolution(
             snapshot: resolution.snapshot,
             records: uniqueProviderSessionRecords(resolution.records),
-            missingBindings: []
+            missingBindings: resolution.missingBindings
         )
     }
 
@@ -21,7 +25,7 @@ extension SidebarViewModel {
         return ProviderSessionActionResolution(
             snapshot: resolution.snapshot,
             records: uniqueProviderSessionRecords(resolution.records),
-            missingBindings: []
+            missingBindings: resolution.missingBindings
         )
     }
 

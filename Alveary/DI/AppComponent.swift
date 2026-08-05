@@ -308,6 +308,7 @@ extension AppComponent {
                 claudeApprovalPolicyStore: agentCLIKitClaudeApprovalPolicyStore,
                 liveHookDecisionProvider: agentCLIKitLiveHookDecisionProvider,
                 contextWindowCache: agentCLIKitContextWindowCache,
+                sessionActionRouter: agentCLIKitSessionActionRouter,
                 hostAdapter: agentCLIKitHostAdapter
             )
         }

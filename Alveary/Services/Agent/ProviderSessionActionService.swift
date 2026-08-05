@@ -189,6 +189,9 @@ actor AgentCLIKitProviderSessionActionService: ProviderSessionActionService {
                 diagnostics.append(.missingProviderDefinition(action: .delete, record: record))
                 continue
             }
+            guard definition.capabilities.supports(.delete) else {
+                continue
+            }
             do {
                 try await router.deleteSession(record)
             } catch {
@@ -206,6 +209,9 @@ actor AgentCLIKitProviderSessionActionService: ProviderSessionActionService {
         for missingBinding in resolution.missingBindings {
             guard let definition = await providerLookup.definition(for: missingBinding.providerID) else {
                 diagnostics.append(.missingProviderDefinition(action: .delete, missingBinding: missingBinding))
+                continue
+            }
+            guard definition.capabilities.supports(.delete) || definition.capabilities.supports(.archive) else {
                 continue
             }
             diagnostics.append(.missingSessionBinding(
@@ -403,7 +409,7 @@ private extension AgentCLIKit.AgentProviderCapabilities {
         case .unarchive:
             supportsSessionUnarchiving
         case .delete:
-            true
+            supportsSessionDeletion
         }
     }
 }

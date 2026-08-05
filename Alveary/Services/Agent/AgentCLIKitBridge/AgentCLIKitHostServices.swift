@@ -13,6 +13,8 @@ struct AgentCLIKitHostServices: Sendable {
     let claudeApprovalPolicyStore: any AgentCLIKit.ClaudeApprovalPolicyStoring & AgentCLIKit.ClaudeTransientDecisionStoring
     let liveHookDecisionProvider: AgentCLIKitLiveHookDecisionProvider
     let contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache
+    /// Routes provider-native session actions for sessions no runtime owns, such as one a handoff is about to drop.
+    let sessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter
     let hostAdapter: AgentCLIKitHostAdapter
 }
 

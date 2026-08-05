@@ -31,6 +31,10 @@ func makeBlockingSuspensionFixture(
         contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache(
             fileURL: suspensionTemporaryFileURL("context.json")
         ),
+        // Route session actions back to the test adapter; the default router would build real provider adapters.
+        sessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter {
+            AgentCLIKit.AgentProviderAdapterSet(adapters: [adapter])
+        },
         hostAdapter: AgentCLIKitHostAdapter()
     )
     let manager = DefaultAgentsManager(

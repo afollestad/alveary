@@ -30,7 +30,13 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - App shots are provider-strategy transport, not visible composer text. Codex app shots use `localImage` attachments with `CodexInputMetadata.isAppshot`; Claude app shots keep text-only transport with hidden AX context and an absolute Markdown screenshot reference. Unsupported providers must block instead of downgrading app shots to ordinary Markdown image links.
 - Keep app-shot capture preparation provider-neutral and storage-independent: window metadata, AX text, and PNG data are prepared first, then stored for the claimed destination through the shared attachment store. Stage through `ConversationState.stageAppShot` so pre-mount destinations update composer non-empty state without requiring a `ChatView`.
 - Keep app-shot screenshots in the conversation attachment store under Application Support. Preserve them while staged, queued, retryable, or transcript-visible, and include the store root in Claude `--add-dir` launch arguments when needed.
-- Provider-native archive/unarchive is a best-effort companion to Alveary's local archive and delete lifecycle. Resolve records through `AgentSessionStore`, then route through `ProviderSessionActionService`; do not let provider action failures roll back local archive, restore, or delete state. Delete paths should archive only known provider sessions and treat missing bindings as nothing to clean up.
+
+### Provider Sessions
+
+- Provider-native archive/unarchive/delete is a best-effort companion to Alveary's local archive and delete lifecycle. Resolve records through `AgentSessionStore`, then route through `ProviderSessionActionService`; do not let provider action failures roll back local archive, restore, or delete state.
+- **Keep missing bindings visible on delete.** A conversation whose provider session cannot be resolved leaves a live provider-side session behind, so the resolution carries it through for a diagnostic instead of dropping it.
+- **Gate every action on its capability**, deletion included. A provider without native deletion is skipped, not handed to the adapter's validate-only default that reports success having done nothing.
+- **A record retires its whole lineage.** `AgentSessionRecord.supersededProviderSessionIds` (see AgentCLIKit's `Runtime/AGENTS.md`) travels with the record, so removing one — as session handoff does — must archive it first or the lineage becomes unreachable.
 
 ## Cross-Folder Debugging
 

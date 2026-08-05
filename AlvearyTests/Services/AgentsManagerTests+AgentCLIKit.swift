@@ -400,6 +400,8 @@ extension AgentsManagerTests {
             claudeApprovalPolicyStore: approvalStore,
             liveHookDecisionProvider: liveHookDecisionProvider,
             contextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache(fileURL: temporaryFileURL("context.json")),
+            // Route to the test adapter; the default router builds real provider adapters.
+            sessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter { AgentCLIKit.AgentProviderAdapterSet(adapters: [adapter]) },
             hostAdapter: AgentCLIKitHostAdapter()
         )
         let manager = DefaultAgentsManager(

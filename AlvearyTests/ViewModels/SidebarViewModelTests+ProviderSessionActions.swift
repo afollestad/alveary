@@ -112,7 +112,9 @@ extension SidebarViewModelTests {
         ])
     }
 
-    func testDeleteThreadDoesNotSurfaceMissingProviderSessionBinding() async throws {
+    /// A conversation whose provider session cannot be resolved leaves a live provider-side session behind, so the
+    /// delete path forwards it for the service to report rather than deleting the thread in silence.
+    func testDeleteThreadForwardsMissingProviderSessionBinding() async throws {
         let missingBinding = ProviderSessionActionMissingBinding(
             conversationID: "main",
             providerID: .codex
@@ -130,7 +132,7 @@ extension SidebarViewModelTests {
         try await fixture.viewModel.deleteThread(thread)
 
         let deletedMissingBindings = await fixture.providerSessionActions.deletedMissingBindings
-        XCTAssertEqual(deletedMissingBindings, [])
+        XCTAssertEqual(deletedMissingBindings, [missingBinding])
         XCTAssertEqual(fixture.unexpectedErrors.messages, [])
     }
 
