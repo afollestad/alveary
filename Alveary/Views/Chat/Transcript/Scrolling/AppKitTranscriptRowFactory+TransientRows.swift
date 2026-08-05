@@ -77,15 +77,33 @@ func appKitTranscriptLiveThoughtSummaryText(from text: String) -> String {
     // Walking backwards keeps the markdown pass off every earlier line of a long accumulation.
     for line in lines.reversed() {
         let collapsed = appKitTranscriptCollapsedLiveThoughtPlainText(
-            from: appKitTranscriptLiveThoughtLineText(from: line)
+            from: appKitTranscriptNewestEmphasisSection(in: appKitTranscriptLiveThoughtLineText(from: line))
         )
         guard collapsed.isEmpty else {
             return collapsed
         }
     }
     // Every line stripped to nothing, so prefer showing something over an empty row.
-    return appKitTranscriptCollapsedLiveThoughtPlainText(from: text)
+    return appKitTranscriptCollapsedLiveThoughtPlainText(from: appKitTranscriptNewestEmphasisSection(in: text))
 }
+
+/// Keeps only the text after the last touching emphasis boundary. A provider that emits no separator
+/// leaves one section's closing delimiter against the next one's opening delimiter, so `****` marks a
+/// section break rather than emphasis. A single space between runs is ordinary text and stays intact.
+/// Sections that switch delimiter across the seam (`**…**__…__`) are left alone; matching only a
+/// doubled run of one character keeps ordinary prose from being truncated.
+private func appKitTranscriptNewestEmphasisSection(in line: String) -> String {
+    var result = line
+    for boundary in liveThoughtEmphasisBoundaries {
+        guard let range = result.range(of: boundary, options: .backwards) else {
+            continue
+        }
+        result = String(result[range.upperBound...])
+    }
+    return result
+}
+
+private let liveThoughtEmphasisBoundaries = ["****", "____"]
 
 private func appKitTranscriptCollapsedLiveThoughtPlainText(from text: String) -> String {
     AppMarkdownInlineLabel.plainText(from: text)

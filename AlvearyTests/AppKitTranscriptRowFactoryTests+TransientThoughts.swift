@@ -235,12 +235,32 @@ extension AppKitTranscriptRowFactoryTests {
         )
     }
 
-    func testThoughtSummaryTextStripsAdjacentMarkdownBoundaryDelimiters() {
+    func testThoughtSummaryTextTreatsTouchingEmphasisAsASectionBoundary() {
         XCTAssertEqual(
             appKitTranscriptLiveThoughtSummaryText(
-                from: "**Checking notes directory****Checking notes directory**"
+                from: "**Assessing methods to list PRs****Checking available GitHub tools**"
             ),
-            "Checking notes directory Checking notes directory"
+            "Checking available GitHub tools"
+        )
+        XCTAssertEqual(
+            appKitTranscriptLiveThoughtSummaryText(
+                from: "__Assessing methods to list PRs____Checking available GitHub tools__"
+            ),
+            "Checking available GitHub tools"
+        )
+        // A reasoning item can hold more than two parts, so only the last one is the newest section.
+        XCTAssertEqual(
+            appKitTranscriptLiveThoughtSummaryText(
+                from: "**Assessing methods****Listing tools****Checking available GitHub tools**"
+            ),
+            "Checking available GitHub tools"
+        )
+    }
+
+    func testThoughtSummaryTextKeepsSeparatedEmphasisRunsIntact() {
+        XCTAssertEqual(
+            appKitTranscriptLiveThoughtSummaryText(from: "**Note** **Detail**"),
+            "Note Detail"
         )
     }
 }

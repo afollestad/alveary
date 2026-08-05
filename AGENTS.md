@@ -18,6 +18,7 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 - `Alveary.xcodeproj` is generated from `project.yml`; never edit it directly.
 - After creating, moving, removing, or renaming Swift files, run `xcodegen generate`.
 - After adding an SPM dependency, update `project.yml`, then run `xcodegen generate`.
+- After changing an SPM pin's revision, run `xcodegen generate`, then `xcodebuild -project Alveary.xcodeproj -scheme Alveary -resolvePackageDependencies`, and confirm `SourcePackages/checkouts/<dep>` is at the new revision. `Package.resolved` can carry the new revision while the checkout stays on the old one, and no build script forces resolution, so build, test, and snapshot runs all pass green against the old dependency.
 - Do not commit `Alveary.xcodeproj/`; it is gitignored and regenerated.
 - Debug app signing uses `Config/CodeSigning/AlvearyDebugTCC.requirements` so app-shot TCC grants survive rebuilds. If `PRODUCT_BUNDLE_IDENTIFIER` changes, update that requirement too. When a privacy row is enabled but raw probes are false, reset Alveary's TCC grants or remove the stale row before re-dragging the rebuilt app.
 
