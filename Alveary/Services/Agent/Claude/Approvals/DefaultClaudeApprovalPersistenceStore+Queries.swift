@@ -3,30 +3,30 @@ import SwiftData
 
 /// Fetch shapes shared by the session-approval store.
 ///
-/// Each `#Predicate` expands into a deeply nested generic `PredicateExpressions` tree, and the
-/// cost of type-checking one grows with its number of `&&` terms — the five-way rule match below
-/// was among the most expensive expressions in the app. The same shapes were written at several
-/// call sites, so every copy paid that cost again. Declaring each one here keeps a single
-/// expansion per shape.
+/// Each `#Predicate` expands into a deeply nested generic `PredicateExpressions` tree, and the cost
+/// of type-checking one grows with its number of `&&` terms. The same shapes were written at
+/// several call sites, so every copy paid that cost again; declaring each one here keeps a single
+/// expansion per shape. Keep them to three terms — a fourth or fifth pushes a shape past the
+/// type-check budget on CI, so match any further fields in memory.
 extension DefaultClaudeApprovalPersistenceStore {
-    /// Matches the one stored rule that a grant would duplicate.
-    static func sessionApprovalRuleDescriptor(
-        matching grant: AgentSessionApprovalGrant
-    ) -> FetchDescriptor<AgentSessionApprovalRule> {
-        let providerId = grant.providerId
-        let conversationId = grant.conversationId
-        let sessionId = grant.sessionId
+    /// The stored rules a grant would duplicate.
+    ///
+    /// Only the session triple is a predicate; the two match fields are compared in memory. A
+    /// five-term `#Predicate` took ~6s to type-check on CI — twice the budget — and one provider
+    /// session holds a handful of rules, so narrowing the fetch and filtering costs nothing.
+    static func sessionApprovalRules(
+        matching grant: AgentSessionApprovalGrant,
+        in context: ModelContext
+    ) -> [AgentSessionApprovalRule] {
+        let rules = (try? context.fetch(
+            sessionApprovalRulesDescriptor(
+                providerId: grant.providerId,
+                conversationId: grant.conversationId,
+                sessionId: grant.sessionId
+            )
+        )) ?? []
         let matchKind = grant.matchKind.rawValue
-        let matchValue = grant.matchValue
-        return FetchDescriptor<AgentSessionApprovalRule>(
-            predicate: #Predicate {
-                $0.providerId == providerId &&
-                    $0.conversationId == conversationId &&
-                    $0.sessionId == sessionId &&
-                    $0.matchKind == matchKind &&
-                    $0.matchValue == matchValue
-            }
-        )
+        return rules.filter { $0.matchKind == matchKind && $0.matchValue == grant.matchValue }
     }
 
     /// Matches every stored rule for one provider session.

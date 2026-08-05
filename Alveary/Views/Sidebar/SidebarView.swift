@@ -63,14 +63,20 @@ struct SidebarView: View {
     @FocusState var isKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) var chatComposerFocus
 
+    /// `initialExpandedProjects` seeds expansion for previews and snapshots, which mount the
+    /// sidebar without the interactions that expand a group. Selecting a project deliberately
+    /// does not expand it (see `sidebarProjectPathToExpand`), so a fixture wanting an expanded
+    /// group must say so.
     init(
         viewModel: SidebarViewModel,
         appState: AppState,
-        voiceInputLifecycleController: VoiceInputLifecycleController? = nil
+        voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
+        initialExpandedProjects: Set<String> = []
     ) {
         self.viewModel = viewModel
         self.appState = appState
         self.voiceInputLifecycleController = voiceInputLifecycleController
+        _expandedProjects = State(initialValue: initialExpandedProjects)
     }
 
     /// Ordered projects for action paths that run outside a render pass.

@@ -37,6 +37,18 @@ fi
 # `test.sh` therefore fails at `TYPECHECK_TEST_BUDGET_MS` (defaulting to the base budget) while
 # the compiler flag stays at the base value everywhere, keeping build settings identical so every
 # step shares one set of products. Sub-threshold reports still surface as plain warnings.
+#
+# `AppDelegateTests` is exempt from the failure scan entirely. It is where that deserialization
+# lands: its statements are already trivial — explicitly typed locals, single-candidate calls —
+# and still drift upward across toolchains on untouched lines (3063ms, then 5236ms, then 7116ms
+# for the same `applicationDidFinishLaunching` call). Exempting the one suite that produces the
+# noise keeps the threshold meaningful for every other test source; raising the ceiling to clear
+# it would take the whole test target past the point where a genuine multi-second expression —
+# the app-side `#Predicate` that measured 5965ms — would still be caught. Its readings stay
+# visible as warnings. Add a suite here only with a CI measurement showing the same signature:
+# multi-second on CI, trivial locally, invariant to how the statement is written.
+typecheck_budget_exempt_test_prefix="AlvearyTests/App/AppDelegateTests"
+
 typecheck_budget_report_offenders() {
   local log_path=$1
   local root=$2
@@ -45,8 +57,10 @@ typecheck_budget_report_offenders() {
   offenders=$(
     grep -E "took [0-9]+ms to type-check" "$log_path" \
       | awk -v root="$root/" -v build="$root/.build/" -v limit="$fail_threshold_ms" \
+        -v exempt="$typecheck_budget_exempt_test_prefix" \
         'index($0, root) == 1 && index($0, build) != 1 {
            line = substr($0, length(root) + 1)
+           if (index(line, exempt) == 1) { next }
            if (match(line, /took [0-9]+ms to type-check/)) {
              ms = substr(line, RSTART + 5)
              sub(/ms.*/, "", ms)

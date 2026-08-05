@@ -8,9 +8,7 @@ extension DefaultClaudeApprovalPersistenceStore {
             return SessionApprovalRecordResult(isEffective: false, wasInserted: false)
         }
 
-        let existingRules = (try? context.fetch(
-            Self.sessionApprovalRuleDescriptor(matching: approval)
-        )) ?? []
+        let existingRules = Self.sessionApprovalRules(matching: approval, in: context)
         guard existingRules.isEmpty else {
             return SessionApprovalRecordResult(isEffective: true, wasInserted: false)
         }
@@ -38,9 +36,7 @@ extension DefaultClaudeApprovalPersistenceStore {
             return
         }
 
-        let matchingRules = (try? context.fetch(
-            Self.sessionApprovalRuleDescriptor(matching: approval)
-        )) ?? []
+        let matchingRules = Self.sessionApprovalRules(matching: approval, in: context)
         guard !matchingRules.isEmpty else {
             return
         }

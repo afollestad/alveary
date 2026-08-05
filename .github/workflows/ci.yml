@@ -37,15 +37,14 @@ jobs:
       # Test sources fail at a higher bar because their floor is attribution noise, not real
       # solve cost: the solver's wall-clock timer bills first-touch framework deserialization to
       # whichever expression in a frontend batch needs it first, and `AppDelegateTests`
-      # statements whose genuine solve is under 100ms locally have measured 3063-5265ms here
-      # across runs, invariant to how the statement was written: the 5236ms expression reading
-      # (5265ms for its enclosing method) landed on
-      # `appDelegate.applicationDidFinishLaunching(launchNotification)`, a single-candidate call
-      # on two already explicitly typed locals, which leaves nothing left to simplify. 7000
-      # clears the observed ceiling with headroom instead of tracking it by a few hundred
-      # milliseconds, because each recalibration costs a red build to discover. The compiler flag
-      # stays at the base budget for every step (identical build settings, shared products); only
-      # `test.sh`'s failure scan reads the higher value.
+      # statements whose genuine solve is under 100ms locally have measured 3063-7156ms here
+      # across runs, invariant to how the statement was written. That noise drifts upward across
+      # toolchains and always lands in `AppDelegateTests`, which `typecheck-budget.sh` exempts
+      # from the failure scan for exactly that reason; chasing it by raising this number instead
+      # took the whole test target past the point where a genuine offender would still be caught.
+      # 7000 stays as headroom for the rest of the test target, whose readings run well under it.
+      # The compiler flag stays at the base budget for every step (identical build settings,
+      # shared products); only `test.sh`'s failure scan reads the higher value.
       TYPECHECK_BUDGET_MS: "3000"
       TYPECHECK_TEST_BUDGET_MS: "7000"
 

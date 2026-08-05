@@ -204,6 +204,9 @@ extension SidebarView {
             toggleExpansion(for: project.path, in: &expandedProjects)
         } else {
             appState.selectedSidebarItem = item
+            // Selection alone no longer expands (see `sidebarProjectPathToExpand`), so activating
+            // a project row reveals its children here — clicking one is a request to see inside it.
+            expandedProjects.insert(project.path)
         }
         claimSidebarFocus()
     }
@@ -273,14 +276,18 @@ func sidebarProjectPathToExpandAfterDraftMaterialization(_ notification: Notific
     return notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String
 }
 
+/// The project a selection must reveal, or nil when the selection implies no expansion.
+///
+/// Selecting a project row deliberately does not expand it: keyboard traversal has to be able
+/// to rest on a collapsed row, or the left-arrow collapse is undone the moment the selection
+/// moves back onto that project. Sites that mean "reveal" — row activation, draft flows,
+/// pin/unpin, the drop finalizer — expand explicitly instead.
 @MainActor
 func sidebarProjectPathToExpand(
     for item: SidebarItem?,
     resolveThread: (PersistentIdentifier) -> AgentThread?
 ) -> String? {
     switch item {
-    case .project(let project):
-        return project.path
     case .thread(let thread):
         guard let resolvedThread = resolveThread(thread.persistentModelID),
               resolvedThread.effectiveMode == .project,
@@ -288,7 +295,7 @@ func sidebarProjectPathToExpand(
             return nil
         }
         return resolvedThread.project?.path
-    case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
+    case .project, .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
         return nil
     }
 }

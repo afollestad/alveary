@@ -47,4 +47,14 @@ final class SidebarTaskModeRoutingTests: XCTestCase {
 
         XCTAssertNil(projectPath)
     }
+
+    // Arrow-key traversal has to be able to rest on a collapsed project row: if selecting one
+    // expanded it, left-arrow collapse would be undone as soon as the selection returned.
+    func testProjectSelectionDoesNotExpandItsOwnRow() {
+        let project = Project(path: "/tmp/project-selection-expansion", name: "Alpha")
+
+        let projectPath = sidebarProjectPathToExpand(for: .project(project), resolveThread: { _ in nil })
+
+        XCTAssertNil(projectPath)
+    }
 }

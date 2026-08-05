@@ -423,7 +423,7 @@ extension SnapshotTests {
             size: CGSize(width: 320, height: 720),
             named: "sidebar_project_selected"
         ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.project.path])
         }
     }
 
@@ -437,7 +437,7 @@ extension SnapshotTests {
             size: CGSize(width: 320, height: 720),
             named: "sidebar_pinned_thread"
         ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.project.path])
         }
     }
 
@@ -466,7 +466,7 @@ extension SnapshotTests {
             size: CGSize(width: 320, height: 720),
             named: "sidebar_mixed_pinned_project_and_thread"
         ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.pinnedProject.path])
         }
     }
 
@@ -480,7 +480,7 @@ extension SnapshotTests {
             size: CGSize(width: 320, height: 720),
             named: "sidebar_project_no_threads"
         ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.emptyProject.path])
         }
     }
 

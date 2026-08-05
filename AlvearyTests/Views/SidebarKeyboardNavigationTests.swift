@@ -271,18 +271,6 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertFalse(result)
     }
 
-    func testShouldNavigateUpOnLeftArrowReturnsTrueForExpandedProjectWithoutVisibleThreads() throws {
-        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
-
-        let result = shouldNavigateUpOnLeftArrow(
-            selection: .project(project),
-            expandedProjects: [project.path],
-            projectHasVisibleThreads: { _ in false }
-        )
-
-        XCTAssertTrue(result)
-    }
-
     func testShouldNavigateUpOnLeftArrowReturnsTrueForCollapsedProject() throws {
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 

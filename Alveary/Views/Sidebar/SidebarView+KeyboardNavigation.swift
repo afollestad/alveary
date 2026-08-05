@@ -94,10 +94,7 @@ extension SidebarView {
         case .leftArrow:
             if shouldNavigateUpOnLeftArrow(
                 selection: selection,
-                expandedProjects: expandedProjects,
-                projectHasVisibleThreads: { project in
-                    !context.activeThreads(for: project).isEmpty
-                }
+                expandedProjects: expandedProjects
             ) {
                 return handleVerticalArrow(.upArrow, context: context)
             }
@@ -140,8 +137,7 @@ func effectiveSidebarSelection(_ selection: SidebarItem?) -> SidebarItem? {
 
 func shouldNavigateUpOnLeftArrow(
     selection: SidebarItem?,
-    expandedProjects: Set<String>,
-    projectHasVisibleThreads: (Project) -> Bool = { _ in true }
+    expandedProjects: Set<String>
 ) -> Bool {
     switch selection {
     case .skills, .mcp, .scheduled, .pullRequests, .archived:
@@ -149,7 +145,7 @@ func shouldNavigateUpOnLeftArrow(
     case .thread:
         return true
     case .project(let project):
-        return !expandedProjects.contains(project.path) || !projectHasVisibleThreads(project)
+        return !expandedProjects.contains(project.path)
     default:
         return false
     }

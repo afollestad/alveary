@@ -39,16 +39,7 @@ actor DefaultClaudeApprovalPersistenceStore: ClaudeApprovalPersistenceStore {
             return false
         }
 
-        for candidate in candidates {
-            let matchingRules = (try? context.fetch(
-                Self.sessionApprovalRuleDescriptor(matching: candidate)
-            )) ?? []
-            if !matchingRules.isEmpty {
-                return true
-            }
-        }
-
-        return false
+        return candidates.contains { !Self.sessionApprovalRules(matching: $0, in: context).isEmpty }
     }
 
     private static func defaultSupportDirectory() -> URL {

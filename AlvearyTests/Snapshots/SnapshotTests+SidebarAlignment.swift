@@ -52,7 +52,7 @@ extension SnapshotTests {
             size: CGSize(width: 320, height: 260),
             named: "sidebar_single_project_no_threads"
         ) {
-            SidebarView(viewModel: fixture.viewModel, appState: appState)
+            SidebarView(viewModel: fixture.viewModel, appState: appState, initialExpandedProjects: [project.path])
         }
     }
 
@@ -72,7 +72,7 @@ extension SnapshotTests {
             size: CGSize(width: 320, height: 340),
             named: "sidebar_two_projects_no_threads"
         ) {
-            SidebarView(viewModel: fixture.viewModel, appState: appState)
+            SidebarView(viewModel: fixture.viewModel, appState: appState, initialExpandedProjects: [firstProject.path])
         }
     }
 }

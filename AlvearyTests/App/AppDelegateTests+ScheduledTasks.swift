@@ -15,9 +15,10 @@ extension AppDelegateTests {
         // 3063ms while the same statement stayed under 100ms locally, so each statement here has
         // to stay trivial on its own. Being trivial is not a guarantee of a low reading — the
         // already-hoisted `applicationDidFinishLaunching` call below, one candidate against two
-        // explicitly typed locals, has since reported 5236ms. That is the deserialization
-        // attribution noise `TYPECHECK_TEST_BUDGET_MS` exists to absorb; do not restructure
-        // these statements further chasing it.
+        // explicitly typed locals, has since reported 5236ms and then 7116ms. That is
+        // deserialization attribution noise that drifts upward across toolchains, which is why
+        // `typecheck-budget.sh` exempts this suite from the failure scan; keep new statements
+        // here trivial, but do not restructure existing ones chasing a reading.
         let fixture = try AppDelegateTestFixture()
         let lifecycle = AppDelegateScheduledTaskLifecycleSpy()
         let wakeRefreshDelay: Duration = .milliseconds(40)
