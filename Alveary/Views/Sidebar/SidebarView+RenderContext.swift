@@ -37,7 +37,10 @@ extension SidebarView {
         return SidebarRenderContext(
             snapshot: snapshot,
             threadOrderAnimation: threadOrderAnimation(
-                expandedThreadCount: snapshot.expandedThreadCount(expandedProjects: expandedProjects)
+                expandedThreadCount: snapshot.expandedThreadCount(
+                    expandedProjects: expandedProjects,
+                    collapsedSections: collapsedSections
+                )
             ),
             dragLogicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: snapshot.pinnedItems.map(\.dragItem),

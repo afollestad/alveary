@@ -65,7 +65,7 @@ extension SidebarView {
             return
         }
         // The Task now lives in this project, so a collapsed project would otherwise swallow it.
-        expandedProjects.insert(request.projectPath)
+        revealProject(path: request.projectPath)
     }
 }
 

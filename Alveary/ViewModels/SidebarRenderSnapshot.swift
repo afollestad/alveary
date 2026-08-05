@@ -90,7 +90,13 @@ struct SidebarRenderSnapshot {
     }
 
     /// Rows currently rendered below expanded project headers, plus every visible Task row.
-    func expandedThreadCount(expandedProjects: Set<String>) -> Int {
+    ///
+    /// A collapsed section contributes nothing: its rows are not mounted, so counting them would
+    /// disable the thread-order animation over content nobody can see. `Pinned` never collapses.
+    func expandedThreadCount(
+        expandedProjects: Set<String>,
+        collapsedSections: Set<SidebarCollapsibleSection> = []
+    ) -> Int {
         let pinnedThreadCount = pinnedItems.reduce(0) { count, item in
             switch item.kind {
             case .thread:
@@ -103,12 +109,15 @@ struct SidebarRenderSnapshot {
             }
         }
 
-        let projectThreadCount = regularProjects.reduce(0) { count, project in
-            guard expandedProjects.contains(project.path) else {
-                return count
+        let projectThreadCount = collapsedSections.contains(.projects)
+            ? 0
+            : regularProjects.reduce(0) { count, project in
+                guard expandedProjects.contains(project.path) else {
+                    return count
+                }
+                return count + activeThreads(for: project).count
             }
-            return count + activeThreads(for: project).count
-        }
-        return pinnedThreadCount + projectThreadCount + activeTaskThreads.count
+        let taskThreadCount = collapsedSections.contains(.tasks) ? 0 : activeTaskThreads.count
+        return pinnedThreadCount + projectThreadCount + taskThreadCount
     }
 }

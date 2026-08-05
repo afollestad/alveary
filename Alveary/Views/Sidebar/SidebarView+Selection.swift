@@ -60,16 +60,35 @@ extension SidebarView {
         guard let projectPath = notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String else {
             return
         }
-        expandedProjects.insert(projectPath)
+        revealProject(path: projectPath)
         viewModel.threadOrderVersion += 1
     }
 
     func handleDraftMaterialized(_ notification: Notification) {
         let mode = sidebarDraftMaterializedMode(notification)
         if let projectPath = sidebarProjectPathToExpandAfterDraftMaterialization(notification) {
-            expandedProjects.insert(projectPath)
+            revealProject(path: projectPath)
         }
         viewModel.noteDraftMaterialized(mode: mode)
+    }
+
+    /// Opens a project's children for a caller that means "show me what is inside" — row
+    /// activation, draft flows, pin/unpin, the drop finalizer. A collapsed `Projects` section hides
+    /// the group whether or not the project itself is expanded, so both have to give way; a pinned
+    /// project renders under `Pinned`, which never collapses.
+    func revealProject(_ project: Project) {
+        expandedProjects.insert(project.path)
+        if !project.isPinned {
+            collapsedSections.remove(.projects)
+        }
+    }
+
+    /// The reveal a caller whose project arrives as a notification payload can make. `Projects`
+    /// always reopens here: a path alone cannot say whether the group renders under `Pinned`
+    /// instead, and leaving a section shut over the row the user just created is the worse error.
+    func revealProject(path projectPath: String) {
+        expandedProjects.insert(projectPath)
+        collapsedSections.remove(.projects)
     }
 
     /// Top-level rows use SF Symbols except where a domain glyph exists only as an
@@ -161,6 +180,11 @@ extension SidebarView {
         isTopLevelTerminal: Bool = false
     ) -> some View {
         let isSelected = appState.selectedSidebarItem == item
+        // A top-level row is a plain `List` row, so it takes the same pull-left as a row-mounted
+        // header; without it the icon column lands right of the `Projects`/`Tasks` title ink.
+        let leadingPadding: CGFloat = SidebarSectionHeaderRow.contentLeadingPadding
+            - topIconOpticalInset
+            + SidebarProjectListMetrics.plainRowLeadingCorrection
 
         return HStack(spacing: 8) {
             topLevelIconImage(for: icon)
@@ -172,7 +196,7 @@ extension SidebarView {
         }
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
-            .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding - topIconOpticalInset)
+            .padding(.leading, leadingPadding)
             .appSelectableRow(
                 isSelected: isSelected,
                 selectionBackgroundBottomInset: bottomSpacing,
@@ -206,7 +230,7 @@ extension SidebarView {
             appState.selectedSidebarItem = item
             // Selection alone no longer expands (see `sidebarProjectPathToExpand`), so activating
             // a project row reveals its children here — clicking one is a request to see inside it.
-            expandedProjects.insert(project.path)
+            revealProject(project)
         }
         claimSidebarFocus()
     }
@@ -232,11 +256,12 @@ extension SidebarView {
     }
 
     func syncExpansionWithSelection(_ item: SidebarItem?) {
-        if let projectPath = sidebarProjectPathToExpand(
-            for: item,
-            resolveThread: { uiModelContext.resolveThread(id: $0) }
-        ) {
+        let resolveThread: (PersistentIdentifier) -> AgentThread? = { uiModelContext.resolveThread(id: $0) }
+        if let projectPath = sidebarProjectPathToExpand(for: item, resolveThread: resolveThread) {
             expandedProjects.insert(projectPath)
+        }
+        if let section = sidebarSectionToExpand(for: item, resolveThread: resolveThread) {
+            collapsedSections.remove(section)
         }
     }
 
@@ -296,6 +321,39 @@ func sidebarProjectPathToExpand(
         }
         return resolvedThread.project?.path
     case .project, .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
+        return nil
+    }
+}
+
+/// The collapsed section a selection must reopen, or nil when the selection renders outside one.
+///
+/// A selected project row *does* reopen `Projects`, the one place this parts ways with
+/// `sidebarProjectPathToExpand`: a collapsed section drops its rows from keyboard traversal
+/// entirely, so a selection landing inside one always arrived by explicit routing rather than by
+/// arrowing onto it, and leaving the section shut would strand it.
+@MainActor
+func sidebarSectionToExpand(
+    for item: SidebarItem?,
+    resolveThread: (PersistentIdentifier) -> AgentThread?
+) -> SidebarCollapsibleSection? {
+    switch item {
+    case .project(let project):
+        return project.isPinned ? nil : .projects
+    case .thread(let thread):
+        guard let resolvedThread = resolveThread(thread.persistentModelID) else {
+            return nil
+        }
+        guard let project = resolvedThread.project else {
+            // A projectless Task heads its own section; a pinned one renders above it instead.
+            return resolvedThread.effectiveMode == .task && !resolvedThread.isPinned ? .tasks : nil
+        }
+        // A pinned project's children render inside it under `Pinned`, and a standalone pinned
+        // thread renders there too — neither is hidden by a collapsed `Projects`.
+        guard !project.isPinned, !resolvedThread.isPinned else {
+            return nil
+        }
+        return .projects
+    case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
         return nil
     }
 }

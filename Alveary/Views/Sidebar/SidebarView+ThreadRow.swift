@@ -99,8 +99,10 @@ struct SidebarThreadRow: View {
                 Color.clear
                     .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
 
+                // Mirrors the project row's icon-to-title gap so child titles stay aligned with
+                // project names; the two have to move together.
                 Color.clear
-                    .frame(width: 10)
+                    .frame(width: SidebarProjectRow.leadingSpacing)
             }
 
             titleArea

@@ -128,18 +128,23 @@ extension SidebarView {
                 return
             }
 
+            // A collapsed section hides the row the drop just landed, for the same reason a
+            // collapsed project would.
+            if let section = SidebarCollapsibleSection(dropSection: candidate.target.section) {
+                collapsedSections.remove(section)
+            }
             // The only `.into` drop the synchronous commit accepts is the owning-project unpin,
             // which lands the row inside that group — expand it so a collapsed project does not
             // swallow the drop.
             if candidate.target.placement == .into,
                case .project(let projectID) = candidate.target.item,
                let project = projects.first(where: { $0.persistentModelID == projectID }) {
-                expandedProjects.insert(project.path)
+                revealProject(project)
             }
             if selectedThreadBelongsToDraggedProject,
                case .project(let projectID) = session.item,
                let project = projects.first(where: { $0.persistentModelID == projectID }) {
-                expandedProjects.insert(project.path)
+                revealProject(project)
             }
             syncExpansionWithSelection(selectedItem)
         } catch {

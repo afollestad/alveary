@@ -15,6 +15,12 @@ enum SidebarProjectListMetrics {
     @MainActor static var listSectionHeaderTrailingCorrection: CGFloat {
         SidebarSectionHeaderRow.actionButtonCenterTrailingInset
     }
+
+    // They also inset 2pt less at the leading edge than a plain row does. Everything row-mounted
+    // that lines up with one pulls back by that much: the headers themselves, their placeholders,
+    // and the top-level rows' icon column. `Projects` heads a `Section` only while `Pinned` is
+    // empty, so without this the same header moves between layouts.
+    static let plainRowLeadingCorrection: CGFloat = -2
 }
 
 private let archivedThreadProbeDescriptor: FetchDescriptor<AgentThread> = {
@@ -49,6 +55,7 @@ struct SidebarView: View {
     @Query(archivedThreadProbeDescriptor)
     var queriedArchivedThreadProbe: [AgentThread]
     @State var expandedProjects: Set<String> = []
+    @State var collapsedSections: Set<SidebarCollapsibleSection> = []
     @State var editingThreadID: PersistentIdentifier?
     @State var pendingArchiveThread: AgentThread?
     @State var pendingDeleteThread: AgentThread?
@@ -66,17 +73,20 @@ struct SidebarView: View {
     /// `initialExpandedProjects` seeds expansion for previews and snapshots, which mount the
     /// sidebar without the interactions that expand a group. Selecting a project deliberately
     /// does not expand it (see `sidebarProjectPathToExpand`), so a fixture wanting an expanded
-    /// group must say so.
+    /// group must say so. `initialCollapsedSections` is the same seed for section collapse, which
+    /// no fixture can reach either.
     init(
         viewModel: SidebarViewModel,
         appState: AppState,
         voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
-        initialExpandedProjects: Set<String> = []
+        initialExpandedProjects: Set<String> = [],
+        initialCollapsedSections: Set<SidebarCollapsibleSection> = []
     ) {
         self.viewModel = viewModel
         self.appState = appState
         self.voiceInputLifecycleController = voiceInputLifecycleController
         _expandedProjects = State(initialValue: initialExpandedProjects)
+        _collapsedSections = State(initialValue: initialCollapsedSections)
     }
 
     /// Ordered projects for action paths that run outside a render pass.
@@ -107,6 +117,8 @@ struct SidebarView: View {
                 }
         )
         let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
+        let showsProjectsSectionBody = isSectionExpanded(.projects)
+        let showsTasksSectionBody = isSectionExpanded(.tasks)
 
         let listContent = VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
@@ -151,43 +163,51 @@ struct SidebarView: View {
                         }
 
                         projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
-                        projectRows(
-                            regularProjects,
-                            showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
-                            dropSection: .projects,
-                            context: context
-                        )
+                        if showsProjectsSectionBody {
+                            projectRows(
+                                regularProjects,
+                                showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
+                                dropSection: .projects,
+                                context: context
+                            )
+                        }
 
                         tasksHeader
-                        taskRows(
-                            activeTaskThreads,
-                            placeholderLabel: sidebarTasksPlaceholderLabel(
-                                activeTaskThreads: activeTaskThreads,
-                                hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
-                            ),
-                            context: context
-                        )
+                        if showsTasksSectionBody {
+                            taskRows(
+                                activeTaskThreads,
+                                placeholderLabel: sidebarTasksPlaceholderLabel(
+                                    activeTaskThreads: activeTaskThreads,
+                                    hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
+                                ),
+                                context: context
+                            )
+                        }
                     }
                 }
 
                 if pinnedItems.isEmpty {
                     Section {
-                        projectRows(
-                            context.orderedProjects,
-                            showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
-                            dropSection: .projects,
-                            context: context
-                        )
+                        if showsProjectsSectionBody {
+                            projectRows(
+                                context.orderedProjects,
+                                showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
+                                dropSection: .projects,
+                                context: context
+                            )
+                        }
 
                         tasksHeader
-                        taskRows(
-                            activeTaskThreads,
-                            placeholderLabel: sidebarTasksPlaceholderLabel(
-                                activeTaskThreads: activeTaskThreads,
-                                hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
-                            ),
-                            context: context
-                        )
+                        if showsTasksSectionBody {
+                            taskRows(
+                                activeTaskThreads,
+                                placeholderLabel: sidebarTasksPlaceholderLabel(
+                                    activeTaskThreads: activeTaskThreads,
+                                    hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
+                                ),
+                                context: context
+                            )
+                        }
                     } header: {
                         projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
                     }

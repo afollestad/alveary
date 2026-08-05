@@ -12,11 +12,12 @@ extension SidebarView {
         if let placeholderLabel {
             // Publishing `.tasksTerminal` keeps the Tasks drop container covering the label
             // region; without it an empty body would shrink the unpin target to the header.
-            // Leading matches task-row titles and `No projects yet`, not the header's title ink,
-            // which sits 3pt left of both.
+            // Leading matches the `Tasks` header's title ink, which sits 5pt left of task-row
+            // titles: the placeholder stands in for the section, not for a row in it. `No projects
+            // yet` follows the same rule, and the two render together when both are empty.
             Text(placeholderLabel)
                 .foregroundStyle(.secondary)
-                .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
+                .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
                 .sidebarDragGeometry(.tasksTerminal)
         }
 
@@ -48,7 +49,7 @@ extension SidebarView {
         if showsNoProjectsPlaceholder {
             Text("No projects yet")
                 .foregroundStyle(.secondary)
-                .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
+                .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
         }
 
         ForEach(Array(visibleProjects.enumerated()), id: \.element.persistentModelID) { index, project in

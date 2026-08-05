@@ -163,7 +163,7 @@ private struct SidebarDragContainerBorderSnapshot: View {
             // The dragged pinned task still exists, so production shows the tasks-elsewhere label.
             Text("No tasks here")
                 .foregroundStyle(.secondary)
-                .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
+                .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
         }
         .listStyle(.sidebar)
         .overlay {

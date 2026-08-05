@@ -202,6 +202,39 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         )
     }
 
+    // A collapsed section mounts no rows, so counting them would gate the thread-order animation
+    // on content nobody can see. `Pinned` never collapses and always counts.
+    func testExpandedThreadCountSkipsCollapsedSections() throws {
+        let fixture = try SidebarTestFixture()
+        let pinnedProject = Project(path: "/tmp/snapshot-collapse-pinned", name: "Pinned", isPinned: true, pinnedSortOrder: 0)
+        let regularProject = Project(path: "/tmp/snapshot-collapse-regular", name: "Regular", sidebarSortOrder: 0)
+        _ = makeSnapshotThread(name: "Pinned child", project: pinnedProject)
+        _ = makeSnapshotThread(name: "Regular child", project: regularProject)
+        let task = makeSnapshotTask(name: "Task")
+        fixture.context.insert(pinnedProject)
+        fixture.context.insert(regularProject)
+        fixture.context.insert(task)
+        try fixture.context.save()
+
+        let snapshot = try fixture.renderSnapshot()
+        let expandedProjects: Set<String> = [pinnedProject.path, regularProject.path]
+
+        XCTAssertEqual(snapshot.expandedThreadCount(expandedProjects: expandedProjects), 3)
+        XCTAssertEqual(
+            snapshot.expandedThreadCount(expandedProjects: expandedProjects, collapsedSections: [.projects]),
+            2
+        )
+        XCTAssertEqual(
+            snapshot.expandedThreadCount(expandedProjects: expandedProjects, collapsedSections: [.tasks]),
+            2
+        )
+        // Only the pinned project's child survives both.
+        XCTAssertEqual(
+            snapshot.expandedThreadCount(expandedProjects: expandedProjects, collapsedSections: [.projects, .tasks]),
+            1
+        )
+    }
+
     func testKeyboardTraversalAndDragOrderComeFromTheSameSnapshot() throws {
         let fixture = try SidebarTestFixture()
         let pinnedProject = Project(path: "/tmp/snapshot-nav-pinned", name: "Pinned", isPinned: true, pinnedSortOrder: 0)

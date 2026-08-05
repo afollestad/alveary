@@ -11,6 +11,7 @@ extension SidebarView {
             expandedProjects: expandedProjects,
             activeThreads: context.activeThreads(for:),
             activeTasks: context.activeTaskThreads,
+            collapsedSections: collapsedSections,
             hasArchivedThreads: context.hasArchivedThreads,
             showsPullRequests: context.showsPullRequests
         )
@@ -215,6 +216,7 @@ func buildNavigableItems(
     expandedProjects: Set<String>,
     activeThreads: (Project) -> [AgentThread],
     activeTasks: [AgentThread] = [],
+    collapsedSections: Set<SidebarCollapsibleSection> = [],
     hasArchivedThreads: Bool = false,
     showsPullRequests: Bool = true
 ) -> [SidebarItem] {
@@ -222,6 +224,7 @@ func buildNavigableItems(
         showsPullRequests: showsPullRequests,
         hasArchivedThreads: hasArchivedThreads
     )
+    // `Pinned` has no collapse of its own, so its rows always traverse.
     for pinnedItem in pinnedItems {
         items.append(pinnedItem.sidebarItem)
         if case .project(let project) = pinnedItem.kind,
@@ -231,16 +234,20 @@ func buildNavigableItems(
             }
         }
     }
-    for project in projects {
-        items.append(.project(project))
-        if expandedProjects.contains(project.path) {
-            for thread in activeThreads(project) {
-                items.append(.thread(thread))
+    if !collapsedSections.contains(.projects) {
+        for project in projects {
+            items.append(.project(project))
+            if expandedProjects.contains(project.path) {
+                for thread in activeThreads(project) {
+                    items.append(.thread(thread))
+                }
             }
         }
     }
-    for task in activeTasks {
-        items.append(.thread(task))
+    if !collapsedSections.contains(.tasks) {
+        for task in activeTasks {
+            items.append(.thread(task))
+        }
     }
     return items
 }

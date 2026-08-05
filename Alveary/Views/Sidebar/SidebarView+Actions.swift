@@ -25,8 +25,8 @@ extension SidebarView {
                 return
             }
 
-            if let projectPath = resolvedThread.project?.path {
-                expandedProjects.insert(projectPath)
+            if let project = resolvedThread.project {
+                revealProject(project)
             }
             appState.requestComposerFocus()
             appState.selectedSidebarItem = .thread(resolvedThread)
@@ -54,8 +54,10 @@ extension SidebarView {
                 return
             }
 
-            if let projectPath = resolvedThread.project?.path ?? sourceProjectPath {
-                expandedProjects.insert(projectPath)
+            if let project = resolvedThread.project {
+                revealProject(project)
+            } else if let sourceProjectPath {
+                revealProject(path: sourceProjectPath)
             }
             appState.requestComposerFocus()
             appState.selectedSidebarItem = .thread(resolvedThread)
@@ -145,9 +147,14 @@ extension SidebarView {
 
         do {
             try viewModel.setThreadPinned(thread, isPinned: isPinned)
-            if shouldRevealUnpinnedSelection,
-               let projectPath = uiModelContext.resolveThread(id: threadID)?.project?.path ?? sourceProjectPath {
-                expandedProjects.insert(projectPath)
+            if shouldRevealUnpinnedSelection {
+                // Only a standalone pinned thread reaches this, so its project is necessarily
+                // unpinned — a pinned one would have absorbed the child instead.
+                if let project = uiModelContext.resolveThread(id: threadID)?.project {
+                    revealProject(project)
+                } else if let sourceProjectPath {
+                    revealProject(path: sourceProjectPath)
+                }
             }
         } catch {
             viewModel.presentSidebarError(error)
@@ -160,6 +167,11 @@ extension SidebarView {
         do {
             try viewModel.setProjectPinned(project, isPinned: isPinned)
             expandedProjects = expandedProjectsPreservingVisibleSelection(afterMovingProject: projectPath)
+            // Unpinning moves the group into `Projects`; a collapsed section would take the
+            // selection down with it.
+            if !isPinned, selectedSidebarItemBelongs(toProjectPath: projectPath) {
+                collapsedSections.remove(.projects)
+            }
         } catch {
             viewModel.presentSidebarError(error)
         }
