@@ -38,7 +38,7 @@ extension SidebarView {
     }
 
     func pinnedItems() -> [SidebarPinnedItem] {
-        viewModel.pinnedItems(projects: projects)
+        viewModel.fetchedPinnedItems()
     }
 
     func activeTaskThreads() -> [AgentThread] {

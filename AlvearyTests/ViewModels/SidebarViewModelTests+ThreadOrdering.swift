@@ -206,6 +206,29 @@ extension SidebarViewModelTests {
         ])
     }
 
+    func testFetchBackedPinnedItemsResolveProjectsWithoutACallerSuppliedList() throws {
+        let fixture = try SidebarTestFixture()
+        let pinnedProject = Project(path: "/tmp/fetched-pinned", name: "Pinned Project", isPinned: true, pinnedSortOrder: 0)
+        let regularProject = Project(path: "/tmp/fetched-regular", name: "Regular Project")
+        let pinnedThread = AgentThread(
+            name: "Pinned Thread",
+            isPinned: true,
+            pinnedSortOrder: 1,
+            project: regularProject
+        )
+        regularProject.threads = [pinnedThread]
+        fixture.context.insert(pinnedProject)
+        fixture.context.insert(regularProject)
+        try fixture.context.save()
+
+        let pinnedItems = fixture.viewModel.fetchedPinnedItems()
+
+        XCTAssertEqual(pinnedItems.map(\.sidebarItem), [
+            .project(pinnedProject),
+            .thread(pinnedThread)
+        ])
+    }
+
     func testPinnedItemsFallBackToLocalizedDisplayName() throws {
         let fixture = try SidebarTestFixture()
         let betaProject = Project(path: "/tmp/beta", name: "Beta", isPinned: true)

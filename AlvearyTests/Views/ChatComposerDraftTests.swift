@@ -259,7 +259,7 @@ final class ChatComposerDraftTests: XCTestCase {
         fixture.viewModel.state.handoffSteeringCountdownRemaining = 7
         let chatView = makeChatView(fixture: fixture, appState: appState)
 
-        XCTAssertEqual(chatView.composerActionRowConfiguration.primaryActionTitle, "Submit (7)")
+        XCTAssertEqual(chatView.composerActionRowConfiguration(usageSummary: .unreported).primaryActionTitle, "Submit (7)")
     }
 
     func testSessionHandoffOutputSendDoesNotTreatSlashTextAsLocalCommand() async throws {

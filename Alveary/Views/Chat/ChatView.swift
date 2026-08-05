@@ -27,7 +27,9 @@ struct ChatView: View {
     @Bindable var appState: AppState
 
     /// Optional so hosts that mount `ChatView` without the app root, such as snapshot tests,
-    /// simply render no app-shot affordance.
+    /// simply render no app-shot affordance. Unit tests that build `ChatView` off-hierarchy log an
+    /// uninstalled-`Environment` warning when a composer configuration reads this; the read resolves
+    /// to `nil`, which is exactly that no-app-root behavior, so the warning is expected.
     @Environment(AppShotCoordinator.self) var appShotCoordinator: AppShotCoordinator?
 
     @Query private var events: [ConversationEventRecord]
@@ -36,7 +38,7 @@ struct ChatView: View {
     @State var scrollToBottomRequest = 0
     @State private var displayedContentMode: ChatContentMode?
     @State private var cachedContextWindowSize: Int?
-    @State private var isStopConfirmationArmed = false
+    @State var isStopConfirmationArmed = false
     @State var askUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
     @State var exitPlanModeOverlayStates: [String: ExitPlanModeOverlayState] = [:]
     @State var voiceInputCoordinator: ChatVoiceInputCoordinator
@@ -83,7 +85,9 @@ struct ChatView: View {
         threadPresentation.contextWindowCacheLookupID
     }
 
-    private var usageSummary: ConversationUsageSummary? {
+    /// Render-path only — reads the `@Query`-backed events. Resolve it in `body`'s tree and pass
+    /// it down rather than reaching for it from an action or configuration builder.
+    private var usageSummary: ConversationUsageSummary {
         ConversationUsageSummary.derive(
             from: events,
             cachedContextWindowSize: cachedContextWindowSize,
@@ -91,7 +95,7 @@ struct ChatView: View {
         ) ?? .unreported
     }
 
-    private var selectedPermissionModeBinding: Binding<String> {
+    var selectedPermissionModeBinding: Binding<String> {
         Binding(
             get: { threadPresentation.selectedPermissionMode },
             set: {
@@ -324,7 +328,7 @@ extension ChatView {
             bodyConfiguration: composerBodyConfiguration,
             topContentConfiguration: composerTopContentConfiguration,
             queuedMessagesConfiguration: composerQueuedMessagesConfiguration,
-            actionRowConfiguration: composerActionRowConfiguration,
+            actionRowConfiguration: composerActionRowConfiguration(usageSummary: usageSummary),
             interactionOverlayConfiguration: composerInteractionOverlayConfiguration,
             showsTopDivider: hasVisibleChatContent && !isFollowing,
             layout: AppKitChatComposerPanelView.Layout(
@@ -399,80 +403,6 @@ extension ChatView {
                 }
                 appState.pendingComposerFocusToken = nil
             }
-        )
-    }
-
-    var composerActionRowConfiguration: ChatComposerActionRowView.Configuration {
-        let presentation = composerPresentation
-        let taskWorkspaceConfiguration = conversation.thread?.taskWorkspaceDescriptor.map { workspace in
-            ChatComposerActionRowView.TaskWorkspaceConfiguration(
-                primaryRoot: workspace.primaryRoot,
-                grantedRoots: workspace.grantedRoots,
-                ownershipStrategy: workspace.ownershipStrategy,
-                canEdit: viewModel.canEditTaskWorkspaceConfiguration && !voiceInputCoordinator.isDraftInteractionLocked,
-                disabledTooltip: viewModel.taskWorkspaceConfigurationDisabledReason,
-                onAddFolders: { folders in
-                    guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
-                    viewModel.addTaskWorkspaceGrants(folders)
-                },
-                onRemoveGrant: { folder in
-                    guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
-                    viewModel.removeTaskWorkspaceGrant(folder)
-                }
-            )
-        }
-        return ChatComposerActionRowView.Configuration(
-            reasoning: reasoningConfiguration,
-            supportedPermissionModes: ChatComposerPermissionPresentation.options(
-                providerID: reasoningConfiguration.selection.providerID,
-                permissionModes: composerCapabilities.supportedPermissionModes
-            ),
-            selectedPermissionMode: selectedPermissionModeBinding.wrappedValue,
-            showWorktreePicker: showWorktreePicker,
-            selectedUseWorktree: selectedUseWorktreeBinding.wrappedValue,
-            isPlanModeEnabled: selectedPlanModeBinding.wrappedValue,
-            isPlanModeToggleEnabled: isPlanModeToggleEnabled,
-            planModeDisabledTooltip: planModeToggleDisabledTooltip,
-            isGoalModeArmed: viewModel.state.isGoalModeArmed,
-            isGoalModeToggleEnabled: isGoalModeToggleEnabled,
-            goalModeDisabledTooltip: goalModeToggleDisabledTooltip,
-            isGoalModeChipVisible: isGoalModeChipVisible,
-            isGoalModeChipEnabled: isGoalModeChipEnabled,
-            usageSummary: usageSummary,
-            areControlsDisabled: presentation.areControlsDisabled || voiceInputCoordinator.isDraftInteractionLocked,
-            mode: composerMode,
-            primaryActionTitle: presentation.primaryActionTitle,
-            primaryActionSystemImage: presentation.primaryActionSystemImage,
-            isPrimaryActionDisabled: presentation.isPrimaryActionDisabled || voiceInputCoordinator.isDraftInteractionLocked,
-            isStopConfirmationArmed: isStopConfirmationArmed,
-            composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
-            onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
-            onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 },
-            onPlanModeChange: { setPlanModeFromComposer($0) },
-            onGoalModeChange: { setGoalModeFromComposer($0) },
-            onGoalModeChipDismiss: {
-                dismissGoalModeFromComposerChip()
-            },
-            taskWorkspace: taskWorkspaceConfiguration,
-            voiceInput: voiceInputButtonConfiguration,
-            reasoningMenuPresentationRequest: reasoningMenuRequestState.pendingRequest,
-            onReasoningMenuRequestConsumed: { consumedRequestID in
-                reasoningMenuRequestState.consume(consumedRequestID)
-            },
-            onSubmit: {
-                guard presentation.canSubmit,
-                      !voiceInputCoordinator.isDraftInteractionLocked else {
-                    return
-                }
-                sendDraft()
-            },
-            onStop: {
-                isStopConfirmationArmed = false
-                Task { await viewModel.cancel() }
-            },
-            appShotAttachment: composerAppShotAttachment,
-            // Only raises the trigger; the app root observes it and owns capture routing.
-            onAttachAppShot: { appShotCoordinator?.requestCapture() }
         )
     }
 }

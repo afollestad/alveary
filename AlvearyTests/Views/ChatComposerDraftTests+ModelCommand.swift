@@ -24,7 +24,7 @@ extension ChatComposerDraftTests {
 
         let request = try XCTUnwrap(chatView.reasoningMenuRequestState.pendingRequest)
         XCTAssertEqual(request.section, .models)
-        XCTAssertEqual(chatView.composerActionRowConfiguration.reasoningMenuPresentationRequest, request)
+        XCTAssertEqual(chatView.composerActionRowConfiguration(usageSummary: .unreported).reasoningMenuPresentationRequest, request)
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "")
         XCTAssertEqual(fixture.viewModel.state.stagedFileAttachments, [attachment])
         XCTAssertNil(appState.pendingComposerFocusToken)

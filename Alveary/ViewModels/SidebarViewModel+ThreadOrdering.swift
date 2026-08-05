@@ -162,6 +162,12 @@ extension SidebarViewModel {
             .sorted(by: comparePinnedThreads)
     }
 
+    /// Resolves projects through the view model's own `ModelContext` instead of a caller-supplied list.
+    /// Post-mutation selection fallbacks only; render passes read `SidebarRenderContext`.
+    func fetchedPinnedItems() -> [SidebarPinnedItem] {
+        pinnedItems(projects: (try? allProjects()) ?? [])
+    }
+
     func pinnedItems(projects: [Project]) -> [SidebarPinnedItem] {
         let pinnedProjects = projects.filter(\.isPinned)
         let legacyActivityThreads = pinnedProjects.contains { $0.pinnedSortOrder == nil }

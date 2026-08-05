@@ -182,7 +182,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             providerID: "codex"
         )
 
-        chatView.composerActionRowConfiguration.onGoalModeChange(true)
+        chatView.composerActionRowConfiguration(usageSummary: .unreported).onGoalModeChange(true)
 
         XCTAssertFalse(fixture.viewModel.effectivePlanModeEnabled)
         XCTAssertTrue(fixture.viewModel.state.isGoalModeArmed)
@@ -199,7 +199,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             providerID: "codex"
         )
 
-        chatView.composerActionRowConfiguration.onPlanModeChange(true)
+        chatView.composerActionRowConfiguration(usageSummary: .unreported).onPlanModeChange(true)
 
         XCTAssertTrue(fixture.viewModel.effectivePlanModeEnabled)
         XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
@@ -216,7 +216,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             providerID: "codex"
         )
 
-        let configuration = chatView.composerActionRowConfiguration
+        let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
         XCTAssertFalse(configuration.isPlanModeToggleEnabled)
         XCTAssertEqual(configuration.planModeDisabledTooltip, "Plan mode is unavailable while a goal is active.")
     }
@@ -271,7 +271,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             providerID: "codex"
         )
 
-        let configuration = chatView.composerActionRowConfiguration
+        let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
         XCTAssertTrue(configuration.isGoalModeChipVisible)
         XCTAssertTrue(configuration.isGoalModeChipEnabled)
 
@@ -290,7 +290,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             providerID: "codex"
         )
 
-        let configuration = chatView.composerActionRowConfiguration
+        let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
         XCTAssertTrue(configuration.isGoalModeChipVisible)
         XCTAssertTrue(configuration.isGoalModeChipEnabled)
 
@@ -314,7 +314,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             providerID: "codex"
         )
 
-        XCTAssertFalse(chatView.composerActionRowConfiguration.isGoalModeChipVisible)
+        XCTAssertFalse(chatView.composerActionRowConfiguration(usageSummary: .unreported).isGoalModeChipVisible)
     }
 
     func testGoalChipIsHiddenWhenDeleteIsNotCurrentlyVisible() throws {
@@ -328,7 +328,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
             providerID: "claude"
         )
 
-        let configuration = chatView.composerActionRowConfiguration
+        let configuration = chatView.composerActionRowConfiguration(usageSummary: .unreported)
         XCTAssertFalse(configuration.isGoalModeChipVisible)
         XCTAssertFalse(configuration.isGoalModeChipEnabled)
     }

@@ -276,7 +276,7 @@ extension ChatComposerGoalModeTests {
         XCTAssertNil(fixture.viewModel.visibleGoalSnapshot)
         XCTAssertNil(fixture.viewModel.state.goalActionError)
         XCTAssertNotNil(appState.pendingComposerFocusToken)
-        XCTAssertTrue(chatView.composerActionRowConfiguration.isGoalModeChipVisible)
+        XCTAssertTrue(chatView.composerActionRowConfiguration(usageSummary: .unreported).isGoalModeChipVisible)
     }
 
     func testBlockedGoalRowRestartPreservesNonEmptyDraft() throws {
@@ -314,7 +314,7 @@ extension ChatComposerGoalModeTests {
         let goalConfiguration = try restartGoalStatusConfiguration(from: chatView)
         XCTAssertNil(goalConfiguration.onRestartTerminal)
 
-        chatView.composerActionRowConfiguration.onGoalModeChipDismiss()
+        chatView.composerActionRowConfiguration(usageSummary: .unreported).onGoalModeChipDismiss()
 
         XCTAssertFalse(fixture.viewModel.state.isGoalModeArmed)
         XCTAssertEqual(fixture.viewModel.state.inputDraft, "Current restart draft")
