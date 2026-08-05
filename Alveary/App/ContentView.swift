@@ -58,7 +58,7 @@ struct ContentView: View {
     @State var appShotCaptureController: AppShotCaptureController
     // Internal so `ContentView+RootToolbar.swift` can build the button group.
     @State var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
-    @State var toolbarProjectActionsThreadID: PersistentIdentifier?
+    @State var toolbarProjectActionsOwner: ToolbarProjectActionsOwner?
     @State var diffViewerDraftRefreshRevision: UInt64 = 0
     @State var isPullRequestPopoverPresented = false
     @State var lastActiveProjectRecorder: LastActiveProjectRecorder
@@ -134,7 +134,7 @@ struct ContentView: View {
         // bullets in `Alveary/Views/AGENTS.md`.
         rootSheetHost(rootActivityObservers(rootSelectionObservers(rootWindowView)))
             .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
-            .task(id: selectedThreadID) {
+            .task(id: toolbarProjectActionsSelection) {
                 await refreshToolbarProjectActions()
             }
             .onAppear {
@@ -339,6 +339,9 @@ private extension ContentView {
             diffViewerDraftRefreshRevision &+= 1
             Task { await refreshToolbarProjectActions() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .projectConfigDidChange)) { notification in
+            refreshToolbarProjectActionsIfConfigChanged(notification)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .pullRequestLinkRequested)) { notification in
             handlePullRequestLinkRequest(notification)
         }
@@ -444,37 +447,4 @@ private extension ContentView {
         default: nil
         }
     }
-
-    func refreshToolbarProjectActions() async {
-        guard let threadID = selectedThreadID else {
-            toolbarProjectActions = []
-            toolbarProjectActionsThreadID = nil
-            return
-        }
-
-        await Task.yield()
-
-        guard case .thread(let selectedThread) = appState.selectedSidebarItem,
-              selectedThread.persistentModelID == threadID,
-              let thread = uiModelContext.resolveThread(id: threadID),
-              thread.archivedAt == nil,
-              !thread.isDraft,
-              thread.effectiveMode == .project,
-              let projectPath = thread.project?.path else {
-            guard selectedThreadID == threadID else { return }
-            toolbarProjectActions = []
-            toolbarProjectActionsThreadID = nil
-            return
-        }
-
-        let config = await AlvearyProjectConfig(projectPath: projectPath)
-
-        guard selectedThreadID == threadID else {
-            return
-        }
-
-        toolbarProjectActions = config.actions ?? []
-        toolbarProjectActionsThreadID = threadID
-    }
-
 }

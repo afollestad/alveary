@@ -56,7 +56,7 @@ struct ProjectSettingsView: View {
     let project: Project
     @Bindable var appState: AppState
 
-    private let loadConfig: @Sendable (String) async -> AlvearyProjectConfig
+    private let loadConfig: @MainActor (String) async -> AlvearyProjectConfig
     private let sidebarViewModel: SidebarViewModel
 
     @Environment(\.modelContext) private var modelContext
@@ -73,8 +73,10 @@ struct ProjectSettingsView: View {
         appState: AppState,
         sidebarViewModel: SidebarViewModel,
         initialConfig: AlvearyProjectConfig = .empty,
-        loadConfig: @escaping @Sendable (String) async -> AlvearyProjectConfig = { projectPath in
-            await AlvearyProjectConfig(projectPath: projectPath)
+        // The editor is the surface that must see an edit made outside the app, so it
+        // reloads rather than accepting whatever the store already holds.
+        loadConfig: @escaping @MainActor (String) async -> AlvearyProjectConfig = { projectPath in
+            await ProjectConfigStore.shared.reload(forProjectPath: projectPath)
         }
     ) {
         self.project = project
@@ -248,6 +250,7 @@ private extension ProjectSettingsView {
             do {
                 try await Task.sleep(for: .milliseconds(300))
                 try await updatedConfig.write(projectPath: project.path)
+                recordWrittenConfig(updatedConfig)
             } catch is CancellationError {
                 return
             } catch {
@@ -262,6 +265,15 @@ private extension ProjectSettingsView {
         pendingSaveTask?.cancel()
         pendingSaveTask = nil
         try await updatedConfig.write(projectPath: project.path)
+        recordWrittenConfig(updatedConfig)
+    }
+
+    /// Handing the written config to the store rather than only announcing the write
+    /// keeps other surfaces from re-reading a file this view already has, and the store
+    /// posts the change notification for us. Takes what was written rather than
+    /// re-deriving it, because the editor's state can move while the write runs.
+    func recordWrittenConfig(_ config: AlvearyProjectConfig) {
+        ProjectConfigStore.shared.store(config, forProjectPath: project.path)
     }
 
     func currentEditableConfig() -> AlvearyProjectConfig {

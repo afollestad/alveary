@@ -2,7 +2,9 @@
 
 These instructions cover the project settings UI under `Alveary/Views/Projects/`.
 
-- Project actions are edited from project settings via `.alveary.json`, but they surface in the main toolbar only while a thread for that project is selected. Execution should prefer the thread's `worktreePath` and only fall back to the project root when no worktree exists.
+- Project actions are edited from project settings via `.alveary.json` and surface in the main toolbar while either that project's row or one of its project-mode threads is selected. A materialized thread executes them in its `worktreePath`, falling back to the project root; a project row or a draft thread executes at the project root.
+- Hand every successful config write to `ProjectConfigStore.shared.store(_:forProjectPath:)`, passing the config that was written rather than re-deriving it — the editor's state can move while the write runs. The store caches it and posts the change notification the toolbar listens for, so a save path that skips it leaves other surfaces stale. Call it from this editor's main-actor save paths, never from `AlvearyProjectConfig.write`, which resumes off the main actor.
+- This editor `reload`s rather than accepting the store's cached value, because it is the surface that must show an edit made to `.alveary.json` outside the app. Its initial state comes from the cache (`MiddlePane`) so a revisited project renders populated while that reload runs.
 - Project settings has no archived-threads card. `Alveary/Views/Archived/` owns every archived surface; do not reintroduce a project-scoped archived list here. Asynchronous config loading and its save debounce stay on their own task.
 
 ## Add Project Sheet

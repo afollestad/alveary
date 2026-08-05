@@ -16,8 +16,9 @@ extension SidebarViewModel {
         let projectDetails = try await resolveProjectDetails(for: path)
 
         // Load the shared repo config once during import so later settings/worktree flows
-        // reuse the same parse path. Invalid JSON intentionally degrades to defaults.
-        _ = await AlvearyProjectConfig(projectPath: projectDetails.path)
+        // reuse the same parse path, and so the first selection of the new project renders
+        // from cache. Invalid JSON intentionally degrades to defaults.
+        await ProjectConfigStore.shared.reload(forProjectPath: projectDetails.path)
         _ = try initializeSidebarOrderingForMutation()
         let sidebarSortOrder = try currentRegularProjectAppendOrder()
 

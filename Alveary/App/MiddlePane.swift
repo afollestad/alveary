@@ -53,10 +53,14 @@ struct MiddlePane: View {
         case .archived:
             ArchivedScreen(viewModel: archivedThreadsViewModel)
         case .project(let project):
+            // `.id` gives each project a fresh editor, so a revisited project would
+            // start empty and fill in a beat later; the cached config (an in-memory
+            // lookup, no I/O) lets it render populated on this frame instead.
             ProjectSettingsView(
                 project: project,
                 appState: appState,
-                sidebarViewModel: sidebarViewModel
+                sidebarViewModel: sidebarViewModel,
+                initialConfig: ProjectConfigStore.shared.cached(forProjectPath: project.path) ?? .empty
             )
                 .id(project.path)
         case .thread(let thread):

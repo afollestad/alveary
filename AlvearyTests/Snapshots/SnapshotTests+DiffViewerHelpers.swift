@@ -5,6 +5,9 @@ import SwiftUI
 extension SnapshotTests {
     func primaryToolbarButtonGroup(
         selectedThread: AgentThread? = nil,
+        // A selected project row owns its actions by path; pass this instead of
+        // `selectedThread` to render the project-row case.
+        selectedProjectPath: String? = nil,
         projectActions: [AlvearyProjectConfig.ProjectAction] = [],
         terminalDisplayState: TerminalToolbarDisplayState = .idle,
         // Nil matches the pre-existing baselines: no thread selected means no
@@ -13,11 +16,12 @@ extension SnapshotTests {
         settingsBadgeState: AppUpdateToolbarBadgeState = .none,
         diffDisplayState: DiffViewerToolbarDisplayState
     ) -> some View {
-        let selectedThreadID = selectedThread?.persistentModelID
+        let owner = selectedThread.map { ToolbarProjectActionsOwner.thread($0.persistentModelID) }
+            ?? selectedProjectPath.map { ToolbarProjectActionsOwner.project($0) }
         return PrimaryToolbarButtonGroup(
-            selectedThreadID: selectedThreadID,
+            isSelectionProjectActionCapable: owner != nil,
             projectActions: projectActions,
-            projectActionsThreadID: selectedThreadID,
+            projectActionsOwner: owner,
             terminalTitle: "Show Terminal",
             terminalDisplayState: terminalDisplayState,
             terminalHelpText: "Show Terminal (\(KeyboardShortcut.toggleTerminalPane.displayString))",

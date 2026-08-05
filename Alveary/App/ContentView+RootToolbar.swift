@@ -25,9 +25,9 @@ extension ContentView {
 
     private var primaryToolbarButtonGroup: some View {
         PrimaryToolbarButtonGroup(
-            selectedThreadID: selectedThreadID,
+            isSelectionProjectActionCapable: toolbarProjectActionsSelection.isProjectActionCapable,
             projectActions: toolbarProjectActions,
-            projectActionsThreadID: toolbarProjectActionsThreadID,
+            projectActionsOwner: toolbarProjectActionsOwner,
             terminalTitle: terminalToggleTitle,
             terminalDisplayState: terminalToolbarDisplayState,
             terminalHelpText: "\(terminalToggleTitle) (\(KeyboardShortcut.toggleTerminalPane.displayString))",
@@ -40,8 +40,8 @@ extension ContentView {
             diffAccessibilityLabel: isDiffViewerRendered ? "Hide Diff Viewer" : "Show Diff Viewer",
             diffAccessibilityValue: diffViewerToggleAccessibilityValue,
             settingsBadgeState: appUpdateManager.toolbarBadgeState,
-            onProjectAction: { threadID, action in
-                runProjectAction(threadID: threadID, action: action)
+            onProjectAction: { owner, action in
+                runProjectAction(owner: owner, action: action)
             },
             onToggleTerminal: toggleTerminalPane,
             onPullRequestAction: performPullRequestToolbarAction,

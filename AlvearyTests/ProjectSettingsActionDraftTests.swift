@@ -34,4 +34,17 @@ final class ProjectSettingsActionDraftTests: XCTestCase {
 
         XCTAssertEqual(labels, labels.sorted())
     }
+
+    func testProjectConfigChangeNotificationRoundTripsItsProjectPath() {
+        let notification = ProjectConfigChangeNotifier.notification(projectPath: "/tmp/project")
+
+        XCTAssertEqual(notification.name, .projectConfigDidChange)
+        XCTAssertEqual(ProjectConfigChangeNotifier.changedProjectPath(in: notification), "/tmp/project")
+    }
+
+    func testProjectConfigChangedPathIsNilWithoutPayload() {
+        let bare = Notification(name: .projectConfigDidChange)
+
+        XCTAssertNil(ProjectConfigChangeNotifier.changedProjectPath(in: bare))
+    }
 }

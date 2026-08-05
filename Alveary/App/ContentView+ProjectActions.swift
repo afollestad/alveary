@@ -3,8 +3,10 @@ import SwiftUI
 
 struct ProjectActionExecutionContext: Equatable {
     let title: String
-    let threadID: PersistentIdentifier
-    let threadName: String
+    /// Nil for an action run from a project row or a draft thread — the terminal
+    /// session is project-scoped and belongs to no thread.
+    let threadID: PersistentIdentifier?
+    let threadName: String?
     let currentDirectory: String
     let command: String
 
@@ -18,6 +20,14 @@ struct ProjectActionExecutionContext: Equatable {
         self.threadID = thread.persistentModelID
         self.threadName = thread.name
         self.currentDirectory = currentDirectory
+        self.command = action.command
+    }
+
+    init(projectPath: String, action: AlvearyProjectConfig.ProjectAction) {
+        self.title = action.name
+        self.threadID = nil
+        self.threadName = nil
+        self.currentDirectory = projectPath
         self.command = action.command
     }
 }
@@ -101,12 +111,8 @@ enum TerminalDefaultShellContextResolver {
 }
 
 extension ContentView {
-    func runProjectAction(threadID: PersistentIdentifier, action: AlvearyProjectConfig.ProjectAction) {
-        guard let thread = uiModelContext.resolveThread(id: threadID),
-              thread.archivedAt == nil else {
-            return
-        }
-        guard let context = ProjectActionExecutionContext(thread: thread, action: action) else {
+    func runProjectAction(owner: ToolbarProjectActionsOwner, action: AlvearyProjectConfig.ProjectAction) {
+        guard let context = resolvedProjectActionExecutionContext(owner: owner, action: action) else {
             return
         }
 
@@ -126,6 +132,27 @@ extension ContentView {
         )
         if ProjectActionTerminalPresentation.shouldAutoExpand(settings: settings) {
             appState.showTerminalPane()
+        }
+    }
+
+    /// Re-resolves the owner the buttons were loaded for; a thread archived or a
+    /// project removed since the load runs nothing.
+    private func resolvedProjectActionExecutionContext(
+        owner: ToolbarProjectActionsOwner,
+        action: AlvearyProjectConfig.ProjectAction
+    ) -> ProjectActionExecutionContext? {
+        switch owner {
+        case .thread(let threadID):
+            guard let thread = uiModelContext.resolveThread(id: threadID),
+                  thread.archivedAt == nil else {
+                return nil
+            }
+            return ProjectActionExecutionContext(thread: thread, action: action)
+        case .project(let path):
+            guard let project = uiModelContext.resolveProject(path: path) else {
+                return nil
+            }
+            return ProjectActionExecutionContext(projectPath: project.path, action: action)
         }
     }
 

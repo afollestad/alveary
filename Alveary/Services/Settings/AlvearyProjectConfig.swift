@@ -1,5 +1,34 @@
 import Foundation
 
+extension Notification.Name {
+    /// Posted by `ProjectConfigStore` when a project's cached `.alveary.json` value is
+    /// replaced by a different one, so surfaces showing that config can catch up.
+    /// External edits to the file are deliberately not watched.
+    static let projectConfigDidChange = Notification.Name("projectConfigDidChange")
+}
+
+/// Owns both ends of the `.projectConfigDidChange` payload so the poster and its
+/// observers cannot drift over the `userInfo` key.
+enum ProjectConfigChangeNotifier {
+    private static let projectPathKey = "projectPath"
+
+    static func post(projectPath: String) {
+        NotificationCenter.default.post(notification(projectPath: projectPath))
+    }
+
+    static func notification(projectPath: String) -> Notification {
+        Notification(
+            name: .projectConfigDidChange,
+            object: nil,
+            userInfo: [projectPathKey: projectPath]
+        )
+    }
+
+    static func changedProjectPath(in notification: Notification) -> String? {
+        notification.userInfo?[projectPathKey] as? String
+    }
+}
+
 struct AlvearyProjectConfig: Sendable, Equatable {
     var setupScript: String?
     var setupTimeoutSeconds: Int?

@@ -2,9 +2,11 @@ import SwiftUI
 import SwiftData
 
 struct PrimaryToolbarButtonGroup: View {
-    let selectedThreadID: PersistentIdentifier?
+    /// Whether the selection is one project actions can belong to at all; the slot
+    /// collapses without it even while a previous selection's actions are loaded.
+    let isSelectionProjectActionCapable: Bool
     let projectActions: [AlvearyProjectConfig.ProjectAction]
-    let projectActionsThreadID: PersistentIdentifier?
+    let projectActionsOwner: ToolbarProjectActionsOwner?
     let terminalTitle: String
     let terminalDisplayState: TerminalToolbarDisplayState
     let terminalHelpText: String
@@ -18,7 +20,7 @@ struct PrimaryToolbarButtonGroup: View {
     let diffAccessibilityLabel: String
     let diffAccessibilityValue: String
     let settingsBadgeState: AppUpdateToolbarBadgeState
-    let onProjectAction: (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void
+    let onProjectAction: (ToolbarProjectActionsOwner, AlvearyProjectConfig.ProjectAction) -> Void
     let onToggleTerminal: () -> Void
     let onPullRequestAction: () -> Void
     let onPullRequestSecondaryAction: () -> Void
@@ -33,9 +35,9 @@ struct PrimaryToolbarButtonGroup: View {
     @State private var isPullRequestButtonVisible: Bool
 
     init(
-        selectedThreadID: PersistentIdentifier?,
+        isSelectionProjectActionCapable: Bool,
         projectActions: [AlvearyProjectConfig.ProjectAction],
-        projectActionsThreadID: PersistentIdentifier?,
+        projectActionsOwner: ToolbarProjectActionsOwner?,
         terminalTitle: String,
         terminalDisplayState: TerminalToolbarDisplayState,
         terminalHelpText: String,
@@ -47,7 +49,7 @@ struct PrimaryToolbarButtonGroup: View {
         diffAccessibilityLabel: String,
         diffAccessibilityValue: String,
         settingsBadgeState: AppUpdateToolbarBadgeState = .none,
-        onProjectAction: @escaping (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void,
+        onProjectAction: @escaping (ToolbarProjectActionsOwner, AlvearyProjectConfig.ProjectAction) -> Void,
         onToggleTerminal: @escaping () -> Void,
         onPullRequestAction: @escaping () -> Void,
         onPullRequestSecondaryAction: @escaping () -> Void,
@@ -55,9 +57,9 @@ struct PrimaryToolbarButtonGroup: View {
         onToggleDiffViewer: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void
     ) {
-        self.selectedThreadID = selectedThreadID
+        self.isSelectionProjectActionCapable = isSelectionProjectActionCapable
         self.projectActions = projectActions
-        self.projectActionsThreadID = projectActionsThreadID
+        self.projectActionsOwner = projectActionsOwner
         self.terminalTitle = terminalTitle
         self.terminalDisplayState = terminalDisplayState
         self.terminalHelpText = terminalHelpText
@@ -79,9 +81,9 @@ struct PrimaryToolbarButtonGroup: View {
 
         let initialProjectActionsSlotWidth = PrimaryToolbarGroupWidth.projectActionsSlotWidth(
             symbols: Self.projectActionSymbols(
-                selectedThreadID: selectedThreadID,
+                isSelectionProjectActionCapable: isSelectionProjectActionCapable,
                 projectActions: projectActions,
-                projectActionsThreadID: projectActionsThreadID
+                projectActionsOwner: projectActionsOwner
             )
         )
         _animatedProjectActionsSlotWidth = State(initialValue: initialProjectActionsSlotWidth)
@@ -111,9 +113,9 @@ struct PrimaryToolbarButtonGroup: View {
         // capsule follows the animated action and diff slots on the same layout pass.
         HStack(spacing: 0) {
             PrimaryToolbarProjectActionsSlot(
-                selectedThreadID: selectedThreadID,
+                isSelectionProjectActionCapable: isSelectionProjectActionCapable,
                 projectActions: projectActions,
-                projectActionsThreadID: projectActionsThreadID,
+                projectActionsOwner: projectActionsOwner,
                 width: animatedProjectActionsSlotWidth,
                 areActionsVisible: areProjectActionsVisible,
                 onProjectAction: onProjectAction
@@ -195,9 +197,9 @@ struct PrimaryToolbarButtonGroup: View {
 
     private var projectActionSymbols: [String] {
         Self.projectActionSymbols(
-            selectedThreadID: selectedThreadID,
+            isSelectionProjectActionCapable: isSelectionProjectActionCapable,
             projectActions: projectActions,
-            projectActionsThreadID: projectActionsThreadID
+            projectActionsOwner: projectActionsOwner
         )
     }
 
@@ -208,20 +210,20 @@ struct PrimaryToolbarButtonGroup: View {
         }
     }
 
-    // While a thread switch's action refresh is in flight, the previously
-    // loaded actions stay rendered (their buttons keep targeting the thread
-    // they were loaded for) so same-project switches do not collapse and
-    // re-expand the slot on every selection change.
+    // While a selection switch's action refresh is in flight, the previously
+    // loaded actions stay rendered (their buttons keep targeting the owner they
+    // were loaded for) so same-project switches do not collapse and re-expand the
+    // slot on every selection change.
     //
     // Symbols rather than a count: the strip's spacing is derived from glyph ink,
     // so both the reserved width and the rendered padding need the names. The
     // fallback matches `projectActionButtons`.
     static func projectActionSymbols(
-        selectedThreadID: PersistentIdentifier?,
+        isSelectionProjectActionCapable: Bool,
         projectActions: [AlvearyProjectConfig.ProjectAction],
-        projectActionsThreadID: PersistentIdentifier?
+        projectActionsOwner: ToolbarProjectActionsOwner?
     ) -> [String] {
-        guard selectedThreadID != nil, projectActionsThreadID != nil else {
+        guard isSelectionProjectActionCapable, projectActionsOwner != nil else {
             return []
         }
         return projectActions.map { $0.icon ?? defaultProjectActionSymbol }
@@ -231,12 +233,12 @@ struct PrimaryToolbarButtonGroup: View {
 }
 
 private struct PrimaryToolbarProjectActionsSlot: View {
-    let selectedThreadID: PersistentIdentifier?
+    let isSelectionProjectActionCapable: Bool
     let projectActions: [AlvearyProjectConfig.ProjectAction]
-    let projectActionsThreadID: PersistentIdentifier?
+    let projectActionsOwner: ToolbarProjectActionsOwner?
     let width: CGFloat
     let areActionsVisible: Bool
-    let onProjectAction: (PersistentIdentifier, AlvearyProjectConfig.ProjectAction) -> Void
+    let onProjectAction: (ToolbarProjectActionsOwner, AlvearyProjectConfig.ProjectAction) -> Void
 
     var body: some View {
         // Project actions are an animated leading slot so inserting toolbar
@@ -258,15 +260,15 @@ private struct PrimaryToolbarProjectActionsSlot: View {
 
     @ViewBuilder
     private var projectActionButtons: some View {
-        // Buttons act on the thread their actions were loaded for, so actions
-        // rendered while a newer thread's refresh resolves cannot run another
-        // project's command against the newly selected thread.
-        if selectedThreadID != nil,
-           let projectActionsThreadID,
+        // Buttons act on the owner their actions were loaded for, so actions
+        // rendered while a newer selection's refresh resolves cannot run another
+        // project's command against the newly selected thread or project.
+        if isSelectionProjectActionCapable,
+           let projectActionsOwner,
            !projectActions.isEmpty {
             ForEach(Array(projectActions.enumerated()), id: \.offset) { index, action in
                 Button {
-                    onProjectAction(projectActionsThreadID, action)
+                    onProjectAction(projectActionsOwner, action)
                 } label: {
                     Label(
                         action.name,
@@ -301,9 +303,9 @@ private struct PrimaryToolbarProjectActionsSlot: View {
 
     private var symbols: [String] {
         PrimaryToolbarButtonGroup.projectActionSymbols(
-            selectedThreadID: selectedThreadID,
+            isSelectionProjectActionCapable: isSelectionProjectActionCapable,
             projectActions: projectActions,
-            projectActionsThreadID: projectActionsThreadID
+            projectActionsOwner: projectActionsOwner
         )
     }
 }

@@ -1,21 +1,10 @@
 import SwiftData
 import SwiftUI
 
-/// Shared toolbar state: the selected thread the toolbar acts on, plus the
-/// terminal button's title and running/completed display state. Split out of
-/// `ContentView.swift` to keep that file under the length limit.
+/// Shared toolbar state: the terminal button's title and running/completed
+/// display state. Split out of `ContentView.swift` to keep that file under the
+/// length limit.
 extension ContentView {
-    /// The selected thread, or nil for a draft or any non-thread selection.
-    /// Every toolbar affordance scoped to a thread gates on this.
-    var selectedThreadID: PersistentIdentifier? {
-        guard case .thread(let thread) = appState.selectedSidebarItem,
-              !thread.isDraft else {
-            return nil
-        }
-
-        return thread.persistentModelID
-    }
-
     var terminalToggleTitle: String {
         appState.isTerminalPaneVisible ? "Hide Terminal" : "Show Terminal"
     }

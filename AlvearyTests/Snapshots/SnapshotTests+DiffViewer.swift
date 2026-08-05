@@ -106,6 +106,27 @@ extension SnapshotTests {
         )
     }
 
+    /// A selected project row renders the same action strip a thread does; only the
+    /// owner the buttons target differs.
+    func testPrimaryToolbarButtonGroupProjectRowAction() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                selectedProjectPath: "/tmp/project",
+                projectActions: [
+                    AlvearyProjectConfig.ProjectAction(
+                        icon: "hammer",
+                        name: "Build",
+                        command: "swift build"
+                    )
+                ],
+                diffDisplayState: .idle(DiffStats(additions: 120, deletions: 45))
+            )
+            .padding(8),
+            size: CGSize(width: 320, height: 64),
+            named: "primary_toolbar_button_group_project_row_action"
+        )
+    }
+
     func testPrimaryToolbarButtonGroupProjectActionEmptyDiff() {
         let thread = AgentThread(name: "Toolbar Action")
 
