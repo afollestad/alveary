@@ -95,6 +95,71 @@ extension SnapshotTests {
         )
     }
 
+    func testPullRequestsScreenPopulatedSqueezed() async {
+        let fixture = await PullRequestsSnapshotFixture()
+
+        assertMacSnapshot(
+            fixture.screen,
+            size: CGSize(width: 420, height: 700),
+            named: "pull_requests_populated_squeezed"
+        )
+    }
+
+    /// Squeezed, the ladder gives up the field's width before the chips: the field
+    /// compresses well below its 220 cap while every chip stays visible. 500 sits clear
+    /// of the rung boundary (~480), where text measured a point wider on CI's renderer
+    /// picked the dropdown instead.
+    func testPullRequestsHeaderKeepsChipsBySqueezingTheField() async {
+        let fixture = await PullRequestsSnapshotFixture()
+        fixture.viewModel.selectFilter(.reviewing)
+
+        assertMacSnapshot(
+            PullRequestsScreenHeader(viewModel: fixture.viewModel),
+            size: CGSize(width: 500, height: 72),
+            named: "pull_requests_header_chips_squeezed_field"
+        )
+    }
+
+    /// The last rung: chips folded, search field traded for a button. 300 points is
+    /// narrower than `RightPaneWidthPolicy.minimumMainPaneWidth`, which the pane really
+    /// does reach once the window cannot satisfy both panes' minimums.
+    func testPullRequestsHeaderCondensed() async {
+        let fixture = await PullRequestsSnapshotFixture()
+        fixture.viewModel.selectFilter(.reviewing)
+
+        assertMacSnapshot(
+            PullRequestsScreenHeader(viewModel: fixture.viewModel),
+            size: CGSize(width: 300, height: 72),
+            named: "pull_requests_header_condensed"
+        )
+    }
+
+    /// A collapsed search reports an active query by tinting its glyph with the accent,
+    /// so the state survives losing the field itself.
+    func testPullRequestsHeaderCondensedActiveSearch() async {
+        let fixture = await PullRequestsSnapshotFixture()
+        fixture.viewModel.selectFilter(.reviewing)
+        fixture.viewModel.searchQuery = "release"
+
+        assertMacSnapshot(
+            PullRequestsScreenHeader(viewModel: fixture.viewModel),
+            size: CGSize(width: 300, height: 72),
+            named: "pull_requests_header_condensed_active_search"
+        )
+    }
+
+    /// The dropdown truncates and holds the leading edge instead of being pushed out.
+    func testPullRequestsHeaderAtExtremeNarrowWidth() async {
+        let fixture = await PullRequestsSnapshotFixture()
+        fixture.viewModel.selectFilter(.reviewing)
+
+        assertMacSnapshot(
+            PullRequestsScreenHeader(viewModel: fixture.viewModel),
+            size: CGSize(width: 220, height: 72),
+            named: "pull_requests_header_extreme_narrow"
+        )
+    }
+
     // Content-only: live popover hosts crash on macOS 26 (see AlvearyTests/AGENTS.md).
     func testPullRequestsFilterPopoverContent() async {
         let fixture = await PullRequestsSnapshotFixture()

@@ -2,6 +2,10 @@
 
 Rules for `AppTextEditor`, `AppKitTextView`, and their companions.
 
+## AppTextField
+
+- `showsClearButton` draws `AppTextField`'s own trailing clear affordance and is off by default; it owns the binding, so callers pass a flag rather than supplying a button. While visible it takes over the trailing inset so scrolled text and the caret cannot run underneath it, and clearing keeps focus in the field the way `NSSearchField` does.
+
 ## AppKit Bridge
 
 - Draw the placeholder inside `AppKitTextView`, not as a SwiftUI overlay, so insets and caret placement match the real text view.

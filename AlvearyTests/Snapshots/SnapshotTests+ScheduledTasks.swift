@@ -80,6 +80,31 @@ extension SnapshotTests {
         )
     }
 
+    /// This header carries no search field, so its chips still fit at a width where Pull
+    /// Requests has long given its own up. The chip row must answer that for itself rather
+    /// than following the shared compact threshold.
+    func testScheduledTasksHeaderKeepsChipsWhileTheyFit() {
+        assertMacSnapshot(
+            ScheduledTasksScreenHeader(
+                selectedFilter: .constant(.active),
+                onCreate: {}
+            ),
+            size: CGSize(width: 380, height: 72),
+            named: "scheduled_tasks_header_chips_at_narrow_width"
+        )
+    }
+
+    func testScheduledTasksHeaderCollapsesChipsOnceTheyDoNotFit() {
+        assertMacSnapshot(
+            ScheduledTasksScreenHeader(
+                selectedFilter: .constant(.active),
+                onCreate: {}
+            ),
+            size: CGSize(width: 250, height: 72),
+            named: "scheduled_tasks_header_chips_collapsed"
+        )
+    }
+
     func testScheduledTaskEditorWeekdaySelection() throws {
         let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
         var draft = fixture.viewModel.makeNewDraft()

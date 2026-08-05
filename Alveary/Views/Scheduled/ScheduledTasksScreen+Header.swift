@@ -19,70 +19,46 @@ struct ScheduledTasksScreenHeader: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 6) {
-                ForEach(ScheduledTasksFilter.allCases) { filter in
-                    ScheduledTaskFilterChip(
-                        filter: filter,
-                        isSelected: selectedFilter == filter,
-                        onSelect: { selectedFilter = filter }
-                    )
-                }
-            }
-            .padding(.leading, PaneHeaderLayout.leadingInset)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Scheduled task filter")
-            .accessibilityValue(selectedFilter.rawValue)
-
-            Spacer(minLength: 0)
-
-            createButton
-        }
-        .padding(.trailing, PaneHeaderLayout.trailingInset)
-        .padding(.vertical, 16)
-        .frame(height: PaneHeaderLayout.height)
-        .background(.bar)
-        .overlay(alignment: .bottom) {
-            AppSeparatorHairline(surface: .paneHeader)
+        ResponsivePaneHeader(
+            filter: PaneHeaderFilter(
+                options: ScheduledTasksFilter.allCases,
+                selection: $selectedFilter,
+                title: \.rawValue,
+                accessibilityLabel: "Scheduled task filter"
+            )
+        ) { isCompact in
+            createButton(isCompact: isCompact)
         }
     }
 
     @ViewBuilder
-    private var createButton: some View {
+    private func createButton(isCompact: Bool) -> some View {
         if let createFocus {
-            createButtonContent
+            createButtonContent(isCompact: isCompact)
                 .focused(createFocus, equals: createFocusID)
         } else {
-            createButtonContent
+            createButtonContent(isCompact: isCompact)
         }
     }
 
-    private var createButtonContent: some View {
-        Button(action: onCreate) {
-            HStack(spacing: 6) {
+    @ViewBuilder
+    private func createButtonContent(isCompact: Bool) -> some View {
+        if isCompact {
+            Button(action: onCreate) {
                 Image(systemName: "plus")
-                Text("New Scheduled Task")
             }
+            .iconActionButtonStyle()
+            .help("New Scheduled Task")
+            .accessibilityLabel("New Scheduled Task")
+        } else {
+            Button(action: onCreate) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                    Text("New Scheduled Task")
+                }
+            }
+            .primaryActionButtonStyle()
+            .accessibilityLabel("New Scheduled Task")
         }
-        .primaryActionButtonStyle()
-        .accessibilityLabel("New Scheduled Task")
-        .padding(.leading, 12)
-    }
-}
-
-private struct ScheduledTaskFilterChip: View {
-    let filter: ScheduledTasksFilter
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            Text(filter.rawValue)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-        }
-        .buttonStyle(TabChipButtonStyle(isSelected: isSelected))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

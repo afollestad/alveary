@@ -119,8 +119,11 @@ extension View {
         ))
     }
 
-    func iconActionButtonStyle() -> some View {
-        buttonStyle(IconActionButtonStyle())
+    /// Pass a `foregroundColor` only when the glyph's colour *is* the information, such
+    /// as an active-state tint; the style still modulates it for hover, press, and
+    /// disabled, so a tinted button needs no local feedback of its own.
+    func iconActionButtonStyle(foregroundColor: Color = .primary) -> some View {
+        buttonStyle(IconActionButtonStyle(foregroundColor: foregroundColor))
     }
 
     func destructiveIconActionButtonStyle() -> some View {

@@ -6,45 +6,29 @@ struct PullRequestsScreenHeader: View {
     @State private var isFilterPopoverPresented = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 6) {
-                ForEach(PullRequestsFilter.allCases) { filter in
-                    PullRequestFilterChip(
-                        filter: filter,
-                        isSelected: viewModel.selectedFilter == filter,
-                        onSelect: { viewModel.selectFilter(filter) }
-                    )
-                }
-            }
-            .padding(.leading, PaneHeaderLayout.leadingInset)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Pull request filter")
-            .accessibilityValue(viewModel.selectedFilter.rawValue)
+        ResponsivePaneHeader(
+            filter: PaneHeaderFilter(
+                options: PullRequestsFilter.allCases,
+                selection: Binding(
+                    get: { viewModel.selectedFilter },
+                    set: { viewModel.selectFilter($0) }
+                ),
+                title: \.rawValue,
+                accessibilityLabel: "Pull request filter"
+            ),
+            search: PaneHeaderSearch(
+                placeholder: "Search pull requests",
+                text: $viewModel.searchQuery,
+                maximumWidth: 220
+            ),
+            // Both glyphs here are wide marks inside their 30pt frames, so zero box
+            // spacing already reads as the ~15pt glyph gap the shared default buys a
+            // narrow `plus`. See `PaneHeaderLayout.actionSpacing`.
+            actionSpacing: 0
+        ) { _ in
+            refreshButton
 
-            Spacer(minLength: 12)
-
-            HStack(spacing: 10) {
-                AppTextField("Search pull requests", text: $viewModel.searchQuery)
-                    .frame(width: 220)
-
-                // The 30pt icon-button frames carry ~8pt of empty slack around their
-                // glyphs, and the search field's solid edge optically needs more air
-                // than glyph-to-glyph spacing does. Zero spacing inside the cluster is
-                // the tightest non-overlapping arrangement (~15pt glyph gap against
-                // ~18pt from the field edge).
-                HStack(spacing: 0) {
-                    refreshButton
-
-                    filterButton
-                }
-            }
-        }
-        .padding(.trailing, PaneHeaderLayout.trailingInset)
-        .padding(.vertical, 14)
-        .frame(height: PaneHeaderLayout.height)
-        .background(.bar)
-        .overlay(alignment: .bottom) {
-            AppSeparatorHairline(surface: .paneHeader)
+            filterButton
         }
     }
 
@@ -88,22 +72,5 @@ struct PullRequestsScreenHeader: View {
             ? "All repositories"
             : viewModel.selectedRepositories.sorted().joined(separator: ", ")
         return "\(statuses); \(repositories)"
-    }
-}
-
-private struct PullRequestFilterChip: View {
-    let filter: PullRequestsFilter
-    let isSelected: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            Text(filter.rawValue)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-        }
-        .buttonStyle(TabChipButtonStyle(isSelected: isSelected))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

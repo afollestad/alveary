@@ -9,31 +9,43 @@ struct SkillsScreenHeader: View {
     var createFocusID = "skills-new"
 
     var body: some View {
-        CompactSearchPaneHeader("Search skills", searchQuery: $searchQuery) {
-            createButton
+        ResponsivePaneHeader(
+            search: PaneHeaderSearch(placeholder: "Search skills", text: $searchQuery)
+        ) { isCompact in
+            createButton(isCompact: isCompact)
 
             PaneRefreshIconButton(isRefreshing: isRefreshing, action: onRefresh)
         }
     }
 
     @ViewBuilder
-    private var createButton: some View {
+    private func createButton(isCompact: Bool) -> some View {
         if let createFocus {
-            createButtonContent
+            createButtonContent(isCompact: isCompact)
                 .focused(createFocus, equals: createFocusID)
         } else {
-            createButtonContent
+            createButtonContent(isCompact: isCompact)
         }
     }
 
-    private var createButtonContent: some View {
-        Button(action: onCreate) {
-            HStack(spacing: 6) {
+    @ViewBuilder
+    private func createButtonContent(isCompact: Bool) -> some View {
+        if isCompact {
+            Button(action: onCreate) {
                 Image(systemName: "plus")
-                Text("New Skill")
             }
+            .iconActionButtonStyle()
+            .help("New Skill")
+            .accessibilityLabel("New Skill")
+        } else {
+            Button(action: onCreate) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                    Text("New Skill")
+                }
+            }
+            .primaryActionButtonStyle()
+            .accessibilityLabel("New Skill")
         }
-        .primaryActionButtonStyle()
-        .accessibilityLabel("New Skill")
     }
 }

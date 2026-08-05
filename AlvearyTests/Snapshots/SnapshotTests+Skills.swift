@@ -76,6 +76,54 @@ extension SnapshotTests {
         )
     }
 
+    func testSkillsScreenPopulatedSqueezed() async {
+        let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
+        await viewModel.load()
+
+        assertMacSnapshot(
+            SkillsScreen(viewModel: viewModel),
+            size: CGSize(width: 420, height: 900),
+            named: "skills_screen_populated_squeezed"
+        )
+    }
+
+    /// This header carries no filter chips, so a usable search field still fits at a width
+    /// where Pull Requests has long traded its own for a button.
+    func testSkillsHeaderKeepsSearchFieldWhileItFits() {
+        assertMacSnapshot(
+            SkillsScreenHeader(searchQuery: .constant(""), isRefreshing: false, onRefresh: {}, onCreate: {}),
+            size: CGSize(width: 290, height: 72),
+            named: "skills_header_search_field_at_narrow_width"
+        )
+    }
+
+    /// The arrangement must not depend on what is typed: a text field's natural ideal
+    /// width follows its content, so without the header pinning it, a long query would
+    /// collapse the field to a button mid-keystroke — unmounting it under the cursor.
+    func testSkillsHeaderKeepsSearchFieldWithLongQuery() {
+        assertMacSnapshot(
+            SkillsScreenHeader(
+                searchQuery: .constant("kitchen sink integration coverage sweep"),
+                isRefreshing: false,
+                onRefresh: {},
+                onCreate: {}
+            ),
+            size: CGSize(width: 290, height: 72),
+            named: "skills_header_long_query_keeps_field"
+        )
+    }
+
+    /// Collapsed, the search stays on the leading edge the field held. Moving it into the
+    /// trailing cluster — right for Pull Requests, whose chips own that edge — sends it
+    /// across the row here, where nothing takes its place.
+    func testSkillsHeaderCollapsesSearchInPlace() {
+        assertMacSnapshot(
+            SkillsScreenHeader(searchQuery: .constant(""), isRefreshing: false, onRefresh: {}, onCreate: {}),
+            size: CGSize(width: 230, height: 72),
+            named: "skills_header_search_collapsed"
+        )
+    }
+
     func testSkillsScreenNoInstalledSkills() async {
         let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService(installed: []))
         await viewModel.load()

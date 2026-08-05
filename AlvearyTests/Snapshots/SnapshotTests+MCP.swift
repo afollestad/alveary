@@ -64,6 +64,39 @@ extension SnapshotTests {
         )
     }
 
+    func testMCPScreenPopulatedSqueezed() async {
+        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        await viewModel.load()
+
+        assertMacSnapshot(
+            MCPScreen(viewModel: viewModel),
+            size: CGSize(width: 420, height: 900),
+            named: "mcp_screen_populated_squeezed"
+        )
+    }
+
+    /// This header carries no filter chips, so a usable search field still fits at a width
+    /// where Pull Requests has long traded its own for a button. The header must measure
+    /// the parts it actually has rather than follow a shared threshold.
+    func testMCPHeaderKeepsSearchFieldWhileItFits() async {
+        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        await viewModel.load()
+
+        assertMacSnapshot(
+            MCPScreenHeader(searchQuery: .constant(""), isRefreshing: false, onRefresh: {}, onAddServer: {}),
+            size: CGSize(width: 290, height: 72),
+            named: "mcp_header_search_field_at_narrow_width"
+        )
+    }
+
+    func testMCPHeaderCollapsesSearchOnceItDoesNotFit() async {
+        assertMacSnapshot(
+            MCPScreenHeader(searchQuery: .constant(""), isRefreshing: false, onRefresh: {}, onAddServer: {}),
+            size: CGSize(width: 230, height: 72),
+            named: "mcp_header_search_collapsed"
+        )
+    }
+
     func testMCPScreenNoAddedServers() async {
         let viewModel = MCPViewModel(mcpService: SnapshotMCPService(servers: []))
         await viewModel.load()

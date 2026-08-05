@@ -9,31 +9,43 @@ struct MCPScreenHeader: View {
     var addFocusID = "mcp-add"
 
     var body: some View {
-        CompactSearchPaneHeader("Search servers", searchQuery: $searchQuery) {
-            addButton
+        ResponsivePaneHeader(
+            search: PaneHeaderSearch(placeholder: "Search servers", text: $searchQuery)
+        ) { isCompact in
+            addButton(isCompact: isCompact)
 
             PaneRefreshIconButton(isRefreshing: isRefreshing, action: onRefresh)
         }
     }
 
     @ViewBuilder
-    private var addButton: some View {
+    private func addButton(isCompact: Bool) -> some View {
         if let addFocus {
-            addButtonContent
+            addButtonContent(isCompact: isCompact)
                 .focused(addFocus, equals: addFocusID)
         } else {
-            addButtonContent
+            addButtonContent(isCompact: isCompact)
         }
     }
 
-    private var addButtonContent: some View {
-        Button(action: onAddServer) {
-            HStack(spacing: 6) {
+    @ViewBuilder
+    private func addButtonContent(isCompact: Bool) -> some View {
+        if isCompact {
+            Button(action: onAddServer) {
                 Image(systemName: "plus")
-                Text("Add Server")
             }
+            .iconActionButtonStyle()
+            .help("Add Server")
+            .accessibilityLabel("Add Server")
+        } else {
+            Button(action: onAddServer) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                    Text("Add Server")
+                }
+            }
+            .primaryActionButtonStyle()
+            .accessibilityLabel("Add Server")
         }
-        .primaryActionButtonStyle()
-        .accessibilityLabel("Add Server")
     }
 }
