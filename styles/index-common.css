@@ -4,6 +4,11 @@
 
 :root {
     --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace;
+
+    /* Scroll-to-top button geometry. The footer derives its bottom padding from
+       these, so the button and the footer text can never collide. */
+    --fab-size: 2rem;
+    --fab-inset: 1.5rem;
 }
 
 body {
@@ -248,7 +253,10 @@ h1 {
 /* Footer ----------------------------------------------------------------- */
 
 .site-footer {
-    padding: 2.4rem .5rem 2rem;
+    /* The scroll-to-top button is fixed over the bottom-right corner, and at
+       narrow widths this line is wide enough to run under it once the page is
+       scrolled to the end. Reserve the button's band plus a gap. */
+    padding: 2.4rem .5rem calc(var(--fab-inset) + var(--fab-size) + .5rem);
     text-align: center;
     font-size: .7rem;
     color: var(--secondary);
@@ -289,10 +297,10 @@ h1 {
    makes the button vanish in browsers with a content blocker. */
 .overview-return {
     position: fixed;
-    right: 1.5rem;
-    bottom: 1.5rem;
-    width: 2rem;
-    height: 2rem;
+    right: var(--fab-inset);
+    bottom: var(--fab-inset);
+    width: var(--fab-size);
+    height: var(--fab-size);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -335,8 +343,10 @@ h1 {
         padding: 1.6rem .5rem;
     }
 
+    /* Bottom padding stays at the base value; it clears the scroll-to-top
+       button, which doesn't shrink here. */
     .site-footer {
-        padding: 1.6rem .5rem 1.4rem;
+        padding-top: 1.6rem;
     }
 
     .app-icon {
