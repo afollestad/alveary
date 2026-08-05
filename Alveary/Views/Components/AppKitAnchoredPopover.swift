@@ -51,19 +51,60 @@ struct AppKitAnchoredPopover<Content: View>: NSViewRepresentable {
         private var popover: NSPopover?
         private var hostingController: NSHostingController<AnyView>?
         private var resignKeyObserver: NSObjectProtocol?
+        private var isPresentationRequested = false
+        private var isReconciliationScheduled = false
 
         func synchronize(isPresented: Bool) {
-            if isPresented {
-                show()
-            } else {
-                close()
+            isPresentationRequested = isPresented
+            // Refreshing an open popover only writes into the hosted tree, so it stays
+            // inline — that is what carries live view-model updates (link results,
+            // errors) into content already on screen.
+            if isPresented, let popover, popover.isShown, let contentProvider {
+                hostingController?.rootView = contentProvider()
+                return
             }
+            guard isPresented || popover != nil else {
+                return
+            }
+            scheduleReconciliation()
         }
 
         func dismantle() {
+            isPresentationRequested = false
+            retirePresentation()
+        }
+
+        private func retirePresentation() {
             popover?.delegate = nil
             popover?.performClose(nil)
             clearPresentationState()
+        }
+
+        /// Opening or closing the popover orders a window, and `updateNSView` runs
+        /// inside `NSHostingView.layout()` — which AppKit drives from a Core Animation
+        /// commit. Ordering there opens a window-server transaction mid-commit, which
+        /// AppKit only warns about (`NSCGSTransactionCreatedDuringCommitError`) until a
+        /// text-input remote view is attached to the window: rebuilding the ordering
+        /// group then raises `NSViewBridgeErrorException` from
+        /// `-[NSRemoteView containingWindowWillOrderOnScreen:]`, which AppKit turns into
+        /// a hard crash. One runloop turn later the commit has finished and the same
+        /// ordering is ordinary.
+        private func scheduleReconciliation() {
+            guard !isReconciliationScheduled else {
+                return
+            }
+            isReconciliationScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    return
+                }
+                isReconciliationScheduled = false
+                if isPresentationRequested {
+                    show()
+                } else {
+                    close()
+                }
+            }
         }
 
         private func clearPresentationState() {
@@ -79,12 +120,12 @@ struct AppKitAnchoredPopover<Content: View>: NSViewRepresentable {
             guard let anchor, anchor.window != nil, let contentProvider else {
                 return
             }
-            // Already showing: refresh content so view-model updates (link
-            // results, errors) reach the hosted tree.
-            if let popover, popover.isShown {
-                hostingController?.rootView = contentProvider()
+            guard popover?.isShown != true else {
                 return
             }
+            // A popover part-way through its close animation still owns the delegate
+            // that would tear down its replacement, so retire it before building one.
+            retirePresentation()
 
             let hosting = NSHostingController(rootView: contentProvider())
             // The content sizes itself; let AppKit measure it rather than
