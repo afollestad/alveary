@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ScheduledTaskRow: View {
+struct ScheduledTaskRow: View, Equatable {
     let task: ScheduledTaskRowPresentation
     let providerName: String
     let isRunNowPending: Bool
@@ -13,6 +13,18 @@ struct ScheduledTaskRow: View {
     let editFocusID: String
 
     @Environment(\.locale) private var locale
+
+    /// The five actions and the focus binding are excluded: each action closes over the
+    /// `task` compared here plus the screen's view-model reference or its `@State`
+    /// confirmation box, and the binding reads the screen's `@FocusState` storage — none
+    /// of which a captured copy can serve staler than a fresh one. `locale` is an
+    /// `@Environment` read, so it invalidates this view directly regardless of `==`.
+    nonisolated static func == (lhs: ScheduledTaskRow, rhs: ScheduledTaskRow) -> Bool {
+        lhs.task == rhs.task
+            && lhs.providerName == rhs.providerName
+            && lhs.isRunNowPending == rhs.isRunNowPending
+            && lhs.editFocusID == rhs.editFocusID
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

@@ -65,20 +65,29 @@ final class SkillsViewModel {
         }
     }
 
-    var filteredInstalled: [Skill] {
-        filter(skills: installed)
-    }
+    /// Memoized list shaping, owned by `shapedList`. `@ObservationIgnored` so filling
+    /// it during a render publishes nothing.
+    @ObservationIgnored
+    private var listCache: SkillsListCache?
 
-    var filteredCatalog: [Skill] {
-        filter(skills: catalog)
+    var filteredInstalled: [Skill] {
+        shapedList.installed
     }
 
     var filteredRecommended: [Skill] {
-        filteredCatalog.filter { !$0.isInstalled }
+        shapedList.recommended
     }
 
     var searchDisplayResults: [Skill] {
-        uniqueSkills(filteredInstalled + filteredRecommended + searchResults)
+        // Leaves `listCache` holding this key's entry, so the dedup below attaches to
+        // the lists it was built from.
+        let shaped = shapedList
+        if let searchDisplay = shaped.searchDisplay {
+            return searchDisplay
+        }
+        let searchDisplay = uniqueSkills(shaped.installed + shaped.recommended + searchResults)
+        listCache?.searchDisplay = searchDisplay
+        return searchDisplay
     }
 
     var hasActiveSearch: Bool {
@@ -388,6 +397,32 @@ private extension SkillsViewModel {
         }
     }
 
+    /// The three shaped lists the screen renders, computed together so one pass over
+    /// `installed` and one over `catalog` serves all of them. `SkillsScreen` asks for
+    /// all three in a single body pass, and each `filter` runs a locale-aware
+    /// substring match across three fields per skill.
+    var shapedList: SkillsListCache {
+        // Reads every observable input before the cache check, so `@Observable`
+        // dependency registration matches the uncached version.
+        let key = SkillsListCacheKey(
+            query: normalizedSearchQuery,
+            installed: installed,
+            catalog: catalog,
+            searchResults: searchResults
+        )
+        if let listCache, listCache.key == key {
+            return listCache
+        }
+
+        let shaped = SkillsListCache(
+            key: key,
+            installed: filter(skills: installed),
+            recommended: filter(skills: catalog).filter { !$0.isInstalled }
+        )
+        listCache = shaped
+        return shaped
+    }
+
     var normalizedSearchQuery: String {
         searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -437,4 +472,22 @@ private extension SkillsViewModel {
             seenIDs.insert(skill.id).inserted
         }
     }
+}
+
+/// The shaped lists for one set of inputs. The combined search display fills in on
+/// first use, so a body pass with no active search never pays for the dedup.
+private struct SkillsListCache {
+    let key: SkillsListCacheKey
+    let installed: [Skill]
+    let recommended: [Skill]
+    var searchDisplay: [Skill]?
+}
+
+/// Every input the shaping reads. The arrays compare by shared buffer while the
+/// catalog is unchanged, so a cache hit costs no per-skill work.
+private struct SkillsListCacheKey: Equatable {
+    let query: String
+    let installed: [Skill]
+    let catalog: [Skill]
+    let searchResults: [Skill]
 }

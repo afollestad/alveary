@@ -195,12 +195,9 @@ enum ScheduledTaskPresentationFormatting {
         timeZoneIdentifier: String,
         locale: Locale = .current
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = TimeZone(identifier: timeZoneIdentifier) ?? .current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        let timeZone = TimeZone(identifier: timeZoneIdentifier) ?? .current
+        return formatter(.init(dateStyle: .medium, timeStyle: .short, locale: locale, timeZone: timeZone))
+            .string(from: date)
     }
 
     static func time(
@@ -224,18 +221,12 @@ enum ScheduledTaskPresentationFormatting {
             return String(format: "%02d:%02d", hour, minute)
         }
 
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = calendar.timeZone
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        return formatter(.init(dateStyle: .none, timeStyle: .short, locale: locale, timeZone: calendar.timeZone))
+            .string(from: date)
     }
 
     static func weekdayName(_ weekday: Int, locale: Locale = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        let names = formatter.weekdaySymbols ?? []
+        let names = weekdaySymbols(for: locale).full
         let index = weekday - 1
         guard names.indices.contains(index) else {
             return "day \(weekday)"
@@ -244,9 +235,7 @@ enum ScheduledTaskPresentationFormatting {
     }
 
     static func shortWeekdayName(_ weekday: Int, locale: Locale = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        let names = formatter.shortWeekdaySymbols ?? []
+        let names = weekdaySymbols(for: locale).short
         let index = weekday - 1
         guard names.indices.contains(index) else {
             return String(weekday)
@@ -265,6 +254,66 @@ enum ScheduledTaskPresentationFormatting {
             return names.joined(separator: " and ")
         default:
             return names.dropLast().joined(separator: ", ") + ", and \(names[names.count - 1])"
+        }
+    }
+}
+
+// MARK: - Formatter caching
+
+/// Building a `DateFormatter` is the expensive part of date formatting, and every
+/// scheduled-task row formats its recurrence plus its next occurrence on each body pass —
+/// a weekday schedule once per named day. The keys carry everything that configures a
+/// formatter, so a locale or time-zone change still derives a fresh one, and the live key
+/// space is bounded by the time zones the user's tasks actually use.
+private extension ScheduledTaskPresentationFormatting {
+    /// Safe to share: `DateFormatter` is documented thread-safe for formatting once
+    /// configured, and nothing mutates one after it enters the cache.
+    static let formatters = LockedState<[FormatterKey: DateFormatter]>([:])
+
+    /// Symbol arrays rather than the formatter that produced them, so the lazy first read
+    /// of `weekdaySymbols` happens under the lock instead of on a shared instance.
+    static let symbols = LockedState<[Locale: WeekdaySymbols]>([:])
+
+    struct FormatterKey: Hashable {
+        let dateStyle: DateFormatter.Style
+        let timeStyle: DateFormatter.Style
+        let locale: Locale
+        let timeZone: TimeZone
+    }
+
+    struct WeekdaySymbols {
+        let full: [String]
+        let short: [String]
+    }
+
+    static func formatter(_ key: FormatterKey) -> DateFormatter {
+        formatters.withLock { cache in
+            if let cached = cache[key] {
+                return cached
+            }
+            let formatter = DateFormatter()
+            formatter.locale = key.locale
+            formatter.timeZone = key.timeZone
+            formatter.dateStyle = key.dateStyle
+            formatter.timeStyle = key.timeStyle
+            cache[key] = formatter
+            return formatter
+        }
+    }
+
+    static func weekdaySymbols(for locale: Locale) -> WeekdaySymbols {
+        symbols.withLock { cache in
+            if let cached = cache[locale] {
+                return cached
+            }
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            let resolved = WeekdaySymbols(
+                full: formatter.weekdaySymbols ?? [],
+                short: formatter.shortWeekdaySymbols ?? []
+            )
+            cache[locale] = resolved
+            return resolved
         }
     }
 }

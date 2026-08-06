@@ -1,4 +1,5 @@
 import SwiftData
+import SwiftUI
 import XCTest
 
 @testable import Alveary
@@ -107,5 +108,61 @@ extension ArchivedThreadsViewModelTests {
 
         XCTAssertEqual(viewModel.sections.map(\.title), [nil])
         XCTAssertEqual(viewModel.sections.flatMap { $0.items.map(\.id) }, [standalone.persistentModelID])
+    }
+
+    // MARK: - Sections memoization
+
+    /// The staleness case the cache has to get right: read, mutate, read again. The other
+    /// grouping tests all read only after their mutation, so they cannot catch a stale key.
+    func testSectionsRekeyAfterEachInputChangeOnceAlreadyRead() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Alveary", path: "/tmp/alveary")
+        _ = try insertTask(in: fixture, name: "Standalone chore", archivedAt: Date(timeIntervalSince1970: 100))
+        _ = try insertProjectThread(
+            in: fixture,
+            name: "Refactor sidebar",
+            project: project,
+            archivedAt: Date(timeIntervalSince1970: 200)
+        )
+        let viewModel = makeViewModel(fixture: fixture).viewModel
+        viewModel.refresh()
+        XCTAssertEqual(viewModel.sections.map(\.title), [nil, "Alveary"])
+
+        viewModel.searchQuery = "refactor"
+        XCTAssertEqual(viewModel.sections.map(\.title), ["Alveary"])
+
+        viewModel.searchQuery = ""
+        viewModel.projectFilter = .noProject
+        XCTAssertEqual(viewModel.sections.map(\.title), [nil])
+
+        viewModel.projectFilter = .all
+        _ = try insertTask(in: fixture, name: "Later chore", archivedAt: Date(timeIntervalSince1970: 300))
+        viewModel.refresh()
+        XCTAssertEqual(viewModel.sections.flatMap { $0.items.map(\.title) }, ["Later chore", "Standalone chore", "Refactor sidebar"])
+    }
+
+    // MARK: - Render stability
+
+    func testArchivedThreadRowEqualityIgnoresItsActionsAndComparesTheRenderedItem() throws {
+        let fixture = try SidebarTestFixture()
+        _ = try insertTask(in: fixture, name: "Standalone", archivedAt: Date(timeIntervalSince1970: 100))
+        _ = try insertTask(in: fixture, name: "Other", archivedAt: Date(timeIntervalSince1970: 200))
+        let viewModel = makeViewModel(fixture: fixture).viewModel
+        viewModel.refresh()
+        let item = try XCTUnwrap(viewModel.items.first { $0.title == "Standalone" })
+        let other = try XCTUnwrap(viewModel.items.first { $0.title == "Other" })
+        let row = makeRow(item: item)
+
+        XCTAssertEqual(row, makeRow(item: item, onRestore: { XCTFail("unused") }))
+        XCTAssertNotEqual(row, makeRow(item: item, isBusy: true))
+        XCTAssertNotEqual(row, makeRow(item: other))
+    }
+
+    private func makeRow(
+        item: ArchivedThreadItem,
+        isBusy: Bool = false,
+        onRestore: @escaping () -> Void = {}
+    ) -> ArchivedThreadRow {
+        ArchivedThreadRow(item: item, isBusy: isBusy, onRestore: onRestore, onDelete: {})
     }
 }

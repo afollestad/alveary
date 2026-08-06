@@ -8,6 +8,7 @@ struct SkillsScreen: View {
     @State private var screenError: String?
     @State private var uninstallConfirmation: DestructiveConfirmationRequest?
     @State private var gridColumnCount = 2
+    @State private var scrollPosition = ScrollPosition()
     @FocusState private var focusedPaneTriggerID: String?
 
     var body: some View {
@@ -44,9 +45,11 @@ struct SkillsScreen: View {
 
                     let filteredInstalled = viewModel.filteredInstalled
                     let filteredRecommended = viewModel.filteredRecommended
-                    let combinedSearchResults = viewModel.searchDisplayResults
 
                     if viewModel.hasActiveSearch {
+                        // Read inside the branch: it is the only consumer, and the
+                        // combined list is the one shaping step the view model defers.
+                        let combinedSearchResults = viewModel.searchDisplayResults
                         if combinedSearchResults.isEmpty {
                             if viewModel.isSearchingSkillsSh {
                                 SearchingSkillsLabel()
@@ -175,7 +178,12 @@ struct SkillsScreen: View {
                     )
                 )
             }
-            .id(viewModel.searchQuery)
+            // Resets to the top on a new query. Keying the scroll view by the query
+            // instead would rebuild this whole subtree on every keystroke.
+            .scrollPosition($scrollPosition)
+            .onChange(of: viewModel.searchQuery) { _, _ in
+                scrollPosition.scrollTo(edge: .top)
+            }
             .onGeometryChange(for: Int.self) { proxy in
                 proxy.size.width >= 544 ? 2 : 1
             } action: { newValue in

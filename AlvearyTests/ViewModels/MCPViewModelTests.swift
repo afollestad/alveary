@@ -387,6 +387,22 @@ final class MCPViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.activePaneTarget, .addCustom)
         XCTAssertEqual(viewModel.paneDismissalGeneration, 1)
     }
+
+    // MARK: - Render stability
+
+    func testMCPServerPaneEqualityIgnoresTheDismissActionAndComparesTheTarget() {
+        let viewModel = MCPViewModel(mcpService: MCPMockService(servers: [], recommended: [], availableAgents: []))
+        let other = MCPViewModel(mcpService: MCPMockService(servers: [], recommended: [], availableAgents: []))
+        let pane = MCPServerPane(viewModel: viewModel, target: .edit("alpha"), onDismiss: {})
+
+        XCTAssertEqual(
+            pane,
+            MCPServerPane(viewModel: viewModel, target: .edit("alpha"), onDismiss: { XCTFail("unused") })
+        )
+        XCTAssertNotEqual(pane, MCPServerPane(viewModel: viewModel, target: .edit("beta"), onDismiss: {}))
+        XCTAssertNotEqual(pane, MCPServerPane(viewModel: viewModel, target: .addCustom, onDismiss: {}))
+        XCTAssertNotEqual(pane, MCPServerPane(viewModel: other, target: .edit("alpha"), onDismiss: {}))
+    }
 }
 
 @MainActor

@@ -26,6 +26,7 @@ struct SkillsSection: View {
                         detailsFocus: focusedPaneTrigger,
                         detailsFocusID: "skills-details-\(skill.id)"
                     )
+                    .equatable()
                 }
             }
         }

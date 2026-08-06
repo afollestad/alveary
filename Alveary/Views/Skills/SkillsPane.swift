@@ -1,27 +1,45 @@
 import SwiftUI
 
-struct SkillsPane: View {
+/// The pane compares equal across the lane's own render passes so a resize drag or an
+/// unrelated root invalidation cannot rebuild the detail subtree. Its body still reads
+/// `detailSessions`, so a write to the displayed session re-renders it as before.
+struct SkillsPane: View, Equatable {
     let viewModel: SkillsViewModel
     let target: SkillsPaneTarget
     let onDismiss: () -> Void
+
+    /// `onDismiss` is excluded: `ResizableRightPane` keys the pane by presentation
+    /// identity, so a fresh closure meaning something different arrives only with a
+    /// new `.id` — which tears this view down instead of comparing it.
+    nonisolated static func == (lhs: SkillsPane, rhs: SkillsPane) -> Bool {
+        lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
+    }
 
     var body: some View {
         switch target {
         case .newSkill:
             NewSkillPane(viewModel: viewModel, onDismiss: onDismiss)
+                .equatable()
         case .details(let skillID):
             if let session = viewModel.detailSessions[skillID] {
                 SkillDetailsPane(viewModel: viewModel, session: session, onDismiss: onDismiss)
+                    .equatable()
             }
         }
     }
 }
 
-private struct NewSkillPane: View {
+private struct NewSkillPane: View, Equatable {
     let viewModel: SkillsViewModel
     let onDismiss: () -> Void
 
     @FocusState private var isNameFocused: Bool
+
+    /// The draft is read through `viewModel` inside the body, so typing invalidates this
+    /// view directly regardless of `==`; equality only gates the lane's own passes.
+    nonisolated static func == (lhs: NewSkillPane, rhs: NewSkillPane) -> Bool {
+        lhs.viewModel === rhs.viewModel
+    }
 
     private var draft: Binding<NewSkillDraft> {
         Binding(
@@ -96,12 +114,18 @@ private struct NewSkillPane: View {
     }
 }
 
-private struct SkillDetailsPane: View {
+private struct SkillDetailsPane: View, Equatable {
     let viewModel: SkillsViewModel
     let session: SkillDetailsPaneSession
     let onDismiss: () -> Void
 
     @State private var uninstallConfirmation: DestructiveConfirmationRequest?
+
+    /// Takes the session by value, so another skill's markdown landing in
+    /// `detailSessions` no longer rebuilds this pane's rendered markdown.
+    nonisolated static func == (lhs: SkillDetailsPane, rhs: SkillDetailsPane) -> Bool {
+        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
+    }
 
     var body: some View {
         VStack(spacing: 0) {

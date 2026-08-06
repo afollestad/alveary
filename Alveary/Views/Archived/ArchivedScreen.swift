@@ -16,17 +16,24 @@ struct ArchivedScreen: View {
                 filterLabel: viewModel.projectFilterLabel
             )
 
+            // Resolved once per body pass rather than inside the scroll content: that
+            // closure re-runs on every geometry change, so the filter/bucket/sort
+            // pipeline used to run again for each frame of a window resize.
+            let sections = viewModel.sections
+            let busyThreadIDs = viewModel.busyThreadIDs
+            let errorMessage = viewModel.errorMessage
+            let hasAnyArchivedThreads = !viewModel.items.isEmpty
+
             GeometryReader { proxy in
                 ScrollView {
-                    let sections = viewModel.sections
                     ZStack(alignment: .topLeading) {
                         if sections.isEmpty {
-                            ArchivedScreenEmptyState(hasAnyArchivedThreads: !viewModel.items.isEmpty)
+                            ArchivedScreenEmptyState(hasAnyArchivedThreads: hasAnyArchivedThreads)
                                 .offset(y: emptyStateVerticalOffset)
                         }
 
                         VStack(alignment: .leading, spacing: 24) {
-                            if let errorMessage = viewModel.errorMessage {
+                            if let errorMessage {
                                 InlineBanner(
                                     message: errorMessage,
                                     severity: .error,
@@ -38,10 +45,11 @@ struct ArchivedScreen: View {
                             ForEach(sections) { section in
                                 ArchivedThreadSectionView(
                                     section: section,
-                                    busyThreadIDs: viewModel.busyThreadIDs,
+                                    busyThreadIDs: busyThreadIDs,
                                     onRestore: viewModel.requestRestore,
                                     onDelete: viewModel.requestPermanentDeletion
                                 )
+                                .equatable()
                             }
                         }
                     }
@@ -112,11 +120,17 @@ struct ArchivedScreen: View {
 
 /// One project's archived threads. The project-less group passes a `nil` title and
 /// renders its rows with no heading above them.
-private struct ArchivedThreadSectionView: View {
+private struct ArchivedThreadSectionView: View, Equatable {
     let section: ArchivedThreadSection
     let busyThreadIDs: Set<ArchivedThreadItem.ID>
     let onRestore: (ArchivedThreadItem) -> Void
     let onDelete: (ArchivedThreadItem) -> Void
+
+    /// The actions are excluded: they are unapplied view-model method references, so
+    /// they read through that stable reference rather than a captured copy's values.
+    nonisolated static func == (lhs: ArchivedThreadSectionView, rhs: ArchivedThreadSectionView) -> Bool {
+        lhs.section == rhs.section && lhs.busyThreadIDs == rhs.busyThreadIDs
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -134,6 +148,7 @@ private struct ArchivedThreadSectionView: View {
                         onRestore: { onRestore(item) },
                         onDelete: { onDelete(item) }
                     )
+                    .equatable()
                 }
             }
         }

@@ -219,9 +219,13 @@ extension ContentView {
                 onClose: onDismiss
             )
         case .skills(let target):
+            // The lane re-runs its own body on every resize-drag frame and every
+            // pane-session write; equality keeps that off the pane's subtree.
             SkillsPane(viewModel: skillsViewModel, target: target, onDismiss: onDismiss)
+                .equatable()
         case .mcp(let target):
             MCPServerPane(viewModel: mcpViewModel, target: target, onDismiss: onDismiss)
+                .equatable()
         case .scheduled(let target):
             ScheduledTaskEditorPane(viewModel: scheduledTasksViewModel, target: target, onDismiss: onDismiss)
         case .pullRequest(let target):

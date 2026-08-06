@@ -21,13 +21,21 @@ struct ScheduledTasksScreen: View {
                 createFocus: $focusedPaneTriggerID
             )
 
+            // Resolved once per body pass rather than inside the scroll content: that
+            // closure re-runs on every geometry change, so each row's date formatting
+            // used to run again for each frame of a window or right-pane resize.
+            let selectedFilter = viewModel.selectedFilter
+            let visibleTasks = viewModel.tasks(for: selectedFilter)
+            let errorMessage = viewModel.errorMessage
+            let pendingRunNowIDs = viewModel.pendingRunNowDefinitionIDs
+            let providerNames = providerDisplayNames(for: visibleTasks)
+
             GeometryReader { proxy in
                 ScrollView {
-                    let visibleTasks = viewModel.tasks(for: viewModel.selectedFilter)
                     ZStack(alignment: .topLeading) {
                         if visibleTasks.isEmpty {
                             ScheduledTasksEmptyState(
-                                filter: viewModel.selectedFilter,
+                                filter: selectedFilter,
                                 onCreate: {
                                     openCreatePane(focusRestorationID: "scheduled-new-empty")
                                 },
@@ -37,7 +45,7 @@ struct ScheduledTasksScreen: View {
                         }
 
                         VStack(alignment: .leading, spacing: 24) {
-                            if let errorMessage = viewModel.errorMessage {
+                            if let errorMessage {
                                 InlineBanner(
                                     message: errorMessage,
                                     severity: .error,
@@ -51,8 +59,9 @@ struct ScheduledTasksScreen: View {
                                     ForEach(visibleTasks) { task in
                                         ScheduledTaskRow(
                                             task: task,
-                                            providerName: viewModel.providerDisplayName(for: task.providerID),
-                                            isRunNowPending: viewModel.pendingRunNowDefinitionIDs.contains(task.id),
+                                            providerName: providerNames[task.providerID]
+                                                ?? task.providerID.capitalized,
+                                            isRunNowPending: pendingRunNowIDs.contains(task.id),
                                             onEdit: {
                                                 viewModel.requestEdit(definitionID: task.id)
                                             },
@@ -63,6 +72,7 @@ struct ScheduledTasksScreen: View {
                                             editFocus: $focusedPaneTriggerID,
                                             editFocusID: "scheduled-edit-\(task.id)"
                                         )
+                                        .equatable()
                                     }
                                 }
                             }
@@ -119,6 +129,15 @@ struct ScheduledTasksScreen: View {
 
     private func openCreatePane(focusRestorationID: String? = nil) {
         viewModel.requestCreate(focusRestorationID: focusRestorationID)
+    }
+
+    /// One entry per distinct provider, resolved above the `GeometryReader` so the rows do
+    /// not each re-read `providerStatuses` on every frame. The call-site fallback repeats
+    /// `providerDisplayName`'s own last resort, so a miss cannot render differently.
+    private func providerDisplayNames(for tasks: [ScheduledTaskRowPresentation]) -> [String: String] {
+        Set(tasks.map(\.providerID)).reduce(into: [:]) { names, providerID in
+            names[providerID] = viewModel.providerDisplayName(for: providerID)
+        }
     }
 
     private var visiblePaneTriggerFocusIDs: Set<String> {

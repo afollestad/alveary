@@ -1,11 +1,21 @@
 import SwiftUI
 
-struct MCPServerPane: View {
+/// The pane compares equal across the lane's own render passes so a resize drag or an
+/// unrelated root invalidation cannot rebuild the form — including its two AppKit-backed
+/// text editors. Its body still reads `paneSessions`, so typing re-renders it as before.
+struct MCPServerPane: View, Equatable {
     let viewModel: MCPViewModel
     let target: MCPPaneTarget
     let onDismiss: () -> Void
 
     @FocusState private var isNameFocused: Bool
+
+    /// `onDismiss` is excluded: `ResizableRightPane` keys the pane by presentation
+    /// identity, so a fresh closure meaning something different arrives only with a
+    /// new `.id` — which tears this view down instead of comparing it.
+    nonisolated static func == (lhs: MCPServerPane, rhs: MCPServerPane) -> Bool {
+        lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
+    }
 
     private var draft: Binding<MCPServerDraft> {
         Binding(

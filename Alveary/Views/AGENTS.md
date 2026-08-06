@@ -17,6 +17,14 @@ These are view-layer defaults for files under `Alveary/Views/` unless a narrower
     - **Measure, do not guess.** `TYPECHECK_BUDGET_MS=400 ./scripts/build.sh` lists every body over that many milliseconds and fails if any exist. CI enforces `3000` for app sources, so a `body` approaching it breaks the build there before it becomes a hard type-check error.
     - **Read local timings as a lower bound.** The same symbols measured ~7x higher on CI than locally — slower hardware plus a pinned toolchain — and the ratio varies by code shape. A body that looks fine locally can be seconds there, so scale before comparing against the CI budget, or read the numbers off a CI run.
 
+## Render Cost
+
+This section owns the cross-surface render-cost rules; `PullRequests/`, `Archived/`, and `Scheduled/` reference it rather than restating it.
+
+- **Hoist every view-model read above a `GeometryReader`.** Its closure re-runs on each geometry change — every frame of a window resize or the right pane's slide — so a read left inside it repeats whatever shaping it triggers per frame. Pair the hoist with memoizing that shaping in the view model (see `ViewModels/AGENTS.md`).
+- **Reset a search-driven scroll with `ScrollPosition`, never `.id(searchQuery)` on the scroll view.** Keying by the query rebuilds the whole subtree and discards `LazyVGrid`/`LazyVStack` state on every keystroke. `SkillsScreen` and `MCPScreen` did this; both now hold a `@State ScrollPosition` and call `scrollTo(edge: .top)` from `onChange`. Keying by a *discrete* selection (`PullRequestsScreen`, `ScheduledTasksScreen` filter tabs) is fine — those change once per click.
+- **Give list rows and pane children an `Equatable` conformance that excludes their closures.** A parent that re-runs per frame otherwise rebuilds every row. Exclude a closure when its captures are reference types, `@State`/`@FocusState` storage, or values already compared — and say which in the `==` doc comment.
+
 ## Responsive Settings Rows
 
 - **Use `SettingsResponsiveControlRow` for settings label/control rows.** Default controls take 50% horizontally; compact controls can use intrinsic sizing.

@@ -47,6 +47,11 @@ final class ArchivedThreadsViewModel {
     var searchQuery: String = ""
     var projectFilter: ArchivedProjectFilter = .all
 
+    /// Memoized grouping, owned by `sections`. `@ObservationIgnored` so filling it
+    /// during a render publishes nothing.
+    @ObservationIgnored
+    private var sectionsCache: ArchivedSectionsCache?
+
     var errorMessage: String? {
         operationErrorMessage ?? loadErrorMessage
     }
@@ -74,7 +79,19 @@ final class ArchivedThreadsViewModel {
 
     /// Sections for the current search query and project filter, project-less first.
     var sections: [ArchivedThreadSection] {
-        Self.makeSections(from: visibleItems)
+        // Reads every observable input before the cache check, so `@Observable`
+        // dependency registration matches the uncached version.
+        let key = ArchivedSectionsCacheKey(
+            query: searchQuery.trimmingCharacters(in: .whitespacesAndNewlines),
+            projectFilter: projectFilter,
+            items: items
+        )
+        if let sectionsCache, sectionsCache.key == key {
+            return sectionsCache.sections
+        }
+        let sections = Self.makeSections(from: visibleItems)
+        sectionsCache = ArchivedSectionsCache(key: key, sections: sections)
+        return sections
     }
 
     /// `.all` plus only those buckets that actually hold archived threads.
@@ -208,9 +225,9 @@ private extension ArchivedThreadsViewModel {
         projectFilter = .all
     }
 
-    /// One grouping pass, because `sections` is recomputed on every `body` evaluation —
-    /// including each keystroke in the search field. Bucketing per project and then
-    /// re-filtering `items` for each bucket would make this O(projects × threads).
+    /// One grouping pass: bucketing per project and then re-filtering `items` for each
+    /// bucket would make this O(projects × threads). `sections` memoizes the result, so
+    /// this runs once per input change rather than once per `body` evaluation.
     static func makeSections(from items: [ArchivedThreadItem]) -> [ArchivedThreadSection] {
         var projectlessItems: [ArchivedThreadItem] = []
         var itemsByProjectPath: [String: [ArchivedThreadItem]] = [:]
@@ -367,4 +384,19 @@ private extension ArchivedThreadsViewModel {
             settingsService.updateRestoreSelection(threadID: nil, conversationID: nil)
         }
     }
+}
+
+/// The grouped list for one set of inputs.
+private struct ArchivedSectionsCache {
+    let key: ArchivedSectionsCacheKey
+    let sections: [ArchivedThreadSection]
+}
+
+/// Every input the grouping reads. `busyThreadIDs` is deliberately absent — rows read it
+/// directly, so a restore or delete starting must not re-bucket the list. `items` compares
+/// by shared buffer between refreshes, so a cache hit costs no per-thread work.
+private struct ArchivedSectionsCacheKey: Equatable {
+    let query: String
+    let projectFilter: ArchivedProjectFilter
+    let items: [ArchivedThreadItem]
 }

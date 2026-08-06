@@ -1,11 +1,19 @@
 import SwiftUI
 
-struct SkillCard: View {
+struct SkillCard: View, Equatable {
     let skill: Skill
     let onOpen: () -> Void
     let onPrimaryAction: () -> Void
     let detailsFocus: FocusState<String?>.Binding
     let detailsFocusID: String
+
+    /// The actions and the focus binding are excluded: the actions close over the `skill`
+    /// compared here plus the screen's view-model reference and its `@State` confirmation
+    /// box, and the binding reads the screen's `@FocusState` storage — none of which a
+    /// captured copy can serve staler than a fresh one.
+    nonisolated static func == (lhs: SkillCard, rhs: SkillCard) -> Bool {
+        lhs.skill == rhs.skill && lhs.detailsFocusID == rhs.detailsFocusID
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

@@ -212,7 +212,7 @@ final class SkillsViewModelTests: XCTestCase {
         viewModel.searchQuery = "browser"
 
         XCTAssertTrue(viewModel.filteredInstalled.isEmpty)
-        XCTAssertEqual(viewModel.filteredCatalog.map(\.id), ["browser-automation"])
+        XCTAssertEqual(viewModel.filteredRecommended.map(\.id), ["browser-automation"])
         XCTAssertTrue(viewModel.hasActiveSearch)
     }
 

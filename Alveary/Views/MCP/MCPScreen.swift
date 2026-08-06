@@ -7,6 +7,7 @@ struct MCPScreen: View {
     @State private var screenError: String?
     @State private var removalConfirmation: DestructiveConfirmationRequest?
     @State private var gridColumnCount = 2
+    @State private var scrollPosition = ScrollPosition()
     @FocusState private var focusedPaneTriggerID: String?
 
     var body: some View {
@@ -58,6 +59,7 @@ struct MCPScreen: View {
                                     editFocus: $focusedPaneTriggerID,
                                     editFocusID: "mcp-edit-\(server.id)"
                                 )
+                                .equatable()
                             }
                         }
                     }
@@ -77,6 +79,7 @@ struct MCPScreen: View {
                                         addFocus: $focusedPaneTriggerID,
                                         addFocusID: "mcp-recommended-\(server.id)"
                                     )
+                                    .equatable()
                                 }
                             }
                         }
@@ -110,7 +113,12 @@ struct MCPScreen: View {
                     )
                 )
             }
-            .id(viewModel.searchQuery)
+            // Resets to the top on a new query. Keying the scroll view by the query
+            // instead would rebuild this whole subtree on every keystroke.
+            .scrollPosition($scrollPosition)
+            .onChange(of: viewModel.searchQuery) { _, _ in
+                scrollPosition.scrollTo(edge: .top)
+            }
             .onGeometryChange(for: Int.self) { proxy in
                 proxy.size.width >= 544 ? 2 : 1
             } action: { newValue in
@@ -200,12 +208,20 @@ private func makeServerRemovalConfirmation(
     )
 }
 
-private struct MCPServerRow: View {
+private struct MCPServerRow: View, Equatable {
     let server: MCPServer
     let onEdit: () -> Void
     let onRemove: () -> Void
     let editFocus: FocusState<String?>.Binding
     let editFocusID: String
+
+    /// The actions and the focus binding are excluded: the actions close over the `server`
+    /// compared here plus the screen's view-model reference and its `@State` confirmation
+    /// box, and the binding reads the screen's `@FocusState` storage — none of which a
+    /// captured copy can serve staler than a fresh one.
+    nonisolated static func == (lhs: MCPServerRow, rhs: MCPServerRow) -> Bool {
+        lhs.server == rhs.server && lhs.editFocusID == rhs.editFocusID
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
@@ -247,11 +263,17 @@ private struct MCPServerRow: View {
     }
 }
 
-private struct RecommendedMCPCard: View {
+private struct RecommendedMCPCard: View, Equatable {
     let server: RecommendedMCPServer
     let onAdd: () -> Void
     let addFocus: FocusState<String?>.Binding
     let addFocusID: String
+
+    /// The action and the focus binding are excluded, for the same reasons as
+    /// `MCPServerRow`.
+    nonisolated static func == (lhs: RecommendedMCPCard, rhs: RecommendedMCPCard) -> Bool {
+        lhs.server == rhs.server && lhs.addFocusID == rhs.addFocusID
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

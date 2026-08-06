@@ -1,10 +1,17 @@
 import SwiftUI
 
-struct ArchivedThreadRow: View {
+struct ArchivedThreadRow: View, Equatable {
     let item: ArchivedThreadItem
     let isBusy: Bool
     let onRestore: () -> Void
     let onDelete: () -> Void
+
+    /// The actions are excluded: each closes over the `item` compared here plus the
+    /// section's view-model method reference, so a closure meaning something different
+    /// can only arrive alongside a changed `item`.
+    nonisolated static func == (lhs: ArchivedThreadRow, rhs: ArchivedThreadRow) -> Bool {
+        lhs.item == rhs.item && lhs.isBusy == rhs.isBusy
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
