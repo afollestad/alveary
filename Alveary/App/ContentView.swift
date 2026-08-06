@@ -143,6 +143,7 @@ struct ContentView: View {
                 startThreadActivityBackfillIfNeeded()
                 restoreLastOpenThreadSelectionIfNeeded()
                 replayModelPreparationDeferredRoutingIfAvailable()
+                reportRecoveredModelStoreIfNeeded()
                 // Mark-read of the active conversation is handled by `ThreadDetailView` once
                 // the restored selection mounts; just sync the dock badge on launch.
                 notificationManager.refreshBadgeCount()
@@ -281,6 +282,17 @@ private extension ContentView {
         }
         .task {
             onboardingViewModel.start()
+            // Onboarding owns the screen on first launch; asking behind its modal is pointless.
+            guard !onboardingViewModel.isPresented else {
+                return
+            }
+            await notificationManager.requestAuthorizationIfNeeded()
+        }
+        .onChange(of: onboardingViewModel.isPresented) { _, isPresented in
+            guard !isPresented else {
+                return
+            }
+            Task { await notificationManager.requestAuthorizationIfNeeded() }
         }
         .overlay(alignment: .bottom, content: errorToastOverlay)
         .appUpdateRestartAlert(

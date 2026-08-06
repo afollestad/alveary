@@ -5,34 +5,72 @@ import XCTest
 
 @MainActor
 final class OnboardingDependencyServiceTests: XCTestCase {
-    func testGitHubCLIInstallBootstrapsHomebrewBeforeBrewInstallWhenBrewIsMissing() async throws {
+    func testGitHubCLIInstallUsesStandaloneInstallerWhenBrewIsMissing() async throws {
         let gitHubCLI = OnboardingGitHubCLIFake(installedVersions: [nil, "gh version 2.89.0"])
         let shell = MockShellRunner()
-        await shell.enqueue(.success(shellResult(stdout: "homebrew installed")))
-        await shell.enqueue(.success(shellResult(stdout: "gh installed")))
-        let resolver = OnboardingExecutablePathResolverFake(paths: ["brew": [nil, "/opt/homebrew/bin/brew"]])
-        let service = makeService(gitHubCLI: gitHubCLI, shell: shell, executableResolver: resolver)
+        let standaloneInstaller = StandaloneGitHubCLIInstallerFake()
+        let resolver = OnboardingExecutablePathResolverFake(paths: ["brew": [nil]])
+        let service = makeService(
+            gitHubCLI: gitHubCLI,
+            shell: shell,
+            executableResolver: resolver,
+            standaloneGitHubCLIInstaller: standaloneInstaller
+        )
 
         let status = try await service.install(.githubCLI)
 
         XCTAssertEqual(status, OnboardingDependencyStatus(dependency: .githubCLI, state: .installed(detail: "gh version 2.89.0")))
-        let resolverInvocations = await resolver.recordedInvocations()
-        XCTAssertEqual(resolverInvocations, ["brew", "brew"])
+        XCTAssertEqual(standaloneInstaller.installCallCount, 1)
 
+        // Homebrew must never be bootstrapped: its installer needs sudo and stdin is null.
         let invocations = await shell.invocations
-        XCTAssertEqual(invocations.count, 2)
-        XCTAssertEqual(invocations[0].executable, "/bin/bash")
-        XCTAssertEqual(
-            invocations[0].args,
-            ["-c", "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"]
-        )
-        XCTAssertNil(invocations[0].environment)
-        assertInstallerOptions(invocations[0])
+        XCTAssertTrue(invocations.isEmpty)
+        let resolverInvocations = await resolver.recordedInvocations()
+        XCTAssertEqual(resolverInvocations, ["brew"])
+    }
 
-        XCTAssertEqual(invocations[1].executable, "/opt/homebrew/bin/brew")
-        XCTAssertEqual(invocations[1].args, ["install", "gh"])
-        XCTAssertEqual(invocations[1].environment, ["NONINTERACTIVE": "1"])
-        assertInstallerOptions(invocations[1])
+    func testGitHubCLIStandaloneInstallFailureSurfacesActionableGuidance() async throws {
+        let gitHubCLI = OnboardingGitHubCLIFake(installedVersions: [nil])
+        let standaloneInstaller = StandaloneGitHubCLIInstallerFake(
+            error: OnboardingDependencyInstallError(
+                message: "Could not reach GitHub to look up the latest GitHub CLI release. \(StandaloneGitHubCLIInstaller.manualInstallGuidance)"
+            )
+        )
+        let service = makeService(
+            gitHubCLI: gitHubCLI,
+            executableResolver: OnboardingExecutablePathResolverFake(paths: ["brew": [nil]]),
+            standaloneGitHubCLIInstaller: standaloneInstaller
+        )
+
+        do {
+            _ = try await service.install(.githubCLI)
+            XCTFail("Expected the standalone install failure to propagate.")
+        } catch let error as OnboardingDependencyInstallError {
+            XCTAssertTrue(error.message.contains("Could not reach GitHub"))
+            XCTAssertTrue(error.message.contains("https://cli.github.com"))
+        } catch {
+            XCTFail("Expected OnboardingDependencyInstallError, got \(error).")
+        }
+    }
+
+    func testGitHubCLIStandalonePostconditionFailureWhenDetectionStillMisses() async throws {
+        let gitHubCLI = OnboardingGitHubCLIFake(installedVersions: [nil, nil])
+        let standaloneInstaller = StandaloneGitHubCLIInstallerFake()
+        let service = makeService(
+            gitHubCLI: gitHubCLI,
+            executableResolver: OnboardingExecutablePathResolverFake(paths: ["brew": [nil]]),
+            standaloneGitHubCLIInstaller: standaloneInstaller
+        )
+
+        do {
+            _ = try await service.install(.githubCLI)
+            XCTFail("Expected postcondition failure.")
+        } catch let error as OnboardingDependencyInstallError {
+            XCTAssertTrue(error.message.contains("could not be found afterwards"))
+            XCTAssertTrue(error.message.contains("https://cli.github.com"))
+        } catch {
+            XCTFail("Expected OnboardingDependencyInstallError, got \(error).")
+        }
     }
 
     func testGitHubCLIInstallUsesResolvedBrewWithoutBootstrapWhenBrewExists() async throws {
@@ -79,7 +117,7 @@ final class OnboardingDependencyServiceTests: XCTestCase {
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
         XCTAssertEqual(invocation.executable, "/bin/bash")
-        XCTAssertEqual(invocation.args, ["-lc", "curl -fsSL https://chatgpt.com/codex/install.sh | sh"])
+        XCTAssertEqual(invocation.args, ["-lc", "set -o pipefail; curl -fsSL https://chatgpt.com/codex/install.sh | sh"])
         XCTAssertEqual(invocation.environment, ["CODEX_NON_INTERACTIVE": "1"])
         assertInstallerOptions(invocation)
     }
@@ -102,7 +140,7 @@ final class OnboardingDependencyServiceTests: XCTestCase {
         let invocations = await shell.invocations
         let invocation = try XCTUnwrap(invocations.first)
         XCTAssertEqual(invocation.executable, "/bin/bash")
-        XCTAssertEqual(invocation.args, ["-lc", "curl -fsSL https://claude.ai/install.sh | bash"])
+        XCTAssertEqual(invocation.args, ["-lc", "set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash"])
         XCTAssertNil(invocation.environment)
         assertInstallerOptions(invocation)
     }
@@ -197,14 +235,16 @@ final class OnboardingDependencyServiceTests: XCTestCase {
         providerDetection: any ProviderDetectionService = OnboardingProviderDetectionFake(),
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         shell: any ShellRunner = MockShellRunner(),
-        executableResolver: any ExecutablePathResolving = OnboardingExecutablePathResolverFake()
+        executableResolver: any ExecutablePathResolving = OnboardingExecutablePathResolverFake(),
+        standaloneGitHubCLIInstaller: any StandaloneGitHubCLIInstalling = StandaloneGitHubCLIInstallerFake()
     ) -> DefaultOnboardingDependencyService {
         DefaultOnboardingDependencyService(
             gitHubCLI: gitHubCLI,
             providerDetection: providerDetection,
             agentRegistry: agentRegistry,
             shell: shell,
-            executableResolver: executableResolver
+            executableResolver: executableResolver,
+            standaloneGitHubCLIInstaller: standaloneGitHubCLIInstaller
         )
     }
 
@@ -340,6 +380,23 @@ private actor OnboardingExecutablePathResolverFake: ExecutablePathResolving {
 
     func recordedInvocations() -> [String] {
         invocations
+    }
+}
+
+@MainActor
+private final class StandaloneGitHubCLIInstallerFake: StandaloneGitHubCLIInstalling, @unchecked Sendable {
+    private let error: (any Error)?
+    private(set) var installCallCount = 0
+
+    init(error: (any Error)? = nil) {
+        self.error = error
+    }
+
+    func install() async throws {
+        installCallCount += 1
+        if let error {
+            throw error
+        }
     }
 }
 

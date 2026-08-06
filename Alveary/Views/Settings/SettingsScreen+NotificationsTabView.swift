@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UserNotifications
 
 struct NotificationsSettingsTabView: View {
     let viewModel: SettingsViewModel
@@ -6,6 +8,28 @@ struct NotificationsSettingsTabView: View {
     @Binding var osNotificationsEnabled: Bool
     @Binding var soundEnabled: Bool
     @Binding var soundName: String
+
+    @State private var isDeniedBySystem: Bool
+
+    private let refreshesLiveAuthorization: Bool
+
+    init(
+        viewModel: SettingsViewModel,
+        notificationsEnabled: Binding<Bool>,
+        osNotificationsEnabled: Binding<Bool>,
+        soundEnabled: Binding<Bool>,
+        soundName: Binding<String>,
+        systemDeniedOverride: Bool? = nil
+    ) {
+        self.viewModel = viewModel
+        _notificationsEnabled = notificationsEnabled
+        _osNotificationsEnabled = osNotificationsEnabled
+        _soundEnabled = soundEnabled
+        _soundName = soundName
+        // Snapshots inject the state; production reads it live, following the App Shots tab.
+        _isDeniedBySystem = State(initialValue: systemDeniedOverride ?? false)
+        refreshesLiveAuthorization = systemDeniedOverride == nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionSpacing) {
@@ -17,6 +41,12 @@ struct NotificationsSettingsTabView: View {
                     isOn: $osNotificationsEnabled,
                     isDisabled: !viewModel.notificationsEnabled
                 )
+
+                if showsSystemDenialHint {
+                    SettingsFormRow {
+                        systemDenialHint
+                    }
+                }
 
                 SettingsToggleRow(
                     "Play sounds",
@@ -38,5 +68,54 @@ struct NotificationsSettingsTabView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task {
+            await refreshSystemAuthorization()
+        }
+        // The remedy button sends the user to System Settings; re-check when they come back.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await refreshSystemAuthorization() }
+        }
+    }
+
+    /// macOS silently drops every notification once denied, and the toggles above stay on, so the
+    /// only honest signal is reading the system status back.
+    private func refreshSystemAuthorization() async {
+        guard refreshesLiveAuthorization else {
+            return
+        }
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        isDeniedBySystem = status == .denied
+    }
+
+    private var showsSystemDenialHint: Bool {
+        viewModel.notificationsEnabled && osNotificationsEnabled && isDeniedBySystem
+    }
+
+    private var systemDenialHint: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("macOS is blocking notifications from Alveary, so none will be delivered.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Open System Settings", action: openNotificationSettings)
+                .secondaryActionButtonStyle()
+        }
+    }
+
+    private func openNotificationSettings() {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+            "x-apple.systempreferences:com.apple.preference.notifications"
+        ]
+        for urlString in candidates {
+            guard let url = URL(string: urlString) else {
+                continue
+            }
+            if NSWorkspace.shared.open(url) {
+                return
+            }
+        }
     }
 }

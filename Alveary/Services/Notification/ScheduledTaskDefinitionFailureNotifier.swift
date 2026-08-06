@@ -15,11 +15,25 @@ final class ScheduledTaskDefinitionFailureNotifier {
 
     private let settingsService: any SettingsService
     private let notificationCenter: NotificationCenter
-    private var hasRequestedAuthorizationThisLaunch = false
+    /// Shared so concurrent failures join one system prompt instead of being dropped.
+    private var authorizationRequestTask: Task<Bool, Never>?
 
     var onPostNotification: NotificationPoster?
     var playInAppSound: @MainActor (String) -> Void = { name in
         NSSound(named: NSSound.Name(name))?.play()
+    }
+    var notificationAuthorizationStatus: @MainActor () async -> UNAuthorizationStatus = {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+    /// Matches `DefaultNotificationManager`'s option set. These two can race at launch, and
+    /// whichever asks first fixes what the user is granted — a narrower set here would silently
+    /// cost the badge permission.
+    var requestNotificationAuthorization: @MainActor () async -> Bool = {
+        let options: UNAuthorizationOptions = [.alert, .sound, .badge]
+        return (try? await UNUserNotificationCenter.current().requestAuthorization(options: options)) ?? false
+    }
+    var addNotificationRequest: @MainActor (UNNotificationRequest) async -> Void = { request in
+        try? await UNUserNotificationCenter.current().add(request)
     }
 
     init(
@@ -56,7 +70,7 @@ final class ScheduledTaskDefinitionFailureNotifier {
             return
         }
         Task { @MainActor in
-            await post(request, with: UNUserNotificationCenter.current())
+            await post(request)
         }
     }
 
@@ -81,26 +95,35 @@ final class ScheduledTaskDefinitionFailureNotifier {
     }
 }
 
-private extension ScheduledTaskDefinitionFailureNotifier {
-    func post(_ request: UNNotificationRequest, with center: UNUserNotificationCenter) async {
-        let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
+extension ScheduledTaskDefinitionFailureNotifier {
+    func post(_ request: UNNotificationRequest) async {
+        switch await notificationAuthorizationStatus() {
         case .authorized, .provisional, .ephemeral:
-            try? await center.add(request)
+            await addNotificationRequest(request)
         case .notDetermined:
-            guard !hasRequestedAuthorizationThisLaunch else {
+            // Failures can arrive in a batch while the prompt is up; a per-launch "already asked"
+            // flag delivered only the first and silently dropped the rest.
+            guard await sharedAuthorizationRequest() else {
                 return
             }
-            hasRequestedAuthorizationThisLaunch = true
-            let granted = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
-            guard granted else {
-                return
-            }
-            try? await center.add(request)
+            await addNotificationRequest(request)
         case .denied:
             return
         @unknown default:
             return
         }
+    }
+
+    private func sharedAuthorizationRequest() async -> Bool {
+        if let authorizationRequestTask {
+            return await authorizationRequestTask.value
+        }
+
+        let request = requestNotificationAuthorization
+        let task = Task<Bool, Never> { @MainActor in
+            await request()
+        }
+        authorizationRequestTask = task
+        return await task.value
     }
 }

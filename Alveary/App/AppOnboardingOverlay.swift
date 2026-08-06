@@ -51,7 +51,7 @@ struct AppOnboardingOverlay: View {
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
-            Text("Install command-line tools for agent workflows. GitHub CLI is required.")
+            Text("Install command-line tools for agent workflows. Command Line Tools and GitHub CLI are required.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -61,14 +61,26 @@ struct AppOnboardingOverlay: View {
     private var dependencyList: some View {
         VStack(spacing: 12) {
             ForEach(viewModel.dependencies) { dependency in
-                AppOnboardingDependencyCard(
-                    dependency: dependency,
-                    state: viewModel.state(for: dependency),
-                    isInstallEnabled: viewModel.canInstall(dependency),
-                    onInstall: {
-                        viewModel.install(dependency)
+                // Grouped so the connect section sits closer to its own card than to the next one.
+                VStack(spacing: 8) {
+                    AppOnboardingDependencyCard(
+                        dependency: dependency,
+                        state: viewModel.state(for: dependency),
+                        isInstallEnabled: viewModel.canInstall(dependency),
+                        onInstall: {
+                            viewModel.install(dependency)
+                        }
+                    )
+
+                    if dependency == .githubCLI, viewModel.showsGitHubConnect {
+                        AppOnboardingGitHubConnect(
+                            state: viewModel.gitHubAuthState,
+                            onConnect: viewModel.connectGitHub,
+                            onOpenBrowser: viewModel.openGitHubVerificationURL
+                        )
+                        .padding(.horizontal, 16)
                     }
-                )
+                }
             }
         }
     }
@@ -83,7 +95,7 @@ struct AppOnboardingOverlay: View {
             }
             .primaryActionButtonStyle()
             .disabled(!viewModel.canContinue)
-            .accessibilityHint("Continues once the required GitHub CLI dependency is installed.")
+            .accessibilityHint("Continues once the required dependencies are installed.")
         }
     }
 
@@ -114,6 +126,32 @@ struct AppOnboardingDependencyCard: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            dependencyRow
+
+            if showsManualInstallGuidance {
+                AppOnboardingManualInstallGuidance(dependency: dependency)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(minHeight: 78)
+        .background(
+            RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+                .fill(Color.primary.opacity(0.045))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+                .stroke(borderColor, lineWidth: 1)
+        )
+    }
+
+    /// A failed optional row is not a blocker, so only required rows earn the extra guidance.
+    private var showsManualInstallGuidance: Bool {
+        dependency.required && state.isFailed
+    }
+
+    private var dependencyRow: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
@@ -150,17 +188,6 @@ struct AppOnboardingDependencyCard: View {
             .accessibilityValue(statusText)
             .accessibilityHint(accessibilityHint)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(minHeight: 78)
-        .background(
-            RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                .fill(Color.primary.opacity(0.045))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
-        )
     }
 
     private var statusText: String {

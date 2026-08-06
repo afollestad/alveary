@@ -13,7 +13,8 @@ final class DefaultNotificationManager: NotificationManager {
     private let settingsService: any SettingsService
     private let modelContainer: ModelContainer
     private let systemNotificationCenter: NotificationCenter
-    private var hasRequestedAuthorizationThisLaunch = false
+    /// Shared so concurrent posts join one system prompt instead of racing or being dropped.
+    private var authorizationRequestTask: Task<Bool, Never>?
     private var appVisibilityObservers: [NSObjectProtocol] = []
     private var pendingBadgeUpdate: Task<Void, Never>?
 
@@ -33,6 +34,16 @@ final class DefaultNotificationManager: NotificationManager {
     var onDismissDelivered: (@MainActor (_ conversationId: String) -> Void)?
     var setBadgeCount: @MainActor (Int) async -> Void = { count in
         try? await UNUserNotificationCenter.current().setBadgeCount(count)
+    }
+    var notificationAuthorizationStatus: @MainActor () async -> UNAuthorizationStatus = {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+    var requestNotificationAuthorization: @MainActor () async -> Bool = {
+        let options: UNAuthorizationOptions = [.alert, .sound, .badge]
+        return (try? await UNUserNotificationCenter.current().requestAuthorization(options: options)) ?? false
+    }
+    var addNotificationRequest: @MainActor (UNNotificationRequest) async -> Void = { request in
+        try? await UNUserNotificationCenter.current().add(request)
     }
 
     init(
@@ -303,7 +314,6 @@ final class DefaultNotificationManager: NotificationManager {
             return
         }
 
-        let center = UNUserNotificationCenter.current()
         let request = makeNotificationRequest(
             context: context,
             message: message,
@@ -311,31 +321,52 @@ final class DefaultNotificationManager: NotificationManager {
         )
 
         Task { @MainActor in
-            await postAgentNotification(request, with: center)
+            await postAgentNotification(request)
         }
     }
 
-    func postAgentNotification(_ request: UNNotificationRequest, with center: UNUserNotificationCenter) async {
-        let settings = await center.notificationSettings()
-
-        switch settings.authorizationStatus {
+    func postAgentNotification(_ request: UNNotificationRequest) async {
+        switch await notificationAuthorizationStatus() {
         case .authorized, .provisional, .ephemeral:
-            try? await center.add(request)
+            await addNotificationRequest(request)
         case .notDetermined:
-            guard !hasRequestedAuthorizationThisLaunch else {
+            // Every notification arriving while the prompt is up joins the same request and posts
+            // once it is granted. A per-launch "already asked" flag dropped all but the first.
+            guard await sharedAuthorizationRequest() else {
                 return
             }
-            hasRequestedAuthorizationThisLaunch = true
-            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-            guard granted else {
-                return
-            }
-            try? await center.add(request)
+            await addNotificationRequest(request)
         case .denied:
             return
         @unknown default:
             return
         }
+    }
+
+    /// Asks up front, once onboarding is out of the way, so the system prompt does not land
+    /// mid-turn and swallow the notification that triggered it.
+    func requestAuthorizationIfNeeded() async {
+        let settings = settingsService.current.notifications
+        guard settings.enabled, settings.osNotifications else {
+            return
+        }
+        guard await notificationAuthorizationStatus() == .notDetermined else {
+            return
+        }
+        _ = await sharedAuthorizationRequest()
+    }
+
+    private func sharedAuthorizationRequest() async -> Bool {
+        if let authorizationRequestTask {
+            return await authorizationRequestTask.value
+        }
+
+        let request = requestNotificationAuthorization
+        let task = Task<Bool, Never> { @MainActor in
+            await request()
+        }
+        authorizationRequestTask = task
+        return await task.value
     }
 
     func makeNotificationRequest(

@@ -18,6 +18,20 @@ extension ContentView {
             )
         }
     }
+
+    /// `DataComponent` starts from an empty store rather than crashing when the previous one cannot
+    /// be opened. That silently discards history, so say so and name where the old store went.
+    func reportRecoveredModelStoreIfNeeded() {
+        guard let recoveredStoreURL = DataComponent.consumeLastRecoveredStoreURL() else {
+            return
+        }
+        appState.presentUnexpectedError(
+            message: """
+            Alveary could not open its previous database and started with an empty one. \
+            The old file was kept at \(recoveredStoreURL.path).
+            """
+        )
+    }
 }
 
 struct AppErrorToastStack: View {

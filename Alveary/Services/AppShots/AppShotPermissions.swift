@@ -54,6 +54,10 @@ enum AppShotPermission: CaseIterable, Sendable {
             }
 
             let applicationElement = AXUIElementCreateApplication(runningApplication.processIdentifier)
+            // This runs on the main actor from the App Shots settings tab. When the grant is live
+            // but `AXIsProcessTrusted()` reports stale-false, these calls really do cross to the
+            // target app, so an unresponsive one would block for the system default timeout.
+            AXUIElementSetMessagingTimeout(applicationElement, 0.25)
             var windows: CFTypeRef?
             let error = AXUIElementCopyAttributeValue(
                 applicationElement,

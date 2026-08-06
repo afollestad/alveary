@@ -184,6 +184,24 @@ extension SnapshotTests {
         )
     }
 
+    func testNotificationsSettingsTabSystemDeniedHint() {
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
+
+        assertMacSnapshot(
+            NotificationsSettingsTabView(
+                viewModel: viewModel,
+                notificationsEnabled: .constant(true),
+                osNotificationsEnabled: .constant(true),
+                soundEnabled: .constant(true),
+                soundName: .constant("Glass"),
+                systemDeniedOverride: true
+            )
+            .padding(24),
+            size: CGSize(width: 620, height: 420),
+            named: "settings_notifications_tab_system_denied"
+        )
+    }
+
     func testAppShotsSettingsTab() {
         assertMacSnapshot(
             AppShotsSettingsTabView(

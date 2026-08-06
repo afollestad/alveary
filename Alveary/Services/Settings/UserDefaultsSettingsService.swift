@@ -6,6 +6,8 @@ import SwiftData
 @Observable
 final class UserDefaultsSettingsService: SettingsService {
     static let storageKey = "appSettings"
+    /// Holds a blob that failed to decode, so a silent reset stays diagnosable.
+    static let corruptStorageKey = "appSettings.corrupt"
 
     private let defaults: UserDefaults
     private let encode: @Sendable (AppSettings) throws -> Data
@@ -21,7 +23,8 @@ final class UserDefaultsSettingsService: SettingsService {
         self.defaults = defaults
         self.encode = encode
 
-        if let data = defaults.data(forKey: Self.storageKey),
+        let storedData = defaults.data(forKey: Self.storageKey)
+        if let data = storedData,
            let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
             let migrationState = Self.voiceInputShortcutMigrationState(data)
             var loadedSettings = decoded.normalized()
@@ -37,6 +40,13 @@ final class UserDefaultsSettingsService: SettingsService {
                 defaults.set(migratedData, forKey: Self.storageKey)
             }
         } else {
+            // Missing and invalid *keys* already decode to their defaults, so reaching here means
+            // the blob itself is unreadable. Keep it before overwriting: resetting every setting
+            // silently is bad enough without also destroying the evidence.
+            if let storedData {
+                defaults.set(storedData, forKey: Self.corruptStorageKey)
+            }
+
             var initialSettings = AppSettings()
             initialSettings.voiceInputShortcut = AppSettings.migratedVoiceInputShortcut(
                 appShotShortcut: initialSettings.appShotShortcut,

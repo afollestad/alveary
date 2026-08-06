@@ -1,14 +1,22 @@
 import Foundation
 
 enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatable {
+    // Declaration order drives both row order and refresh order.
+    case commandLineTools
     case githubCLI
     case claude
     case codex
+
+    static var requiredCases: [OnboardingDependency] {
+        allCases.filter(\.required)
+    }
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
+        case .commandLineTools:
+            return "Command Line Tools"
         case .githubCLI:
             return "GitHub CLI"
         case .claude:
@@ -19,12 +27,17 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
     }
 
     var required: Bool {
-        self == .githubCLI
+        switch self {
+        case .commandLineTools, .githubCLI:
+            return true
+        case .claude, .codex:
+            return false
+        }
     }
 
     var providerID: String? {
         switch self {
-        case .githubCLI:
+        case .commandLineTools, .githubCLI:
             return nil
         case .claude:
             return "claude"
@@ -35,12 +48,27 @@ enum OnboardingDependency: String, CaseIterable, Identifiable, Sendable, Equatab
 
     var fallbackInstallCommand: String {
         switch self {
+        case .commandLineTools:
+            return "xcode-select --install"
         case .githubCLI:
             return "brew install gh"
         case .claude:
             return "curl -fsSL https://claude.ai/install.sh | bash"
         case .codex:
             return "curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+        }
+    }
+
+    /// Shown on a failed required row so a broken installer is never a dead end.
+    var manualInstallGuidance: (command: String, helpURL: URL?)? {
+        switch self {
+        case .commandLineTools:
+            return (fallbackInstallCommand, nil)
+        case .githubCLI:
+            // `brew install gh` only helps if Homebrew exists, so always offer the download page too.
+            return (fallbackInstallCommand, URL(string: "https://cli.github.com"))
+        case .claude, .codex:
+            return nil
         }
     }
 }
@@ -80,30 +108,39 @@ protocol OnboardingDependencyService: AnyObject {
 final class DefaultOnboardingDependencyService: OnboardingDependencyService {
     private static let installerTimeout: Duration = .seconds(1_800)
     private static let outputLimitBytes = 128 * 1024
-    private static let homebrewInstallCommand = "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
     private let gitHubCLI: GitHubCLIService
     private let providerDetection: any ProviderDetectionService
     private let agentRegistry: AgentRegistry
-    private let shell: ShellRunner
+    // Internal so the Command Line Tools companion can probe with it.
+    let shell: ShellRunner
+    let commandLineToolsPollInterval: Duration
     private let executableResolver: any ExecutablePathResolving
+    private let standaloneGitHubCLIInstaller: any StandaloneGitHubCLIInstalling
 
     init(
         gitHubCLI: GitHubCLIService,
         providerDetection: any ProviderDetectionService,
         agentRegistry: AgentRegistry,
         shell: ShellRunner,
-        executableResolver: any ExecutablePathResolving
+        executableResolver: any ExecutablePathResolving,
+        standaloneGitHubCLIInstaller: (any StandaloneGitHubCLIInstalling)? = nil,
+        commandLineToolsPollInterval: Duration = .seconds(5)
     ) {
         self.gitHubCLI = gitHubCLI
         self.providerDetection = providerDetection
         self.agentRegistry = agentRegistry
         self.shell = shell
+        self.commandLineToolsPollInterval = commandLineToolsPollInterval
         self.executableResolver = executableResolver
+        self.standaloneGitHubCLIInstaller = standaloneGitHubCLIInstaller
+            ?? StandaloneGitHubCLIInstaller(shell: shell)
     }
 
     func status(for dependency: OnboardingDependency) async -> OnboardingDependencyStatus {
         switch dependency {
+        case .commandLineTools:
+            return await commandLineToolsStatus()
         case .githubCLI:
             if let version = await gitHubCLI.checkInstalled(), !version.isEmpty {
                 return OnboardingDependencyStatus(dependency: dependency, state: .installed(detail: version))
@@ -136,6 +173,8 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
         }
 
         switch dependency {
+        case .commandLineTools:
+            return try await installCommandLineTools()
         case .githubCLI:
             return try await installGitHubCLI()
         case .claude, .codex:
@@ -144,27 +183,23 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
     }
 
     private func installGitHubCLI() async throws -> OnboardingDependencyStatus {
-        var lastResult: ShellResult?
-        var brewPath = await executableResolver.resolveExecutablePath(for: "brew")
-        if brewPath == nil {
-            lastResult = try await runInstaller(
-                executable: "/bin/bash",
-                args: ["-c", Self.homebrewInstallCommand]
-            )
-            brewPath = await executableResolver.resolveExecutablePath(for: "brew")
-            guard brewPath != nil else {
-                throw postconditionFailure(
-                    "Homebrew installer finished, but `brew` could not be found.",
-                    result: lastResult
+        // Never bootstrap Homebrew here. Its installer requires `sudo`, and these installers run
+        // with null stdin by design, so the prompt can only abort after a long silent wait.
+        guard let brewPath = await executableResolver.resolveExecutablePath(for: "brew") else {
+            try await standaloneGitHubCLIInstaller.install()
+            let installedStatus = await status(for: .githubCLI)
+            guard installedStatus.isInstalled else {
+                throw OnboardingDependencyInstallError(
+                    message: """
+                    The GitHub CLI was downloaded, but `gh` could not be found afterwards. \
+                    \(StandaloneGitHubCLIInstaller.manualInstallGuidance)
+                    """
                 )
             }
+            return installedStatus
         }
 
-        guard let brewPath else {
-            throw OnboardingDependencyInstallError(message: "Unable to locate `brew`.")
-        }
-
-        lastResult = try await runInstaller(
+        let result = try await runInstaller(
             executable: brewPath,
             args: ["install", "gh"],
             environment: ["NONINTERACTIVE": "1"]
@@ -173,7 +208,7 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
         guard installedStatus.isInstalled else {
             throw postconditionFailure(
                 "`brew install gh` finished, but `gh` could not be found.",
-                result: lastResult
+                result: result
             )
         }
         return installedStatus
@@ -185,9 +220,11 @@ final class DefaultOnboardingDependencyService: OnboardingDependencyService {
         }
         let command = agentRegistry.agent(for: providerID)?.installCommand ?? dependency.fallbackInstallCommand
         let environment = dependency == .codex ? ["CODEX_NON_INTERACTIVE": "1"] : nil
+        // These commands pipe `curl` into a shell. Without `pipefail` a failed download still exits
+        // 0, so an offline install would report success and then fail detection for no clear reason.
         let result = try await runInstaller(
             executable: "/bin/bash",
-            args: ["-lc", command],
+            args: ["-lc", "set -o pipefail; \(command)"],
             environment: environment
         )
 

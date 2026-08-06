@@ -55,6 +55,64 @@ final class AppRuntimeProfileTests: XCTestCase {
         )
     }
 
+    func testScratchStorageProfileMarkerSelectsScratchProfileOnlyWithoutHostedMarkers() {
+        #if DEBUG
+        XCTAssertEqual(
+            AppRuntimeProfile.detectKind(environment: [
+                AppRuntimeProfile.storageProfileEnvironmentKey: "fresh"
+            ]),
+            .scratch(name: "fresh")
+        )
+        XCTAssertEqual(
+            AppRuntimeProfile.detectKind(environment: [
+                AppRuntimeProfile.storageProfileEnvironmentKey: ""
+            ]),
+            .application
+        )
+        // A hosted-test marker must win so a stray variable cannot divert a test run.
+        XCTAssertEqual(
+            AppRuntimeProfile.detectKind(environment: [
+                AppRuntimeProfile.hostedUnitTestEnvironmentKey: "1",
+                AppRuntimeProfile.storageProfileEnvironmentKey: "fresh"
+            ]),
+            .hostedUnitTest
+        )
+        #endif
+    }
+
+    func testScratchStorageProfileIsIsolatedStableAndSurvivesCleanup() throws {
+        let profile = AppStorageProfile.scratch(name: "unit-test-scratch")
+        let suiteName = try XCTUnwrap(profile.settingsDefaultsSuiteName)
+        defer { profile.settingsDefaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertNotEqual(
+            profile.applicationSupportBaseURL.standardizedFileURL,
+            AppStorageProfile.production.applicationSupportBaseURL.standardizedFileURL
+        )
+        XCTAssertTrue(
+            profile.applicationSupportBaseURL.isDescendant(
+                of: AppStorageProfile.production.applicationSupportBaseURL
+                    .appendingPathComponent("AlvearyScratch", isDirectory: true)
+            )
+        )
+        XCTAssertEqual(
+            AppStorageProfile.scratch(name: "unit-test-scratch").applicationSupportBaseURL,
+            profile.applicationSupportBaseURL
+        )
+
+        // Unlike the hosted profile, quitting must not wipe it.
+        profile.settingsDefaults.set("kept", forKey: "AppRuntimeProfileTests")
+        profile.cleanupSettingsDefaults()
+        XCTAssertEqual(profile.settingsDefaults.string(forKey: "AppRuntimeProfileTests"), "kept")
+    }
+
+    func testScratchStorageProfileNameIsSanitizedForPathAndSuiteSafety() {
+        XCTAssertEqual(AppStorageProfile.sanitizedScratchName("../../etc"), "etc")
+        XCTAssertEqual(AppStorageProfile.sanitizedScratchName("a b/c"), "abc")
+        XCTAssertEqual(AppStorageProfile.sanitizedScratchName("///"), "default")
+        XCTAssertEqual(AppStorageProfile.sanitizedScratchName("keep-me_1"), "keep-me_1")
+    }
+
     func testProductionStorageProfilePreservesDataAndPreferencePaths() {
         let profile = AppStorageProfile.production
         let baseURL = productionApplicationSupportBaseURL

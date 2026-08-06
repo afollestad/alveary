@@ -118,5 +118,6 @@ final class StubNotificationManager: NotificationManager {
     func markConversationRead(conversationId: String) {}
     func handleAppVisibilityChanged() {}
     func refreshBadgeCount() {}
+    func requestAuthorizationIfNeeded() async {}
     func setActiveConversationProvider(_ provider: @escaping @MainActor () -> String?) {}
 }

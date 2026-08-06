@@ -9,7 +9,9 @@ final class DefaultAgentEnvironmentBuilder: AgentEnvironmentBuilder, Sendable {
             "TERM_PROGRAM": "Alveary",
             "HOME": environment["HOME"] ?? NSHomeDirectory(),
             "USER": environment["USER"] ?? NSUserName(),
-            "PATH": environment["PATH"] ?? "/usr/local/bin:/usr/bin:/bin",
+            // A Finder-launched app inherits a bare `/usr/bin:/bin:/usr/sbin:/sbin`, so agents would
+            // not see Homebrew or `~/.local/bin` tools — including the `gh` onboarding installs.
+            "PATH": ExecutableSearchPath.augmentedPath(environment["PATH"]),
             "LANG": environment["LANG"] ?? "en_US.UTF-8"
         ]
 

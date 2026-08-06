@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Alveary keeps cloned projects and thread worktrees in your Documents folder by default. You can change these locations in Settings.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Alveary uses the microphone to transcribe speech into thread drafts on your Mac.</string>
 </dict>

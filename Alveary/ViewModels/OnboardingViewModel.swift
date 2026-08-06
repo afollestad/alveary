@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -9,20 +10,28 @@ final class OnboardingViewModel {
     var dependencyStates: [OnboardingDependency: OnboardingDependencyViewState]
     var activeInstall: OnboardingDependency?
     var isContinuing = false
+    var gitHubAuthState: OnboardingGitHubAuthState = .unknown
 
     @ObservationIgnored private let settingsService: SettingsService
     @ObservationIgnored private let dependencyService: any OnboardingDependencyService
+    @ObservationIgnored private let gitHubCLI: (any GitHubCLIService)?
+    @ObservationIgnored private let openURL: @MainActor (URL) -> Void
     @ObservationIgnored private var didStart = false
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var installTask: Task<Void, Never>?
     @ObservationIgnored private var continueTask: Task<Void, Never>?
+    @ObservationIgnored private var gitHubAuthTask: Task<Void, Never>?
 
     init(
         settingsService: SettingsService,
-        dependencyService: any OnboardingDependencyService
+        dependencyService: any OnboardingDependencyService,
+        gitHubCLI: (any GitHubCLIService)? = nil,
+        openURL: @escaping @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) }
     ) {
         self.settingsService = settingsService
         self.dependencyService = dependencyService
+        self.gitHubCLI = gitHubCLI
+        self.openURL = openURL
         self.isPresented = !settingsService.current.hasCompletedOnboarding
         self.dependencyStates = Dictionary(
             uniqueKeysWithValues: OnboardingDependency.allCases.map { dependency in
@@ -35,13 +44,14 @@ final class OnboardingViewModel {
         refreshTask?.cancel()
         installTask?.cancel()
         continueTask?.cancel()
+        gitHubAuthTask?.cancel()
     }
 
     var canContinue: Bool {
         guard !isContinuing else {
             return false
         }
-        return state(for: .githubCLI).isInstalled
+        return OnboardingDependency.requiredCases.allSatisfy { state(for: $0).isInstalled }
     }
 
     func start() {
@@ -129,13 +139,17 @@ final class OnboardingViewModel {
             isContinuing = true
             defer { isContinuing = false }
 
-            let requiredStatus = await dependencyService.status(for: .githubCLI)
-            guard !Task.isCancelled else {
-                return
+            var allRequiredInstalled = true
+            for dependency in OnboardingDependency.requiredCases {
+                let requiredStatus = await dependencyService.status(for: dependency)
+                guard !Task.isCancelled else {
+                    return
+                }
+                apply(requiredStatus)
+                allRequiredInstalled = allRequiredInstalled && requiredStatus.isInstalled
             }
 
-            apply(requiredStatus)
-            guard requiredStatus.isInstalled else {
+            guard allRequiredInstalled else {
                 isPresented = true
                 return
             }
@@ -151,6 +165,95 @@ final class OnboardingViewModel {
         installTask?.cancel()
         installTask = nil
         activeInstall = nil
+        cancelGitHubAuthentication()
+    }
+
+    /// Authentication is offered after `gh` installs but never gates Continue: requiring a GitHub
+    /// account and a network round trip at first launch would block work the app can do locally.
+    var showsGitHubConnect: Bool {
+        guard gitHubCLI != nil, state(for: .githubCLI).isInstalled else {
+            return false
+        }
+        switch gitHubAuthState {
+        case .connected, .unknown:
+            return false
+        case .checking, .notConnected, .connecting, .failed:
+            return true
+        }
+    }
+
+    func connectGitHub() {
+        guard let gitHubCLI, !gitHubAuthState.isConnecting else {
+            return
+        }
+
+        gitHubAuthTask?.cancel()
+        gitHubAuthTask = Task { @MainActor in
+            gitHubAuthState = .connecting(deviceCode: nil)
+            do {
+                let deviceCode = try await gitHubCLI.authenticate()
+                guard !Task.isCancelled else {
+                    return
+                }
+                gitHubAuthState = .connecting(deviceCode: deviceCode)
+                // `gh auth login --web` cannot open a browser without a TTY, so do it here.
+                openURL(deviceCode.verificationURL)
+
+                let didAuthenticate = try await gitHubCLI.awaitAuthentication()
+                guard !Task.isCancelled else {
+                    return
+                }
+                gitHubAuthState = didAuthenticate
+                    ? .connected
+                    : .failed(message: "GitHub authentication did not complete.")
+            } catch is CancellationError {
+                // A cancelled task's owner already chose the follow-up state; writing here would
+                // stomp a newer interaction's `.connecting`.
+                guard !Task.isCancelled else {
+                    return
+                }
+                gitHubAuthState = .notConnected
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+                gitHubAuthState = .failed(message: error.localizedDescription)
+            }
+        }
+    }
+
+    func openGitHubVerificationURL() {
+        guard case .connecting(let deviceCode) = gitHubAuthState,
+              let deviceCode else {
+            return
+        }
+        openURL(deviceCode.verificationURL)
+    }
+
+    private func cancelGitHubAuthentication() {
+        guard gitHubAuthState.isConnecting else {
+            return
+        }
+        gitHubAuthTask?.cancel()
+        gitHubAuthTask = nil
+        gitHubCLI?.cancelAuthentication()
+        gitHubAuthState = .notConnected
+    }
+
+    private func refreshGitHubAuthStateIfNeeded() {
+        guard let gitHubCLI, gitHubAuthState == .unknown else {
+            return
+        }
+
+        gitHubAuthState = .checking
+        gitHubAuthTask?.cancel()
+        gitHubAuthTask = Task { @MainActor in
+            let isAuthenticated = await gitHubCLI.isAuthenticated()
+            guard !Task.isCancelled, gitHubAuthState == .checking else {
+                return
+            }
+            gitHubAuthState = isAuthenticated ? .connected : .notConnected
+        }
     }
 
     func setPresentationForTesting(
@@ -205,7 +308,7 @@ final class OnboardingViewModel {
             return
         }
 
-        if state(for: .githubCLI).isInstalled {
+        if OnboardingDependency.requiredCases.allSatisfy({ state(for: $0).isInstalled }) {
             isPresented = false
         } else {
             isPresented = true
@@ -242,6 +345,17 @@ final class OnboardingViewModel {
         case .missing:
             dependencyStates[status.dependency] = .missing(error: nil)
         }
+
+        guard status.dependency == .githubCLI else {
+            return
+        }
+        if status.isInstalled {
+            refreshGitHubAuthStateIfNeeded()
+        } else {
+            // A vanished CLI also strands any in-flight device login; end it with the row.
+            cancelGitHubAuthentication()
+            gitHubAuthState = .unknown
+        }
     }
 
     private func cancelOptionalInstall() {
@@ -253,6 +367,22 @@ final class OnboardingViewModel {
         installTask = nil
         dependencyStates[activeInstall] = .missing(error: nil)
         self.activeInstall = nil
+    }
+}
+
+enum OnboardingGitHubAuthState: Sendable, Equatable {
+    case unknown
+    case checking
+    case notConnected
+    case connecting(deviceCode: GitHubDeviceCode?)
+    case connected
+    case failed(message: String)
+
+    var isConnecting: Bool {
+        if case .connecting = self {
+            return true
+        }
+        return false
     }
 }
 
@@ -298,7 +428,7 @@ private enum OnboardingRefreshMode: Equatable {
         case .visible:
             return OnboardingDependency.allCases
         case .completedRequiredOnly:
-            return [.githubCLI]
+            return OnboardingDependency.requiredCases
         }
     }
 }

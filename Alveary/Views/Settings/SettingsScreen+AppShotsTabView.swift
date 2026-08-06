@@ -49,7 +49,8 @@ struct AppShotsSettingsTabView: View {
                     ) {
                         AppShotShortcutRecorder(
                             shortcut: $appShotShortcut,
-                            voiceInputShortcut: voiceInputShortcut
+                            voiceInputShortcut: voiceInputShortcut,
+                            inputMonitoringAllowed: permissionSnapshot.isAllowed(.inputMonitoring)
                         )
                     }
                 }

@@ -32,6 +32,8 @@ final class RecordingNotificationManager: NotificationManager {
         handleAppVisibilityChangedCalls += 1
     }
 
+    func requestAuthorizationIfNeeded() async {}
+
     func refreshBadgeCount() {
         refreshBadgeCountCalls += 1
     }

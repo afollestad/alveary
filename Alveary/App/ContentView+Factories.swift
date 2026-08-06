@@ -217,7 +217,8 @@ extension ContentView {
     static func makeOnboardingViewModel(dependencies: ContentViewDependencies) -> OnboardingViewModel {
         OnboardingViewModel(
             settingsService: dependencies.settingsService,
-            dependencyService: dependencies.onboardingDependencyService
+            dependencyService: dependencies.onboardingDependencyService,
+            gitHubCLI: dependencies.gitHubCLI
         )
     }
 

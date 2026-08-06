@@ -3,22 +3,67 @@ import Foundation
 // The profile is immutable after bootstrap, and `UserDefaults` supports concurrent access.
 struct AppStorageProfile: @unchecked Sendable {
     private static let hostedUnitTestDefaultsSuitePrefix = "com.afollestad.alveary.hosted-unit-tests"
+    private static let scratchDefaultsSuitePrefix = "com.afollestad.alveary.scratch"
+    private static let scratchDirectoryName = "AlvearyScratch"
 
     let applicationSupportBaseURL: URL
     let settingsDefaults: UserDefaults
     let settingsDefaultsSuiteName: String?
+    /// Only ephemeral profiles opt into teardown. A scratch profile names a suite it must keep,
+    /// so wiping cannot be inferred from `settingsDefaultsSuiteName` being non-nil.
+    let wipesSettingsDefaultsOnExit: Bool
+
+    init(
+        applicationSupportBaseURL: URL,
+        settingsDefaults: UserDefaults,
+        settingsDefaultsSuiteName: String?,
+        wipesSettingsDefaultsOnExit: Bool = false
+    ) {
+        self.applicationSupportBaseURL = applicationSupportBaseURL
+        self.settingsDefaults = settingsDefaults
+        self.settingsDefaultsSuiteName = settingsDefaultsSuiteName
+        self.wipesSettingsDefaultsOnExit = wipesSettingsDefaultsOnExit
+    }
 
     static var production: AppStorageProfile {
-        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        AppStorageProfile(
+            applicationSupportBaseURL: userApplicationSupportBaseURL,
+            settingsDefaults: .standard,
+            settingsDefaultsSuiteName: nil
+        )
+    }
+
+    /// Isolated but *stable* storage for manual first-run testing, selected by
+    /// `AppRuntimeProfile.storageProfileEnvironmentKey`. Unlike `hostedUnitTest` it survives quit,
+    /// so second-launch behavior such as skipping completed onboarding stays testable.
+    static func scratch(name: String) -> AppStorageProfile {
+        let sanitizedName = sanitizedScratchName(name)
+        let baseURL = userApplicationSupportBaseURL
+            .appendingPathComponent(scratchDirectoryName, isDirectory: true)
+            .appendingPathComponent(sanitizedName, isDirectory: true)
+        let suiteName = "\(scratchDefaultsSuitePrefix).\(sanitizedName)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            return .production
+        }
+        return AppStorageProfile(
+            applicationSupportBaseURL: baseURL,
+            settingsDefaults: defaults,
+            settingsDefaultsSuiteName: suiteName
+        )
+    }
+
+    static func sanitizedScratchName(_ name: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let sanitized = String(name.unicodeScalars.filter { allowed.contains($0) })
+        return sanitized.isEmpty ? "default" : sanitized
+    }
+
+    private static var userApplicationSupportBaseURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(
                 "Library/Application Support",
                 isDirectory: true
             )
-        return AppStorageProfile(
-            applicationSupportBaseURL: baseURL,
-            settingsDefaults: .standard,
-            settingsDefaultsSuiteName: nil
-        )
     }
 
     static func hostedUnitTest(
@@ -39,7 +84,8 @@ struct AppStorageProfile: @unchecked Sendable {
         return AppStorageProfile(
             applicationSupportBaseURL: baseURL,
             settingsDefaults: defaults,
-            settingsDefaultsSuiteName: suiteName
+            settingsDefaultsSuiteName: suiteName,
+            wipesSettingsDefaultsOnExit: true
         )
     }
 
@@ -111,7 +157,8 @@ struct AppStorageProfile: @unchecked Sendable {
     }
 
     func cleanupSettingsDefaults() {
-        guard let settingsDefaultsSuiteName else {
+        guard wipesSettingsDefaultsOnExit,
+              let settingsDefaultsSuiteName else {
             return
         }
         settingsDefaults.removePersistentDomain(forName: settingsDefaultsSuiteName)

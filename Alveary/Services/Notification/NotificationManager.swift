@@ -4,6 +4,7 @@ protocol NotificationManager: AnyObject, Sendable {
     func markConversationRead(conversationId: String)
     func handleAppVisibilityChanged()
     func refreshBadgeCount()
+    func requestAuthorizationIfNeeded() async
     func setActiveConversationProvider(_ provider: @escaping @MainActor () -> String?)
 }
 

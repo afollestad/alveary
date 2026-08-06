@@ -3,15 +3,18 @@ import SwiftUI
 struct AppShotShortcutRecorder: View {
     @Binding var shortcut: AppShotKeyboardShortcut
     let voiceInputShortcut: PhysicalKeyboardShortcut?
+    let inputMonitoringAllowed: Bool
 
     @State private var message: KeyboardShortcutRecorderMessage?
 
     init(
         shortcut: Binding<AppShotKeyboardShortcut>,
-        voiceInputShortcut: PhysicalKeyboardShortcut? = nil
+        voiceInputShortcut: PhysicalKeyboardShortcut? = nil,
+        inputMonitoringAllowed: Bool = true
     ) {
         _shortcut = shortcut
         self.voiceInputShortcut = voiceInputShortcut
+        self.inputMonitoringAllowed = inputMonitoringAllowed
     }
 
     var body: some View {
@@ -48,10 +51,26 @@ struct AppShotShortcutRecorder: View {
                     .multilineTextAlignment(.trailing)
                     .transition(.opacity)
             }
+
+            // Derived rather than routed through `message`, which `record` clears the instant a
+            // shortcut is chosen — exactly when this warning needs to appear.
+            if showsInputMonitoringWarning {
+                Text("⌘⌘ only works while Alveary is focused until Input Monitoring is granted below.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("App shot shortcut")
         .accessibilityValue(shortcut.displayString)
+    }
+
+    /// Only modifier-only shortcuts need an event tap; regular chords use a Carbon hot key.
+    private var showsInputMonitoringWarning: Bool {
+        shortcut == .bothCommand && !inputMonitoringAllowed
     }
 
     private func validate(_ descriptor: PhysicalKeyboardShortcut) -> String? {
