@@ -32,7 +32,14 @@ struct PullRequestPaneFiles: View {
                 icon: "exclamationmark.triangle",
                 heading: "Diff unavailable",
                 subtext: message,
-                actions: []
+                actions: [
+                    EmptyStateView.EmptyStateAction(
+                        title: "Retry",
+                        systemImage: "arrow.clockwise",
+                        style: .secondary,
+                        action: { viewModel.retryDiffLoad() }
+                    )
+                ]
             )
         case .loaded:
             loadedContent

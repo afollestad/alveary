@@ -29,6 +29,40 @@ extension PullRequestsViewModel {
         }
     }
 
+    /// Re-runs a detail fetch that failed. Separate from `resumeIncompleteLoads`,
+    /// which deliberately leaves a failed leg alone: only an explicit user action
+    /// should retry, or a pull request that reliably 404s would refetch on every
+    /// reopen. Clearing the error before starting restores the spinner.
+    func retryDetailLoad() {
+        guard let target = activePaneTarget,
+              let session = paneSessions[target],
+              session.detailError != nil,
+              paneLoadTasks[target]?.detail == nil else {
+            return
+        }
+        let generation = session.generation
+        updateSession(target, generation: generation) { session in
+            session.detailError = nil
+            session.isLoadingDetail = true
+        }
+        startDetailLoad(target: target, generation: generation)
+    }
+
+    /// Re-runs a diff fetch that failed. `.tooLarge` is deliberately not retryable —
+    /// the response exceeded a fixed cap, so a second identical request cannot help.
+    func retryDiffLoad() {
+        guard let target = activePaneTarget,
+              let generation = paneSessions[target]?.generation,
+              paneLoadTasks[target]?.diff == nil,
+              case .failed = paneSessions[target]?.diffState else {
+            return
+        }
+        updateSession(target, generation: generation) { session in
+            session.diffState = .loading
+        }
+        startDiffLoad(target: target, generation: generation)
+    }
+
     /// Cancels every pane's loads except the one named, enforcing the
     /// at-most-one-live-pane invariant directly rather than through
     /// `activePaneTarget` — a route-only `deactivatePane()` clears the active target

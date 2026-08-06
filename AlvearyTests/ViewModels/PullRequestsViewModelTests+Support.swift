@@ -241,3 +241,10 @@ func waitForPullRequestCondition(
         await Task.yield()
     }
 }
+
+@MainActor
+func drainMainQueue() async {
+    for _ in 0..<200 {
+        await Task.yield()
+    }
+}

@@ -128,6 +128,41 @@ extension SnapshotTests {
         }
     }
 
+    /// A failed detail fetch is recoverable in place: the banner carries Retry, and
+    /// the summary header stays so the pane still names the pull request. Hosted with
+    /// a container because the Overview reaches SwiftData even before its detail lands.
+    func testPullRequestPaneOverviewDetailErrorOffersRetry() async throws {
+        var session = PullRequestPaneSnapshots.loadedSession
+        session.detail = nil
+        session.detailError = "gh timed out after 30 seconds"
+
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
+            size: CGSize(width: 460, height: 320),
+            named: "pull_request_pane_overview_detail_error"
+        ) {
+            PullRequestPaneOverview(
+                session: session,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                onOpenFiles: {}
+            )
+        }
+    }
+
+    /// A failed diff is retryable; `.tooLarge` deliberately is not, so the two empty
+    /// states differ by exactly that button.
+    func testPullRequestPaneFilesDiffFailedOffersRetry() {
+        var session = PullRequestPaneSnapshots.loadedSession
+        session.diffFiles = nil
+        session.diffState = .failed("gh timed out after 60 seconds")
+
+        assertMacSnapshot(
+            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            size: CGSize(width: 460, height: 480),
+            named: "pull_request_pane_files_diff_failed"
+        )
+    }
+
     func testPullRequestPaneFiles() async throws {
         let fixture = await PullRequestPaneSnapshots.makeLoadedFixture()
         let session = try XCTUnwrap(fixture.viewModel.paneSessions[fixture.target])

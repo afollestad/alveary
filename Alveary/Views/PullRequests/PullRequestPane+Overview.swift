@@ -39,7 +39,16 @@ struct PullRequestPaneOverview: View {
                 }
 
                 if let error = session.detailError {
-                    InlineBanner(message: error, severity: .error, autoDismissAfter: nil, onDismiss: nil)
+                    // No dismiss: without the detail the pane has nothing to show, so
+                    // clearing the banner would leave an empty pane and no way back.
+                    InlineBanner(
+                        message: error,
+                        severity: .error,
+                        autoDismissAfter: nil,
+                        actionTitle: "Retry",
+                        onAction: { viewModel.retryDetailLoad() },
+                        onDismiss: nil
+                    )
                 } else if session.isLoadingDetail, session.detail == nil {
                     StatusIndicatorSpinner(color: .secondary, diameter: 16, lineWidth: 2)
                         .frame(maxWidth: .infinity)
