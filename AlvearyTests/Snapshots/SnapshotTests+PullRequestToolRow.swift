@@ -50,6 +50,35 @@ extension SnapshotTests {
         )
     }
 
+    /// AppKit has no rounded chip, so a backticked title renders as a flat attributed run — and
+    /// its fill is the muted wash rather than the regular chip gray, because the title line is
+    /// already `secondaryLabelColor`. `@octocat` and `/api/orders` must survive verbatim; the
+    /// transcript's own summary formatter would have chipped both.
+    func testPullRequestListWidgetRendersInlineCodeTitles() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitTranscriptHostToolWidgetRowView()
+                view.configure(.init(entry: self.inlineCodeTitleListEntry(), bubbleMaxWidth: 640))
+                return view
+            },
+            size: CGSize(width: 700, height: 160),
+            named: "pull_request_list_widget_inline_code"
+        )
+    }
+
+    func testPullRequestListWidgetRendersInlineCodeTitlesDark() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                let view = AppKitTranscriptHostToolWidgetRowView()
+                view.configure(.init(entry: self.inlineCodeTitleListEntry(), bubbleMaxWidth: 640))
+                return view
+            },
+            size: CGSize(width: 700, height: 160),
+            named: "pull_request_list_widget_inline_code_dark",
+            colorScheme: .dark
+        )
+    }
+
     /// A long list opens at `collapsedRowLimit` rows with the rest behind one action, so it
     /// cannot push the rest of the turn off screen.
     func testPullRequestListWidgetCollapsesALongList() {
@@ -74,6 +103,38 @@ extension SnapshotTests {
         }
         return HostToolWidgetEntry(
             id: "tool-list-prs-long",
+            toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.listToolName),
+            content: .pullRequestList(
+                PullRequestListWidgetContent(
+                    filter: .all,
+                    rows: rows,
+                    totalCount: rows.count,
+                    hasWarnings: false,
+                    message: nil,
+                    status: .listed
+                )
+            ),
+            isComplete: true
+        )
+    }
+
+    /// Kept apart from `pullRequestListEntry()` so the inline-code coverage cannot churn the
+    /// status-mapping baselines.
+    private func inlineCodeTitleListEntry() -> HostToolWidgetEntry {
+        let rows: [PullRequestListWidgetContent.Row] = [
+            .init(
+                identifier: PullRequestIdentifier(owner: "AAkira", repo: "kmp-libraries", number: 212),
+                title: "Add `arkivanov/parcelize-darwin` to Serializer section",
+                status: .open
+            ),
+            .init(
+                identifier: PullRequestIdentifier(owner: "octo", repo: "alveary", number: 77),
+                title: "Thanks @octocat — harden `/api/orders` retries",
+                status: .open
+            )
+        ]
+        return HostToolWidgetEntry(
+            id: "tool-list-prs-inline-code",
             toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.listToolName),
             content: .pullRequestList(
                 PullRequestListWidgetContent(

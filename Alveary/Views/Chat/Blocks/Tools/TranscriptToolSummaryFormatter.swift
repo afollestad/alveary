@@ -3,7 +3,6 @@ import Foundation
 import SwiftUI
 
 private let transcriptToolSummarySlashCommandPattern = #"(^|[\s\(\[\{<"'])(/[A-Za-z][A-Za-z0-9_-]*)(?=$|[\s\)\]\}>"'.,;:])"#
-private let toolSummaryInlineCodeFillOpacity: CGFloat = 0.08
 
 /// Shared tool-summary formatter for SwiftUI and AppKit rows. Keep chip detection here
 /// so the two transcript renderers stay aligned while rows migrate incrementally.
@@ -36,7 +35,7 @@ enum TranscriptToolSummaryFormatter {
             }
             attributed.addAttribute(
                 .backgroundColor,
-                value: transcriptInlineToolRowColor.withAlphaComponent(toolSummaryInlineCodeFillOpacity),
+                value: transcriptInlineToolRowColor.withAlphaComponent(markdownMutedInlineCodeFillOpacity),
                 range: range
             )
         }
@@ -66,7 +65,7 @@ enum TranscriptToolSummaryFormatter {
 
     private static func applyInlineChipStyle(to attributed: inout AttributedString) {
         for run in attributed.runs where run.inlinePresentationIntent?.contains(.code) == true {
-            attributed[run.range].backgroundColor = Color.secondary.opacity(Double(toolSummaryInlineCodeFillOpacity))
+            attributed[run.range].backgroundColor = Color.secondary.opacity(Double(markdownMutedInlineCodeFillOpacity))
         }
     }
 

@@ -116,6 +116,7 @@ struct PullRequestPaneOverview: View {
         // stay out of the scroll indicator's grab region.
         let trailingLanePad = AppScrollIndicatorLayout.interactiveTrailingClearance
             - ContextualPaneLayout.horizontalInset
+        let title = session.detail?.title ?? summary.title
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 8) {
                 PullRequestStatusIcon(
@@ -124,9 +125,10 @@ struct PullRequestPaneOverview: View {
                 )
                 .frame(height: Self.titleFirstLineHeight)
 
-                Text(session.detail?.title ?? summary.title)
-                    .font(.title3.weight(.semibold))
-                    .fixedSize(horizontal: false, vertical: true)
+                AppMarkdownInlineParagraph(text: title, textStyle: .title3, weight: .semibold)
+                    .accessibilityLabel(
+                        AppMarkdownInlineLabel.plainText(from: title, detectingFileMentions: false)
+                    )
                     .accessibilityAddTraits(.isHeader)
 
                 Spacer(minLength: 8)

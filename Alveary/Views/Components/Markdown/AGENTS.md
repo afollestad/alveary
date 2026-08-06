@@ -23,11 +23,13 @@ Narrower scopes:
 - `SwiftUI/AppMarkdownInlineCodeChip.swift` owns compact single-line chip rendering.
 - `SwiftUI/Rendering/` owns the SwiftUI block renderer internals.
 - Use `AppMarkdownInlineLabel`, not raw `Text`, for single-line user strings that may contain inline code or `@file` mentions.
+- **Pick the label by whether the surface wraps.** `AppMarkdownInlineLabel` (chips) is single-line only; a wrapping surface takes `AppMarkdownInlineParagraph`, and AppKit takes `AppKitMarkdownInlineString`. Both render inline code as a flat attributed run, because a chip is `lineLimit(1)` and a code span wider than the container would truncate instead of breaking.
+- **Turn off `detectsFileMentions` for third-party prose** — pull request titles are the current callers. The composer's mention pattern also matches a GitHub `@username`, and decoding it to a path basename rewrites the text. `AppKitMarkdownInlineString` never chips mentions or slash-commands, which is what separates it from `TranscriptToolSummaryFormatter`.
 - Keep chip backgrounds clamped to the surrounding text line height so row/tab height stays uniform.
 - Mention detection reuses `ChatComposerTextSupport.fileMentionMatches(in:)` plus `CanonicalPath.decodeStoredMentionPath(_:)`.
 - Keep mentions inside fenced or inline-code ranges as code; do not re-chip them.
-- Drive text and chip sizes from the single `textStyle` parameter.
-- For explicit accessibility labels, use `AppMarkdownInlineLabel.plainText(from:)`. It strips backticks and decodes mentions without regex edge cases.
+- Drive text and chip sizes from the single `textStyle` parameter; its mappings live in `SwiftUI/AppMarkdownInlineTextStyle.swift` so the two labels cannot size a chip differently from the text around it.
+- For explicit accessibility labels, use `AppMarkdownInlineLabel.plainText(from:)`. It strips backticks and decodes mentions without regex edge cases. Pass the same `detectingFileMentions` the label uses, or VoiceOver reads a different string than the screen shows.
 
 ## Inline Code Palettes
 

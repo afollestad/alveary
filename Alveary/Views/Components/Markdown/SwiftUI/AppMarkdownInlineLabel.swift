@@ -16,9 +16,13 @@ struct AppMarkdownInlineLabel: View {
     /// The text style that drives both the SwiftUI text font and the inline-code chip
     /// metrics. Using a single value avoids mismatches between chip and surrounding text.
     var textStyle: NSFont.TextStyle = .body
+    /// Whether `@…` runs become mention chips. Surfaces rendering the composer's own strings
+    /// want this; surfaces rendering third-party prose must turn it off, because the composer's
+    /// mention pattern also matches a GitHub `@username` and would chip it.
+    var detectsFileMentions = true
 
     var body: some View {
-        let segments = InlineSegment.displaySegments(for: text)
+        let segments = InlineSegment.displaySegments(for: text, detectingFileMentions: detectsFileMentions)
         // Fast-path: no inline chips, render a plain `Text` so environment
         // modifiers like `.fixedSize` and `.lineLimit` behave exactly as they would on a
         // bare `Text`.
@@ -44,28 +48,15 @@ struct AppMarkdownInlineLabel: View {
     }
 
     private var swiftUIFont: Font {
-        switch textStyle {
-        case .largeTitle: return .largeTitle
-        case .title1: return .title
-        case .title2: return .title2
-        case .title3: return .title3
-        case .headline: return .headline
-        case .subheadline: return .subheadline
-        case .callout: return .callout
-        case .footnote: return .footnote
-        case .caption1: return .caption
-        case .caption2: return .caption2
-        default: return .body
-        }
+        textStyle.appMarkdownSwiftUIFont
     }
 
     private var chipFontSize: CGFloat {
-        NSFont.preferredFont(forTextStyle: textStyle).pointSize * markdownInlineCodeFontScale
+        textStyle.appMarkdownInlineCodeFontSize
     }
 
     private var textLineHeight: CGFloat {
-        let font = NSFont.preferredFont(forTextStyle: textStyle)
-        return ceil(font.ascender + abs(font.descender) + font.leading)
+        textStyle.appMarkdownLineHeight
     }
 }
 
@@ -74,8 +65,17 @@ extension AppMarkdownInlineLabel {
     /// decoded to their human-readable form (`@<basename>`) so the result reads cleanly in
     /// non-markdown contexts like VoiceOver accessibility labels. HTML image tags become
     /// `(Image)` and other HTML-like tags are stripped for compact display surfaces.
-    nonisolated static func plainText(from markdown: String) -> String {
-        let segments = InlineSegment.displaySegments(for: markdown)
+    ///
+    /// Pass `detectingFileMentions: false` to match a label rendering third-party prose, so a
+    /// `@username` is spoken whole instead of being decoded down to a path basename.
+    nonisolated static func plainText(
+        from markdown: String,
+        detectingFileMentions: Bool = true
+    ) -> String {
+        let segments = InlineSegment.displaySegments(
+            for: markdown,
+            detectingFileMentions: detectingFileMentions
+        )
         if segments.count == 1, case .text(let value) = segments[0] {
             return String(value.characters)
         }
@@ -101,14 +101,17 @@ private enum InlineSegment {
     /// basename is cached on the segment so render and `plainText` don't redo the work.
     case mention(String)
 
-    static func displaySegments(for markdown: String) -> [InlineSegment] {
+    static func displaySegments(
+        for markdown: String,
+        detectingFileMentions: Bool
+    ) -> [InlineSegment] {
         let attributed = parsedInlineMarkdown(displayMarkdown(from: markdown))
         var result: [InlineSegment] = []
         for run in attributed.runs {
             let content = AttributedString(attributed[run.range])
             if run.inlinePresentationIntent?.contains(.code) == true {
                 result.appendInlineSegment(.code(String(content.characters)))
-            } else if run.link != nil {
+            } else if run.link != nil || !detectingFileMentions {
                 result.appendInlineSegment(.text(sanitizedText(content)))
             } else {
                 textAndMentionSegments(in: content).forEach { result.appendInlineSegment($0) }
@@ -122,22 +125,11 @@ private enum InlineSegment {
     }
 
     private static func parsedInlineMarkdown(_ markdown: String) -> AttributedString {
-        guard mayContainInlineMarkdown(markdown) else {
+        guard appMarkdownMayContainInlineMarkdown(markdown) else {
             return AttributedString(markdown)
         }
         let parser = AppMarkdownParser(parsingMode: .inline)
         return (try? parser.attributedString(for: markdown)) ?? AttributedString(markdown)
-    }
-
-    private static func mayContainInlineMarkdown(_ markdown: String) -> Bool {
-        markdown.contains { character in
-            switch character {
-            case "`", "[", "*", "_", "<", "!", "\\":
-                return true
-            default:
-                return false
-            }
-        }
     }
 
     private static func textAndMentionSegments(in content: AttributedString) -> [InlineSegment] {

@@ -264,10 +264,18 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             font: font
         )
 
+        // The detail line is author-written — a pull request title, a task name, a review body —
+        // so it renders as markdown. Its fill is the muted wash, matching the already-secondary
+        // text it sits on.
         let detail = HostToolWidgetSummary.detail(for: entry)
-        detailField.font = configuration.typography.nsFont(.caption)
-        detailField.textColor = .secondaryLabelColor
-        detailField.stringValue = detail ?? ""
+        let detailFont = configuration.typography.nsFont(.caption)
+        detailField.font = detailFont
+        detailField.attributedStringValue = AppKitMarkdownInlineString.attributedString(
+            for: detail ?? "",
+            baseFont: detailFont,
+            foregroundColor: .secondaryLabelColor,
+            inlineCodeFill: AppKitMarkdownInlineString.mutedInlineCodeFill(over: .secondaryLabelColor)
+        )
         detailField.isHidden = detail == nil
 
         applyIcon(for: entry, typography: configuration.typography)

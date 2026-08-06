@@ -15,10 +15,12 @@ struct PullRequestRow: View {
             PullRequestStatusIcon(status: summary.status)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(summary.title)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                AppMarkdownInlineLabel(
+                    text: summary.title,
+                    textStyle: .headline,
+                    detectsFileMentions: false
+                )
+                .truncationMode(.tail)
 
                 attributionLine
             }
@@ -110,7 +112,7 @@ struct PullRequestRow: View {
         let age = compactRelativeAge(from: summary.updatedAt, relativeTo: referenceDate)
         var parts = [
             summary.status.accessibilityName,
-            summary.title,
+            AppMarkdownInlineLabel.plainText(from: summary.title, detectingFileMentions: false),
             "by \(summary.authorLogin)"
         ]
         if showsRepository {

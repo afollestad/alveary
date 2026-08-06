@@ -199,8 +199,9 @@ private extension AppKitPullRequestListWidgetView {
         container.onHoverChanged = { [weak highlight] isHovered in
             highlight?.setLayerFillColor(.secondaryLabelColor, alpha: isHovered ? 0.10 : 0)
         }
+        let title = AppMarkdownInlineLabel.plainText(from: row.title, detectingFileMentions: false)
         container.setAccessibilityLabel(
-            "\(row.status.accessibilityName), \(row.identifier.displayKey), \(row.title)"
+            "\(row.status.accessibilityName), \(row.identifier.displayKey), \(title)"
         )
 
         let icon = statusIcon(row.status, typography: configuration.typography)
@@ -259,7 +260,11 @@ private extension AppKitPullRequestListWidgetView {
             font: typography.nsFont(.toolSummary),
             color: .labelColor
         )
-        let detail = label(row.title, font: typography.nsFont(.caption), color: .secondaryLabelColor)
+        let detail = markdownLabel(
+            row.title,
+            font: typography.nsFont(.caption),
+            color: .secondaryLabelColor
+        )
 
         let lines = NSStackView(views: [key, detail])
         lines.translatesAutoresizingMaskIntoConstraints = false
@@ -300,6 +305,22 @@ private extension AppKitPullRequestListWidgetView {
         field.font = font
         field.textColor = color
         field.lineBreakMode = .byTruncatingTail
+        field.maximumNumberOfLines = 1
+        return field
+    }
+
+    /// A pull request title is author-written and routinely carries backticked identifiers, so it
+    /// renders as markdown rather than the raw string. The fill is the muted wash, not the regular
+    /// chip gray, because this line is already `secondaryLabelColor`.
+    func markdownLabel(_ markdown: String, font: NSFont, color: NSColor) -> NSTextField {
+        let field = NSTextField(labelWithString: "")
+        field.translatesAutoresizingMaskIntoConstraints = false
+        field.attributedStringValue = AppKitMarkdownInlineString.attributedString(
+            for: markdown,
+            baseFont: font,
+            foregroundColor: color,
+            inlineCodeFill: AppKitMarkdownInlineString.mutedInlineCodeFill(over: color)
+        )
         field.maximumNumberOfLines = 1
         return field
     }

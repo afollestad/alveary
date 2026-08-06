@@ -150,4 +150,56 @@ final class AppMarkdownInlineLabelTests: XCTestCase {
             "Compare @foo.swift with @bar.swift"
         )
     }
+
+    // MARK: - Mention detection opt-out
+
+    func testPlainTextWithoutMentionDetectionKeepsAtUsernameWhole() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(
+                from: "Thanks @octocat",
+                detectingFileMentions: false
+            ),
+            "Thanks @octocat"
+        )
+    }
+
+    func testPlainTextWithoutMentionDetectionKeepsPathLikeMentionWhole() {
+        // The mention path is what diverges: detection decodes it down to a basename, which
+        // would silently rewrite a GitHub team handle in a pull request title.
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(
+                from: "Ping @some/org/team",
+                detectingFileMentions: false
+            ),
+            "Ping @some/org/team"
+        )
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: "Ping @some/org/team"),
+            "Ping @team"
+        )
+    }
+
+    func testPlainTextWithoutMentionDetectionStillStripsInlineCode() {
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(
+                from: "Add `arkivanov/parcelize-darwin` to Serializer section",
+                detectingFileMentions: false
+            ),
+            "Add arkivanov/parcelize-darwin to Serializer section"
+        )
+    }
+
+    func testPlainTextLeavesSlashCommandLikeTextAlone() {
+        // Proof that this path never reaches `TranscriptToolSummaryFormatter`'s slash-command
+        // chipper, which would otherwise turn `/api` into a chip.
+        for detectsMentions in [true, false] {
+            XCTAssertEqual(
+                AppMarkdownInlineLabel.plainText(
+                    from: "Fix /api/users endpoint",
+                    detectingFileMentions: detectsMentions
+                ),
+                "Fix /api/users endpoint"
+            )
+        }
+    }
 }

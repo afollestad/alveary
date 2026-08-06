@@ -4,6 +4,11 @@ import Foundation
 let markdownInlineCodeFontScale: CGFloat = 0.94
 let markdownTableCornerRadius: CGFloat = AppCornerRadius.standard
 
+/// Alpha for inline-code fills drawn behind already-muted text — tool-row summaries and the
+/// transcript widget cards' secondary lines. The regular chip fills are tuned for body text and
+/// overpower a `secondaryLabelColor` line.
+let markdownMutedInlineCodeFillOpacity: CGFloat = 0.08
+
 /// Returns code text as it should be displayed in transcript/code surfaces.
 /// Markdown and tool output can include trailing blank lines that SwiftUI and AppKit
 /// measure differently, so all renderers trim the blank tail from the same place.

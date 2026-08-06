@@ -154,8 +154,11 @@ private struct PullRequestLinkRow: View {
             PullRequestStatusIcon(status: row.link.summary.status)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(row.link.summary.title)
-                    .lineLimit(1)
+                AppMarkdownInlineLabel(
+                    text: row.link.summary.title,
+                    textStyle: .body,
+                    detectsFileMentions: false
+                )
 
                 Text(detailText)
                     .font(.caption)
@@ -183,7 +186,11 @@ private struct PullRequestLinkRow: View {
     }
 
     private var accessibilityLabel: String {
-        let base = "\(row.link.summary.title), \(row.id.displayKey)"
+        let title = AppMarkdownInlineLabel.plainText(
+            from: row.link.summary.title,
+            detectingFileMentions: false
+        )
+        let base = "\(title), \(row.id.displayKey)"
         guard let sourceLabel = row.sourceLabel else {
             return base
         }
