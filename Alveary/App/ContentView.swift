@@ -231,7 +231,7 @@ private extension ContentView {
                 dismissalRequests: rightPaneDismissalRequests,
                 onDeactivate: deactivateRightPane,
                 onDismiss: dismissRightPane,
-                mainContent: { mainPane },
+                mainContent: { mainPane.equatable() },
                 paneContent: rightPaneContent
             )
 

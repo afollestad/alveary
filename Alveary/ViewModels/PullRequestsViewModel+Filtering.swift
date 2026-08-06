@@ -57,7 +57,28 @@ extension PullRequestsViewModel {
     /// Filtered rows ordered by recency — the date each row displays — so the list
     /// reads naturally top-to-bottom. Applied here so every tab and section
     /// inherits it, with a stable key breaking timestamp ties.
+    ///
+    /// Memoized on its own inputs: the screen calls this once per body pass, and a root
+    /// invalidation from anywhere re-runs that pass. Every input is read before the cache
+    /// is consulted so `@Observable` still registers the same dependencies, and the cache
+    /// itself is `@ObservationIgnored`, so filling it publishes nothing.
     func visibleRows(for tab: PullRequestsFilter) -> [PullRequestSummary] {
+        let key = VisibleRowsCacheKey(
+            tab: tab,
+            statuses: selectedStatuses,
+            repositories: selectedRepositories,
+            searchQuery: searchQuery.trimmingCharacters(in: .whitespaces),
+            items: items
+        )
+        if let visibleListCache, visibleListCache.key == key {
+            return visibleListCache.rows
+        }
+        let rows = computeVisibleRows(for: tab)
+        visibleListCache = VisibleListCache(key: key, rows: rows)
+        return rows
+    }
+
+    private func computeVisibleRows(for tab: PullRequestsFilter) -> [PullRequestSummary] {
         items.filter { summary in
             matchesTab(summary, tab: tab)
                 && (selectedStatuses.isEmpty || selectedStatuses.contains(summary.status))
@@ -76,8 +97,26 @@ extension PullRequestsViewModel {
     /// drop out; the Authored tab stays a flat, untitled list. In the All tab each
     /// row lands in exactly one bucket — your own PRs count as Authored even when
     /// your review is also requested.
+    ///
+    /// Memoized like `visibleRows(for:)`, and for a second reason: returning the same
+    /// arrays lets `PullRequestsSectionedList`'s equality take Swift's shared-buffer fast
+    /// path instead of comparing every row.
     func visibleSections(for tab: PullRequestsFilter) -> [PullRequestListSection] {
+        // Leaves `visibleListCache` holding this tab's entry, so the sections below
+        // attach to the rows they were built from.
         let rows = visibleRows(for: tab)
+        if let sections = visibleListCache?.sections {
+            return sections
+        }
+        let sections = buildSections(tab: tab, rows: rows)
+        visibleListCache?.sections = sections
+        return sections
+    }
+
+    private func buildSections(
+        tab: PullRequestsFilter,
+        rows: [PullRequestSummary]
+    ) -> [PullRequestListSection] {
         let sections: [PullRequestListSection]
         switch tab {
         case .authored:
@@ -179,4 +218,22 @@ extension PullRequestsViewModel {
             || summary.authorLogin.localizedCaseInsensitiveContains(query)
             || summary.headRefName.localizedCaseInsensitiveContains(query)
     }
+}
+
+/// The shaped list for one set of inputs. Sections fill in on first use, so a screen that
+/// only walks rows never pays for the bucketing.
+struct VisibleListCache {
+    let key: VisibleRowsCacheKey
+    let rows: [PullRequestSummary]
+    var sections: [PullRequestListSection]?
+}
+
+/// Every input `visibleRows(for:)` reads. `items` compares by shared buffer while the list
+/// is unchanged, so a cache hit costs no per-row work.
+struct VisibleRowsCacheKey: Equatable {
+    let tab: PullRequestsFilter
+    let statuses: Set<PullRequestStatus>
+    let repositories: Set<String>
+    let searchQuery: String
+    let items: [PullRequestSummary]
 }

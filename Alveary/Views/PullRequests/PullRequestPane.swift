@@ -7,12 +7,22 @@ enum PullRequestPaneTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct PullRequestPane: View {
+/// The pane compares equal across the lane's own render passes so a resize drag or an
+/// unrelated root invalidation cannot rebuild the whole detail subtree. Its body still
+/// reads `paneSessions`, so a write to the displayed session re-renders it as before.
+struct PullRequestPane: View, Equatable {
     let viewModel: PullRequestsViewModel
     let target: PullRequestPaneTarget
     let onDismiss: () -> Void
 
     @State private var selectedTab = PullRequestPaneTab.overview
+
+    /// `onDismiss` is excluded: `ResizableRightPane` keys the pane by presentation
+    /// identity, so a fresh closure meaning something different arrives only with a
+    /// new `.id` — which tears this view down instead of comparing it.
+    nonisolated static func == (lhs: PullRequestPane, rhs: PullRequestPane) -> Bool {
+        lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
+    }
 
     var body: some View {
         deleteCommentDialog(
@@ -29,6 +39,7 @@ struct PullRequestPane: View {
                     content(session: session)
 
                     PullRequestPaneReviewFooter(viewModel: viewModel, session: session)
+                        .equatable()
                 } else {
                     // The session is discarded after the slide-out; keep the frame stable meanwhile.
                     Spacer(minLength: 0)
@@ -130,8 +141,10 @@ struct PullRequestPane: View {
                 viewModel: viewModel,
                 onOpenFiles: { selectedTab = .files }
             )
+            .equatable()
         case .files:
             PullRequestPaneFiles(session: session, viewModel: viewModel)
+                .equatable()
         }
     }
 }

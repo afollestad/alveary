@@ -2,9 +2,14 @@ import SwiftUI
 
 /// The pending-batch review footer: shows the queued inline-comment count and an
 /// expandable summary composer for submitting the whole review in one call.
-struct PullRequestPaneReviewFooter: View {
+struct PullRequestPaneReviewFooter: View, Equatable {
     let viewModel: PullRequestsViewModel
     let session: PullRequestPaneSession
+
+    /// `initiallyExpanded` only seeds `@State`, so it is not part of the rendered inputs.
+    nonisolated static func == (lhs: PullRequestPaneReviewFooter, rhs: PullRequestPaneReviewFooter) -> Bool {
+        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
+    }
 
     @State private var isExpanded: Bool
     @State private var selectedEvent = PullRequestReviewEvent.comment

@@ -225,7 +225,11 @@ extension ContentView {
         case .scheduled(let target):
             ScheduledTaskEditorPane(viewModel: scheduledTasksViewModel, target: target, onDismiss: onDismiss)
         case .pullRequest(let target):
+            // The lane re-runs its own body on every resize-drag frame and every pane-session
+            // write; equality keeps that off the detail subtree. Both environment values below
+            // carry stable identities, so injecting them cannot defeat it.
             PullRequestPane(viewModel: pullRequestsViewModel, target: target, onDismiss: onDismiss)
+                .equatable()
                 .environment(\.appMarkdownImagePreviewAction, markdownImagePreviewAction)
                 .environment(\.pullRequestLinkedOwnerOpenAction, linkedOwnerOpenAction)
         }

@@ -2,7 +2,11 @@ import AgentCLIKit
 import SwiftData
 import SwiftUI
 
-struct MiddlePane: View {
+/// The middle pane compares equal across root render passes, which is the only memoization
+/// boundary between `ContentView` and the visible screen. Without it every root
+/// invalidation — a toolbar badge, a diff-stat tick, a pane-session write, each frame of a
+/// right-pane resize drag — rebuilt this whole subtree.
+struct MiddlePane: View, Equatable {
     @Bindable var appState: AppState
     let modelContext: ModelContext
     let gitHubCLI: GitHubCLIService
@@ -36,6 +40,30 @@ struct MiddlePane: View {
 
     // Match the new-thread hero's optical center within the root selection pane.
     private let selectionEmptyStateVerticalOffset: CGFloat = -86
+
+    /// `targetSettingsPage` is the only stored input that varies; everything the body
+    /// renders otherwise comes from `appState`, the `@Query`, and the environment, all of
+    /// which invalidate this view directly. The services are dependency handles
+    /// `ContentView` injects once per window, and the three closures read through those
+    /// same references and `@State` boxes rather than a captured copy's stored values, so
+    /// freezing them cannot serve a stale answer. `appState` and `modelContext` are
+    /// omitted only because a `nonisolated` `==` cannot read them; they are injected once
+    /// per window like the rest.
+    nonisolated static func == (lhs: MiddlePane, rhs: MiddlePane) -> Bool {
+        lhs.targetSettingsPage == rhs.targetSettingsPage && sameViewModels(lhs, rhs)
+    }
+
+    private nonisolated static func sameViewModels(_ lhs: MiddlePane, _ rhs: MiddlePane) -> Bool {
+        lhs.sidebarViewModel === rhs.sidebarViewModel
+            && lhs.diffViewModel === rhs.diffViewModel
+            && lhs.skillsViewModel === rhs.skillsViewModel
+            && lhs.mcpViewModel === rhs.mcpViewModel
+            && lhs.scheduledTasksViewModel === rhs.scheduledTasksViewModel
+            && lhs.pullRequestsViewModel === rhs.pullRequestsViewModel
+            && lhs.settingsViewModel === rhs.settingsViewModel
+            && lhs.archivedThreadsViewModel === rhs.archivedThreadsViewModel
+            && lhs.appUpdateManager === rhs.appUpdateManager
+    }
 
     var body: some View {
         switch appState.selectedSidebarItem {

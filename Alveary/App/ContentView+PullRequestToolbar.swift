@@ -55,12 +55,16 @@ extension ContentView {
     /// draft comes back `.draft`), so this both reacts instantly and stays right.
     /// A pane opened from an identifier alone has no summary until its first
     /// detail lands, and the stored snapshot carries the glyph until then.
+    ///
+    /// Reads the view model's mirrored status rather than indexing `paneSessions`:
+    /// that dictionary has no per-key observation granularity, so the root would
+    /// re-render — `ThreadDetailView` included — on every session write.
     var activeSelectionPullRequestStatus: PullRequestStatus? {
         guard let owner = selectedPullRequestLinkOwner,
-              let target = pullRequestsViewModel.activePaneTarget(for: PullRequestPaneOrigin(owner: owner)) else {
+              pullRequestsViewModel.activePaneTarget(for: PullRequestPaneOrigin(owner: owner)) != nil else {
             return nil
         }
-        return pullRequestsViewModel.paneSessions[target]?.summary?.status
+        return pullRequestsViewModel.activePaneSummaryStatus
     }
 
     /// The stored snapshot is a cache, so reconcile it as soon as the open pane

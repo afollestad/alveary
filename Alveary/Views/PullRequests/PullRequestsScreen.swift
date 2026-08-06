@@ -59,6 +59,9 @@ struct PullRequestsScreen: View {
         // again for each frame of the right pane's slide-in.
         let sections = viewModel.visibleSections(for: viewModel.selectedFilter)
         let activeDetailID = viewModel.activeDetailIdentifier
+        let showsRepository = viewModel.showsRepositoryInRows
+        let referenceDate = viewModel.referenceDate
+        let avatarLoader = viewModel.avatarLoader
         return GeometryReader { proxy in
             ScrollViewReader { scrollProxy in
                 ScrollView {
@@ -77,15 +80,16 @@ struct PullRequestsScreen: View {
                             if !sections.isEmpty {
                                 PullRequestsSectionedList(
                                     sections: sections,
-                                    showsRepository: viewModel.showsRepositoryInRows,
-                                    referenceDate: viewModel.referenceDate,
-                                    avatarLoader: viewModel.avatarLoader,
+                                    showsRepository: showsRepository,
+                                    referenceDate: referenceDate,
+                                    avatarLoader: avatarLoader,
                                     activeDetailID: activeDetailID,
                                     onSelect: { summary in
                                         viewModel.requestDetails(summary)
                                         isListFocused = true
                                     }
                                 )
+                                .equatable()
                             }
                         }
                     }

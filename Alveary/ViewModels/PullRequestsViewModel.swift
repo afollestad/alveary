@@ -49,6 +49,13 @@ final class PullRequestsViewModel {
     /// pane cannot render outside the context it was opened from.
     private(set) var activePaneOrigin: PullRequestPaneOrigin = .screen
     private(set) var paneSessions: [PullRequestPaneTarget: PullRequestPaneSession] = [:]
+    /// The open pane's summary status, mirrored out of `paneSessions` so the app root can
+    /// follow it without observing the whole dictionary — `@Observable` has no per-key
+    /// granularity, so reading a session there made every session write (typing, collapsing
+    /// a file, a diff landing) re-render the root and the mounted thread view. Every
+    /// mutation of `paneSessions` or `activePaneTarget` in this file ends with
+    /// `refreshActivePaneSummaryStatus()`; the dictionary's setter is private to it.
+    private(set) var activePaneSummaryStatus: PullRequestStatus?
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
 
@@ -87,6 +94,11 @@ final class PullRequestsViewModel {
     /// A failed upload waiting on browser-session access; non-nil presents the
     /// Full Disk Access guidance sheet. Mutated by the attachments companion.
     var attachmentAccessRequest: PullRequestAttachmentAccessRequest?
+
+    /// Memoized list shaping, owned by `PullRequestsViewModel+Filtering.swift`.
+    /// `@ObservationIgnored` so filling it during a render publishes nothing.
+    @ObservationIgnored
+    var visibleListCache: VisibleListCache?
 
     var searchQuery = ""
     /// Empty sets mean "no constraint" — every status / repository passes.
@@ -341,6 +353,17 @@ extension PullRequestsViewModel {
         }
         activePaneTarget = target
         activePaneOrigin = origin
+        refreshActivePaneSummaryStatus()
+    }
+
+    /// Re-derives the mirrored status; guarded on equality so the writes that cannot
+    /// affect it publish nothing.
+    private func refreshActivePaneSummaryStatus() {
+        let status = activePaneTarget.flatMap { paneSessions[$0]?.summary?.status }
+        guard status != activePaneSummaryStatus else {
+            return
+        }
+        activePaneSummaryStatus = status
     }
 
     /// The active target, but only when its origin matches the surface asking.
@@ -371,6 +394,7 @@ extension PullRequestsViewModel {
     /// Route-only deactivation; preserves the session for another root pane.
     func deactivatePane() {
         activePaneTarget = nil
+        refreshActivePaneSummaryStatus()
     }
 
     /// Phase one of closing: schedules the captured session for discard after the slide-out.
@@ -386,6 +410,7 @@ extension PullRequestsViewModel {
         // the start of the slide-out rather than after it.
         cancelPaneLoads(for: target)
         activePaneTarget = nil
+        refreshActivePaneSummaryStatus()
     }
 
     func dismissPane(
@@ -406,6 +431,7 @@ extension PullRequestsViewModel {
         if activePaneTarget == target {
             activePaneTarget = nil
         }
+        refreshActivePaneSummaryStatus()
     }
 
     // MARK: - Diff shaping
@@ -421,6 +447,7 @@ extension PullRequestsViewModel {
             total: files.count
         )
         paneSessions[target] = session
+        refreshActivePaneSummaryStatus()
     }
 
     func toggleDiffFileCollapse(_ fileID: String) {
@@ -434,6 +461,7 @@ extension PullRequestsViewModel {
             session.collapsedDiffFileIDs.insert(fileID)
         }
         paneSessions[target] = session
+        refreshActivePaneSummaryStatus()
     }
 
     func mutateActiveSession(_ mutate: (inout PullRequestPaneSession) -> Void) {
@@ -442,6 +470,7 @@ extension PullRequestsViewModel {
         }
         mutate(&session)
         paneSessions[target] = session
+        refreshActivePaneSummaryStatus()
     }
 
     /// Generation-guarded session write for async completions; returns whether the
@@ -457,6 +486,7 @@ extension PullRequestsViewModel {
         }
         mutate(&session)
         paneSessions[target] = session
+        refreshActivePaneSummaryStatus()
         return true
     }
 

@@ -1,8 +1,14 @@
 import SwiftUI
 
-struct PullRequestPaneFiles: View {
+struct PullRequestPaneFiles: View, Equatable {
     let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
+
+    /// The rendered diff derives from `session`; the composer state this also reads off
+    /// the view model is observed directly, which invalidates the body regardless of `==`.
+    nonisolated static func == (lhs: PullRequestPaneFiles, rhs: PullRequestPaneFiles) -> Bool {
+        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
+    }
 
     // The delete-comment confirmation dialog lives on `PullRequestPane`, shared
     // with the Overview timeline, so arming a deletion on either tab presents it.

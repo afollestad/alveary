@@ -1,11 +1,18 @@
 import AppKit
 import SwiftUI
 
-struct PullRequestPaneOverview: View {
+struct PullRequestPaneOverview: View, Equatable {
     let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
     /// Switches the pane to the Changes tab; activity review threads link there.
     let onOpenFiles: () -> Void
+
+    /// Everything rendered here comes from `session`, so a pane pass that carries the
+    /// same one has nothing to redraw. `onOpenFiles` is excluded: it writes the pane's
+    /// `@State` tab, whose storage outlives the struct copy the closure captured.
+    nonisolated static func == (lhs: PullRequestPaneOverview, rhs: PullRequestPaneOverview) -> Bool {
+        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
+    }
 
     @State private var scrollPosition = ScrollPosition()
     /// Whether the reader is parked at the end of the timeline, which is what
