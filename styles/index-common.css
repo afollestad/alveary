@@ -26,14 +26,50 @@ a:visited {
 /* Sections --------------------------------------------------------------- */
 
 .section-hero {
-    /* .top-actions is absolute; without this it would anchor to the initial
-       containing block instead of the hero. */
+    /* .top-brand and .top-actions are absolute; without this they would anchor
+       to the initial containing block instead of the hero. */
     position: relative;
     padding: 4.4rem .5rem 2.2rem;
 }
 
 .section-feature {
     padding: 2.6rem .5rem;
+}
+
+/* Top brand -------------------------------------------------------------- */
+
+/* Mirrors .top-actions on the opposite corner; both rely on the hero being
+   the positioned ancestor. */
+.top-brand {
+    position: absolute;
+    top: .85rem;
+    left: 1.5rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+}
+
+.top-brand .brand-logo {
+    display: inline-flex;
+    padding: .2rem;
+}
+
+/* Same substitution as the footer links: drop Spectre's purple focus ring for
+   the accent outline. */
+.top-brand .brand-logo:focus {
+    box-shadow: none;
+}
+
+.top-brand .brand-logo:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.top-brand .brand-logo img {
+    display: block;
+    width: 1.6rem;
+    height: auto;
+    border-radius: 50%;
 }
 
 /* Top actions ------------------------------------------------------------ */
