@@ -39,6 +39,31 @@ enum PullRequestDiffState: Equatable {
     case failed(String)
 }
 
+/// One in-flight pane load. The `token` is what completion cleanup matches on: a
+/// restart reuses the session's generation, so nothing else distinguishes a
+/// cancelled load from the one that replaced it.
+struct PullRequestPaneLoad {
+    let token: UUID
+    let task: Task<Void, Never>
+}
+
+/// The in-flight detail and diff loads for one pane target. Cancellation is the
+/// concurrency bound for pane fetches — only the pane the user is looking at keeps
+/// loads running — so these handles have to be reachable, not discarded at spawn.
+struct PullRequestPaneLoadTasks {
+    var detail: PullRequestPaneLoad?
+    var diff: PullRequestPaneLoad?
+
+    var isEmpty: Bool {
+        detail == nil && diff == nil
+    }
+
+    func cancelAll() {
+        detail?.task.cancel()
+        diff?.task.cancel()
+    }
+}
+
 struct PullRequestPaneSession: Equatable {
     let generation: UUID
     /// The list row that opened the pane; keeps the header and overview populated

@@ -77,6 +77,13 @@ final class PullRequestsViewModel {
     @ObservationIgnored
     var pendingReviewCreationTasks: [PullRequestPaneTarget: Task<String, Error>] = [:]
 
+    /// In-flight detail and diff loads per pane target. Only the pane the user is
+    /// looking at keeps its loads; opening another target cancels the rest, which
+    /// is what bounds concurrent `gh` invocations. Mutated by
+    /// `PullRequestsViewModel+PaneLoading.swift`.
+    @ObservationIgnored
+    var paneLoadTasks: [PullRequestPaneTarget: PullRequestPaneLoadTasks] = [:]
+
     /// A failed upload waiting on browser-session access; non-nil presents the
     /// Full Disk Access guidance sheet. Mutated by the attachments companion.
     var attachmentAccessRequest: PullRequestAttachmentAccessRequest?
@@ -296,14 +303,24 @@ extension PullRequestsViewModel {
             deactivatedPaneDismissals.remove(request)
             dismissPane(target, generation: request.generation, restoreFocus: false)
         }
+        // Only the pane being opened keeps its loads; everything else is superseded
+        // work whose `gh` subprocesses would otherwise run to completion unread.
+        cancelPaneLoads(except: target)
         if paneSessions[target] == nil {
             let session = PullRequestPaneSession(generation: UUID(), summary: summary)
             paneSessions[target] = session
             loadPaneContent(target: target, generation: session.generation)
-        } else if let summary, paneSessions[target]?.summary == nil {
-            // An identifier-opened session still waiting on its detail; a caller
-            // holding a snapshot can fill the header now rather than after the fetch.
-            paneSessions[target]?.summary = summary
+        } else {
+            if let summary, paneSessions[target]?.summary == nil {
+                // An identifier-opened session still waiting on its detail; a caller
+                // holding a snapshot can fill the header now rather than after the fetch.
+                paneSessions[target]?.summary = summary
+            }
+            // Reopening a pane whose loads were cancelled on the way out; without this
+            // the retained session would render its spinner forever.
+            if let generation = paneSessions[target]?.generation {
+                resumeIncompleteLoads(target: target, generation: generation)
+            }
         }
         activePaneTarget = target
         activePaneOrigin = origin
@@ -337,6 +354,9 @@ extension PullRequestsViewModel {
         let request = PaneSessionDismissalRequest(target: target, generation: generation)
         pendingPaneDismissals.insert(request)
         deactivatedPaneDismissals.insert(request)
+        // The session is already scheduled for discard, so stop its subprocesses at
+        // the start of the slide-out rather than after it.
+        cancelPaneLoads(for: target)
         activePaneTarget = nil
     }
 
@@ -353,6 +373,7 @@ extension PullRequestsViewModel {
         }
         pendingPaneDismissals.remove(request)
         deactivatedPaneDismissals.remove(request)
+        cancelPaneLoads(for: target)
         paneSessions[target] = nil
         if activePaneTarget == target {
             activePaneTarget = nil
@@ -411,74 +432,4 @@ extension PullRequestsViewModel {
         return true
     }
 
-    // MARK: - Pane loading
-
-    private func loadPaneContent(target: PullRequestPaneTarget, generation: UUID) {
-        Task {
-            await loadDetail(target: target, generation: generation)
-        }
-        Task {
-            await loadDiff(target: target, generation: generation)
-        }
-    }
-
-    /// `onFinish` mutates the session in the same write that applies the load's
-    /// outcome, so callers can swap dependent state (e.g. the pending review batch
-    /// after submission) without an intermediate frame where both are absent.
-    func loadDetail(
-        target: PullRequestPaneTarget,
-        generation: UUID,
-        onFinish: ((inout PullRequestPaneSession) -> Void)? = nil
-    ) async {
-        do {
-            let detail = try await service.fetchDetail(target.identifier)
-            guard var session = paneSessions[target], session.generation == generation else {
-                return
-            }
-            session.detail = detail
-            session.detailError = nil
-            session.isLoadingDetail = false
-            if session.summary == nil {
-                // An identifier-opened pane has no snapshot; the detail it just
-                // fetched is what one would have been derived from anyway.
-                session.summary = PullRequestLinkService.makeSummary(from: detail)
-            }
-            onFinish?(&session)
-            paneSessions[target] = session
-        } catch {
-            guard var session = paneSessions[target], session.generation == generation else {
-                return
-            }
-            session.detailError = error.localizedDescription
-            session.isLoadingDetail = false
-            onFinish?(&session)
-            paneSessions[target] = session
-        }
-    }
-
-    private func loadDiff(target: PullRequestPaneTarget, generation: UUID) async {
-        do {
-            let raw = try await service.fetchDiff(target.identifier)
-            let parsed = await Task.detached(priority: .userInitiated) {
-                DiffParser.parse(raw)
-            }.value
-            guard var session = paneSessions[target], session.generation == generation else {
-                return
-            }
-            session.diffFiles = parsed
-            session.diffState = .loaded
-            session.collapsedDiffFileIDs = PullRequestDiffFilePaging.autoCollapsedFileIDs(for: parsed)
-            paneSessions[target] = session
-        } catch {
-            guard var session = paneSessions[target], session.generation == generation else {
-                return
-            }
-            if case PullRequestsServiceError.responseTooLarge = error {
-                session.diffState = .tooLarge
-            } else {
-                session.diffState = .failed(error.localizedDescription)
-            }
-            paneSessions[target] = session
-        }
-    }
 }
