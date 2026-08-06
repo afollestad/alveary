@@ -15,7 +15,7 @@ final class AppKitComposerOverlayPanelView: NSView {
         let canNavigateForward: Bool
         let dismissTitle: String
         let primaryTitle: String
-        let primarySymbolName: String?
+        let primaryIcon: ActionIcon?
         let isPrimaryEnabled: Bool
         let prefersPrimaryActionForReturn: Bool
         let isResolving: Bool
@@ -35,7 +35,7 @@ final class AppKitComposerOverlayPanelView: NSView {
             canNavigateForward: Bool = false,
             dismissTitle: String = "Dismiss",
             primaryTitle: String,
-            primarySymbolName: String? = nil,
+            primaryIcon: ActionIcon? = nil,
             isPrimaryEnabled: Bool = true,
             prefersPrimaryActionForReturn: Bool = false,
             isResolving: Bool = false,
@@ -54,7 +54,7 @@ final class AppKitComposerOverlayPanelView: NSView {
             self.canNavigateForward = canNavigateForward
             self.dismissTitle = dismissTitle
             self.primaryTitle = primaryTitle
-            self.primarySymbolName = primarySymbolName
+            self.primaryIcon = primaryIcon
             self.isPrimaryEnabled = isPrimaryEnabled
             self.prefersPrimaryActionForReturn = prefersPrimaryActionForReturn
             self.isResolving = isResolving
@@ -127,11 +127,14 @@ final class AppKitComposerOverlayPanelView: NSView {
         pageField.stringValue = configuration.pageText ?? ""
         pageField.isHidden = configuration.pageText == nil
         dismissButton.title = configuration.dismissTitle
+        dismissButton.icon = .system("xmark")
         dismissButton.shortcutTitle = "Esc"
         dismissButton.isEnabled = !configuration.isResolving
         primaryButton.title = configuration.isResolving ? "Working..." : configuration.primaryTitle
-        primaryButton.symbolName = configuration.primarySymbolName
-        primaryButton.shortcutTitle = configuration.primarySymbolName == nil ? "↩" : nil
+        primaryButton.icon = configuration.primaryIcon
+        // An icon and the Return cap compete for the same trailing room, so the
+        // glyph replaces the cap rather than joining it.
+        primaryButton.shortcutTitle = configuration.primaryIcon == nil ? "↩" : nil
         primaryButton.isEnabled = configuration.isPrimaryEnabled && !configuration.isResolving
 
         rebuildRows(configuration.rows)

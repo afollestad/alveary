@@ -96,11 +96,19 @@ struct PullRequestCommentActionsMenu: View {
 
     var body: some View {
         Menu {
+            // `.titleAndIcon` is required: macOS menu rows default to a
+            // title-only label style, so a bare `Label` renders as text.
             if let onEdit {
-                Button("Edit", action: onEdit)
+                Button(action: onEdit) {
+                    Label("Edit", systemImage: "pencil")
+                        .labelStyle(.titleAndIcon)
+                }
             }
             if let onDelete {
-                Button("Delete", role: .destructive, action: onDelete)
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash")
+                        .labelStyle(.titleAndIcon)
+                }
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -221,18 +229,34 @@ struct PullRequestThreadActionsFooter: View {
     var body: some View {
         HStack(spacing: 12) {
             if canReply {
-                Button("Reply", action: onReply)
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityLabel("Reply to thread")
+                Button(action: onReply) {
+                    ActionButtonLabel(
+                        title: "Reply",
+                        icon: .octicon("ReplyOcticon16"),
+                        scale: .inline
+                    )
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityLabel("Reply to thread")
             }
 
             if canResolve {
-                Button(isResolved ? "Unresolve conversation" : "Resolve conversation", action: onToggleResolved)
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Button(action: onToggleResolved) {
+                    // Both states stay in the circle family so they read as one
+                    // toggle, and so neither is mistaken for Reply's bare arrow.
+                    ActionButtonLabel(
+                        title: isResolved ? "Unresolve conversation" : "Resolve conversation",
+                        icon: isResolved
+                            ? .system("arrow.uturn.backward.circle")
+                            : .octicon("CheckCircleOcticon16"),
+                        scale: .inline
+                    )
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)

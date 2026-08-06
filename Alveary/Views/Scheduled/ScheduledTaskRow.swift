@@ -219,23 +219,31 @@ private struct ScheduledTaskRowActions: View {
     }
 
     private var editButton: some View {
-        Button("Edit", action: onEdit)
-            .secondaryActionButtonStyle()
-            .focused(editFocus, equals: editFocusID)
+        Button(action: onEdit) {
+            ActionButtonLabel(title: "Edit", icon: .system("pencil"))
+        }
+        .secondaryActionButtonStyle()
+        .focused(editFocus, equals: editFocusID)
     }
 
     @ViewBuilder private var stateButton: some View {
         if task.canPause {
-            Button("Pause", action: onPause)
-                .secondaryActionButtonStyle()
+            Button(action: onPause) {
+                ActionButtonLabel(title: "Pause", icon: .system("pause.circle"))
+            }
+            .secondaryActionButtonStyle()
         } else if task.canResume {
-            Button("Resume", action: onResume)
-                .secondaryActionButtonStyle()
+            Button(action: onResume) {
+                ActionButtonLabel(title: "Resume", icon: .system("play.circle"))
+            }
+            .secondaryActionButtonStyle()
         }
     }
 
     private var deleteButton: some View {
-        Button("Delete", role: .destructive, action: onDelete)
-            .destructiveActionButtonStyle()
+        Button(role: .destructive, action: onDelete) {
+            ActionButtonLabel(title: "Delete", icon: .system("trash"))
+        }
+        .destructiveActionButtonStyle()
     }
 }

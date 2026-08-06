@@ -84,13 +84,13 @@ final class AppKitTranscriptPullRequestPromptView: NSView {
         promptLabel.maximumNumberOfLines = 1
         addSubview(promptLabel)
 
-        configureControl(acceptControl, symbolName: "checkmark", style: .primary, action: #selector(handleAcceptControl))
-        configureControl(declineControl, symbolName: "xmark", style: .secondary, action: #selector(handleDeclineControl))
+        configureControl(acceptControl, icon: .system("checkmark"), style: .primary, action: #selector(handleAcceptControl))
+        configureControl(declineControl, icon: .system("xmark"), style: .secondary, action: #selector(handleDeclineControl))
     }
 
     private func configureControl(
         _ control: AppKitTranscriptApprovalSplitControl,
-        symbolName: String,
+        icon: ActionIcon,
         style: AppKitTranscriptApprovalButtonStyle,
         action: Selector
     ) {
@@ -98,7 +98,7 @@ final class AppKitTranscriptPullRequestPromptView: NSView {
         control.segmentCount = 2
         control.trackingMode = .momentary
         control.controlSize = .small
-        control.primarySymbolName = symbolName
+        control.primaryIcon = icon
         control.actionStyle = style
         control.target = self
         control.action = action

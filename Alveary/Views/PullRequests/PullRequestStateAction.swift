@@ -26,6 +26,22 @@ struct PullRequestStateAction: Equatable, Identifiable {
         kind == .close
     }
 
+    /// One glyph per kind, so the footer's plain button and its `SplitActionButton`
+    /// cannot drift apart. `EyeOcticon` is reserved for marking a pull request ready
+    /// for review — the same glyph the Overview timeline uses for that event.
+    var icon: ActionIcon {
+        switch kind {
+        case .close:
+            return .octicon("PullRequestClosedOcticon16")
+        case .reopen:
+            return .octicon("PullRequestOcticon16")
+        case .markReady:
+            return .octicon("EyeOcticon")
+        case .markDraft:
+            return .octicon("PullRequestDraftOcticon16")
+        }
+    }
+
     /// Every state change available on the pull request, **default selection
     /// first**. Empty means the footer shows no state button at all: the detail
     /// has not loaded, the viewer lacks write permission, or the pull request is
@@ -95,7 +111,9 @@ struct PullRequestStateAction: Equatable, Identifiable {
 
     private static let markReady = PullRequestStateAction(
         kind: .markReady,
-        title: "Mark ready for review",
+        // Matches GitHub's own wording, and the shorter label leaves room for
+        // the eye octicon without truncating at ordinary pane widths.
+        title: "Ready for review",
         isEnabled: true,
         disabledNote: nil
     )

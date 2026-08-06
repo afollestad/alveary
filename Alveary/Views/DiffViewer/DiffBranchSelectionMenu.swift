@@ -5,7 +5,7 @@ import SwiftUI
 private let diffBranchMenuOcticonSize: CGFloat = 17
 
 /// The branch chooser shared by the commit and create-pull-request modals:
-/// base branch, the checked-out branch when it differs, and "+ New branch".
+/// base branch, the checked-out branch when it differs, and "New branch".
 /// Hosts own selection state and which options are selectable.
 struct DiffBranchSelectionMenu: View {
     let baseBranch: String
@@ -21,14 +21,26 @@ struct DiffBranchSelectionMenu: View {
 
     var body: some View {
         Menu {
-            Button(baseBranch, action: onSelectBase)
-                .disabled(!isBaseSelectable)
+            // SF Symbols rather than the label's `GitBranchOcticon`, and
+            // `.titleAndIcon` on each: macOS menu rows default to a title-only
+            // label style, so a bare `Label` renders as text.
+            Button(action: onSelectBase) {
+                Label(baseBranch, systemImage: "arrow.triangle.branch")
+                    .labelStyle(.titleAndIcon)
+            }
+            .disabled(!isBaseSelectable)
 
             if isCurrentSelectable, let currentBranch {
-                Button(currentBranch, action: onSelectCurrent)
+                Button(action: onSelectCurrent) {
+                    Label(currentBranch, systemImage: "arrow.triangle.branch")
+                        .labelStyle(.titleAndIcon)
+                }
             }
 
-            Button("+ New branch", action: onSelectNew)
+            Button(action: onSelectNew) {
+                Label("New branch", systemImage: "plus")
+                    .labelStyle(.titleAndIcon)
+            }
         } label: {
             HStack(spacing: 8) {
                 OcticonImage(name: "GitBranchOcticon", size: diffBranchMenuOcticonSize)

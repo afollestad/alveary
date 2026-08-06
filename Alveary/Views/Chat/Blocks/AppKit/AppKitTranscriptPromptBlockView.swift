@@ -160,6 +160,7 @@ final class AppKitTranscriptPromptBlockView: NSView {
         }
         submitButton.translatesAutoresizingMaskIntoConstraints = true
         submitButton.title = "Submit"
+        submitButton.icon = .system("checkmark")
         submitButton.target = self
         submitButton.action = #selector(handleSubmit)
         bubbleView.addSubview(submitButton)

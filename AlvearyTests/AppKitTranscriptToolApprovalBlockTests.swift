@@ -288,7 +288,7 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         block.layoutSubtreeIfNeeded()
 
         let approved = try XCTUnwrap(block.visibleButtons.first { $0.title == "Approved" } as? AppKitTranscriptApprovalButton)
-        XCTAssertEqual(approved.symbolNameForTesting, "checkmark")
+        XCTAssertEqual(approved.iconForTesting, .system("checkmark"))
         XCTAssertNil(approved.image)
 
         block.configure(
@@ -300,7 +300,7 @@ final class AppKitTranscriptToolApprovalBlockTests: XCTestCase {
         block.layoutSubtreeIfNeeded()
 
         let denied = try XCTUnwrap(block.visibleButtons.first { $0.title == "Denied" } as? AppKitTranscriptApprovalButton)
-        XCTAssertEqual(denied.symbolNameForTesting, "xmark")
+        XCTAssertEqual(denied.iconForTesting, .system("xmark"))
         XCTAssertNil(denied.image)
         XCTAssertFalse(denied.isEnabled)
     }

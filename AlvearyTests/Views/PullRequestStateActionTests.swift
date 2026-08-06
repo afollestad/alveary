@@ -74,7 +74,7 @@ final class PullRequestStateActionTests: XCTestCase {
     func testDraftLeadsWithMarkReadyThenClose() {
         let actions = PullRequestStateAction.available(for: detail(status: .draft))
         XCTAssertEqual(actions.map(\.kind), [.markReady, .close])
-        XCTAssertEqual(actions.first?.title, "Mark ready for review")
+        XCTAssertEqual(actions.first?.title, "Ready for review")
         XCTAssertEqual(actions.first?.isEnabled, true)
     }
 

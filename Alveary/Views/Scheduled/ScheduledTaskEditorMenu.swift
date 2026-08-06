@@ -36,7 +36,10 @@ struct ScheduledTaskMenuPicker<Value: Hashable>: View {
                     selection = option.value
                 } label: {
                     if option.value == selection {
+                        // `.titleAndIcon` is required: macOS menu rows default
+                        // to a title-only label style, which drops the check.
                         Label(option.label, systemImage: "checkmark")
+                            .labelStyle(.titleAndIcon)
                     } else {
                         Text(option.label)
                     }

@@ -21,7 +21,9 @@ final class AppKitTranscriptApprovalButton: NSButton {
     var actionStyle: AppKitTranscriptApprovalButtonStyle = .primary {
         didSet { needsDisplay = true }
     }
-    var symbolName: String? {
+    /// `draw(_:)` paints this itself, so `NSButton.image` is cleared and its
+    /// positioning/scaling properties are inert.
+    var icon: ActionIcon? {
         didSet {
             image = nil
             needsDisplay = true
@@ -38,7 +40,7 @@ final class AppKitTranscriptApprovalButton: NSButton {
 
     var preferredWidth: CGFloat {
         let titleWidth = ceil((title as NSString).size(withAttributes: [.font: drawingFont]).width)
-        let imageWidth = symbolName == nil ? 0 :
+        let imageWidth = icon == nil ? 0 :
             AppKitTranscriptApprovalButtonMetrics.iconSize + AppKitTranscriptApprovalButtonMetrics.iconTextSpacing
         let shortcutWidth = measuredShortcutWidth
         let shortcutSpacing = shortcutWidth > 0 ? AppKitTranscriptApprovalButtonMetrics.shortcutSpacing : 0
@@ -155,7 +157,7 @@ final class AppKitTranscriptApprovalButton: NSButton {
             .foregroundColor: foregroundColor
         ]
         let titleSize = (title as NSString).size(withAttributes: textAttributes)
-        let imageWidth = symbolName == nil ? 0 :
+        let imageWidth = icon == nil ? 0 :
             AppKitTranscriptApprovalButtonMetrics.iconSize + AppKitTranscriptApprovalButtonMetrics.iconTextSpacing
         let shortcutWidth = measuredShortcutWidth
         let shortcutSpacing = shortcutWidth > 0 ? AppKitTranscriptApprovalButtonMetrics.shortcutSpacing : 0
@@ -163,8 +165,8 @@ final class AppKitTranscriptApprovalButton: NSButton {
         var currentX = floor((bounds.width - contentWidth) / 2)
         let centerY = bounds.midY
 
-        if let symbolName,
-           let image = symbolImage(named: symbolName, color: foregroundColor) {
+        if let icon,
+           let image = iconImage(icon, color: foregroundColor) {
             let imageRect = NSRect(
                 x: currentX,
                 y: floor(centerY - (AppKitTranscriptApprovalButtonMetrics.iconSize / 2)),
@@ -283,20 +285,17 @@ final class AppKitTranscriptApprovalButton: NSButton {
         )
     }
 
-    private func symbolImage(named name: String, color: NSColor) -> NSImage? {
-        // Draw SF Symbols with the same resolved color as the title so native
-        // controls keep SwiftUI `Label` parity in normal and disabled states.
-        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-            .applying(.init(hierarchicalColor: color))
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)
+    /// Both sources resolve to the title's colour, so the glyph dims with the
+    /// label rather than staying at full strength when the button disables.
+    private func iconImage(_ icon: ActionIcon, color: NSColor) -> NSImage? {
+        icon.nsImage(side: AppKitTranscriptApprovalButtonMetrics.iconSize, color: color)
     }
 }
 
 #if DEBUG
 extension AppKitTranscriptApprovalButton {
-    var symbolNameForTesting: String? {
-        symbolName
+    var iconForTesting: ActionIcon? {
+        icon
     }
 
     func shortcutSymbolDrawingRectForTesting(title: String, in rect: NSRect) -> NSRect? {

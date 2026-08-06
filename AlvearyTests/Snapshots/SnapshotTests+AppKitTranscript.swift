@@ -277,13 +277,13 @@ extension SnapshotTests {
                 let hoverButton = AppKitTranscriptApprovalButton()
                 hoverButton.actionStyle = .primary
                 hoverButton.title = "Approve once"
-                hoverButton.symbolName = "checkmark"
+                hoverButton.icon = .system("checkmark")
                 hoverButton.setInteractionStateForTesting(isHovering: true)
 
                 let pressedButton = AppKitTranscriptApprovalButton()
                 pressedButton.actionStyle = .primary
                 pressedButton.title = "Approve once"
-                pressedButton.symbolName = "checkmark"
+                pressedButton.icon = .system("checkmark")
                 pressedButton.setInteractionStateForTesting(isPressed: true)
 
                 let splitControl = AppKitTranscriptApprovalSplitControl()
@@ -294,7 +294,7 @@ extension SnapshotTests {
                 let denyButton = AppKitTranscriptApprovalButton()
                 denyButton.actionStyle = .secondary
                 denyButton.title = "Deny"
-                denyButton.symbolName = "xmark"
+                denyButton.icon = .system("xmark")
                 denyButton.setInteractionStateForTesting(isHovering: true)
 
                 let stack = NSStackView(views: [hoverButton, pressedButton, splitControl, denyButton])

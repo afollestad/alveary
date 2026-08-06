@@ -190,15 +190,10 @@ private struct DiffViewerHeaderBranchLabel: View {
     }
 }
 
-private enum DiffViewerHeaderIcon {
-    case system(String)
-    case octicon(String)
-}
-
 private struct DiffViewerHeaderAction {
     let id: String
     let title: String
-    let icon: DiffViewerHeaderIcon
+    let icon: ActionIcon
     var role: ButtonRole?
     let isEnabled: Bool
     let action: () -> Void
@@ -252,17 +247,7 @@ private struct DiffViewerHeaderActionButton: View {
 
     private var button: some View {
         Button(role: action.role, action: action.action) {
-            glyph
-        }
-    }
-
-    @ViewBuilder
-    private var glyph: some View {
-        switch action.icon {
-        case .system(let name):
-            Image(systemName: name)
-        case .octicon(let name):
-            OcticonImage(name: name, size: diffViewerHeaderOcticonSize)
+            ActionIconImage(icon: action.icon, octiconSize: diffViewerHeaderOcticonSize)
         }
     }
 }

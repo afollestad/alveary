@@ -6,15 +6,35 @@ final class AppKitPromptSubmitButton: NSButton {
         static let height: CGFloat = 30
         static let horizontalPadding: CGFloat = 12
         static let cornerRadius: CGFloat = AppCornerRadius.standard
+        /// Matches `AppKitTranscriptApprovalButton`, so a glyph reads the same
+        /// on both transcript button types.
+        static let iconSize = AppKitTranscriptApprovalButtonMetrics.iconSize
+        static let iconTextSpacing = AppKitTranscriptApprovalButtonMetrics.iconTextSpacing
+    }
+
+    /// `draw(_:)` paints this itself, so `NSButton.image` stays unused.
+    var icon: ActionIcon? {
+        didSet {
+            image = nil
+            needsDisplay = true
+            invalidateIntrinsicContentSize()
+        }
     }
 
     private var isHovering = false
     private var isPressed = false
     private var trackingArea: NSTrackingArea?
 
+    private var iconWidth: CGFloat {
+        icon == nil ? 0 : Metrics.iconSize + Metrics.iconTextSpacing
+    }
+
     override var fittingSize: NSSize {
         let titleWidth = ceil((title as NSString).size(withAttributes: [.font: drawingFont]).width)
-        return NSSize(width: titleWidth + (Metrics.horizontalPadding * 2), height: Metrics.height)
+        return NSSize(
+            width: titleWidth + iconWidth + (Metrics.horizontalPadding * 2),
+            height: Metrics.height
+        )
     }
 
     override var intrinsicContentSize: NSSize {
@@ -100,8 +120,27 @@ final class AppKitPromptSubmitButton: NSButton {
             .foregroundColor: foregroundColor
         ]
         let titleSize = (title as NSString).size(withAttributes: attributes)
+        var currentX = floor((bounds.width - (titleSize.width + iconWidth)) / 2)
+
+        if let icon, let image = icon.nsImage(side: Metrics.iconSize, color: foregroundColor) {
+            image.draw(
+                in: NSRect(
+                    x: currentX,
+                    y: floor(bounds.midY - (Metrics.iconSize / 2)),
+                    width: Metrics.iconSize,
+                    height: Metrics.iconSize
+                ),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1,
+                respectFlipped: true,
+                hints: nil
+            )
+            currentX += iconWidth
+        }
+
         let titleRect = NSRect(
-            x: floor((bounds.width - titleSize.width) / 2),
+            x: currentX,
             y: floor((bounds.height - titleSize.height) / 2),
             width: titleSize.width,
             height: titleSize.height

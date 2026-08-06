@@ -135,14 +135,38 @@ private extension AppKitPullRequestListWidgetView {
             font: typography.nsFont(.caption, weight: .semibold),
             color: .secondaryLabelColor
         )
-        container.addSubview(title)
+        let content = NSStackView(views: [
+            expansionChevron(typography: typography),
+            title
+        ])
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.orientation = .horizontal
+        content.alignment = .centerY
+        content.spacing = Self.iconSpacing
+        container.addSubview(content)
         NSLayoutConstraint.activate([
-            title.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            title.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-            title.topAnchor.constraint(equalTo: container.topAnchor, constant: Self.rowVerticalPadding),
-            title.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Self.rowVerticalPadding)
+            content.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            content.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+            content.topAnchor.constraint(equalTo: container.topAnchor, constant: Self.rowVerticalPadding),
+            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -Self.rowVerticalPadding)
         ])
         return container
+    }
+
+    /// Points the way the row moves the list. Decorative — the container's
+    /// accessibility label already says which direction it goes.
+    private func expansionChevron(typography: TranscriptTypography) -> NSView {
+        let size = typography.size(for: .toolIcon)
+        let view = AppKitDynamicTintImageView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.setContentHuggingPriority(.required, for: .horizontal)
+        view.setAccessibilityElement(false)
+        view.image = NSImage(
+            systemSymbolName: isExpanded ? "chevron.up" : "chevron.down",
+            accessibilityDescription: nil
+        )?.withSymbolConfiguration(.init(pointSize: size, weight: .semibold))
+        view.setDynamicContentTintColor(.secondaryLabelColor)
+        return view
     }
 
     /// A hairline between rows, so the stack reads as a list rather than one run-on block. Tinted

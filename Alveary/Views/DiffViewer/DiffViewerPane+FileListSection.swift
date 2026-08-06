@@ -69,20 +69,32 @@ struct DiffViewerFileListSection: View {
                 }
                 .contextMenu {
                     let actionFiles = contextMenuFiles(for: file)
+                    // These mirror the header's Stage/Unstage/Discard glyphs.
+                    // `.titleAndIcon` is required: macOS menu rows default to a
+                    // title-only label style, so a bare `Label` renders as text.
                     if actionFiles.contains(where: { !$0.isStaged }) {
-                        Button("Stage") {
+                        Button {
                             performContextMenuAction(for: file, action: onStageFiles)
+                        } label: {
+                            Label("Stage", systemImage: "plus")
+                                .labelStyle(.titleAndIcon)
                         }
                     }
 
                     if actionFiles.contains(where: \.isStaged) {
-                        Button("Unstage") {
+                        Button {
                             performContextMenuAction(for: file, action: onUnstageFiles)
+                        } label: {
+                            Label("Unstage", systemImage: "minus")
+                                .labelStyle(.titleAndIcon)
                         }
                     }
 
-                    Button("Discard", role: .destructive) {
+                    Button(role: .destructive) {
                         performContextMenuAction(for: file, action: onDiscardFiles)
+                    } label: {
+                        Label("Discard", systemImage: "arrow.uturn.backward")
+                            .labelStyle(.titleAndIcon)
                     }
                 }
             }

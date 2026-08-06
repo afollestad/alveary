@@ -19,6 +19,20 @@ struct DiffViewerFooterAction: Equatable, Identifiable {
 
     var id: Kind { kind }
 
+    /// One glyph per kind, shared by the footer's plain button and its split
+    /// form. Create PR and View PR deliberately share the pull-request octicon:
+    /// both land the user on the same pull request.
+    var icon: ActionIcon {
+        switch kind {
+        case .commit:
+            return .octicon("GitCommitOcticon")
+        case .push:
+            return .octicon("RepoPushOcticon16")
+        case .createPullRequest, .viewPullRequest:
+            return .octicon("PullRequestOcticon16")
+        }
+    }
+
     /// `canCreatePullRequest` and `canViewPullRequest` are mutually exclusive
     /// by construction — the first needs zero linked pull requests and the
     /// second exactly one; several linked leaves both false, and the popover

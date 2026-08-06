@@ -134,11 +134,20 @@ struct ScheduledTaskEditorContent: View {
                 note: { dueTimeNote },
                 leadingAction: {
                     if let stateToggle {
-                        Button(stateToggle.isPaused ? "Resume" : "Pause", action: stateToggle.action)
-                            .secondaryActionButtonStyle(expandsHorizontally: true)
+                        Button(action: stateToggle.action) {
+                            ActionButtonLabel(
+                                title: stateToggle.isPaused ? "Resume" : "Pause",
+                                icon: stateToggle.isPaused
+                                    ? .system("play.circle")
+                                    : .system("pause.circle")
+                            )
+                        }
+                        .secondaryActionButtonStyle(expandsHorizontally: true)
                     } else {
-                        Button("Cancel", action: onClose)
-                            .secondaryActionButtonStyle(expandsHorizontally: true)
+                        Button(action: onClose) {
+                            ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+                        }
+                        .secondaryActionButtonStyle(expandsHorizontally: true)
                     }
                 },
                 trailingAction: { submitButton }
@@ -147,8 +156,10 @@ struct ScheduledTaskEditorContent: View {
             HStack(spacing: 12) {
                 dueTimeNote
                 Spacer()
-                Button("Cancel", action: onClose)
-                    .secondaryActionButtonStyle()
+                Button(action: onClose) {
+                    ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+                }
+                .secondaryActionButtonStyle()
                 submitButton
             }
             .padding(20)
@@ -161,10 +172,15 @@ struct ScheduledTaskEditorContent: View {
             .foregroundStyle(.secondary)
     }
 
+    /// Every submit title — create or update — takes the confirm checkmark; the
+    /// `plus` glyph stays reserved for the header and empty-state buttons that
+    /// open this editor.
     private var submitButton: some View {
-        Button(submitTitle, action: onSubmit)
-            .primaryActionButtonStyle(expandsHorizontally: surface == .pane)
-            .disabled(isSubmitting)
+        Button(action: onSubmit) {
+            ActionButtonLabel(title: submitTitle, icon: .system("checkmark"))
+        }
+        .primaryActionButtonStyle(expandsHorizontally: surface == .pane)
+        .disabled(isSubmitting)
     }
 }
 

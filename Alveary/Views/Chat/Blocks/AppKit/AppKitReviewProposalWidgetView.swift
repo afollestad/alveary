@@ -152,15 +152,17 @@ final class AppKitReviewProposalWidgetView: NSView {
         }
     }
 
-    /// Leading glyph naming the verdict the primary half would submit.
-    static func verdictSymbolName(_ event: PullRequestReviewEvent) -> String {
+    /// Leading glyph naming the verdict the primary half would submit. Matches
+    /// the pull-request pane's review footer so a verdict reads the same on
+    /// both surfaces.
+    static func verdictIcon(_ event: PullRequestReviewEvent) -> ActionIcon {
         switch event {
         case .approve:
-            "checkmark"
+            .octicon("CheckCircleOcticon16")
         case .requestChanges:
-            "exclamationmark.circle"
+            .octicon("AlertOcticon16")
         case .comment:
-            "bubble.left"
+            .octicon("CodeReviewOcticon16")
         }
     }
 
@@ -324,7 +326,7 @@ private extension AppKitReviewProposalWidgetView {
         let selected = configuration.selectedEvent ?? configuration.content.event
         let title = configuration.isSubmitting ? "Submitting…" : Self.verdictLabel(selected)
         verdictControl.setLabel(title, forSegment: 0)
-        verdictControl.primarySymbolName = Self.verdictSymbolName(selected)
+        verdictControl.primaryIcon = Self.verdictIcon(selected)
         // The face shows only the verdict, so the spoken label names the whole action.
         verdictControl.setAccessibilityLabel("Submit review: \(Self.verdictLabel(selected))")
         // Only the primary half refuses an unsubmittable verdict; the menu stays live so a viewer
@@ -369,10 +371,20 @@ private extension AppKitReviewProposalWidgetView {
     }
 
     func actionRow(_ configuration: Configuration) -> NSView {
-        let reject = button(title: "Cancel", style: .secondary, action: #selector(handleReject))
+        let reject = button(
+            title: "Cancel",
+            icon: .system("xmark"),
+            style: .secondary,
+            action: #selector(handleReject)
+        )
         reject.isEnabled = !configuration.isSubmitting
 
-        let open = button(title: "Open PR", style: .secondary, action: #selector(handleOpenPullRequest))
+        let open = button(
+            title: "Open PR",
+            icon: .octicon("PullRequestOcticon16"),
+            style: .secondary,
+            action: #selector(handleOpenPullRequest)
+        )
         open.isEnabled = (configuration.presentation?.identifier ?? configuration.content.identifier) != nil
 
         updateVerdictControl(configuration)
@@ -387,6 +399,7 @@ private extension AppKitReviewProposalWidgetView {
 
     func button(
         title: String,
+        icon: ActionIcon,
         style: AppKitTranscriptApprovalButtonStyle,
         action: Selector
     ) -> AppKitTranscriptApprovalButton {
@@ -395,6 +408,7 @@ private extension AppKitReviewProposalWidgetView {
         button.isBordered = false
         button.controlSize = .small
         button.title = title
+        button.icon = icon
         button.actionStyle = style
         button.target = self
         button.action = action

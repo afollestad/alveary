@@ -31,7 +31,7 @@ enum SplitActionButtonEmphasis {
 struct SplitActionButton<Option: Hashable>: View {
     let title: String
     /// Optional: footer actions carry text alone.
-    var systemImage: String?
+    var icon: ActionIcon?
     var emphasis = SplitActionButtonEmphasis.primary
     /// Fills the available width, for the even-split pane footer rows.
     var expandsHorizontally = false
@@ -109,8 +109,8 @@ struct SplitActionButton<Option: Hashable>: View {
 
     @ViewBuilder
     private var label: some View {
-        if let systemImage {
-            Label(title, systemImage: systemImage)
+        if let icon {
+            ActionButtonLabel(title: title, icon: icon)
         } else {
             Text(title)
         }

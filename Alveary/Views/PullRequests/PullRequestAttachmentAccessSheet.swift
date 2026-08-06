@@ -69,8 +69,10 @@ struct PullRequestAttachmentAccessSheet: View {
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
-                Button("Open System Settings", action: onOpenSettings)
-                    .secondaryActionButtonStyle()
+                Button(action: onOpenSettings) {
+                    ActionButtonLabel(title: "Open System Settings", icon: .system("gearshape"))
+                }
+                .secondaryActionButtonStyle()
                 if isSafariCookieStoreReadable {
                     Label("Access granted", systemImage: "checkmark.circle.fill")
                         .font(.callout)
@@ -98,12 +100,16 @@ struct PullRequestAttachmentAccessSheet: View {
     private var footer: some View {
         HStack(spacing: 10) {
             Spacer(minLength: 0)
-            Button("Cancel", action: onCancel)
-                .secondaryActionButtonStyle()
-                .keyboardShortcut(.cancelAction)
-            Button("Try Again", action: onRetry)
-                .primaryActionButtonStyle()
-                .keyboardShortcut(.defaultAction)
+            Button(action: onCancel) {
+                ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+            }
+            .secondaryActionButtonStyle()
+            .keyboardShortcut(.cancelAction)
+            Button(action: onRetry) {
+                ActionButtonLabel(title: "Try Again", icon: .system("arrow.clockwise"))
+            }
+            .primaryActionButtonStyle()
+            .keyboardShortcut(.defaultAction)
         }
     }
 

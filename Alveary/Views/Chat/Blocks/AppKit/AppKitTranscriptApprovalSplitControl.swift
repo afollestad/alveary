@@ -5,7 +5,7 @@ final class AppKitTranscriptApprovalSplitControl: NSSegmentedControl {
 
     /// Leading glyph on the primary half. Defaults to the approval checkmark so
     /// approval rows keep their exact appearance.
-    var primarySymbolName = "checkmark" {
+    var primaryIcon = ActionIcon.system("checkmark") {
         didSet { needsDisplay = true }
     }
     var actionStyle: AppKitTranscriptApprovalButtonStyle = .primary {
@@ -139,7 +139,7 @@ final class AppKitTranscriptApprovalSplitControl: NSSegmentedControl {
         var currentX = floor(rect.midX - (contentWidth / 2))
         let centerY = rect.midY
 
-        drawSymbol(primarySymbolName, in: NSRect(
+        drawIcon(primaryIcon, in: NSRect(
             x: currentX,
             y: floor(centerY - (AppKitTranscriptApprovalButtonMetrics.iconSize / 2)),
             width: AppKitTranscriptApprovalButtonMetrics.iconSize,
@@ -157,18 +157,18 @@ final class AppKitTranscriptApprovalSplitControl: NSSegmentedControl {
     }
 
     private func drawChevron(in rect: NSRect) {
-        drawSymbol(
-            "chevron.down",
+        drawIcon(
+            .system("chevron.down"),
             in: NSRect(x: floor(rect.midX - 5), y: floor(rect.midY - 5), width: 10, height: 10),
             color: foregroundColor(enabled: isMenuEnabled)
         )
     }
 
-    private func drawSymbol(_ name: String, in rect: NSRect, color: NSColor? = nil) {
-        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .semibold)
-            .applying(.init(hierarchicalColor: color ?? foregroundColor))
-        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration) else {
+    private func drawIcon(_ icon: ActionIcon, in rect: NSRect, color: NSColor? = nil) {
+        guard let image = icon.nsImage(
+            side: AppKitTranscriptApprovalButtonMetrics.iconSize,
+            color: color ?? foregroundColor
+        ) else {
             return
         }
         image.draw(in: symbolDrawingRect(for: image, in: rect), from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)

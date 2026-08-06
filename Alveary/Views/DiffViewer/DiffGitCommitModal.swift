@@ -1,9 +1,5 @@
 import SwiftUI
 
-/// Octicons do not size by font, so the Commit glyph states its own box; this
-/// matches the optical weight of the adjacent SF Symbol at the button's size.
-private let diffGitCommitModalOcticonSize: CGFloat = 17
-
 struct DiffGitCommitModal: View {
     @Bindable var model: DiffGitCommitModalModel
     let onClose: () -> Void
@@ -113,11 +109,7 @@ private extension DiffGitCommitModal {
                     }
                 }
             } label: {
-                Label {
-                    Text("Commit")
-                } icon: {
-                    OcticonImage(name: "GitCommitOcticon", size: diffGitCommitModalOcticonSize)
-                }
+                ActionButtonLabel(title: "Commit", icon: .octicon("GitCommitOcticon"))
             }
             .secondaryActionButtonStyle()
             .disabled(model.commitButtonDisabled)
@@ -129,7 +121,10 @@ private extension DiffGitCommitModal {
                     }
                 }
             } label: {
-                Label(model.primaryActionButtonTitle, systemImage: "arrow.up.circle")
+                ActionButtonLabel(
+                    title: model.primaryActionButtonTitle,
+                    icon: .octicon("RepoPushOcticon16")
+                )
             }
             .primaryActionButtonStyle()
             .disabled(model.primaryActionButtonDisabled)

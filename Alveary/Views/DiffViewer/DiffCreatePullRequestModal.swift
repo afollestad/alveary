@@ -103,9 +103,11 @@ private extension DiffCreatePullRequestModal {
 
             Spacer()
 
-            Button("Cancel", action: onClose)
-                .secondaryActionButtonStyle()
-                .disabled(model.isOperationInFlight)
+            Button(action: onClose) {
+                ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+            }
+            .secondaryActionButtonStyle()
+            .disabled(model.isOperationInFlight)
 
             Button {
                 Task {
@@ -114,11 +116,10 @@ private extension DiffCreatePullRequestModal {
                     }
                 }
             } label: {
-                Label {
-                    Text("Create pull request")
-                } icon: {
-                    OcticonImage(name: "PullRequestOcticon16", size: 17)
-                }
+                ActionButtonLabel(
+                    title: "Create pull request",
+                    icon: .octicon("PullRequestOcticon16")
+                )
             }
             .primaryActionButtonStyle()
             .disabled(model.createButtonDisabled)

@@ -42,8 +42,14 @@ struct PullRequestReviewThreadView: View {
                 Spacer(minLength: 0)
 
                 if !thread.isOutdated {
-                    Button("Show in Changes") {
+                    Button {
                         onOpenFiles()
+                    } label: {
+                        ActionButtonLabel(
+                            title: "Show in Changes",
+                            icon: .octicon("FileDiffOcticon"),
+                            scale: .inline
+                        )
                     }
                     .buttonStyle(.plain)
                     .font(.caption)
@@ -83,6 +89,7 @@ struct PullRequestReviewThreadView: View {
                         session: session,
                         viewModel: viewModel,
                         saveTitle: "Reply",
+                        saveIcon: .octicon("ReplyOcticon16"),
                         placeholder: "Leave a comment"
                     )
                 } else if !thread.isPending, thread.replyTargetCommentID != nil || thread.nodeID != nil {

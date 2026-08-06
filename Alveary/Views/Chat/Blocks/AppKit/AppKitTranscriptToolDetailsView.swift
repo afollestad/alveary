@@ -468,6 +468,8 @@ private final class AppKitTranscriptToolImagePreviewButton: NSButton {
     func configure(tool: ToolEntry, typography: TranscriptTypography) {
         self.tool = tool
         title = "Preview image"
+        image = NSImage(systemSymbolName: "photo", accessibilityDescription: nil)
+        imagePosition = .imageLeading
         font = typography.nsFont(.caption, weight: .semibold)
         updateEnabledState()
     }

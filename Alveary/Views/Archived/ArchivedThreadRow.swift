@@ -26,13 +26,17 @@ struct ArchivedThreadRow: View {
             // Every row repeats these two visible titles, so name the thread in the
             // accessibility label — otherwise VoiceOver reads a wall of "Unarchive, Delete".
             HStack(spacing: 6) {
-                Button("Unarchive", action: onRestore)
-                    .secondaryActionButtonStyle()
-                    .accessibilityLabel("Unarchive \(item.title)")
+                Button(action: onRestore) {
+                    ActionButtonLabel(title: "Unarchive", icon: .system("tray.and.arrow.up"))
+                }
+                .secondaryActionButtonStyle()
+                .accessibilityLabel("Unarchive \(item.title)")
 
-                Button("Delete", action: onDelete)
-                    .destructiveActionButtonStyle()
-                    .accessibilityLabel("Delete \(item.title)")
+                Button(action: onDelete) {
+                    ActionButtonLabel(title: "Delete", icon: .system("trash"))
+                }
+                .destructiveActionButtonStyle()
+                .accessibilityLabel("Delete \(item.title)")
             }
             .controlSize(.small)
             .disabled(isBusy)

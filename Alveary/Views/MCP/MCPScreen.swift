@@ -229,11 +229,15 @@ private struct MCPServerRow: View {
 
             Spacer()
 
-            Button("Edit", action: onEdit)
-                .secondaryActionButtonStyle()
-                .focused(editFocus, equals: editFocusID)
-            Button("Remove", role: .destructive, action: onRemove)
-                .destructiveActionButtonStyle()
+            Button(action: onEdit) {
+                ActionButtonLabel(title: "Edit", icon: .system("pencil"))
+            }
+            .secondaryActionButtonStyle()
+            .focused(editFocus, equals: editFocusID)
+            Button(role: .destructive, action: onRemove) {
+                ActionButtonLabel(title: "Remove", icon: .system("trash"))
+            }
+            .destructiveActionButtonStyle()
         }
         .padding(18)
         .background(
@@ -271,9 +275,11 @@ private struct RecommendedMCPCard: View {
 
             Spacer()
 
-            Button("Add", action: onAdd)
-                .primaryActionButtonStyle()
-                .focused(addFocus, equals: addFocusID)
+            Button(action: onAdd) {
+                ActionButtonLabel(title: "Add", icon: .system("plus"))
+            }
+            .primaryActionButtonStyle()
+            .focused(addFocus, equals: addFocusID)
         }
         .padding(18)
         .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 220, alignment: .topLeading)

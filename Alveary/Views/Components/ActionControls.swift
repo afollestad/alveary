@@ -19,6 +19,25 @@ enum ActionButtonMetrics {
     /// width for a row of icon buttons cannot re-hardcode a diverging number.
     static let iconButtonDiameter: CGFloat = 30
 
+    /// Gap between an action button's glyph and its label.
+    static let iconLabelSpacing: CGFloat = 6
+
+    /// The same gap for caption-sized inline buttons. Tighter than the
+    /// prominent one because the glyph and label are both smaller — at 6 the
+    /// pair reads as two separate elements rather than one control.
+    static let inlineIconLabelSpacing: CGFloat = 4
+
+    /// Glyph box for an octicon inside a `.body`-sized prominent button.
+    /// `ProminentActionButtonBody` renders SF Symbols semibold at `.small`
+    /// scale, but `imageScale` cannot reach `OcticonImage`'s explicit frame, so
+    /// this constant is the only lever that keeps the two sources level.
+    static let octiconGlyphSize: CGFloat = 17
+
+    /// Glyph box for an octicon inside a low-emphasis `.plain` inline button at
+    /// `.font(.caption)`, such as the comment-thread affordances. The prominent
+    /// box would dwarf a caption label.
+    static let inlineOcticonGlyphSize: CGFloat = 12
+
     static func horizontalPadding(for controlSize: ControlSize) -> CGFloat {
         switch controlSize {
         case .mini:

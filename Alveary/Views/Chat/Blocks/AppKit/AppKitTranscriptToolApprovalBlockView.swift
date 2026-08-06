@@ -202,7 +202,7 @@ extension AppKitTranscriptToolApprovalBlockView {
 
     private func apply(state: ApprovalActionState) {
         approveButton.title = state.approveTitle
-        approveButton.symbolName = state.approveSymbol
+        approveButton.icon = .system(state.approveSymbol)
         approveButton.imagePosition = .imageLeading
         approveButton.imageHugsTitle = true
         approveButton.isEnabled = state.approveEnabled
@@ -214,7 +214,7 @@ extension AppKitTranscriptToolApprovalBlockView {
         approvalSplitControl.alphaValue = state.approvePlaceholder ? 0 : 1
         approvalSplitControl.setAccessibilityElement(!state.approvePlaceholder)
         denyButton.title = state.denyTitle
-        denyButton.symbolName = state.denySymbol
+        denyButton.icon = .system(state.denySymbol)
         denyButton.imagePosition = .imageLeading
         denyButton.imageHugsTitle = true
         denyButton.isEnabled = state.denyEnabled

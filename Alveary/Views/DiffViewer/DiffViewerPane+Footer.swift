@@ -33,16 +33,23 @@ struct DiffViewerPaneFooter: View {
             if actions.count > 1 {
                 splitButton(for: action)
             } else {
-                Button(action.title) {
+                Button {
                     onAction(action.kind)
+                } label: {
+                    ActionButtonLabel(title: action.title, icon: action.icon)
                 }
                 .primaryActionButtonStyle(expandsHorizontally: true)
                 .disabled(!action.isEnabled || isPerformingAction)
             }
         } else {
-            Button(DiffViewerFooterAction.placeholder.title) {}
-                .primaryActionButtonStyle(expandsHorizontally: true)
-                .disabled(true)
+            Button {} label: {
+                ActionButtonLabel(
+                    title: DiffViewerFooterAction.placeholder.title,
+                    icon: DiffViewerFooterAction.placeholder.icon
+                )
+            }
+            .primaryActionButtonStyle(expandsHorizontally: true)
+            .disabled(true)
         }
     }
 
@@ -52,6 +59,7 @@ struct DiffViewerPaneFooter: View {
     private func splitButton(for action: DiffViewerFooterAction) -> some View {
         SplitActionButton(
             title: action.title,
+            icon: action.icon,
             emphasis: .primary,
             expandsHorizontally: true,
             selectedOption: action.kind,

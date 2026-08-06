@@ -1,7 +1,8 @@
 PRIMER OCTICONS ATTRIBUTION
 
 The pull request, draft pull request, closed pull request, merge, eye,
-file diff, git commit, git branch, plus, and dash icons are adapted from
+file diff, git commit, git branch, plus, dash, comment, code review,
+alert, check circle, reply, and repo push icons are adapted from
 Primer Octicons:
 https://github.com/primer/octicons
 

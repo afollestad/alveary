@@ -85,10 +85,12 @@ struct PullRequestLinksPopover: View {
             // Return submits from anywhere in the popover; the field's own
             // `onSubmit` covers it while focused. A double fire is safe — the
             // second call trips the link store's `isLinking` guard.
-            Button(isLinking ? "Linking..." : "Link", action: submit)
-                .primaryActionButtonStyle()
-                .keyboardShortcut(.defaultAction)
-                .disabled(isLinking || urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button(action: submit) {
+                ActionButtonLabel(title: isLinking ? "Linking..." : "Link", icon: .system("link"))
+            }
+            .primaryActionButtonStyle()
+            .keyboardShortcut(.defaultAction)
+            .disabled(isLinking || urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -101,8 +103,10 @@ struct PullRequestLinksPopover: View {
 
             // A missing or signed-out `gh` is fixed in settings, not by retyping.
             if showsGitSettingsAction {
-                Button("Open Git Settings", action: onOpenGitSettings)
-                    .secondaryActionButtonStyle()
+                Button(action: onOpenGitSettings) {
+                    ActionButtonLabel(title: "Open Git Settings", icon: .system("gearshape"))
+                }
+                .secondaryActionButtonStyle()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

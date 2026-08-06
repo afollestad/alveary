@@ -188,6 +188,7 @@ private extension AppKitScheduledTaskListDetailView {
         button.isBordered = false
         button.controlSize = .small
         button.title = "Edit"
+        button.icon = .system("pencil")
         button.actionStyle = .secondary
         button.target = self
         button.action = #selector(handleEdit(_:))

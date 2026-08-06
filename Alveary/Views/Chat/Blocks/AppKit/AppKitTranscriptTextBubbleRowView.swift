@@ -245,6 +245,10 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
 
         retryButton.controlSize = .small
         retryButton.bezelStyle = .rounded
+        // A stock bezel, so unlike the transcript's custom-drawn buttons this
+        // one renders `NSButton.image` normally.
+        retryButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
+        retryButton.imagePosition = .imageLeading
         retryButton.target = self
         retryButton.action = #selector(retryButtonClicked)
         retryButton.isHidden = true

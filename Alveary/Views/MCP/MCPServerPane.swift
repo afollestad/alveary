@@ -112,16 +112,20 @@ struct MCPServerPane: View {
 
     private var footer: some View {
         ContextualPaneFooter {
-            Button("Cancel", action: onDismiss)
-                .secondaryActionButtonStyle(expandsHorizontally: true)
+            Button(action: onDismiss) {
+                ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+            }
+            .secondaryActionButtonStyle(expandsHorizontally: true)
         } trailingAction: {
             saveButton
         }
     }
 
     private var saveButton: some View {
-        Button("Save") {
+        Button {
             Task { await viewModel.submitActivePane() }
+        } label: {
+            ActionButtonLabel(title: "Save", icon: .system("checkmark"))
         }
         .primaryActionButtonStyle(expandsHorizontally: true)
         .disabled(!isValid || session?.isSubmitting == true)

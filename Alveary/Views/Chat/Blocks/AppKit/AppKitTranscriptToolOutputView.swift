@@ -107,6 +107,8 @@ final class AppKitTranscriptToolOutputView: NSView {
         lineCountLabel.isHidden = !isPaged
         if isPaged {
             showMoreButton.title = showMoreLabel
+            showMoreButton.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
+            showMoreButton.imagePosition = .imageLeading
             showMoreButton.font = configuration.typography.nsFont(.caption)
             showMoreButton.contentTintColor = NSColor.controlAccentColor.appKitResolvedColor(in: self)
             lineCountLabel.stringValue = "\(visibleTailLines) / \(totalLineCount) lines"

@@ -51,16 +51,22 @@ struct SkillCard: View {
             Spacer(minLength: 0)
 
             HStack {
-                Button("Details", action: onOpen)
-                    .secondaryActionButtonStyle()
-                    .focused(detailsFocus, equals: detailsFocusID)
+                Button(action: onOpen) {
+                    ActionButtonLabel(title: "Details", icon: .system("info.circle"))
+                }
+                .secondaryActionButtonStyle()
+                .focused(detailsFocus, equals: detailsFocusID)
                 Spacer()
                 if skill.isInstalled {
-                    Button("Uninstall", role: .destructive, action: onPrimaryAction)
-                        .destructiveActionButtonStyle()
+                    Button(role: .destructive, action: onPrimaryAction) {
+                        ActionButtonLabel(title: "Uninstall", icon: .system("trash"))
+                    }
+                    .destructiveActionButtonStyle()
                 } else {
-                    Button("Install", action: onPrimaryAction)
-                        .primaryActionButtonStyle()
+                    Button(action: onPrimaryAction) {
+                        ActionButtonLabel(title: "Install", icon: .system("arrow.down.circle"))
+                    }
+                    .primaryActionButtonStyle()
                 }
             }
         }

@@ -215,8 +215,8 @@ struct PullRequestPaneReviewFooter: View {
     }
 
     /// The selection falls back to the default whenever it no longer matches an
-    /// available action — which is what retires "Mark ready for review" the
-    /// moment the pull request leaves draft. Same guard as `effectiveEvent`.
+    /// available action — which is what retires "Ready for review" the moment
+    /// the pull request leaves draft. Same guard as `effectiveEvent`.
     private var effectiveStateAction: PullRequestStateAction? {
         let actions = stateActions
         return actions.first { $0.kind == selectedStateKind } ?? actions.first
@@ -250,12 +250,16 @@ struct PullRequestPaneReviewFooter: View {
                 PullRequestCommentAttachButton(isUploading: isUploading, onPick: attach)
             }
 
-            Button("Cancel", action: cancelComposer)
-                .secondaryActionButtonStyle()
-                .disabled(session.pendingReview.isSubmitting)
+            Button(action: cancelComposer) {
+                ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+            }
+            .secondaryActionButtonStyle()
+            .disabled(session.pendingReview.isSubmitting)
 
-            Button(submitTitle) {
+            Button {
                 submitIfAllowed()
+            } label: {
+                ActionButtonLabel(title: submitTitle, icon: submitIcon)
             }
             .primaryActionButtonStyle()
             .disabled(!canSubmit)
@@ -263,11 +267,13 @@ struct PullRequestPaneReviewFooter: View {
     }
 
     private func startReviewButton(expandsHorizontally: Bool) -> some View {
-        Button("Submit review...") {
+        Button {
             overallDraft = PullRequestCommentDraftBox(
                 markdown: viewModel.activePaneSession?.pendingReview.overallComment ?? ""
             )
             isExpanded = true
+        } label: {
+            ActionButtonLabel(title: "Submit review...", icon: .octicon("CodeReviewOcticon16"))
         }
         .primaryActionButtonStyle(expandsHorizontally: expandsHorizontally)
     }
@@ -282,6 +288,7 @@ struct PullRequestPaneReviewFooter: View {
         if actions.count > 1 {
             SplitActionButton(
                 title: action.title,
+                icon: action.icon,
                 emphasis: action.isDestructive ? .destructive : .secondary,
                 expandsHorizontally: true,
                 selectedOption: action.kind,
@@ -299,8 +306,10 @@ struct PullRequestPaneReviewFooter: View {
 
     @ViewBuilder
     private func plainStateActionButton(_ action: PullRequestStateAction) -> some View {
-        let button = Button(action.title) {
+        let button = Button {
             run(action)
+        } label: {
+            ActionButtonLabel(title: action.title, icon: action.icon)
         }
         .disabled(!action.isEnabled || session.isChangingState)
         .help(action.disabledNote ?? action.title)
@@ -333,6 +342,19 @@ struct PullRequestPaneReviewFooter: View {
             return "Request changes"
         case .comment:
             return session.pendingReview.isSubmitting ? "Submitting..." : "Submit review"
+        }
+    }
+
+    /// Tracks `submitTitle` arm for arm — the three verdicts swap inside one
+    /// button, so title and glyph have to be resolved from the same switch.
+    private var submitIcon: ActionIcon {
+        switch effectiveEvent {
+        case .approve:
+            return .octicon("CheckCircleOcticon16")
+        case .requestChanges:
+            return .octicon("AlertOcticon16")
+        case .comment:
+            return .octicon("CodeReviewOcticon16")
         }
     }
 }

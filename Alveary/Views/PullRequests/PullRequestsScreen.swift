@@ -243,11 +243,21 @@ private struct PullRequestsUnavailableState: View {
         switch reason {
         case .notInstalled, .notAuthenticated:
             return [
-                .init(title: "Open Git Settings", style: .primary, action: onOpenGitSettings)
+                .init(
+                    title: "Open Git Settings",
+                    systemImage: "gearshape",
+                    style: .primary,
+                    action: onOpenGitSettings
+                )
             ]
         case .rateLimited, .failed:
             return [
-                .init(title: "Retry", style: .primary, action: onRetry)
+                .init(
+                    title: "Retry",
+                    systemImage: "arrow.clockwise",
+                    style: .primary,
+                    action: onRetry
+                )
             ]
         }
     }

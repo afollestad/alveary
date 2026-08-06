@@ -21,7 +21,10 @@ struct ArchivedScreenHeader: View {
                     projectFilter = option
                 } label: {
                     if option == projectFilter {
+                        // `.titleAndIcon` is required: macOS menu rows default
+                        // to a title-only label style, which drops the check.
                         Label(filterLabel(option), systemImage: "checkmark")
+                            .labelStyle(.titleAndIcon)
                     } else {
                         Text(filterLabel(option))
                     }

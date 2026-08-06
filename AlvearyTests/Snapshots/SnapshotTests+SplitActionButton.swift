@@ -10,12 +10,12 @@ extension SnapshotTests {
     private func splitButton(
         title: String,
         emphasis: SplitActionButtonEmphasis,
-        systemImage: String? = nil,
+        icon: ActionIcon? = nil,
         expandsHorizontally: Bool = false
     ) -> some View {
         SplitActionButton(
             title: title,
-            systemImage: systemImage,
+            icon: icon,
             emphasis: emphasis,
             expandsHorizontally: expandsHorizontally,
             selectedOption: "first",
@@ -78,7 +78,7 @@ extension SnapshotTests {
     func testSplitActionButtonWithSymbol() {
         // The symbol is optional; supplying one restores the approval-style label.
         assertMacSnapshot(
-            splitButton(title: "Allow", emphasis: .primary, systemImage: "checkmark").padding(16),
+            splitButton(title: "Allow", emphasis: .primary, icon: .system("checkmark")).padding(16),
             size: CGSize(width: 300, height: 62),
             named: "split_action_button_symbol"
         )

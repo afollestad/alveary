@@ -122,6 +122,17 @@ enum DiffCommentComposerMode {
         }
     }
 
+    /// Travels with `saveTitle`; reply takes the thread footer's reply glyph,
+    /// every other mode the comment glyph.
+    var saveIcon: ActionIcon {
+        switch self {
+        case .newComment, .editPending, .editRemote:
+            return .octicon("CommentOcticon16")
+        case .reply:
+            return .octicon("ReplyOcticon16")
+        }
+    }
+
     /// Drives the composer placeholder: editing an existing comment reads
     /// differently from leaving a new one.
     var isEditing: Bool {

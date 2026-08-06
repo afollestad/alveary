@@ -59,12 +59,16 @@ struct DiffCommentEditorControls: View {
                     )
                 }
 
-                Button("Cancel", action: interaction.onCancelComposer)
-                    .secondaryActionButtonStyle()
-                    .controlSize(.small)
+                Button(action: interaction.onCancelComposer) {
+                    ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+                }
+                .secondaryActionButtonStyle()
+                .controlSize(.small)
 
-                Button(composerMode.saveTitle) {
+                Button {
                     interaction.onSaveDraft()
+                } label: {
+                    ActionButtonLabel(title: composerMode.saveTitle, icon: composerMode.saveIcon)
                 }
                 .primaryActionButtonStyle()
                 .controlSize(.small)

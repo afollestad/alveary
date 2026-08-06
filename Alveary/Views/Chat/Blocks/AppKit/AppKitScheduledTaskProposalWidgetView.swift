@@ -169,7 +169,12 @@ private extension AppKitScheduledTaskProposalWidgetView {
             return resolvedButtons(configuration)
         }
 
-        let reject = button(title: "Cancel", style: .secondary, action: #selector(handleReject))
+        let reject = button(
+            title: "Cancel",
+            icon: .system("xmark"),
+            style: .secondary,
+            action: #selector(handleReject)
+        )
         reject.isEnabled = !configuration.isResolving
 
         // Create and edit carry a full definition, so they are reviewed in the shared
@@ -179,6 +184,7 @@ private extension AppKitScheduledTaskProposalWidgetView {
         let isEditorProposal = configuration.content.isEditorProposal
         let primary = button(
             title: isEditorProposal ? "Review…" : "Confirm",
+            icon: isEditorProposal ? .system("pencil") : .system("checkmark"),
             style: .primary,
             action: isEditorProposal ? #selector(handleReview) : #selector(handleConfirm)
         )
@@ -193,11 +199,20 @@ private extension AppKitScheduledTaskProposalWidgetView {
             return nil
         }
         let title = configuration.scheduledTaskID == nil ? "Open in Scheduled" : "View scheduled task"
-        return [button(title: title, style: .secondary, action: #selector(handleOpenScheduledTask))]
+        // The sidebar's Scheduled row glyph, since both open that surface.
+        return [
+            button(
+                title: title,
+                icon: .system("clock"),
+                style: .secondary,
+                action: #selector(handleOpenScheduledTask)
+            )
+        ]
     }
 
     func button(
         title: String,
+        icon: ActionIcon,
         style: AppKitTranscriptApprovalButtonStyle,
         action: Selector
     ) -> AppKitTranscriptApprovalButton {
@@ -206,6 +221,7 @@ private extension AppKitScheduledTaskProposalWidgetView {
         button.isBordered = false
         button.controlSize = .small
         button.title = title
+        button.icon = icon
         button.actionStyle = style
         button.target = self
         button.action = action

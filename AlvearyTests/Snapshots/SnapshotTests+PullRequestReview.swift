@@ -190,7 +190,7 @@ extension SnapshotTests {
 
     func testPullRequestPaneReviewFooterDraft() {
         // A draft carries two state actions, so the button splits: the primary
-        // side defaults to Mark ready for review, the caret opens the other.
+        // side defaults to Ready for review, the caret opens the other.
         let fixture = PullRequestReviewFooterFixture(pendingCommentCount: 0, status: .draft)
 
         assertMacSnapshot(
@@ -245,6 +245,32 @@ extension SnapshotTests {
             fixture.footer(initiallyExpanded: true),
             size: CGSize(width: 460, height: 220),
             named: "pull_request_review_footer_expanded_own_pr"
+        )
+    }
+
+    /// Both resolution states, because each carries a different glyph and the
+    /// pane's own fixtures only ever render the footer unresolved.
+    func testPullRequestThreadActionsFooterBothResolutionStates() {
+        assertMacSnapshot(
+            VStack(alignment: .leading, spacing: 12) {
+                PullRequestThreadActionsFooter(
+                    isResolved: false,
+                    canReply: true,
+                    canResolve: true,
+                    onReply: {},
+                    onToggleResolved: {}
+                )
+                PullRequestThreadActionsFooter(
+                    isResolved: true,
+                    canReply: true,
+                    canResolve: true,
+                    onReply: {},
+                    onToggleResolved: {}
+                )
+            }
+            .padding(16),
+            size: CGSize(width: 400, height: 110),
+            named: "pull_request_thread_actions_footer_states"
         )
     }
 }

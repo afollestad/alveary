@@ -7,6 +7,9 @@ struct PullRequestActivityCommentEditor: View {
     let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
     var saveTitle = "Update comment"
+    /// Travels with `saveTitle`; a reply is the one caller that is not editing
+    /// an existing comment, so it swaps in the reply glyph.
+    var saveIcon = ActionIcon.octicon("CommentOcticon16")
     var placeholder = "Edit this comment"
     /// Forwarded to the editor; the PR description opens taller than a comment.
     var minimumVisibleLineCount = 2
@@ -70,14 +73,18 @@ struct PullRequestActivityCommentEditor: View {
                     PullRequestCommentAttachButton(isUploading: isUploading, onPick: attach)
                 }
 
-                Button("Cancel") {
+                Button {
                     viewModel.cancelCommentComposer()
+                } label: {
+                    ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
                 }
                 .secondaryActionButtonStyle()
                 .controlSize(.small)
 
-                Button(saveTitle) {
+                Button {
                     viewModel.saveComposerComment()
+                } label: {
+                    ActionButtonLabel(title: saveTitle, icon: saveIcon)
                 }
                 .primaryActionButtonStyle()
                 .controlSize(.small)

@@ -234,7 +234,10 @@ struct PullRequestPaneFiles: View {
             Button {
                 viewModel.showMoreDiffFiles()
             } label: {
-                Text("Show \(min(PullRequestDiffFilePaging.fileCountStep, remaining)) more files (\(remaining) remaining)")
+                ActionButtonLabel(
+                    title: "Show \(min(PullRequestDiffFilePaging.fileCountStep, remaining)) more files (\(remaining) remaining)",
+                    icon: .system("chevron.down")
+                )
             }
             .secondaryActionButtonStyle()
             .controlSize(.small)

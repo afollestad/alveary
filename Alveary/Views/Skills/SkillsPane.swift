@@ -72,16 +72,20 @@ private struct NewSkillPane: View {
 
     private var footer: some View {
         ContextualPaneFooter {
-            Button("Cancel", action: onDismiss)
-                .secondaryActionButtonStyle(expandsHorizontally: true)
+            Button(action: onDismiss) {
+                ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
+            }
+            .secondaryActionButtonStyle(expandsHorizontally: true)
         } trailingAction: {
             createButton
         }
     }
 
     private var createButton: some View {
-        Button("Create") {
+        Button {
             Task { await viewModel.submitNewSkill() }
+        } label: {
+            ActionButtonLabel(title: "Create", icon: .system("checkmark"))
         }
         .primaryActionButtonStyle(expandsHorizontally: true)
         .disabled(
@@ -142,8 +146,10 @@ private struct SkillDetailsPane: View {
     @ViewBuilder
     private var githubButton: some View {
         if let url = session.resolvedGitHubURL ?? session.skill.githubURL {
-            Button("View on GitHub") {
+            Button {
                 UIApplicationShim.open(url: url)
+            } label: {
+                ActionButtonLabel(title: "View on GitHub", icon: .system("arrow.up.right.square"))
             }
             .secondaryActionButtonStyle(expandsHorizontally: true)
         }
@@ -152,16 +158,20 @@ private struct SkillDetailsPane: View {
     @ViewBuilder
     private var mutationButton: some View {
         if session.skill.isInstalled {
-            Button("Uninstall", role: .destructive) {
+            Button(role: .destructive) {
                 uninstallConfirmation = makeSkillUninstallConfirmation(for: session.skill) {
                     Task { await viewModel.uninstallActiveSkill() }
                 }
+            } label: {
+                ActionButtonLabel(title: "Uninstall", icon: .system("trash"))
             }
             .destructiveActionButtonStyle(expandsHorizontally: true)
             .disabled(session.isSubmitting)
         } else {
-            Button("Install") {
+            Button {
                 Task { await viewModel.installActiveSkill() }
+            } label: {
+                ActionButtonLabel(title: "Install", icon: .system("arrow.down.circle"))
             }
             .primaryActionButtonStyle(expandsHorizontally: true)
             .disabled(session.isSubmitting)

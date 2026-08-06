@@ -350,6 +350,10 @@ final class AppKitTranscriptTextBubbleRowTests: XCTestCase {
         XCTAssertFalse(button.isHidden)
         XCTAssertFalse(status.isHidden)
         XCTAssertEqual(status.font?.pointSize, 16)
+        // A stock bezel, so unlike the transcript's custom-drawn buttons this
+        // one renders through `NSButton.image`.
+        XCTAssertNotNil(button.image)
+        XCTAssertEqual(button.imagePosition, .imageLeading)
         XCTAssertGreaterThanOrEqual(row.intrinsicContentSize.height, button.frame.maxY)
 
         button.performClick(nil)
