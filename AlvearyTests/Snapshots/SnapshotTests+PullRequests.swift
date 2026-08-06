@@ -75,7 +75,7 @@ extension SnapshotTests {
                 showsRepository: true,
                 referenceDate: fixture.viewModel.referenceDate,
                 avatarLoader: fixture.viewModel.avatarLoader,
-                isSelected: { _ in false },
+                activeDetailID: nil,
                 onSelect: { _ in }
             )
             .padding(20),

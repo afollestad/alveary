@@ -36,7 +36,10 @@ struct AppSelectionRowBackground: View {
     }
 }
 
-private enum AppSelectionRowFill {
+/// The shared row fills. Internal rather than file-private because rows that draw their
+/// own card must reach `pressed` to match the `List`-hosted rows' press feedback; see
+/// `AppSelectableRowState`.
+enum AppSelectionRowFill {
     static let hovered: Color = Color.secondary.opacity(0.08)
 
     static let pressed: Color = Color(nsColor: .accentDerived { accent, appearance in
@@ -47,6 +50,31 @@ private enum AppSelectionRowFill {
             return accent.blended(withFraction: 0.45, of: .white) ?? accent
         }
     })
+}
+
+/// The transient interaction state `.appSelectableRow` publishes into its own content.
+///
+/// Rows inside a `List` read this state through `listRowBackground`; rows in a `ScrollView`
+/// draw their own card, where that background never renders, and would otherwise have no
+/// press feedback and no way to look selected until the owning model publishes. Reading it
+/// from a child of the row's content — a `.background` view, not the row struct itself —
+/// keeps a press or hover from invalidating the whole row body.
+struct AppSelectableRowState: Equatable {
+    var isPressed = false
+    /// True between mouse-up and the model publishing the new selection.
+    var isSelectionPending = false
+    var isHovered = false
+}
+
+private struct AppSelectableRowStateKey: EnvironmentKey {
+    static let defaultValue = AppSelectableRowState()
+}
+
+extension EnvironmentValues {
+    var appSelectableRowState: AppSelectableRowState {
+        get { self[AppSelectableRowStateKey.self] }
+        set { self[AppSelectableRowStateKey.self] = newValue }
+    }
 }
 
 private struct SelectableRowModifier: ViewModifier {
@@ -75,6 +103,7 @@ private struct SelectableRowModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .environment(\.appSelectableRowState, publishedRowState)
             .contentShape(Rectangle())
             .gesture(rowPressGesture)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -129,6 +158,16 @@ private struct SelectableRowModifier: ViewModifier {
                 }
                 isPressed = false
             }
+    }
+
+    /// Hover is published ungated: `showsHoverBackground` decides only whether the
+    /// `List` fill draws it, and a self-drawn card makes that call for itself.
+    private var publishedRowState: AppSelectableRowState {
+        AppSelectableRowState(
+            isPressed: !suppressesPressFeedback && isPressed,
+            isSelectionPending: isSelectionPending,
+            isHovered: isHovered
+        )
     }
 
     private var selectionRowBackground: some View {

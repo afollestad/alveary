@@ -15,16 +15,10 @@ enum AppKitMarkdownInlineString {
         foregroundColor: NSColor,
         inlineCodeFill: NSColor = AppMarkdownCodeBlockPalette.inlineFillNSColor
     ) -> NSAttributedString {
-        guard appMarkdownMayContainInlineMarkdown(markdown) else {
-            // AppKit rows rebuild these on every reconfigure, and a live typography slider
-            // reconfigures the whole transcript, so plain strings must not reach the parser.
-            return plainString(markdown, baseFont: baseFont, foregroundColor: foregroundColor)
-        }
-
-        let parser = AppMarkdownParser(parsingMode: .inline)
-        guard let parsed = try? parser.attributedString(
-            for: appMarkdownCompactDisplaySource(from: markdown)
-        ) else {
+        // AppKit rows rebuild these on every reconfigure, and a live typography slider
+        // reconfigures the whole transcript, so the parse is cached and plain strings
+        // never reach the parser at all.
+        guard let parsed = AppMarkdownInlineParseCache.parsedInline(for: markdown) else {
             return plainString(markdown, baseFont: baseFont, foregroundColor: foregroundColor)
         }
 

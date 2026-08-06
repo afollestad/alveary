@@ -130,6 +130,9 @@ extension PullRequestsViewModel {
     ) async {
         do {
             let detail = try await service.fetchDetail(target.identifier)
+            // The pane's comment ages are measured against this; without a touch they
+            // would read relative to whenever the list last refreshed.
+            touchReferenceDate()
             updateSession(target, generation: generation) { session in
                 session.detail = detail
                 session.detailError = nil

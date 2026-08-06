@@ -89,7 +89,7 @@ private enum PullRequestInlineCodeTitleSnapshots {
             showsRepository: true,
             referenceDate: referenceDate,
             avatarLoader: GitHubAvatarLoader(),
-            isSelected: { $0.number == 212 },
+            activeDetailID: summaries[0].id,
             onSelect: { _ in }
         )
         .padding(20)

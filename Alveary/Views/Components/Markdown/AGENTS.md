@@ -20,6 +20,7 @@ Narrower scopes:
 - `SwiftUI/AppMarkdown.swift` owns the public SwiftUI entry point and shared SwiftUI typography environment.
 - `Core/AppMarkdownParser.swift` owns Foundation markdown parsing, HTML/image preprocessing, and composer chip rewriting.
 - `Core/AppMarkdownDocumentCache.swift` owns parsed document caching and task-list state namespaces.
+- **All three inline labels parse through `Core/AppMarkdownInlineParseCache.swift`**, which also owns the cheap-character pre-filter. They re-derive their content on every `body` evaluation (and every AppKit reconfigure), so an uncached parse costs a list one parse per visible row per render pass. It returns `nil` for a string carrying no inline markdown, because each renderer styles a plain string its own way — keep those fallbacks. `AppMarkdownInlineLabel` caches its segment split on top, keyed by `detectsFileMentions`, since the same string is asked for twice per row (render plus accessibility label).
 - `SwiftUI/AppMarkdownInlineCodeChip.swift` owns compact single-line chip rendering.
 - `SwiftUI/Rendering/` owns the SwiftUI block renderer internals.
 - Use `AppMarkdownInlineLabel`, not raw `Text`, for single-line user strings that may contain inline code or `@file` mentions.

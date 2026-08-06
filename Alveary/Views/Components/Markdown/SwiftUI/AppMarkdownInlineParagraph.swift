@@ -32,13 +32,7 @@ struct AppMarkdownInlineParagraph: View {
     }
 
     private var content: AttributedString {
-        guard appMarkdownMayContainInlineMarkdown(text) else {
-            return AttributedString(text)
-        }
-        let parser = AppMarkdownParser(parsingMode: .inline)
-        guard let parsed = try? parser.attributedString(
-            for: appMarkdownCompactDisplaySource(from: text)
-        ) else {
+        guard let parsed = AppMarkdownInlineParseCache.parsedInline(for: text) else {
             return AttributedString(text)
         }
         return sanitized(parsed)

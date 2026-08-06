@@ -79,6 +79,7 @@ General shared controls live here. Narrower scopes:
 - Do not replace it with `.onTapGesture`; macOS drops long-held taps after the press highlight appears.
 - Keep the sibling `.accessibilityAction { action() }` so VoiceOver activation works.
 - Keep the pending-selection state for click releases; it bridges mouse-up to model publication so rows do not visually flash clear before becoming selected.
+- **A row outside a `List` reaches press, pending-selection, and hover through `AppSelectableRowState`.** `listRowBackground` renders nothing there, so a self-drawn card would otherwise have no press feedback and could not look selected until its model published. Read the value from a *child* of the row's content — a `.background` view, never the row struct applying the modifier, which resolves the environment from above it — which also keeps a press or hover off the row's own `body`.
 - Pass a stable row identity when selectable rows can be inserted, removed, or reordered so transient press/pending state cannot leak into recycled `List` rows.
 - Keep selectable row background insets at their 10pt defaults unless a surface must compensate for host chrome to hit a measured visual edge.
 - **Fade a row through `appSelectionRowBackground(opacity:)`, not an outer `.opacity`.** The fill is published via `listRowBackground`, which SwiftUI hoists out of the row's own render tree, so an outer `.opacity` dims the row's content while leaving a selected row's accent fill fully opaque. Pass the same value to both.

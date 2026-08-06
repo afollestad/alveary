@@ -189,6 +189,46 @@ final class AppMarkdownInlineLabelTests: XCTestCase {
         )
     }
 
+    // MARK: - Segment caching
+
+    /// Segments are memoized so a list row's `body` and its accessibility label do not each
+    /// re-parse the same title on every render pass. Repeat calls must stay identical.
+    func testRepeatedPlainTextCallsReturnTheSameResult() {
+        let title = "Add `arkivanov/parcelize-darwin` to **Serializer** section"
+        let first = AppMarkdownInlineLabel.plainText(from: title, detectingFileMentions: false)
+
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: title, detectingFileMentions: false),
+            first
+        )
+        XCTAssertEqual(first, "Add arkivanov/parcelize-darwin to Serializer section")
+    }
+
+    /// The mention flag changes the answer for the same string, so it has to be part of the
+    /// cache key — sharing one entry would let a pull request title be served a composer
+    /// string's decoded mention, or the reverse.
+    func testMentionDetectionFlagIsNotSharedBetweenCachedSegments() {
+        let text = "Ping @some/org/team about `retry`"
+
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: text, detectingFileMentions: false),
+            "Ping @some/org/team about retry"
+        )
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: text, detectingFileMentions: true),
+            "Ping @team about retry"
+        )
+        // Re-asked in the opposite order, so a cache hit cannot be what makes either pass.
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: text, detectingFileMentions: true),
+            "Ping @team about retry"
+        )
+        XCTAssertEqual(
+            AppMarkdownInlineLabel.plainText(from: text, detectingFileMentions: false),
+            "Ping @some/org/team about retry"
+        )
+    }
+
     func testPlainTextLeavesSlashCommandLikeTextAlone() {
         // Proof that this path never reaches `TranscriptToolSummaryFormatter`'s slash-command
         // chipper, which would otherwise turn `/api` into a chip.

@@ -35,6 +35,7 @@ struct PullRequestPane: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .pullRequestReferenceDateTick(viewModel)
         )
     }
 

@@ -7,7 +7,9 @@ struct PullRequestsSectionedList: View {
     let showsRepository: Bool
     let referenceDate: Date
     let avatarLoader: GitHubAvatarLoader
-    let isSelected: (PullRequestIdentifier) -> Bool
+    /// The open detail, not an `isSelected` closure: a closure is never equal to the one
+    /// from the previous pass, so every row would rebuild on every render.
+    let activeDetailID: PullRequestIdentifier?
     let onSelect: (PullRequestSummary) -> Void
 
     var body: some View {
@@ -33,11 +35,12 @@ struct PullRequestsSectionedList: View {
                     PullRequestRow(
                         summary: summary,
                         showsRepository: showsRepository,
-                        isSelected: isSelected(summary.id),
+                        isSelected: summary.id == activeDetailID,
                         referenceDate: referenceDate,
                         avatarLoader: avatarLoader,
                         onSelect: { onSelect(summary) }
                     )
+                    .equatable()
                 }
             }
         }

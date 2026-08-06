@@ -101,11 +101,36 @@ private enum InlineSegment {
     /// basename is cached on the segment so render and `plainText` don't redo the work.
     case mention(String)
 
+    /// `plainText` is `nonisolated`, so this must be reachable off the main actor;
+    /// `NSCache` is thread-safe.
+    nonisolated(unsafe) private static let segmentCache: NSCache<NSString, InlineSegmentsBox> = {
+        let cache = NSCache<NSString, InlineSegmentsBox>()
+        cache.countLimit = 512
+        return cache
+    }()
+
+    /// Cached because both the label's `body` and its caller's accessibility label ask for
+    /// the same segments on every render pass, and a list re-renders far more often than
+    /// its strings change.
     static func displaySegments(
         for markdown: String,
         detectingFileMentions: Bool
     ) -> [InlineSegment] {
-        let attributed = parsedInlineMarkdown(displayMarkdown(from: markdown))
+        let key = "\(detectingFileMentions ? "mentions" : "plain")|\(markdown)" as NSString
+        if let cached = segmentCache.object(forKey: key) {
+            return cached.segments
+        }
+        let segments = buildDisplaySegments(for: markdown, detectingFileMentions: detectingFileMentions)
+        segmentCache.setObject(InlineSegmentsBox(segments), forKey: key, cost: markdown.count)
+        return segments
+    }
+
+    private static func buildDisplaySegments(
+        for markdown: String,
+        detectingFileMentions: Bool
+    ) -> [InlineSegment] {
+        let attributed = AppMarkdownInlineParseCache.parsedInline(for: markdown)
+            ?? AttributedString(displayMarkdown(from: markdown))
         var result: [InlineSegment] = []
         for run in attributed.runs {
             let content = AttributedString(attributed[run.range])
@@ -122,14 +147,6 @@ private enum InlineSegment {
 
     private static func displayMarkdown(from markdown: String) -> String {
         appMarkdownCompactDisplaySource(from: markdown)
-    }
-
-    private static func parsedInlineMarkdown(_ markdown: String) -> AttributedString {
-        guard appMarkdownMayContainInlineMarkdown(markdown) else {
-            return AttributedString(markdown)
-        }
-        let parser = AppMarkdownParser(parsingMode: .inline)
-        return (try? parser.attributedString(for: markdown)) ?? AttributedString(markdown)
     }
 
     private static func textAndMentionSegments(in content: AttributedString) -> [InlineSegment] {
@@ -196,6 +213,14 @@ private enum InlineSegment {
             return nil
         }
         return lowerAttr..<upperAttr
+    }
+}
+
+private final class InlineSegmentsBox: NSObject {
+    let segments: [InlineSegment]
+
+    init(_ segments: [InlineSegment]) {
+        self.segments = segments
     }
 }
 

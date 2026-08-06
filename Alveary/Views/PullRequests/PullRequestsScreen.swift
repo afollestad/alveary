@@ -54,10 +54,14 @@ struct PullRequestsScreen: View {
     }
 
     private var listContent: some View {
-        GeometryReader { proxy in
+        // Resolved once per body pass rather than inside the scroll content: that closure
+        // re-runs on every geometry change, so the filter/sort/bucket pipeline used to run
+        // again for each frame of the right pane's slide-in.
+        let sections = viewModel.visibleSections(for: viewModel.selectedFilter)
+        let activeDetailID = viewModel.activeDetailIdentifier
+        return GeometryReader { proxy in
             ScrollViewReader { scrollProxy in
                 ScrollView {
-                    let sections = viewModel.visibleSections(for: viewModel.selectedFilter)
                     ZStack(alignment: .topLeading) {
                         if sections.isEmpty {
                             PullRequestsEmptyState(
@@ -76,7 +80,7 @@ struct PullRequestsScreen: View {
                                     showsRepository: viewModel.showsRepositoryInRows,
                                     referenceDate: viewModel.referenceDate,
                                     avatarLoader: viewModel.avatarLoader,
-                                    isSelected: { viewModel.isDetailActive($0) },
+                                    activeDetailID: activeDetailID,
                                     onSelect: { summary in
                                         viewModel.requestDetails(summary)
                                         isListFocused = true
@@ -108,6 +112,7 @@ struct PullRequestsScreen: View {
                 .id(viewModel.selectedFilter.id)
             }
         }
+        .pullRequestReferenceDateTick(viewModel)
     }
 
     /// Rows in visual order for the current tab: section order, top to bottom.

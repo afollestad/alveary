@@ -31,17 +31,3 @@ extension NSFont.TextStyle {
         return ceil(font.ascender + abs(font.descender) + font.leading)
     }
 }
-
-/// Cheap pre-filter so plain strings never reach the parser. Inline labels re-derive their content
-/// on every `body` evaluation (and AppKit rows on every reconfigure), and the vast majority of the
-/// strings they render carry no markdown at all.
-func appMarkdownMayContainInlineMarkdown(_ markdown: String) -> Bool {
-    markdown.contains { character in
-        switch character {
-        case "`", "[", "*", "_", "<", "!", "\\":
-            return true
-        default:
-            return false
-        }
-    }
-}

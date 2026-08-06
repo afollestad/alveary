@@ -89,6 +89,34 @@ final class AppKitMarkdownInlineStringTests: XCTestCase {
         }
     }
 
+    /// The parse is shared with the SwiftUI labels through `AppMarkdownInlineParseCache`,
+    /// and each caller re-tints the result, so a second call must not come back carrying
+    /// the first caller's color.
+    func testCachedParseDoesNotLeakTheFirstCallersStyling() {
+        let markdown = "Harden `retry` handling"
+        let secondary = AppKitMarkdownInlineString.attributedString(
+            for: markdown,
+            baseFont: baseFont,
+            foregroundColor: .secondaryLabelColor
+        )
+        let label = AppKitMarkdownInlineString.attributedString(
+            for: markdown,
+            baseFont: baseFont,
+            foregroundColor: .labelColor
+        )
+
+        XCTAssertEqual(secondary.string, "Harden retry handling")
+        XCTAssertEqual(label.string, "Harden retry handling")
+        XCTAssertEqual(
+            secondary.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor,
+            .secondaryLabelColor
+        )
+        XCTAssertEqual(
+            label.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor,
+            .labelColor
+        )
+    }
+
     func testTruncationIsCarriedByTheParagraphStyleOnBothPaths() {
         for markdown in ["Plain title", "Title with `code`"] {
             let attributed = AppKitMarkdownInlineString.attributedString(

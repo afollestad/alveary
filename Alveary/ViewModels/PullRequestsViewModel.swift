@@ -96,9 +96,11 @@ final class PullRequestsViewModel {
     private(set) var selectedFilter = PullRequestsFilter.all
 
     /// Reference date for relative-age labels; injectable so snapshots stay deterministic.
-    var referenceDate: Date {
-        now()
-    }
+    ///
+    /// Stored rather than read from `now()` per access: every row carries it, so a fresh
+    /// `Date` per read makes every row's inputs differ on every render pass and defeats
+    /// SwiftUI's diffing. `touchReferenceDate()` advances it.
+    private(set) var referenceDate: Date
 
     init(
         service: any PullRequestsService,
@@ -120,6 +122,7 @@ final class PullRequestsViewModel {
         self.attachmentImageRepositoryRegistrar = attachmentImageRepositoryRegistrar
         self.presentToast = presentToast
         self.now = now
+        self.referenceDate = now()
         if let settings = settingsService?.current {
             selectedFilter = PullRequestsFilter(rawValue: settings.pullRequestsSelectedTab) ?? .all
             selectedStatuses = settings.pullRequestsStatusFilters
@@ -174,6 +177,7 @@ final class PullRequestsViewModel {
             warnings = result.warnings
             errorMessage = nil
             lastRefreshedAt = now()
+            touchReferenceDate()
             loadPhase = .loaded
             normalizeRepositoryFilter()
             saveListCache()
@@ -200,6 +204,18 @@ final class PullRequestsViewModel {
             return
         }
         items[index].status = status
+    }
+
+    /// Advances the clock relative ages are measured against. Guarded on equality so an
+    /// injected fixed clock publishes nothing and snapshot renders stay still. Called
+    /// whenever new data lands, plus on the list's own slow tick so ages keep moving on
+    /// a screen nobody is touching.
+    func touchReferenceDate() {
+        let value = now()
+        guard value != referenceDate else {
+            return
+        }
+        referenceDate = value
     }
 
     func retry() {
@@ -241,6 +257,7 @@ final class PullRequestsViewModel {
             return
         }
         items = cached
+        touchReferenceDate()
         loadPhase = .loaded
         normalizeRepositoryFilter()
     }
@@ -338,6 +355,17 @@ extension PullRequestsViewModel {
 
     func isDetailActive(_ id: PullRequestIdentifier) -> Bool {
         activePaneTarget == .details(id)
+    }
+
+    /// The open detail's identifier, for surfaces that highlight one row out of many.
+    /// Handing rows this value rather than an `isDetailActive` closure lets them compare
+    /// equal across a render pass, so a selection change repaints two rows instead of all
+    /// of them. Reading it still registers the dependency on `activePaneTarget`.
+    var activeDetailIdentifier: PullRequestIdentifier? {
+        guard case .details(let id) = activePaneTarget else {
+            return nil
+        }
+        return id
     }
 
     /// Route-only deactivation; preserves the session for another root pane.

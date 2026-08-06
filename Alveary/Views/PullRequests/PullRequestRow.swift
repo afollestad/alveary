@@ -1,6 +1,9 @@
 import SwiftUI
 
-struct PullRequestRow: View {
+/// `Equatable` so a selection change repaints the two rows whose highlight moved rather
+/// than every visible row. `onSelect` is deliberately excluded: it is a fresh closure on
+/// every pass, and what it captures is a function of `summary`.
+struct PullRequestRow: View, Equatable {
     let summary: PullRequestSummary
     let showsRepository: Bool
     let isSelected: Bool
@@ -8,7 +11,15 @@ struct PullRequestRow: View {
     let avatarLoader: GitHubAvatarLoader
     let onSelect: () -> Void
 
-    @State private var isHovered = false
+    // `nonisolated` because `View` puts the row on the main actor while `Equatable` is not;
+    // every property compared is an immutable `Sendable` one, so the read is safe anywhere.
+    nonisolated static func == (lhs: PullRequestRow, rhs: PullRequestRow) -> Bool {
+        lhs.summary == rhs.summary
+            && lhs.showsRepository == rhs.showsRepository
+            && lhs.isSelected == rhs.isSelected
+            && lhs.referenceDate == rhs.referenceDate
+            && lhs.avatarLoader === rhs.avatarLoader
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -33,16 +44,9 @@ struct PullRequestRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // These rows live in a `ScrollView`, so the card draws its own fill:
         // `.appSelectableRow` publishes selection chrome via `listRowBackground`,
-        // which only renders inside a `List`.
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(cardFill)
-        )
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovered = hovering
-            }
-        }
+        // which only renders inside a `List`. It reaches press, pending-selection,
+        // and hover through `AppSelectableRowState` instead.
+        .background(PullRequestRowCardBackground(isSelected: isSelected))
         .appSelectableRow(
             isSelected: isSelected,
             identity: summary.id,
@@ -50,13 +54,6 @@ struct PullRequestRow: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
-    }
-
-    private var cardFill: Color {
-        if isSelected {
-            return AppAccentFill.primary
-        }
-        return Color.secondary.opacity(isHovered ? 0.12 : 0.08)
     }
 
     private var attributionLine: some View {
