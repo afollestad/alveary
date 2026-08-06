@@ -45,6 +45,15 @@ actor DefaultExecutablePathResolver: ExecutablePathResolving {
     private let shell: ShellRunner
     private let fallbackExecutableDirectories: [String]
     private let fileManager: FileManager
+    /// Successful resolutions only, for the life of the process — the app-scoped
+    /// `AppComponent.executablePathResolver` is the only instance production uses.
+    /// Probing costs a `/usr/bin/which` spawn and, on a miss, a login shell per
+    /// candidate shell, which every `gh` call and every provider re-check paid.
+    private var cachedPaths: [String: String] = [:]
+    /// In-flight probes, so simultaneous callers share one spawn instead of racing.
+    /// The actor suspends at its first `await`, so a plain cache alone would not
+    /// dedupe a pane's detail and diff legs starting together.
+    private var pendingResolutions: [String: Task<String?, Never>] = [:]
 
     init(
         shell: ShellRunner,
@@ -58,10 +67,40 @@ actor DefaultExecutablePathResolver: ExecutablePathResolving {
 
     func resolveExecutablePath(for candidate: String) async -> String? {
         if candidate.contains("/") {
+            // An explicit path needs no search, so it never reaches the cache.
             let path = expandHomeDirectory(in: candidate)
             return fileManager.isExecutableFile(atPath: path) ? path : nil
         }
 
+        if let cached = cachedPaths[candidate] {
+            // A stat, not a subprocess: catches an uninstall so a vanished binary
+            // re-probes rather than failing at `Process.run`.
+            if fileManager.isExecutableFile(atPath: cached) {
+                return cached
+            }
+            cachedPaths[candidate] = nil
+        }
+
+        if let pending = pendingResolutions[candidate] {
+            return await pending.value
+        }
+
+        // Unstructured on purpose: the probe outlives any one caller, so a cancelled
+        // pane load cannot kill a spawn that other callers are sharing.
+        let resolution = Task { await probeExecutablePath(for: candidate) }
+        pendingResolutions[candidate] = resolution
+        let resolved = await resolution.value
+        pendingResolutions[candidate] = nil
+        if let resolved {
+            cachedPaths[candidate] = resolved
+        }
+        // Failures stay uncached: onboarding re-checks a dependency right after
+        // installing it, and the post-wake sweep re-checks every provider, so a
+        // cached negative would hide a binary that has since appeared.
+        return resolved
+    }
+
+    private func probeExecutablePath(for candidate: String) async -> String? {
         let whichResult = try? await shell.run(
             executable: "/usr/bin/which",
             args: [candidate],
