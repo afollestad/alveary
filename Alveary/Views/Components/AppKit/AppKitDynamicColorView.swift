@@ -120,7 +120,7 @@ final class AppKitDynamicColorTextField: NSTextField {
 
 /// Template image view that keeps a dynamic `contentTintColor` current across
 /// effective-appearance changes.
-final class AppKitDynamicTintImageView: NSImageView {
+class AppKitDynamicTintImageView: NSImageView {
     private var dynamicTintColor: NSColor?
     private var dynamicTintAlpha: CGFloat? = 1
 

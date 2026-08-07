@@ -63,7 +63,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     private let bubbleView = AppKitHostToolWidgetBubbleView()
     private let contentStack = NSStackView()
     private let headerStack = NSStackView()
-    private let iconView = AppKitDynamicTintImageView()
+    private let iconView = AppKitHostToolWidgetIconView()
     private let summaryField = NSTextField(labelWithString: "")
     private let disclosureSlot = AppKitHostToolWidgetDisclosureSlotView()
     private let detailField = NSTextField(labelWithString: "")
@@ -334,6 +334,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     /// carries the outcome.
     func applyIcon(for entry: HostToolWidgetEntry, typography: TranscriptTypography) {
         let size = typography.size(for: .toolIcon)
+        iconView.summaryCapHeight = typography.nsFont(.toolSummary).capHeight
         if readsReviewInstructions(entry), let octicon = octicon(named: "CodeReviewOcticon16", size: size) {
             iconView.symbolConfiguration = nil
             iconView.image = octicon
