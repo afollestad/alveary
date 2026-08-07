@@ -34,6 +34,10 @@ private struct NewSkillPane: View, Equatable {
     let onDismiss: () -> Void
 
     @FocusState private var isNameFocused: Bool
+    /// The instructions live here rather than in the session draft: writing markdown
+    /// back per keystroke would reconfigure the editor mid-typing. Appearing and
+    /// disappearing sync it with the session so a closed pane keeps its text.
+    @State private var instructionsDraft = AppMarkdownDraft(markdown: "")
 
     /// The draft is read through `viewModel` inside the body, so typing invalidates this
     /// view directly regardless of `==`; equality only gates the lane's own passes.
@@ -74,7 +78,11 @@ private struct NewSkillPane: View, Equatable {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Instructions")
                             .font(.headline)
-                        AppTextEditor(text: draft.instructions, minHeight: 260)
+                        AppMarkdownEditor(
+                            draft: instructionsDraft,
+                            placeholder: "Write the skill instructions in markdown...",
+                            sizing: .growsToLineCount(minimum: 9, maximum: 20)
+                        )
                     }
                 }
                 .padding(ContextualPaneLayout.contentInsets())
@@ -84,8 +92,24 @@ private struct NewSkillPane: View, Equatable {
         }
         .onAppear {
             isNameFocused = true
+            let stored = draft.wrappedValue.instructions
+            if !stored.isEmpty {
+                instructionsDraft.resetContent(to: stored)
+            }
         }
+        .onDisappear(perform: storeInstructions)
         .onExitCommand(perform: onDismiss)
+    }
+
+    /// Moves the editor's text into the session draft. Called before submitting and
+    /// on teardown, which is what lets a dismissed pane reopen with its text intact.
+    private func storeInstructions() {
+        var updated = draft.wrappedValue
+        guard updated.instructions != instructionsDraft.markdown else {
+            return
+        }
+        updated.instructions = instructionsDraft.markdown
+        viewModel.updateNewSkillDraft(updated)
     }
 
     private var footer: some View {
@@ -101,6 +125,7 @@ private struct NewSkillPane: View, Equatable {
 
     private var createButton: some View {
         Button {
+            storeInstructions()
             Task { await viewModel.submitNewSkill() }
         } label: {
             ActionButtonLabel(title: "Create", icon: .system("checkmark"))

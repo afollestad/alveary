@@ -1,4 +1,3 @@
-import BlockInputKit
 import XCTest
 
 @testable import Alveary
@@ -11,7 +10,7 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
 
         await model.loadIfNeeded()
 
-        XCTAssertEqual(model.documentStore.document.markdown, "# Shared")
+        XCTAssertEqual(model.draft.markdown, "# Shared")
         XCTAssertFalse(model.isDirty)
         XCTAssertEqual(model.linkStates["claude"], .linked)
     }
@@ -20,13 +19,13 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         let service = StubInstructionsService(shared: "# Shared\n")
         let model = makeModel(service: service)
         await model.loadIfNeeded()
-        model.documentStore.replaceDocument(BlockInputTestDocuments.document("# Draft"))
+        model.draft.replaceText("# Draft")
         model.noteDocumentChanged()
 
         service.shared = "# Changed on disk\n"
         await model.loadIfNeeded()
 
-        XCTAssertEqual(model.documentStore.document.markdown, "# Draft")
+        XCTAssertEqual(model.draft.markdown, "# Draft")
         XCTAssertTrue(model.isDirty)
     }
 
@@ -63,7 +62,7 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         let service = StubInstructionsService(shared: "")
         let model = makeModel(service: service)
         await model.loadIfNeeded()
-        model.documentStore.replaceDocument(BlockInputTestDocuments.document("# Draft"))
+        model.draft.replaceText("# Draft")
         model.noteDocumentChanged()
 
         await model.save()
@@ -78,26 +77,26 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         service.saveError = StubInstructionsError.diskFull
         let model = makeModel(service: service)
         await model.loadIfNeeded()
-        model.documentStore.replaceDocument(BlockInputTestDocuments.document("# Draft"))
+        model.draft.replaceText("# Draft")
         model.noteDocumentChanged()
 
         await model.save()
 
         XCTAssertNotNil(model.errorMessage)
         XCTAssertTrue(model.isDirty)
-        XCTAssertEqual(model.documentStore.document.markdown, "# Draft")
+        XCTAssertEqual(model.draft.markdown, "# Draft")
     }
 
     func testRevertRestoresDiskContentAndClearsDirty() async {
         let service = StubInstructionsService(shared: "# Original\n")
         let model = makeModel(service: service)
         await model.loadIfNeeded()
-        model.documentStore.replaceDocument(BlockInputTestDocuments.document("# Draft"))
+        model.draft.replaceText("# Draft")
         model.noteDocumentChanged()
 
         await model.revert()
 
-        XCTAssertEqual(model.documentStore.document.markdown, "# Original")
+        XCTAssertEqual(model.draft.markdown, "# Original")
         XCTAssertFalse(model.isDirty)
     }
 
@@ -115,7 +114,7 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         }
         await model.link(agentID: "claude", copyingContents: true)
 
-        XCTAssertTrue(model.documentStore.document.markdown.contains("# Migrated"))
+        XCTAssertTrue(model.draft.markdown.contains("# Migrated"))
         XCTAssertEqual(model.linkStates["claude"], .linked)
         XCTAssertFalse(model.isDirty)
     }
@@ -130,7 +129,7 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         }
         await model.copyIntoShared(agentID: "claude")
 
-        XCTAssertTrue(model.documentStore.document.markdown.contains("# Copied"))
+        XCTAssertTrue(model.draft.markdown.contains("# Copied"))
     }
 
     func testLinkRowsFollowRegistryOrderAndSkipMissingStates() async {
@@ -151,13 +150,6 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
 }
 
 // MARK: - Stubs
-
-enum BlockInputTestDocuments {
-    @MainActor
-    static func document(_ markdown: String) -> BlockInputDocument {
-        BlockInputDocument(markdown: markdown)
-    }
-}
 
 final class StubInstructionsService: GlobalAgentInstructionsService, @unchecked Sendable {
     var shared: String

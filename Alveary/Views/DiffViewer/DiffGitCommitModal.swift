@@ -14,13 +14,15 @@ struct DiffGitCommitModal: View {
                         .disabled(model.controlsDisabled)
                 }
 
-                AppTextEditor(
-                    text: $model.commitMessage,
-                    minHeight: model.branchSelection == .new ? 94 : 128,
-                    idealHeight: model.branchSelection == .new ? 108 : 142,
-                    maxHeight: 180,
+                AppMarkdownEditor(
+                    draft: model.commitMessageDraft,
                     placeholder: DiffGitCommitModalModel.commitMessagePlaceholder,
-                    isDisabled: model.controlsDisabled
+                    // A branch-name field above costs the message a visible line.
+                    sizing: .growsToLineCount(
+                        minimum: model.branchSelection == .new ? 3 : 4,
+                        maximum: 6
+                    ),
+                    isEditable: !model.controlsDisabled
                 )
 
                 Toggle("Include unstaged changes", isOn: $model.includeUnstagedChanges)

@@ -27,6 +27,10 @@ struct ScheduledTaskEditorContent: View {
     let onClose: () -> Void
 
     @FocusState private var isTitleFocused: Bool
+    /// The instructions live here rather than in `draft`: writing markdown back per
+    /// keystroke would reconfigure the editor mid-typing. Appearing, submitting, and
+    /// disappearing sync it with the draft.
+    @State private var promptDraft = AppMarkdownDraft(markdown: "")
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,6 +53,7 @@ struct ScheduledTaskEditorContent: View {
 
                     ScheduledTaskEditorDetailsSection(
                         draft: $draft,
+                        promptDraft: promptDraft,
                         isTitleFocused: $isTitleFocused
                     )
                     ScheduledTaskEditorRecurrenceSection(draft: $draft)
@@ -76,6 +81,20 @@ struct ScheduledTaskEditorContent: View {
         }
         .onAppear {
             isTitleFocused = true
+            if !draft.prompt.isEmpty {
+                promptDraft.resetContent(to: draft.prompt)
+            }
+        }
+        .onDisappear(perform: storePrompt)
+        // Reopening the proposal pane for a newer proposal swaps `draft` under a
+        // still-mounted editor, so `onAppear` never runs again. Without this the
+        // editor keeps the previous proposal's instructions and writes them back
+        // over the new ones on submit. Typing never reaches `draft.prompt`, so
+        // this cannot fire mid-edit.
+        .onChange(of: draft.prompt) { _, prompt in
+            if prompt != promptDraft.markdown {
+                promptDraft.resetContent(to: prompt)
+            }
         }
         .onChange(of: draft.providerID) { _, _ in
             viewModel.normalizeProviderDependentFields(&draft)
@@ -96,6 +115,16 @@ struct ScheduledTaskEditorContent: View {
             viewModel.normalizeProviderDependentFields(&draft)
         }
         .onExitCommand(perform: onClose)
+    }
+
+    /// Moves the editor's text into the draft. Called before submitting and on
+    /// teardown, which is what lets a closed pane reopen with its instructions.
+    private func storePrompt() {
+        let markdown = promptDraft.markdown
+        guard draft.prompt != markdown else {
+            return
+        }
+        draft.prompt = markdown
     }
 
     @ViewBuilder
@@ -176,7 +205,12 @@ struct ScheduledTaskEditorContent: View {
     /// `plus` glyph stays reserved for the header and empty-state buttons that
     /// open this editor.
     private var submitButton: some View {
-        Button(action: onSubmit) {
+        Button {
+            // The draft's binding setter writes the session synchronously, so the
+            // submit handler reads the instructions typed above.
+            storePrompt()
+            onSubmit()
+        } label: {
             ActionButtonLabel(title: submitTitle, icon: .system("checkmark"))
         }
         .primaryActionButtonStyle(expandsHorizontally: surface == .pane)
@@ -303,6 +337,7 @@ struct ScheduledTaskEditorSheet: View {
 
 private struct ScheduledTaskEditorDetailsSection: View {
     @Binding var draft: ScheduledTaskEditorDraft
+    let promptDraft: AppMarkdownDraft
     @FocusState.Binding var isTitleFocused: Bool
 
     var body: some View {
@@ -319,20 +354,12 @@ private struct ScheduledTaskEditorDetailsSection: View {
             SettingsFormRow(showsDivider: false) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Instructions")
-                    TextEditor(text: $draft.prompt)
-                        .font(.body)
-                        .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .frame(minHeight: 100)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(Color.primary.opacity(0.05))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.25))
-                        )
-                        .accessibilityLabel("Scheduled task instructions")
+                    AppMarkdownEditor(
+                        draft: promptDraft,
+                        placeholder: "Write the instructions each run sends to the agent.",
+                        sizing: .growsToLineCount(minimum: 4, maximum: 14)
+                    )
+                    .accessibilityLabel("Scheduled task instructions")
                 }
             }
         }

@@ -3,9 +3,9 @@ import Foundation
 import Observation
 
 /// Backs the Agents settings `AGENTS.md` sub-section: owns the shared-file draft,
-/// per-agent link states, and the BlockInputKit document store the editor renders.
+/// per-agent link states, and the `AppMarkdownDraft` the editor renders.
 ///
-/// Observation shape is deliberate: the document store and dirty baseline are
+/// Observation shape is deliberate: the draft box and dirty baseline are
 /// `@ObservationIgnored` so keystrokes do not re-render the hosting view, which
 /// would re-run `BlockInputView.configure(_:)` on every edit. Only coarse state
 /// (`isDirty`, `linkStates`, load/error state) is observed.
@@ -14,7 +14,7 @@ import Observation
 final class GlobalInstructionsEditorModel {
     @ObservationIgnored private let service: GlobalAgentInstructionsService
     @ObservationIgnored private let agentRegistry: AgentRegistry
-    @ObservationIgnored let documentStore = BlockInputMemoryDocumentStore()
+    @ObservationIgnored let draft = AppMarkdownDraft(markdown: "")
     /// Stable undo controller so reconfiguration on coarse state changes does not drop the undo stack.
     @ObservationIgnored let undoController = BlockInputUndoController()
     @ObservationIgnored private var hasLoaded = false
@@ -22,7 +22,7 @@ final class GlobalInstructionsEditorModel {
     private(set) var isDirty = false
     private(set) var isLoading = false
     private(set) var linkStates: [String: AgentInstructionsLinkState] = [:]
-    /// Bumped whenever disk content replaces the document store. The editor host
+    /// Bumped whenever disk content replaces the draft. The editor host
     /// reads it in `body` so the async load invalidates it directly — SwiftUI
     /// otherwise skips the host's body because its only stored property is a
     /// reference whose pointer never changes, leaving the editor pre-load empty.
@@ -60,7 +60,7 @@ final class GlobalInstructionsEditorModel {
 
     func save() async {
         do {
-            try await service.saveShared(documentStore.document.markdown)
+            try await service.saveShared(draft.markdown)
             setDirty(false)
             errorMessage = nil
         } catch {
@@ -109,7 +109,7 @@ private extension GlobalInstructionsEditorModel {
         }
         do {
             let markdown = try await service.loadShared()
-            documentStore.replaceDocument(BlockInputDocument(markdown: markdown))
+            draft.resetContent(to: markdown)
             contentGeneration += 1
             setDirty(false)
             errorMessage = nil

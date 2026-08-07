@@ -3,6 +3,7 @@ enum CommitMessageGenerationPromptDefaults {
 Generate a Git commit message for the provided changes.
 
 Requirements:
+
 - Use a concise subject line that describes the user-facing change.
 - Include a body only when it adds useful context that is not obvious from the subject.
 - Consider any existing project level or global level commit message guidelines.

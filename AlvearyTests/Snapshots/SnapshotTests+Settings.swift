@@ -380,7 +380,42 @@ extension SnapshotTests {
     }
 }
 
+extension SnapshotTests {
+    /// The prompt sheet is the only place a packaged prompt is legible, so its
+    /// baseline is what catches the default going back to hand-wrapped lines.
+    func testSettingsPromptEditorSheetShowsTheReviewInstructions() {
+        assertMacSnapshot(
+            settingsPromptEditorSheet(prompt: AppSettings.defaultPullRequestReviewPrompt),
+            size: CGSize(width: 720, height: 620),
+            named: "settings_prompt_editor_sheet_review_instructions"
+        )
+    }
+
+    func testSettingsPromptEditorSheetEmptyShowsItsPlaceholder() {
+        assertMacSnapshot(
+            settingsPromptEditorSheet(prompt: ""),
+            size: CGSize(width: 720, height: 620),
+            named: "settings_prompt_editor_sheet_empty"
+        )
+    }
+}
+
 private extension SnapshotTests {
+    @MainActor
+    func settingsPromptEditorSheet(prompt: String) -> some View {
+        SettingsPromptEditorSheet(
+            title: "Agentic review instructions",
+            draft: AppMarkdownDraft(
+                markdown: prompt,
+                referenceMarkdown: AppSettings.defaultPullRequestReviewPrompt
+            ),
+            defaultPrompt: AppSettings.defaultPullRequestReviewPrompt,
+            placeholder: "Write the instructions the agent follows when reviewing a pull request.",
+            onCancel: {},
+            onSave: {}
+        )
+    }
+
     var settingsHelpTextPopup: some View {
         AppHoverTooltipContent(text: "Seconds to enter steering before continuing with the default handoff. " +
             "The countdown stops when you start typing in the composer.")

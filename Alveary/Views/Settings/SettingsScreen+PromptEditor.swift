@@ -10,7 +10,9 @@ struct SettingsPromptEditorRow: View {
     @Binding var prompt: String
 
     @State private var isEditorPresented = false
-    @State private var promptDraft = ""
+    /// Row-lived so the sheet never rebuilds its document store mid-session; the
+    /// Edit action seeds it, and nothing reaches `prompt` until Save.
+    @State private var draft = AppMarkdownDraft(markdown: "")
 
     init(
         _ title: String,
@@ -32,7 +34,8 @@ struct SettingsPromptEditorRow: View {
         SettingsFormRow(showsDivider: showsDivider) {
             SettingsResponsiveControlRow(title, helpText: helpText, horizontalControlSizing: .intrinsicInline) {
                 Button("Edit") {
-                    promptDraft = prompt
+                    draft.referenceMarkdown = defaultPrompt
+                    draft.resetContent(to: prompt)
                     isEditorPresented = true
                 }
                 .secondaryActionButtonStyle()
@@ -41,14 +44,14 @@ struct SettingsPromptEditorRow: View {
         .sheet(isPresented: $isEditorPresented) {
             SettingsPromptEditorSheet(
                 title: title,
-                prompt: $promptDraft,
+                draft: draft,
                 defaultPrompt: defaultPrompt,
                 placeholder: placeholder,
                 onCancel: {
                     isEditorPresented = false
                 },
                 onSave: {
-                    prompt = promptDraft
+                    prompt = draft.markdown
                     isEditorPresented = false
                 }
             )
@@ -56,9 +59,11 @@ struct SettingsPromptEditorRow: View {
     }
 }
 
-private struct SettingsPromptEditorSheet: View {
+/// Internal rather than file-private so snapshots can host it directly; the row's
+/// `.sheet` is the only production presenter.
+struct SettingsPromptEditorSheet: View {
     let title: String
-    @Binding var prompt: String
+    let draft: AppMarkdownDraft
     let defaultPrompt: String
     let placeholder: String
     let onCancel: () -> Void
@@ -69,21 +74,21 @@ private struct SettingsPromptEditorSheet: View {
             Text(title)
                 .font(.title3.weight(.semibold))
 
-            AppTextEditor(
-                text: $prompt,
-                minHeight: 320,
-                idealHeight: 360,
-                maxHeight: 520,
+            AppMarkdownEditor(
+                draft: draft,
                 placeholder: placeholder,
-                sizesToContent: false
+                sizing: .fillsAvailableHeight,
+                onSubmit: onSave,
+                onCancel: onCancel
             )
+            .frame(maxHeight: .infinity)
 
             HStack {
                 Button("Reset") {
-                    prompt = defaultPrompt
+                    draft.resetContent(to: defaultPrompt)
                 }
                 .secondaryActionButtonStyle()
-                .disabled(prompt == defaultPrompt)
+                .disabled(draft.matchesReference)
 
                 Spacer()
 
@@ -95,6 +100,6 @@ private struct SettingsPromptEditorSheet: View {
             }
         }
         .padding(24)
-        .frame(minWidth: 620, idealWidth: 720, minHeight: 480)
+        .frame(minWidth: 620, idealWidth: 720, minHeight: 520, idealHeight: 620)
     }
 }

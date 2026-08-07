@@ -342,7 +342,7 @@ private extension DiffCreatePullRequestModalModel {
             title = resolvedTitle
         }
         if typedBody.isEmpty {
-            descriptionDraft.replaceText(resolvedBody)
+            descriptionDraft.resetContent(to: resolvedBody)
         }
         return (resolvedTitle, resolvedBody)
     }

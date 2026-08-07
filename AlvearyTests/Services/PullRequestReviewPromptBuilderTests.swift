@@ -50,8 +50,9 @@ final class PullRequestReviewPromptBuilderTests: XCTestCase {
         }
     }
 
-    /// The prompt names its tools as plain text, so a rename would leave it pointing at tools
-    /// that no longer exist and the review would fall back to whatever the agent improvises.
+    /// The prompt names its tools in prose rather than resolving them from the catalog, so a
+    /// rename would leave it pointing at tools that no longer exist and the review would fall
+    /// back to whatever the agent improvises.
     func testEveryToolTheDefaultPromptNamesIsInTheHostCatalog() {
         let exposed = Set(AlvearyHostToolCatalog.tools.map(\.name))
 
