@@ -1,10 +1,16 @@
 import AppKit
 import SwiftUI
 
-struct DiffViewerCommitsContent: View {
+struct DiffViewerCommitsContent: View, Equatable {
     let viewModel: DiffViewerViewModel
     @Binding var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
+
+    /// Equality carries the same weight as `DiffViewerCurrentChangesContent`'s, for the
+    /// same reason — see its `==` for why the commit closure is excluded.
+    nonisolated static func == (lhs: DiffViewerCommitsContent, rhs: DiffViewerCommitsContent) -> Bool {
+        lhs.viewModel === rhs.viewModel && lhs.topSectionFraction == rhs.topSectionFraction
+    }
 
     @State private var scrollController = DiffViewerListScrollController()
     @State private var latestKeyboardNavigationScrollID = UUID()
@@ -13,6 +19,8 @@ struct DiffViewerCommitsContent: View {
     @State private var hasClaimedCommitListKeyboardFocus = false
     @FocusState private var isCommitListKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
+    /// False while the pane's other mode is showing and this one stays mounted behind it.
+    @Environment(\.keepAliveTabIsActive) private var isTabActive
 
     var body: some View {
         DiffViewerVerticalSplit(
@@ -83,7 +91,11 @@ struct DiffViewerCommitsContent: View {
                             verticalOffsetFromTop: .constant(0),
                             scrollController: scrollController
                         )
-                        DiffViewerTopListKeyboardMonitor(isEnabled: hasClaimedCommitListKeyboardFocus || isCommitListKeyboardFocused) { event in
+                        // See the file list's monitor: an app-level NSEvent hook outlives
+                        // hiding, so a mounted-but-inactive list must disarm it.
+                        DiffViewerTopListKeyboardMonitor(
+                            isEnabled: isTabActive && (hasClaimedCommitListKeyboardFocus || isCommitListKeyboardFocused)
+                        ) { event in
                             handleCommitListKeyDown(event, scrollProxy: scrollProxy)
                         }
                     }
@@ -99,14 +111,25 @@ struct DiffViewerCommitsContent: View {
                         hasClaimedCommitListKeyboardFocus = true
                     }
                 }
-                .onDisappear {
-                    latestKeyboardNavigationScrollID = UUID()
-                    latestKeyboardNavigationLoadID = UUID()
-                    keyboardNavigationCommitID = nil
-                    hasClaimedCommitListKeyboardFocus = false
+                .onDisappear(perform: releaseCommitListState)
+                .onChange(of: isTabActive) { _, isActive in
+                    // Deselecting the mode leaves this list mounted, so the teardown
+                    // cleanup has to run here too; re-selecting re-anchors navigation.
+                    if isActive {
+                        keyboardNavigationCommitID = viewModel.selectedCommit?.id
+                    } else {
+                        releaseCommitListState()
+                    }
                 }
             }
         }
+    }
+
+    private func releaseCommitListState() {
+        latestKeyboardNavigationScrollID = UUID()
+        latestKeyboardNavigationLoadID = UUID()
+        keyboardNavigationCommitID = nil
+        hasClaimedCommitListKeyboardFocus = false
     }
 
     @ViewBuilder

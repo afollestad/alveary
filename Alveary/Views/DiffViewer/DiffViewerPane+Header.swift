@@ -127,6 +127,10 @@ struct DiffViewerPaneHeader: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Diff viewer mode")
         .accessibilityValue("\(mode.title), \(displayDirectory)")
+        // See the pull request pane's tab row: `TabChipButtonStyle`'s rendered output
+        // survives a switch that changes nothing structural, which keeping both modes
+        // mounted made true, leaving the highlight a selection behind.
+        .id(mode)
     }
 
     private var displayDirectory: String {

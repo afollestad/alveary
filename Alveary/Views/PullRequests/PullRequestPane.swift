@@ -14,12 +14,30 @@ struct PullRequestPane: View, Equatable {
     let viewModel: PullRequestsViewModel
     let target: PullRequestPaneTarget
     let onDismiss: () -> Void
+    /// Snapshot hosts only, so a baseline can render one tab with the other mounted
+    /// behind it; production panes mount the Changes tab on its first visit.
+    let initiallyMountedTabs: Set<PullRequestPaneTab>
 
-    @State private var selectedTab = PullRequestPaneTab.overview
+    @State private var selectedTab: PullRequestPaneTab
+
+    init(
+        viewModel: PullRequestsViewModel,
+        target: PullRequestPaneTarget,
+        onDismiss: @escaping () -> Void,
+        initialSelectedTab: PullRequestPaneTab = .overview,
+        initiallyMountedTabs: Set<PullRequestPaneTab> = []
+    ) {
+        self.viewModel = viewModel
+        self.target = target
+        self.onDismiss = onDismiss
+        self.initiallyMountedTabs = initiallyMountedTabs
+        _selectedTab = State(initialValue: initialSelectedTab)
+    }
 
     /// `onDismiss` is excluded: `ResizableRightPane` keys the pane by presentation
     /// identity, so a fresh closure meaning something different arrives only with a
-    /// new `.id` — which tears this view down instead of comparing it.
+    /// new `.id` — which tears this view down instead of comparing it. The tab seeds
+    /// are excluded with it; both only prime `@State` at mount.
     nonisolated static func == (lhs: PullRequestPane, rhs: PullRequestPane) -> Bool {
         lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
     }
@@ -101,6 +119,10 @@ struct PullRequestPane: View, Equatable {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Pull request detail section")
         .accessibilityValue(selectedTab.rawValue)
+        // The chips' fill comes from `TabChipButtonStyle`, whose rendered output SwiftUI
+        // reuses when a switch changes nothing structural — which is exactly what keeping
+        // both tabs mounted made true, leaving the highlight a selection behind.
+        .id(selectedTab)
     }
 
     private var openInBrowserButton: some View {
@@ -132,19 +154,26 @@ struct PullRequestPane: View, Equatable {
         return URL(string: "https://github.com/\(id.nameWithOwner)/pull/\(id.number)")
     }
 
-    @ViewBuilder
+    /// Both tabs stay mounted once visited so their scroll offsets — and the Changes
+    /// tab's prepared diff rows, whose rebuild shows a spinner — survive a switch.
     private func content(session: PullRequestPaneSession) -> some View {
-        switch selectedTab {
-        case .overview:
-            PullRequestPaneOverview(
-                session: session,
-                viewModel: viewModel,
-                onOpenFiles: { selectedTab = .files }
-            )
-            .equatable()
-        case .files:
-            PullRequestPaneFiles(session: session, viewModel: viewModel)
+        KeepAliveTabContainer(
+            tabs: PullRequestPaneTab.allCases,
+            selection: selectedTab,
+            initiallyMounted: initiallyMountedTabs
+        ) { tab in
+            switch tab {
+            case .overview:
+                PullRequestPaneOverview(
+                    session: session,
+                    viewModel: viewModel,
+                    onOpenFiles: { selectedTab = .files }
+                )
                 .equatable()
+            case .files:
+                PullRequestPaneFiles(session: session, viewModel: viewModel)
+                    .equatable()
+            }
         }
     }
 }

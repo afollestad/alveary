@@ -188,27 +188,33 @@ struct DiffViewerPane: View {
 }
 
 private extension DiffViewerPane {
-    @ViewBuilder
+    /// Both modes stay mounted once visited so their list and diff-preview scroll offsets
+    /// survive a mode switch. The mode's own side effects stay on the pane's
+    /// `onChange(of: mode)` — they follow the selection, not the children's lifetimes.
     var content: some View {
-        switch mode {
-        case .currentChanges:
-            DiffViewerCurrentChangesContent(
-                viewModel: viewModel,
-                topSectionFraction: $topSectionFraction,
-                onTopSectionFractionCommit: onTopSectionFractionCommit,
-                isFileListTopDividerVisible: $isFileListTopDividerVisible,
-                fileDisplayName: fileDisplayName,
-                statusTitle: statusTitle,
-                diffPreviewIdentity: diffPreviewIdentity,
-                onPresentGitError: viewModel.presentGitError,
-                onDiscardFiles: { pendingDiscardFiles = $0 }
-            )
-        case .commits:
-            DiffViewerCommitsContent(
-                viewModel: viewModel,
-                topSectionFraction: $topSectionFraction,
-                onTopSectionFractionCommit: onTopSectionFractionCommit
-            )
+        KeepAliveTabContainer(tabs: DiffViewerMode.allCases, selection: mode) { renderedMode in
+            switch renderedMode {
+            case .currentChanges:
+                DiffViewerCurrentChangesContent(
+                    viewModel: viewModel,
+                    topSectionFraction: $topSectionFraction,
+                    onTopSectionFractionCommit: onTopSectionFractionCommit,
+                    isFileListTopDividerVisible: $isFileListTopDividerVisible,
+                    fileDisplayName: fileDisplayName,
+                    statusTitle: statusTitle,
+                    diffPreviewIdentity: diffPreviewIdentity,
+                    onPresentGitError: viewModel.presentGitError,
+                    onDiscardFiles: { pendingDiscardFiles = $0 }
+                )
+                .equatable()
+            case .commits:
+                DiffViewerCommitsContent(
+                    viewModel: viewModel,
+                    topSectionFraction: $topSectionFraction,
+                    onTopSectionFractionCommit: onTopSectionFractionCommit
+                )
+                .equatable()
+            }
         }
     }
 

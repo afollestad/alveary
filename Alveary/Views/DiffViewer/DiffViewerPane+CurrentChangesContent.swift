@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DiffViewerCurrentChangesContent: View {
+struct DiffViewerCurrentChangesContent: View, Equatable {
     let viewModel: DiffViewerViewModel
     @Binding var topSectionFraction: CGFloat
     let onTopSectionFractionCommit: (CGFloat) -> Void
@@ -10,6 +10,18 @@ struct DiffViewerCurrentChangesContent: View {
     let diffPreviewIdentity: (FileStatus) -> String
     let onPresentGitError: (String) -> Void
     let onDiscardFiles: ([FileStatus]) -> Void
+
+    /// The pane re-runs its body on every resize-drag frame, and both modes stay mounted
+    /// once visited, so without this each frame rebuilt two mode subtrees. Everything
+    /// rendered here reads through `viewModel`, whose observation invalidates the body
+    /// regardless of `==`; the closures are excluded because they capture only the pane's
+    /// reference-typed dependencies and `@State` storage that outlives the struct copy.
+    nonisolated static func == (lhs: DiffViewerCurrentChangesContent, rhs: DiffViewerCurrentChangesContent) -> Bool {
+        lhs.viewModel === rhs.viewModel
+            && lhs.topSectionFraction == rhs.topSectionFraction
+            && lhs.isFileListTopDividerVisible == rhs.isFileListTopDividerVisible
+    }
+
     @State private var latestKeyboardNavigationLoadID = UUID()
 
     var body: some View {

@@ -23,6 +23,8 @@ struct DiffViewerFileListSection: View {
     @State private var hasClaimedKeyboardFocus = false
     @FocusState private var isKeyboardFocused: Bool
     @FocusedValue(\.chatComposerFocus) private var chatComposerFocus
+    /// False while the pane's other mode is showing and this one stays mounted behind it.
+    @Environment(\.keepAliveTabIsActive) private var isTabActive
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -115,7 +117,12 @@ struct DiffViewerFileListSection: View {
                         verticalOffsetFromTop: $verticalOffsetFromTop,
                         scrollController: scrollController
                     )
-                    DiffViewerTopListKeyboardMonitor(isEnabled: hasClaimedKeyboardFocus || isKeyboardFocused) { event in
+                    // The monitor is an app-level NSEvent hook, so hiding this list does
+                    // not silence it: a mounted-but-inactive one resolves its scroll view
+                    // by overlap and would answer the visible list's arrow keys too.
+                    DiffViewerTopListKeyboardMonitor(
+                        isEnabled: isTabActive && (hasClaimedKeyboardFocus || isKeyboardFocused)
+                    ) { event in
                         handleKeyDown(event, scrollProxy: scrollProxy)
                     }
                 }
@@ -148,16 +155,20 @@ struct DiffViewerFileListSection: View {
                     }
                 }
             }
-            .onAppear {
-                isTopDividerVisible = shouldShowTopDivider
+            .onAppear(perform: syncTopDividerIfActive)
+            .onChange(of: shouldShowTopDivider) { _, _ in
+                syncTopDividerIfActive()
             }
-            .onChange(of: shouldShowTopDivider) { _, isVisible in
-                isTopDividerVisible = isVisible
-            }
-            .onDisappear {
-                latestKeyboardNavigationScrollID = UUID()
-                hasClaimedKeyboardFocus = false
-                isTopDividerVisible = false
+            .onDisappear(perform: releaseListState)
+            .onChange(of: isTabActive) { _, isActive in
+                // Deselecting the mode leaves this list mounted, so the teardown cleanup
+                // has to run here too; re-selecting restores the divider from the offset
+                // this list kept while it was hidden.
+                if isActive {
+                    syncTopDividerIfActive()
+                } else {
+                    releaseListState()
+                }
             }
             .onChange(of: isKeyboardFocused) { _, isFocused in
                 if isFocused {
@@ -180,6 +191,22 @@ struct DiffViewerFileListSection: View {
 
     private var shouldShowTopDivider: Bool {
         !files.isEmpty && verticalOffsetFromTop > 0.5
+    }
+
+    /// The divider belongs to the pane's header, which the visible mode owns, so a
+    /// mounted-but-hidden list must not paint it.
+    private func syncTopDividerIfActive() {
+        guard isTabActive else {
+            return
+        }
+
+        isTopDividerVisible = shouldShowTopDivider
+    }
+
+    private func releaseListState() {
+        latestKeyboardNavigationScrollID = UUID()
+        hasClaimedKeyboardFocus = false
+        isTopDividerVisible = false
     }
 
     private func handleKeyPress(_ keyPress: KeyPress, scrollProxy: ScrollViewProxy) -> KeyPress.Result {
