@@ -51,6 +51,8 @@ final class AppKitReviewProposalWidgetView: NSView {
     var onConfirm: ((String, PullRequestReviewEvent) -> Void)?
     var onReject: ((String) -> Void)?
     var onSelectEvent: ((String, PullRequestReviewEvent) -> Void)?
+    /// Drops one of the review's staged comments, by its position in the stored envelope.
+    var onRemoveComment: ((String, Int) -> Void)?
     var onOpenPullRequest: ((PullRequestIdentifier) -> Void)?
     /// A comment card's markdown body can change height after an inline image loads.
     var onHeightInvalidated: (() -> Void)?
@@ -91,6 +93,12 @@ final class AppKitReviewProposalWidgetView: NSView {
         }
         diffView.onOpenLink = { [weak self] url in
             self?.onOpenMarkdownLink?(url)
+        }
+        diffView.onRemoveProposedComment = { [weak self] index in
+            guard let proposalID = self?.configuration?.presentation?.id else {
+                return
+            }
+            self?.onRemoveComment?(proposalID, index)
         }
     }
 
@@ -140,6 +148,8 @@ final class AppKitReviewProposalWidgetView: NSView {
     static let selectableEvents: [PullRequestReviewEvent] = [.approve, .requestChanges, .comment]
     /// Past this the card is sized by one long code line rather than by its controls.
     static let maximumDiffWidth: CGFloat = 560
+    /// Clearance between the diff preview and the action row, replacing the stack's ordinary spacing.
+    static let actionRowSeparation: CGFloat = 12
 
     static func verdictLabel(_ event: PullRequestReviewEvent) -> String {
         switch event {
@@ -233,6 +243,16 @@ private extension AppKitReviewProposalWidgetView {
         addPendingCommentSummary(configuration)
         addDiffPreview(configuration)
         addBanners(configuration)
+        addActionRow(configuration)
+    }
+
+    /// Extra clearance under everything above it. The diff preview is a slab of tinted rows, so at
+    /// the stack's ordinary spacing the buttons read as belonging to the last comment rather than
+    /// to the card; the slab's own border is what ends it, not a rule across the card.
+    func addActionRow(_ configuration: Configuration) {
+        if let previous = stack.arrangedSubviews.last {
+            stack.setCustomSpacing(Self.actionRowSeparation, after: previous)
+        }
         stack.addFullWidthArrangedSubview(actionRow(configuration))
     }
 
@@ -288,15 +308,21 @@ private extension AppKitReviewProposalWidgetView {
         return (configuration.content.commentCount ?? 0) + (configuration.content.pendingCommentCount ?? 0)
     }
 
-    /// The pending comments on the lines they were written against, read-only: the card carries
-    /// no comment interaction, so nothing in it can post to GitHub before the user confirms.
+    /// The pending comments on the lines they were written against. The only control on them is
+    /// Remove, which edits the stored envelope — nothing here can post to GitHub before the user
+    /// confirms. A submission in flight is already publishing what it was handed, so it withdraws
+    /// even that.
     func addDiffPreview(_ configuration: Configuration) {
         guard case .loaded(let preview) = configuration.preview, !preview.isEmpty else {
             return
         }
         // Before `configure`, which skips an unchanged preview and would leave the cards without it.
         diffView.avatarLoader = avatarLoader
-        diffView.configure(preview: preview, typography: configuration.typography)
+        diffView.configure(
+            preview: preview,
+            typography: configuration.typography,
+            allowsRemoval: !configuration.isSubmitting
+        )
         stack.addFullWidthArrangedSubview(diffView)
     }
 

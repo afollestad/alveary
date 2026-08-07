@@ -44,6 +44,9 @@ extension ChatTranscriptView {
         configuration.onRejectReviewProposal = { proposalID in
             coordinator.reject(proposalID: proposalID)
         }
+        configuration.onRemoveReviewProposalComment = { proposalID, index in
+            coordinator.removeStagedComment(proposalID: proposalID, at: index)
+        }
     }
 
     private static func reviewProposalState(

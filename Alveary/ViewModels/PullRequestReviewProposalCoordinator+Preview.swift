@@ -85,6 +85,63 @@ extension PullRequestReviewProposalCoordinator {
     }
 }
 
+extension PullRequestReviewProposalCoordinator {
+    /// The loaded preview with one staged comment pruned out, so removing a comment costs no
+    /// network. Removal only ever subtracts, so the already-loaded preview can be narrowed in
+    /// place — refetching would cost a `fetchDetail` plus `fetchDiff` round trip and a loading
+    /// flash on a click, and retaining the parsed diff to re-derive from is exactly the memory the
+    /// coordinator drops on purpose.
+    ///
+    /// Two consequences worth knowing:
+    /// - Every surviving `proposedIndex` above the removed one shifts down, because the envelope's
+    ///   array did; without that the next Remove would address the wrong comment.
+    /// - `hiddenFileCount` does not shrink. Revealing a file the `maximumFiles` cap hid needs the
+    ///   full parsed diff, so "N more files not shown" stays truthful but not maximal.
+    static func preview(
+        _ preview: PullRequestReviewProposalPreview,
+        removingProposedCommentAt index: Int
+    ) -> PullRequestReviewProposalPreview {
+        var annotations = preview.annotations
+        var removed = false
+        for (anchor, thread) in annotations.threads {
+            var comments: [DiffLineComment] = []
+            for comment in thread.comments {
+                guard let proposedIndex = comment.proposedIndex else {
+                    comments.append(comment)
+                    continue
+                }
+                if proposedIndex == index {
+                    removed = true
+                    continue
+                }
+                var survivor = comment
+                if proposedIndex > index {
+                    survivor.proposedIndex = proposedIndex - 1
+                }
+                comments.append(survivor)
+            }
+            guard !comments.isEmpty else {
+                annotations.threads[anchor] = nil
+                continue
+            }
+            var updated = thread
+            updated.comments = comments
+            annotations.threads[anchor] = updated
+        }
+        guard removed else {
+            return preview
+        }
+        return PullRequestReviewProposalPreview(
+            files: commentedFiles(in: preview.files, anchors: Array(annotations.threads.keys)),
+            annotations: annotations,
+            pendingCommentCount: preview.pendingCommentCount,
+            proposedCommentCount: max(preview.proposedCommentCount - 1, 0),
+            hiddenFileCount: preview.hiddenFileCount,
+            viewerIsAuthor: preview.viewerIsAuthor
+        )
+    }
+}
+
 private extension PullRequestReviewProposalCoordinator {
     /// Narrows to the files a comment sits on, and inside each to the hunks holding one.
     static func commentedFiles(
@@ -158,7 +215,7 @@ private extension PullRequestReviewProposalCoordinator {
                 isPending: thread.isPending
             )
         }
-        for comment in staged {
+        for (index, comment) in staged.enumerated() {
             let anchor = DiffCommentAnchor(
                 path: comment.path,
                 side: DiffCommentAnchor.Side(rawValue: comment.side) ?? .right,
@@ -169,7 +226,8 @@ private extension PullRequestReviewProposalCoordinator {
                 bodyMarkdown: PullRequestMarkdown.sanitized(comment.body),
                 isPending: false,
                 avatarURL: detail.viewerAvatarURL,
-                isProposed: true
+                // Its position in the envelope, which is what the card's Remove sends back.
+                proposedIndex: index
             )
             if var existing = annotations.threads[anchor] {
                 existing.comments.append(lineComment)

@@ -201,6 +201,39 @@ final class PullRequestReviewProposalCoordinator {
         return true
     }
 
+    /// Drops one of the review's staged comments before it is submitted. `index` is the comment's
+    /// position in `PullRequestReviewProposalPresentation.comments`, which is the only identity a
+    /// staged comment has.
+    ///
+    /// Local by construction: a staged comment exists nowhere on GitHub until the user confirms, so
+    /// this rewrites the stored envelope and prunes the loaded preview rather than calling anything.
+    @discardableResult
+    func removeStagedComment(proposalID: String, at index: Int) -> Bool {
+        guard !submittingProposalIDs.contains(proposalID),
+              let presentation = presentations[proposalID],
+              presentation.comments.indices.contains(index) else {
+            return false
+        }
+        guard let updated = rewriteProposal(presentation: presentation, removingCommentAt: index) else {
+            errorMessages[proposalID] = "Alveary could not remove this comment from the review."
+            notifyChanged()
+            return false
+        }
+        // Nil would clear the entry, dropping a proposal that is still pending; the envelope just
+        // round-tripped through a decode, so it cannot happen, and refusing is the safe direction.
+        if let refreshed = Self.presentation(for: updated, conversationID: presentation.sourceConversationID) {
+            presentations[proposalID] = refreshed
+        }
+        if case .loaded(let preview)? = previews[proposalID] {
+            previews[proposalID] = .loaded(Self.preview(preview, removingProposedCommentAt: index))
+        }
+        errorMessages[proposalID] = nil
+        // Card-only: nothing resolved and no transcript record moved, so this must not pay the
+        // lifecycle notification's chat-item rebuild.
+        notifyChanged()
+        return true
+    }
+
     /// Loads the card's diff preview once per proposal. The card is confirmable without it, so a
     /// failure is reported in place rather than blocking the decision.
     func ensurePreview(proposalID: String) {
@@ -356,6 +389,30 @@ private extension PullRequestReviewProposalCoordinator {
             pendingCommentCount: record.pendingCommentCountSnapshot,
             createdAt: record.createdAt
         )
+    }
+
+    /// Re-reads the envelope before editing it — the proposal may have been resolved or superseded
+    /// since the card rendered — and returns the stored replacement.
+    func rewriteProposal(
+        presentation: PullRequestReviewProposalPresentation,
+        removingCommentAt index: Int
+    ) -> PullRequestReviewProposalRecord? {
+        guard let conversation = modelContext.resolveConversation(
+            conversationID: presentation.sourceConversationID
+        ),
+            let record = try? conversation.pullRequestReviewProposal(),
+            record.id == presentation.id,
+            let updated = record.removingComment(at: index) else {
+            return nil
+        }
+        do {
+            try conversation.storePullRequestReviewProposal(updated)
+            try modelContext.save()
+            return updated
+        } catch {
+            modelContext.rollback()
+            return nil
+        }
     }
 
     /// Clears the envelope in its own save, ahead of the outcome marker's.

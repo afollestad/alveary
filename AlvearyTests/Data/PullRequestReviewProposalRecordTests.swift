@@ -52,6 +52,48 @@ final class PullRequestReviewProposalRecordTests: XCTestCase {
 
         XCTAssertEqual(record.stagedComments, comments)
     }
+
+    func testRemovingAStagedCommentKeepsEverythingElseIntact() throws {
+        let comments = [
+            PullRequestReviewProposalRecord.Comment(path: "A.swift", line: 3, side: "RIGHT", body: "First"),
+            PullRequestReviewProposalRecord.Comment(path: "B.swift", line: 9, side: "LEFT", body: "Second")
+        ]
+        let record = makeRecord(comments: comments)
+
+        let updated = try XCTUnwrap(record.removingComment(at: 0))
+
+        XCTAssertEqual(updated.stagedComments, [comments[1]])
+        // The envelope is otherwise the same proposal, including the version it was written at.
+        XCTAssertEqual(updated.id, record.id)
+        XCTAssertEqual(updated.deduplicationKey, record.deduplicationKey)
+        XCTAssertEqual(updated.payloadVersion, record.payloadVersion)
+        XCTAssertEqual(updated.pendingCommentCountSnapshot, record.pendingCommentCountSnapshot)
+        XCTAssertEqual(updated.createdAt, record.createdAt)
+    }
+
+    /// A comment-free proposal is written with a nil `comments`, so emptying one has to land in the
+    /// same shape rather than storing `[]`.
+    func testRemovingTheLastStagedCommentClearsTheList() throws {
+        let conversation = try makeConversation()
+        let record = makeRecord(comments: [
+            PullRequestReviewProposalRecord.Comment(path: "A.swift", line: 3, side: "RIGHT", body: "Only")
+        ])
+
+        let updated = try XCTUnwrap(record.removingComment(at: 0))
+        try conversation.storePullRequestReviewProposal(updated)
+
+        XCTAssertNil(updated.comments)
+        XCTAssertEqual(try conversation.pullRequestReviewProposal()?.stagedComments, [])
+    }
+
+    func testRemovingAnOutOfRangeCommentRewritesNothing() {
+        let record = makeRecord(comments: [
+            PullRequestReviewProposalRecord.Comment(path: "A.swift", line: 3, side: "RIGHT", body: "Only")
+        ])
+
+        XCTAssertNil(record.removingComment(at: 1))
+        XCTAssertNil(makeRecord().removingComment(at: 0))
+    }
 }
 
 private extension PullRequestReviewProposalRecordTests {

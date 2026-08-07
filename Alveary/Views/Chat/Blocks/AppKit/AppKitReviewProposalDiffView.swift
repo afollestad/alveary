@@ -11,8 +11,12 @@ import AppKit
 /// vertical padding. So the rows stack, and each draws its own slice through
 /// `AppKitDiffGutterPainter`. A transcript card cannot scroll anyway — the preview is already
 /// narrowed to the commented hunks, and the whole diff stays one Open PR away.
+///
+/// It wears the shared code-block border and radius so the slab ends at an edge of its own rather
+/// than needing a rule across the card, and so a review's diff reads like every other fenced block
+/// in the transcript. Nothing about those blocks changes here — this adopts their treatment.
 @MainActor
-final class AppKitReviewProposalDiffView: NSView {
+final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
     /// A comment card's markdown body can grow after an inline image loads, so the card's height
     /// change has to reach the transcript row that measured it.
     var onHeightInvalidated: (() -> Void)?
@@ -20,10 +24,13 @@ final class AppKitReviewProposalDiffView: NSView {
     var avatarLoader: GitHubAvatarLoader?
     /// Opens a link inside a comment's markdown body.
     var onOpenLink: ((URL) -> Void)?
+    /// Drops a staged comment from the review, by its position in the stored envelope.
+    var onRemoveProposedComment: ((Int) -> Void)?
 
     private let stack = NSStackView()
     private var renderedPreview: PullRequestReviewProposalPreview?
     private var renderedTypography: TranscriptTypography?
+    private var renderedAllowsRemoval = false
     /// Rebuilt views are reused rather than reconstructed. The chat font-size setting is a live
     /// slider, so every step reconfigures this view; rebuilding from scratch would recreate a
     /// markdown body and refire an avatar load per comment on each one.
@@ -35,6 +42,13 @@ final class AppKitReviewProposalDiffView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
+        wantsLayer = true
+        layer?.cornerRadius = AppKitMarkdownMetrics.codeCornerRadius
+        layer?.borderWidth = 1
+        // The rows paint edge to edge, so they have to be clipped to the rounded corners; the
+        // border itself follows the appearance through the shared provider.
+        layer?.masksToBounds = true
+        setLayerStrokeColor(provider: { AppMarkdownCodeBlockPalette.borderNSColor(for: $0) })
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -61,13 +75,20 @@ final class AppKitReviewProposalDiffView: NSView {
         !stack.arrangedSubviews.isEmpty
     }
 
-    func configure(preview: PullRequestReviewProposalPreview, typography: TranscriptTypography) {
-        guard renderedPreview != preview || renderedTypography != typography else {
+    func configure(
+        preview: PullRequestReviewProposalPreview,
+        typography: TranscriptTypography,
+        allowsRemoval: Bool
+    ) {
+        guard renderedPreview != preview
+            || renderedTypography != typography
+            || renderedAllowsRemoval != allowsRemoval else {
             return
         }
         renderedPreview = preview
         renderedTypography = typography
-        rebuild(preview: preview, typography: typography)
+        renderedAllowsRemoval = allowsRemoval
+        rebuild(preview: preview, typography: typography, allowsRemoval: allowsRemoval)
     }
 
     /// The widest rendered row, so the card can size to its content like every other widget body.
@@ -84,7 +105,11 @@ private extension AppKitReviewProposalDiffView {
         case comment(DiffLineComment, DiffCommentAnchor, anchoredKind: DiffCodeHighlighting.LineKind)
     }
 
-    func rebuild(preview: PullRequestReviewProposalPreview, typography: TranscriptTypography) {
+    func rebuild(
+        preview: PullRequestReviewProposalPreview,
+        typography: TranscriptTypography,
+        allowsRemoval: Bool
+    ) {
         // Detached, not discarded: the pools below hand the same views back, so a rebuild costs
         // reconfiguration instead of reconstruction. Removing from the superview is what retires
         // each view's full-width constraint, which `addFullWidthArrangedSubview` makes anew.
@@ -96,7 +121,11 @@ private extension AppKitReviewProposalDiffView {
         let font = NSFont.monospacedSystemFont(ofSize: typography.size(for: .caption), weight: .regular)
         // One metrics value for the whole preview, so every file's gutter lines up.
         let metrics = AppKitDiffCodeBlockMetrics(rows: items.compactMap(\.row), font: font)
-        let context = AppKitReviewProposalCommentContext(typography: typography, avatarLoader: avatarLoader)
+        let context = AppKitReviewProposalCommentContext(
+            typography: typography,
+            avatarLoader: avatarLoader,
+            allowsRemoval: allowsRemoval
+        )
         var rowCount = 0
         var cardCount = 0
         widestRow = 0
@@ -116,7 +145,8 @@ private extension AppKitReviewProposalDiffView {
                     anchor: anchor,
                     wash: AppKitReviewProposalCommentWash(
                         top: anchoredKind,
-                        bottom: Self.followingRowKind(after: index, in: items)
+                        bottom: Self.followingRowKind(after: index, in: items),
+                        isTrailing: index == items.count - 1
                     ),
                     metrics: metrics,
                     context: context
@@ -147,6 +177,9 @@ private extension AppKitReviewProposalDiffView {
         }
         view.onOpenLink = { [weak self] url in
             self?.onOpenLink?(url)
+        }
+        view.onRemove = { [weak self] index in
+            self?.onRemoveProposedComment?(index)
         }
         cardViewPool.append(view)
         return view

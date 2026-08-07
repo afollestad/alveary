@@ -40,10 +40,17 @@ struct DiffLineComment: Hashable, Sendable {
     /// tooltip/accessibility string beside it carries the absolute date and time.
     let relativeAge: String?
     let absoluteTimestamp: String?
-    /// Staged inside a review proposal, existing nowhere on GitHub yet — narrower than
-    /// `isPending`, which means written into the viewer's server-side draft. Only the
-    /// review-proposal card renders these.
-    let isProposed: Bool
+    /// Position in the review proposal's stored `comments` array, for a comment staged inside a
+    /// proposal and existing nowhere on GitHub yet — narrower than `isPending`, which means written
+    /// into the viewer's server-side draft. Only the review-proposal card renders these, and the
+    /// array position is the only identity a staged comment has, so it is what the card's Remove
+    /// addresses. Every removal shifts the array, so a pruned preview must renumber what survives —
+    /// the one mutable field here, so that renumbering cannot silently drop a sibling.
+    var proposedIndex: Int?
+
+    var isProposed: Bool {
+        proposedIndex != nil
+    }
 
     init(
         author: String,
@@ -58,7 +65,7 @@ struct DiffLineComment: Hashable, Sendable {
         isBot: Bool = false,
         relativeAge: String? = nil,
         absoluteTimestamp: String? = nil,
-        isProposed: Bool = false
+        proposedIndex: Int? = nil
     ) {
         self.author = author
         self.bodyMarkdown = bodyMarkdown
@@ -72,7 +79,7 @@ struct DiffLineComment: Hashable, Sendable {
         self.isBot = isBot
         self.relativeAge = relativeAge
         self.absoluteTimestamp = absoluteTimestamp
-        self.isProposed = isProposed
+        self.proposedIndex = proposedIndex
     }
 }
 

@@ -153,6 +153,178 @@ final class AppKitPullRequestCommentBadgeView: NSView {
     }
 }
 
+/// Drops one staged comment from the review before it is submitted.
+///
+/// The one control a proposal comment card carries. It edits the stored envelope and nothing else,
+/// which is what keeps it inside the card's premise that nothing reaches GitHub before confirmation.
+/// Built on `AppKitHostToolWidgetBubbleView` for the transcript's press, cursor, button role, and
+/// hover — including the scroll-under-pointer re-derivation a scrolling transcript needs.
+///
+/// Removal takes two presses, like the sidebar's archive/delete pill: the first swaps the glyph for
+/// a red `Confirm`, and only the second removes. A staged comment is the review's substance and
+/// there is no undo, so a mis-click must not silently drop one.
+@MainActor
+final class AppKitReviewProposalCommentRemoveButton: AppKitHostToolWidgetBubbleView {
+    /// The hover circle, wider than the glyph needs so the fill has room around it.
+    static let diameter: CGFloat = 24
+    /// What the author row lays the button out by. Auto Layout positions a view by its alignment
+    /// rect, so keeping that at the glyph's own box lets the circle grow outward without moving the
+    /// glyph or heightening the row — and the overflow still takes clicks, hover, and the cursor,
+    /// because those read `bounds`.
+    static let alignmentDiameter: CGFloat = 16
+    /// How long an armed pill waits once the pointer has left. Matching the sidebar's, and for the
+    /// same reason: a user still deciding is hovering, so the countdown never runs under them.
+    static let confirmationTimeoutNanoseconds: UInt64 = 500_000_000
+    private static let titleHorizontalPadding: CGFloat = 8
+    /// `ActionButtonTint.destructive`, the app's one destructive fill.
+    private static let destructiveTint = NSColor(ActionButtonTint.destructive)
+
+    /// The second press. The first only arms the pill.
+    var onConfirm: (() -> Void)?
+
+    private let glyphView = AppKitDynamicTintImageView()
+    private let titleField = NSTextField(labelWithString: "Confirm")
+    private var widthConstraint: NSLayoutConstraint?
+    private var disarmTask: Task<Void, Never>?
+    private var isArmed = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        translatesAutoresizingMaskIntoConstraints = false
+        wantsLayer = true
+        layer?.cornerRadius = Self.diameter / 2
+        isInteractive = true
+        onHoverChanged = { [weak self] _ in
+            self?.applyState()
+        }
+        onActivate = { [weak self] in
+            self?.handlePress()
+        }
+        setupContent()
+        applyState()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: alignmentWidth, height: Self.alignmentDiameter)
+    }
+
+    override var alignmentRectInsets: NSEdgeInsets {
+        let inset = (Self.diameter - Self.alignmentDiameter) / 2
+        return NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
+    }
+
+    /// Regular weight at the author row's own size: at semibold the glyph out-shouted the caption
+    /// text it sits beside and read as a second Cancel.
+    func configure(fontSize: CGFloat) {
+        glyphView.symbolConfiguration = .init(pointSize: fontSize, weight: .regular)
+        titleField.font = .systemFont(ofSize: fontSize, weight: .semibold)
+        // A reconfigure means the card is showing different content, so a pill armed against the
+        // old one must not carry over.
+        disarm()
+    }
+
+    /// Cancelled here rather than in `deinit`, which cannot touch main-actor state.
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        guard newWindow == nil else {
+            return
+        }
+        disarm()
+    }
+}
+
+private extension AppKitReviewProposalCommentRemoveButton {
+    var alignmentWidth: CGFloat {
+        guard isArmed else {
+            return Self.alignmentDiameter
+        }
+        let title = ceil(titleField.attributedStringValue.size().width)
+        return title + (Self.titleHorizontalPadding * 2)
+    }
+
+    func handlePress() {
+        guard isArmed else {
+            isArmed = true
+            applyState()
+            return
+        }
+        disarm()
+        onConfirm?()
+    }
+
+    func disarm() {
+        disarmTask?.cancel()
+        disarmTask = nil
+        guard isArmed else {
+            return
+        }
+        isArmed = false
+        applyState()
+    }
+
+    /// Both the pill's appearance and its countdown follow from armed plus hovered, so one place
+    /// derives them — a hover change while armed is exactly what starts and stops the clock.
+    func applyState() {
+        glyphView.isHidden = isArmed
+        titleField.isHidden = !isArmed
+        if isArmed {
+            setLayerFillColor(Self.destructiveTint, alpha: 1)
+        } else {
+            setLayerFillColor(.secondaryLabelColor, alpha: isHovered ? 0.16 : 0)
+        }
+        setAccessibilityLabel(isArmed ? "Confirm removing this proposed comment" : "Remove proposed comment")
+        toolTip = isArmed ? "Press again to remove this comment" : "Remove this comment from the review"
+        widthConstraint?.constant = alignmentWidth
+        invalidateIntrinsicContentSize()
+        scheduleDisarmIfNeeded()
+    }
+
+    func scheduleDisarmIfNeeded() {
+        disarmTask?.cancel()
+        disarmTask = nil
+        guard isArmed, !isHovered else {
+            return
+        }
+        disarmTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: Self.confirmationTimeoutNanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.disarm()
+        }
+    }
+
+    func setupContent() {
+        glyphView.translatesAutoresizingMaskIntoConstraints = false
+        glyphView.setAccessibilityElement(false)
+        glyphView.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)
+        glyphView.setDynamicContentTintColor(.secondaryLabelColor)
+        titleField.translatesAutoresizingMaskIntoConstraints = false
+        titleField.setAccessibilityElement(false)
+        titleField.textColor = .white
+        titleField.maximumNumberOfLines = 1
+        addSubview(glyphView)
+        addSubview(titleField)
+        let width = widthAnchor.constraint(equalToConstant: Self.alignmentDiameter)
+        widthConstraint = width
+        // Sized and centred against the alignment rect, which the symmetric insets keep concentric
+        // with the frame — so the glyph lands where it did before the circle grew.
+        NSLayoutConstraint.activate([
+            width,
+            heightAnchor.constraint(equalToConstant: Self.alignmentDiameter),
+            glyphView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            glyphView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            titleField.centerXAnchor.constraint(equalTo: centerXAnchor),
+            titleField.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+}
+
 extension AppKitPullRequestCommentBadgeView {
     /// The pane's orange, taken from the SwiftUI token rather than `.systemOrange` so the pill
     /// matches `PullRequestCommentBadge("Pending", color: .orange)` exactly.

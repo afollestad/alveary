@@ -53,6 +53,37 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
     var stagedComments: [Comment] {
         comments ?? []
     }
+
+    /// The envelope with one staged comment dropped, for the card's per-comment Remove. Returns nil
+    /// for an out-of-range index rather than rewriting the envelope with nothing changed.
+    ///
+    /// An emptied list normalizes back to `nil`, matching how a comment-free proposal is written at
+    /// creation. `payloadVersion` deliberately does not move: the shape is unchanged, and an older
+    /// build reading the result would submit exactly what its card shows — the condition the version
+    /// guard exists for.
+    func removingComment(at index: Int) -> PullRequestReviewProposalRecord? {
+        var remaining = stagedComments
+        guard remaining.indices.contains(index) else {
+            return nil
+        }
+        remaining.remove(at: index)
+        return PullRequestReviewProposalRecord(
+            payloadVersion: payloadVersion,
+            id: id,
+            deduplicationKey: deduplicationKey,
+            repositoryNameWithOwner: repositoryNameWithOwner,
+            number: number,
+            event: event,
+            body: body,
+            comments: remaining.isEmpty ? nil : remaining,
+            titleSnapshot: titleSnapshot,
+            pendingCommentCountSnapshot: pendingCommentCountSnapshot,
+            sourceProviderID: sourceProviderID,
+            sourceProcessToken: sourceProcessToken,
+            sourceRequestID: sourceRequestID,
+            createdAt: createdAt
+        )
+    }
 }
 
 extension Notification.Name {

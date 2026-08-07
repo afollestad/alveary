@@ -5,7 +5,10 @@ import AppKit
 /// A pull-request link card is clicked as a whole, so hover, cursor, and the press belong to
 /// the bubble rather than the row view, which spans the transcript's full width and would
 /// otherwise light up far outside the card.
-final class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
+///
+/// Open to subclassing so a leaf control inside a card — the review proposal's per-comment Remove —
+/// gets the same press, cursor, role, and scroll-aware hover instead of re-deriving them.
+class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
     var onActivate: (() -> Void)?
     var onHoverChanged: ((Bool) -> Void)?
 

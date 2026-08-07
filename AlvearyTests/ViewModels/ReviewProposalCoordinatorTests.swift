@@ -239,6 +239,122 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertEqual(thread.comments.first?.isProposed, true)
     }
 
+    /// Removing a staged comment is a local edit to the envelope, so it rewrites storage and prunes
+    /// the already-loaded preview rather than refetching the pull request.
+    func testRemovingAStagedCommentRewritesTheEnvelopeAndPrunesThePreview() async throws {
+        let fixture = try Fixture(comments: [
+            Fixture.stagedComment(path: "File0.swift", line: 1, body: "Guard this."),
+            Fixture.stagedComment(path: "File1.swift", line: 1, body: "And this.")
+        ])
+        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+        fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 3))
+        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
+        try await fixture.waitForPreview()
+        let detailCallsBeforeRemoval = fixture.service.detailCallCount
+
+        XCTAssertTrue(fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0))
+
+        XCTAssertEqual(try fixture.conversation.pullRequestReviewProposal()?.stagedComments.map(\.body), ["And this."])
+        XCTAssertEqual(fixture.coordinator.presentation(forProposalID: Fixture.proposalID)?.comments.count, 1)
+        guard case .loaded(let preview)? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
+            return XCTFail("expected a loaded preview")
+        }
+        XCTAssertEqual(preview.proposedCommentCount, 1)
+        XCTAssertEqual(preview.files.map(\.path), ["File1.swift"])
+        XCTAssertEqual(preview.annotations.threads.count, 1)
+        // No refetch: the click must not cost a detail plus diff round trip.
+        XCTAssertEqual(fixture.service.detailCallCount, detailCallsBeforeRemoval)
+    }
+
+    /// The envelope's array shifts under a removal, so the surviving cards have to renumber or the
+    /// next Remove addresses the wrong comment.
+    func testASecondRemovalTargetsTheRenumberedComment() async throws {
+        let fixture = try Fixture(comments: [
+            Fixture.stagedComment(path: "File0.swift", line: 1, body: "First"),
+            Fixture.stagedComment(path: "File1.swift", line: 1, body: "Second"),
+            Fixture.stagedComment(path: "File2.swift", line: 1, body: "Third")
+        ])
+        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+        fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 3))
+        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
+        try await fixture.waitForPreview()
+
+        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0)
+        guard case .loaded(let afterFirst)? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
+            return XCTFail("expected a loaded preview")
+        }
+        // "Third" was index 2 and is now index 1, which is the index its card would send back.
+        let renumbered = afterFirst.annotations.threads.values
+            .flatMap(\.comments)
+            .first { $0.bodyMarkdown == "Third" }
+        XCTAssertEqual(renumbered?.proposedIndex, 1)
+
+        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 1)
+
+        XCTAssertEqual(try fixture.conversation.pullRequestReviewProposal()?.stagedComments.map(\.body), ["Second"])
+    }
+
+    func testRemovingTheLastStagedCommentLeavesASubmittableSummaryOnlyReview() async throws {
+        let fixture = try Fixture(comments: [Fixture.stagedComment(body: "Guard this.")])
+
+        XCTAssertTrue(fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0))
+
+        XCTAssertEqual(fixture.coordinator.presentation(forProposalID: Fixture.proposalID)?.comments, [])
+        // The proposal is still pending — removing its comments is not the same as cancelling it.
+        XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
+        XCTAssertTrue(fixture.coordinator.canSubmit(proposalID: Fixture.proposalID, event: .comment))
+    }
+
+    func testConfirmingAfterARemovalPublishesOnlyTheSurvivingComments() async throws {
+        let fixture = try Fixture(comments: [
+            Fixture.stagedComment(line: 1, body: "First"),
+            Fixture.stagedComment(line: 2, body: "Second")
+        ])
+        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+
+        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Second"])
+    }
+
+    /// A submission in flight is already publishing the comments it was handed, so the envelope
+    /// must not move under it.
+    func testRemovingIsRefusedWhileASubmissionIsInFlight() async throws {
+        let fixture = try Fixture(comments: [
+            Fixture.stagedComment(line: 1, body: "First"),
+            Fixture.stagedComment(line: 2, body: "Second")
+        ])
+        let detailGate = PullRequestsServiceGate()
+        fixture.service.detailGate = detailGate
+        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+        let submission = Task { await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment) }
+        try await fixture.waitForSubmission()
+
+        XCTAssertFalse(fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0))
+
+        detailGate.open()
+        let didSubmit = await submission.value
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["First", "Second"])
+    }
+
+    func testRemovingNotifiesSoTheCardReRenders() throws {
+        let fixture = try Fixture(comments: [Fixture.stagedComment(body: "Guard this.")])
+        // Card-only state: the lifecycle notification would also rebuild transcript items, which a
+        // removal changes nothing about.
+        let notified = XCTNSNotificationExpectation(
+            name: .reviewProposalCardStateChanged,
+            object: nil,
+            notificationCenter: fixture.notificationCenter
+        )
+
+        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0)
+
+        wait(for: [notified], timeout: 1)
+    }
+
     func testAFailedPreviewLoadLeavesTheCardConfirmable() async throws {
         let fixture = try Fixture()
         fixture.service.detailResult = .failure(.rateLimited)
@@ -323,6 +439,20 @@ private final class Fixture {
 
     func outcomeMarkers() -> [ConversationEventRecord] {
         conversation.events.filter { $0.type == ConversationEventRecord.hostToolOutcomeType }
+    }
+
+    /// `confirm` enters the submitting state before its first suspension, but the caller runs it in
+    /// its own `Task`; poll with a deadline so a coordinator that never enters it fails the test
+    /// rather than spinning the main actor until CI times out.
+    func waitForSubmission(timeout: TimeInterval = 2) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if coordinator.isSubmitting(proposalID: Self.proposalID) {
+                return
+            }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("the submission never started")
     }
 
     /// The preview loads in its own task; poll rather than guessing at a sleep.

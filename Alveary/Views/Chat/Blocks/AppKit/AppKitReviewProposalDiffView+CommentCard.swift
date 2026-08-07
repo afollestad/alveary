@@ -1,10 +1,20 @@
 import AppKit
 
-/// The tints a comment card's two bands continue, mirroring `DiffCommentRowWash` on the SwiftUI
-/// side: the anchored line's above the card, the following line's below.
+/// A comment card's vertical neighbourhood: the tints its two bands continue, mirroring
+/// `DiffCommentRowWash` on the SwiftUI side — the anchored line's above the card, the following
+/// line's below — and whether anything follows it at all.
 struct AppKitReviewProposalCommentWash: Equatable {
     let top: DiffCodeHighlighting.LineKind
     let bottom: DiffCodeHighlighting.LineKind
+    /// Nothing follows, so the card's lower band ends at the diff block's own border rather than
+    /// at another line. It takes the wider outset for that; see `trailingVerticalOutset`.
+    let isTrailing: Bool
+
+    init(top: DiffCodeHighlighting.LineKind, bottom: DiffCodeHighlighting.LineKind, isTrailing: Bool = false) {
+        self.top = top
+        self.bottom = bottom
+        self.isTrailing = isTrailing
+    }
 }
 
 /// A pending review comment as a card floating on the diff, mirroring the Changes tab's treatment.
@@ -14,15 +24,19 @@ struct AppKitReviewProposalCommentWash: Equatable {
 /// backdrop band. That is why the builder hands this view the *next* row's kind.
 ///
 /// Its interior mirrors `DiffCommentThreadRow.commentView`: the avatar/author/badges row over a
-/// markdown-rendered body. Read-only on purpose — no reactions, no menu, no reply footer, no
-/// composer. Every one of those posts to GitHub, and nothing on this card may reach GitHub before
-/// the user confirms the review.
+/// markdown-rendered body. No reactions, no menu, no reply footer, no composer — every one of those
+/// posts to GitHub, and nothing on this card may reach GitHub before the user confirms the review.
+/// The trailing Remove is the one exception that proves the rule: it drops a staged comment from the
+/// stored envelope, which is local by construction.
 @MainActor
 final class AppKitReviewProposalCommentCardView: NSView {
     /// Matches `DiffCommentCardChrome`: the card is inset from the row so the code surface shows
     /// around it and it reads as floating rather than as a band.
     static let horizontalOutset: CGFloat = 8
     static let verticalOutset: CGFloat = 4
+    /// The last card in the preview has the block's border under it instead of another line, and at
+    /// `verticalOutset` it crowds that border and its own shadow clips against it.
+    static let trailingVerticalOutset: CGFloat = 10
     /// `DiffCommentCardInteriorPadding`; the wider trailing edge matches the Overview timeline cards.
     static let interiorPadding: CGFloat = 10
     static let interiorTrailingPadding: CGFloat = 12
@@ -38,6 +52,9 @@ final class AppKitReviewProposalCommentCardView: NSView {
             bodyView.onOpenLink = onOpenLink
         }
     }
+    /// Drops this card's staged comment from the review, by its position in the stored envelope.
+    /// Set once when the pool creates the card; the index travels with each `configure`.
+    var onRemove: ((Int) -> Void)?
 
     /// A transparent container: the card's fill, border, and shadow are drawn in `draw(_:)`, not
     /// backed by a `CALayer`. Two reasons — `AppKitDynamicColorView` rewrites `layer.borderColor`
@@ -51,9 +68,15 @@ final class AppKitReviewProposalCommentCardView: NSView {
     private let authorField = NSTextField(labelWithString: "")
     private let botBadge = AppKitPullRequestCommentBadgeView()
     private let pendingBadge = AppKitPullRequestCommentBadgeView()
+    private let removeButton = AppKitReviewProposalCommentRemoveButton()
     private let bodyView = AppKitMarkdownView(document: AppMarkdownDocument(content: AttributedString()))
     private var metrics = AppKitDiffCodeBlockMetrics.empty
     private var wash = AppKitReviewProposalCommentWash(top: .context, bottom: .context)
+    /// The configured comment's position in the review's stored `comments` array; nil for a comment
+    /// that lives on GitHub, which this card cannot remove.
+    private var proposedIndex: Int?
+    /// Held because the outset widens for the preview's last card, and these views are pooled.
+    private var cardBottomConstraint: NSLayoutConstraint?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -62,6 +85,13 @@ final class AppKitReviewProposalCommentCardView: NSView {
         setupContent()
         bodyView.onHeightInvalidated = { [weak self] in
             self?.onHeightInvalidated?()
+        }
+        // The button owns the arm/confirm step; this fires only on the confirming press.
+        removeButton.onConfirm = { [weak self] in
+            guard let self, let proposedIndex else {
+                return
+            }
+            onRemove?(proposedIndex)
         }
     }
 
@@ -83,6 +113,8 @@ final class AppKitReviewProposalCommentCardView: NSView {
     ) {
         self.metrics = metrics
         self.wash = wash
+        proposedIndex = comment.proposedIndex
+        cardBottomConstraint?.constant = -(wash.isTrailing ? Self.trailingVerticalOutset : Self.verticalOutset)
         let captionSize = context.typography.size(for: .caption)
         avatarView.configure(login: comment.author, url: comment.avatarURL, loader: context.avatarLoader)
         authorField.font = .systemFont(ofSize: captionSize, weight: .medium)
@@ -99,6 +131,10 @@ final class AppKitReviewProposalCommentCardView: NSView {
             style: .tinted(AppKitPullRequestCommentBadgeView.pendingTint),
             fontSize: captionSize
         )
+        // Only a staged comment can be removed, and only while the card can still act on it — a
+        // submission in flight is already publishing what it was handed.
+        removeButton.isHidden = !(context.allowsRemoval && comment.isProposed)
+        removeButton.configure(fontSize: captionSize)
         configureBody(markdown: comment.bodyMarkdown, typography: context.typography)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -134,16 +170,24 @@ final class AppKitFlippedContainerView: NSView {
     }
 }
 
-/// What a comment card needs beyond the comment itself: transcript fonts, and the loader its
-/// avatar fetches through. The loader is absent in snapshots and previews, which is what makes the
-/// card fall back to the author's initial.
+/// What a comment card needs beyond the comment itself: transcript fonts, the loader its avatar
+/// fetches through, and whether the review can still be edited. The loader is absent in snapshots
+/// and previews, which is what makes the card fall back to the author's initial.
 struct AppKitReviewProposalCommentContext {
     let typography: TranscriptTypography
     let avatarLoader: GitHubAvatarLoader?
+    /// False once a submission is in flight, which is the only interactive state where the review's
+    /// staged comments are no longer the user's to change.
+    let allowsRemoval: Bool
 
-    init(typography: TranscriptTypography, avatarLoader: GitHubAvatarLoader? = nil) {
+    init(
+        typography: TranscriptTypography,
+        avatarLoader: GitHubAvatarLoader? = nil,
+        allowsRemoval: Bool = false
+    ) {
         self.typography = typography
         self.avatarLoader = avatarLoader
+        self.allowsRemoval = allowsRemoval
     }
 }
 
@@ -151,11 +195,13 @@ private extension AppKitReviewProposalCommentCardView {
     func setupCard() {
         card.translatesAutoresizingMaskIntoConstraints = false
         addSubview(card)
+        let bottom = card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.verticalOutset)
+        cardBottomConstraint = bottom
         NSLayoutConstraint.activate([
             card.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.horizontalOutset),
             card.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.horizontalOutset),
             card.topAnchor.constraint(equalTo: topAnchor, constant: Self.verticalOutset),
-            card.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.verticalOutset)
+            bottom
         ])
     }
 
@@ -196,11 +242,14 @@ private extension AppKitReviewProposalCommentCardView {
         authorRow.addArrangedSubview(pendingBadge)
         // The badges keep their intrinsic width; the author name is what yields on a narrow card.
         authorField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        for view in [avatarView, botBadge, pendingBadge] {
+        for view in [avatarView, botBadge, pendingBadge, removeButton] {
             view.setContentHuggingPriority(.required, for: .horizontal)
             view.setContentCompressionResistancePriority(.required, for: .horizontal)
         }
         authorRow.addArrangedSubview(NSView())
+        // After the flexible spacer, so it sits at the card's trailing edge — where the pane puts
+        // its three-dot menu on this same card shape.
+        authorRow.addArrangedSubview(removeButton)
     }
 
     func configureBody(markdown: String, typography: TranscriptTypography) {

@@ -40,7 +40,8 @@ extension SnapshotTests {
     }
 
     /// A staged comment exists only in Alveary until confirmed: its card wears the "Proposed"
-    /// badge where a server-draft comment wears "Pending", and the summary line counts it.
+    /// badge where a server-draft comment wears "Pending", the summary line counts it, and it
+    /// carries the trailing Remove that drops it from the review.
     func testReviewProposalWidgetProposedComment() {
         assertMacSnapshot(
             appKitRowSnapshot {
@@ -48,6 +49,42 @@ extension SnapshotTests {
             },
             size: CGSize(width: 700, height: 360),
             named: "review_proposal_widget_proposed_comment"
+        )
+    }
+
+    /// Removing has no undo, so the first press only arms: the glyph becomes the same red `Confirm`
+    /// pill the sidebar's archive/delete control uses.
+    func testReviewProposalWidgetProposedCommentRemovalArmed() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewProposalSnapshotFixture.widgetRow(commentIsProposed: true, armsRemoval: true)
+            },
+            size: CGSize(width: 700, height: 360),
+            named: "review_proposal_widget_proposed_comment_armed"
+        )
+    }
+
+    /// A card anchored to the diff's final line has the block's border under it instead of another
+    /// line, and takes the wider outset so it does not crowd that border.
+    func testReviewProposalWidgetTrailingCommentClearsTheBlockBorder() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewProposalSnapshotFixture.widgetRow(commentIsProposed: true, commentLine: 3)
+            },
+            size: CGSize(width: 700, height: 360),
+            named: "review_proposal_widget_trailing_comment"
+        )
+    }
+
+    /// Once a submission is in flight the review's comments are no longer the user's to change, so
+    /// the Remove withdraws even from a staged comment.
+    func testReviewProposalWidgetProposedCommentWhileSubmitting() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewProposalSnapshotFixture.widgetRow(isSubmitting: true, commentIsProposed: true)
+            },
+            size: CGSize(width: 700, height: 360),
+            named: "review_proposal_widget_proposed_comment_submitting"
         )
     }
 
@@ -135,22 +172,14 @@ enum ReviewProposalSnapshotFixture {
         viewerIsAuthor: Bool = false,
         commentBody: String = "This retries forever when the server keeps answering 503.",
         commentIsBot: Bool = false,
-        commentIsProposed: Bool = false
+        commentIsProposed: Bool = false,
+        commentLine: Int = 2,
+        armsRemoval: Bool = false
     ) -> AppKitTranscriptHostToolWidgetRowView {
-        let content = PullRequestReviewProposalWidgetContent(
-            event: .approve,
-            identifier: identifier,
-            body: "Only the retry loop still worries me.",
-            commentCount: commentIsProposed ? 1 : nil,
-            pendingCommentCount: commentIsProposed ? 0 : 2,
-            proposalID: proposalID,
-            message: "Opened a review confirmation in Alveary.",
-            status: .pendingConfirmation
-        )
         let entry = HostToolWidgetEntry(
             id: "tool-review-proposal",
             toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.proposeReviewToolName),
-            content: .pullRequestReviewProposal(content),
+            content: .pullRequestReviewProposal(widgetContent(commentIsProposed: commentIsProposed)),
             isComplete: true,
             outcomeKey: proposalID,
             outcome: outcome,
@@ -162,14 +191,17 @@ enum ReviewProposalSnapshotFixture {
                 entry: entry,
                 reviewProposal: ReviewProposalWidgetState(
                     presentation: presentation(
-                        stagedComments: commentIsProposed ? [stagedComment(body: commentBody)] : []
+                        stagedComments: commentIsProposed
+                            ? [stagedComment(body: commentBody, line: commentLine)]
+                            : []
                     ),
                     preview: preview ?? .loaded(
                         loadedPreview(
                             viewerIsAuthor: viewerIsAuthor,
                             commentBody: commentBody,
                             commentIsBot: commentIsBot,
-                            commentIsProposed: commentIsProposed
+                            commentIsProposed: commentIsProposed,
+                            commentLine: commentLine
                         )
                     ),
                     selectedEvent: .approve,
@@ -181,13 +213,45 @@ enum ReviewProposalSnapshotFixture {
                 bubbleMaxWidth: 640
             )
         )
+        if armsRemoval {
+            // The armed pill is view-local state with no configuration input, so the baseline has
+            // to reach the control the way a click does.
+            _ = removeButton(in: view)?.accessibilityPerformPress()
+        }
         return view
     }
 
-    static func stagedComment(body: String) -> PullRequestReviewProposalRecord.Comment {
+    /// The call snapshot a proposal card renders its header from.
+    static func widgetContent(commentIsProposed: Bool) -> PullRequestReviewProposalWidgetContent {
+        PullRequestReviewProposalWidgetContent(
+            event: .approve,
+            identifier: identifier,
+            body: "Only the retry loop still worries me.",
+            commentCount: commentIsProposed ? 1 : nil,
+            pendingCommentCount: commentIsProposed ? 0 : 2,
+            proposalID: proposalID,
+            message: "Opened a review confirmation in Alveary.",
+            status: .pendingConfirmation
+        )
+    }
+
+    static func removeButton(in view: NSView) -> AppKitReviewProposalCommentRemoveButton? {
+        if let button = view as? AppKitReviewProposalCommentRemoveButton {
+            return button
+        }
+        for subview in view.subviews {
+            if let button = removeButton(in: subview) {
+                return button
+            }
+        }
+        return nil
+    }
+
+    /// Takes the same line the preview anchors, so the envelope and the rendered card agree.
+    static func stagedComment(body: String, line: Int = 2) -> PullRequestReviewProposalRecord.Comment {
         PullRequestReviewProposalRecord.Comment(
             path: "Sources/Retry.swift",
-            line: 2,
+            line: line,
             side: "RIGHT",
             body: body
         )
@@ -210,16 +274,19 @@ enum ReviewProposalSnapshotFixture {
     }
 
     /// One commented hunk, which is what the card is for: the review's comments on their lines.
+    /// `commentLine` 3 anchors the diff's final line, which is what leaves the card last in the
+    /// block with only its border below it.
     static func loadedPreview(
         viewerIsAuthor: Bool = false,
         commentBody: String = "This retries forever when the server keeps answering 503.",
         commentIsBot: Bool = false,
-        commentIsProposed: Bool = false
+        commentIsProposed: Bool = false,
+        commentLine: Int = 2
     ) -> PullRequestReviewProposalPreview {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = false
         annotations.threads[
-            DiffCommentAnchor(path: "Sources/Retry.swift", side: .right, line: 2)
+            DiffCommentAnchor(path: "Sources/Retry.swift", side: .right, line: commentLine)
         ] = DiffLineCommentThread(
             comments: [
                 DiffLineComment(
@@ -228,7 +295,7 @@ enum ReviewProposalSnapshotFixture {
                     isPending: !commentIsProposed,
                     nodeID: commentIsProposed ? nil : "PENDING_COMMENT_1",
                     isBot: commentIsBot,
-                    isProposed: commentIsProposed
+                    proposedIndex: commentIsProposed ? 0 : nil
                 )
             ],
             isPending: !commentIsProposed

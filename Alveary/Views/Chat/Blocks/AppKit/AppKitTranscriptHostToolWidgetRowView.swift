@@ -54,6 +54,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     var onConfirmReviewProposal: ((String, PullRequestReviewEvent) -> Void)?
     var onRejectReviewProposal: ((String) -> Void)?
     var onSelectReviewVerdict: ((String, PullRequestReviewEvent) -> Void)?
+    var onRemoveReviewProposalComment: ((String, Int) -> Void)?
     /// Fetches comment-author avatars. Kept off `Configuration`, which is `Equatable`: the loader
     /// is an actor, and it is app-lifetime constant rather than per-render input.
     var avatarLoader: GitHubAvatarLoader?
@@ -171,28 +172,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         }
         contentStack.addFullWidthArrangedSubview(proposalBody)
 
-        reviewProposalBody.translatesAutoresizingMaskIntoConstraints = false
-        reviewProposalBody.onConfirm = { [weak self] proposalID, event in
-            self?.onConfirmReviewProposal?(proposalID, event)
-        }
-        reviewProposalBody.onReject = { [weak self] proposalID in
-            self?.onRejectReviewProposal?(proposalID)
-        }
-        reviewProposalBody.onSelectEvent = { [weak self] proposalID, event in
-            self?.onSelectReviewVerdict?(proposalID, event)
-        }
-        reviewProposalBody.onOpenPullRequest = { [weak self] identifier in
-            self?.onOpenPullRequest?(identifier)
-        }
-        // A comment card's markdown body grows when an inline image lands, which moves everything
-        // below it in the card.
-        reviewProposalBody.onHeightInvalidated = { [weak self] in
-            self?.measureAndPublishHeight(force: true)
-        }
-        reviewProposalBody.onOpenMarkdownLink = { [weak self] url in
-            self?.onOpenMarkdownLink?(url)
-        }
-        contentStack.addFullWidthArrangedSubview(reviewProposalBody)
+        setupReviewProposalBody()
 
         pullRequestListBody.translatesAutoresizingMaskIntoConstraints = false
         pullRequestListBody.onOpenPullRequest = { [weak self] identifier in
@@ -213,6 +193,36 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             self?.onOpenMarkdownLink?(url)
         }
         contentStack.addFullWidthArrangedSubview(reviewInstructionsBody)
+    }
+
+    /// Its own function so `setupProposalBodies` stays inside the shared function-length limit; the
+    /// review proposal carries the most callbacks of any body here.
+    func setupReviewProposalBody() {
+        reviewProposalBody.translatesAutoresizingMaskIntoConstraints = false
+        reviewProposalBody.onConfirm = { [weak self] proposalID, event in
+            self?.onConfirmReviewProposal?(proposalID, event)
+        }
+        reviewProposalBody.onReject = { [weak self] proposalID in
+            self?.onRejectReviewProposal?(proposalID)
+        }
+        reviewProposalBody.onSelectEvent = { [weak self] proposalID, event in
+            self?.onSelectReviewVerdict?(proposalID, event)
+        }
+        reviewProposalBody.onRemoveComment = { [weak self] proposalID, index in
+            self?.onRemoveReviewProposalComment?(proposalID, index)
+        }
+        reviewProposalBody.onOpenPullRequest = { [weak self] identifier in
+            self?.onOpenPullRequest?(identifier)
+        }
+        // A comment card's markdown body grows when an inline image lands, and removing a comment
+        // shrinks the card, which moves everything below it either way.
+        reviewProposalBody.onHeightInvalidated = { [weak self] in
+            self?.measureAndPublishHeight(force: true)
+        }
+        reviewProposalBody.onOpenMarkdownLink = { [weak self] url in
+            self?.onOpenMarkdownLink?(url)
+        }
+        contentStack.addFullWidthArrangedSubview(reviewProposalBody)
     }
 
     func setupHeader() {
