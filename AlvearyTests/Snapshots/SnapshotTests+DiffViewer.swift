@@ -52,6 +52,21 @@ extension SnapshotTests {
         )
     }
 
+    /// `AppAccentIcon.foreground` resolves differently per appearance, so the badge
+    /// needs a dark baseline as well as the light one above.
+    func testPrimaryToolbarButtonGroupUpdateAvailableBadgeDark() {
+        assertMacSnapshot(
+            primaryToolbarButtonGroup(
+                settingsBadgeState: .updateAvailable,
+                diffDisplayState: .idle(.empty)
+            )
+            .padding(8),
+            size: CGSize(width: 180, height: 64),
+            named: "primary_toolbar_button_group_update_available_badge_dark",
+            colorScheme: .dark
+        )
+    }
+
     func testPrimaryToolbarButtonGroupReadyToInstallBadge() {
         assertMacSnapshot(
             primaryToolbarButtonGroup(

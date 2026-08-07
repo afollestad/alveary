@@ -5,6 +5,7 @@ Rules for `AppAccentFill.swift` and `NSColor+AccentDerived.swift`.
 - Change the app accent in `Assets.xcassets/AccentColor.colorset`; `project.yml` wires it through `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`.
 - Do not replace the asset with root `.tint(...)`; `Color.accentColor` does not follow environment tint everywhere.
 - Use `AppAccentFill.primary` / `.pressed` for prominent accent-backed chrome: primary buttons, user bubbles, selected rows, selected tabs, selected terminal chips, prompt headers, diff rows, scroll-to-latest, composer chips, queue chips, and selected badges.
+- Use `AppAccentIcon.foreground` for small accent marks — glyph tints and indicator dots such as the settings toolbar's update badge — where `AppAccentFill`'s neutral blend washes out at that size.
 - Use `NSColor(named: "AccentColor")` only when you need the asset color regardless of the user's system accent.
 - Pair `AppAccentFill` fills with `.primary` / `NSColor.labelColor`. Destructive buttons are the exception: red fill, white foreground.
 - Keep `AppAccentFill` fully opaque. Earlier alpha tints showed background content through floating UI.

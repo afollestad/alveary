@@ -95,10 +95,16 @@ struct PrimaryToolbarSettingsButton: View {
                 )
                 .overlay {
                     Circle()
-                        .strokeBorder(.background, lineWidth: 1)
+                        .strokeBorder(Self.badgeRingColor, lineWidth: 1)
                 }
         }
     }
+
+    /// The ring separating the badge from the gear glyph under it. Deliberately not
+    /// `.background`, which resolves white in light mode and reads as a halo around the
+    /// dot rather than a cut-out. This fixed tone matches dark mode's window background,
+    /// so adopting it changed light mode only.
+    private static let badgeRingColor = Color(white: 0.12)
 
     private var helpText: String {
         if let badgeHelpText = badgeState.helpText {
@@ -115,7 +121,11 @@ private extension AppUpdateToolbarBadgeState {
         case .none:
             return nil
         case .updateAvailable:
-            return .blue
+            // Not a status dot: blue means "waiting on the user" on the app's dot
+            // surfaces (see Status Dot Colors in `Alveary/Views/AGENTS.md`), so the
+            // update badge takes accent chrome instead. `.readyToInstall` keeps
+            // green, which means the same thing here as it does there.
+            return AppAccentIcon.foreground
         case .readyToInstall:
             return .green
         }
