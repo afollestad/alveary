@@ -40,6 +40,10 @@ final class PullRequestsViewModel {
     /// App-level toast presentation. Attachment failures surface here rather than
     /// in a pane banner, because the pane may already be closed when one lands.
     let presentToast: @MainActor @Sendable (String) -> Void
+    /// Spawns the footer's agentic review thread and answers with its main-conversation
+    /// id. A closure rather than the service so tests and previews stay light; nil means
+    /// the footer's Agentic review option does nothing.
+    let agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)?
 
     private var hasLoadedListCache = false
 
@@ -123,6 +127,7 @@ final class PullRequestsViewModel {
         attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
         attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
+        agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
@@ -133,6 +138,7 @@ final class PullRequestsViewModel {
         self.attachmentImageSeeder = attachmentImageSeeder
         self.attachmentImageRepositoryRegistrar = attachmentImageRepositoryRegistrar
         self.presentToast = presentToast
+        self.agenticReviewStarter = agenticReviewStarter
         self.now = now
         self.referenceDate = now()
         if let settings = settingsService?.current {

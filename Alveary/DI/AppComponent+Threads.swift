@@ -52,7 +52,9 @@ extension AppComponent {
     /// Detached on purpose — `create_thread` reports dispatch, not the turn's outcome. A spawn
     /// failure leaves a retryable failed first message on the new thread, which is the same thing
     /// the user would see had they started it themselves.
-    private func startHeadlessInitialPrompt(conversation: Conversation, prompt: String) {
+    /// Shared by `create_thread` and the pull request pane's agentic review, which differ only
+    /// in the prompt they dispatch.
+    func startHeadlessInitialPrompt(conversation: Conversation, prompt: String) {
         let registry = conversationControllerRegistry
         Task { @MainActor in
             let lease = registry.makeBackgroundLease(for: conversation)

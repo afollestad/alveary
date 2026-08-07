@@ -70,6 +70,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     private let proposalBody = AppKitScheduledTaskProposalWidgetView()
     private let reviewProposalBody = AppKitReviewProposalWidgetView()
     private let pullRequestListBody = AppKitPullRequestListWidgetView()
+    private let reviewInstructionsBody = AppKitReviewInstructionsWidgetView()
 
     private var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
@@ -202,6 +203,16 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             self?.measureAndPublishHeight(force: true)
         }
         contentStack.addFullWidthArrangedSubview(pullRequestListBody)
+
+        reviewInstructionsBody.translatesAutoresizingMaskIntoConstraints = false
+        // Revealing the instructions grows the card, so the row has to republish its height.
+        reviewInstructionsBody.onHeightInvalidated = { [weak self] in
+            self?.measureAndPublishHeight(force: true)
+        }
+        reviewInstructionsBody.onOpenMarkdownLink = { [weak self] url in
+            self?.onOpenMarkdownLink?(url)
+        }
+        contentStack.addFullWidthArrangedSubview(reviewInstructionsBody)
     }
 
     func setupHeader() {
@@ -226,24 +237,47 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     }
 
     /// A card that names something openable — a pull request, a thread — is itself the control,
-    /// so the whole card takes the click; every other widget keeps its buttons and stays inert.
+    /// so the whole card takes the click; the review-instructions card is the one other pressable
+    /// card, toggling its disclosure in place. Every other widget keeps its buttons and stays inert.
     func updateActivation(_ configuration: Configuration) {
-        let isInteractive = configuration.entry.openableTarget != nil
+        let togglesInstructions = Self.togglesReviewInstructions(configuration.entry)
+        let isInteractive = configuration.entry.openableTarget != nil || togglesInstructions
         disclosureSlot.isHidden = !isInteractive
         disclosureSlot.configure(
             size: configuration.typography.size(for: .caption),
             capHeight: configuration.typography.nsFont(.toolSummary).capHeight
         )
+        disclosureSlot.setExpanded(togglesInstructions && reviewInstructionsBody.isExpanded, animated: false)
         bubbleView.setAccessibilityLabel(
             [summaryField.stringValue, detailField.isHidden ? nil : detailField.stringValue]
                 .compactMap { $0 }
                 .joined(separator: ", ")
         )
+        bubbleView.setAccessibilityValue(
+            togglesInstructions ? (reviewInstructionsBody.isExpanded ? "Expanded" : "Collapsed") : nil
+        )
+        bubbleView.toolTip = togglesInstructions ? "Show or hide the review instructions" : nil
         bubbleView.isInteractive = isInteractive
     }
 
+    /// The card is pressable exactly when it has instructions to reveal; a running or failed
+    /// call has nothing behind the caret.
+    static func togglesReviewInstructions(_ entry: HostToolWidgetEntry) -> Bool {
+        guard case .pullRequestReviewInstructions(let content) = entry.content else {
+            return false
+        }
+        return content.hasInstructions
+    }
+
     func activateCard() {
-        switch configuration?.entry.openableTarget {
+        guard let configuration else {
+            return
+        }
+        if Self.togglesReviewInstructions(configuration.entry) {
+            toggleReviewInstructions()
+            return
+        }
+        switch configuration.entry.openableTarget {
         case .pullRequest(let identifier):
             onOpenPullRequest?(identifier)
         case .thread(let conversationID):
@@ -251,6 +285,19 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         case nil:
             break
         }
+    }
+
+    /// Expansion is body-local state, so the toggle updates the pieces configure would: the body's
+    /// visibility, the caret's rotation, the accessibility value, and the row's measured height.
+    func toggleReviewInstructions() {
+        let expanded = reviewInstructionsBody.toggleExpansion()
+        reviewInstructionsBody.isHidden = !expanded
+        disclosureSlot.setExpanded(expanded, animated: true)
+        bubbleView.setAccessibilityValue(expanded ? "Expanded" : "Collapsed")
+        needsLayout = true
+        // The card just changed size; the transcript measures rows from their content, so it has
+        // to remeasure this one or the rows below sit at the old offsets.
+        measureAndPublishHeight(force: true)
     }
 
     func updateHeader(_ configuration: Configuration) {
@@ -281,29 +328,18 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         applyIcon(for: entry, typography: configuration.typography)
     }
 
-    /// The summary's own subject carries the weight, so the pull request a review proposal asks
-    /// about reads out of the sentence around it. The colour is set as an attribute because
-    /// `attributedStringValue` supersedes `textColor`; `labelColor` stays dynamic through it.
-    static func summaryString(_ summary: String, emphasizing name: String?, font: NSFont) -> NSAttributedString {
-        let attributed = NSMutableAttributedString(
-            string: summary,
-            attributes: [.font: font, .foregroundColor: NSColor.labelColor]
-        )
-        guard let name, let emphasized = summary.range(of: name) else {
-            return attributed
-        }
-        attributed.addAttribute(
-            .font,
-            value: NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask),
-            range: NSRange(emphasized, in: summary)
-        )
-        return attributed
-    }
-
-    /// A pending review proposal names its pull request with GitHub's own octicon; every other
-    /// state keeps the shell's status glyph, which is what carries the outcome.
+    /// A pending review proposal names its pull request with GitHub's own octicon, and the
+    /// review-instructions card wears the code-review octicon whenever it has not failed — the
+    /// glyph names the activity. Every other state keeps the shell's status glyph, which is what
+    /// carries the outcome.
     func applyIcon(for entry: HostToolWidgetEntry, typography: TranscriptTypography) {
         let size = typography.size(for: .toolIcon)
+        if readsReviewInstructions(entry), let octicon = octicon(named: "CodeReviewOcticon16", size: size) {
+            iconView.symbolConfiguration = nil
+            iconView.image = octicon
+            iconView.setDynamicContentTintColor(.secondaryLabelColor)
+            return
+        }
         if awaitsReviewDecision(entry), let octicon = pullRequestOcticon(size: size) {
             // The asset is artwork, not a symbol, so a stale symbol configuration would rescale it.
             iconView.symbolConfiguration = nil
@@ -317,48 +353,47 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         iconView.setDynamicContentTintColor(symbol.tint)
     }
 
-    func awaitsReviewDecision(_ entry: HostToolWidgetEntry) -> Bool {
-        guard case .pullRequestReviewProposal = entry.content else {
-            return false
-        }
-        return !entry.isError && entry.outcome == nil && !entry.isSettledWithoutDecision
-    }
-
-    /// Fixed-canvas octicon artwork does not size by font, so it is redrawn at the icon size the
-    /// way the pull-request list card's rows do it.
-    func pullRequestOcticon(size: CGFloat) -> NSImage? {
-        guard let asset = NSImage(named: PullRequestStatusGlyph.assetName16(for: .open)) else {
-            return nil
-        }
-        return NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-            asset.draw(in: rect)
-            return true
-        }
-    }
-
-    func statusSymbol(for entry: HostToolWidgetEntry) -> (name: String, tint: NSColor) {
-        if entry.isError {
-            return ("exclamationmark.triangle", .systemRed)
-        }
-        switch entry.outcome {
-        case .confirmed:
-            return ("checkmark.circle", .systemGreen)
-        case .rejected:
-            return ("xmark.circle", .secondaryLabelColor)
-        case nil:
-            return entry.isSettledWithoutDecision
-                ? ("checkmark.circle", .systemGreen)
-                : ("clock", .secondaryLabelColor)
-        }
+    /// Its own function so `updateBody` stays inside the shared function-length limit; the
+    /// proposal is the one body here with live confirmation state to thread through.
+    func updateReviewProposalBody(
+        _ content: PullRequestReviewProposalWidgetContent,
+        configuration: Configuration
+    ) {
+        let state = configuration.reviewProposal ?? ReviewProposalWidgetState()
+        reviewProposalBody.avatarLoader = avatarLoader
+        reviewProposalBody.configure(
+            .init(
+                content: content,
+                presentation: state.presentation,
+                preview: state.preview,
+                selectedEvent: state.selectedEvent,
+                canSubmit: state.canSubmit,
+                isInteractive: configuration.isProposalInteractive,
+                isSubmitting: state.isSubmitting,
+                outcome: configuration.entry.outcome,
+                errorMessage: state.errorMessage ?? configuration.errorMessage,
+                typography: configuration.typography
+            )
+        )
+        reviewProposalBody.isHidden = !reviewProposalBody.hasContent
     }
 
     func updateBody(_ configuration: Configuration) {
         reviewProposalBody.isHidden = true
         pullRequestListBody.isHidden = true
+        reviewInstructionsBody.isHidden = true
         switch configuration.entry.content {
         case .pullRequestLink, .threadAction:
             // The header and detail lines say everything these cards have to say.
             proposalBody.isHidden = true
+        case .pullRequestReviewInstructions(let content):
+            proposalBody.isHidden = true
+            reviewInstructionsBody.configure(
+                .init(content: content, typography: configuration.typography)
+            )
+            // Collapsed hides the whole container, not just the markdown — a visible empty
+            // body would still cost the content stack's row spacing under the header.
+            reviewInstructionsBody.isHidden = !(reviewInstructionsBody.hasContent && reviewInstructionsBody.isExpanded)
         case .pullRequestList(let content):
             proposalBody.isHidden = true
             pullRequestListBody.configure(
@@ -367,23 +402,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             pullRequestListBody.isHidden = !pullRequestListBody.hasContent
         case .pullRequestReviewProposal(let content):
             proposalBody.isHidden = true
-            let state = configuration.reviewProposal ?? ReviewProposalWidgetState()
-            reviewProposalBody.avatarLoader = avatarLoader
-            reviewProposalBody.configure(
-                .init(
-                    content: content,
-                    presentation: state.presentation,
-                    preview: state.preview,
-                    selectedEvent: state.selectedEvent,
-                    canSubmit: state.canSubmit,
-                    isInteractive: configuration.isProposalInteractive,
-                    isSubmitting: state.isSubmitting,
-                    outcome: configuration.entry.outcome,
-                    errorMessage: state.errorMessage ?? configuration.errorMessage,
-                    typography: configuration.typography
-                )
-            )
-            reviewProposalBody.isHidden = !reviewProposalBody.hasContent
+            updateReviewProposalBody(content, configuration: configuration)
         case .scheduledTaskProposal(let content):
             proposalBody.configure(
                 .init(
@@ -429,7 +448,9 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         let bodyWidth = proposalBody.isHidden ? 0 : proposalBody.naturalWidth
         let reviewWidth = reviewProposalBody.isHidden ? 0 : reviewProposalBody.naturalWidth
         let listWidth = pullRequestListBody.isHidden ? 0 : pullRequestListBody.naturalWidth
-        return ceil(max(headerWidth, detailWidth, bodyWidth, reviewWidth, listWidth)) + (chatBlockPadding * 2)
+        let instructionsWidth = reviewInstructionsBody.isHidden ? 0 : reviewInstructionsBody.naturalWidth
+        return ceil(max(headerWidth, detailWidth, bodyWidth, reviewWidth, listWidth, instructionsWidth))
+            + (chatBlockPadding * 2)
     }
 
     func measureAndPublishHeight(force: Bool) {

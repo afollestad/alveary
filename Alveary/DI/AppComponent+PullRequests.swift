@@ -13,6 +13,22 @@ extension AppComponent {
         }
     }
 
+    /// Starts the pull request pane's agentic reviews. App-scoped alongside the thread tools it
+    /// shares a spawn path with; the pane's view model reaches it through a closure.
+    var pullRequestAgenticReviewService: PullRequestAgenticReviewService {
+        return shared {
+            PullRequestAgenticReviewService(
+                lifecycleService: threadLifecycleService,
+                linkService: pullRequestLinkService,
+                settingsService: settingsService,
+                providerDiscovery: agentCLIKitProviderDiscoveryService,
+                startInitialPrompt: { conversation, prompt in
+                    self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)
+                }
+            )
+        }
+    }
+
     /// The `alveary_host` pull request tools. App-scoped so its pending-review serialization spans
     /// every conversation that can reach GitHub.
     var pullRequestHostToolService: PullRequestHostToolService {

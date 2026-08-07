@@ -160,9 +160,11 @@ struct SettingsScreen: View {
         case .git:
             GitSettingsTabView(
                 gitHubCLI: gitHubCLI,
+                viewModel: viewModel,
                 branchPrefix: binding(for: \.branchPrefix),
                 commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
                 pullRequestGenerationPrompt: binding(for: \.pullRequestGenerationPrompt),
+                pullRequestReviewPrompt: binding(for: \.pullRequestReviewPrompt),
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                 pullRequestsEnabled: binding(for: \.pullRequestsEnabled),

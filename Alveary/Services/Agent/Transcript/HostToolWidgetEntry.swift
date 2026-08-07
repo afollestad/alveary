@@ -14,6 +14,7 @@ enum HostToolWidgetContent: Equatable {
     case scheduledTaskProposal(ScheduledTaskProposalWidgetContent)
     case pullRequestLink(PullRequestLinkWidgetContent)
     case pullRequestReviewProposal(PullRequestReviewProposalWidgetContent)
+    case pullRequestReviewInstructions(ReviewInstructionsWidgetContent)
     case pullRequestList(PullRequestListWidgetContent)
     case threadAction(ThreadActionWidgetContent)
 }
@@ -122,6 +123,9 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
         case .pullRequestReviewProposal:
             // Submitting always needs the user, so this card is never settled by its own result.
             false
+        case .pullRequestReviewInstructions(let content):
+            // A read decides nothing, so a landed one is settled the moment it returns.
+            content.status == .loaded || content.status == .loadedWithoutInstructions
         case .pullRequestList(let content):
             // A read decides nothing, so a landed one is settled the moment it returns.
             content.status == .listed || content.status == .listedWithoutRows
@@ -144,6 +148,10 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             // not a button. Resolving drops that whole row — including a rejection, which decides
             // nothing about the pull request — so from then on the card is the only way back to it.
             outcome == nil ? nil : content.identifier.map(HostToolWidgetTarget.pullRequest)
+        case .pullRequestReviewInstructions:
+            // The disclosure inside the card is its only control; clicking the card itself must
+            // toggle that, not navigate away from the review it is starting.
+            nil
         case .pullRequestList:
             // Each row opens a different pull request, so the rows are the controls, not the card.
             nil

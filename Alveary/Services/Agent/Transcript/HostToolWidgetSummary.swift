@@ -13,6 +13,8 @@ enum HostToolWidgetSummary {
             pullRequestLinkText(content, entry: entry)
         case .pullRequestReviewProposal(let content):
             reviewProposalText(content, entry: entry)
+        case .pullRequestReviewInstructions(let content):
+            reviewInstructionsText(content, entry: entry)
         case .pullRequestList(let content):
             pullRequestListText(content, entry: entry)
         case .threadAction(let content):
@@ -28,6 +30,8 @@ enum HostToolWidgetSummary {
         case .pullRequestReviewProposal(let content):
             content.identifier?.displayKey
         case .pullRequestLink(let content):
+            content.identifier?.displayKey
+        case .pullRequestReviewInstructions(let content):
             content.identifier?.displayKey
         case .scheduledTaskProposal, .pullRequestList, .threadAction:
             nil
@@ -49,6 +53,10 @@ enum HostToolWidgetSummary {
             // The summary body is what the review would say, so it is the detail worth showing;
             // a refusal puts its reason here instead.
             return content.status == .failed ? content.message : content.body
+        case .pullRequestReviewInstructions:
+            // The instructions are the body, behind a disclosure; a second line here would
+            // only restate the summary.
+            return nil
         case .pullRequestList(let content):
             return pullRequestListDetail(content)
         case .threadAction(let content):
@@ -392,5 +400,26 @@ private extension HostToolWidgetSummary {
                 failed: "Scheduling proposal could not be read"
             )
         }
+    }
+}
+
+private extension HostToolWidgetSummary {
+    /// "Reading…" while running; once the instructions are in hand the review itself is what is
+    /// underway, so the landed copy stays progressive rather than following the other cards'
+    /// past-tense rule.
+    static func reviewInstructionsText(
+        _ content: ReviewInstructionsWidgetContent,
+        entry: HostToolWidgetEntry
+    ) -> String {
+        let name = content.identifier?.displayKey
+        if entry.isError || content.status == .failed {
+            return name.map { "Could not read the review instructions for \($0)" }
+                ?? "Could not read the review instructions"
+        }
+        guard entry.isComplete, content.status != .running else {
+            return name.map { "Reading the review instructions for \($0)…" }
+                ?? "Reading the review instructions…"
+        }
+        return name.map { "Reviewing \($0) with your instructions" } ?? "Reviewing with your instructions"
     }
 }

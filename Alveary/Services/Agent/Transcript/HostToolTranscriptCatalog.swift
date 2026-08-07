@@ -38,6 +38,7 @@ enum HostToolTranscriptCatalog {
         pullRequestLinkDescriptor,
         pullRequestUnlinkDescriptor,
         pullRequestReviewProposalDescriptor,
+        pullRequestReviewInstructionsDescriptor,
         pullRequestListDescriptor
     ] + threadActionDescriptors
 
@@ -87,9 +88,30 @@ private extension HostToolTranscriptCatalog {
         )
     }
 
-    /// The one read-only lookup with a card. Its rows each open a different pull request, so it
-    /// needs block-level chrome the way a lookup that only reports does not; it decides nothing,
-    /// so like the link tools it records no outcome marker.
+    /// A read-only lookup with a card, and the second exception to "a lookup that only reports
+    /// stays a tool row": this call is the moment a review begins, and the guidance it returns is
+    /// the user's own, so it is worth being able to check. It decides nothing, so like the link
+    /// tools it records no outcome marker.
+    static var pullRequestReviewInstructionsDescriptor: HostToolTranscriptDescriptor {
+        HostToolTranscriptDescriptor(
+            hostToolName: PullRequestHostToolCatalog.reviewInstructionsToolName,
+            makeContent: { input, output, isError in
+                guard let content = ReviewInstructionsWidgetParsing.content(
+                    input: input,
+                    output: output,
+                    isError: isError
+                ) else {
+                    return nil
+                }
+                return .pullRequestReviewInstructions(content)
+            },
+            outcomeKey: { _ in nil }
+        )
+    }
+
+    /// Its rows each open a different pull request, so it needs block-level chrome the way a
+    /// lookup that only reports does not; it decides nothing, so like the link tools it records
+    /// no outcome marker.
     static var pullRequestListDescriptor: HostToolTranscriptDescriptor {
         HostToolTranscriptDescriptor(
             hostToolName: PullRequestHostToolCatalog.listToolName,

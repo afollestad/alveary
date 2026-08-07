@@ -11,6 +11,7 @@ enum PullRequestHostToolCatalog {
     static let detailToolName = "get_pr"
     static let timelineToolName = "get_pr_timeline"
     static let diffToolName = "get_pr_diff"
+    static let reviewInstructionsToolName = "get_pr_review_instructions"
     static let addReviewCommentsToolName = "add_pr_review_comments"
     static let replyToThreadToolName = "reply_to_pr_thread"
     static let resolveThreadToolName = "resolve_pr_thread"
@@ -43,7 +44,10 @@ enum PullRequestHostToolCatalog {
     requests awaiting their review. Never answer those with the threads feature's list_linked_prs, which reads only what \
     was attached to one Alveary thread by hand and will look empty or misleadingly short. Alveary renders the results as a \
     list the user can click, so answer what they asked instead of repeating the rows back. get_pr, get_pr_timeline, and \
-    get_pr_diff read one pull request, and thread_id values come from their output — never invent one. When get_pr_diff \
+    get_pr_diff read one pull request, and thread_id values come from their output — never invent one. When the user \
+    asks you to review a pull request, in any words, call get_pr_review_instructions before anything else: the user \
+    keeps standing review preferences in Alveary, that tool is the only way to read them, and a review that skips it is \
+    done wrong. When get_pr_diff \
     returns next_offset, call it again with that offset or narrow it with paths, and copy @@ hunk headers exactly as \
     returned when you quote a patch, because Alveary renders the line numbers from them. propose_pr_review submits nothing \
     itself — it opens a confirmation card where the user can change the verdict and must confirm, so never claim a review \
@@ -72,6 +76,7 @@ enum PullRequestHostToolCatalog {
         detailTool,
         timelineTool,
         diffTool,
+        reviewInstructionsTool,
         addReviewCommentsTool,
         replyToThreadTool,
         resolveThreadTool,
@@ -113,6 +118,34 @@ private extension PullRequestHostToolCatalog {
             required: ["filter", "pull_requests", "total_count"]
         ),
         annotations: HostToolSchema.readOnlyAnnotations
+    )
+
+    /// The user's own review guidance, fetched on demand rather than carried in every thread's
+    /// context. Calling it is also how the model declares that it is about to review — Alveary
+    /// never guesses that from the phrasing of a message.
+    static let reviewInstructionsTool = AgentCLIKit.AgentHostToolDefinition(
+        name: reviewInstructionsToolName,
+        title: "Get the user's instructions for reviewing a pull request",
+        description: """
+        Read the user's own instructions for reviewing a pull request, written in Alveary's Git settings. Call this \
+        first, before any other tool, whenever the user asks you to review a pull request — "review this PR", "take a \
+        look at octo/repo#42", "what do you think of these changes", and every other phrasing of the same request. The \
+        instructions it returns are the user's standing preferences for how their reviews are done, so follow them for \
+        the rest of the review; they name the workflow to use and what to look for. Calling this does not review \
+        anything or notify anyone, so calling it when unsure costs nothing.
+        """,
+        inputSchema: HostToolSchema.strictObject(
+            properties: ["url": HostToolSchema.nonEmptyStringSchema],
+            required: ["url"]
+        ),
+        outputSchema: HostToolSchema.strictObject(
+            properties: [
+                "repository": HostToolSchema.stringSchema,
+                "number": HostToolSchema.integerSchema(minimum: 1),
+                "instructions": HostToolSchema.stringSchema
+            ],
+            required: ["repository", "number", "instructions"]
+        )
     )
 
     static let detailTool = AgentCLIKit.AgentHostToolDefinition(

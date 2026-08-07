@@ -6,7 +6,8 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     let viewModel: PullRequestsViewModel
     let session: PullRequestPaneSession
 
-    /// `initiallyExpanded` only seeds `@State`, so it is not part of the rendered inputs.
+    /// `initiallyExpanded` and the persisted review-action kind only seed `@State`, so
+    /// neither is part of the rendered inputs.
     nonisolated static func == (lhs: PullRequestPaneReviewFooter, rhs: PullRequestPaneReviewFooter) -> Bool {
         lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
     }
@@ -15,6 +16,10 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     @State private var selectedEvent = PullRequestReviewEvent.comment
     /// Nil takes the default action; a stale pick falls back the same way.
     @State private var selectedStateKind: PullRequestStateAction.Kind?
+    /// Seeded from settings at init rather than read in `body`: this view is a
+    /// memoization boundary whose `==` excludes settings, so a `body` read would not
+    /// re-render when the stored kind changed anyway.
+    @State private var selectedReviewKind: PullRequestReviewFooterAction.Kind
     /// BlockInputKit store for the overall comment; created when the composer
     /// expands, serialized back into the pending draft on collapse or submit.
     @State private var overallDraft: PullRequestCommentDraftBox?
@@ -27,6 +32,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         self.viewModel = viewModel
         self.session = session
         _isExpanded = State(initialValue: initiallyExpanded)
+        _selectedReviewKind = State(initialValue: viewModel.selectedReviewFooterActionKind)
         // Production expands through the button, which seeds the draft; snapshots
         // mount pre-expanded and need the editor present from the first render.
         _overallDraft = State(
@@ -48,6 +54,15 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                     severity: .error,
                     autoDismissAfter: nil,
                     onDismiss: viewModel.clearPullRequestStateChangeError
+                )
+            }
+
+            if let error = session.agenticReviewError {
+                InlineBanner(
+                    message: error,
+                    severity: .error,
+                    autoDismissAfter: nil,
+                    onDismiss: viewModel.clearAgenticReviewError
                 )
             }
 
@@ -236,13 +251,13 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             HStack(spacing: ContextualPaneLayout.actionSpacing) {
                 stateActionButton(action, in: stateActions)
                     .frame(minWidth: ContextualPaneLayout.minimumHorizontalActionWidth, maxWidth: .infinity)
-                startReviewButton(expandsHorizontally: true)
+                reviewActionButton(expandsHorizontally: true)
                     .frame(minWidth: ContextualPaneLayout.minimumHorizontalActionWidth, maxWidth: .infinity)
             }
         } else {
             HStack(spacing: 8) {
                 Spacer(minLength: 0)
-                startReviewButton(expandsHorizontally: false)
+                reviewActionButton(expandsHorizontally: false)
             }
         }
     }
@@ -271,16 +286,38 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         }
     }
 
-    private func startReviewButton(expandsHorizontally: Bool) -> some View {
-        Button {
+    /// Both options apply to every pull request, so this is always a split button. The caret
+    /// selects only — the row's one accent voice stays `.primary` either way.
+    private func reviewActionButton(expandsHorizontally: Bool) -> some View {
+        let action = PullRequestReviewFooterAction.action(for: selectedReviewKind)
+        return SplitActionButton(
+            title: action.title,
+            icon: action.icon,
+            emphasis: .primary,
+            expandsHorizontally: expandsHorizontally,
+            selectedOption: action.kind,
+            options: PullRequestReviewFooterAction.all.map(\.kind),
+            optionTitle: { PullRequestReviewFooterAction.action(for: $0).title },
+            action: { runReviewAction(action.kind) },
+            selectOption: { kind in
+                selectedReviewKind = kind
+                viewModel.selectReviewFooterAction(kind)
+            }
+        )
+        .disabled(session.isStartingAgenticReview)
+        .help(action.title)
+    }
+
+    private func runReviewAction(_ kind: PullRequestReviewFooterAction.Kind) {
+        switch kind {
+        case .submitReview:
             overallDraft = PullRequestCommentDraftBox(
                 markdown: viewModel.activePaneSession?.pendingReview.overallComment ?? ""
             )
             isExpanded = true
-        } label: {
-            ActionButtonLabel(title: "Submit review...", icon: .octicon("CodeReviewOcticon16"))
+        case .agenticReview:
+            viewModel.startAgenticReview()
         }
-        .primaryActionButtonStyle(expandsHorizontally: expandsHorizontally)
     }
 
     /// A single available action stays a plain button; more than one becomes the

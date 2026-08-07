@@ -110,6 +110,11 @@ struct PullRequestPaneSession: Equatable {
     /// A failed close or reopen; rendered as a banner in the review footer, where
     /// the action lives.
     var stateChangeError: String?
+    /// Set while the agentic review's thread is being created; disables the footer's
+    /// split button so the action cannot double-fire into two review threads.
+    var isStartingAgenticReview = false
+    /// A failed agentic review start; rendered beside `stateChangeError` in the footer.
+    var agenticReviewError: String?
     /// Non-nil token asks the freshly mounted composer editor to take first responder.
     var composerFocusToken: UUID?
     /// Awaiting user confirmation before permanently deleting a submitted comment.

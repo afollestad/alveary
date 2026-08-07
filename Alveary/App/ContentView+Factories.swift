@@ -150,6 +150,9 @@ extension ContentView {
             },
             presentToast: { message in
                 appState.presentUnexpectedError(message: message)
+            },
+            agenticReviewStarter: { identifier, url in
+                try await dependencies.pullRequestAgenticReviewService.startReview(identifier: identifier, url: url)
             }
         )
     }

@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 
 /// The card's trailing affordance: a chevron in a square slot.
 ///
@@ -9,6 +10,7 @@ final class AppKitHostToolWidgetDisclosureSlotView: NSView {
     private let chevronView = AppKitDynamicTintImageView()
     private var size: CGFloat = 0
     private var capHeight: CGFloat = 0
+    private var isExpanded = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -16,6 +18,7 @@ final class AppKitHostToolWidgetDisclosureSlotView: NSView {
         // The chevron restates what the summary line already says, so it stays decorative.
         setAccessibilityElement(false)
         chevronView.translatesAutoresizingMaskIntoConstraints = true
+        chevronView.wantsLayer = true
         chevronView.setAccessibilityElement(false)
         chevronView.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
         addSubview(chevronView)
@@ -42,6 +45,7 @@ final class AppKitHostToolWidgetDisclosureSlotView: NSView {
     override func layout() {
         super.layout()
         chevronView.frame = bounds
+        positionChevronLayer()
     }
 
     func configure(size: CGFloat, capHeight: CGFloat) {
@@ -55,5 +59,49 @@ final class AppKitHostToolWidgetDisclosureSlotView: NSView {
             needsLayout = true
         }
         chevronView.setDynamicContentTintColorPreservingAlpha(transcriptInlineToolRowColor)
+    }
+
+    /// A card that expands in place rotates the caret down while it opens, the counterpart to the
+    /// navigating card's fixed rightward chevron. Same glyph, rotation, and timing as the inline
+    /// tool rows' disclosure, so the two affordances read as one.
+    func setExpanded(_ expanded: Bool, animated: Bool) {
+        guard isExpanded != expanded else {
+            return
+        }
+        let previousRotation = rotation
+        isExpanded = expanded
+        positionChevronLayer()
+        guard animated,
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+              let layer = chevronView.layer else {
+            return
+        }
+        let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+        animation.fromValue = previousRotation
+        animation.toValue = rotation
+        animation.duration = 0.16
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(animation, forKey: "hostToolDisclosureRotation")
+    }
+
+    private var rotation: CGFloat {
+        // Positive, where the tool rows' indicator uses negative: this slot is flipped, which
+        // inverts the layer rotation's visual direction, and the caret must point down when open.
+        isExpanded ? CGFloat.pi / 2 : 0
+    }
+
+    // Keep the view-backed layer centered while rotating, the way the tool rows' status
+    // indicator does; otherwise the glyph drifts out of its slot during expand/collapse.
+    private func positionChevronLayer() {
+        guard let layer = chevronView.layer else {
+            return
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        layer.bounds = CGRect(origin: .zero, size: chevronView.bounds.size)
+        layer.position = CGPoint(x: chevronView.frame.midX, y: chevronView.frame.midY)
+        layer.setAffineTransform(CGAffineTransform(rotationAngle: rotation))
+        CATransaction.commit()
     }
 }

@@ -81,6 +81,12 @@ struct AppSettings: Codable, Sendable, Equatable {
     var branchPrefix = "alveary/"
     var commitMessageGenerationPrompt = Self.defaultCommitMessageGenerationPrompt
     var pullRequestGenerationPrompt = Self.defaultPullRequestGenerationPrompt
+    var pullRequestReviewPrompt = Self.defaultPullRequestReviewPrompt
+    // Nil follows the Threads tab's defaults, so a review thread inherits whatever a
+    // typed thread would get unless the user pins one here.
+    var pullRequestReviewProvider: String?
+    var pullRequestReviewModel: String?
+    var pullRequestReviewEffort: String?
     var gitCommitIncludeUnstagedChanges = true
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
@@ -93,6 +99,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     // stored value no longer names a tab.
     var pullRequestsSelectedTab = "All"
     var scheduledTasksSelectedTab = "All"
+    // Raw `PullRequestReviewFooterAction.Kind`; the footer falls back to Submit review
+    // when the stored value no longer names a kind.
+    var pullRequestReviewFooterActionKind = "submitReview"
     var pullRequestsStatusFilters: Set<PullRequestStatus> = []
     var pullRequestsRepositoryFilters: Set<String> = []
 
@@ -259,6 +268,28 @@ struct AppSettings: Codable, Sendable, Equatable {
         if pullRequestGenerationPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             pullRequestGenerationPrompt = Self.defaultPullRequestGenerationPrompt
         }
+        if pullRequestReviewPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pullRequestReviewPrompt = Self.defaultPullRequestReviewPrompt
+        }
+        normalizePullRequestReviewAgentDefaults()
+    }
+
+    /// Blanks collapse to nil — "follow the Threads defaults" — and an unsupported provider
+    /// does too. Model and effort cannot be checked here: their valid values come from
+    /// provider discovery at runtime, so the spawn path coerces them instead.
+    private mutating func normalizePullRequestReviewAgentDefaults() {
+        pullRequestReviewProvider = Self.normalizedOptionalSetting(pullRequestReviewProvider)
+            .flatMap { Self.supportedProviderIDs.contains($0) ? $0 : nil }
+        pullRequestReviewModel = Self.normalizedOptionalSetting(pullRequestReviewModel)
+        pullRequestReviewEffort = Self.normalizedOptionalSetting(pullRequestReviewEffort)
+    }
+
+    private static func normalizedOptionalSetting(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 
     private mutating func normalizeWorktreesBaseDirectory() {

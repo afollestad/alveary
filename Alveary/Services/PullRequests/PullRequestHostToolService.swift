@@ -71,6 +71,8 @@ final class PullRequestHostToolService {
             return try await pullRequestTimeline(context: context, arguments: call.arguments)
         case PullRequestHostToolCatalog.diffToolName:
             return try await pullRequestDiff(context: context, arguments: call.arguments)
+        case PullRequestHostToolCatalog.reviewInstructionsToolName:
+            return try await pullRequestReviewInstructions(context: context, arguments: call.arguments)
         default:
             return nil
         }

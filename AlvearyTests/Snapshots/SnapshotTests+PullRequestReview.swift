@@ -172,6 +172,22 @@ extension SnapshotTests {
         )
     }
 
+    func testPullRequestPaneReviewFooterCollapsedAgenticReviewSelected() {
+        // The persisted caret pick puts Agentic review — brain glyph — on the split
+        // button's primary side; Submit review... waits behind the caret.
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            status: .open,
+            selectedReviewAction: .agenticReview
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_collapsed_agentic_selected"
+        )
+    }
+
     func testPullRequestPaneReviewFooterClosedWithDeletedBranch() {
         // A closed pull request whose branch is gone: Reopen PR is dead and the
         // note above says why.
@@ -290,10 +306,15 @@ struct PullRequestReviewFooterFixture {
         status: PullRequestStatus? = nil,
         summaryStatus: PullRequestStatus = .open,
         viewerCanUpdate: Bool = true,
-        headRefExists: Bool = true
+        headRefExists: Bool = true,
+        selectedReviewAction: PullRequestReviewFooterAction.Kind = .submitReview
     ) {
         let service = StubPullRequestsService()
-        viewModel = makePullRequestsViewModel(service: service)
+        // The footer seeds its split-button selection from settings at init, so the stored
+        // kind is what puts Agentic review on the button's primary side.
+        let settingsService = InMemorySettingsService()
+        settingsService.update { $0.pullRequestReviewFooterActionKind = selectedReviewAction.rawValue }
+        viewModel = makePullRequestsViewModel(service: service, settingsService: settingsService)
         let summary = makePullRequestSummary(number: 7, status: summaryStatus, isAuthored: isAuthored)
         viewModel.requestDetails(summary)
         // The stubbed detail fetch never resolves, so seed the session directly.

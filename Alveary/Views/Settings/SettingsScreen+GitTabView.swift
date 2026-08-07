@@ -3,9 +3,13 @@ import SwiftUI
 
 struct GitSettingsTabView: View {
     let gitHubCLI: GitHubCLIService
+    /// The agentic-review agent pickers read provider discovery through the view model, the
+    /// way the Threads tab's defaults do.
+    let viewModel: SettingsViewModel
     @Binding var branchPrefix: String
     @Binding var commitMessageGenerationPrompt: String
     @Binding var pullRequestGenerationPrompt: String
+    @Binding var pullRequestReviewPrompt: String
     @Binding var worktreesBaseDirectory: String
     @Binding var createWorktreeByDefault: Bool
     @Binding var pullRequestsEnabled: Bool
@@ -75,9 +79,18 @@ struct GitSettingsTabView: View {
                         helpText: GitSettingsHelp.pullRequestGenerationPrompt,
                         prompt: $pullRequestGenerationPrompt,
                         defaultPrompt: AppSettings.defaultPullRequestGenerationPrompt,
-                        placeholder: "Write the prompt used to generate pull request titles and descriptions.",
-                        showsDivider: false
+                        placeholder: "Write the prompt used to generate pull request titles and descriptions."
                     )
+
+                    SettingsPromptEditorRow(
+                        "Agentic review instructions",
+                        helpText: GitSettingsHelp.pullRequestReviewPrompt,
+                        prompt: $pullRequestReviewPrompt,
+                        defaultPrompt: AppSettings.defaultPullRequestReviewPrompt,
+                        placeholder: "Write the instructions the agent follows when reviewing a pull request."
+                    )
+
+                    agenticReviewAgentRows
                 }
 
                 SettingsFormSection("Worktrees") {
@@ -97,11 +110,63 @@ struct GitSettingsTabView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             await refreshGitHubState()
+            // The agent pickers below need the same provider catalog the Threads tab loads.
+            await viewModel.refreshProviderStatusesIfNeeded()
         }
     }
 }
 
 private extension GitSettingsTabView {
+    /// Which agent runs an agentic review. Each picker's first row is "Default", meaning the
+    /// Threads tab's own default; effort hides entirely when the model reports no options.
+    @ViewBuilder
+    var agenticReviewAgentRows: some View {
+        SettingsFormRow {
+            SettingsResponsiveControlRow("Review agent", horizontalControlSizing: .intrinsic) {
+                SettingsMenuPicker(
+                    "Review agent",
+                    selection: Binding(
+                        get: { viewModel.pullRequestReviewProviderSelection },
+                        set: { viewModel.setPullRequestReviewProvider($0) }
+                    ),
+                    options: viewModel.pullRequestReviewProviderOptions,
+                    label: { viewModel.pullRequestReviewLabel(forProvider: $0) }
+                )
+            }
+        }
+
+        let effortOptions = viewModel.pullRequestReviewEffortOptions
+        SettingsFormRow(showsDivider: !effortOptions.isEmpty) {
+            SettingsResponsiveControlRow("Review model", horizontalControlSizing: .intrinsic) {
+                SettingsMenuPicker(
+                    "Review model",
+                    selection: Binding(
+                        get: { viewModel.pullRequestReviewModelSelection },
+                        set: { viewModel.setPullRequestReviewModel($0) }
+                    ),
+                    options: viewModel.pullRequestReviewModelOptions,
+                    label: { viewModel.pullRequestReviewLabel(forModel: $0) }
+                )
+            }
+        }
+
+        if !effortOptions.isEmpty {
+            SettingsFormRow(showsDivider: false) {
+                SettingsResponsiveControlRow("Review effort", horizontalControlSizing: .intrinsic) {
+                    SettingsMenuPicker(
+                        "Review effort",
+                        selection: Binding(
+                            get: { viewModel.pullRequestReviewEffortSelection },
+                            set: { viewModel.setPullRequestReviewEffort($0) }
+                        ),
+                        options: [SettingsViewModel.pullRequestReviewInheritValue] + effortOptions.map(\.value),
+                        label: { viewModel.pullRequestReviewLabel(forEffort: $0) }
+                    )
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     var gitHubSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -212,4 +277,8 @@ private enum GitSettingsHelp {
         "Link pull requests to the thread as soon as their GitHub link appears in a message, instead of asking in the transcript."
     static let pullRequestGenerationPrompt =
         "Prompt sent to the agent when generating a pull request title or description left blank in the create pull request modal."
+    static let pullRequestReviewPrompt =
+        "Instructions the agent follows when reviewing a pull request — one started by \"Agentic review\" "
+        + "in a pull request's footer, or any thread you ask for a review. "
+        + "It reviews the diff, then proposes a review for you to confirm."
 }

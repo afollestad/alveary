@@ -41,3 +41,17 @@ App-scoped pull-request linking plus the `alveary_host` pull request tools. `Ser
 ### Linking
 
 - `PullRequestLinkService` is the app-scoped link store; `Alveary/ViewModels/AGENTS.md` owns its split with `PullRequestLinksViewModel`, and `Services/Threads/AGENTS.md` owns the `link_pr`/`unlink_pr` tools that write through it.
+
+### Agentic Review
+
+- **`PullRequestAgenticReviewService` spawns a project-less Task thread, never a project one.** Every step runs through the host tools against GitHub, so it needs no checkout — and a project worktree would have the agent reviewing whatever is checked out there rather than the pull request. `grantedRoots` stays empty for the same reason.
+- **Seed resolution degrades, it does not refuse.** A pinned provider that is no longer ready, or a model or effort the provider retired, falls back to what a typed thread would get; only "no ready provider at all" throws. The trigger is a footer button with nowhere to explain a rejection, unlike `create_thread`, whose caller can correct itself.
+- **Both review routes run one path, and the tool is the seam.** The footer spawns a thread whose first prompt is a short request — *not* the instructions — and the agent fetches those with `get_pr_review_instructions`, exactly as it does when the user asks for a review in a thread that already exists. So the guidance cannot drift, both show the same card, and only the prompt differs. Do not inline the instructions here to save a round trip.
+- **Link before dispatching, best-effort, regardless of `automaticallyLinkPullRequests`.** Linking first means transcript detection finds the pull request already linked and asks no redundant "link this?" question under the prompt. A GitHub hiccup must not stop the review, and a racing auto-link resolves as `alreadyLinked`.
+- **Re-resolve the thread after the link `await`** rather than carrying the model across it.
+
+### Review Instructions
+
+- **`get_pr_review_instructions` is how Alveary learns a review was asked for.** Deciding that from the wording of a message would need intent heuristics, and "I already reviewed #42" reads the same to a regex as "review #42" — so the decision stays with the model, which understands the sentence. A call made in error costs a read and nothing else.
+- **The fragment is the only thing that routes to it.** It has to say, in the always-in-context text, that the user keeps standing review preferences and that this tool is the only way to read them; without that the tool exists and nothing calls it. `PullRequestHostToolServiceTests+ReviewInstructions` pins that wording.
+- **It fetches the pull request rather than assuming it.** A URL naming one that does not exist fails here instead of halfway through a review the model has already begun narrating.

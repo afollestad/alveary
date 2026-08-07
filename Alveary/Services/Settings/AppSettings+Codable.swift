@@ -60,6 +60,10 @@ extension AppSettings {
         case branchPrefix
         case commitMessageGenerationPrompt
         case pullRequestGenerationPrompt
+        case pullRequestReviewPrompt
+        case pullRequestReviewProvider
+        case pullRequestReviewModel
+        case pullRequestReviewEffort
         case gitCommitIncludeUnstagedChanges
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
@@ -72,6 +76,7 @@ extension AppSettings {
         case pullRequestsStatusFilters
         case pullRequestsRepositoryFilters
         case scheduledTasksSelectedTab
+        case pullRequestReviewFooterActionKind
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -114,6 +119,9 @@ extension AppSettings {
         }
         if let repositories = try? container.decodeIfPresent(Set<String>.self, forKey: .pullRequestsRepositoryFilters) {
             pullRequestsRepositoryFilters = repositories
+        }
+        if let kind = try? container.decodeIfPresent(String.self, forKey: .pullRequestReviewFooterActionKind) {
+            pullRequestReviewFooterActionKind = kind
         }
     }
 
@@ -249,6 +257,15 @@ extension AppSettings {
             String.self,
             forKey: .pullRequestGenerationPrompt
         ) ?? pullRequestGenerationPrompt
+        pullRequestReviewPrompt = try container.decodeIfPresent(
+            String.self,
+            forKey: .pullRequestReviewPrompt
+        ) ?? pullRequestReviewPrompt
+        // Absent means "follow the Threads defaults", so these stay nil rather than
+        // falling back to the packaged value the way the prompts do.
+        pullRequestReviewProvider = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewProvider)
+        pullRequestReviewModel = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewModel)
+        pullRequestReviewEffort = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewEffort)
         gitCommitIncludeUnstagedChanges = try container.decodeIfPresent(
             Bool.self,
             forKey: .gitCommitIncludeUnstagedChanges
