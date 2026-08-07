@@ -73,33 +73,6 @@ struct PullRequestHostToolRequestParser {
         )
     }
 
-    func parseReviewComments(
-        arguments: [String: AgentCLIKit.JSONValue]
-    ) throws -> PullRequestHostToolReviewCommentsRequest {
-        let object = StrictHostToolObject(arguments, path: "arguments")
-        try object.requireOnly(["url", "comments"])
-        let url = try object.requiredNonEmptyString("url")
-        let comments = try reviewComments(in: object)
-        return PullRequestHostToolReviewCommentsRequest(
-            identifier: try Self.identifier(from: url),
-            comments: comments,
-            canonicalPayloadHash: try Self.hash(
-                tool: PullRequestHostToolCatalog.addReviewCommentsToolName,
-                fields: [
-                    "url": .string(url),
-                    "comments": .array(comments.map { comment in
-                        .object([
-                            "path": .string(comment.path),
-                            "line": .number(Double(comment.line)),
-                            "side": .string(comment.side.rawValue),
-                            "body": .string(comment.body)
-                        ])
-                    })
-                ]
-            )
-        )
-    }
-
     func parseThreadReply(
         arguments: [String: AgentCLIKit.JSONValue]
     ) throws -> PullRequestHostToolThreadReplyRequest {
@@ -157,13 +130,16 @@ struct PullRequestHostToolRequestParser {
         arguments: [String: AgentCLIKit.JSONValue]
     ) throws -> PullRequestHostToolReviewProposalRequest {
         let object = StrictHostToolObject(arguments, path: "arguments")
-        try object.requireOnly(["url", "event", "body"])
+        try object.requireOnly(["url", "event", "body", "comments"])
         let url = try object.requiredNonEmptyString("url")
         let rawEvent = try object.requiredNonEmptyString("event")
         guard let event = Self.reviewEvent(from: rawEvent) else {
             throw invalid("\(object.path).event must be one of: \(Self.reviewEventNames.joined(separator: ", ")).")
         }
         let body = try object.optionalNonEmptyString("body")
+        let comments = try reviewComments(in: object)
+        // Optional fields join the hash only when present, so an omitted field and a blank one
+        // read as the same call.
         var hashFields: [String: AgentCLIKit.JSONValue] = [
             "url": .string(url),
             "event": .string(rawEvent)
@@ -171,10 +147,21 @@ struct PullRequestHostToolRequestParser {
         if let body {
             hashFields["body"] = .string(body)
         }
+        if let comments {
+            hashFields["comments"] = .array(comments.map { comment in
+                .object([
+                    "path": .string(comment.path),
+                    "line": .number(Double(comment.line)),
+                    "side": .string(comment.side.rawValue),
+                    "body": .string(comment.body)
+                ])
+            })
+        }
         return PullRequestHostToolReviewProposalRequest(
             identifier: try Self.identifier(from: url),
             event: event,
             body: body,
+            comments: comments ?? [],
             canonicalPayloadHash: try Self.hash(
                 tool: PullRequestHostToolCatalog.proposeReviewToolName,
                 fields: hashFields
@@ -229,20 +216,22 @@ private extension PullRequestHostToolRequestParser {
     }
 
     /// Shape only, like `paths(in:)`. Two comments on one line are legal GitHub state and can be
-    /// deliberate, so duplicates pass; the bound is what keeps one call from running unmetered,
-    /// since each comment is its own round trip and its own result row.
+    /// deliberate, so duplicates pass. Nil means the field was omitted — a summary-only proposal;
+    /// an empty array is refused rather than silently meaning the same thing.
     func reviewComments(
         in object: StrictHostToolObject
-    ) throws -> [PullRequestHostToolReviewCommentItem] {
-        let values = try object.requiredArray("comments")
-        guard !values.isEmpty else {
-            throw invalid("\(object.path).comments must contain at least 1 comment.")
+    ) throws -> [PullRequestHostToolReviewCommentItem]? {
+        guard let values = try object.optionalArray("comments") else {
+            return nil
         }
-        guard values.count <= PullRequestHostToolLimits.maxReviewCommentsPerCall else {
+        guard !values.isEmpty else {
+            throw invalid("\(object.path).comments must not be empty; omit it for a summary-only review.")
+        }
+        guard values.count <= PullRequestHostToolLimits.maxReviewCommentsPerProposal else {
             throw invalid(
                 "\(object.path).comments must contain at most " +
-                    "\(PullRequestHostToolLimits.maxReviewCommentsPerCall) comments; " +
-                    "call the tool again with the rest."
+                    "\(PullRequestHostToolLimits.maxReviewCommentsPerProposal) comments; " +
+                    "keep the most important findings."
             )
         }
         return try values.enumerated().map { index, value in

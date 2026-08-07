@@ -237,30 +237,17 @@ private extension AppKitReviewProposalWidgetView {
     }
 
     func addPendingCommentSummary(_ configuration: Configuration) {
-        let count = configuration.preview?.loadedPreview?.pendingCommentCount
-            ?? configuration.presentation?.pendingCommentCount
-            ?? configuration.content.pendingCommentCount
-            ?? 0
         let text: String
         switch configuration.preview {
         case .loading, nil:
             text = "Loading the comments this review would publish…"
         case .failed:
-            text = count > 0
-                ? "Publishes \(count) pending review comment\(count == 1 ? "" : "s")."
+            let total = Self.fallbackCommentTotal(configuration)
+            text = total > 0
+                ? "Publishes \(total) review comment\(total == 1 ? "" : "s")."
                 : "Publishes the review summary only."
         case .loaded(let preview):
-            if preview.pendingCommentCount == 0 {
-                text = "Publishes the review summary only — no inline comments are pending."
-            } else {
-                var summary = "Publishes \(preview.pendingCommentCount) pending review comment" +
-                    "\(preview.pendingCommentCount == 1 ? "" : "s")."
-                if preview.hiddenFileCount > 0 {
-                    summary += " \(preview.hiddenFileCount) more file" +
-                        "\(preview.hiddenFileCount == 1 ? "" : "s") not shown; open the pull request to read them all."
-                }
-                text = summary
-            }
+            text = Self.loadedCommentSummary(preview)
         }
         stack.addFullWidthArrangedSubview(
             AppKitTranscriptWidgetLabelFactory.label(
@@ -271,6 +258,34 @@ private extension AppKitReviewProposalWidgetView {
                 wraps: true
             )
         )
+    }
+
+    /// One total first — confirming publishes staged and already-pending comments alike — with
+    /// the pending share broken out only when both sources are present.
+    static func loadedCommentSummary(_ preview: PullRequestReviewProposalPreview) -> String {
+        let total = preview.proposedCommentCount + preview.pendingCommentCount
+        guard total > 0 else {
+            return "Publishes the review summary only — no inline comments are staged or pending."
+        }
+        var summary = "Publishes \(total) review comment\(total == 1 ? "" : "s")"
+        if preview.proposedCommentCount > 0, preview.pendingCommentCount > 0 {
+            summary += ", including \(preview.pendingCommentCount) already-pending draft comment" +
+                "\(preview.pendingCommentCount == 1 ? "" : "s")"
+        }
+        summary += "."
+        if preview.hiddenFileCount > 0 {
+            summary += " \(preview.hiddenFileCount) more file" +
+                "\(preview.hiddenFileCount == 1 ? "" : "s") not shown; open the pull request to read them all."
+        }
+        return summary
+    }
+
+    /// Without a loaded preview the counts come from the presentation, then the call snapshot.
+    static func fallbackCommentTotal(_ configuration: Configuration) -> Int {
+        if let presentation = configuration.presentation {
+            return presentation.comments.count + presentation.pendingCommentCount
+        }
+        return (configuration.content.commentCount ?? 0) + (configuration.content.pendingCommentCount ?? 0)
     }
 
     /// The pending comments on the lines they were written against, read-only: the card carries

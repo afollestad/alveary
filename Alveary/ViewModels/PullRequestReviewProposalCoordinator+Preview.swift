@@ -7,7 +7,7 @@ enum PullRequestReviewProposalPreviewState: Equatable {
     case failed(String)
 }
 
-/// Only the hunks the user's pending comments sit on, with those comments attached.
+/// Only the hunks the review's comments sit on, with those comments attached.
 ///
 /// The card is a confirmation, not a review surface: it shows what confirming would publish, and
 /// the pull request pane remains where the whole diff is read.
@@ -16,11 +16,15 @@ struct PullRequestReviewProposalPreview: Equatable {
     /// sends the rest to the pull request pane.
     static let maximumFiles = 5
 
-    /// Hunk-filtered copies of the files carrying pending comments.
+    /// Hunk-filtered copies of the files carrying comments — the proposal's staged ones and any
+    /// pending draft the user already holds on GitHub.
     let files: [DiffFile]
     let annotations: DiffCommentAnnotations
+    /// The user's own already-pending draft comments on GitHub.
     let pendingCommentCount: Int
-    /// Files with pending comments the card did not render.
+    /// The proposal's staged comments, existing only in Alveary until confirmed.
+    let proposedCommentCount: Int
+    /// Files with comments the card did not render.
     let hiddenFileCount: Int
     /// GitHub refuses approve and request-changes on the viewer's own pull request, so the card's
     /// verdict picker disables them.
@@ -41,26 +45,36 @@ extension PullRequestReviewProposalCoordinator {
             let detail = try await service.fetchDetail(presentation.identifier)
             let pendingThreads = detail.reviewThreads.filter { $0.isPending && $0.line != nil }
             let viewerIsAuthor = detail.viewerLogin.map { $0 == detail.authorLogin } ?? false
-            guard !pendingThreads.isEmpty else {
+            guard !pendingThreads.isEmpty || !presentation.comments.isEmpty else {
                 // A summary-only review has no comments to show; the card renders its body alone.
                 return .loaded(
                     PullRequestReviewProposalPreview(
                         files: [],
                         annotations: DiffCommentAnnotations(),
                         pendingCommentCount: 0,
+                        proposedCommentCount: 0,
                         hiddenFileCount: 0,
                         viewerIsAuthor: viewerIsAuthor
                     )
                 )
             }
             let diffText = try await service.fetchDiff(presentation.identifier)
-            let files = Self.commentedFiles(in: DiffParser.parse(diffText), threads: pendingThreads)
+            let annotations = Self.annotations(
+                threads: pendingThreads,
+                staged: presentation.comments,
+                detail: detail
+            )
+            let files = Self.commentedFiles(
+                in: DiffParser.parse(diffText),
+                anchors: Array(annotations.threads.keys)
+            )
             let shown = Array(files.prefix(PullRequestReviewProposalPreview.maximumFiles))
             return .loaded(
                 PullRequestReviewProposalPreview(
                     files: shown,
-                    annotations: Self.annotations(for: pendingThreads),
+                    annotations: annotations,
                     pendingCommentCount: pendingThreads.reduce(0) { $0 + $1.comments.count },
+                    proposedCommentCount: presentation.comments.count,
                     hiddenFileCount: files.count - shown.count,
                     viewerIsAuthor: viewerIsAuthor
                 )
@@ -72,17 +86,14 @@ extension PullRequestReviewProposalCoordinator {
 }
 
 private extension PullRequestReviewProposalCoordinator {
-    /// Narrows to the files a pending comment sits on, and inside each to the hunks holding one.
+    /// Narrows to the files a comment sits on, and inside each to the hunks holding one.
     static func commentedFiles(
         in files: [DiffFile],
-        threads: [PullRequestReviewThread]
+        anchors: [DiffCommentAnchor]
     ) -> [DiffFile] {
         var anchorsByPath: [String: Set<Int>] = [:]
-        for thread in threads {
-            guard let line = thread.line else {
-                continue
-            }
-            anchorsByPath[thread.path, default: []].insert(line)
+        for anchor in anchors {
+            anchorsByPath[anchor.path, default: []].insert(anchor.line)
         }
         return files.compactMap { file in
             guard let anchors = anchorsByPath[file.path] else {
@@ -110,8 +121,14 @@ private extension PullRequestReviewProposalCoordinator {
     }
 
     /// Inert annotations: the card renders threads read-only, with no composer and no interaction,
-    /// so nothing on it can post to GitHub before the user confirms.
-    static func annotations(for threads: [PullRequestReviewThread]) -> DiffCommentAnnotations {
+    /// so nothing on it can post to GitHub before the user confirms. The proposal's staged
+    /// comments join the server draft's threads, attributed to the viewer — a staged comment on an
+    /// already-drafted line appends to that thread rather than opening a second card on the line.
+    static func annotations(
+        threads: [PullRequestReviewThread],
+        staged: [PullRequestReviewProposalRecord.Comment],
+        detail: PullRequestDetail
+    ) -> DiffCommentAnnotations {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = false
         for thread in threads {
@@ -140,6 +157,26 @@ private extension PullRequestReviewProposalCoordinator {
                 threadID: thread.nodeID,
                 isPending: thread.isPending
             )
+        }
+        for comment in staged {
+            let anchor = DiffCommentAnchor(
+                path: comment.path,
+                side: DiffCommentAnchor.Side(rawValue: comment.side) ?? .right,
+                line: comment.line
+            )
+            let lineComment = DiffLineComment(
+                author: detail.viewerLogin ?? "You",
+                bodyMarkdown: PullRequestMarkdown.sanitized(comment.body),
+                isPending: false,
+                avatarURL: detail.viewerAvatarURL,
+                isProposed: true
+            )
+            if var existing = annotations.threads[anchor] {
+                existing.comments.append(lineComment)
+                annotations.threads[anchor] = existing
+            } else {
+                annotations.threads[anchor] = DiffLineCommentThread(comments: [lineComment])
+            }
         }
         return annotations
     }

@@ -81,53 +81,6 @@ extension PullRequestHostToolService {
         )
     }
 
-    /// A batch replay: the receipt is keyed on the payload hash, so its outcomes line up with the
-    /// request's comments by index and the rows can be rebuilt from both halves. No
-    /// `pending_comment_count` — that is GitHub state the receipt never held, and it has moved.
-    func replayedBatchResult(
-        receipt: PullRequestHostToolReceipt,
-        request: PullRequestHostToolReviewCommentsRequest
-    ) -> AgentCLIKit.AgentHostToolResult {
-        let outcomes = receipt.commentOutcomes ?? []
-        let rows = zip(request.comments, outcomes).map { comment, outcome in
-            Self.commentRow(
-                comment: comment,
-                status: outcome.status,
-                threadNodeID: outcome.threadNodeID,
-                message: outcome.message
-            )
-        }
-        return replayedResult(
-            receipt: receipt,
-            fields: [
-                "comments": .array(rows),
-                "added_count": .number(Double(outcomes.filter { $0.status == "added" }.count))
-            ]
-        )
-    }
-
-    /// One result row, built the same way whether the comment was just written or replayed.
-    static func commentRow(
-        comment: PullRequestHostToolReviewCommentItem,
-        status: String,
-        threadNodeID: String?,
-        message: String?
-    ) -> AgentCLIKit.JSONValue {
-        var row: [String: AgentCLIKit.JSONValue] = [
-            "path": .string(comment.path),
-            "line": .number(Double(comment.line)),
-            "side": .string(comment.side.rawValue),
-            "status": .string(status)
-        ]
-        if let threadNodeID {
-            row["thread_id"] = .string(threadNodeID)
-        }
-        if let message {
-            row["message"] = .string(message)
-        }
-        return .object(row)
-    }
-
     func makeReceipt(
         identity: PullRequestHostToolCallIdentity,
         toolName: String,
@@ -136,25 +89,24 @@ extension PullRequestHostToolService {
         handle: PullRequestHostToolReceiptHandle = .none
     ) -> PullRequestHostToolReceipt {
         var threadNodeID: String?
-        var commentOutcomes: [PullRequestHostToolReceiptCommentOutcome]?
         var proposalID: String?
         switch handle {
         case .none:
             break
         case .thread(let nodeID):
             threadNodeID = nodeID
-        case .commentBatch(let outcomes):
-            commentOutcomes = outcomes
         case .proposal(let id):
             proposalID = id
         }
+        // `commentOutcomes` is always nil since the retired `add_pr_review_comments` tool stopped
+        // writing it; the receipt field itself stays so ledgers written by earlier builds decode.
         return PullRequestHostToolReceipt(
             deduplicationKey: identity.deduplicationKey,
             toolName: toolName,
             status: status,
             message: message,
             threadNodeID: threadNodeID,
-            commentOutcomes: commentOutcomes,
+            commentOutcomes: nil,
             proposalID: proposalID,
             sourceProcessToken: identity.processToken.uuidString.lowercased(),
             createdAt: identity.requestDate

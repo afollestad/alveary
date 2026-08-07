@@ -23,8 +23,7 @@ extension PullRequestHostToolCatalog {
         )
     }
 
-    /// One comment `add_pr_review_comments` takes, and one row it reports back. The result echoes
-    /// the anchor so a partial batch names which comments landed without the model re-deriving it.
+    /// One inline comment `propose_pr_review` takes, anchored to a diff line.
     static let reviewCommentInputSchema = HostToolSchema.strictObject(
         properties: [
             "path": HostToolSchema.nonEmptyStringSchema,
@@ -36,18 +35,6 @@ extension PullRequestHostToolCatalog {
             "body": HostToolSchema.nonEmptyStringSchema
         ],
         required: ["path", "line", "body"]
-    )
-
-    static let reviewCommentResultSchema = HostToolSchema.strictObject(
-        properties: [
-            "path": HostToolSchema.stringSchema,
-            "line": HostToolSchema.integerSchema(minimum: 1),
-            "side": HostToolSchema.stringSchema,
-            "status": HostToolSchema.enumSchema(["added", "failed", "skipped"]),
-            "thread_id": HostToolSchema.stringSchema,
-            "message": HostToolSchema.stringSchema
-        ],
-        required: ["path", "line", "side", "status"]
     )
 
     static func stateChangeOutputSchema(_ statuses: [String]) -> AgentCLIKit.JSONValue {

@@ -74,6 +74,82 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertTrue(fixture.outcomeMarkers().isEmpty)
     }
 
+    func testConfirmingWritesStagedCommentsIntoADraftThenSubmitsIt() async throws {
+        let fixture = try Fixture(comments: [
+            Fixture.stagedComment(line: 1, body: "First"),
+            Fixture.stagedComment(line: 2, body: "Second")
+        ])
+        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+
+        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+
+        XCTAssertTrue(didSubmit)
+        // No draft existed, so one is opened; the staged comments land in it, in order, and the
+        // one publishing call is the submit at the end.
+        XCTAssertEqual(fixture.service.createdPendingReviewNodeIDs, ["PR_7"])
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["First", "Second"])
+        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.reviewNodeID), ["PENDING_REVIEW"])
+        XCTAssertTrue(fixture.service.submittedReviews.isEmpty)
+        XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
+    }
+
+    func testConfirmingWithAnExistingDraftAdoptsItForTheStagedComments() async throws {
+        let fixture = try Fixture(comments: [Fixture.stagedComment(body: "First")])
+        fixture.service.detailResult = .success(
+            makePullRequestDetail(id: Fixture.identifier, pendingReviewNodeID: "DRAFT_1")
+        )
+
+        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .approve)
+
+        XCTAssertTrue(didSubmit)
+        // GitHub allows one pending review per viewer, so the existing draft takes the comments
+        // — which is also what keeps publishing the user's own draft comments on confirm.
+        XCTAssertTrue(fixture.service.createdPendingReviewNodeIDs.isEmpty)
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.reviewNodeID), ["DRAFT_1"])
+        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.reviewNodeID), ["DRAFT_1"])
+    }
+
+    func testAMidWriteFailurePublishesNothingAndLeavesTheCardConfirmable() async throws {
+        let fixture = try Fixture(comments: [
+            Fixture.stagedComment(line: 1, body: "First"),
+            Fixture.stagedComment(line: 2, body: "Second")
+        ])
+        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+        fixture.service.addPendingCommentResults = [
+            .success(StubPullRequestsService.makePendingThread(path: "File0.swift", line: 1, side: .right, body: "First")),
+            .failure(.transport("offline"))
+        ]
+
+        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+
+        XCTAssertFalse(didSubmit)
+        // The failure struck before the submit, so GitHub holds only a private draft; the card
+        // keeps its error and can be confirmed again.
+        XCTAssertTrue(fixture.service.submittedPendingReviews.isEmpty)
+        XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
+        XCTAssertNotNil(fixture.coordinator.errorMessage(forProposalID: Fixture.proposalID))
+        XCTAssertTrue(fixture.outcomeMarkers().isEmpty)
+    }
+
+    /// The refetched detail carries whatever the first attempt wrote, so a retry writes only what
+    /// is missing rather than double-posting the comments that landed.
+    func testARetrySkipsStagedCommentsAlreadyInTheDraft() async throws {
+        let fixture = try Fixture(comments: [
+            Fixture.stagedComment(line: 1, body: "Consider a guard here."),
+            Fixture.stagedComment(line: 2, body: "Second")
+        ])
+        var detail = makePullRequestDetail(id: Fixture.identifier, pendingReviewNodeID: "DRAFT_1")
+        detail.reviewThreads = [
+            makeReviewThread(nodeID: "THREAD_1", path: "File0.swift", line: 1, isPending: true)
+        ]
+        fixture.service.detailResult = .success(detail)
+
+        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Second"])
+    }
+
     func testPickingAVerdictNotifiesSoTheCardReRenders() throws {
         let fixture = try Fixture()
         // The transcript re-reads coordinator state only on the change notification, so a
@@ -140,6 +216,29 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertEqual(preview.annotations.threads.count, 1)
     }
 
+    /// Staged comments exist nowhere on GitHub, so the preview has to render them from the
+    /// envelope: attributed to the viewer and marked proposed, on the hunks they anchor to.
+    func testThePreviewRendersStagedCommentsWithoutAServerDraft() async throws {
+        let fixture = try Fixture(comments: [Fixture.stagedComment(line: 1, body: "Guard this.")])
+        var detail = makePullRequestDetail(id: Fixture.identifier)
+        detail.viewerLogin = "octocat"
+        fixture.service.detailResult = .success(detail)
+        fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 2))
+
+        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
+        try await fixture.waitForPreview()
+
+        guard case .loaded(let preview)? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
+            return XCTFail("expected a loaded preview")
+        }
+        XCTAssertEqual(preview.files.map(\.path), ["File0.swift"])
+        XCTAssertEqual(preview.proposedCommentCount, 1)
+        XCTAssertEqual(preview.pendingCommentCount, 0)
+        let thread = try XCTUnwrap(preview.annotations.threads.values.first)
+        XCTAssertEqual(thread.comments.first?.author, "octocat")
+        XCTAssertEqual(thread.comments.first?.isProposed, true)
+    }
+
     func testAFailedPreviewLoadLeavesTheCardConfirmable() async throws {
         let fixture = try Fixture()
         fixture.service.detailResult = .failure(.rateLimited)
@@ -165,7 +264,10 @@ private final class Fixture {
     let conversation: Conversation
     let notificationCenter = NotificationCenter()
 
-    init() throws {
+    init(
+        body: String? = "Looks good to me.",
+        comments: [PullRequestReviewProposalRecord.Comment]? = nil
+    ) throws {
         let container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
@@ -191,7 +293,8 @@ private final class Fixture {
                 repositoryNameWithOwner: Self.identifier.nameWithOwner,
                 number: Self.identifier.number,
                 event: "approve",
-                body: "Looks good to me.",
+                body: body,
+                comments: comments,
                 titleSnapshot: "Detail title",
                 pendingCommentCountSnapshot: 1,
                 sourceProviderID: "codex",
@@ -208,6 +311,14 @@ private final class Fixture {
             notificationCenter: notificationCenter,
             now: { Date(timeIntervalSince1970: 2_000) }
         )
+    }
+
+    static func stagedComment(
+        path: String = "File0.swift",
+        line: Int = 1,
+        body: String
+    ) -> PullRequestReviewProposalRecord.Comment {
+        PullRequestReviewProposalRecord.Comment(path: path, line: line, side: "RIGHT", body: body)
     }
 
     func outcomeMarkers() -> [ConversationEventRecord] {

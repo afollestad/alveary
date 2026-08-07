@@ -90,9 +90,12 @@ final class AppKitReviewProposalCommentCardView: NSView {
         botBadge.isHidden = !comment.isBot
         botBadge.configure(title: "Bot", style: .outlined, fontSize: captionSize)
         botBadge.setAccessibilityLabel("Bot account")
-        pendingBadge.isHidden = !comment.isPending
+        // "Proposed" marks a comment staged in the review proposal, existing only in Alveary;
+        // "Pending" keeps meaning the user's own server-side draft. Same tint — both are
+        // unpublished until the review is submitted.
+        pendingBadge.isHidden = !(comment.isPending || comment.isProposed)
         pendingBadge.configure(
-            title: "Pending",
+            title: comment.isProposed ? "Proposed" : "Pending",
             style: .tinted(AppKitPullRequestCommentBadgeView.pendingTint),
             fontSize: captionSize
         )

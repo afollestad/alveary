@@ -46,6 +46,20 @@ extension HostToolTranscriptCatalogTests {
         XCTAssertEqual(content.event, .approve)
         XCTAssertEqual(content.identifier?.displayKey, "octo/alpha#7")
         XCTAssertEqual(content.body, "Looks good to me.")
+        XCTAssertNil(content.commentCount)
+    }
+
+    /// The staged comments ride the request, so the card can count them while the call runs.
+    func testStagedCommentsAreCountedFromTheRequestItself() throws {
+        let input = """
+        {"comments":[{"body":"Guard this.","line":3,"path":"Sources/A.swift"},\
+        {"body":"And this.","line":5,"path":"Sources/A.swift"}],\
+        "event":"comment","url":"https://github.com/octo/alpha/pull/7"}
+        """
+        let content = try XCTUnwrap(
+            PullRequestReviewProposalWidgetParsing.content(input: input, output: nil, isError: false)
+        )
+        XCTAssertEqual(content.commentCount, 2)
     }
 
     func testReviewContentReadsTheReceiptOnceTheCallLands() throws {

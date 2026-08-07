@@ -7,7 +7,19 @@ import Foundation
 /// model with a `Conversation` inverse would have to be registered in every `ModelContainer` the
 /// app and its tests build. It cascades with the conversation for free.
 struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
-    static let currentPayloadVersion = 1
+    /// Version 2 added `comments`. Decode accepts older versions — a v1 envelope simply carries
+    /// none — but the field's presence still demands the bump: a v2 envelope read as v1 would
+    /// confirm-submit less than the card showed, so an older build must refuse it outright.
+    static let currentPayloadVersion = 2
+
+    /// One staged inline comment, published only when the user confirms. `side` stores the
+    /// wire value (`RIGHT`/`LEFT`) so the envelope does not depend on an app enum's cases.
+    struct Comment: Codable, Equatable, Sendable {
+        let path: String
+        let line: Int
+        let side: String
+        let body: String
+    }
 
     let payloadVersion: Int
     let id: String
@@ -18,6 +30,9 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
     /// different verdict when confirming; this is what the model asked for.
     let event: String
     let body: String?
+    /// The review's inline comments, staged locally — nothing exists on GitHub until the user
+    /// confirms. Nil in envelopes written before version 2.
+    let comments: [Comment]?
     /// Snapshotted so the card can name the pull request without a fetch. The pending review's
     /// node id is deliberately *not* snapshotted — it is resolved fresh at confirmation.
     let titleSnapshot: String
@@ -33,6 +48,10 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
 
     var displayKey: String {
         "\(repositoryNameWithOwner)#\(number)"
+    }
+
+    var stagedComments: [Comment] {
+        comments ?? []
     }
 }
 
@@ -69,7 +88,10 @@ extension Conversation {
         } catch {
             throw PullRequestReviewProposalStorageError.invalidPayload
         }
-        guard record.payloadVersion == PullRequestReviewProposalRecord.currentPayloadVersion else {
+        // Older versions decode — optional fields added since simply read nil. Only a *newer*
+        // envelope is refused: it may carry fields this build would silently drop, and a confirm
+        // must never submit less than the card showed.
+        guard record.payloadVersion <= PullRequestReviewProposalRecord.currentPayloadVersion else {
             throw PullRequestReviewProposalStorageError.unsupportedPayloadVersion(record.payloadVersion)
         }
         return record

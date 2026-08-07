@@ -21,6 +21,10 @@ struct PullRequestReviewProposalWidgetContent: Equatable {
     /// The pull request the call named, or the one its result echoed.
     let identifier: PullRequestIdentifier?
     let body: String?
+    /// Inline comments the call staged, counted from the request's own `comments` array so the
+    /// card knows it while the call is still running.
+    let commentCount: Int?
+    /// The user's own already-pending draft comments, from the result.
     let pendingCommentCount: Int?
     let proposalID: String?
     let message: String?
@@ -48,6 +52,7 @@ enum PullRequestReviewProposalWidgetParsing {
             // the receipt's echo confirms it once the call lands.
             identifier: receipt?.identifier ?? requestedIdentifier(in: arguments),
             body: HostToolWidgetJSON.string(arguments["body"]),
+            commentCount: requestedCommentCount(in: arguments),
             pendingCommentCount: receipt?.pendingCommentCount,
             proposalID: receipt?.proposalID,
             message: receipt?.message ?? HostToolWidgetJSON.plainText(from: output),
@@ -83,6 +88,13 @@ private extension PullRequestReviewProposalWidgetParsing {
 
     static func requestedIdentifier(in arguments: [String: AgentCLIKit.JSONValue]) -> PullRequestIdentifier? {
         HostToolWidgetJSON.string(arguments["url"]).flatMap(PullRequestURLParser.identifier(from:))
+    }
+
+    static func requestedCommentCount(in arguments: [String: AgentCLIKit.JSONValue]) -> Int? {
+        guard case .array(let comments) = arguments["comments"] else {
+            return nil
+        }
+        return comments.count
     }
 
     /// Providers surface a host tool's result differently: Claude emits

@@ -34,21 +34,12 @@ struct PullRequestHostToolDiffRequest {
     let offset: Int
 }
 
-/// One comment in an `add_pr_review_comments` request.
-struct PullRequestHostToolReviewCommentItem {
+/// One inline comment in a `propose_pr_review` request.
+struct PullRequestHostToolReviewCommentItem: Equatable {
     let path: String
     let line: Int
     let side: PullRequestDiffSide
     let body: String
-}
-
-/// An `add_pr_review_comments` request, paired with the hash that identifies an
-/// exact retry of it. The comments are ordered: they are written one at a time, so
-/// the same set in a different order is a different call.
-struct PullRequestHostToolReviewCommentsRequest {
-    let identifier: PullRequestIdentifier
-    let comments: [PullRequestHostToolReviewCommentItem]
-    let canonicalPayloadHash: String
 }
 
 /// A `reply_to_pr_thread` request.
@@ -79,9 +70,6 @@ enum PullRequestHostToolReceiptHandle {
     case none
     /// A created review thread's GraphQL node id.
     case thread(String?)
-    /// One outcome per comment an `add_pr_review_comments` call was given, in the
-    /// order they were requested, so a replay reproduces the per-item rows.
-    case commentBatch([PullRequestHostToolReceiptCommentOutcome])
     case proposal(String)
 }
 
@@ -93,11 +81,14 @@ struct PullRequestHostToolCommentRequest {
 }
 
 /// A `propose_pr_review` request. The event is already the wire enum — no host
-/// state is needed to map it — but nothing is validated against GitHub yet.
+/// state is needed to map it — but nothing is validated against GitHub yet. The
+/// comments are ordered: they are staged and later written one at a time, so the
+/// same set in a different order is a different call.
 struct PullRequestHostToolReviewProposalRequest {
     let identifier: PullRequestIdentifier
     let event: PullRequestReviewEvent
     let body: String?
+    let comments: [PullRequestHostToolReviewCommentItem]
     let canonicalPayloadHash: String
 }
 
@@ -126,9 +117,10 @@ enum PullRequestHostToolLimits {
     static let maxDescriptionCharacters = 4_000
     /// Total patch text `get_pr_diff` includes before paging the rest.
     static let maxPatchBytes = 150 * 1024
-    /// Comments one `add_pr_review_comments` call may carry. Each is a separate GitHub
-    /// round trip and an output row, and the model can call again for the rest.
-    static let maxReviewCommentsPerCall = 20
+    /// Comments one `propose_pr_review` call may carry. A proposal is the whole review — a
+    /// second call supersedes the first, so this is a per-review ceiling, bounded by what the
+    /// stored envelope and the confirmation card can reasonably hold.
+    static let maxReviewCommentsPerProposal = 50
 }
 
 /// Shared JSON row builders, so `get_pr`, `get_pr_timeline`, and `get_pr_diff`
@@ -177,6 +169,7 @@ enum PullRequestHostToolServiceError: LocalizedError, Equatable {
     case reviewThreadMissingResolutionHandle
     case reviewBodyRequired
     case reviewCommentRequired
+    case reviewCommentAnchorInvalid(index: Int, path: String, line: Int, side: String)
     case cannotReviewOwnPullRequest
     case pullRequestNotReviewable(status: String)
     case stateChangeNotPermitted
@@ -216,7 +209,8 @@ enum PullRequestHostToolServiceError: LocalizedError, Equatable {
                 "get_pr_timeline and use one of the thread_id values they return."
         case .reviewThreadPendingNoReplies:
             "That review thread is part of the user's unsubmitted pending review, and GitHub accepts no " +
-                "replies until the review is submitted. Add a separate comment with add_pr_review_comments instead."
+                "replies until the review is submitted. Include a comment on that line in a propose_pr_review " +
+                "call instead."
         case .reviewThreadMissingReplyTarget:
             "That review thread has no comment GitHub will accept a reply to. Call get_pr_diff " +
                 "again for its current state."
@@ -227,8 +221,11 @@ enum PullRequestHostToolServiceError: LocalizedError, Equatable {
             "Requesting changes requires a body summarizing what should change. Call propose_pr_review " +
                 "again with one."
         case .reviewCommentRequired:
-            "A comment review needs a body or at least one pending review comment. Add one with " +
-                "add_pr_review_comments, or pass a body."
+            "A comment review needs a body, at least one comment in this call, or at least one " +
+                "pending review comment. Pass comments or a body."
+        case let .reviewCommentAnchorInvalid(index, path, line, side):
+            "comments[\(index)] does not land on a line in the diff: \(path):\(line) (\(side)). " +
+                "Anchor every comment to a path, line, and side reported by get_pr_diff."
         case .cannotReviewOwnPullRequest:
             "GitHub does not accept approving or requesting changes on the user's own pull request. " +
                 "Propose a comment review instead."

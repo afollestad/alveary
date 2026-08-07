@@ -16,9 +16,6 @@ final class PullRequestHostToolService {
     private let requestParser: PullRequestHostToolRequestParser
     private let now: () -> Date
     private let proposalIDProvider: () -> String
-    /// Serializes opening the viewer's pending review per pull request. GitHub allows one per
-    /// viewer, so two comments racing to create it would leave an orphaned draft.
-    private var pendingReviewCreations: [PullRequestIdentifier: Task<String, Error>] = [:]
 
     init(
         modelContext: ModelContext,
@@ -86,8 +83,6 @@ final class PullRequestHostToolService {
             return result
         }
         switch call.name {
-        case PullRequestHostToolCatalog.addReviewCommentsToolName:
-            return try await addReviewComments(context: context, arguments: call.arguments)
         case PullRequestHostToolCatalog.replyToThreadToolName:
             return try await replyToThread(context: context, arguments: call.arguments)
         case PullRequestHostToolCatalog.resolveThreadToolName:
@@ -142,12 +137,6 @@ final class PullRequestHostToolService {
 
     func parseDiff(arguments: [String: AgentCLIKit.JSONValue]) throws -> PullRequestHostToolDiffRequest {
         try requestParser.parseDiff(arguments: arguments)
-    }
-
-    func parseReviewComments(
-        arguments: [String: AgentCLIKit.JSONValue]
-    ) throws -> PullRequestHostToolReviewCommentsRequest {
-        try requestParser.parseReviewComments(arguments: arguments)
     }
 
     func parseThreadReply(
@@ -236,38 +225,6 @@ final class PullRequestHostToolService {
             return try await pullRequestsService.fetchDiff(identifier)
         } catch PullRequestsServiceError.responseTooLarge {
             throw PullRequestHostToolServiceError.diffTooLarge
-        } catch let error as PullRequestsServiceError {
-            throw Self.unavailable(error)
-        }
-    }
-
-    /// Adopts the viewer's existing pending review or opens one, at most once per pull request at a
-    /// time. A caller that loses the race awaits the winner's task rather than opening a second
-    /// draft GitHub would reject.
-    func pendingReviewNodeID(
-        for identifier: PullRequestIdentifier,
-        detail: PullRequestDetail
-    ) async throws -> String {
-        if let existing = detail.pendingReviewNodeID {
-            return existing
-        }
-        if let inFlight = pendingReviewCreations[identifier] {
-            return try await inFlight.value
-        }
-        guard let pullRequestNodeID = detail.nodeID else {
-            // Without the pull request's node id there is no draft to open; a refetch is the only
-            // way forward, so report it as a reachability problem rather than a silent no-op.
-            throw PullRequestHostToolServiceError.pullRequestUnavailable(
-                "Alveary could not read that pull request's GitHub node ID."
-            )
-        }
-        let creation = Task { [pullRequestsService] in
-            try await pullRequestsService.createPendingReview(pullRequestNodeID: pullRequestNodeID)
-        }
-        pendingReviewCreations[identifier] = creation
-        defer { pendingReviewCreations[identifier] = nil }
-        do {
-            return try await creation.value
         } catch let error as PullRequestsServiceError {
             throw Self.unavailable(error)
         }

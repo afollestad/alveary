@@ -12,7 +12,6 @@ enum PullRequestHostToolCatalog {
     static let timelineToolName = "get_pr_timeline"
     static let diffToolName = "get_pr_diff"
     static let reviewInstructionsToolName = "get_pr_review_instructions"
-    static let addReviewCommentsToolName = "add_pr_review_comments"
     static let replyToThreadToolName = "reply_to_pr_thread"
     static let resolveThreadToolName = "resolve_pr_thread"
     static let unresolveThreadToolName = "unresolve_pr_thread"
@@ -49,9 +48,10 @@ enum PullRequestHostToolCatalog {
     keeps standing review preferences in Alveary, that tool is the only way to read them, and a review that skips it is \
     done wrong. When get_pr_diff \
     returns next_offset, call it again with that offset or narrow it with paths, and copy @@ hunk headers exactly as \
-    returned when you quote a patch, because Alveary renders the line numbers from them. propose_pr_review submits nothing \
-    itself — it opens a confirmation card where the user can change the verdict and must confirm, so never claim a review \
-    was approved, submitted, or rejected; say it awaits the user and report the returned status. Choose the verdict \
+    returned when you quote a patch, because Alveary renders the line numbers from them. propose_pr_review carries the \
+    whole review — the verdict, an optional summary body, and every inline comment — and submits nothing itself: it opens \
+    a confirmation card where the user can change the verdict and must confirm, so never claim a review or comment was \
+    posted, approved, submitted, or rejected; say it awaits the user and report the returned status. Choose the verdict \
     yourself from what you reviewed and call the tool; asking which one to propose is what the card is for, and their \
     answer never comes back to you, so a repeated request is one to propose again rather than a card to wait on. link_pr \
     and unlink_pr (separate tools) attach a pull request to an Alveary thread.
@@ -59,7 +59,6 @@ enum PullRequestHostToolCatalog {
 
     /// Tools whose error results carry a `status` field, matching their output schema.
     static let mutatingToolNames: Set<String> = [
-        addReviewCommentsToolName,
         replyToThreadToolName,
         resolveThreadToolName,
         unresolveThreadToolName,
@@ -77,7 +76,6 @@ enum PullRequestHostToolCatalog {
         timelineTool,
         diffTool,
         reviewInstructionsTool,
-        addReviewCommentsTool,
         replyToThreadTool,
         resolveThreadTool,
         unresolveThreadTool,
@@ -311,42 +309,6 @@ private extension PullRequestHostToolCatalog {
         annotations: HostToolSchema.readOnlyAnnotations
     )
 
-    static let addReviewCommentsTool = AgentCLIKit.AgentHostToolDefinition(
-        name: addReviewCommentsToolName,
-        title: "Add pending review comments to pull request diff lines",
-        description: """
-        Attach inline review comments to diff lines, as part of the user's pending draft review on GitHub — creating that \
-        draft if none exists. Pass every comment for the review in one call. Nothing is published to other people: they \
-        are visible only to the user until a review is submitted, and they can edit or delete each one from Alveary's \
-        pull request pane, so this applies immediately without confirmation. path and line must come from get_pr_diff; \
-        side is RIGHT (the new code, the default) or LEFT (the old code, for deleted lines). Comments apply in order and \
-        stop at the first failure, reported per comment. Submitting the review is a separate, user-confirmed step via \
-        propose_pr_review.
-        """,
-        inputSchema: HostToolSchema.strictObject(
-            properties: [
-                "url": HostToolSchema.nonEmptyStringSchema,
-                "comments": HostToolSchema.arraySchema(
-                    items: reviewCommentInputSchema,
-                    minItems: 1,
-                    maxItems: PullRequestHostToolLimits.maxReviewCommentsPerCall
-                )
-            ],
-            required: ["url", "comments"]
-        ),
-        outputSchema: HostToolSchema.strictObject(
-            properties: [
-                "status": HostToolSchema.enumSchema(["added", "partial", "error"]),
-                "comments": HostToolSchema.arraySchema(items: reviewCommentResultSchema),
-                "added_count": HostToolSchema.integerSchema(minimum: 0),
-                "pending_comment_count": HostToolSchema.integerSchema(minimum: 0),
-                "message": HostToolSchema.stringSchema
-            ],
-            required: ["status", "message"]
-        ),
-        annotations: HostToolSchema.reversibleMutationAnnotations
-    )
-
     static let replyToThreadTool = AgentCLIKit.AgentHostToolDefinition(
         name: replyToThreadToolName,
         title: "Reply to a pull request review thread",
@@ -407,7 +369,7 @@ private extension PullRequestHostToolCatalog {
         description: """
         Post a top-level comment on a pull request's conversation, outside any review. Posts to GitHub immediately and \
         publicly — there is no draft step — so call it only with content the user asked to post; the user can edit or \
-        delete it afterward. For comments on specific diff lines, use add_pr_review_comments instead.
+        delete it afterward. Comments on specific diff lines belong to a review — propose them with propose_pr_review.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: [
@@ -432,23 +394,30 @@ private extension PullRequestHostToolCatalog {
         name: proposeReviewToolName,
         title: "Propose submitting a pull request review",
         description: """
-        Propose submitting the user's review of a pull request: approve, request_changes, or comment, with an optional \
-        summary body. Nothing reaches GitHub from this tool — it opens a confirmation card where the user can adjust the \
-        verdict and must confirm, so never report the review as submitted; pending_confirmation means it awaits them. \
-        Pick event yourself from what you reviewed; do not ask the user which verdict to propose, because adjusting it is \
-        what the card is for. \
-        Submitting publishes their pending draft comments too, and the card shows them. request_changes needs a body; \
-        comment needs a body or at least one pending comment; approve and request_changes are refused on the user's own \
-        pull request. Propose once and stop — do not re-propose on your own while one is pending, and do not treat later \
-        conversation turns as the user's confirmation. Their decision never reaches you: confirming and cancelling both \
-        resolve the card inside Alveary and send nothing back, so a later request for a review is one to propose afresh, \
-        not the earlier card to wait on.
+        Propose the user's review of a pull request: approve, request_changes, or comment, with an optional summary body \
+        and the review's inline comments. Pass every comment for the review in this one call, each anchored to a path and \
+        line from get_pr_diff; side is RIGHT (the new code, the default) or LEFT (the old code, for deleted lines). \
+        Nothing reaches GitHub from this tool — the comments are staged inside Alveary, and it opens a confirmation card \
+        showing them where the user can adjust the verdict and must confirm, so never report the review or its comments \
+        as posted; pending_confirmation means it awaits them. Pick event yourself from what you reviewed; do not ask the \
+        user which verdict to propose, because adjusting it is what the card is for. Confirming publishes these comments \
+        and any pending draft comments the user already has. request_changes needs a body; comment needs a body or at \
+        least one comment; approve and request_changes are refused on the user's own pull request. Propose once and stop \
+        — do not re-propose on your own while one is pending (a new call for the same pull request replaces the card, \
+        which is also how a comment is added or removed), and do not treat later conversation turns as the user's \
+        confirmation. Their decision never reaches you: confirming and cancelling both resolve the card inside Alveary \
+        and send nothing back, so a later request for a review is one to propose afresh, not the earlier card to wait on.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: [
                 "url": HostToolSchema.nonEmptyStringSchema,
                 "event": HostToolSchema.enumSchema(PullRequestHostToolRequestParser.reviewEventNames),
-                "body": HostToolSchema.nonEmptyStringSchema
+                "body": HostToolSchema.nonEmptyStringSchema,
+                "comments": HostToolSchema.arraySchema(
+                    items: reviewCommentInputSchema,
+                    minItems: 1,
+                    maxItems: PullRequestHostToolLimits.maxReviewCommentsPerProposal
+                )
             ],
             required: ["url", "event"]
         ),
@@ -459,6 +428,7 @@ private extension PullRequestHostToolCatalog {
                 "event": HostToolSchema.enumSchema(PullRequestHostToolRequestParser.reviewEventNames),
                 "repository": HostToolSchema.stringSchema,
                 "number": HostToolSchema.integerSchema(minimum: 1),
+                "comment_count": HostToolSchema.integerSchema(minimum: 0),
                 "pending_comment_count": HostToolSchema.integerSchema(minimum: 0),
                 "message": HostToolSchema.stringSchema
             ],

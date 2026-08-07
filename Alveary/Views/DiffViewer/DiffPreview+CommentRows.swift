@@ -40,6 +40,10 @@ struct DiffLineComment: Hashable, Sendable {
     /// tooltip/accessibility string beside it carries the absolute date and time.
     let relativeAge: String?
     let absoluteTimestamp: String?
+    /// Staged inside a review proposal, existing nowhere on GitHub yet — narrower than
+    /// `isPending`, which means written into the viewer's server-side draft. Only the
+    /// review-proposal card renders these.
+    let isProposed: Bool
 
     init(
         author: String,
@@ -53,7 +57,8 @@ struct DiffLineComment: Hashable, Sendable {
         avatarURL: URL? = nil,
         isBot: Bool = false,
         relativeAge: String? = nil,
-        absoluteTimestamp: String? = nil
+        absoluteTimestamp: String? = nil,
+        isProposed: Bool = false
     ) {
         self.author = author
         self.bodyMarkdown = bodyMarkdown
@@ -67,6 +72,7 @@ struct DiffLineComment: Hashable, Sendable {
         self.isBot = isBot
         self.relativeAge = relativeAge
         self.absoluteTimestamp = absoluteTimestamp
+        self.isProposed = isProposed
     }
 }
 

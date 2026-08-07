@@ -11,13 +11,12 @@ Workflow:
 3. Call get_pr_diff to read the diff, paging with offset until every file has been read. Judge the
    change as a whole: understand its full scope and how the files relate before commenting on any
    one of them.
-4. Attach your findings with add_pr_review_comments, anchored to the exact path, line, and side
-   reported by get_pr_diff. Batch all comments into one call. They stay part of the user's private
-   pending review until it is submitted.
-5. Finish by calling propose_pr_review with the verdict the findings support: request_changes when
-   P0 or P1 findings remain, approve when there is nothing blocking, comment when neither fits.
-   The user confirms or adjusts the submission in Alveary, so stop after proposing rather than
-   waiting on the outcome.
+4. Finish with a single propose_pr_review call carrying the whole review: the verdict, every inline
+   comment anchored to the exact path, line, and side reported by get_pr_diff, and a summary body
+   when the verdict needs one. Propose request_changes when P0 or P1 findings remain, approve when
+   there is nothing blocking, comment when neither fits. Nothing reaches GitHub from the call — the
+   comments are staged in Alveary, and the user confirms or adjusts the submission there, so stop
+   after proposing rather than waiting on the outcome.
 
 Finding the issues:
 - Check correctness, security, performance, readability, and maintainability. Comment on the
@@ -37,8 +36,8 @@ Writing the comments:
   **[P2]** suggestion — style, naming, minor refactors, documentation gaps.
   **[P3]** nit — trivial preferences and optional improvements.
 - Wrap file names, class names, function names, variable names, and other code tokens in backticks.
-- The inline comments carry all the feedback, so keep propose_pr_review's summary body minimal:
-  omit it when the verdict allows, and when request_changes requires one, write a single sentence
-  naming what blocks — never priority counts, restated comments, or filler.
+- The inline comments carry all the feedback, so keep the summary body minimal: omit it when the
+  verdict allows, and when request_changes requires one, write a single sentence naming what
+  blocks — never priority counts, restated comments, or filler.
 """#
 }

@@ -39,6 +39,18 @@ extension SnapshotTests {
         )
     }
 
+    /// A staged comment exists only in Alveary until confirmed: its card wears the "Proposed"
+    /// badge where a server-draft comment wears "Pending", and the summary line counts it.
+    func testReviewProposalWidgetProposedComment() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewProposalSnapshotFixture.widgetRow(commentIsProposed: true)
+            },
+            size: CGSize(width: 700, height: 360),
+            named: "review_proposal_widget_proposed_comment"
+        )
+    }
+
     /// The comment card's chrome, mirroring the Changes tab: the `Bot` pill beside the author and
     /// a markdown-rendered body rather than the plain text the card used to show.
     func testReviewProposalWidgetBotCommentWithMarkdown() {
@@ -122,13 +134,15 @@ enum ReviewProposalSnapshotFixture {
         submittedEvent: String? = nil,
         viewerIsAuthor: Bool = false,
         commentBody: String = "This retries forever when the server keeps answering 503.",
-        commentIsBot: Bool = false
+        commentIsBot: Bool = false,
+        commentIsProposed: Bool = false
     ) -> AppKitTranscriptHostToolWidgetRowView {
         let content = PullRequestReviewProposalWidgetContent(
             event: .approve,
             identifier: identifier,
             body: "Only the retry loop still worries me.",
-            pendingCommentCount: 2,
+            commentCount: commentIsProposed ? 1 : nil,
+            pendingCommentCount: commentIsProposed ? 0 : 2,
             proposalID: proposalID,
             message: "Opened a review confirmation in Alveary.",
             status: .pendingConfirmation
@@ -147,12 +161,15 @@ enum ReviewProposalSnapshotFixture {
             .init(
                 entry: entry,
                 reviewProposal: ReviewProposalWidgetState(
-                    presentation: presentation,
+                    presentation: presentation(
+                        stagedComments: commentIsProposed ? [stagedComment(body: commentBody)] : []
+                    ),
                     preview: preview ?? .loaded(
                         loadedPreview(
                             viewerIsAuthor: viewerIsAuthor,
                             commentBody: commentBody,
-                            commentIsBot: commentIsBot
+                            commentIsBot: commentIsBot,
+                            commentIsProposed: commentIsProposed
                         )
                     ),
                     selectedEvent: .approve,
@@ -167,7 +184,18 @@ enum ReviewProposalSnapshotFixture {
         return view
     }
 
-    static var presentation: PullRequestReviewProposalPresentation {
+    static func stagedComment(body: String) -> PullRequestReviewProposalRecord.Comment {
+        PullRequestReviewProposalRecord.Comment(
+            path: "Sources/Retry.swift",
+            line: 2,
+            side: "RIGHT",
+            body: body
+        )
+    }
+
+    static func presentation(
+        stagedComments: [PullRequestReviewProposalRecord.Comment] = []
+    ) -> PullRequestReviewProposalPresentation {
         PullRequestReviewProposalPresentation(
             id: proposalID,
             sourceConversationID: "source-conversation",
@@ -175,16 +203,18 @@ enum ReviewProposalSnapshotFixture {
             title: "Retry transient GitHub failures",
             proposedEvent: .approve,
             body: "Only the retry loop still worries me.",
-            pendingCommentCount: 2,
+            comments: stagedComments,
+            pendingCommentCount: stagedComments.isEmpty ? 2 : 0,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
     }
 
-    /// One commented hunk, which is what the card is for: the pending comments on their lines.
+    /// One commented hunk, which is what the card is for: the review's comments on their lines.
     static func loadedPreview(
         viewerIsAuthor: Bool = false,
         commentBody: String = "This retries forever when the server keeps answering 503.",
-        commentIsBot: Bool = false
+        commentIsBot: Bool = false,
+        commentIsProposed: Bool = false
     ) -> PullRequestReviewProposalPreview {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = false
@@ -195,12 +225,13 @@ enum ReviewProposalSnapshotFixture {
                 DiffLineComment(
                     author: "viewer",
                     bodyMarkdown: commentBody,
-                    isPending: true,
-                    nodeID: "PENDING_COMMENT_1",
-                    isBot: commentIsBot
+                    isPending: !commentIsProposed,
+                    nodeID: commentIsProposed ? nil : "PENDING_COMMENT_1",
+                    isBot: commentIsBot,
+                    isProposed: commentIsProposed
                 )
             ],
-            isPending: true
+            isPending: !commentIsProposed
         )
         return PullRequestReviewProposalPreview(
             files: DiffParser.parse(
@@ -215,7 +246,8 @@ enum ReviewProposalSnapshotFixture {
                 """
             ),
             annotations: annotations,
-            pendingCommentCount: 2,
+            pendingCommentCount: commentIsProposed ? 0 : 2,
+            proposedCommentCount: commentIsProposed ? 1 : 0,
             hiddenFileCount: 0,
             viewerIsAuthor: viewerIsAuthor
         )

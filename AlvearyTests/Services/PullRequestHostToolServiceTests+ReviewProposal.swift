@@ -25,6 +25,70 @@ extension PullRequestHostToolServiceTests {
         XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
     }
 
+    func testStagedCommentsAreStoredInTheEnvelopeAndReachGitHubNowhere() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+        fixture.stubAlphaDiff()
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: PullRequestHostToolFixture.reviewProposalArguments(bodies: ["First", "Second"])
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        let content = try object(result.structuredContent)
+        XCTAssertEqual(content["comment_count"], .number(2))
+        // The comments exist only in the stored envelope until the user confirms.
+        XCTAssertTrue(fixture.pullRequests.addedPendingComments.isEmpty)
+        XCTAssertTrue(fixture.pullRequests.createdPendingReviewNodeIDs.isEmpty)
+        let stored = try XCTUnwrap(try fixture.conversation.pullRequestReviewProposal())
+        XCTAssertEqual(stored.stagedComments.map(\.body), ["First", "Second"])
+        XCTAssertEqual(stored.stagedComments.first?.side, "RIGHT")
+        XCTAssertTrue(result.text.contains("staged in Alveary"), result.text)
+    }
+
+    /// A `comment` verdict needs something to publish; comments carried by this very call count.
+    func testACommentVerdictIsSatisfiedByTheCallsOwnComments() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+        fixture.stubAlphaDiff()
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: PullRequestHostToolFixture.reviewProposalArguments(event: "comment", bodies: ["First"])
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+    }
+
+    /// GitHub anchors review comments to diff lines, so a miss is refused at propose time — where
+    /// the model can fix it — never at confirmation, after the user already agreed.
+    func testACommentAnchoredOffTheDiffIsRefusedByItsIndex() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+        // The diff carries lines 1 and 2; the second comment anchors at line 3.
+        fixture.stubAlphaDiff(lineCount: 2)
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: PullRequestHostToolFixture.reviewProposalArguments(bodies: ["First", "Second", "Third"])
+        )
+
+        XCTAssertTrue(result.isError)
+        XCTAssertTrue(result.text.contains("comments[2]"), result.text)
+        XCTAssertTrue(result.text.contains("Sources/Alpha.swift:3"), result.text)
+        XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
+    }
+
     func testApprovingYourOwnPullRequestIsRefusedBeforeTheUserIsAsked() async throws {
         let fixture = try PullRequestHostToolFixture()
         let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)

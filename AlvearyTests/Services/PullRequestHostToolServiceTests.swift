@@ -222,11 +222,6 @@ final class PullRequestHostToolFixture {
         switch toolName {
         case PullRequestHostToolCatalog.listToolName:
             return [:]
-        case PullRequestHostToolCatalog.addReviewCommentsToolName:
-            return [
-                "url": .string(Self.url),
-                "comments": .array([Self.reviewComment(body: "Needs a guard here.")])
-            ]
         case PullRequestHostToolCatalog.replyToThreadToolName:
             return [
                 "url": .string(Self.url),
@@ -245,8 +240,7 @@ final class PullRequestHostToolFixture {
         }
     }
 
-    /// One `add_pr_review_comments` element. The body is what the stub derives its thread ids
-    /// from, so a distinct body is how a test tells one comment's result from another's.
+    /// One `propose_pr_review` comment element.
     static func reviewComment(
         path: String = "Sources/Alpha.swift",
         line: Int = 12,
@@ -259,39 +253,31 @@ final class PullRequestHostToolFixture {
         ])
     }
 
-    /// A batch, one comment per body. Anchors follow position — `Sources/Alpha.swift:1`,
-    /// `Sources/Beta.swift:2`, and so on — so the bodies stay the assertable part.
-    static func reviewCommentArguments(bodies: [String]) -> [String: AgentCLIKit.JSONValue] {
-        let names = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]
+    /// A `propose_pr_review` call staging one comment per body, all anchored to
+    /// `Sources/Alpha.swift` so one stubbed diff covers the batch.
+    static func reviewProposalArguments(
+        event: String = "comment",
+        bodies: [String]
+    ) -> [String: AgentCLIKit.JSONValue] {
         let comments = bodies.enumerated().map { index, body in
-            reviewComment(
-                path: "Sources/\(names[index % names.count]).swift",
-                line: index + 1,
-                body: body
-            )
+            reviewComment(path: "Sources/Alpha.swift", line: index + 1, body: body)
         }
-        return ["url": .string(url), "comments": .array(comments)]
+        return ["url": .string(url), "event": .string(event), "comments": .array(comments)]
     }
 
-    /// An adopted draft that takes the first comment and then refuses, for partial-batch coverage.
-    func failReviewCommentAfterTheFirst() throws {
-        pullRequests.detailResult = .success(
-            makePullRequestDetail(
-                id: try XCTUnwrap(Self.identifier),
-                pendingReviewNodeID: "EXISTING_DRAFT"
-            )
+    /// A diff whose `Sources/Alpha.swift` carries new-side lines 1 through `lineCount`, matching
+    /// `reviewProposalArguments`' anchors.
+    func stubAlphaDiff(lineCount: Int = 5) {
+        let added = (1...lineCount).map { "+line \($0)" }.joined(separator: "\n")
+        pullRequests.diffResult = .success(
+            """
+            diff --git a/Sources/Alpha.swift b/Sources/Alpha.swift
+            --- a/Sources/Alpha.swift
+            +++ b/Sources/Alpha.swift
+            @@ -1,0 +1,\(lineCount) @@
+            \(added)
+            """
         )
-        pullRequests.addPendingCommentResults = [
-            .success(
-                StubPullRequestsService.makePendingThread(
-                    path: "Sources/Alpha.swift",
-                    line: 1,
-                    side: .right,
-                    body: "First"
-                )
-            ),
-            .failure(.transport("offline"))
-        ]
     }
 
     /// Makes the calling thread an automated scheduled run, which only `close_pr` refuses.

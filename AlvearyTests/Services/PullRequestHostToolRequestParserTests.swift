@@ -71,50 +71,62 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
             "line": .number(3),
             "body": .string("Guard this.")
         ]
-        XCTAssertEqual(try parser.parseReviewComments(arguments: Self.batch([comment])).comments.first?.side, .right)
+        XCTAssertEqual(try parser.parseReviewProposal(arguments: Self.batch([comment])).comments.first?.side, .right)
 
         comment["side"] = .string("BOTH")
-        XCTAssertThrowsError(try parser.parseReviewComments(arguments: Self.batch([comment])))
+        XCTAssertThrowsError(try parser.parseReviewProposal(arguments: Self.batch([comment])))
     }
 
     func testAReviewCommentBatchIsBoundedAtBothEnds() throws {
-        XCTAssertThrowsError(try parser.parseReviewComments(arguments: Self.batch([]))) { error in
-            XCTAssertTrue(error.localizedDescription.contains("at least 1"), error.localizedDescription)
+        // Omitting the array is the summary-only shape; passing it empty is a refusal, so the
+        // two spellings cannot silently mean the same call.
+        XCTAssertThrowsError(try parser.parseReviewProposal(arguments: Self.batch([]))) { error in
+            XCTAssertTrue(error.localizedDescription.contains("omit it"), error.localizedDescription)
         }
-        let overCap = (0...PullRequestHostToolLimits.maxReviewCommentsPerCall).map { index in
+        let summaryOnly = try parser.parseReviewProposal(
+            arguments: ["url": .string(Self.url), "event": .string("approve")]
+        )
+        XCTAssertTrue(summaryOnly.comments.isEmpty)
+        let overCap = (0...PullRequestHostToolLimits.maxReviewCommentsPerProposal).map { index in
             Self.comment(line: index + 1)
         }
-        XCTAssertThrowsError(try parser.parseReviewComments(arguments: Self.batch(overCap))) { error in
+        XCTAssertThrowsError(try parser.parseReviewProposal(arguments: Self.batch(overCap))) { error in
             XCTAssertTrue(
-                error.localizedDescription.contains("\(PullRequestHostToolLimits.maxReviewCommentsPerCall)"),
+                error.localizedDescription.contains("\(PullRequestHostToolLimits.maxReviewCommentsPerProposal)"),
                 error.localizedDescription
             )
         }
         // Two remarks on one line are legal GitHub state, so a duplicate anchor is not the
         // parser's to refuse.
-        let duplicated = try parser.parseReviewComments(arguments: Self.batch([Self.comment(), Self.comment()]))
+        let duplicated = try parser.parseReviewProposal(arguments: Self.batch([Self.comment(), Self.comment()]))
         XCTAssertEqual(duplicated.comments.count, 2)
     }
 
     func testAMalformedCommentIsRefusedByItsIndex() throws {
         XCTAssertThrowsError(
-            try parser.parseReviewComments(arguments: ["url": .string(Self.url), "comments": .array([.string("x")])])
+            try parser.parseReviewProposal(
+                arguments: [
+                    "url": .string(Self.url),
+                    "event": .string("comment"),
+                    "comments": .array([.string("x")])
+                ]
+            )
         ) { error in
             XCTAssertTrue(error.localizedDescription.contains("comments[0]"), error.localizedDescription)
         }
         var unknownKey = Self.comment()
         unknownKey["file"] = .string("Sources/A.swift")
         let withUnknownKey = Self.batch([Self.comment(), unknownKey])
-        XCTAssertThrowsError(try parser.parseReviewComments(arguments: withUnknownKey)) { error in
+        XCTAssertThrowsError(try parser.parseReviewProposal(arguments: withUnknownKey)) { error in
             XCTAssertTrue(error.localizedDescription.contains("comments[1]"), error.localizedDescription)
             XCTAssertTrue(error.localizedDescription.contains("file"), error.localizedDescription)
         }
         var blankBody = Self.comment()
         blankBody["body"] = .string("   ")
-        XCTAssertThrowsError(try parser.parseReviewComments(arguments: Self.batch([blankBody])))
+        XCTAssertThrowsError(try parser.parseReviewProposal(arguments: Self.batch([blankBody])))
         var zeroLine = Self.comment()
         zeroLine["line"] = .number(0)
-        XCTAssertThrowsError(try parser.parseReviewComments(arguments: Self.batch([zeroLine])))
+        XCTAssertThrowsError(try parser.parseReviewProposal(arguments: Self.batch([zeroLine])))
     }
 
     func testAnUnknownReviewEventNamesTheValidOnes() {
@@ -169,16 +181,21 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
         XCTAssertNotEqual(comment.canonicalPayloadHash, reply.canonicalPayloadHash)
     }
 
-    /// A batch is written one comment at a time, so which ones landed depends on the order: a
-    /// reordered call is a different call, not a retry of the first.
+    /// The staged comments are confirmed and written in order, so which review the user saw
+    /// depends on it: a reordered call is a different call, not a retry of the first.
     func testABatchHashCoversEveryCommentAndTheirOrder() throws {
         let first = Self.comment(line: 1, body: "First")
         let second = Self.comment(line: 2, body: "Second")
-        let ordered = try parser.parseReviewComments(arguments: Self.batch([first, second]))
-        let reordered = try parser.parseReviewComments(arguments: Self.batch([second, first]))
+        let ordered = try parser.parseReviewProposal(arguments: Self.batch([first, second]))
+        let reordered = try parser.parseReviewProposal(arguments: Self.batch([second, first]))
         XCTAssertNotEqual(ordered.canonicalPayloadHash, reordered.canonicalPayloadHash)
 
-        let edited = try parser.parseReviewComments(
+        let summaryOnly = try parser.parseReviewProposal(
+            arguments: ["url": .string(Self.url), "event": .string("comment")]
+        )
+        XCTAssertNotEqual(ordered.canonicalPayloadHash, summaryOnly.canonicalPayloadHash)
+
+        let edited = try parser.parseReviewProposal(
             arguments: Self.batch([first, Self.comment(line: 2, body: "Rewritten")])
         )
         XCTAssertNotEqual(ordered.canonicalPayloadHash, edited.canonicalPayloadHash)
@@ -186,8 +203,8 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
         // Side is hashed after defaulting, so naming the default is the same call as omitting it.
         var explicitSide = first
         explicitSide["side"] = .string(PullRequestDiffSide.right.rawValue)
-        let defaulted = try parser.parseReviewComments(arguments: Self.batch([first]))
-        let explicit = try parser.parseReviewComments(arguments: Self.batch([explicitSide]))
+        let defaulted = try parser.parseReviewProposal(arguments: Self.batch([first]))
+        let explicit = try parser.parseReviewProposal(arguments: Self.batch([explicitSide]))
         XCTAssertEqual(defaulted.canonicalPayloadHash, explicit.canonicalPayloadHash)
     }
 
@@ -202,6 +219,10 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
     private static func batch(
         _ comments: [[String: AgentCLIKit.JSONValue]]
     ) -> [String: AgentCLIKit.JSONValue] {
-        ["url": .string(url), "comments": .array(comments.map(AgentCLIKit.JSONValue.object))]
+        [
+            "url": .string(url),
+            "event": .string("comment"),
+            "comments": .array(comments.map(AgentCLIKit.JSONValue.object))
+        ]
     }
 }

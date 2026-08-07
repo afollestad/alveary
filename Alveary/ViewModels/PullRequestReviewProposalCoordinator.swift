@@ -11,11 +11,23 @@ struct PullRequestReviewProposalPresentation: Identifiable, Equatable {
     /// What the model asked for. The user may confirm a different verdict.
     let proposedEvent: PullRequestReviewEvent
     let body: String?
+    /// The review's staged inline comments, held in the envelope until the user confirms.
+    let comments: [PullRequestReviewProposalRecord.Comment]
+    /// The user's own already-pending draft comments on GitHub, distinct from `comments`.
     let pendingCommentCount: Int
     let createdAt: Date
 
     var displayKey: String {
         identifier.displayKey
+    }
+}
+
+/// Confirm-time failures of the proposal flow itself, beside the service's own errors.
+enum PullRequestReviewProposalSubmissionError: LocalizedError {
+    case missingNodeID
+
+    var errorDescription: String? {
+        "Alveary could not read the pull request's GitHub node ID to stage the review's comments. Try again."
     }
 }
 
@@ -142,21 +154,7 @@ final class PullRequestReviewProposalCoordinator {
             // Re-read GitHub rather than trusting the snapshot: the pull request can merge, or the
             // draft review can change, between proposing and confirming.
             let detail = try await pullRequestsService.fetchDetail(presentation.identifier)
-            let body = presentation.body ?? ""
-            if let reviewNodeID = detail.pendingReviewNodeID {
-                // Finish the existing draft rather than opening a second review beside it.
-                try await pullRequestsService.submitPendingReview(
-                    reviewNodeID: reviewNodeID,
-                    event: event,
-                    body: body
-                )
-            } else {
-                try await pullRequestsService.submitReview(
-                    presentation.identifier,
-                    event: event,
-                    body: body
-                )
-            }
+            try await submit(presentation: presentation, event: event, detail: detail)
         } catch {
             errorMessages[proposalID] = Self.message(for: error)
             return false
@@ -261,10 +259,11 @@ final class PullRequestReviewProposalCoordinator {
         }
         var draft = PendingReviewDraft()
         draft.overallComment = presentation.body ?? ""
+        // Staged comments count like pending ones: confirming publishes both.
         return PullRequestsViewModel.canSubmitReview(
             event: event,
             draft: draft,
-            pendingCommentCount: presentation.pendingCommentCount
+            pendingCommentCount: presentation.pendingCommentCount + presentation.comments.count
         )
     }
 
@@ -274,6 +273,70 @@ final class PullRequestReviewProposalCoordinator {
 }
 
 private extension PullRequestReviewProposalCoordinator {
+    /// The confirmed submission. Staged comments are written into the viewer's pending draft
+    /// first — adopting an existing draft, since GitHub allows one per viewer, which also keeps
+    /// publishing the user's own draft comments the way submitting always has — and
+    /// `submitPendingReview` is the one call that publishes anything. A failure before it leaves
+    /// only a private draft, and the card stays confirmable for a retry.
+    func submit(
+        presentation: PullRequestReviewProposalPresentation,
+        event: PullRequestReviewEvent,
+        detail: PullRequestDetail
+    ) async throws {
+        let body = presentation.body ?? ""
+        guard !presentation.comments.isEmpty else {
+            if let reviewNodeID = detail.pendingReviewNodeID {
+                // Finish the existing draft rather than opening a second review beside it.
+                try await pullRequestsService.submitPendingReview(
+                    reviewNodeID: reviewNodeID,
+                    event: event,
+                    body: body
+                )
+            } else {
+                try await pullRequestsService.submitReview(presentation.identifier, event: event, body: body)
+            }
+            return
+        }
+        let reviewNodeID: String
+        if let existing = detail.pendingReviewNodeID {
+            reviewNodeID = existing
+        } else if let pullRequestNodeID = detail.nodeID {
+            reviewNodeID = try await pullRequestsService.createPendingReview(pullRequestNodeID: pullRequestNodeID)
+        } else {
+            throw PullRequestReviewProposalSubmissionError.missingNodeID
+        }
+        for comment in presentation.comments where !Self.alreadyWritten(comment, in: detail) {
+            _ = try await pullRequestsService.addPendingReviewComment(
+                reviewNodeID: reviewNodeID,
+                path: comment.path,
+                line: comment.line,
+                side: comment.side == PullRequestDiffSide.left.rawValue ? .left : .right,
+                body: comment.body
+            )
+        }
+        try await pullRequestsService.submitPendingReview(reviewNodeID: reviewNodeID, event: event, body: body)
+    }
+
+    /// A retry after a mid-flow failure must not write a comment the first attempt already
+    /// landed, so a staged comment matching a pending draft comment by anchor and body is
+    /// skipped. This also absorbs a staged comment identical to one the user drafted themselves.
+    static func alreadyWritten(
+        _ comment: PullRequestReviewProposalRecord.Comment,
+        in detail: PullRequestDetail
+    ) -> Bool {
+        let body = comment.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        return detail.reviewThreads.contains { thread in
+            thread.isPending
+                && thread.path == comment.path
+                && thread.line == comment.line
+                && thread.side.rawValue == comment.side
+                && thread.comments.contains { candidate in
+                    candidate.isPending
+                        && candidate.bodyMarkdown.trimmingCharacters(in: .whitespacesAndNewlines) == body
+                }
+        }
+    }
+
     static func presentation(
         for record: PullRequestReviewProposalRecord,
         conversationID: String
@@ -289,6 +352,7 @@ private extension PullRequestReviewProposalCoordinator {
             title: record.titleSnapshot,
             proposedEvent: event,
             body: record.body,
+            comments: record.stagedComments,
             pendingCommentCount: record.pendingCommentCountSnapshot,
             createdAt: record.createdAt
         )

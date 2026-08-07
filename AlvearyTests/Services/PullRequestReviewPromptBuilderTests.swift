@@ -64,7 +64,6 @@ final class PullRequestReviewPromptBuilderTests: XCTestCase {
         PullRequestHostToolCatalog.detailToolName,
         PullRequestHostToolCatalog.timelineToolName,
         PullRequestHostToolCatalog.diffToolName,
-        PullRequestHostToolCatalog.addReviewCommentsToolName,
         PullRequestHostToolCatalog.proposeReviewToolName
     ]
 }
