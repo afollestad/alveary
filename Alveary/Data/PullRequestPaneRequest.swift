@@ -10,6 +10,11 @@ import SwiftData
 struct PullRequestPaneRequest: Equatable {
     let identifier: PullRequestIdentifier
     let threadID: PersistentIdentifier
+    /// Set when the ask came from a review proposal's staged comment: the pane opens on its
+    /// Changes tab scrolled to that comment. It carries no proposal id — the pane resolves a
+    /// pending proposal from the pull request itself, so *every* route shows the same staged
+    /// comments and only the scroll is particular to a jump.
+    var commentAnchor: DiffCommentAnchor?
 }
 
 enum PullRequestPaneRequestNotificationKey {

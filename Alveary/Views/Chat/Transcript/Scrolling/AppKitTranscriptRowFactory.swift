@@ -61,6 +61,9 @@ final class AppKitTranscriptRowFactory {
         var onSelectReviewVerdict: (String, PullRequestReviewEvent) -> Void = { _, _ in }
         /// Drops one staged comment from a review proposal, by its position in the stored envelope.
         var onRemoveReviewProposalComment: (String, Int) -> Void = { _, _ in }
+        /// Opens one staged comment in the pull request pane. A pure output callback, so it stays
+        /// out of `ContentSignature` like `onRemoveReviewProposalComment` beside it.
+        var onJumpToReviewProposalComment: (String, DiffCommentAnchor) -> Void = { _, _ in }
         /// Fetches the avatars on a review proposal's comment cards. Deliberately absent from
         /// `ContentSignature`: it is an app-lifetime actor set before the first render, so it is
         /// row identity rather than render input, and it is not `Equatable`.

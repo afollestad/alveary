@@ -89,6 +89,62 @@ extension PullRequestHostToolServiceTests {
         XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
     }
 
+    /// A context line carries both an old and a new number, so a raw old-number comparison used to
+    /// accept a LEFT anchor on one. The pane anchors a context line RIGHT only, so such a comment
+    /// validated here and then rendered nowhere — refusing it keeps a confirmable proposal
+    /// renderable.
+    func testALeftAnchorOnAContextLineIsRefused() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+        fixture.stubAlphaDiffWithContextAndDeletion()
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: [
+                "url": .string(PullRequestHostToolFixture.url),
+                "event": .string("comment"),
+                "comments": .array([
+                    PullRequestHostToolFixture.reviewComment(line: 1, side: "LEFT", body: "On context")
+                ])
+            ]
+        )
+
+        XCTAssertTrue(result.isError, result.text)
+        XCTAssertTrue(result.text.contains("comments[0]"), result.text)
+        XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
+    }
+
+    /// The sides the pane can actually draw: LEFT on a deleted line, RIGHT on a context or added
+    /// one. Guards the tightening above against over-refusing.
+    func testAnchorsThePaneCanDrawStillPass() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+        fixture.stubAlphaDiffWithContextAndDeletion()
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: [
+                "url": .string(PullRequestHostToolFixture.url),
+                "event": .string("comment"),
+                "comments": .array([
+                    PullRequestHostToolFixture.reviewComment(line: 2, side: "LEFT", body: "On deletion"),
+                    PullRequestHostToolFixture.reviewComment(line: 1, side: "RIGHT", body: "On context"),
+                    PullRequestHostToolFixture.reviewComment(line: 2, side: "RIGHT", body: "On addition")
+                ])
+            ]
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        let record = try XCTUnwrap(try fixture.conversation.pullRequestReviewProposal())
+        XCTAssertEqual(record.stagedComments.count, 3)
+    }
+
     func testApprovingYourOwnPullRequestIsRefusedBeforeTheUserIsAsked() async throws {
         let fixture = try PullRequestHostToolFixture()
         let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)

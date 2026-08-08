@@ -241,16 +241,22 @@ final class PullRequestHostToolFixture {
     }
 
     /// One `propose_pr_review` comment element.
+    /// `side` is omitted by default, which the parser reads as RIGHT.
     static func reviewComment(
         path: String = "Sources/Alpha.swift",
         line: Int = 12,
+        side: String? = nil,
         body: String
     ) -> AgentCLIKit.JSONValue {
-        .object([
+        var fields: [String: AgentCLIKit.JSONValue] = [
             "path": .string(path),
             "line": .number(Double(line)),
             "body": .string(body)
-        ])
+        ]
+        if let side {
+            fields["side"] = .string(side)
+        }
+        return .object(fields)
     }
 
     /// A `propose_pr_review` call staging one comment per body, all anchored to
@@ -276,6 +282,22 @@ final class PullRequestHostToolFixture {
             +++ b/Sources/Alpha.swift
             @@ -1,0 +1,\(lineCount) @@
             \(added)
+            """
+        )
+    }
+
+    /// A diff whose `Sources/Alpha.swift` carries one context line (old and new 1), one deleted
+    /// line (old 2), and one added line (new 2) — the shapes the side rules discriminate on.
+    func stubAlphaDiffWithContextAndDeletion() {
+        pullRequests.diffResult = .success(
+            """
+            diff --git a/Sources/Alpha.swift b/Sources/Alpha.swift
+            --- a/Sources/Alpha.swift
+            +++ b/Sources/Alpha.swift
+            @@ -1,2 +1,2 @@
+             context line
+            -old second
+            +new second
             """
         )
     }

@@ -30,7 +30,12 @@ struct PullRequestReviewThreadView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                if thread.isPending {
+                // Both are unpublished, so they share a tint, but they are different states:
+                // "Proposed" is staged in Alveary's review-proposal envelope, "Pending" is the
+                // viewer's server-side draft. Mutually exclusive by construction.
+                if thread.isProposed {
+                    PullRequestCommentBadge("Proposed", color: .orange)
+                } else if thread.isPending {
                     PullRequestCommentBadge("Pending", color: .orange)
                 }
 
@@ -43,7 +48,7 @@ struct PullRequestReviewThreadView: View {
 
                 if !thread.isOutdated {
                     Button {
-                        onOpenFiles()
+                        showInChanges()
                     } label: {
                         ActionButtonLabel(
                             title: "Show in Changes",
@@ -54,7 +59,7 @@ struct PullRequestReviewThreadView: View {
                     .buttonStyle(.plain)
                     .font(.caption)
                     .foregroundStyle(Color.accentColor)
-                    .accessibilityHint("Switches to the Changes tab")
+                    .accessibilityHint("Shows this comment in the Changes tab")
                 }
             }
 
@@ -135,7 +140,15 @@ struct PullRequestReviewThreadView: View {
                     PullRequestTimestampLabel(date: date, referenceDate: viewModel.referenceDate)
                 }
 
-                if isActionable(comment), !isEditing {
+                // A staged comment is removed, never edited — remove and re-add is the path —
+                // and removal reaches nothing but Alveary's own envelope, so it takes no
+                // confirmation, exactly as deleting an unpublished pending comment does.
+                if let proposedIndex = comment.proposedIndex {
+                    PullRequestCommentActionsMenu(
+                        onEdit: nil,
+                        onDelete: { viewModel.removeProposedComment(at: proposedIndex) }
+                    )
+                } else if isActionable(comment), !isEditing {
                     PullRequestCommentActionsMenu(
                         onEdit: comment.viewerCanUpdate ? { viewModel.openThreadCommentEditor(comment) } : nil,
                         onDelete: comment.viewerCanDelete ? { viewModel.requestDeleteThreadComment(comment) } : nil
@@ -196,5 +209,25 @@ struct PullRequestReviewThreadView: View {
             return "\(thread.path):\(line)"
         }
         return thread.path
+    }
+
+    /// Reveals this thread on the Changes tab. The scroll goes through the view model rather than
+    /// widening `onOpenFiles`, both because pane children route actions through the view model
+    /// rather than growing stored closures, and because the tab switch then has one owner: the
+    /// pane observes the scroll request and selects the tab (see `PullRequestPane`).
+    ///
+    /// A thread with no line has nothing to scroll to — it can still only switch tabs.
+    private func showInChanges() {
+        guard let line = thread.line else {
+            onOpenFiles()
+            return
+        }
+        viewModel.requestCommentScroll(
+            to: DiffCommentAnchor(
+                path: thread.path,
+                side: thread.side == .left ? .left : .right,
+                line: line
+            )
+        )
     }
 }

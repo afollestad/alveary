@@ -325,6 +325,95 @@ private extension AppKitReviewProposalCommentRemoveButton {
     }
 }
 
+/// Opens this comment in the pull request pane's Changes tab, scrolled to the line it annotates.
+///
+/// Single press, unlike the Remove pill beside it: this navigates rather than destroys, so an
+/// arm/confirm step would only be friction. It wears `Octicon.fileDiff16`, the same glyph the
+/// pane's own "Show in Changes" button uses, so the two jump affordances read as one concept.
+@MainActor
+final class AppKitReviewProposalCommentJumpButton: AppKitHostToolWidgetBubbleView {
+    /// Matches the Remove button so the two sit on one line without changing the row's height.
+    static let diameter = AppKitReviewProposalCommentRemoveButton.diameter
+    static let alignmentDiameter = AppKitReviewProposalCommentRemoveButton.alignmentDiameter
+
+    var onJump: (() -> Void)?
+
+    private let glyphView = NSImageView()
+    /// Held because an octicon's tint is baked into the rendered image, so an appearance change
+    /// has to redraw it — unlike an SF Symbol, which `AppKitDynamicTintImageView` can retint.
+    private var glyphSide: CGFloat = 12
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        translatesAutoresizingMaskIntoConstraints = false
+        wantsLayer = true
+        layer?.cornerRadius = Self.diameter / 2
+        isInteractive = true
+        onHoverChanged = { [weak self] _ in
+            self?.applyState()
+        }
+        onActivate = { [weak self] in
+            self?.onJump?()
+        }
+        setupContent()
+        applyState()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: Self.alignmentDiameter, height: Self.alignmentDiameter)
+    }
+
+    /// Keeps the hover circle growing outward from the glyph's own box rather than widening the
+    /// author row, exactly as the Remove button does.
+    override var alignmentRectInsets: NSEdgeInsets {
+        let inset = (Self.diameter - Self.alignmentDiameter) / 2
+        return NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
+    }
+
+    func configure(fontSize: CGFloat) {
+        glyphSide = fontSize
+        renderGlyph()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        renderGlyph()
+    }
+}
+
+private extension AppKitReviewProposalCommentJumpButton {
+    func setupContent() {
+        glyphView.translatesAutoresizingMaskIntoConstraints = false
+        glyphView.setAccessibilityElement(false)
+        glyphView.imageScaling = .scaleProportionallyUpOrDown
+        addSubview(glyphView)
+        NSLayoutConstraint.activate([
+            widthAnchor.constraint(equalToConstant: Self.alignmentDiameter),
+            heightAnchor.constraint(equalToConstant: Self.alignmentDiameter),
+            glyphView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            glyphView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            glyphView.widthAnchor.constraint(equalTo: widthAnchor),
+            glyphView.heightAnchor.constraint(equalTo: heightAnchor)
+        ])
+        setAccessibilityLabel("Show in pull request")
+        toolTip = "Show this comment in the pull request"
+    }
+
+    func renderGlyph() {
+        let color = NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: 1)
+        glyphView.image = ActionIcon.octicon(.fileDiff16).nsImage(side: glyphSide, color: color)
+    }
+
+    func applyState() {
+        setLayerFillColor(.secondaryLabelColor, alpha: isHovered ? 0.16 : 0)
+    }
+}
+
 extension AppKitPullRequestCommentBadgeView {
     /// The pane's orange, taken from the SwiftUI token rather than `.systemOrange` so the pill
     /// matches `PullRequestCommentBadge("Pending", color: .orange)` exactly.

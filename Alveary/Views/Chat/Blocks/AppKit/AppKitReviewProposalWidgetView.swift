@@ -53,6 +53,7 @@ final class AppKitReviewProposalWidgetView: NSView {
     var onSelectEvent: ((String, PullRequestReviewEvent) -> Void)?
     /// Drops one of the review's staged comments, by its position in the stored envelope.
     var onRemoveComment: ((String, Int) -> Void)?
+    var onJumpToComment: ((String, DiffCommentAnchor) -> Void)?
     var onOpenPullRequest: ((PullRequestIdentifier) -> Void)?
     /// A comment card's markdown body can change height after an inline image loads.
     var onHeightInvalidated: (() -> Void)?
@@ -93,6 +94,12 @@ final class AppKitReviewProposalWidgetView: NSView {
         }
         diffView.onOpenLink = { [weak self] url in
             self?.onOpenMarkdownLink?(url)
+        }
+        diffView.onJumpToProposedComment = { [weak self] anchor in
+            guard let self, let proposalID = configuration?.presentation?.id else {
+                return
+            }
+            onJumpToComment?(proposalID, anchor)
         }
         diffView.onRemoveProposedComment = { [weak self] index in
             guard let proposalID = self?.configuration?.presentation?.id else {
@@ -321,7 +328,11 @@ private extension AppKitReviewProposalWidgetView {
         diffView.configure(
             preview: preview,
             typography: configuration.typography,
-            allowsRemoval: !configuration.isSubmitting
+            allowsRemoval: !configuration.isSubmitting,
+            // A preview only loads for the conversation that opened the proposal — another
+            // conversation's copy renders read-only with no presentation and no diff — so
+            // reaching here means there is a proposal to jump into.
+            allowsJumping: true
         )
         stack.addFullWidthArrangedSubview(diffView)
     }

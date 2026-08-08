@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 extension ChatTranscriptView {
     /// Wires the review-proposal card: the diff preview it renders, the verdict picker, and the
@@ -47,6 +48,42 @@ extension ChatTranscriptView {
         configuration.onRemoveReviewProposalComment = { proposalID, index in
             coordinator.removeStagedComment(proposalID: proposalID, at: index)
         }
+        let threadID = viewModel.conversation.thread?.persistentModelID
+        configuration.onJumpToReviewProposalComment = { proposalID, anchor in
+            Self.postJumpRequest(
+                proposalID: proposalID,
+                anchor: anchor,
+                threadID: threadID,
+                coordinator: coordinator
+            )
+        }
+    }
+
+    /// The transcript reaches neither the browsing view model nor the pane lane, so a jump travels
+    /// as a notification the way the link cards' open does. It carries only the anchor: the pane
+    /// resolves the pull request's pending proposal itself, so opening from here shows the same
+    /// staged comments any other route would.
+    private static func postJumpRequest(
+        proposalID: String,
+        anchor: DiffCommentAnchor,
+        threadID: PersistentIdentifier?,
+        coordinator: PullRequestReviewProposalCoordinator
+    ) {
+        guard let threadID,
+              let identifier = coordinator.presentation(forProposalID: proposalID)?.identifier else {
+            return
+        }
+        NotificationCenter.default.post(
+            name: .pullRequestPaneRequested,
+            object: nil,
+            userInfo: [
+                PullRequestPaneRequestNotificationKey.request: PullRequestPaneRequest(
+                    identifier: identifier,
+                    threadID: threadID,
+                    commentAnchor: anchor
+                )
+            ]
+        )
     }
 
     private static func reviewProposalState(

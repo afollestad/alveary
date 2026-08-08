@@ -4,16 +4,37 @@ enum DiffPreviewHunkDisplayRows {
     private static let collapsedContextMinimum = 8
     private static let visibleContextRadius = 3
 
-    static func makeRows(for hunk: DiffHunk) -> [DiffHunkDisplayRow] {
+    /// `commentPath` and `commentAnchors` keep a commented line out of a collapsed run. Comment
+    /// rows are only ever emitted from a rendered line row, so a line folded into an `.omitted`
+    /// summary takes its thread with it — silently, because the row builder walks lines asking
+    /// whether each has a thread and never asks a thread whether it found a line. Callers with no
+    /// annotations pass an empty set, which keeps the row stream byte-identical.
+    static func makeRows(
+        for hunk: DiffHunk,
+        commentPath: String = "",
+        commentAnchors: Set<DiffCommentAnchor> = []
+    ) -> [DiffHunkDisplayRow] {
         let changedIndices = hunk.lines.indices.filter { hunk.lines[$0].type != .context }
-        guard !changedIndices.isEmpty else {
+        let anchoredIndices = commentAnchors.isEmpty ? [] : hunk.lines.indices.filter { index in
+            guard let anchor = FlattenedDiffPreviewRows.commentAnchor(
+                for: hunk.lines[index],
+                path: commentPath
+            ) else {
+                return false
+            }
+            return commentAnchors.contains(anchor)
+        }
+        // An anchored line seeds visibility like a changed one, so a comment on untouched
+        // surrounding code still has a row to hang from.
+        let seedIndices = changedIndices + anchoredIndices
+        guard !seedIndices.isEmpty else {
             return hunk.lines.map(DiffHunkDisplayRow.line)
         }
 
         var visibleIndices: Set<Int> = []
-        for changedIndex in changedIndices {
-            let lowerBound = max(0, changedIndex - visibleContextRadius)
-            let upperBound = min(hunk.lines.count - 1, changedIndex + visibleContextRadius)
+        for seedIndex in seedIndices {
+            let lowerBound = max(0, seedIndex - visibleContextRadius)
+            let upperBound = min(hunk.lines.count - 1, seedIndex + visibleContextRadius)
             for visibleIndex in lowerBound...upperBound {
                 visibleIndices.insert(visibleIndex)
             }

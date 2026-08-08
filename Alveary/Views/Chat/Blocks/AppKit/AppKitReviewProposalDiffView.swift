@@ -26,11 +26,14 @@ final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
     var onOpenLink: ((URL) -> Void)?
     /// Drops a staged comment from the review, by its position in the stored envelope.
     var onRemoveProposedComment: ((Int) -> Void)?
+    /// Opens a staged comment in the pull request pane, by the anchor it was written against.
+    var onJumpToProposedComment: ((DiffCommentAnchor) -> Void)?
 
     private let stack = NSStackView()
     private var renderedPreview: PullRequestReviewProposalPreview?
     private var renderedTypography: TranscriptTypography?
     private var renderedAllowsRemoval = false
+    private var renderedAllowsJumping = false
     /// Rebuilt views are reused rather than reconstructed. The chat font-size setting is a live
     /// slider, so every step reconfigures this view; rebuilding from scratch would recreate a
     /// markdown body and refire an avatar load per comment on each one.
@@ -78,17 +81,25 @@ final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
     func configure(
         preview: PullRequestReviewProposalPreview,
         typography: TranscriptTypography,
-        allowsRemoval: Bool
+        allowsRemoval: Bool,
+        allowsJumping: Bool
     ) {
         guard renderedPreview != preview
             || renderedTypography != typography
-            || renderedAllowsRemoval != allowsRemoval else {
+            || renderedAllowsRemoval != allowsRemoval
+            || renderedAllowsJumping != allowsJumping else {
             return
         }
         renderedPreview = preview
         renderedTypography = typography
         renderedAllowsRemoval = allowsRemoval
-        rebuild(preview: preview, typography: typography, allowsRemoval: allowsRemoval)
+        renderedAllowsJumping = allowsJumping
+        rebuild(
+            preview: preview,
+            typography: typography,
+            allowsRemoval: allowsRemoval,
+            allowsJumping: allowsJumping
+        )
     }
 
     /// The widest rendered row, so the card can size to its content like every other widget body.
@@ -108,7 +119,8 @@ private extension AppKitReviewProposalDiffView {
     func rebuild(
         preview: PullRequestReviewProposalPreview,
         typography: TranscriptTypography,
-        allowsRemoval: Bool
+        allowsRemoval: Bool,
+        allowsJumping: Bool
     ) {
         // Detached, not discarded: the pools below hand the same views back, so a rebuild costs
         // reconfiguration instead of reconstruction. Removing from the superview is what retires
@@ -124,7 +136,8 @@ private extension AppKitReviewProposalDiffView {
         let context = AppKitReviewProposalCommentContext(
             typography: typography,
             avatarLoader: avatarLoader,
-            allowsRemoval: allowsRemoval
+            allowsRemoval: allowsRemoval,
+            allowsJumping: allowsJumping
         )
         var rowCount = 0
         var cardCount = 0
@@ -177,6 +190,9 @@ private extension AppKitReviewProposalDiffView {
         }
         view.onOpenLink = { [weak self] url in
             self?.onOpenLink?(url)
+        }
+        view.onJump = { [weak self] anchor in
+            self?.onJumpToProposedComment?(anchor)
         }
         view.onRemove = { [weak self] index in
             self?.onRemoveProposedComment?(index)

@@ -202,6 +202,22 @@ enum FlattenedDiffPreviewRows {
         }
     }
 
+    /// Lines that context collapsing must keep visible, because a collapsed line takes its
+    /// comment row with it. Empty while the annotations are inert, which is what keeps the
+    /// diff viewer's row stream byte-identical.
+    private static func collapseExemptAnchors(
+        in commentAnnotations: DiffCommentAnnotations
+    ) -> Set<DiffCommentAnchor> {
+        guard commentAnnotations.isActive else {
+            return []
+        }
+        var anchors = Set(commentAnnotations.threads.keys)
+        if let composerAnchor = commentAnnotations.composerAnchor {
+            anchors.insert(composerAnchor)
+        }
+        return anchors
+    }
+
     /// Maps a diff line to the GitHub review-comment anchor for its changed side:
     /// added and context lines anchor RIGHT on the new line number, deleted lines
     /// anchor LEFT on the old line number.
@@ -228,6 +244,7 @@ enum FlattenedDiffPreviewRows {
     ) throws -> [FlattenedDiffPreviewRow] {
         let lineNumberWidth = lineNumberWidth(for: file)
         let commentPath = file.newPath ?? file.oldPath ?? file.path
+        let commentAnchors = collapseExemptAnchors(in: commentAnnotations)
         var allRows: [FlattenedDiffPreviewRow] = []
         for (hunkIndex, hunk) in file.hunks.enumerated() {
             try checkCancellationIfNeeded(checksCancellation)
@@ -240,7 +257,11 @@ enum FlattenedDiffPreviewRows {
                 )
             ]
 
-            let displayRows = DiffPreviewHunkDisplayRows.makeRows(for: hunk)
+            let displayRows = DiffPreviewHunkDisplayRows.makeRows(
+                for: hunk,
+                commentPath: commentPath,
+                commentAnchors: commentAnchors
+            )
             for (rowIndex, displayRow) in displayRows.enumerated() {
                 try checkCancellationIfNeeded(checksCancellation)
                 let isLastInHunk = rowIndex == displayRows.indices.last

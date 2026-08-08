@@ -89,7 +89,11 @@ extension SnapshotTests {
         session.detail?.reviewThreads = [PullRequestPaneSnapshots.diffAnchoredThread]
 
         assertMacSnapshot(
-            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            PullRequestPaneFiles(
+                session: session,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                target: PullRequestPaneSnapshots.target
+            ),
             size: CGSize(width: 460, height: 520),
             named: "pull_request_pane_files_comment_thread"
         )
@@ -103,7 +107,11 @@ extension SnapshotTests {
         session.detail?.reviewThreads = [PullRequestPaneSnapshots.diffAnchoredThread]
 
         assertMacSnapshot(
-            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            PullRequestPaneFiles(
+                session: session,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                target: PullRequestPaneSnapshots.target
+            ),
             size: CGSize(width: 460, height: 520),
             named: "pull_request_pane_files_comment_thread_dark",
             colorScheme: .dark
@@ -157,7 +165,11 @@ extension SnapshotTests {
         session.diffState = .failed("gh timed out after 60 seconds")
 
         assertMacSnapshot(
-            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            PullRequestPaneFiles(
+                session: session,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                target: PullRequestPaneSnapshots.target
+            ),
             size: CGSize(width: 460, height: 480),
             named: "pull_request_pane_files_diff_failed"
         )
@@ -168,9 +180,82 @@ extension SnapshotTests {
         let session = try XCTUnwrap(fixture.viewModel.paneSessions[fixture.target])
 
         assertMacSnapshot(
-            PullRequestPaneFiles(session: session, viewModel: fixture.viewModel),
+            PullRequestPaneFiles(session: session, viewModel: fixture.viewModel, target: fixture.target),
             size: CGSize(width: 460, height: 720),
             named: "pull_request_pane_files"
+        )
+    }
+
+    /// A review proposal's staged comments render on the Changes tab badged "Proposed" — the
+    /// orange sibling of "Pending", which marks the viewer's server-side draft. Nothing here
+    /// exists on GitHub: the comment lives in Alveary's envelope until the review is submitted.
+    ///
+    /// Which comments show follows the *pull request*, not the route that opened the pane, so this
+    /// host renders the tab directly with no jump involved.
+    func testPullRequestPaneFilesProposedComment() throws {
+        let viewModel = try PullRequestPaneSnapshots.viewModelWithPendingProposal()
+        assertMacSnapshot(
+            PullRequestPaneFiles(
+                session: PullRequestPaneSnapshots.loadedSession,
+                viewModel: viewModel,
+                target: PullRequestPaneSnapshots.target
+            ),
+            size: CGSize(width: 460, height: 520),
+            named: "pull_request_pane_files_proposed_comment"
+        )
+    }
+
+    /// Dark mode is where the card's surface continuity against the code shows, as it is for the
+    /// Pending baseline above.
+    func testPullRequestPaneFilesProposedCommentDark() throws {
+        let viewModel = try PullRequestPaneSnapshots.viewModelWithPendingProposal()
+        assertMacSnapshot(
+            PullRequestPaneFiles(
+                session: PullRequestPaneSnapshots.loadedSession,
+                viewModel: viewModel,
+                target: PullRequestPaneSnapshots.target
+            ),
+            size: CGSize(width: 460, height: 520),
+            named: "pull_request_pane_files_proposed_comment_dark",
+            colorScheme: .dark
+        )
+    }
+
+    /// The Overview renders staged comments as threads too, so a review reads the same on both
+    /// tabs: "Proposed" badge, the location header, and a Remove in the card's own menu — the
+    /// only action, since a staged comment is removed rather than edited.
+    func testPullRequestPaneOverviewProposedThread() async throws {
+        let viewModel = try PullRequestPaneSnapshots.viewModelWithPendingProposal()
+
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
+            size: CGSize(width: 460, height: 1_400),
+            named: "pull_request_pane_overview_proposed_thread"
+        ) {
+            PullRequestPaneOverview(
+                session: PullRequestPaneSnapshots.loadedSession,
+                viewModel: viewModel,
+                onOpenFiles: {}
+            )
+        }
+    }
+
+    /// With a review already written, the footer's default action is finishing it — the stored
+    /// "Agentic review" pick is overridden. The note reads "1 pending comment": the fixture's own
+    /// GitHub draft, *not* the staged comment beside it — the count excludes staged comments until
+    /// submitting actually publishes them, so "2" here means the fold-in returned too early.
+    func testPullRequestPaneFooterPrefersSubmitWithProposedComments() throws {
+        let viewModel = try PullRequestPaneSnapshots.viewModelWithPendingProposal()
+        viewModel.selectReviewFooterAction(.agenticReview)
+
+        assertMacSnapshot(
+            PullRequestPaneReviewFooter(
+                viewModel: viewModel,
+                session: PullRequestPaneSnapshots.loadedSession,
+                target: PullRequestPaneSnapshots.target
+            ),
+            size: CGSize(width: 460, height: 140),
+            named: "pull_request_pane_footer_proposed_prefers_submit"
         )
     }
 
@@ -182,7 +267,11 @@ extension SnapshotTests {
         session.diffFiles = DiffParser.parse(makeUnifiedDiffFixture(fileCount: 20, addedLinesPerFile: 1))
 
         assertMacSnapshot(
-            PullRequestPaneFiles(session: session, viewModel: PullRequestPaneSnapshots.inertViewModel),
+            PullRequestPaneFiles(
+                session: session,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                target: PullRequestPaneSnapshots.target
+            ),
             size: CGSize(width: 460, height: 320),
             named: "pull_request_pane_files_show_more"
         )

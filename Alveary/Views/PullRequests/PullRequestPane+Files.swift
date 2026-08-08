@@ -3,11 +3,16 @@ import SwiftUI
 struct PullRequestPaneFiles: View, Equatable {
     let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
+    /// Which pull request this tab renders. Carried explicitly rather than read from the view
+    /// model's active pane so the view resolves for *itself* — the session it was handed and the
+    /// active pane are the same in production, but only the explicit target survives a host that
+    /// renders the tab without opening a pane, as the snapshots do.
+    let target: PullRequestPaneTarget
 
     /// The rendered diff derives from `session`; the composer state this also reads off
     /// the view model is observed directly, which invalidates the body regardless of `==`.
     nonisolated static func == (lhs: PullRequestPaneFiles, rhs: PullRequestPaneFiles) -> Bool {
-        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
+        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
     }
 
     // The delete-comment confirmation dialog lives on `PullRequestPane`, shared
@@ -102,7 +107,13 @@ struct PullRequestPaneFiles: View, Equatable {
                 // pane edge like the Overview tab's while the rows keep the tab
                 // row's and pane title's horizontal alignment.
                 horizontalContentInset: ContextualPaneLayout.horizontalInset
-                    + DiffViewerPaneMetrics.diffPreviewContentInset
+                    + DiffViewerPaneMetrics.diffPreviewContentInset,
+                scrollTarget: session.pendingCommentScrollTarget.map {
+                    FlattenedDiffPreviewScrollTarget(token: $0.token, rowID: $0.rowID)
+                },
+                onScrollTargetConsumed: { token in
+                    viewModel.consumeCommentScrollTarget(token: token, target: target)
+                }
             )
 
             let remaining = PullRequestDiffFilePaging.remainingFileCount(
@@ -117,7 +128,9 @@ struct PullRequestPaneFiles: View, Equatable {
 
     /// Review threads keyed by anchor. The viewer's own unsubmitted comments are
     /// ordinary threads here — GitHub keeps them in `reviewThreads` badged
-    /// `PENDING`, so nothing local has to be merged in.
+    /// `PENDING`, so nothing local is merged in *except* an attached review
+    /// proposal's staged comments, which exist only in Alveary's envelope and
+    /// render badged "Proposed".
     private var commentAnnotations: DiffCommentAnnotations {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = true
@@ -139,6 +152,17 @@ struct PullRequestPaneFiles: View, Equatable {
                     isPending: thread.isPending
                 )
             }
+        }
+        // Reading the proposal here is what re-renders this tab when the envelope changes: `==`
+        // covers only `session` and view-model identity, but an observed view-model read during
+        // `body` invalidates regardless (see this type's `==` doc comment).
+        if let proposal = viewModel.pendingReviewProposal(for: target) {
+            PullRequestReviewProposalCoordinator.appendStagedComments(
+                proposal.comments,
+                to: &annotations,
+                viewerLogin: session.detail?.viewerLogin,
+                viewerAvatarURL: session.detail?.viewerAvatarURL
+            )
         }
         // Edits render inline inside their thread; only new comments and replies
         // get the standalone composer row below it.
@@ -229,6 +253,9 @@ struct PullRequestPaneFiles: View, Equatable {
                     return
                 }
                 viewModel.deletePendingComment(nodeID: nodeID)
+            },
+            onRemoveProposedComment: viewModel.pendingReviewProposal(for: target) == nil ? nil : { index in
+                viewModel.removeProposedComment(at: index, target: target)
             },
             onAttachFiles: viewModel.supportsAttachmentUploads ? { files in
                 guard let draft = viewModel.composerDraft else {

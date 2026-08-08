@@ -13,6 +13,7 @@ func makePullRequestsViewModel(
     attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
     presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
     agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)? = nil,
+    reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
     now: @escaping () -> Date = Date.init
 ) -> PullRequestsViewModel {
     PullRequestsViewModel(
@@ -25,6 +26,7 @@ func makePullRequestsViewModel(
         attachmentImageRepositoryRegistrar: attachmentImageRepositoryRegistrar,
         presentToast: presentToast,
         agenticReviewStarter: agenticReviewStarter,
+        reviewProposalCoordinator: reviewProposalCoordinator,
         now: now
     )
 }

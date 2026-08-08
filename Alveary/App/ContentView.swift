@@ -118,7 +118,7 @@ struct ContentView: View {
         )
         _pullRequestReviewProposalCoordinator = State(initialValue: bootstrapState.reviewProposalCoordinator)
         _unresolvedApprovalRegistry = State(initialValue: Self.makeUnresolvedApprovalRegistry(dependencies: dependencies))
-        _pullRequestsViewModel = State(initialValue: Self.makePullRequestsViewModel(dependencies: dependencies, appState: appState))
+        _pullRequestsViewModel = State(initialValue: bootstrapState.pullRequestsViewModel)
         _pullRequestLinksViewModel = State(initialValue: Self.makePullRequestLinksViewModel(dependencies: dependencies))
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _archivedThreadsViewModel = State(initialValue: bootstrapState.archivedThreadsViewModel)

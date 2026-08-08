@@ -18,6 +18,7 @@ extension AppKitTranscriptRowFactory {
         view.onRejectReviewProposal = configuration.onRejectReviewProposal
         view.onSelectReviewVerdict = configuration.onSelectReviewVerdict
         view.onRemoveReviewProposalComment = configuration.onRemoveReviewProposalComment
+        view.onJumpToReviewProposalComment = configuration.onJumpToReviewProposalComment
         view.avatarLoader = configuration.reviewProposalAvatarLoader
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
         // A resolved widget must not adopt the conversation's *next* proposal, so the

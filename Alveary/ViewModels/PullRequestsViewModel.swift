@@ -44,6 +44,12 @@ final class PullRequestsViewModel {
     /// id. A closure rather than the service so tests and previews stay light; nil means
     /// the footer's Agentic review option does nothing.
     let agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)?
+    /// Resolves the pane's attached review proposal and owns the envelope it renders from.
+    /// This is not the `ModelContext` this view model deliberately does without — the
+    /// coordinator holds its own private context; the view model still holds none. Optional
+    /// because tests and previews construct the view model without one, which simply leaves
+    /// every pane unattached. See `PullRequestsViewModel+ReviewProposalAttachment.swift`.
+    let reviewProposalCoordinator: PullRequestReviewProposalCoordinator?
 
     private var hasLoadedListCache = false
 
@@ -128,6 +134,7 @@ final class PullRequestsViewModel {
         attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)? = nil,
+        reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.service = service
@@ -139,6 +146,7 @@ final class PullRequestsViewModel {
         self.attachmentImageRepositoryRegistrar = attachmentImageRepositoryRegistrar
         self.presentToast = presentToast
         self.agenticReviewStarter = agenticReviewStarter
+        self.reviewProposalCoordinator = reviewProposalCoordinator
         self.now = now
         self.referenceDate = now()
         if let settings = settingsService?.current {
@@ -351,6 +359,12 @@ extension PullRequestsViewModel {
                 // holding a snapshot can fill the header now rather than after the fetch.
                 paneSessions[target]?.summary = summary
             }
+            // A retained session can still carry a previous jump's unfired scroll. This open is
+            // not that jump — the root requests a scroll after `openPane` returns — so an ordinary
+            // reopen from the toolbar or the list must not inherit it and jump somewhere the user
+            // did not ask for. Which staged comments render is not session state, so it needs no
+            // equivalent reset.
+            paneSessions[target]?.pendingCommentScrollTarget = nil
             // Reopening a pane whose loads were cancelled on the way out; without this
             // the retained session would render its spinner forever.
             if let generation = paneSessions[target]?.generation {
@@ -440,38 +454,20 @@ extension PullRequestsViewModel {
         refreshActivePaneSummaryStatus()
     }
 
-    // MARK: - Diff shaping
-
-    func showMoreDiffFiles() {
-        guard let target = activePaneTarget,
-              var session = paneSessions[target],
-              let files = session.diffFiles else {
-            return
-        }
-        session.renderedDiffFileCount = PullRequestDiffFilePaging.nextRenderedFileCount(
-            current: session.renderedDiffFileCount,
-            total: files.count
-        )
-        paneSessions[target] = session
-        refreshActivePaneSummaryStatus()
-    }
-
-    func toggleDiffFileCollapse(_ fileID: String) {
-        guard let target = activePaneTarget,
-              var session = paneSessions[target] else {
-            return
-        }
-        if session.collapsedDiffFileIDs.contains(fileID) {
-            session.collapsedDiffFileIDs.remove(fileID)
-        } else {
-            session.collapsedDiffFileIDs.insert(fileID)
-        }
-        paneSessions[target] = session
-        refreshActivePaneSummaryStatus()
-    }
-
     func mutateActiveSession(_ mutate: (inout PullRequestPaneSession) -> Void) {
         guard let target = activePaneTarget, var session = paneSessions[target] else {
+            return
+        }
+        mutate(&session)
+        paneSessions[target] = session
+        refreshActivePaneSummaryStatus()
+    }
+
+    /// Synchronous session write addressed by target rather than by "whichever pane is active".
+    /// Unlike `updateSession(_:generation:_:)` this takes no generation, because its callers run
+    /// on the same cycle as the state they react to rather than after an `await`.
+    func mutateSession(_ target: PullRequestPaneTarget, _ mutate: (inout PullRequestPaneSession) -> Void) {
+        guard var session = paneSessions[target] else {
             return
         }
         mutate(&session)

@@ -55,6 +55,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     var onRejectReviewProposal: ((String) -> Void)?
     var onSelectReviewVerdict: ((String, PullRequestReviewEvent) -> Void)?
     var onRemoveReviewProposalComment: ((String, Int) -> Void)?
+    var onJumpToReviewProposalComment: ((String, DiffCommentAnchor) -> Void)?
     /// Fetches comment-author avatars. Kept off `Configuration`, which is `Equatable`: the loader
     /// is an actor, and it is app-lifetime constant rather than per-render input.
     var avatarLoader: GitHubAvatarLoader?
@@ -207,6 +208,9 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         }
         reviewProposalBody.onSelectEvent = { [weak self] proposalID, event in
             self?.onSelectReviewVerdict?(proposalID, event)
+        }
+        reviewProposalBody.onJumpToComment = { [weak self] proposalID, anchor in
+            self?.onJumpToReviewProposalComment?(proposalID, anchor)
         }
         reviewProposalBody.onRemoveComment = { [weak self] proposalID, index in
             self?.onRemoveReviewProposalComment?(proposalID, index)

@@ -43,7 +43,7 @@ struct PullRequestPane: View, Equatable {
     }
 
     var body: some View {
-        deleteCommentDialog(
+        commentScrollObserver(deleteCommentDialog(
             VStack(spacing: 0) {
                 ContextualPaneHeader(
                     target.identifier.displayKey,
@@ -56,7 +56,7 @@ struct PullRequestPane: View, Equatable {
 
                     content(session: session)
 
-                    PullRequestPaneReviewFooter(viewModel: viewModel, session: session)
+                    PullRequestPaneReviewFooter(viewModel: viewModel, session: session, target: target)
                         .equatable()
                 } else {
                     // The session is discarded after the slide-out; keep the frame stable meanwhile.
@@ -65,7 +65,28 @@ struct PullRequestPane: View, Equatable {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .pullRequestReferenceDateTick(viewModel)
-        )
+        ))
+    }
+
+    /// Every ask to reveal a comment lands on the Changes tab, whether it came from a review
+    /// proposal's transcript card or the Overview's own "Show in Changes" — so the tab switch
+    /// lives here rather than at either call site. `KeepAliveTabContainer` mounts the tab on the
+    /// switch, and the diff's own observer performs the scroll once its rows exist.
+    ///
+    /// Lifted out of `body` to keep the modifier off its type-check budget, like the dialog above.
+    private func commentScrollObserver<Content: View>(_ content: Content) -> some View {
+        content
+            .onChange(of: viewModel.paneSessions[target]?.pendingCommentScrollTarget?.token) { _, token in
+                guard token != nil else {
+                    return
+                }
+                selectedTab = .files
+            }
+            // A jump routinely lands while the diff is still loading, when there are no files to
+            // search; re-run the reveal once they arrive so the row exists to scroll to.
+            .onChange(of: viewModel.paneSessions[target]?.diffState) { _, _ in
+                viewModel.revealPendingCommentScrollFileIfNeeded(target: target)
+            }
     }
 
     /// Shared by both tabs — arming a deletion from the Changes diff or the
@@ -171,7 +192,7 @@ struct PullRequestPane: View, Equatable {
                 )
                 .equatable()
             case .files:
-                PullRequestPaneFiles(session: session, viewModel: viewModel)
+                PullRequestPaneFiles(session: session, viewModel: viewModel, target: target)
                     .equatable()
             }
         }

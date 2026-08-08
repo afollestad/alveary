@@ -187,6 +187,10 @@ struct DiffCommentInteraction {
     let onSaveDraft: () -> Void
     let onCancelComposer: () -> Void
     let onDeletePending: (DiffLineComment) -> Void
+    /// Drops a review proposal's staged comment by its position in the stored envelope. `nil` on
+    /// the diff viewer's inert path and wherever no proposal is pending, which is what keeps the
+    /// action off every other comment.
+    var onRemoveProposedComment: ((Int) -> Void)?
     /// Uploads local files and appends their links to the open draft. `nil` on
     /// the diff viewer's inert path, which hides the attach affordance.
     var onAttachFiles: (([URL]) -> Void)?
@@ -313,7 +317,14 @@ struct DiffCommentThreadRow: View {
                 isBot: comment.isBot,
                 avatarLoader: interaction?.avatarLoader
             ) {
-                if comment.isPending {
+                // Both mean "unpublished", so they share a tint, but they are different
+                // states: "Proposed" is staged in Alveary's review-proposal envelope and
+                // exists nowhere on GitHub, while "Pending" is the viewer's server-side
+                // draft. Mutually exclusive by construction — a staged comment is never
+                // `isPending` — and the `else` keeps it that way.
+                if comment.isProposed {
+                    PullRequestCommentBadge("Proposed", color: .orange)
+                } else if comment.isPending {
                     PullRequestCommentBadge("Pending", color: .orange)
                 }
                 if thread.isResolved {
@@ -395,7 +406,16 @@ struct DiffCommentThreadRow: View {
     @ViewBuilder
     private func commentActions(for comment: DiffLineComment) -> some View {
         let hasActionableID = comment.isPending ? comment.nodeID != nil : comment.remoteID != nil
-        if let interaction, comment.canEdit || comment.canDelete, hasActionableID {
+        // A staged comment is removed, never edited — remove and re-add is the path. It wears the
+        // same menu as every other comment on this card rather than the transcript's two-press
+        // pill, so the pane keeps one comment-control shape on one trailing column.
+        if let interaction, let proposedIndex = comment.proposedIndex,
+           let onRemoveProposedComment = interaction.onRemoveProposedComment {
+            PullRequestCommentActionsMenu(
+                onEdit: nil,
+                onDelete: { onRemoveProposedComment(proposedIndex) }
+            )
+        } else if let interaction, comment.canEdit || comment.canDelete, hasActionableID {
             PullRequestCommentActionsMenu(
                 onEdit: comment.canEdit ? { interaction.onEditRemoteComment(anchor, comment) } : nil,
                 onDelete: deleteAction(for: comment, interaction: interaction)

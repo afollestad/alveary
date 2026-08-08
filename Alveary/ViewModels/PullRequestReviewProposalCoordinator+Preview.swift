@@ -142,6 +142,94 @@ extension PullRequestReviewProposalCoordinator {
     }
 }
 
+extension PullRequestReviewProposalCoordinator {
+    /// Merges a proposal's staged comments into diff annotations, attributed to the viewer and
+    /// tagged with each comment's position in the stored envelope.
+    ///
+    /// Shared by the transcript card's own preview and the pull request pane's Changes tab, which
+    /// render the same review from the same envelope and must not drift. A staged comment on a line
+    /// that already carries a thread appends to it rather than opening a second card on the line.
+    ///
+    /// `proposedIndex` is the only identity a staged comment has, so it is what a Remove addresses;
+    /// every removal shifts the array, which is why a pruned preview renumbers what survives.
+    static func appendStagedComments(
+        _ staged: [PullRequestReviewProposalRecord.Comment],
+        to annotations: inout DiffCommentAnnotations,
+        viewerLogin: String?,
+        viewerAvatarURL: URL?
+    ) {
+        for (index, comment) in staged.enumerated() {
+            let anchor = DiffCommentAnchor(
+                path: comment.path,
+                side: DiffCommentAnchor.Side(rawValue: comment.side) ?? .right,
+                line: comment.line
+            )
+            let lineComment = DiffLineComment(
+                author: viewerLogin ?? "You",
+                bodyMarkdown: PullRequestMarkdown.sanitized(comment.body),
+                isPending: false,
+                avatarURL: viewerAvatarURL,
+                proposedIndex: index
+            )
+            if var existing = annotations.threads[anchor] {
+                existing.comments.append(lineComment)
+                annotations.threads[anchor] = existing
+            } else {
+                annotations.threads[anchor] = DiffLineCommentThread(comments: [lineComment])
+            }
+        }
+    }
+
+    /// The same staged comments as review threads, for the Overview timeline — which renders
+    /// GitHub's own threads and needs these to read the same way.
+    ///
+    /// Built at render time and never written into `PullRequestDetail.reviewThreads`: that array
+    /// is what exists on GitHub, and a synthetic entry there would reach every path that trusts
+    /// it, `pendingCommentCount` and the submit gates included.
+    ///
+    /// Comments sharing an anchor become one thread, matching how the diff merges them.
+    static func stagedThreads(
+        _ staged: [PullRequestReviewProposalRecord.Comment],
+        viewerLogin: String?,
+        viewerAvatarURL: URL?,
+        createdAt: Date
+    ) -> [PullRequestReviewThread] {
+        var threads: [PullRequestReviewThread] = []
+        var indexByAnchor: [DiffCommentAnchor: Int] = [:]
+        for (index, comment) in staged.enumerated() {
+            let side: PullRequestDiffSide = comment.side == PullRequestDiffSide.left.rawValue ? .left : .right
+            let anchor = DiffCommentAnchor(
+                path: comment.path,
+                side: side == .left ? .left : .right,
+                line: comment.line
+            )
+            let rendered = PullRequestComment(
+                authorLogin: viewerLogin ?? "You",
+                authorAvatarURL: viewerAvatarURL,
+                bodyMarkdown: PullRequestMarkdown.sanitized(comment.body),
+                createdAt: createdAt,
+                proposedIndex: index
+            )
+            if let existing = indexByAnchor[anchor] {
+                threads[existing].comments.append(rendered)
+                continue
+            }
+            indexByAnchor[anchor] = threads.count
+            threads.append(
+                PullRequestReviewThread(
+                    path: comment.path,
+                    line: comment.line,
+                    side: side,
+                    isResolved: false,
+                    isOutdated: false,
+                    comments: [rendered]
+                )
+            )
+        }
+        return threads
+    }
+}
+
 private extension PullRequestReviewProposalCoordinator {
     /// Narrows to the files a comment sits on, and inside each to the hunks holding one.
     static func commentedFiles(
@@ -215,27 +303,12 @@ private extension PullRequestReviewProposalCoordinator {
                 isPending: thread.isPending
             )
         }
-        for (index, comment) in staged.enumerated() {
-            let anchor = DiffCommentAnchor(
-                path: comment.path,
-                side: DiffCommentAnchor.Side(rawValue: comment.side) ?? .right,
-                line: comment.line
-            )
-            let lineComment = DiffLineComment(
-                author: detail.viewerLogin ?? "You",
-                bodyMarkdown: PullRequestMarkdown.sanitized(comment.body),
-                isPending: false,
-                avatarURL: detail.viewerAvatarURL,
-                // Its position in the envelope, which is what the card's Remove sends back.
-                proposedIndex: index
-            )
-            if var existing = annotations.threads[anchor] {
-                existing.comments.append(lineComment)
-                annotations.threads[anchor] = existing
-            } else {
-                annotations.threads[anchor] = DiffLineCommentThread(comments: [lineComment])
-            }
-        }
+        appendStagedComments(
+            staged,
+            to: &annotations,
+            viewerLogin: detail.viewerLogin,
+            viewerAvatarURL: detail.viewerAvatarURL
+        )
         return annotations
     }
 

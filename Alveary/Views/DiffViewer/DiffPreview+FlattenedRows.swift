@@ -23,6 +23,15 @@ struct FlattenedDiffPreview: View {
     /// (host-side padding would inset the scroller with it); the diff viewer
     /// keeps the default.
     let horizontalContentInset: CGFloat
+    /// A one-shot ask to bring one row into view. Deliberately absent from
+    /// `renderFingerprint` — it changes no row, and folding it in would rebuild
+    /// every prepared row (and flash the preparing state on a large diff) for a
+    /// scroll. The owner keeps the pending state; this only reports back.
+    let scrollTarget: FlattenedDiffPreviewScrollTarget?
+    /// Called once the scroll for `token` has been attempted, whether or not the
+    /// row existed, so the owner can clear its one-shot state instead of
+    /// retrying forever against a row the diff no longer contains.
+    let onScrollTargetConsumed: ((UUID) -> Void)?
     @State private var preparedRows: FlattenedDiffPreviewPreparedRows?
     @State private var preparedRowsID: Int?
 
@@ -38,7 +47,9 @@ struct FlattenedDiffPreview: View {
         commentAnnotations: DiffCommentAnnotations = .none,
         commentInteraction: DiffCommentInteraction? = nil,
         contentTopInset: CGFloat = 0,
-        horizontalContentInset: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset
+        horizontalContentInset: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset,
+        scrollTarget: FlattenedDiffPreviewScrollTarget? = nil,
+        onScrollTargetConsumed: ((UUID) -> Void)? = nil
     ) {
         self.files = files
         self.imagePreviews = imagePreviews
@@ -52,6 +63,8 @@ struct FlattenedDiffPreview: View {
         self.commentInteraction = commentInteraction
         self.contentTopInset = contentTopInset
         self.horizontalContentInset = horizontalContentInset
+        self.scrollTarget = scrollTarget
+        self.onScrollTargetConsumed = onScrollTargetConsumed
     }
 
     var body: some View {
@@ -123,30 +136,67 @@ struct FlattenedDiffPreview: View {
     }
 
     private func rowsView(_ preparedRows: FlattenedDiffPreviewPreparedRows) -> some View {
-        DiffPreviewScrollContainer(
-            minimumScrollableContentWidth: preparedRows.minimumScrollableContentWidth,
-            horizontalContentPadding: horizontalContentInset
-        ) {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(preparedRows.rows) { row in
-                    FlattenedDiffPreviewRenderRow(
-                        row: row,
-                        allowsFileCollapse: allowsFileCollapse,
-                        collapsedFileIDs: collapsedFileIDs,
-                        onToggleFileCollapse: onToggleFileCollapse,
-                        loadImage: loadImage,
-                        openImage: openImage,
-                        allowsCommentComposing: commentAnnotations.allowsComposing,
-                        commentInteraction: commentInteraction
-                    )
-                }
-            }
-            .padding(.top, contentTopInset)
-            .appExpansionAnimationOverride(value: collapsedFileIDs)
-            .diffPreviewMinimumContentWidthFrame()
-            .frame(maxHeight: .infinity, alignment: .topLeading)
-            .textSelection(.enabled)
+        ScrollViewReader { proxy in
+            scrollTargetObserver(
+                DiffPreviewScrollContainer(
+                    minimumScrollableContentWidth: preparedRows.minimumScrollableContentWidth,
+                    horizontalContentPadding: horizontalContentInset
+                ) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(preparedRows.rows) { row in
+                            FlattenedDiffPreviewRenderRow(
+                                row: row,
+                                allowsFileCollapse: allowsFileCollapse,
+                                collapsedFileIDs: collapsedFileIDs,
+                                onToggleFileCollapse: onToggleFileCollapse,
+                                loadImage: loadImage,
+                                openImage: openImage,
+                                allowsCommentComposing: commentAnnotations.allowsComposing,
+                                commentInteraction: commentInteraction
+                            )
+                        }
+                    }
+                    .padding(.top, contentTopInset)
+                    .appExpansionAnimationOverride(value: collapsedFileIDs)
+                    .diffPreviewMinimumContentWidthFrame()
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                    .textSelection(.enabled)
+                },
+                proxy: proxy,
+                rows: preparedRows.rows
+            )
         }
+    }
+
+    /// Performs a pending scroll and reports it consumed. Both edges are needed: a target set
+    /// while the diff was still loading arrives before this view exists (`task`), and one set
+    /// against an already-rendered diff arrives after (`onChange`). Lifted out of `rowsView` to
+    /// keep the modifiers off its type-check budget.
+    private func scrollTargetObserver<Content: View>(
+        _ content: Content,
+        proxy: ScrollViewProxy,
+        rows: [FlattenedDiffPreviewRow]
+    ) -> some View {
+        content
+            .task(id: scrollTarget) {
+                scrollToTarget(proxy: proxy, rows: rows)
+            }
+            .onChange(of: scrollTarget) { _, _ in
+                scrollToTarget(proxy: proxy, rows: rows)
+            }
+    }
+
+    /// Reports consumption even when the row is absent. A pull request pushed to since a review
+    /// proposal was written can strand an anchor, and retrying forever would leave the owner's
+    /// one-shot state armed against a row that is never coming.
+    private func scrollToTarget(proxy: ScrollViewProxy, rows: [FlattenedDiffPreviewRow]) {
+        guard let scrollTarget else {
+            return
+        }
+        if rows.contains(where: { $0.id == scrollTarget.rowID }) {
+            proxy.scrollTo(scrollTarget.rowID, anchor: .center)
+        }
+        onScrollTargetConsumed?(scrollTarget.token)
     }
 
     private var preparingView: some View {
@@ -234,6 +284,13 @@ private extension DiffLine.LineType {
             return 2
         }
     }
+}
+
+/// A one-shot ask to bring one prepared row into view. The token is what consumption matches on,
+/// so a late consumer cannot swallow a newer request.
+struct FlattenedDiffPreviewScrollTarget: Equatable {
+    let token: UUID
+    let rowID: String
 }
 
 struct FlattenedDiffPreviewPreparedRows: Sendable {

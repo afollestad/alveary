@@ -5,11 +5,15 @@ import SwiftUI
 struct PullRequestPaneReviewFooter: View, Equatable {
     let viewModel: PullRequestsViewModel
     let session: PullRequestPaneSession
+    /// Which pull request this footer submits for, so it can resolve a pending review proposal
+    /// without asking which pane happens to be active — the same reason `PullRequestPaneFiles`
+    /// carries one.
+    let target: PullRequestPaneTarget
 
     /// `initiallyExpanded` and the persisted review-action kind only seed `@State`, so
     /// neither is part of the rendered inputs.
     nonisolated static func == (lhs: PullRequestPaneReviewFooter, rhs: PullRequestPaneReviewFooter) -> Bool {
-        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel
+        lhs.session == rhs.session && lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
     }
 
     @State private var isExpanded: Bool
@@ -27,10 +31,12 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     init(
         viewModel: PullRequestsViewModel,
         session: PullRequestPaneSession,
+        target: PullRequestPaneTarget,
         initiallyExpanded: Bool = false
     ) {
         self.viewModel = viewModel
         self.session = session
+        self.target = target
         _isExpanded = State(initialValue: initiallyExpanded)
         _selectedReviewKind = State(initialValue: viewModel.selectedReviewFooterActionKind)
         // Production expands through the button, which seeds the draft; snapshots
@@ -162,7 +168,11 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         viewModel.isUploadingAttachments(to: .reviewSummary)
     }
 
-    /// Inline comments live on GitHub now, so the count comes from the detail.
+    /// Inline comments live on GitHub now, so the count comes from the detail. Staged proposal
+    /// comments are deliberately *not* added: `submitReview` publishes only the GitHub draft, so
+    /// counting them here would enable a Submit the view model then refuses — silently — and imply
+    /// a publish that would leave them behind. Fold them in only when the pane's submit routes
+    /// through the proposal coordinator and actually publishes both sets.
     private var pendingCommentCount: Int {
         session.detail?.pendingCommentCount ?? 0
     }
@@ -289,7 +299,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     /// Both options apply to every pull request, so this is always a split button. The caret
     /// selects only — the row's one accent voice stays `.primary` either way.
     private func reviewActionButton(expandsHorizontally: Bool) -> some View {
-        let action = PullRequestReviewFooterAction.action(for: selectedReviewKind)
+        let action = PullRequestReviewFooterAction.action(for: effectiveReviewKind)
         return SplitActionButton(
             title: action.title,
             icon: action.icon,
@@ -306,6 +316,18 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         )
         .disabled(session.isStartingAgenticReview)
         .help(action.title)
+    }
+
+    /// A written review outranks the stored pick. With staged comments waiting, the default
+    /// action is finishing that review — starting a second agentic one would be the wrong door,
+    /// and its proposal would supersede the comments on screen. The caret still reaches Agentic
+    /// review, so this changes the default rather than removing the option; it mirrors
+    /// `effectiveEvent` and `effectiveStateAction`, which retire stale picks the same way.
+    private var effectiveReviewKind: PullRequestReviewFooterAction.Kind {
+        guard viewModel.pendingReviewProposal(for: target)?.comments.isEmpty == false else {
+            return selectedReviewKind
+        }
+        return .submitReview
     }
 
     private func runReviewAction(_ kind: PullRequestReviewFooterAction.Kind) {

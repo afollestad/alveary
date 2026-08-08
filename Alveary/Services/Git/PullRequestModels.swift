@@ -65,6 +65,16 @@ struct PullRequestComment: Equatable, Sendable {
     /// viewer's draft review but not yet sent with "Submit review...". GitHub
     /// shows these only to their author, and only the viewer can ever have one.
     let isPending: Bool
+    /// Position in a review proposal's stored `comments` array, for a comment staged
+    /// in Alveary and existing nowhere on GitHub — narrower than `isPending`, which
+    /// means written into the viewer's server-side draft. The array position is the
+    /// only identity a staged comment has, so it is what a Remove addresses; mirrors
+    /// `DiffLineComment.proposedIndex`, which carries it on the Changes tab.
+    let proposedIndex: Int?
+
+    var isProposed: Bool {
+        proposedIndex != nil
+    }
 
     init(
         authorLogin: String,
@@ -77,7 +87,8 @@ struct PullRequestComment: Equatable, Sendable {
         viewerCanDelete: Bool = false,
         reactions: [PullRequestCommentReaction] = [],
         isBot: Bool = false,
-        isPending: Bool = false
+        isPending: Bool = false,
+        proposedIndex: Int? = nil
     ) {
         self.authorLogin = authorLogin
         self.authorAvatarURL = authorAvatarURL
@@ -90,6 +101,7 @@ struct PullRequestComment: Equatable, Sendable {
         self.reactions = reactions
         self.isBot = isBot
         self.isPending = isPending
+        self.proposedIndex = proposedIndex
     }
 }
 
@@ -162,6 +174,13 @@ struct PullRequestReviewThread: Equatable, Sendable {
     /// whole thread pending, so its root comment's state decides.
     var isPending: Bool {
         comments.first?.isPending == true
+    }
+
+    /// A thread synthesized from a review proposal's staged comments — Alveary-local,
+    /// existing nowhere on GitHub until the review is submitted. Decided by the root
+    /// comment like `isPending`, and mutually exclusive with it.
+    var isProposed: Bool {
+        comments.first?.isProposed == true
     }
 
     /// The REST id replies attach to — GitHub replies always target the root

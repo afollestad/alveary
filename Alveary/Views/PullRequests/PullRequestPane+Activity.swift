@@ -10,9 +10,10 @@ struct PullRequestPaneActivitySection: View {
     let onOpenFiles: () -> Void
 
     /// The Overview appends this section — behind a divider — only when there
-    /// is something to show.
-    static func hasContent(detail: PullRequestDetail) -> Bool {
-        !PullRequestActivityEntry.entries(from: detail).isEmpty
+    /// is something to show. A proposal's staged comments count: a quiet pull request whose only
+    /// activity is a review waiting on the user would otherwise hide them entirely.
+    static func hasContent(detail: PullRequestDetail, proposedCommentCount: Int) -> Bool {
+        !PullRequestActivityEntry.entries(from: detail).isEmpty || proposedCommentCount > 0
     }
 
     var body: some View {
@@ -48,7 +49,36 @@ struct PullRequestPaneActivitySection: View {
                     PullRequestActivityEntryView(entry: entry, session: session, viewModel: viewModel)
                 }
             }
+
+            // Staged comments read like GitHub's own pending threads, so they render through the
+            // same card, badged "Proposed". They land last because the timeline is chronological
+            // and a proposal is the newest thing about the pull request — the same place a
+            // pending draft thread sits.
+            ForEach(Array(proposedThreads.enumerated()), id: \.offset) { _, thread in
+                PullRequestReviewThreadView(
+                    thread: thread,
+                    session: session,
+                    viewModel: viewModel,
+                    onOpenFiles: onOpenFiles
+                )
+            }
         }
+    }
+
+    /// Synthesized per render from the proposal envelope — never from `detail.reviewThreads`,
+    /// which is GitHub's record.
+    private var proposedThreads: [PullRequestReviewThread] {
+        guard let proposal = viewModel.pendingReviewProposal(for: .details(detail.id)) else {
+            return []
+        }
+        return PullRequestReviewProposalCoordinator.stagedThreads(
+            proposal.comments,
+            viewerLogin: detail.viewerLogin,
+            viewerAvatarURL: detail.viewerAvatarURL,
+            // The proposal's own creation time, not "now": the card dates when the review was
+            // written, which is what the timestamp beside every other comment means.
+            createdAt: proposal.createdAt
+        )
     }
 
     private var hasOpenComposer: Bool {

@@ -55,6 +55,10 @@ final class AppKitReviewProposalCommentCardView: NSView {
     /// Drops this card's staged comment from the review, by its position in the stored envelope.
     /// Set once when the pool creates the card; the index travels with each `configure`.
     var onRemove: ((Int) -> Void)?
+    /// Opens this comment in the pull request pane, scrolled to the line it annotates. Set once
+    /// when the pool creates the card; the anchor travels with each `configure`, for the same
+    /// reason the index does.
+    var onJump: ((DiffCommentAnchor) -> Void)?
 
     /// A transparent container: the card's fill, border, and shadow are drawn in `draw(_:)`, not
     /// backed by a `CALayer`. Two reasons — `AppKitDynamicColorView` rewrites `layer.borderColor`
@@ -69,12 +73,16 @@ final class AppKitReviewProposalCommentCardView: NSView {
     private let botBadge = AppKitPullRequestCommentBadgeView()
     private let pendingBadge = AppKitPullRequestCommentBadgeView()
     private let removeButton = AppKitReviewProposalCommentRemoveButton()
+    private let jumpButton = AppKitReviewProposalCommentJumpButton()
     private let bodyView = AppKitMarkdownView(document: AppMarkdownDocument(content: AttributedString()))
     private var metrics = AppKitDiffCodeBlockMetrics.empty
     private var wash = AppKitReviewProposalCommentWash(top: .context, bottom: .context)
     /// The configured comment's position in the review's stored `comments` array; nil for a comment
     /// that lives on GitHub, which this card cannot remove.
     private var proposedIndex: Int?
+    /// The configured comment's diff anchor, re-captured on every `configure` because these views
+    /// are pooled — a stale one would jump to the previous comment's line.
+    private var jumpAnchor: DiffCommentAnchor?
     /// Held because the outset widens for the preview's last card, and these views are pooled.
     private var cardBottomConstraint: NSLayoutConstraint?
 
@@ -92,6 +100,12 @@ final class AppKitReviewProposalCommentCardView: NSView {
                 return
             }
             onRemove?(proposedIndex)
+        }
+        jumpButton.onJump = { [weak self] in
+            guard let self, let jumpAnchor else {
+                return
+            }
+            onJump?(jumpAnchor)
         }
     }
 
@@ -114,6 +128,7 @@ final class AppKitReviewProposalCommentCardView: NSView {
         self.metrics = metrics
         self.wash = wash
         proposedIndex = comment.proposedIndex
+        jumpAnchor = anchor
         cardBottomConstraint?.constant = -(wash.isTrailing ? Self.trailingVerticalOutset : Self.verticalOutset)
         let captionSize = context.typography.size(for: .caption)
         avatarView.configure(login: comment.author, url: comment.avatarURL, loader: context.avatarLoader)
@@ -135,6 +150,10 @@ final class AppKitReviewProposalCommentCardView: NSView {
         // submission in flight is already publishing what it was handed.
         removeButton.isHidden = !(context.allowsRemoval && comment.isProposed)
         removeButton.configure(fontSize: captionSize)
+        // Only a staged comment jumps: a `Pending` one already lives on GitHub and the pane
+        // renders it from the detail, with no proposal to attach to.
+        jumpButton.isHidden = !(context.allowsJumping && comment.isProposed)
+        jumpButton.configure(fontSize: captionSize)
         configureBody(markdown: comment.bodyMarkdown, typography: context.typography)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
@@ -179,15 +198,20 @@ struct AppKitReviewProposalCommentContext {
     /// False once a submission is in flight, which is the only interactive state where the review's
     /// staged comments are no longer the user's to change.
     let allowsRemoval: Bool
+    /// False where there is nothing to jump to — snapshots and previews, and a card rendered in a
+    /// conversation that did not open the proposal, which is read-only.
+    let allowsJumping: Bool
 
     init(
         typography: TranscriptTypography,
         avatarLoader: GitHubAvatarLoader? = nil,
-        allowsRemoval: Bool = false
+        allowsRemoval: Bool = false,
+        allowsJumping: Bool = false
     ) {
         self.typography = typography
         self.avatarLoader = avatarLoader
         self.allowsRemoval = allowsRemoval
+        self.allowsJumping = allowsJumping
     }
 }
 
@@ -242,13 +266,15 @@ private extension AppKitReviewProposalCommentCardView {
         authorRow.addArrangedSubview(pendingBadge)
         // The badges keep their intrinsic width; the author name is what yields on a narrow card.
         authorField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        for view in [avatarView, botBadge, pendingBadge, removeButton] {
+        for view in [avatarView, botBadge, pendingBadge, jumpButton, removeButton] {
             view.setContentHuggingPriority(.required, for: .horizontal)
             view.setContentCompressionResistancePriority(.required, for: .horizontal)
         }
         authorRow.addArrangedSubview(NSView())
-        // After the flexible spacer, so it sits at the card's trailing edge — where the pane puts
-        // its three-dot menu on this same card shape.
+        // After the flexible spacer, so they sit at the card's trailing edge — where the pane puts
+        // its three-dot menu on this same card shape. Jump leads Remove: navigating is the
+        // ordinary action, and the destructive one stays furthest from the pointer's path.
+        authorRow.addArrangedSubview(jumpButton)
         authorRow.addArrangedSubview(removeButton)
     }
 

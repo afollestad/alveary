@@ -165,6 +165,90 @@ final class FlattenedDiffPreviewCommentRowsTests: XCTestCase {
         XCTAssertEqual(composerWash.bottomLineType, .added)
     }
 
+    /// A hunk whose trailing context run is long enough to collapse: one changed
+    /// line, then 20 context lines. `visibleContextRadius` keeps the first three
+    /// of them, so the rest exceed `collapsedContextMinimum` and fold into a
+    /// single omitted row.
+    private var collapsibleRaw: String {
+        let context = (2...21).map { " context line \($0)" }.joined(separator: "\n")
+        return """
+        diff --git a/File.swift b/File.swift
+        --- a/File.swift
+        +++ b/File.swift
+        @@ -1,21 +1,21 @@
+        -old first line
+        +new first line
+        \(context)
+        """
+    }
+
+    /// Comment rows are only ever emitted from a rendered line row, so a thread
+    /// anchored inside a collapsed context run used to vanish silently — no row,
+    /// no diagnostic. Commenting on unchanged surrounding code is ordinary review
+    /// behavior, so the collapse has to keep an anchored line visible.
+    func testAnchoredContextLineSurvivesContextCollapsing() throws {
+        let files = DiffParser.parse(collapsibleRaw)
+        let anchor = DiffCommentAnchor(path: "File.swift", side: .right, line: 10)
+        var annotations = DiffCommentAnnotations()
+        annotations.threads[anchor] = DiffLineCommentThread(
+            comments: [DiffLineComment(author: "carol", bodyMarkdown: "Context note", isPending: false)]
+        )
+
+        // Without the anchor the line is collapsed away, which is what makes the
+        // thread unreachable.
+        let inert = FlattenedDiffPreviewRows.makeRows(
+            files: files,
+            imagePreviews: [:],
+            showsFileHeaders: true,
+            allowsFileCollapse: false,
+            collapsedFileIDs: []
+        )
+        XCTAssertTrue(inert.rows.contains { row in
+            if case .collapsed = row {
+                return true
+            }
+            return false
+        })
+
+        let annotated = FlattenedDiffPreviewRows.makeRows(
+            files: files,
+            imagePreviews: [:],
+            showsFileHeaders: true,
+            allowsFileCollapse: false,
+            collapsedFileIDs: [],
+            commentAnnotations: annotations
+        )
+        let ids = annotated.rows.map(\.id)
+        XCTAssertTrue(ids.contains("comment:\(anchor.key)"), "Expected the anchored thread to render in \(ids)")
+    }
+
+    /// The anchor exemption must not disable collapsing wholesale: context far
+    /// from both the change and the comment still folds away.
+    func testUnanchoredContextStillCollapsesAroundAComment() {
+        let files = DiffParser.parse(collapsibleRaw)
+        let anchor = DiffCommentAnchor(path: "File.swift", side: .right, line: 10)
+        var annotations = DiffCommentAnnotations()
+        annotations.threads[anchor] = DiffLineCommentThread(
+            comments: [DiffLineComment(author: "carol", bodyMarkdown: "Context note", isPending: false)]
+        )
+
+        let annotated = FlattenedDiffPreviewRows.makeRows(
+            files: files,
+            imagePreviews: [:],
+            showsFileHeaders: true,
+            allowsFileCollapse: false,
+            collapsedFileIDs: [],
+            commentAnnotations: annotations
+        )
+
+        XCTAssertTrue(annotated.rows.contains { row in
+            if case .collapsed = row {
+                return true
+            }
+            return false
+        })
+    }
+
     func testCommentRowsDoNotExtendScrollableContentWidth() {
         let files = DiffParser.parse(raw)
         let anchor = DiffCommentAnchor(path: "File.swift", side: .right, line: 11)

@@ -367,6 +367,7 @@ struct PullRequestReviewFooterFixture {
         PullRequestPaneReviewFooter(
             viewModel: viewModel,
             session: session,
+            target: .details(PullRequestPaneSnapshots.identifier),
             initiallyExpanded: initiallyExpanded
         )
     }

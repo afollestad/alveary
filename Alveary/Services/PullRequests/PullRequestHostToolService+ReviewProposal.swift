@@ -171,17 +171,26 @@ private extension PullRequestHostToolService {
     /// GitHub anchors a review comment to a line that appears in the diff — RIGHT to a new-side
     /// number, LEFT to an old-side one. A miss would fail at submission, after the user already
     /// confirmed, so it is refused here where the model can correct it.
+    ///
+    /// The match runs through `FlattenedDiffPreviewRows.commentAnchor(for:path:)`, the pane's own
+    /// mapping, rather than comparing line numbers directly. A context line carries *both*
+    /// numbers, so a raw `oldLineNumber` comparison accepts a LEFT anchor on one — which the pane
+    /// then cannot draw, because it only ever anchors a context line RIGHT. Sharing the mapping is
+    /// what keeps a confirmable proposal renderable.
     static func validateAnchors(
         _ comments: [PullRequestHostToolReviewCommentItem],
         against files: [DiffFile]
     ) throws {
         for (index, comment) in comments.enumerated() {
+            let target = DiffCommentAnchor(
+                path: comment.path,
+                side: comment.side == .left ? .left : .right,
+                line: comment.line
+            )
             let anchored = files.contains { file in
                 file.path == comment.path && file.hunks.contains { hunk in
                     hunk.lines.contains { line in
-                        comment.side == .left
-                            ? line.oldLineNumber == comment.line
-                            : line.newLineNumber == comment.line
+                        FlattenedDiffPreviewRows.commentAnchor(for: line, path: comment.path) == target
                     }
                 }
             }

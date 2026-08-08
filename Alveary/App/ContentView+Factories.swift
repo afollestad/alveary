@@ -8,6 +8,9 @@ struct ContentViewBootstrapState {
     let lastActiveProjectRecorder: LastActiveProjectRecorder
     let diffViewModel: DiffViewerViewModel
     let reviewProposalCoordinator: PullRequestReviewProposalCoordinator
+    /// Built here rather than in `ContentView.init` because it needs `reviewProposalCoordinator`,
+    /// which this state already owns.
+    let pullRequestsViewModel: PullRequestsViewModel
     let archivedThreadsViewModel: ArchivedThreadsViewModel
 }
 
@@ -18,6 +21,7 @@ extension ContentView {
     ) -> ContentViewBootstrapState {
         let sidebarViewModel = makeSidebarViewModel(dependencies: dependencies, appState: appState)
         let appShotCoordinator = AppShotCoordinator()
+        let reviewProposalCoordinator = makePullRequestReviewProposalCoordinator(dependencies: dependencies)
         return ContentViewBootstrapState(
             sidebarViewModel: sidebarViewModel,
             appShotCoordinator: appShotCoordinator,
@@ -29,7 +33,12 @@ extension ContentView {
             ),
             lastActiveProjectRecorder: makeLastActiveProjectRecorder(dependencies: dependencies),
             diffViewModel: makeDiffViewModel(dependencies: dependencies),
-            reviewProposalCoordinator: makePullRequestReviewProposalCoordinator(dependencies: dependencies),
+            reviewProposalCoordinator: reviewProposalCoordinator,
+            pullRequestsViewModel: makePullRequestsViewModel(
+                dependencies: dependencies,
+                appState: appState,
+                reviewProposalCoordinator: reviewProposalCoordinator
+            ),
             archivedThreadsViewModel: makeArchivedThreadsViewModel(
                 dependencies: dependencies,
                 sidebarViewModel: sidebarViewModel,
@@ -128,9 +137,12 @@ extension ContentView {
         )
     }
 
+    /// `reviewProposalCoordinator` comes from the already-built bootstrap state so the pane can
+    /// resolve the review proposal a transcript jump attaches it to.
     static func makePullRequestsViewModel(
         dependencies: ContentViewDependencies,
-        appState: AppState
+        appState: AppState,
+        reviewProposalCoordinator: PullRequestReviewProposalCoordinator
     ) -> PullRequestsViewModel {
         let attachmentImageURLResolver = dependencies.gitHubAttachmentImageURLResolver
         return PullRequestsViewModel(
@@ -153,7 +165,8 @@ extension ContentView {
             },
             agenticReviewStarter: { identifier, url in
                 try await dependencies.pullRequestAgenticReviewService.startReview(identifier: identifier, url: url)
-            }
+            },
+            reviewProposalCoordinator: reviewProposalCoordinator
         )
     }
 

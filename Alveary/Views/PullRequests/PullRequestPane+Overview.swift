@@ -81,7 +81,11 @@ struct PullRequestPaneOverview: View, Equatable {
                     }
 
                     // The conversation timeline follows the overview content.
-                    if PullRequestPaneActivitySection.hasContent(detail: detail) {
+                    if PullRequestPaneActivitySection.hasContent(
+                        detail: detail,
+                        proposedCommentCount: viewModel.pendingReviewProposal(for: .details(detail.id))?
+                            .comments.count ?? 0
+                    ) {
                         Divider()
 
                         PullRequestPaneActivitySection(

@@ -6,6 +6,9 @@ import SwiftUI
 @MainActor
 enum PullRequestPaneSnapshots {
     static let identifier = PullRequestIdentifier(owner: "octo", repo: "alveary", number: 41)
+    /// The pane target every fixture renders, so a host that builds a tab directly still names the
+    /// pull request the session describes.
+    static let target = PullRequestPaneTarget.details(identifier)
 
     /// An empty store for the Overview's linked-owners queries: the section
     /// renders nothing, which is what every baseline except the linked-owners
@@ -51,6 +54,65 @@ enum PullRequestPaneSnapshots {
     static var inertViewModel: PullRequestsViewModel {
         makePullRequestsViewModel(
             service: StubPullRequestsService(),
+            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+    }
+
+    /// An inert view model whose coordinator holds one pending review proposal for this fixture's
+    /// pull request, so the Changes tab renders its staged comment badged "Proposed". Built over
+    /// an in-memory store because the coordinator reads the envelope off a `Conversation`.
+    static func viewModelWithPendingProposal() throws -> PullRequestsViewModel {
+        let container = try ModelContainer(
+            for: Project.self,
+            AgentThread.self,
+            Conversation.self,
+            ConversationEventRecord.self,
+            ScheduledTask.self,
+            ScheduledTaskRun.self,
+            ScheduledTaskProposal.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = ModelContext(container)
+        let thread = AgentThread(name: "Review thread")
+        let conversation = Conversation(id: "review-conversation", provider: "codex", thread: thread)
+        thread.conversations = [conversation]
+        context.insert(thread)
+        try conversation.storePullRequestReviewProposal(
+            PullRequestReviewProposalRecord(
+                payloadVersion: PullRequestReviewProposalRecord.currentPayloadVersion,
+                id: "proposal-snapshot",
+                deduplicationKey: "dedup-snapshot",
+                repositoryNameWithOwner: identifier.nameWithOwner,
+                number: identifier.number,
+                event: "comment",
+                body: "A couple of notes.",
+                comments: [
+                    PullRequestReviewProposalRecord.Comment(
+                        // The generated diff's own second added line, so the card sits mid-hunk
+                        // with code above and below it.
+                        path: "File0.swift",
+                        line: 2,
+                        side: "RIGHT",
+                        body: "Prefer `guard let` over the force unwrap here."
+                    )
+                ],
+                titleSnapshot: "Add pull request browsing to the sidebar",
+                pendingCommentCountSnapshot: 0,
+                sourceProviderID: "codex",
+                sourceProcessToken: "token",
+                sourceRequestID: "request-1",
+                createdAt: Date(timeIntervalSince1970: 1_799_960_000)
+            )
+        )
+        try context.save()
+
+        return makePullRequestsViewModel(
+            service: StubPullRequestsService(),
+            reviewProposalCoordinator: PullRequestReviewProposalCoordinator(
+                modelContext: context,
+                pullRequestsService: StubPullRequestsService(),
+                notificationCenter: NotificationCenter()
+            ),
             now: { Date(timeIntervalSince1970: 1_800_000_000) }
         )
     }

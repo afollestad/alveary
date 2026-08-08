@@ -119,6 +119,24 @@ struct PullRequestPaneSession: Equatable {
     var composerFocusToken: UUID?
     /// Awaiting user confirmation before permanently deleting a submitted comment.
     var pendingRemoteCommentDeletion: PendingRemoteCommentDeletion?
+    /// A one-shot ask to scroll the Changes tab to an anchor, cleared once the scroll fires.
+    ///
+    /// The pane holds no proposal state beside this: which staged comments it renders follows from
+    /// the pull request, not from how the pane was opened (see `pendingReviewProposal(for:)`).
+    var pendingCommentScrollTarget: PullRequestPaneCommentScrollTarget?
+}
+
+/// A pending scroll to one diff comment. The token is what consumption matches on — clearing
+/// blind would let a stale consumer swallow a newer request — mirroring
+/// `NotificationRouter.clearPendingIfMatches` and `AppState.clearPendingSettingsTargetPage`.
+struct PullRequestPaneCommentScrollTarget: Equatable {
+    let token: UUID
+    let anchor: DiffCommentAnchor
+
+    /// The `FlattenedDiffPreview` row id this resolves to.
+    var rowID: String {
+        "comment:\(anchor.key)"
+    }
 }
 
 struct PendingRemoteCommentDeletion: Equatable, Sendable {

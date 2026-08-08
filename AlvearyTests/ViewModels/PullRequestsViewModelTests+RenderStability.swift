@@ -144,6 +144,7 @@ extension PullRequestsViewModelTests {
         let viewModel = makePullRequestsViewModel(service: StubPullRequestsService())
         let summary = makePullRequestSummary(number: 1)
         let session = PullRequestPaneSession(generation: UUID(), summary: summary)
+        let target = PullRequestPaneTarget.details(summary.id)
         var changed = session
         changed.composerText = "typing"
 
@@ -156,16 +157,16 @@ extension PullRequestsViewModelTests {
             PullRequestPaneOverview(session: changed, viewModel: viewModel, onOpenFiles: {})
         )
         XCTAssertEqual(
-            PullRequestPaneFiles(session: session, viewModel: viewModel),
-            PullRequestPaneFiles(session: session, viewModel: viewModel)
+            PullRequestPaneFiles(session: session, viewModel: viewModel, target: target),
+            PullRequestPaneFiles(session: session, viewModel: viewModel, target: target)
         )
         XCTAssertNotEqual(
-            PullRequestPaneFiles(session: session, viewModel: viewModel),
-            PullRequestPaneFiles(session: changed, viewModel: viewModel)
+            PullRequestPaneFiles(session: session, viewModel: viewModel, target: target),
+            PullRequestPaneFiles(session: changed, viewModel: viewModel, target: target)
         )
         XCTAssertNotEqual(
-            PullRequestPaneReviewFooter(viewModel: viewModel, session: session),
-            PullRequestPaneReviewFooter(viewModel: viewModel, session: changed)
+            PullRequestPaneReviewFooter(viewModel: viewModel, session: session, target: target),
+            PullRequestPaneReviewFooter(viewModel: viewModel, session: changed, target: target)
         )
     }
 
