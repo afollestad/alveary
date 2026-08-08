@@ -112,6 +112,126 @@ extension PullRequestsViewModelTests {
         XCTAssertFalse(try XCTUnwrap(fixture.session?.collapsedDiffFileIDs).contains(collapseID))
     }
 
+    // MARK: - Composing
+
+    /// The pane is an editing surface for the review that is waiting: a comment written here joins
+    /// that review rather than the viewer's GitHub draft, or the pane and the transcript card would
+    /// disagree about what the review says.
+    func testComposingWhileAProposalIsPendingWritesTheEnvelope() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        let anchor = DiffCommentAnchor(path: "File1.swift", side: .right, line: 1)
+
+        fixture.viewModel.openCommentComposer(at: anchor)
+        fixture.viewModel.updateComposerText("  Hand written  ")
+        fixture.viewModel.saveComposerComment()
+
+        XCTAssertEqual(
+            fixture.viewModel.pendingReviewProposal(for: fixture.target)?.comments.map(\.body),
+            ["Staged remark", "Hand written"]
+        )
+        // Nothing reached GitHub, and no optimistic thread was inserted — the merged annotations
+        // re-derive from the envelope instead.
+        XCTAssertTrue(fixture.service.addedPendingComments.isEmpty)
+        XCTAssertTrue(fixture.service.createdPendingReviewNodeIDs.isEmpty)
+        XCTAssertEqual(fixture.session?.detail?.pendingCommentCount, 0)
+        XCTAssertNil(fixture.session?.composerAnchor)
+        XCTAssertNil(fixture.session?.composerError)
+    }
+
+    /// Without a proposal the standing rule holds: an inline comment posts immediately.
+    func testComposingWithoutAProposalStillPostsToGitHub() async throws {
+        let fixture = try ReviewProposalAttachmentFixture(proposalNumber: 99)
+        await fixture.openPane()
+
+        fixture.viewModel.openCommentComposer(at: DiffCommentAnchor(path: "File1.swift", side: .right, line: 1))
+        fixture.viewModel.updateComposerText("Hand written")
+        fixture.viewModel.saveComposerComment()
+
+        await waitForPullRequestCondition { !fixture.service.addedPendingComments.isEmpty }
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Hand written"])
+    }
+
+    /// A refused stage has to behave like every other composer failure: nothing typed is lost.
+    func testARefusedStagingLeavesTheComposerOpenWithItsText() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        // Hold the confirm's own refetch open so the composer saves mid-submission, which is the
+        // one state the coordinator refuses an addition in.
+        let gate = PullRequestsServiceGate()
+        fixture.service.detailGate = gate
+        let submission = Task { await fixture.viewModel.submitReview(event: .comment) }
+        try await fixture.waitForSubmission()
+        let anchor = DiffCommentAnchor(path: "File1.swift", side: .right, line: 1)
+
+        fixture.viewModel.openCommentComposer(at: anchor)
+        fixture.viewModel.updateComposerText("Too late")
+        fixture.viewModel.saveComposerComment()
+
+        XCTAssertEqual(fixture.session?.composerAnchor, anchor)
+        XCTAssertEqual(fixture.session?.composerText, "Too late")
+        XCTAssertNotNil(fixture.session?.composerError)
+
+        gate.open()
+        _ = await submission.value
+    }
+
+    // MARK: - Submitting
+
+    /// Both sets are one GitHub review: the staged comments are written into the same draft the
+    /// viewer's own pending comments live in, and that draft is published once.
+    func testSubmittingPublishesTheStagedCommentsAndResolvesTheProposal() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        fixture.viewModel.updateOverallReviewComment("Looks fine.")
+
+        let didSubmit = await fixture.viewModel.submitReview(event: .comment)
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Staged remark"])
+        // The footer's own summary outranks the proposal's body.
+        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Looks fine."])
+        XCTAssertTrue(fixture.service.submittedReviews.isEmpty)
+        // Confirming clears the envelope, so the proposal drops out with no detaching to do.
+        XCTAssertNil(fixture.viewModel.activePendingReviewProposal)
+        XCTAssertEqual(fixture.session?.pendingReview.overallComment, "")
+        XCTAssertFalse(try XCTUnwrap(fixture.session?.pendingReview.isSubmitting))
+    }
+
+    func testAFailedProposalSubmitLeavesTheReviewRetryable() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        fixture.service.detailResult = .failure(.rateLimited)
+
+        let didSubmit = await fixture.viewModel.submitReview(event: .comment)
+
+        XCTAssertFalse(didSubmit)
+        XCTAssertNotNil(fixture.session?.pendingReview.submissionError)
+        XCTAssertFalse(try XCTUnwrap(fixture.session?.pendingReview.isSubmitting))
+        // Unresolved, never wrongly resolved.
+        XCTAssertNotNil(fixture.viewModel.activePendingReviewProposal)
+    }
+
+    /// The footer's count note, its Submit enablement, and `submitReview`'s own guard all read this
+    /// one sum, so the button cannot offer a submit the guard then silently refuses.
+    func testTheSubmittableCountCoversStagedComments() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        let session = try XCTUnwrap(fixture.session)
+        let onGitHub = try XCTUnwrap(session.detail?.pendingCommentCount)
+        let submittable = fixture.viewModel.submittableCommentCount(for: fixture.target, session: session)
+
+        XCTAssertEqual(submittable, onGitHub + 1)
+        // A summary-less `.comment` review is submittable *because* of the staged comment.
+        XCTAssertTrue(
+            PullRequestsViewModel.canSubmitReview(
+                event: .comment,
+                draft: PendingReviewDraft(),
+                pendingCommentCount: submittable
+            )
+        )
+    }
+
     /// A pull request pushed to since the proposal was made can strand an anchor. Revealing has
     /// nothing to do then, and must not disturb the window it cannot help.
     func testRevealingAnUnmatchedAnchorChangesNothing() async throws {
@@ -186,6 +306,20 @@ final class ReviewProposalAttachmentFixture {
     func openPane() async {
         viewModel.requestDetails(summary)
         await waitForPaneContent(viewModel, target: target)
+    }
+
+    /// `submitReview` marks the session submitting before its first suspension, but the caller runs
+    /// it in its own `Task`; poll with a deadline so a submit that never starts fails the test
+    /// rather than spinning the main actor until CI times out.
+    func waitForSubmission(timeout: TimeInterval = 2) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if session?.pendingReview.isSubmitting == true {
+                return
+            }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("the submission never started")
     }
 
     /// One staged comment on `File0.swift:1`, the first line `makeUnifiedDiffFixture` emits.

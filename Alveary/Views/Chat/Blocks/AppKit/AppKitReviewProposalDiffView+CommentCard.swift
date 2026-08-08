@@ -24,10 +24,10 @@ struct AppKitReviewProposalCommentWash: Equatable {
 /// backdrop band. That is why the builder hands this view the *next* row's kind.
 ///
 /// Its interior mirrors `DiffCommentThreadRow.commentView`: the avatar/author/badges row over a
-/// markdown-rendered body. No reactions, no menu, no reply footer, no composer — every one of those
-/// posts to GitHub, and nothing on this card may reach GitHub before the user confirms the review.
-/// The trailing Remove is the one exception that proves the rule: it drops a staged comment from the
-/// stored envelope, which is local by construction.
+/// markdown-rendered body. No reactions, no reply footer, no composer — every one of those posts to
+/// GitHub, and nothing on this card may reach GitHub before the user confirms the review. The
+/// trailing actions menu is the one exception that proves the rule: its Delete drops a staged
+/// comment from the stored envelope, which is local by construction.
 @MainActor
 final class AppKitReviewProposalCommentCardView: NSView {
     /// Matches `DiffCommentCardChrome`: the card is inset from the row so the code surface shows
@@ -72,7 +72,7 @@ final class AppKitReviewProposalCommentCardView: NSView {
     private let authorField = NSTextField(labelWithString: "")
     private let botBadge = AppKitPullRequestCommentBadgeView()
     private let pendingBadge = AppKitPullRequestCommentBadgeView()
-    private let removeButton = AppKitReviewProposalCommentRemoveButton()
+    private let actionsMenu = AppKitReviewProposalCommentMenuButton()
     private let jumpButton = AppKitReviewProposalCommentJumpButton()
     private let bodyView = AppKitMarkdownView(document: AppMarkdownDocument(content: AttributedString()))
     private var metrics = AppKitDiffCodeBlockMetrics.empty
@@ -94,8 +94,7 @@ final class AppKitReviewProposalCommentCardView: NSView {
         bodyView.onHeightInvalidated = { [weak self] in
             self?.onHeightInvalidated?()
         }
-        // The button owns the arm/confirm step; this fires only on the confirming press.
-        removeButton.onConfirm = { [weak self] in
+        actionsMenu.onDelete = { [weak self] in
             guard let self, let proposedIndex else {
                 return
             }
@@ -148,8 +147,8 @@ final class AppKitReviewProposalCommentCardView: NSView {
         )
         // Only a staged comment can be removed, and only while the card can still act on it — a
         // submission in flight is already publishing what it was handed.
-        removeButton.isHidden = !(context.allowsRemoval && comment.isProposed)
-        removeButton.configure(fontSize: captionSize)
+        actionsMenu.isHidden = !(context.allowsRemoval && comment.isProposed)
+        actionsMenu.configure(fontSize: captionSize)
         // Only a staged comment jumps: a `Pending` one already lives on GitHub and the pane
         // renders it from the detail, with no proposal to attach to.
         jumpButton.isHidden = !(context.allowsJumping && comment.isProposed)
@@ -266,16 +265,15 @@ private extension AppKitReviewProposalCommentCardView {
         authorRow.addArrangedSubview(pendingBadge)
         // The badges keep their intrinsic width; the author name is what yields on a narrow card.
         authorField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        for view in [avatarView, botBadge, pendingBadge, jumpButton, removeButton] {
+        for view in [avatarView, botBadge, pendingBadge, jumpButton, actionsMenu] {
             view.setContentHuggingPriority(.required, for: .horizontal)
             view.setContentCompressionResistancePriority(.required, for: .horizontal)
         }
         authorRow.addArrangedSubview(NSView())
-        // After the flexible spacer, so they sit at the card's trailing edge — where the pane puts
-        // its three-dot menu on this same card shape. Jump leads Remove: navigating is the
-        // ordinary action, and the destructive one stays furthest from the pointer's path.
+        // After the flexible spacer, so they sit at the card's trailing edge — the actions menu
+        // last, on the same trailing column the pane puts its own three-dot menu on.
         authorRow.addArrangedSubview(jumpButton)
-        authorRow.addArrangedSubview(removeButton)
+        authorRow.addArrangedSubview(actionsMenu)
     }
 
     func configureBody(markdown: String, typography: TranscriptTypography) {

@@ -2,10 +2,10 @@ import Foundation
 
 /// A review submission awaiting the user's confirmation in the conversation that proposed it.
 ///
-/// Stored as a JSON envelope on `Conversation` rather than a `@Model`: its only surface is the
-/// transcript widget, the invariant is already one pending proposal per conversation, and a new
-/// model with a `Conversation` inverse would have to be registered in every `ModelContainer` the
-/// app and its tests build. It cascades with the conversation for free.
+/// Stored as a JSON envelope on `Conversation` rather than a `@Model`: the invariant is already one
+/// pending proposal per conversation, and a new model with a `Conversation` inverse would have to be
+/// registered in every `ModelContainer` the app and its tests build. It cascades with the
+/// conversation for free. The transcript widget and the pull request pane both read and edit it.
 struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
     /// Version 2 added `comments`. Decode accepts older versions — a v1 envelope simply carries
     /// none — but the field's presence still demands the bump: a v2 envelope read as v1 would
@@ -54,20 +54,31 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
         comments ?? []
     }
 
-    /// The envelope with one staged comment dropped, for the card's per-comment Remove. Returns nil
-    /// for an out-of-range index rather than rewriting the envelope with nothing changed.
-    ///
-    /// An emptied list normalizes back to `nil`, matching how a comment-free proposal is written at
-    /// creation. `payloadVersion` deliberately does not move: the shape is unchanged, and an older
-    /// build reading the result would submit exactly what its card shows — the condition the version
-    /// guard exists for.
+    /// The envelope with one staged comment dropped, for the per-comment Remove. Returns nil for an
+    /// out-of-range index rather than rewriting the envelope with nothing changed.
     func removingComment(at index: Int) -> PullRequestReviewProposalRecord? {
         var remaining = stagedComments
         guard remaining.indices.contains(index) else {
             return nil
         }
         remaining.remove(at: index)
-        return PullRequestReviewProposalRecord(
+        return replacingComments(remaining)
+    }
+
+    /// The envelope with one more staged comment, for a comment composed in the pull request pane
+    /// while this proposal is pending. Appending rather than inserting keeps every existing
+    /// position stable, which is what lets a rendered card's Remove keep addressing the comment it
+    /// shows — position is the only identity a staged comment has.
+    func appendingComment(_ comment: Comment) -> PullRequestReviewProposalRecord {
+        replacingComments(stagedComments + [comment])
+    }
+
+    /// An emptied list normalizes back to `nil`, matching how a comment-free proposal is written at
+    /// creation. `payloadVersion` deliberately does not move: the shape is unchanged, and an older
+    /// build reading the result would submit exactly what its card shows — the condition the version
+    /// guard exists for.
+    private func replacingComments(_ comments: [Comment]) -> PullRequestReviewProposalRecord {
+        PullRequestReviewProposalRecord(
             payloadVersion: payloadVersion,
             id: id,
             deduplicationKey: deduplicationKey,
@@ -75,7 +86,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
             number: number,
             event: event,
             body: body,
-            comments: remaining.isEmpty ? nil : remaining,
+            comments: comments.isEmpty ? nil : comments,
             titleSnapshot: titleSnapshot,
             pendingCommentCountSnapshot: pendingCommentCountSnapshot,
             sourceProviderID: sourceProviderID,

@@ -241,9 +241,10 @@ extension SnapshotTests {
     }
 
     /// With a review already written, the footer's default action is finishing it — the stored
-    /// "Agentic review" pick is overridden. The note reads "1 pending comment": the fixture's own
-    /// GitHub draft, *not* the staged comment beside it — the count excludes staged comments until
-    /// submitting actually publishes them, so "2" here means the fold-in returned too early.
+    /// "Agentic review" pick is overridden. The note reads "2 comments in this review": the
+    /// fixture's own GitHub draft plus the staged comment beside it, because Submit here routes
+    /// through the coordinator and publishes both. It deliberately does not say "pending" — that is
+    /// GitHub's word for the draft alone, and a staged comment wears the "Proposed" pill.
     func testPullRequestPaneFooterPrefersSubmitWithProposedComments() throws {
         let viewModel = try PullRequestPaneSnapshots.viewModelWithPendingProposal()
         viewModel.selectReviewFooterAction(.agenticReview)

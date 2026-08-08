@@ -42,10 +42,11 @@ struct DiffLineComment: Hashable, Sendable {
     let absoluteTimestamp: String?
     /// Position in the review proposal's stored `comments` array, for a comment staged inside a
     /// proposal and existing nowhere on GitHub yet — narrower than `isPending`, which means written
-    /// into the viewer's server-side draft. Only the review-proposal card renders these, and the
-    /// array position is the only identity a staged comment has, so it is what the card's Remove
-    /// addresses. Every removal shifts the array, so a pruned preview must renumber what survives —
-    /// the one mutable field here, so that renumbering cannot silently drop a sibling.
+    /// into the viewer's server-side draft. The review-proposal card and the pull request pane both
+    /// render these, and the array position is the only identity a staged comment has, so it is what
+    /// Remove addresses on either. Every removal shifts the array, so a pruned preview must renumber
+    /// what survives — the one mutable field here, so that renumbering cannot silently drop a
+    /// sibling. Additions append for the same reason: an insert would move a rendered card's index.
     var proposedIndex: Int?
 
     var isProposed: Bool {

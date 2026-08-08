@@ -153,55 +153,28 @@ final class AppKitPullRequestCommentBadgeView: NSView {
     }
 }
 
-/// Drops one staged comment from the review before it is submitted.
+/// The comment card's three-dot menu, holding the one action a staged comment has.
 ///
-/// The one control a proposal comment card carries. It edits the stored envelope and nothing else,
-/// which is what keeps it inside the card's premise that nothing reaches GitHub before confirmation.
-/// Built on `AppKitHostToolWidgetBubbleView` for the transcript's press, cursor, button role, and
-/// hover — including the scroll-under-pointer re-derivation a scrolling transcript needs.
+/// Mirrors the pane's `PullRequestCommentActionsMenu`: the same `ellipsis` glyph, the same
+/// trailing-aligned hit target, the same "Comment actions" name, and one destructive row. Deleting
+/// asks for no confirmation, exactly as it does not in the pane — a staged comment exists only in
+/// the stored envelope, so dropping it publishes nothing.
 ///
-/// Removal takes two presses, like the sidebar's archive/delete pill: the first swaps the glyph for
-/// a red `Confirm`, and only the second removes. A staged comment is the review's substance and
-/// there is no undo, so a mis-click must not silently drop one.
+/// Built on `AppKitHostToolWidgetBubbleView` for the transcript's press, cursor, and button role.
 @MainActor
-final class AppKitReviewProposalCommentRemoveButton: AppKitHostToolWidgetBubbleView {
-    /// The hover circle, wider than the glyph needs so the fill has room around it.
-    static let diameter: CGFloat = 24
-    /// What the author row lays the button out by. Auto Layout positions a view by its alignment
-    /// rect, so keeping that at the glyph's own box lets the circle grow outward without moving the
-    /// glyph or heightening the row — and the overflow still takes clicks, hover, and the cursor,
-    /// because those read `bounds`.
-    static let alignmentDiameter: CGFloat = 16
-    /// How long an armed pill waits once the pointer has left. Matching the sidebar's, and for the
-    /// same reason: a user still deciding is hovering, so the countdown never runs under them.
-    static let confirmationTimeoutNanoseconds: UInt64 = 500_000_000
-    private static let titleHorizontalPadding: CGFloat = 8
-    /// `ActionButtonTint.destructive`, the app's one destructive fill.
-    private static let destructiveTint = NSColor(ActionButtonTint.destructive)
-
-    /// The second press. The first only arms the pill.
-    var onConfirm: (() -> Void)?
+final class AppKitReviewProposalCommentMenuButton: AppKitHostToolWidgetBubbleView {
+    var onDelete: (() -> Void)?
 
     private let glyphView = AppKitDynamicTintImageView()
-    private let titleField = NSTextField(labelWithString: "Confirm")
-    private var widthConstraint: NSLayoutConstraint?
-    private var disarmTask: Task<Void, Never>?
-    private var isArmed = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
-        wantsLayer = true
-        layer?.cornerRadius = Self.diameter / 2
         isInteractive = true
-        onHoverChanged = { [weak self] _ in
-            self?.applyState()
-        }
         onActivate = { [weak self] in
-            self?.handlePress()
+            self?.presentMenu()
         }
         setupContent()
-        applyState()
     }
 
     @available(*, unavailable)
@@ -210,153 +183,90 @@ final class AppKitReviewProposalCommentRemoveButton: AppKitHostToolWidgetBubbleV
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: alignmentWidth, height: Self.alignmentDiameter)
+        PullRequestCommentActionsMenu.hitTargetSize
     }
 
-    override var alignmentRectInsets: NSEdgeInsets {
-        let inset = (Self.diameter - Self.alignmentDiameter) / 2
-        return NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
-    }
-
-    /// Regular weight at the author row's own size: at semibold the glyph out-shouted the caption
-    /// text it sits beside and read as a second Cancel.
+    /// The pane draws its ellipsis at a fixed size beside `.caption` text; the transcript's caption
+    /// follows the chat font-size setting, so this one tracks that instead of freezing.
     func configure(fontSize: CGFloat) {
-        glyphView.symbolConfiguration = .init(pointSize: fontSize, weight: .regular)
-        titleField.font = .systemFont(ofSize: fontSize, weight: .semibold)
-        // A reconfigure means the card is showing different content, so a pill armed against the
-        // old one must not carry over.
-        disarm()
+        glyphView.symbolConfiguration = .init(pointSize: fontSize, weight: .semibold)
     }
 
-    /// Cancelled here rather than in `deinit`, which cannot touch main-actor state.
-    override func viewWillMove(toWindow newWindow: NSWindow?) {
-        super.viewWillMove(toWindow: newWindow)
-        guard newWindow == nil else {
-            return
-        }
-        disarm()
+    /// The menu the button pops, built separately so tests can run its row: `NSMenu.popUp` enters a
+    /// modal tracking loop, which a test cannot drive.
+    func makeMenu() -> NSMenu {
+        let menu = NSMenu()
+        let delete = NSMenuItem(
+            title: PullRequestCommentActionsMenu.deleteTitle,
+            action: #selector(handleDelete),
+            keyEquivalent: ""
+        )
+        delete.target = self
+        delete.image = NSImage(
+            systemSymbolName: PullRequestCommentActionsMenu.deleteSymbolName,
+            accessibilityDescription: nil
+        )
+        menu.addItem(delete)
+        return menu
     }
 }
 
-private extension AppKitReviewProposalCommentRemoveButton {
-    var alignmentWidth: CGFloat {
-        guard isArmed else {
-            return Self.alignmentDiameter
-        }
-        let title = ceil(titleField.attributedStringValue.size().width)
-        return title + (Self.titleHorizontalPadding * 2)
-    }
-
-    func handlePress() {
-        guard isArmed else {
-            isArmed = true
-            applyState()
-            return
-        }
-        disarm()
-        onConfirm?()
-    }
-
-    func disarm() {
-        disarmTask?.cancel()
-        disarmTask = nil
-        guard isArmed else {
-            return
-        }
-        isArmed = false
-        applyState()
-    }
-
-    /// Both the pill's appearance and its countdown follow from armed plus hovered, so one place
-    /// derives them — a hover change while armed is exactly what starts and stops the clock.
-    func applyState() {
-        glyphView.isHidden = isArmed
-        titleField.isHidden = !isArmed
-        if isArmed {
-            setLayerFillColor(Self.destructiveTint, alpha: 1)
-        } else {
-            setLayerFillColor(.secondaryLabelColor, alpha: isHovered ? 0.16 : 0)
-        }
-        setAccessibilityLabel(isArmed ? "Confirm removing this proposed comment" : "Remove proposed comment")
-        toolTip = isArmed ? "Press again to remove this comment" : "Remove this comment from the review"
-        widthConstraint?.constant = alignmentWidth
-        invalidateIntrinsicContentSize()
-        scheduleDisarmIfNeeded()
-    }
-
-    func scheduleDisarmIfNeeded() {
-        disarmTask?.cancel()
-        disarmTask = nil
-        guard isArmed, !isHovered else {
-            return
-        }
-        disarmTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: Self.confirmationTimeoutNanoseconds)
-            guard !Task.isCancelled else {
-                return
-            }
-            self?.disarm()
-        }
-    }
-
+private extension AppKitReviewProposalCommentMenuButton {
     func setupContent() {
         glyphView.translatesAutoresizingMaskIntoConstraints = false
         glyphView.setAccessibilityElement(false)
-        glyphView.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: nil)
+        glyphView.image = NSImage(
+            systemSymbolName: PullRequestCommentActionsMenu.glyphSymbolName,
+            accessibilityDescription: nil
+        )
         glyphView.setDynamicContentTintColor(.secondaryLabelColor)
-        titleField.translatesAutoresizingMaskIntoConstraints = false
-        titleField.setAccessibilityElement(false)
-        titleField.textColor = .white
-        titleField.maximumNumberOfLines = 1
         addSubview(glyphView)
-        addSubview(titleField)
-        let width = widthAnchor.constraint(equalToConstant: Self.alignmentDiameter)
-        widthConstraint = width
-        // Sized and centred against the alignment rect, which the symmetric insets keep concentric
-        // with the frame — so the glyph lands where it did before the circle grew.
         NSLayoutConstraint.activate([
-            width,
-            heightAnchor.constraint(equalToConstant: Self.alignmentDiameter),
-            glyphView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            glyphView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            titleField.centerXAnchor.constraint(equalTo: centerXAnchor),
-            titleField.centerYAnchor.constraint(equalTo: centerYAnchor)
+            widthAnchor.constraint(equalToConstant: PullRequestCommentActionsMenu.hitTargetSize.width),
+            heightAnchor.constraint(equalToConstant: PullRequestCommentActionsMenu.hitTargetSize.height),
+            glyphView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            glyphView.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
+        setAccessibilityLabel(PullRequestCommentActionsMenu.name)
+        toolTip = PullRequestCommentActionsMenu.name
+    }
+
+    func presentMenu() {
+        // The view is flipped, so its maximum Y edge is the bottom — the menu drops below the
+        // glyph the way the pane's does.
+        makeMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: bounds.maxY + 2), in: self)
+    }
+
+    @objc func handleDelete() {
+        onDelete?()
     }
 }
 
 /// Opens this comment in the pull request pane's Changes tab, scrolled to the line it annotates.
 ///
-/// Single press, unlike the Remove pill beside it: this navigates rather than destroys, so an
-/// arm/confirm step would only be friction. It wears `Octicon.fileDiff16`, the same glyph the
-/// pane's own "Show in Changes" button uses, so the two jump affordances read as one concept.
+/// An accent icon-and-text button matching the pane's own "Show in Changes" — same
+/// `Octicon.fileDiff16`, same accent, same caption type — because the two are one affordance seen
+/// from two surfaces. Single press: it navigates rather than destroys.
 @MainActor
 final class AppKitReviewProposalCommentJumpButton: AppKitHostToolWidgetBubbleView {
-    /// Matches the Remove button so the two sit on one line without changing the row's height.
-    static let diameter = AppKitReviewProposalCommentRemoveButton.diameter
-    static let alignmentDiameter = AppKitReviewProposalCommentRemoveButton.alignmentDiameter
-
     var onJump: (() -> Void)?
 
     private let glyphView = NSImageView()
+    private let titleField = NSTextField(labelWithString: PullRequestCommentRevealAction.transcriptTitle)
     /// Held because an octicon's tint is baked into the rendered image, so an appearance change
     /// has to redraw it — unlike an SF Symbol, which `AppKitDynamicTintImageView` can retint.
-    private var glyphSide: CGFloat = 12
+    private var glyphSide = ActionButtonMetrics.inlineOcticonGlyphSize
+    private var glyphWidthConstraint: NSLayoutConstraint?
+    private var glyphHeightConstraint: NSLayoutConstraint?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
-        wantsLayer = true
-        layer?.cornerRadius = Self.diameter / 2
         isInteractive = true
-        onHoverChanged = { [weak self] _ in
-            self?.applyState()
-        }
         onActivate = { [weak self] in
             self?.onJump?()
         }
         setupContent()
-        applyState()
     }
 
     @available(*, unavailable)
@@ -364,19 +274,15 @@ final class AppKitReviewProposalCommentJumpButton: AppKitHostToolWidgetBubbleVie
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: Self.alignmentDiameter, height: Self.alignmentDiameter)
-    }
-
-    /// Keeps the hover circle growing outward from the glyph's own box rather than widening the
-    /// author row, exactly as the Remove button does.
-    override var alignmentRectInsets: NSEdgeInsets {
-        let inset = (Self.diameter - Self.alignmentDiameter) / 2
-        return NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
-    }
-
+    /// Octicon artwork under-fills its canvas, which is why the pane's shared
+    /// `ActionButtonMetrics.inlineOcticonGlyphSize` sits two points above the `.caption` text it is
+    /// paired with rather than matching it. The transcript's caption follows the chat font-size
+    /// setting, so the glyph box keeps that same offset instead of freezing at the pane's number.
     func configure(fontSize: CGFloat) {
-        glyphSide = fontSize
+        titleField.font = .systemFont(ofSize: fontSize)
+        glyphSide = fontSize + Self.glyphSizeOffset
+        glyphWidthConstraint?.constant = glyphSide
+        glyphHeightConstraint?.constant = glyphSide
         renderGlyph()
     }
 
@@ -387,30 +293,49 @@ final class AppKitReviewProposalCommentJumpButton: AppKitHostToolWidgetBubbleVie
 }
 
 private extension AppKitReviewProposalCommentJumpButton {
+    /// How far the pane's inline glyph box sits above the `.caption` size it accompanies.
+    static let glyphSizeOffset = ActionButtonMetrics.inlineOcticonGlyphSize - 10
+
     func setupContent() {
         glyphView.translatesAutoresizingMaskIntoConstraints = false
         glyphView.setAccessibilityElement(false)
         glyphView.imageScaling = .scaleProportionallyUpOrDown
+        titleField.translatesAutoresizingMaskIntoConstraints = false
+        titleField.setAccessibilityElement(false)
+        titleField.maximumNumberOfLines = 1
+        titleField.lineBreakMode = .byTruncatingTail
+        // A dynamic colour, so the field re-resolves it across appearances by itself; only the
+        // octicon, whose tint is baked into the rendered bitmap, has to be redrawn.
+        titleField.textColor = PullRequestCommentRevealAction.tintNSColor
         addSubview(glyphView)
+        addSubview(titleField)
+        let glyphWidth = glyphView.widthAnchor.constraint(equalToConstant: glyphSide)
+        let glyphHeight = glyphView.heightAnchor.constraint(equalToConstant: glyphSide)
+        glyphWidthConstraint = glyphWidth
+        glyphHeightConstraint = glyphHeight
         NSLayoutConstraint.activate([
-            widthAnchor.constraint(equalToConstant: Self.alignmentDiameter),
-            heightAnchor.constraint(equalToConstant: Self.alignmentDiameter),
-            glyphView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            glyphWidth,
+            glyphHeight,
+            glyphView.leadingAnchor.constraint(equalTo: leadingAnchor),
             glyphView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            glyphView.widthAnchor.constraint(equalTo: widthAnchor),
-            glyphView.heightAnchor.constraint(equalTo: heightAnchor)
+            titleField.leadingAnchor.constraint(
+                equalTo: glyphView.trailingAnchor,
+                constant: ActionButtonMetrics.inlineIconLabelSpacing
+            ),
+            titleField.trailingAnchor.constraint(equalTo: trailingAnchor),
+            titleField.topAnchor.constraint(equalTo: topAnchor),
+            titleField.bottomAnchor.constraint(equalTo: bottomAnchor),
+            // The glyph box outgrows the label's line height at the smallest chat font sizes;
+            // without this the artwork would overhang the author row.
+            heightAnchor.constraint(greaterThanOrEqualTo: glyphView.heightAnchor)
         ])
-        setAccessibilityLabel("Show in pull request")
-        toolTip = "Show this comment in the pull request"
+        setAccessibilityLabel(PullRequestCommentRevealAction.transcriptName)
+        toolTip = PullRequestCommentRevealAction.transcriptName
     }
 
     func renderGlyph() {
-        let color = NSColor.secondaryLabelColor.appKitResolvedColor(in: self, alpha: 1)
-        glyphView.image = ActionIcon.octicon(.fileDiff16).nsImage(side: glyphSide, color: color)
-    }
-
-    func applyState() {
-        setLayerFillColor(.secondaryLabelColor, alpha: isHovered ? 0.16 : 0)
+        let color = PullRequestCommentRevealAction.tintNSColor.appKitResolvedColor(in: self, alpha: 1)
+        glyphView.image = PullRequestCommentRevealAction.icon.nsImage(side: glyphSide, color: color)
     }
 }
 

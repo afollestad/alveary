@@ -51,14 +51,14 @@ struct PullRequestReviewThreadView: View {
                         showInChanges()
                     } label: {
                         ActionButtonLabel(
-                            title: "Show in Changes",
-                            icon: .octicon(.fileDiff16),
+                            title: PullRequestCommentRevealAction.overviewTitle,
+                            icon: PullRequestCommentRevealAction.icon,
                             scale: .inline
                         )
                     }
                     .buttonStyle(.plain)
                     .font(.caption)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(PullRequestCommentRevealAction.tint)
                     .accessibilityHint("Shows this comment in the Changes tab")
                 }
             }

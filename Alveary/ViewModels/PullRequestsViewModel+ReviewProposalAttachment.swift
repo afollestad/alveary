@@ -58,6 +58,108 @@ extension PullRequestsViewModel {
         activePaneTarget.flatMap { pendingReviewProposal(for: $0) }
     }
 
+    /// Comments a submit from this pane would publish: the viewer's own GitHub draft plus the
+    /// pending proposal's staged ones, because a submit with a proposal pending routes through the
+    /// coordinator, which writes the staged comments into that same draft before publishing it.
+    ///
+    /// The footer's count note, the footer's Submit enablement, and `submitReview`'s own guard all
+    /// read this one sum, so the button can never offer a submit the guard then silently refuses.
+    ///
+    /// Takes the session rather than looking it up, for the reason `PullRequestPaneFiles` takes its
+    /// target explicitly: the footer resolves for the session it was handed, which is also what
+    /// lets a snapshot host render it without opening a pane.
+    func submittableCommentCount(
+        for target: PullRequestPaneTarget,
+        session: PullRequestPaneSession
+    ) -> Int {
+        (session.detail?.pendingCommentCount ?? 0)
+            + (pendingReviewProposal(for: target)?.comments.count ?? 0)
+    }
+
+    /// Writes a composed comment into the pending proposal's envelope instead of GitHub's draft.
+    ///
+    /// Composing in a pane with a review waiting adds to *that* review: a comment written to the
+    /// viewer's draft would be published by the same Submit, but would never appear on the
+    /// transcript card, so the two surfaces would disagree about what the review says. Nothing
+    /// reaches GitHub, so there is no optimistic placeholder to withdraw — the merged annotations
+    /// re-derive from the envelope on the next render.
+    func stageProposedComment(
+        proposalID: String,
+        target: PullRequestPaneTarget,
+        generation: UUID,
+        anchor: DiffCommentAnchor,
+        body: String
+    ) {
+        guard reviewProposalCoordinator?.addStagedComment(
+            proposalID: proposalID,
+            path: anchor.path,
+            line: anchor.line,
+            side: anchor.side == .left ? .left : .right,
+            body: body
+        ) == true else {
+            // Leave the composer open with its text intact, like every other composer failure here.
+            updateSession(target, generation: generation) { session in
+                session.composerError = reviewProposalCoordinator?.errorMessage(forProposalID: proposalID)
+                    ?? "Alveary could not add this comment to the review."
+            }
+            return
+        }
+        updateSession(target, generation: generation) { session in
+            session.composerAnchor = nil
+            session.composerText = ""
+            session.composerError = nil
+            session.pendingReview.submissionError = nil
+            composerDraft = nil
+        }
+    }
+
+    /// Submits through the proposal coordinator so one GitHub review carries both sets: the
+    /// coordinator writes the staged comments into the viewer's draft — the same draft the pane's
+    /// own pending comments already live in — and publishes it once.
+    ///
+    /// The summary has two sources. The footer's text wins when it has one, falling back to what
+    /// the model proposed, so an untouched footer publishes the proposal's body rather than
+    /// blanking it. A successful confirm clears the envelope, so the staged comments drop out of
+    /// the pane on the next read and the transcript card resolves as confirmed — no detaching to do.
+    func submitProposedReview(
+        _ proposal: PullRequestReviewProposalPresentation,
+        event: PullRequestReviewEvent,
+        target: PullRequestPaneTarget,
+        session: PullRequestPaneSession
+    ) async -> Bool {
+        guard let coordinator = reviewProposalCoordinator else {
+            return false
+        }
+        let generation = session.generation
+        let summary = session.pendingReview.overallComment.trimmingCharacters(in: .whitespacesAndNewlines)
+        updateSession(target, generation: generation) { session in
+            session.pendingReview.isSubmitting = true
+            session.pendingReview.submissionError = nil
+        }
+        guard await coordinator.confirm(
+            proposalID: proposal.id,
+            event: event,
+            bodyOverride: summary.isEmpty ? nil : summary
+        ) else {
+            updateSession(target, generation: generation) { session in
+                session.pendingReview.isSubmitting = false
+                session.pendingReview.submissionError = coordinator.errorMessage(forProposalID: proposal.id)
+                    ?? "Alveary could not submit this review."
+            }
+            return false
+        }
+        // `confirm` refetches only its own copy of the detail, so the pane still holds the
+        // pre-submission threads; this is the epilogue the GitHub-draft path runs for that reason.
+        await loadDetail(target: target, generation: generation) { session in
+            session.pendingReview = PendingReviewDraft()
+            session.composerAnchor = nil
+            session.composerText = ""
+            session.composerPendingCommentNodeID = nil
+        }
+        requestRefresh()
+        return true
+    }
+
     /// Drops one staged comment from the review, by its position in the stored envelope.
     ///
     /// Local by construction — a staged comment exists nowhere on GitHub — so this rewrites the

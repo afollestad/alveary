@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -9,12 +8,12 @@ import XCTest
 @MainActor
 final class ReviewProposalCoordinatorTests: XCTestCase {
     func testConfirmingSubmitsThePendingDraftAndResolvesTheCard() async throws {
-        let fixture = try Fixture()
+        let fixture = try ReviewProposalFixture()
         fixture.service.detailResult = .success(
-            makePullRequestDetail(id: Fixture.identifier, pendingReviewNodeID: "DRAFT_1")
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         )
 
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .approve)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
 
         XCTAssertTrue(didSubmit)
         // With a draft on GitHub, submitting finishes *that* review rather than opening a second.
@@ -24,16 +23,16 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         )
         XCTAssertTrue(fixture.service.submittedReviews.isEmpty)
         XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
-        XCTAssertNil(fixture.coordinator.presentation(forProposalID: Fixture.proposalID))
+        XCTAssertNil(fixture.coordinator.presentation(forProposalID: ReviewProposalFixture.proposalID))
         XCTAssertEqual(fixture.outcomeMarkers().count, 1)
     }
 
     func testConfirmingWithoutADraftPostsASummaryOnlyReview() async throws {
-        let fixture = try Fixture()
-        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+        let fixture = try ReviewProposalFixture()
+        fixture.service.detailResult = .success(makePullRequestDetail(id: ReviewProposalFixture.identifier))
         fixture.service.submitResult = .success(())
 
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .comment)
 
         XCTAssertTrue(didSubmit)
         XCTAssertEqual(fixture.service.submittedReviews.count, 1)
@@ -41,14 +40,14 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
     }
 
     func testTheUserCanSubmitAVerdictOtherThanTheOneProposed() async throws {
-        let fixture = try Fixture()
+        let fixture = try ReviewProposalFixture()
         fixture.service.detailResult = .success(
-            makePullRequestDetail(id: Fixture.identifier, pendingReviewNodeID: "DRAFT_1")
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         )
 
-        fixture.coordinator.selectEvent(.requestChanges, forProposalID: Fixture.proposalID)
-        let selected = fixture.coordinator.selectedEvent(forProposalID: Fixture.proposalID)
-        _ = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: try XCTUnwrap(selected))
+        fixture.coordinator.selectEvent(.requestChanges, forProposalID: ReviewProposalFixture.proposalID)
+        let selected = fixture.coordinator.selectedEvent(forProposalID: ReviewProposalFixture.proposalID)
+        _ = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: try XCTUnwrap(selected))
 
         XCTAssertEqual(fixture.service.submittedPendingReviews.first?.event, .requestChanges)
         // The marker records what was actually submitted, not what the model asked for.
@@ -59,29 +58,29 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
     }
 
     func testAFailedSubmissionLeavesTheProposalConfirmableWithItsError() async throws {
-        let fixture = try Fixture()
+        let fixture = try ReviewProposalFixture()
         fixture.service.detailResult = .success(
-            makePullRequestDetail(id: Fixture.identifier, pendingReviewNodeID: "DRAFT_1")
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         )
         fixture.service.submitPendingReviewResult = .failure(.rateLimited)
 
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .approve)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
 
         XCTAssertFalse(didSubmit)
         // Unresolved, never wrongly resolved: the card must not claim a review was submitted.
         XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
-        XCTAssertNotNil(fixture.coordinator.errorMessage(forProposalID: Fixture.proposalID))
+        XCTAssertNotNil(fixture.coordinator.errorMessage(forProposalID: ReviewProposalFixture.proposalID))
         XCTAssertTrue(fixture.outcomeMarkers().isEmpty)
     }
 
     func testConfirmingWritesStagedCommentsIntoADraftThenSubmitsIt() async throws {
-        let fixture = try Fixture(comments: [
-            Fixture.stagedComment(line: 1, body: "First"),
-            Fixture.stagedComment(line: 2, body: "Second")
+        let fixture = try ReviewProposalFixture(comments: [
+            ReviewProposalFixture.stagedComment(line: 1, body: "First"),
+            ReviewProposalFixture.stagedComment(line: 2, body: "Second")
         ])
-        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+        fixture.service.detailResult = .success(makePullRequestDetail(id: ReviewProposalFixture.identifier))
 
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .comment)
 
         XCTAssertTrue(didSubmit)
         // No draft existed, so one is opened; the staged comments land in it, in order, and the
@@ -94,12 +93,12 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
     }
 
     func testConfirmingWithAnExistingDraftAdoptsItForTheStagedComments() async throws {
-        let fixture = try Fixture(comments: [Fixture.stagedComment(body: "First")])
+        let fixture = try ReviewProposalFixture(comments: [ReviewProposalFixture.stagedComment(body: "First")])
         fixture.service.detailResult = .success(
-            makePullRequestDetail(id: Fixture.identifier, pendingReviewNodeID: "DRAFT_1")
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         )
 
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .approve)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
 
         XCTAssertTrue(didSubmit)
         // GitHub allows one pending review per viewer, so the existing draft takes the comments
@@ -110,48 +109,48 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
     }
 
     func testAMidWriteFailurePublishesNothingAndLeavesTheCardConfirmable() async throws {
-        let fixture = try Fixture(comments: [
-            Fixture.stagedComment(line: 1, body: "First"),
-            Fixture.stagedComment(line: 2, body: "Second")
+        let fixture = try ReviewProposalFixture(comments: [
+            ReviewProposalFixture.stagedComment(line: 1, body: "First"),
+            ReviewProposalFixture.stagedComment(line: 2, body: "Second")
         ])
-        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
+        fixture.service.detailResult = .success(makePullRequestDetail(id: ReviewProposalFixture.identifier))
         fixture.service.addPendingCommentResults = [
             .success(StubPullRequestsService.makePendingThread(path: "File0.swift", line: 1, side: .right, body: "First")),
             .failure(.transport("offline"))
         ]
 
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .comment)
 
         XCTAssertFalse(didSubmit)
         // The failure struck before the submit, so GitHub holds only a private draft; the card
         // keeps its error and can be confirmed again.
         XCTAssertTrue(fixture.service.submittedPendingReviews.isEmpty)
         XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
-        XCTAssertNotNil(fixture.coordinator.errorMessage(forProposalID: Fixture.proposalID))
+        XCTAssertNotNil(fixture.coordinator.errorMessage(forProposalID: ReviewProposalFixture.proposalID))
         XCTAssertTrue(fixture.outcomeMarkers().isEmpty)
     }
 
     /// The refetched detail carries whatever the first attempt wrote, so a retry writes only what
     /// is missing rather than double-posting the comments that landed.
     func testARetrySkipsStagedCommentsAlreadyInTheDraft() async throws {
-        let fixture = try Fixture(comments: [
-            Fixture.stagedComment(line: 1, body: "Consider a guard here."),
-            Fixture.stagedComment(line: 2, body: "Second")
+        let fixture = try ReviewProposalFixture(comments: [
+            ReviewProposalFixture.stagedComment(line: 1, body: "Consider a guard here."),
+            ReviewProposalFixture.stagedComment(line: 2, body: "Second")
         ])
-        var detail = makePullRequestDetail(id: Fixture.identifier, pendingReviewNodeID: "DRAFT_1")
+        var detail = makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         detail.reviewThreads = [
             makeReviewThread(nodeID: "THREAD_1", path: "File0.swift", line: 1, isPending: true)
         ]
         fixture.service.detailResult = .success(detail)
 
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .comment)
 
         XCTAssertTrue(didSubmit)
         XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Second"])
     }
 
     func testPickingAVerdictNotifiesSoTheCardReRenders() throws {
-        let fixture = try Fixture()
+        let fixture = try ReviewProposalFixture()
         // The transcript re-reads coordinator state only on the change notification, so a
         // silent selection would leave the picker looking stuck on the old verdict.
         let notified = XCTNSNotificationExpectation(
@@ -160,16 +159,16 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
             notificationCenter: fixture.notificationCenter
         )
 
-        fixture.coordinator.selectEvent(.comment, forProposalID: Fixture.proposalID)
+        fixture.coordinator.selectEvent(.comment, forProposalID: ReviewProposalFixture.proposalID)
 
         wait(for: [notified], timeout: 1)
-        XCTAssertEqual(fixture.coordinator.selectedEvent(forProposalID: Fixture.proposalID), .comment)
+        XCTAssertEqual(fixture.coordinator.selectedEvent(forProposalID: ReviewProposalFixture.proposalID), .comment)
     }
 
     func testRejectingClearsTheProposalWithoutTouchingGitHub() async throws {
-        let fixture = try Fixture()
+        let fixture = try ReviewProposalFixture()
 
-        XCTAssertTrue(fixture.coordinator.reject(proposalID: Fixture.proposalID))
+        XCTAssertTrue(fixture.coordinator.reject(proposalID: ReviewProposalFixture.proposalID))
 
         XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
         XCTAssertEqual(fixture.service.detailCallCount, 0)
@@ -178,8 +177,8 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
     }
 
     func testApproveIsUnavailableOnTheViewersOwnPullRequest() async throws {
-        let fixture = try Fixture()
-        var detail = makePullRequestDetail(id: Fixture.identifier)
+        let fixture = try ReviewProposalFixture()
+        var detail = makePullRequestDetail(id: ReviewProposalFixture.identifier)
         detail.viewerLogin = detail.authorLogin
         detail.reviewThreads = [
             makeReviewThread(nodeID: "THREAD_1", path: "File0.swift", line: 1, isPending: true)
@@ -187,16 +186,16 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         fixture.service.detailResult = .success(detail)
         fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
 
-        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
+        fixture.coordinator.ensurePreview(proposalID: ReviewProposalFixture.proposalID)
         try await fixture.waitForPreview()
 
-        XCTAssertFalse(fixture.coordinator.canSubmit(proposalID: Fixture.proposalID, event: .approve))
-        XCTAssertTrue(fixture.coordinator.canSubmit(proposalID: Fixture.proposalID, event: .comment))
+        XCTAssertFalse(fixture.coordinator.canSubmit(proposalID: ReviewProposalFixture.proposalID, event: .approve))
+        XCTAssertTrue(fixture.coordinator.canSubmit(proposalID: ReviewProposalFixture.proposalID, event: .comment))
     }
 
     func testThePreviewShowsOnlyTheHunksThePendingCommentsSitOn() async throws {
-        let fixture = try Fixture()
-        var detail = makePullRequestDetail(id: Fixture.identifier)
+        let fixture = try ReviewProposalFixture()
+        var detail = makePullRequestDetail(id: ReviewProposalFixture.identifier)
         detail.reviewThreads = [
             makeReviewThread(nodeID: "THREAD_1", path: "File1.swift", line: 1, isPending: true),
             // A submitted thread is not part of what confirming would publish.
@@ -205,10 +204,10 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         fixture.service.detailResult = .success(detail)
         fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 3))
 
-        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
+        fixture.coordinator.ensurePreview(proposalID: ReviewProposalFixture.proposalID)
         try await fixture.waitForPreview()
 
-        guard case .loaded(let preview)? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
+        guard case .loaded(let preview)? = fixture.coordinator.preview(forProposalID: ReviewProposalFixture.proposalID) else {
             return XCTFail("expected a loaded preview")
         }
         XCTAssertEqual(preview.files.map(\.path), ["File1.swift"])
@@ -219,16 +218,16 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
     /// Staged comments exist nowhere on GitHub, so the preview has to render them from the
     /// envelope: attributed to the viewer and marked proposed, on the hunks they anchor to.
     func testThePreviewRendersStagedCommentsWithoutAServerDraft() async throws {
-        let fixture = try Fixture(comments: [Fixture.stagedComment(line: 1, body: "Guard this.")])
-        var detail = makePullRequestDetail(id: Fixture.identifier)
+        let fixture = try ReviewProposalFixture(comments: [ReviewProposalFixture.stagedComment(line: 1, body: "Guard this.")])
+        var detail = makePullRequestDetail(id: ReviewProposalFixture.identifier)
         detail.viewerLogin = "octocat"
         fixture.service.detailResult = .success(detail)
         fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 2))
 
-        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
+        fixture.coordinator.ensurePreview(proposalID: ReviewProposalFixture.proposalID)
         try await fixture.waitForPreview()
 
-        guard case .loaded(let preview)? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
+        guard case .loaded(let preview)? = fixture.coordinator.preview(forProposalID: ReviewProposalFixture.proposalID) else {
             return XCTFail("expected a loaded preview")
         }
         XCTAssertEqual(preview.files.map(\.path), ["File0.swift"])
@@ -239,233 +238,33 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertEqual(thread.comments.first?.isProposed, true)
     }
 
-    /// Removing a staged comment is a local edit to the envelope, so it rewrites storage and prunes
-    /// the already-loaded preview rather than refetching the pull request.
-    func testRemovingAStagedCommentRewritesTheEnvelopeAndPrunesThePreview() async throws {
-        let fixture = try Fixture(comments: [
-            Fixture.stagedComment(path: "File0.swift", line: 1, body: "Guard this."),
-            Fixture.stagedComment(path: "File1.swift", line: 1, body: "And this.")
-        ])
-        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
-        fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 3))
-        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
-        try await fixture.waitForPreview()
-        let detailCallsBeforeRemoval = fixture.service.detailCallCount
-
-        XCTAssertTrue(fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0))
-
-        XCTAssertEqual(try fixture.conversation.pullRequestReviewProposal()?.stagedComments.map(\.body), ["And this."])
-        XCTAssertEqual(fixture.coordinator.presentation(forProposalID: Fixture.proposalID)?.comments.count, 1)
-        guard case .loaded(let preview)? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
-            return XCTFail("expected a loaded preview")
-        }
-        XCTAssertEqual(preview.proposedCommentCount, 1)
-        XCTAssertEqual(preview.files.map(\.path), ["File1.swift"])
-        XCTAssertEqual(preview.annotations.threads.count, 1)
-        // No refetch: the click must not cost a detail plus diff round trip.
-        XCTAssertEqual(fixture.service.detailCallCount, detailCallsBeforeRemoval)
-    }
-
-    /// The envelope's array shifts under a removal, so the surviving cards have to renumber or the
-    /// next Remove addresses the wrong comment.
-    func testASecondRemovalTargetsTheRenumberedComment() async throws {
-        let fixture = try Fixture(comments: [
-            Fixture.stagedComment(path: "File0.swift", line: 1, body: "First"),
-            Fixture.stagedComment(path: "File1.swift", line: 1, body: "Second"),
-            Fixture.stagedComment(path: "File2.swift", line: 1, body: "Third")
-        ])
-        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
-        fixture.service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 3))
-        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
-        try await fixture.waitForPreview()
-
-        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0)
-        guard case .loaded(let afterFirst)? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
-            return XCTFail("expected a loaded preview")
-        }
-        // "Third" was index 2 and is now index 1, which is the index its card would send back.
-        let renumbered = afterFirst.annotations.threads.values
-            .flatMap(\.comments)
-            .first { $0.bodyMarkdown == "Third" }
-        XCTAssertEqual(renumbered?.proposedIndex, 1)
-
-        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 1)
-
-        XCTAssertEqual(try fixture.conversation.pullRequestReviewProposal()?.stagedComments.map(\.body), ["Second"])
-    }
-
-    func testRemovingTheLastStagedCommentLeavesASubmittableSummaryOnlyReview() async throws {
-        let fixture = try Fixture(comments: [Fixture.stagedComment(body: "Guard this.")])
-
-        XCTAssertTrue(fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0))
-
-        XCTAssertEqual(fixture.coordinator.presentation(forProposalID: Fixture.proposalID)?.comments, [])
-        // The proposal is still pending — removing its comments is not the same as cancelling it.
-        XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
-        XCTAssertTrue(fixture.coordinator.canSubmit(proposalID: Fixture.proposalID, event: .comment))
-    }
-
-    func testConfirmingAfterARemovalPublishesOnlyTheSurvivingComments() async throws {
-        let fixture = try Fixture(comments: [
-            Fixture.stagedComment(line: 1, body: "First"),
-            Fixture.stagedComment(line: 2, body: "Second")
-        ])
-        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
-
-        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0)
-        let didSubmit = await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment)
-
-        XCTAssertTrue(didSubmit)
-        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Second"])
-    }
-
-    /// A submission in flight is already publishing the comments it was handed, so the envelope
-    /// must not move under it.
-    func testRemovingIsRefusedWhileASubmissionIsInFlight() async throws {
-        let fixture = try Fixture(comments: [
-            Fixture.stagedComment(line: 1, body: "First"),
-            Fixture.stagedComment(line: 2, body: "Second")
-        ])
-        let detailGate = PullRequestsServiceGate()
-        fixture.service.detailGate = detailGate
-        fixture.service.detailResult = .success(makePullRequestDetail(id: Fixture.identifier))
-        let submission = Task { await fixture.coordinator.confirm(proposalID: Fixture.proposalID, event: .comment) }
-        try await fixture.waitForSubmission()
-
-        XCTAssertFalse(fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0))
-
-        detailGate.open()
-        let didSubmit = await submission.value
-        XCTAssertTrue(didSubmit)
-        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["First", "Second"])
-    }
-
-    func testRemovingNotifiesSoTheCardReRenders() throws {
-        let fixture = try Fixture(comments: [Fixture.stagedComment(body: "Guard this.")])
-        // Card-only state: the lifecycle notification would also rebuild transcript items, which a
-        // removal changes nothing about.
-        let notified = XCTNSNotificationExpectation(
-            name: .reviewProposalCardStateChanged,
-            object: nil,
-            notificationCenter: fixture.notificationCenter
+    /// The pane footer carries its own summary, which outranks what the model wrote.
+    func testConfirmingWithABodyOverrideSubmitsTheOverride() async throws {
+        let fixture = try ReviewProposalFixture()
+        fixture.service.detailResult = .success(
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         )
 
-        fixture.coordinator.removeStagedComment(proposalID: Fixture.proposalID, at: 0)
+        let didSubmit = await fixture.coordinator.confirm(
+            proposalID: ReviewProposalFixture.proposalID,
+            event: .approve,
+            bodyOverride: "The reviewer's own words."
+        )
 
-        wait(for: [notified], timeout: 1)
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["The reviewer's own words."])
     }
 
     func testAFailedPreviewLoadLeavesTheCardConfirmable() async throws {
-        let fixture = try Fixture()
+        let fixture = try ReviewProposalFixture()
         fixture.service.detailResult = .failure(.rateLimited)
 
-        fixture.coordinator.ensurePreview(proposalID: Fixture.proposalID)
+        fixture.coordinator.ensurePreview(proposalID: ReviewProposalFixture.proposalID)
         try await fixture.waitForPreview()
 
-        guard case .failed? = fixture.coordinator.preview(forProposalID: Fixture.proposalID) else {
+        guard case .failed? = fixture.coordinator.preview(forProposalID: ReviewProposalFixture.proposalID) else {
             return XCTFail("expected a failed preview")
         }
-        XCTAssertNotNil(fixture.coordinator.presentation(forProposalID: Fixture.proposalID))
-    }
-}
-
-@MainActor
-private final class Fixture {
-    static let proposalID = "proposal-1"
-    static let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
-
-    let modelContext: ModelContext
-    let coordinator: PullRequestReviewProposalCoordinator
-    let service = StubPullRequestsService()
-    let conversation: Conversation
-    let notificationCenter = NotificationCenter()
-
-    init(
-        body: String? = "Looks good to me.",
-        comments: [PullRequestReviewProposalRecord.Comment]? = nil
-    ) throws {
-        let container = try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            ScheduledTask.self,
-            ScheduledTaskRun.self,
-            ScheduledTaskProposal.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
-        let context = ModelContext(container)
-        modelContext = context
-        let thread = AgentThread(name: "Thread")
-        let sourceConversation = Conversation(id: "source-conversation", provider: "codex", thread: thread)
-        conversation = sourceConversation
-        thread.conversations = [sourceConversation]
-        context.insert(thread)
-        try sourceConversation.storePullRequestReviewProposal(
-            PullRequestReviewProposalRecord(
-                payloadVersion: PullRequestReviewProposalRecord.currentPayloadVersion,
-                id: Self.proposalID,
-                deduplicationKey: "dedup-1",
-                repositoryNameWithOwner: Self.identifier.nameWithOwner,
-                number: Self.identifier.number,
-                event: "approve",
-                body: body,
-                comments: comments,
-                titleSnapshot: "Detail title",
-                pendingCommentCountSnapshot: 1,
-                sourceProviderID: "codex",
-                sourceProcessToken: "token",
-                sourceRequestID: "request-1",
-                createdAt: Date(timeIntervalSince1970: 1_000)
-            )
-        )
-        try context.save()
-
-        coordinator = PullRequestReviewProposalCoordinator(
-            modelContext: context,
-            pullRequestsService: service,
-            notificationCenter: notificationCenter,
-            now: { Date(timeIntervalSince1970: 2_000) }
-        )
-    }
-
-    static func stagedComment(
-        path: String = "File0.swift",
-        line: Int = 1,
-        body: String
-    ) -> PullRequestReviewProposalRecord.Comment {
-        PullRequestReviewProposalRecord.Comment(path: path, line: line, side: "RIGHT", body: body)
-    }
-
-    func outcomeMarkers() -> [ConversationEventRecord] {
-        conversation.events.filter { $0.type == ConversationEventRecord.hostToolOutcomeType }
-    }
-
-    /// `confirm` enters the submitting state before its first suspension, but the caller runs it in
-    /// its own `Task`; poll with a deadline so a coordinator that never enters it fails the test
-    /// rather than spinning the main actor until CI times out.
-    func waitForSubmission(timeout: TimeInterval = 2) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if coordinator.isSubmitting(proposalID: Self.proposalID) {
-                return
-            }
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
-        XCTFail("the submission never started")
-    }
-
-    /// The preview loads in its own task; poll rather than guessing at a sleep.
-    func waitForPreview(timeout: TimeInterval = 2) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            switch coordinator.preview(forProposalID: Self.proposalID) {
-            case .loaded, .failed:
-                return
-            case .loading, nil:
-                try await Task.sleep(nanoseconds: 5_000_000)
-            }
-        }
-        XCTFail("the preview never settled")
+        XCTAssertNotNil(fixture.coordinator.presentation(forProposalID: ReviewProposalFixture.proposalID))
     }
 }

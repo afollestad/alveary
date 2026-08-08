@@ -76,8 +76,12 @@ struct PullRequestPane: View, Equatable {
     /// Lifted out of `body` to keep the modifier off its type-check budget, like the dialog above.
     private func commentScrollObserver<Content: View>(_ content: Content) -> some View {
         content
-            .onChange(of: viewModel.paneSessions[target]?.pendingCommentScrollTarget?.token) { _, token in
-                guard token != nil else {
+            // `task(id:)`, not `onChange`: a jump into a *closed* pane arms the scroll during the
+            // same call that opens it, so the token is already set when this view first mounts and
+            // a change handler would never see it — leaving the pane on Overview with the Changes
+            // tab never mounted, which is the whole of the jump.
+            .task(id: viewModel.paneSessions[target]?.pendingCommentScrollTarget?.token) {
+                guard viewModel.paneSessions[target]?.pendingCommentScrollTarget != nil else {
                     return
                 }
                 selectedTab = .files

@@ -222,7 +222,9 @@ extension PullRequestsViewModel {
     /// Saves the composer. Every path posts to GitHub immediately: a remote edit
     /// patches the submitted comment, and a new inline comment becomes a pending
     /// review comment on the viewer's draft review, creating that review first if
-    /// it does not exist yet.
+    /// it does not exist yet. The one exception is a new inline comment written
+    /// while a review proposal is pending for this pull request — that joins the
+    /// proposal's staged comments instead, reaching nothing until it is submitted.
     func saveComposerComment() {
         // The BlockInputKit store owns the live text; serialize it once at save.
         if let composerDraft {
@@ -241,6 +243,16 @@ extension PullRequestsViewModel {
         }
         let body = session.composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else {
+            return
+        }
+        if let proposal = pendingReviewProposal(for: target) {
+            stageProposedComment(
+                proposalID: proposal.id,
+                target: target,
+                generation: session.generation,
+                anchor: anchor,
+                body: body
+            )
             return
         }
         dispatchPendingCommentCreation(target: target, session: session, anchor: anchor, body: body)
@@ -303,8 +315,10 @@ extension PullRequestsViewModel {
         }
     }
 
-    /// `pendingCommentCount` comes from the detail — the comments live on GitHub
-    /// now, not in the draft.
+    /// `pendingCommentCount` is whatever the caller's submit would actually
+    /// publish: the comments already on GitHub, plus any a review proposal has
+    /// staged when the submit routes through the coordinator. The pane sums both
+    /// in `submittableCommentCount(for:)`; the card counts its own snapshot.
     static func canSubmitReview(
         event: PullRequestReviewEvent,
         draft: PendingReviewDraft,
@@ -326,6 +340,10 @@ extension PullRequestsViewModel {
     /// second one beside it; with none, it posts a summary-only review.
     /// Success refetches the detail and list; failure leaves the pending comments
     /// untouched on GitHub and surfaces the error.
+    ///
+    /// A pending review proposal for this pull request routes the whole submission
+    /// through the coordinator instead, so the staged comments are published with
+    /// the draft's rather than left behind by it.
     @discardableResult
     func submitReview(event: PullRequestReviewEvent) async -> Bool {
         guard let target = activePaneTarget,
@@ -334,9 +352,12 @@ extension PullRequestsViewModel {
               Self.canSubmitReview(
                   event: event,
                   draft: session.pendingReview,
-                  pendingCommentCount: session.detail?.pendingCommentCount ?? 0
+                  pendingCommentCount: submittableCommentCount(for: target, session: session)
               ) else {
             return false
+        }
+        if let proposal = pendingReviewProposal(for: target) {
+            return await submitProposedReview(proposal, event: event, target: target, session: session)
         }
         let generation = session.generation
         let body = session.pendingReview.overallComment.trimmingCharacters(in: .whitespacesAndNewlines)

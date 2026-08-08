@@ -41,7 +41,8 @@ extension SnapshotTests {
 
     /// A staged comment exists only in Alveary until confirmed: its card wears the "Proposed"
     /// badge where a server-draft comment wears "Pending", the summary line counts it, and it
-    /// carries the trailing Remove that drops it from the review.
+    /// carries the two trailing controls — the accent "Show in pull request" and the pane's own
+    /// three-dot actions menu, whose one row drops it from the review.
     func testReviewProposalWidgetProposedComment() {
         assertMacSnapshot(
             appKitRowSnapshot {
@@ -49,18 +50,6 @@ extension SnapshotTests {
             },
             size: CGSize(width: 700, height: 360),
             named: "review_proposal_widget_proposed_comment"
-        )
-    }
-
-    /// Removing has no undo, so the first press only arms: the glyph becomes the same red `Confirm`
-    /// pill the sidebar's archive/delete control uses.
-    func testReviewProposalWidgetProposedCommentRemovalArmed() {
-        assertMacSnapshot(
-            appKitRowSnapshot {
-                ReviewProposalSnapshotFixture.widgetRow(commentIsProposed: true, armsRemoval: true)
-            },
-            size: CGSize(width: 700, height: 360),
-            named: "review_proposal_widget_proposed_comment_armed"
         )
     }
 
@@ -173,8 +162,7 @@ enum ReviewProposalSnapshotFixture {
         commentBody: String = "This retries forever when the server keeps answering 503.",
         commentIsBot: Bool = false,
         commentIsProposed: Bool = false,
-        commentLine: Int = 2,
-        armsRemoval: Bool = false
+        commentLine: Int = 2
     ) -> AppKitTranscriptHostToolWidgetRowView {
         let entry = HostToolWidgetEntry(
             id: "tool-review-proposal",
@@ -213,11 +201,6 @@ enum ReviewProposalSnapshotFixture {
                 bubbleMaxWidth: 640
             )
         )
-        if armsRemoval {
-            // The armed pill is view-local state with no configuration input, so the baseline has
-            // to reach the control the way a click does.
-            _ = removeButton(in: view)?.accessibilityPerformPress()
-        }
         return view
     }
 
@@ -233,18 +216,6 @@ enum ReviewProposalSnapshotFixture {
             message: "Opened a review confirmation in Alveary.",
             status: .pendingConfirmation
         )
-    }
-
-    static func removeButton(in view: NSView) -> AppKitReviewProposalCommentRemoveButton? {
-        if let button = view as? AppKitReviewProposalCommentRemoveButton {
-            return button
-        }
-        for subview in view.subviews {
-            if let button = removeButton(in: subview) {
-                return button
-            }
-        }
-        return nil
     }
 
     /// Takes the same line the preview anchors, so the envelope and the rendered card agree.

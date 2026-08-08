@@ -14,7 +14,7 @@ class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
 
     private(set) var isHovered = false
     private var trackingArea: NSTrackingArea?
-    private var scrollObserver: (any NSObjectProtocol)?
+    private var geometryObservers: [any NSObjectProtocol] = []
 
     var isInteractive = false {
         didSet {
@@ -44,11 +44,10 @@ class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
         super.viewWillMove(toWindow: newWindow)
         // Released on the way out, not in `deinit`, which cannot touch main-actor state — and a
         // closing window does not always run `viewDidMoveToWindow` for its views again.
-        guard newWindow == nil, let scrollObserver else {
+        guard newWindow == nil else {
             return
         }
-        NotificationCenter.default.removeObserver(scrollObserver)
-        self.scrollObserver = nil
+        releaseGeometryObservers()
     }
 
     override func viewDidMoveToWindow() {
@@ -113,24 +112,33 @@ class AppKitHostToolWidgetBubbleView: AppKitDynamicColorView {
     /// delivers no `mouseExited` for that — the row the cursor started over keeps its highlight
     /// while the cursor is now over a different one. Re-deriving hover from the pointer's actual
     /// location on every scroll frame is what unsticks it.
+    ///
+    /// A *resize* does the same thing and posts no bounds change: `boundsDidChangeNotification`
+    /// fires only when the bounds move independently of the frame. Opening the right pane narrows
+    /// the transcript and reflows it under a stationary pointer, so the frame notification is
+    /// needed too — without it a card clicked to open a pane keeps its highlight afterwards.
     private func observeEnclosingScroll() {
-        if let scrollObserver {
-            NotificationCenter.default.removeObserver(scrollObserver)
-            self.scrollObserver = nil
-        }
+        releaseGeometryObservers()
         guard let clipView = enclosingScrollView?.contentView else {
             return
         }
         clipView.postsBoundsChangedNotifications = true
-        scrollObserver = NotificationCenter.default.addObserver(
-            forName: NSView.boundsDidChangeNotification,
-            object: clipView,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.refreshHoverFromPointerLocation()
+        clipView.postsFrameChangedNotifications = true
+        geometryObservers = [NSView.boundsDidChangeNotification, NSView.frameDidChangeNotification]
+            .map { name in
+                NotificationCenter.default.addObserver(forName: name, object: clipView, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.refreshHoverFromPointerLocation()
+                    }
+                }
             }
+    }
+
+    private func releaseGeometryObservers() {
+        for observer in geometryObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
+        geometryObservers = []
     }
 
     private func refreshHoverFromPointerLocation() {

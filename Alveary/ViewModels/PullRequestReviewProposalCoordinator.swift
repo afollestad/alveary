@@ -131,10 +131,16 @@ final class PullRequestReviewProposalCoordinator {
 
     /// Submits the review the user confirmed. `event` is what the card's verdict picker holds,
     /// which may differ from what the model proposed.
+    ///
+    /// `bodyOverride` is the summary the pull request pane's footer holds when the submit came from
+    /// there; the card passes none and publishes what the model wrote. Empty is the caller's to
+    /// normalize away — an untouched footer must fall back to the proposal's body rather than
+    /// blanking it.
     @discardableResult
     func confirm(
         proposalID: String,
-        event: PullRequestReviewEvent
+        event: PullRequestReviewEvent,
+        bodyOverride: String? = nil
     ) async -> Bool {
         guard !submittingProposalIDs.contains(proposalID),
               let presentation = presentations[proposalID] else {
@@ -154,7 +160,12 @@ final class PullRequestReviewProposalCoordinator {
             // Re-read GitHub rather than trusting the snapshot: the pull request can merge, or the
             // draft review can change, between proposing and confirming.
             let detail = try await pullRequestsService.fetchDetail(presentation.identifier)
-            try await submit(presentation: presentation, event: event, detail: detail)
+            try await submit(
+                presentation: presentation,
+                event: event,
+                body: bodyOverride ?? presentation.body ?? "",
+                detail: detail
+            )
         } catch {
             errorMessages[proposalID] = Self.message(for: error)
             return false
@@ -214,22 +225,60 @@ final class PullRequestReviewProposalCoordinator {
               presentation.comments.indices.contains(index) else {
             return false
         }
-        guard let updated = rewriteProposal(presentation: presentation, removingCommentAt: index) else {
+        guard let updated = rewriteProposal(presentation: presentation, { $0.removingComment(at: index) }) else {
             errorMessages[proposalID] = "Alveary could not remove this comment from the review."
             notifyChanged()
             return false
         }
-        // Nil would clear the entry, dropping a proposal that is still pending; the envelope just
-        // round-tripped through a decode, so it cannot happen, and refusing is the safe direction.
-        if let refreshed = Self.presentation(for: updated, conversationID: presentation.sourceConversationID) {
-            presentations[proposalID] = refreshed
-        }
+        apply(updated, for: presentation)
         if case .loaded(let preview)? = previews[proposalID] {
             previews[proposalID] = .loaded(Self.preview(preview, removingProposedCommentAt: index))
         }
         errorMessages[proposalID] = nil
         // Card-only: nothing resolved and no transcript record moved, so this must not pay the
         // lifecycle notification's chat-item rebuild.
+        notifyChanged()
+        return true
+    }
+
+    /// Stages one more inline comment on the review, for a comment composed in the pull request
+    /// pane while this proposal is pending.
+    ///
+    /// Local like `removeStagedComment` — the comment exists nowhere on GitHub until the review is
+    /// submitted, which is the whole point of composing here rather than into the viewer's draft.
+    /// The tool's `maxReviewCommentsPerProposal` deliberately does not apply: it bounds what a
+    /// model may send in one call, not what a person may write by hand.
+    @discardableResult
+    func addStagedComment(
+        proposalID: String,
+        path: String,
+        line: Int,
+        side: PullRequestDiffSide,
+        body: String
+    ) -> Bool {
+        guard !submittingProposalIDs.contains(proposalID),
+              let presentation = presentations[proposalID] else {
+            return false
+        }
+        let comment = PullRequestReviewProposalRecord.Comment(
+            path: path,
+            line: line,
+            side: side.rawValue,
+            body: body
+        )
+        guard let updated = rewriteProposal(presentation: presentation, { $0.appendingComment(comment) }) else {
+            errorMessages[proposalID] = "Alveary could not add this comment to the review."
+            notifyChanged()
+            return false
+        }
+        apply(updated, for: presentation)
+        // Unlike a removal, this cannot narrow the loaded preview in place: removal only subtracts,
+        // while an addition may need a file or hunk the preview deliberately dropped. Invalidate
+        // and let `ensurePreview` reload — the user is looking at the pane, so the reload is unseen.
+        previews[proposalID] = nil
+        previewTasks[proposalID]?.cancel()
+        previewTasks[proposalID] = nil
+        errorMessages[proposalID] = nil
         notifyChanged()
         return true
     }
@@ -244,16 +293,20 @@ final class PullRequestReviewProposalCoordinator {
         }
         // The transcript calls this while resolving card state mid-render, so the observable
         // `.loading` write waits for the task — an absent preview already renders as loading.
+        //
+        // Whoever cancels this task also clears its handle, and a cancelled run touches neither:
+        // `addStagedComment` cancels an in-flight load, so a task that cleared the slot on its way
+        // out would clobber the handle of the reload that replaced it.
         previewTasks[proposalID] = Task { @MainActor [weak self] in
-            guard let self else {
+            guard let self, !Task.isCancelled else {
                 return
             }
             previews[proposalID] = .loading
             let state = await loadPreview(for: presentation)
-            previewTasks[proposalID] = nil
             guard !Task.isCancelled, presentations[proposalID] != nil else {
                 return
             }
+            previewTasks[proposalID] = nil
             previews[proposalID] = state
             // The loaded diff changes the card's height and body; without the notification the
             // transcript would keep rendering the loading state until something else invalidates.
@@ -306,70 +359,6 @@ final class PullRequestReviewProposalCoordinator {
 }
 
 private extension PullRequestReviewProposalCoordinator {
-    /// The confirmed submission. Staged comments are written into the viewer's pending draft
-    /// first — adopting an existing draft, since GitHub allows one per viewer, which also keeps
-    /// publishing the user's own draft comments the way submitting always has — and
-    /// `submitPendingReview` is the one call that publishes anything. A failure before it leaves
-    /// only a private draft, and the card stays confirmable for a retry.
-    func submit(
-        presentation: PullRequestReviewProposalPresentation,
-        event: PullRequestReviewEvent,
-        detail: PullRequestDetail
-    ) async throws {
-        let body = presentation.body ?? ""
-        guard !presentation.comments.isEmpty else {
-            if let reviewNodeID = detail.pendingReviewNodeID {
-                // Finish the existing draft rather than opening a second review beside it.
-                try await pullRequestsService.submitPendingReview(
-                    reviewNodeID: reviewNodeID,
-                    event: event,
-                    body: body
-                )
-            } else {
-                try await pullRequestsService.submitReview(presentation.identifier, event: event, body: body)
-            }
-            return
-        }
-        let reviewNodeID: String
-        if let existing = detail.pendingReviewNodeID {
-            reviewNodeID = existing
-        } else if let pullRequestNodeID = detail.nodeID {
-            reviewNodeID = try await pullRequestsService.createPendingReview(pullRequestNodeID: pullRequestNodeID)
-        } else {
-            throw PullRequestReviewProposalSubmissionError.missingNodeID
-        }
-        for comment in presentation.comments where !Self.alreadyWritten(comment, in: detail) {
-            _ = try await pullRequestsService.addPendingReviewComment(
-                reviewNodeID: reviewNodeID,
-                path: comment.path,
-                line: comment.line,
-                side: comment.side == PullRequestDiffSide.left.rawValue ? .left : .right,
-                body: comment.body
-            )
-        }
-        try await pullRequestsService.submitPendingReview(reviewNodeID: reviewNodeID, event: event, body: body)
-    }
-
-    /// A retry after a mid-flow failure must not write a comment the first attempt already
-    /// landed, so a staged comment matching a pending draft comment by anchor and body is
-    /// skipped. This also absorbs a staged comment identical to one the user drafted themselves.
-    static func alreadyWritten(
-        _ comment: PullRequestReviewProposalRecord.Comment,
-        in detail: PullRequestDetail
-    ) -> Bool {
-        let body = comment.body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return detail.reviewThreads.contains { thread in
-            thread.isPending
-                && thread.path == comment.path
-                && thread.line == comment.line
-                && thread.side.rawValue == comment.side
-                && thread.comments.contains { candidate in
-                    candidate.isPending
-                        && candidate.bodyMarkdown.trimmingCharacters(in: .whitespacesAndNewlines) == body
-                }
-        }
-    }
-
     static func presentation(
         for record: PullRequestReviewProposalRecord,
         conversationID: String
@@ -392,17 +381,18 @@ private extension PullRequestReviewProposalCoordinator {
     }
 
     /// Re-reads the envelope before editing it — the proposal may have been resolved or superseded
-    /// since the card rendered — and returns the stored replacement.
+    /// since the surface that asked for the edit rendered — and returns the stored replacement.
+    /// `edit` returns nil to refuse.
     func rewriteProposal(
         presentation: PullRequestReviewProposalPresentation,
-        removingCommentAt index: Int
+        _ edit: (PullRequestReviewProposalRecord) -> PullRequestReviewProposalRecord?
     ) -> PullRequestReviewProposalRecord? {
         guard let conversation = modelContext.resolveConversation(
             conversationID: presentation.sourceConversationID
         ),
             let record = try? conversation.pullRequestReviewProposal(),
             record.id == presentation.id,
-            let updated = record.removingComment(at: index) else {
+            let updated = edit(record) else {
             return nil
         }
         do {
@@ -413,6 +403,22 @@ private extension PullRequestReviewProposalCoordinator {
             modelContext.rollback()
             return nil
         }
+    }
+
+    /// Republishes an edited envelope. A nil re-derivation would clear the entry, dropping a
+    /// proposal that is still pending; the envelope just round-tripped through a decode, so it
+    /// cannot happen, and keeping the old presentation is the safe direction.
+    func apply(
+        _ updated: PullRequestReviewProposalRecord,
+        for presentation: PullRequestReviewProposalPresentation
+    ) {
+        guard let refreshed = Self.presentation(
+            for: updated,
+            conversationID: presentation.sourceConversationID
+        ) else {
+            return
+        }
+        presentations[presentation.id] = refreshed
     }
 
     /// Clears the envelope in its own save, ahead of the outcome marker's.

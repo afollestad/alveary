@@ -168,13 +168,12 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         viewModel.isUploadingAttachments(to: .reviewSummary)
     }
 
-    /// Inline comments live on GitHub now, so the count comes from the detail. Staged proposal
-    /// comments are deliberately *not* added: `submitReview` publishes only the GitHub draft, so
-    /// counting them here would enable a Submit the view model then refuses — silently — and imply
-    /// a publish that would leave them behind. Fold them in only when the pane's submit routes
-    /// through the proposal coordinator and actually publishes both sets.
+    /// Inline comments live on GitHub, so the count starts from the detail — plus a pending
+    /// proposal's staged comments, which the same Submit publishes because it routes through the
+    /// coordinator. `submitReview`'s own guard reads the same sum, so this button cannot offer a
+    /// submit the view model then silently refuses.
     private var pendingCommentCount: Int {
-        session.detail?.pendingCommentCount ?? 0
+        viewModel.submittableCommentCount(for: target, session: session)
     }
 
     /// Submitting mid-upload would post the review without the attachment's link.
@@ -210,14 +209,28 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         }
     }
 
-    /// The pending-comment count and any reason the state action is dead. Both
-    /// sit above the buttons: the collapsed row splits its width evenly between
-    /// the two actions, leaving no room for a leading label.
+    /// Names what Submit would publish. "Pending" is GitHub's own word for the viewer's draft, and
+    /// a staged comment wears the "Proposed" pill instead — so once the count spans both, it can
+    /// borrow neither pill's name and says plainly what the number is.
+    private var commentCountNote: String? {
+        let count = pendingCommentCount
+        guard count > 0 else {
+            return nil
+        }
+        let plural = count == 1 ? "" : "s"
+        guard viewModel.pendingReviewProposal(for: target)?.comments.isEmpty == false else {
+            return "\(count) pending comment\(plural)"
+        }
+        return "\(count) comment\(plural) in this review"
+    }
+
+    /// The comment count and any reason the state action is dead. Both sit above
+    /// the buttons: the collapsed row splits its width evenly between the two
+    /// actions, leaving no room for a leading label.
     @ViewBuilder
     private var footerNotes: some View {
-        let count = pendingCommentCount
-        if count > 0 {
-            Text("\(count) pending comment\(count == 1 ? "" : "s")")
+        if let note = commentCountNote {
+            Text(note)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

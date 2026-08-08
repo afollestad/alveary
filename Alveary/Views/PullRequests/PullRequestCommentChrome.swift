@@ -90,7 +90,28 @@ struct PullRequestCommentAuthorRow<Trailing: View>: View {
 /// The three-dot Edit/Delete comment menu shared by the Changes tab's thread rows
 /// and the Overview timeline. Callers pass only the permitted actions; with both
 /// `nil` the menu still renders, so gate mounting on having at least one action.
+///
+/// A third surface draws this menu — the transcript's review-proposal card — and it
+/// is AppKit, so it cannot mount this view. It reads the statics below instead, and
+/// they exist for exactly that: a glyph, hit target, or row title that drifts on one
+/// surface stops reading as the same control.
 struct PullRequestCommentActionsMenu: View {
+    static let glyphSymbolName = "ellipsis"
+    static let glyphPointSize: CGFloat = 11
+    /// The bare glyph is a sliver; this is the control's real hit target, with the
+    /// glyph trailing-aligned inside it. Every surface that places this menu on the
+    /// pane's shared trailing column then aligns the glyph by construction, while the
+    /// hit target extends leading-ward, away from the scroll indicator's grab region.
+    /// The width also sets the gap to whatever sits beside it — the glyph is 13pt, so
+    /// 24 leaves 11pt of leading slack.
+    static let hitTargetSize = CGSize(width: 24, height: 20)
+    /// Both the hover tooltip and the VoiceOver name; the glyph carries no text.
+    static let name = "Comment actions"
+    static let editTitle = "Edit"
+    static let editSymbolName = "pencil"
+    static let deleteTitle = "Delete"
+    static let deleteSymbolName = "trash"
+
     let onEdit: (() -> Void)?
     let onDelete: (() -> Void)?
 
@@ -100,38 +121,53 @@ struct PullRequestCommentActionsMenu: View {
             // title-only label style, so a bare `Label` renders as text.
             if let onEdit {
                 Button(action: onEdit) {
-                    Label("Edit", systemImage: "pencil")
+                    Label(Self.editTitle, systemImage: Self.editSymbolName)
                         .labelStyle(.titleAndIcon)
                 }
             }
             if let onDelete {
                 Button(role: .destructive, action: onDelete) {
-                    Label("Delete", systemImage: "trash")
+                    Label(Self.deleteTitle, systemImage: Self.deleteSymbolName)
                         .labelStyle(.titleAndIcon)
                 }
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 11, weight: .semibold))
+            Image(systemName: Self.glyphSymbolName)
+                .font(.system(size: Self.glyphPointSize, weight: .semibold))
                 .foregroundStyle(.secondary)
-                // The bare glyph is a sliver; give the control a real hit target.
-                // Trailing-aligned so the glyph's right edge sits exactly on the
-                // frame's trailing edge: every surface that places this menu on
-                // the pane's shared trailing column aligns the glyph by
-                // construction, while the hit target extends leading-ward, away
-                // from the scroll indicator's grab region. Width also sets the
-                // gap to the timestamp beside it — the glyph is 13pt, so 24
-                // leaves 11pt of leading slack.
-                .frame(width: 24, height: 20, alignment: .trailing)
+                .frame(width: Self.hitTargetSize.width, height: Self.hitTargetSize.height, alignment: .trailing)
                 .contentShape(Rectangle())
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
         .buttonStyle(.plain)
         .fixedSize()
-        .help("Comment actions")
-        .accessibilityLabel("Comment actions")
+        .help(Self.name)
+        .accessibilityLabel(Self.name)
     }
+}
+
+/// The affordance that shows a comment on the diff it annotates: "Show in Changes" from
+/// the Overview timeline, "Show in PR" from the transcript's review-proposal card.
+/// Different words because they cross different distances, but one glyph and one tint,
+/// because they do one thing.
+///
+/// The transcript's copy is AppKit and rebuilds the button by hand, so the parts it
+/// cannot inherit live here. `AppAccentIcon` rather than a bare `Color.accentColor`:
+/// this is a caption-sized glyph beside caption-sized text, the size at which the plain
+/// accent washes out in light mode.
+enum PullRequestCommentRevealAction {
+    static let icon = ActionIcon.octicon(.fileDiff16)
+    static let tint = AppAccentIcon.foreground
+    static let tintNSColor = AppAccentIcon.foregroundNSColor
+    static let overviewTitle = "Show in Changes"
+    /// Abbreviated because it shares an author row with the avatar, the login, the
+    /// "Proposed" pill, and the actions menu, on a card only as wide as the diff behind
+    /// it — spelled out, it squeezed the author's name down to an ellipsis. "PR" is
+    /// already this card's own vocabulary, from the "Open PR" button below it.
+    static let transcriptTitle = "Show in PR"
+    /// The tooltip and VoiceOver name, where there is room to say it properly.
+    static let transcriptName = "Show this comment in the pull request"
 }
 
 /// Compact relative timestamp ("now", "5m", "3h", "2d", "3w", "1mo", "2y") whose
