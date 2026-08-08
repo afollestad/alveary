@@ -91,11 +91,11 @@ extension SidebarView {
         collapsedSections.remove(.projects)
     }
 
-    /// Top-level rows use SF Symbols except where a domain glyph exists only as an
-    /// asset, such as the Primer pull-request octicon.
+    /// Top-level rows use SF Symbols except where a domain glyph exists only as a
+    /// vendored octicon, such as the Primer pull-request mark.
     enum TopLevelIcon {
         case system(String)
-        case asset(String)
+        case octicon(Octicon)
     }
 
     @ViewBuilder
@@ -131,7 +131,7 @@ extension SidebarView {
         if context.showsPullRequests {
             topLevelRow(
                 title: "Pull requests",
-                icon: .asset("PullRequestOcticon"),
+                icon: .octicon(.pullRequest24),
                 item: .pullRequests,
                 bottomSpacing: topLevelRowBottomSpacing(.pullRequests, terminalItem: terminalItem),
                 isTopLevelTerminal: terminalItem == .pullRequests
@@ -162,13 +162,9 @@ extension SidebarView {
                 .symbolRenderingMode(.monochrome)
                 .renderingMode(.template)
                 .font(.system(size: 13, weight: .semibold))
-        case .asset(let assetName):
+        case .octicon(let octicon):
             // Sized to sit optically level with the 13pt-semibold SF Symbol rows.
-            Image(assetName)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 15, height: 15)
+            OcticonImage(octicon: octicon, size: 15)
         }
     }
 

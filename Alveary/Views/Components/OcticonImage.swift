@@ -10,11 +10,11 @@ import SwiftUI
 /// mixed row wants a glyph box a couple of points larger than the font size —
 /// the primary toolbar renders the 16px variants at `octiconSize` 18.
 struct OcticonImage: View {
-    let name: String
+    let octicon: Octicon
     let size: CGFloat
 
     var body: some View {
-        Image(name)
+        Image(octicon.assetName)
             .renderingMode(.template)
             .resizable()
             .scaledToFit()

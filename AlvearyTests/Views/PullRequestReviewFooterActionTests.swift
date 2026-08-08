@@ -14,7 +14,7 @@ final class PullRequestReviewFooterActionTests: XCTestCase {
         let agentic = PullRequestReviewFooterAction.action(for: .agenticReview)
 
         XCTAssertEqual(submit.title, "Submit review...")
-        XCTAssertEqual(submit.icon, .octicon("CodeReviewOcticon16"))
+        XCTAssertEqual(submit.icon, .octicon(.codeReview16))
         XCTAssertEqual(agentic.title, "Agentic review")
         // The same glyph the Agents settings page uses for "an agent does this".
         XCTAssertEqual(agentic.icon, .system("brain"))

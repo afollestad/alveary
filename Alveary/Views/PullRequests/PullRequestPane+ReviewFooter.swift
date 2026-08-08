@@ -392,11 +392,11 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     private var submitIcon: ActionIcon {
         switch effectiveEvent {
         case .approve:
-            return .octicon("CheckCircleOcticon16")
+            return .octicon(.checkCircle16)
         case .requestChanges:
-            return .octicon("AlertOcticon16")
+            return .octicon(.alert16)
         case .comment:
-            return .octicon("CodeReviewOcticon16")
+            return .octicon(.codeReview16)
         }
     }
 }

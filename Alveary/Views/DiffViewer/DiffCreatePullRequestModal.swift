@@ -118,7 +118,7 @@ private extension DiffCreatePullRequestModal {
             } label: {
                 ActionButtonLabel(
                     title: "Create pull request",
-                    icon: .octicon("PullRequestOcticon16")
+                    icon: .octicon(.pullRequest16)
                 )
             }
             .primaryActionButtonStyle()

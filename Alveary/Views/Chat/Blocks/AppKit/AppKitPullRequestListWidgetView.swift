@@ -287,7 +287,7 @@ private extension AppKitPullRequestListWidgetView {
         view.translatesAutoresizingMaskIntoConstraints = false
         view.setContentHuggingPriority(.required, for: .horizontal)
         view.setAccessibilityElement(false)
-        if let asset = NSImage(named: PullRequestStatusGlyph.assetName(for: status)) {
+        if let asset = NSImage(named: PullRequestStatusGlyph.octicon(for: status).assetName) {
             let scaled = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
                 asset.draw(in: rect)
                 return true

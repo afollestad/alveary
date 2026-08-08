@@ -20,7 +20,7 @@ struct PullRequestReviewFooterAction: Equatable, Identifiable {
     var icon: ActionIcon {
         switch kind {
         case .submitReview:
-            return .octicon("CodeReviewOcticon16")
+            return .octicon(.codeReview16)
         case .agenticReview:
             return .system("brain")
         }

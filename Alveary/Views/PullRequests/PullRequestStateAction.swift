@@ -32,13 +32,13 @@ struct PullRequestStateAction: Equatable, Identifiable {
     var icon: ActionIcon {
         switch kind {
         case .close:
-            return .octicon("PullRequestClosedOcticon16")
+            return .octicon(.pullRequestClosed16)
         case .reopen:
-            return .octicon("PullRequestOcticon16")
+            return .octicon(.pullRequest16)
         case .markReady:
-            return .octicon("EyeOcticon")
+            return .octicon(.eye24)
         case .markDraft:
-            return .octicon("PullRequestDraftOcticon16")
+            return .octicon(.pullRequestDraft16)
         }
     }
 

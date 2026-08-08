@@ -9,7 +9,7 @@ struct PullRequestActivityCommentEditor: View {
     var saveTitle = "Update comment"
     /// Travels with `saveTitle`; a reply is the one caller that is not editing
     /// an existing comment, so it swaps in the reply glyph.
-    var saveIcon = ActionIcon.octicon("CommentOcticon16")
+    var saveIcon = ActionIcon.octicon(.comment16)
     var placeholder = "Edit this comment"
     /// Forwarded to the editor; the PR description opens taller than a comment.
     var minimumVisibleLineCount = 2

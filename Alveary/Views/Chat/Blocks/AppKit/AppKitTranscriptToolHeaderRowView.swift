@@ -210,8 +210,8 @@ final class AppKitTranscriptToolHeaderRowView: NSView {
         }
         iconView.isHidden = !configuration.showsLeadingIcon
         let metrics = transcriptInlineToolRowMetrics(for: configuration.typography)
-        if let assetName = assetName(for: configuration.leadingIcon),
-           let asset = NSImage(named: assetName) {
+        if let octicon = octicon(for: configuration.leadingIcon),
+           let asset = NSImage(named: octicon.assetName) {
             // Octicons ship at a fixed size, so scale the template to the row's icon metric the
             // way `symbolConfiguration` does for SF Symbols. The drawing-handler image re-renders
             // per backing store, so it stays crisp on any display scale — `lockFocus` would bake

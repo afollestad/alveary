@@ -31,7 +31,7 @@ struct DiffBranchSelectionMenu: View {
                 Label {
                     Text(baseBranch)
                 } icon: {
-                    OcticonImage(name: "GitBranchOcticon16", size: diffBranchMenuRowOcticonSize)
+                    OcticonImage(octicon: .gitBranch16, size: diffBranchMenuRowOcticonSize)
                 }
                 .labelStyle(.titleAndIcon)
             }
@@ -42,7 +42,7 @@ struct DiffBranchSelectionMenu: View {
                     Label {
                         Text(currentBranch)
                     } icon: {
-                        OcticonImage(name: "GitBranchOcticon16", size: diffBranchMenuRowOcticonSize)
+                        OcticonImage(octicon: .gitBranch16, size: diffBranchMenuRowOcticonSize)
                     }
                     .labelStyle(.titleAndIcon)
                 }
@@ -54,7 +54,7 @@ struct DiffBranchSelectionMenu: View {
             }
         } label: {
             HStack(spacing: 8) {
-                OcticonImage(name: "GitBranchOcticon16", size: diffBranchMenuOcticonSize)
+                OcticonImage(octicon: .gitBranch16, size: diffBranchMenuOcticonSize)
                     .foregroundStyle(.secondary)
 
                 Text(selectedTitle)

@@ -72,7 +72,7 @@ struct DiffViewerPaneHeader: View {
             actions.append(DiffViewerHeaderAction(
                 id: "stage",
                 title: "Stage",
-                icon: .octicon("PlusOcticon"),
+                icon: .octicon(.plus24),
                 isEnabled: true,
                 action: onStageSelectedFiles
             ))
@@ -82,7 +82,7 @@ struct DiffViewerPaneHeader: View {
             actions.append(DiffViewerHeaderAction(
                 id: "unstage",
                 title: "Unstage",
-                icon: .octicon("DashOcticon"),
+                icon: .octicon(.dash24),
                 isEnabled: true,
                 action: onUnstageSelectedFiles
             ))

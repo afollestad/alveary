@@ -140,9 +140,9 @@ enum DiffCommentComposerMode {
     var saveIcon: ActionIcon {
         switch self {
         case .newComment, .editPending, .editRemote:
-            return .octicon("CommentOcticon16")
+            return .octicon(.comment16)
         case .reply:
-            return .octicon("ReplyOcticon16")
+            return .octicon(.reply16)
         }
     }
 

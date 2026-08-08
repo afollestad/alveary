@@ -28,7 +28,7 @@ private struct DiffViewerToolbarButtonLabel: View {
             Label {
                 Text("Diff Viewer")
             } icon: {
-                OcticonImage(name: "FileDiffOcticon", size: PrimaryToolbarMetrics.octiconSize)
+                OcticonImage(octicon: .fileDiff16, size: PrimaryToolbarMetrics.octiconSize)
             }
             .labelStyle(.iconOnly)
             // A resizable octicon ignores the font, but keeping it holds the

@@ -31,15 +31,15 @@ final class PullRequestLinksToolbarStateTests: XCTestCase {
 
     func testEveryStatusMapsToItsOwnGlyphAndTint() {
         let statuses: [PullRequestStatus] = [.open, .draft, .merged, .closed]
-        let assetNames = statuses.map(PullRequestStatusGlyph.assetName(for:))
+        let octicons = statuses.map(PullRequestStatusGlyph.octicon(for:))
 
-        XCTAssertEqual(assetNames, [
-            "PullRequestOcticon",
-            "PullRequestDraftOcticon",
-            "PullRequestMergeOcticon",
-            "PullRequestClosedOcticon"
+        XCTAssertEqual(octicons, [
+            .pullRequest24,
+            .pullRequestDraft24,
+            .pullRequestMerge24,
+            .pullRequestClosed24
         ])
-        XCTAssertEqual(Set(assetNames).count, statuses.count)
+        XCTAssertEqual(Set(octicons).count, statuses.count)
         XCTAssertEqual(PullRequestStatusGlyph.tint(for: .open), .green)
         XCTAssertEqual(PullRequestStatusGlyph.tint(for: .draft), .secondary)
         XCTAssertEqual(PullRequestStatusGlyph.tint(for: .closed), .red)

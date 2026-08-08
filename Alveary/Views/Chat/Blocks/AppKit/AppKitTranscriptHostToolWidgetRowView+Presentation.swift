@@ -37,13 +37,13 @@ extension AppKitTranscriptHostToolWidgetRowView {
     }
 
     func pullRequestOcticon(size: CGFloat) -> NSImage? {
-        octicon(named: PullRequestStatusGlyph.assetName16(for: .open), size: size)
+        octicon(PullRequestStatusGlyph.octicon16(for: .open), size: size)
     }
 
     /// Fixed-canvas octicon artwork does not size by font, so it is redrawn at the icon size the
     /// way the pull-request list card's rows do it.
-    func octicon(named assetName: String, size: CGFloat) -> NSImage? {
-        guard let asset = NSImage(named: assetName) else {
+    func octicon(_ octicon: Octicon, size: CGFloat) -> NSImage? {
+        guard let asset = NSImage(named: octicon.assetName) else {
             return nil
         }
         return NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in

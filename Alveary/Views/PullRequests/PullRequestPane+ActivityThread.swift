@@ -47,7 +47,7 @@ struct PullRequestReviewThreadView: View {
                     } label: {
                         ActionButtonLabel(
                             title: "Show in Changes",
-                            icon: .octicon("FileDiffOcticon"),
+                            icon: .octicon(.fileDiff16),
                             scale: .inline
                         )
                     }
@@ -89,7 +89,7 @@ struct PullRequestReviewThreadView: View {
                         session: session,
                         viewModel: viewModel,
                         saveTitle: "Reply",
-                        saveIcon: .octicon("ReplyOcticon16"),
+                        saveIcon: .octicon(.reply16),
                         placeholder: "Leave a comment"
                     )
                 } else if !thread.isPending, thread.replyTargetCommentID != nil || thread.nodeID != nil {

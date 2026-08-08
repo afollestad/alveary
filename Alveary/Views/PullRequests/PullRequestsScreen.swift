@@ -160,7 +160,7 @@ private struct PullRequestsEmptyState: View {
 
     var body: some View {
         EmptyStateView(
-            icon: .octicon("PullRequestOcticon"),
+            icon: .octicon(.pullRequest24),
             heading: heading,
             subtext: subtext,
             actions: [],

@@ -32,7 +32,7 @@ struct ProjectSettingsRepositoryCard: View {
             Label {
                 Text("Git")
             } icon: {
-                OcticonImage(name: "GitBranchOcticon16", size: repositoryCardOcticonSize)
+                OcticonImage(octicon: .gitBranch16, size: repositoryCardOcticonSize)
             }
         }
     }

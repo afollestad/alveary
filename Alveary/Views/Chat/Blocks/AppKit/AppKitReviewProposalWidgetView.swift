@@ -168,11 +168,11 @@ final class AppKitReviewProposalWidgetView: NSView {
     static func verdictIcon(_ event: PullRequestReviewEvent) -> ActionIcon {
         switch event {
         case .approve:
-            .octicon("CheckCircleOcticon16")
+            .octicon(.checkCircle16)
         case .requestChanges:
-            .octicon("AlertOcticon16")
+            .octicon(.alert16)
         case .comment:
-            .octicon("CodeReviewOcticon16")
+            .octicon(.codeReview16)
         }
     }
 
@@ -422,7 +422,7 @@ private extension AppKitReviewProposalWidgetView {
 
         let open = button(
             title: "Open PR",
-            icon: .octicon("PullRequestOcticon16"),
+            icon: .octicon(.pullRequest16),
             style: .secondary,
             action: #selector(handleOpenPullRequest)
         )

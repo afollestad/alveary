@@ -15,8 +15,8 @@ extension ActionIcon {
                 .applying(.init(hierarchicalColor: color))
             return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
                 .withSymbolConfiguration(configuration)
-        case .octicon(let name):
-            guard let asset = NSImage(named: name) else {
+        case .octicon(let octicon):
+            guard let asset = NSImage(named: octicon.assetName) else {
                 return nil
             }
             return NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in

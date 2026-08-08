@@ -25,11 +25,11 @@ struct DiffViewerFooterAction: Equatable, Identifiable {
     var icon: ActionIcon {
         switch kind {
         case .commit:
-            return .octicon("GitCommitOcticon")
+            return .octicon(.gitCommit24)
         case .push:
-            return .octicon("RepoPushOcticon16")
+            return .octicon(.repoPush16)
         case .createPullRequest, .viewPullRequest:
-            return .octicon("PullRequestOcticon16")
+            return .octicon(.pullRequest16)
         }
     }
 

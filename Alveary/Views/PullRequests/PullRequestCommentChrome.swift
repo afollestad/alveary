@@ -232,7 +232,7 @@ struct PullRequestThreadActionsFooter: View {
                 Button(action: onReply) {
                     ActionButtonLabel(
                         title: "Reply",
-                        icon: .octicon("ReplyOcticon16"),
+                        icon: .octicon(.reply16),
                         scale: .inline
                     )
                 }
@@ -250,7 +250,7 @@ struct PullRequestThreadActionsFooter: View {
                         title: isResolved ? "Unresolve conversation" : "Resolve conversation",
                         icon: isResolved
                             ? .system("arrow.uturn.backward.circle")
-                            : .octicon("CheckCircleOcticon16"),
+                            : .octicon(.checkCircle16),
                         scale: .inline
                     )
                 }

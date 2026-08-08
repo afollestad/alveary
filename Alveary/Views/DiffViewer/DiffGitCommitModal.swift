@@ -111,7 +111,7 @@ private extension DiffGitCommitModal {
                     }
                 }
             } label: {
-                ActionButtonLabel(title: "Commit", icon: .octicon("GitCommitOcticon"))
+                ActionButtonLabel(title: "Commit", icon: .octicon(.gitCommit24))
             }
             .secondaryActionButtonStyle()
             .disabled(model.commitButtonDisabled)
@@ -125,7 +125,7 @@ private extension DiffGitCommitModal {
             } label: {
                 ActionButtonLabel(
                     title: model.primaryActionButtonTitle,
-                    icon: .octicon("RepoPushOcticon16")
+                    icon: .octicon(.repoPush16)
                 )
             }
             .primaryActionButtonStyle()

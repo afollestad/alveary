@@ -7,7 +7,7 @@ import SwiftUI
 /// Viewer footer and in a transcript card alike.
 enum ActionIcon: Equatable {
     case system(String)
-    case octicon(String)
+    case octicon(Octicon)
 }
 
 /// Renders an `ActionIcon`. SF Symbols size by font and inherit whatever the
@@ -23,8 +23,8 @@ struct ActionIconImage: View {
         switch icon {
         case .system(let name):
             Image(systemName: name)
-        case .octicon(let name):
-            OcticonImage(name: name, size: octiconSize)
+        case .octicon(let octicon):
+            OcticonImage(octicon: octicon, size: octiconSize)
         }
     }
 }

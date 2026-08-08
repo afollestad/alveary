@@ -345,7 +345,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     func applyIcon(for entry: HostToolWidgetEntry, typography: TranscriptTypography) {
         let size = typography.size(for: .toolIcon)
         iconView.summaryCapHeight = typography.nsFont(.toolSummary).capHeight
-        if readsReviewInstructions(entry), let octicon = octicon(named: "CodeReviewOcticon16", size: size) {
+        if readsReviewInstructions(entry), let octicon = octicon(.codeReview16, size: size) {
             iconView.symbolConfiguration = nil
             iconView.image = octicon
             iconView.setDynamicContentTintColor(.secondaryLabelColor)

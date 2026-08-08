@@ -122,37 +122,37 @@ struct PullRequestRow: View, Equatable {
     }
 }
 
-/// Asset name and tint for a pull request's status, shared by every surface that
-/// draws the glyph at its own size — list rows here, and the thread toolbar
-/// button in `ContentView+PullRequestToolbarButton.swift`.
+/// Glyph and tint for a pull request's status, shared by every surface that
+/// draws it at its own size — list rows here, and the thread toolbar button in
+/// `ContentView+PullRequestToolbarButton.swift`.
 enum PullRequestStatusGlyph {
     /// The 24px artwork, for the larger row icons (18pt frames).
-    static func assetName(for status: PullRequestStatus) -> String {
+    static func octicon(for status: PullRequestStatus) -> Octicon {
         switch status {
         case .open:
-            return "PullRequestOcticon"
+            return .pullRequest24
         case .draft:
-            return "PullRequestDraftOcticon"
+            return .pullRequestDraft24
         case .merged:
-            return "PullRequestMergeOcticon"
+            return .pullRequestMerge24
         case .closed:
-            return "PullRequestClosedOcticon"
+            return .pullRequestClosed24
         }
     }
 
     /// The 16px artwork, for small frames beside SF Symbols — the toolbar. Its
     /// strokes are drawn bolder for small sizes; the 24px variant renders
     /// visibly thinner (reads lighter) at the same frame. See `OcticonImage`.
-    static func assetName16(for status: PullRequestStatus) -> String {
+    static func octicon16(for status: PullRequestStatus) -> Octicon {
         switch status {
         case .open:
-            return "PullRequestOcticon16"
+            return .pullRequest16
         case .draft:
-            return "PullRequestDraftOcticon16"
+            return .pullRequestDraft16
         case .merged:
-            return "PullRequestMergeOcticon16"
+            return .pullRequestMerge16
         case .closed:
-            return "PullRequestClosedOcticon16"
+            return .pullRequestClosed16
         }
     }
 
@@ -193,12 +193,8 @@ struct PullRequestStatusIcon: View {
     var isAccessibilityHidden = true
 
     var body: some View {
-        Image(PullRequestStatusGlyph.assetName(for: status))
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
+        OcticonImage(octicon: PullRequestStatusGlyph.octicon(for: status), size: 18)
             .foregroundStyle(PullRequestStatusGlyph.tint(for: status))
-            .frame(width: 18, height: 18)
             .accessibilityHidden(isAccessibilityHidden)
             .accessibilityLabel(isAccessibilityHidden ? "" : status.accessibilityName)
     }

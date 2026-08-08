@@ -90,12 +90,12 @@ struct PullRequestToolbarButton: View {
         // variants the rows use render visibly thinner at this frame.
         if let status = state.status {
             OcticonImage(
-                name: Self.assetName(for: status),
+                octicon: Self.octicon(for: status),
                 size: PrimaryToolbarMetrics.octiconSize
             )
             .foregroundStyle(PullRequestStatusGlyph.tint(for: status))
         } else {
-            OcticonImage(name: Self.plainAssetName, size: PrimaryToolbarMetrics.octiconSize)
+            OcticonImage(octicon: Self.plainOcticon, size: PrimaryToolbarMetrics.octiconSize)
         }
     }
 
@@ -106,12 +106,12 @@ struct PullRequestToolbarButton: View {
     /// unique among the statuses, so color still says "draft" without the sparse
     /// shape. List rows keep the dashed artwork, where the glyph has room and a
     /// text label beside it.
-    private static func assetName(for status: PullRequestStatus) -> String {
+    private static func octicon(for status: PullRequestStatus) -> Octicon {
         status == .draft
-            ? plainAssetName
-            : PullRequestStatusGlyph.assetName16(for: status)
+            ? plainOcticon
+            : PullRequestStatusGlyph.octicon16(for: status)
     }
 
     /// The status-neutral pull-request shape, drawn for no links and for draft.
-    private static let plainAssetName = "PullRequestOcticon16"
+    private static let plainOcticon = Octicon.pullRequest16
 }

@@ -323,7 +323,7 @@ private extension AppSettings.SettingsPage {
         case .appShots:
             return .system("camera.viewfinder")
         case .git:
-            return .octicon("GitBranchOcticon16")
+            return .octicon(.gitBranch16)
         case .handoff:
             return .system("hand.palm.facing")
         case .notifications:

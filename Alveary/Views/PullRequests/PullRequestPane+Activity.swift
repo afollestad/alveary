@@ -177,12 +177,8 @@ private struct PullRequestActivityEntryView: View {
 
     /// Status glyphs reuse the tinted Primer Octicons so timeline state changes
     /// match the list's status iconography.
-    private func octicon(_ name: String, tint: some ShapeStyle) -> some View {
-        Image(name)
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 12, height: 12)
+    private func octicon(_ octicon: Octicon, tint: some ShapeStyle) -> some View {
+        OcticonImage(octicon: octicon, size: 12)
             .foregroundStyle(tint)
     }
 
@@ -374,15 +370,15 @@ private struct PullRequestActivityEntryView: View {
         case .statusEvent(let event):
             switch event.kind {
             case .readyForReview:
-                octicon("EyeOcticon", tint: .secondary)
+                octicon(.eye24, tint: .secondary)
             case .convertToDraft:
-                octicon("PullRequestDraftOcticon", tint: .secondary)
+                octicon(.pullRequestDraft24, tint: .secondary)
             case .closed:
-                octicon("PullRequestClosedOcticon", tint: Color.red)
+                octicon(.pullRequestClosed24, tint: Color.red)
             case .reopened:
-                octicon("PullRequestOcticon", tint: Color.green)
+                octicon(.pullRequest24, tint: Color.green)
             case .merged:
-                octicon("PullRequestMergeOcticon", tint: Color("PullRequestMergedColor"))
+                octicon(.pullRequestMerge24, tint: Color("PullRequestMergedColor"))
             case .commit:
                 Image(systemName: "smallcircle.filled.circle")
                     .font(.system(size: 11))
