@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// The `GroupBox` label sits a size below body text, so the branch glyph takes
+/// a smaller box than the settings sidebar's.
+private let repositoryCardOcticonSize: CGFloat = 14
+
 struct ProjectSettingsRepositoryCard: View {
     let project: Project
 
@@ -25,7 +29,11 @@ struct ProjectSettingsRepositoryCard: View {
             .padding(.vertical, 14)
             .padding(.horizontal, 8)
         } label: {
-            Label("Git", systemImage: "arrow.triangle.branch")
+            Label {
+                Text("Git")
+            } icon: {
+                OcticonImage(name: "GitBranchOcticon16", size: repositoryCardOcticonSize)
+            }
         }
     }
 }

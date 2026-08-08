@@ -4,6 +4,9 @@ import SwiftUI
 /// matches the optical weight of the adjacent SF Symbols at the button's size.
 private let diffBranchMenuOcticonSize: CGFloat = 17
 
+/// Menu rows sit at the system menu font, a size below the button's label.
+private let diffBranchMenuRowOcticonSize: CGFloat = 16
+
 /// The branch chooser shared by the commit and create-pull-request modals:
 /// base branch, the checked-out branch when it differs, and "New branch".
 /// Hosts own selection state and which options are selectable.
@@ -21,19 +24,27 @@ struct DiffBranchSelectionMenu: View {
 
     var body: some View {
         Menu {
-            // SF Symbols rather than the label's `GitBranchOcticon`, and
-            // `.titleAndIcon` on each: macOS menu rows default to a title-only
-            // label style, so a bare `Label` renders as text.
+            // Every row needs `.titleAndIcon`: macOS menu rows default to a
+            // title-only label style, so a bare `Label` renders as text.
+            // `New branch` keeps an SF Symbol; only the branch glyph is vendored.
             Button(action: onSelectBase) {
-                Label(baseBranch, systemImage: "arrow.triangle.branch")
-                    .labelStyle(.titleAndIcon)
+                Label {
+                    Text(baseBranch)
+                } icon: {
+                    OcticonImage(name: "GitBranchOcticon16", size: diffBranchMenuRowOcticonSize)
+                }
+                .labelStyle(.titleAndIcon)
             }
             .disabled(!isBaseSelectable)
 
             if isCurrentSelectable, let currentBranch {
                 Button(action: onSelectCurrent) {
-                    Label(currentBranch, systemImage: "arrow.triangle.branch")
-                        .labelStyle(.titleAndIcon)
+                    Label {
+                        Text(currentBranch)
+                    } icon: {
+                        OcticonImage(name: "GitBranchOcticon16", size: diffBranchMenuRowOcticonSize)
+                    }
+                    .labelStyle(.titleAndIcon)
                 }
             }
 
@@ -43,7 +54,7 @@ struct DiffBranchSelectionMenu: View {
             }
         } label: {
             HStack(spacing: 8) {
-                OcticonImage(name: "GitBranchOcticon", size: diffBranchMenuOcticonSize)
+                OcticonImage(name: "GitBranchOcticon16", size: diffBranchMenuOcticonSize)
                     .foregroundStyle(.secondary)
 
                 Text(selectedTitle)

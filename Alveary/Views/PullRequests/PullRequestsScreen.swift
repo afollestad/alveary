@@ -160,7 +160,7 @@ private struct PullRequestsEmptyState: View {
 
     var body: some View {
         EmptyStateView(
-            icon: "arrow.triangle.branch",
+            icon: .octicon("PullRequestOcticon"),
             heading: heading,
             subtext: subtext,
             actions: [],

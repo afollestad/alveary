@@ -3,6 +3,9 @@ import SwiftUI
 struct SettingsScreen: View {
     private static let sidebarLayoutMinimumWidth: CGFloat = 700
     private static let sidebarWidth: CGFloat = 180
+    /// A couple of points over the row's body font, because octicon artwork
+    /// under-fills its canvas beside the SF Symbols in the sibling rows.
+    private static let sidebarOcticonSize: CGFloat = 16
 
     let viewModel: SettingsViewModel
     let gitHubCLI: GitHubCLIService
@@ -88,7 +91,7 @@ struct SettingsScreen: View {
             Label {
                 Text(page.title)
             } icon: {
-                Image(systemName: page.icon)
+                ActionIconImage(icon: page.icon, octiconSize: Self.sidebarOcticonSize)
                     .foregroundStyle(Color.primary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -311,26 +314,26 @@ private extension AppSettings.SettingsPage {
         }
     }
 
-    var icon: String {
+    var icon: ActionIcon {
         switch self {
         case .agents:
-            return "brain"
+            return .system("brain")
         case .interface:
-            return "paintbrush"
+            return .system("paintbrush")
         case .appShots:
-            return "camera.viewfinder"
+            return .system("camera.viewfinder")
         case .git:
-            return "arrow.triangle.branch"
+            return .octicon("GitBranchOcticon16")
         case .handoff:
-            return "hand.palm.facing"
+            return .system("hand.palm.facing")
         case .notifications:
-            return "bell"
+            return .system("bell")
         case .terminal:
-            return "terminal"
+            return .system("terminal")
         case .threads:
-            return "bubble.left.and.bubble.right"
+            return .system("bubble.left.and.bubble.right")
         case .appUpdates:
-            return "arrow.down.circle"
+            return .system("arrow.down.circle")
         }
     }
 

@@ -1,7 +1,12 @@
 import SwiftUI
 
+/// Octicon artwork under-fills its canvas, so this box has to exceed the 42pt
+/// font below to match the optical size of the SF Symbols it stands in for.
+/// Move both together.
+private let emptyStateOcticonSize: CGFloat = 48
+
 struct EmptyStateView: View {
-    let icon: String
+    let icon: ActionIcon
     let heading: String
     let subtext: String
     let actions: [EmptyStateAction]
@@ -9,7 +14,7 @@ struct EmptyStateView: View {
     let iconToHeadingSpacing: CGFloat
 
     init(
-        icon: String,
+        icon: ActionIcon,
         heading: String,
         subtext: String,
         actions: [EmptyStateAction],
@@ -22,6 +27,25 @@ struct EmptyStateView: View {
         self.actions = actions
         self.actionFocus = actionFocus
         self.iconToHeadingSpacing = iconToHeadingSpacing
+    }
+
+    /// SF Symbol convenience for the majority of empty states.
+    init(
+        icon: String,
+        heading: String,
+        subtext: String,
+        actions: [EmptyStateAction],
+        actionFocus: FocusState<String?>.Binding? = nil,
+        iconToHeadingSpacing: CGFloat = 24
+    ) {
+        self.init(
+            icon: .system(icon),
+            heading: heading,
+            subtext: subtext,
+            actions: actions,
+            actionFocus: actionFocus,
+            iconToHeadingSpacing: iconToHeadingSpacing
+        )
     }
 
     struct EmptyStateAction {
@@ -51,9 +75,13 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Image(systemName: icon)
+            // The font sizes the SF Symbol case; `octiconSize` sizes the other.
+            // The glyph restates the heading, so it stays out of VoiceOver —
+            // an octicon would otherwise announce its asset name.
+            ActionIconImage(icon: icon, octiconSize: emptyStateOcticonSize)
                 .font(.system(size: 42, weight: .semibold))
                 .foregroundStyle(.tint)
+                .accessibilityHidden(true)
 
             VStack(spacing: 10) {
                 Text(heading)
