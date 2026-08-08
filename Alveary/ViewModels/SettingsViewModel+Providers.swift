@@ -177,6 +177,9 @@ extension SettingsViewModel {
         }
 
         hasLoadedProviderStatuses = false
+        // Re-probe rather than reading the shared cache: this screen is where a CLI gets
+        // installed or a setup completed, so it is the one place staleness would be visible.
+        await invalidateProviderDiscoveryCache()
         let ordering = await providerDiscovery.stableProviderOrdering().map(\.rawValue)
         let statuses = await providerDiscovery.providerStatuses(projectURL: nil)
 

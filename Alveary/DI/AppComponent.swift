@@ -264,6 +264,15 @@ extension AppComponent {
         }
     }
 
+    /// The provider discovery every thread-creation path should reach for; the uncached service
+    /// above is its probe and nothing else should call it directly. See
+    /// `Alveary/Services/Agent/AGENTS.md`.
+    var cachedAgentProviderDiscoveryService: CachingAgentProviderDiscoveryService {
+        return shared {
+            CachingAgentProviderDiscoveryService(base: agentCLIKitProviderDiscoveryService)
+        }
+    }
+
     var agentCLIKitContextWindowCache: AgentCLIKit.JSONAgentModelContextWindowCache {
         return shared {
             AgentCLIKit.JSONAgentModelContextWindowCache(

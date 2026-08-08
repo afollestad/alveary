@@ -68,6 +68,10 @@ struct AppDelegateTestFixture {
             dependencies: .init(
                 agentsManager: agentsManager,
                 providerDetection: providerDetection,
+                // Inert: these are startup-order tests, so launch must not probe the machine.
+                providerDiscoveryCache: CachingAgentProviderDiscoveryService(
+                    base: RecordingProviderDiscoveryService(statuses: [:])
+                ),
                 sessionManager: sessionManager,
                 attachmentStore: attachmentStore,
                 taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,

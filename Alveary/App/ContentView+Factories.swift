@@ -115,6 +115,9 @@ extension ContentView {
         return SettingsViewModel(
             settingsService: dependencies.settingsService,
             providerDiscovery: dependencies.providerDiscovery,
+            invalidateProviderDiscoveryCache: { [cache = dependencies.providerDiscoveryCache] in
+                await cache.invalidate()
+            },
             agentRegistry: dependencies.agentRegistry,
             globalAgentInstructionsService: dependencies.globalAgentInstructionsService,
             soundPreviewer: soundPreviewer.play
@@ -163,8 +166,12 @@ extension ContentView {
             presentToast: { message in
                 appState.presentUnexpectedError(message: message)
             },
-            agenticReviewStarter: { identifier, url in
-                try await dependencies.pullRequestAgenticReviewService.startReview(identifier: identifier, url: url)
+            agenticReviewStarter: { identifier, url, detail in
+                try await dependencies.pullRequestAgenticReviewService.startReview(
+                    identifier: identifier,
+                    url: url,
+                    knownDetail: detail
+                )
             },
             reviewProposalCoordinator: reviewProposalCoordinator
         )

@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     struct Dependencies: @unchecked Sendable {
         let agentsManager: any AgentsManager
         let providerDetection: any ProviderDetectionService
+        /// Warmed at launch and dropped on wake, so the session's first thread creation does not
+        /// pay for provider discovery and a slept machine does not answer from a stale probe.
+        let providerDiscoveryCache: CachingAgentProviderDiscoveryService
         let sessionManager: any SessionManager
         let attachmentStore: any ConversationAttachmentStore
         let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
@@ -37,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return Dependencies(
                 agentsManager: component.agentsManager,
                 providerDetection: component.providerDetectionService,
+                providerDiscoveryCache: component.cachedAgentProviderDiscoveryService,
                 sessionManager: component.sessionManager,
                 attachmentStore: component.conversationAttachmentStore,
                 taskWorkspaceOwnershipService: component.taskWorkspaceOwnershipService,
@@ -148,6 +152,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             await dependencies.providerDetection.checkAllProviders()
+            guard !Task.isCancelled else {
+                return
+            }
+
+            // Fills the shared discovery cache before the user can ask for a thread, so the
+            // session's first New Thread or agentic review skips the subprocess fan-out.
+            await dependencies.providerDiscoveryCache.warm()
             guard !Task.isCancelled else {
                 return
             }
@@ -302,6 +313,7 @@ private extension AppDelegate {
     func scheduleWakeRefresh() {
         wakeRefreshTask?.cancel()
         let providerDetection = dependencies.providerDetection
+        let providerDiscoveryCache = dependencies.providerDiscoveryCache
         let delay = dependencies.wakeRefreshDelay
         wakeRefreshTask = Task {
             try? await Task.sleep(for: delay)
@@ -310,6 +322,9 @@ private extension AppDelegate {
             }
 
             await providerDetection.checkAllProviders()
+            // A machine can sleep for hours; the snapshot from before it did says nothing about
+            // what is installed now.
+            await providerDiscoveryCache.invalidate()
             guard !Task.isCancelled else {
                 return
             }

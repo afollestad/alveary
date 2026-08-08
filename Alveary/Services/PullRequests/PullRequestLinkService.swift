@@ -46,9 +46,15 @@ final class PullRequestLinkService {
 
     /// Throws whatever `fetchDetail` or the save threw, unwrapped, so a caller can classify a
     /// `PullRequestsServiceError` (a missing or unauthenticated `gh`) on its own terms.
+    ///
+    /// `detail` lets a caller that just fetched this pull request hand its copy over instead of
+    /// paying a second identical round trip. The invariant is that a stored link never holds a
+    /// snapshot of something unreachable — not that this call is personally the fetcher — so a
+    /// supplied detail is used only when it names the same pull request.
     func link(
         _ identifier: PullRequestIdentifier,
-        owner: PullRequestLinkOwner
+        owner: PullRequestLinkOwner,
+        detail: PullRequestDetail? = nil
     ) async throws -> PullRequestLinkOutcome {
         guard let links = modelContext.linkedPullRequests(for: owner) else {
             return .superseded
@@ -57,10 +63,16 @@ final class PullRequestLinkService {
             return .alreadyLinked(existing)
         }
 
-        let detail = try await service.fetchDetail(identifier)
+        let resolvedDetail: PullRequestDetail
+        if let detail, detail.id == identifier {
+            resolvedDetail = detail
+        } else {
+            resolvedDetail = try await service.fetchDetail(identifier)
+        }
 
-        // Re-resolve after the await; the owner may be gone by now, or a concurrent link for the
-        // same pull request may have landed meanwhile.
+        // Re-resolve after the fetch; the owner may be gone by now, or a concurrent link for the
+        // same pull request may have landed meanwhile. A supplied detail may not have suspended
+        // at all, but the check has to stay correct for both paths.
         guard let liveLinks = modelContext.linkedPullRequests(for: owner),
               !liveLinks.contains(where: { $0.id == identifier }) else {
             return .superseded
@@ -69,7 +81,7 @@ final class PullRequestLinkService {
         // `linkedAt` cannot disagree, and tests keep one clock.
         let linkedAt = now()
         let link = LinkedPullRequest(
-            summary: Self.makeSummary(from: detail, linkedAt: linkedAt),
+            summary: Self.makeSummary(from: resolvedDetail, linkedAt: linkedAt),
             linkedAt: linkedAt
         )
         modelContext.setLinkedPullRequests(liveLinks + [link], for: owner)

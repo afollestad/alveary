@@ -37,13 +37,16 @@ final class PullRequestsViewModel {
     /// Notes the opened pane's repository as a render context for resolving
     /// signed attachment-image URLs (see `GitHubAttachmentImageURLResolver`).
     let attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)?
-    /// App-level toast presentation. Attachment failures surface here rather than
-    /// in a pane banner, because the pane may already be closed when one lands.
+    /// App-level toast presentation, for failures a pane banner cannot carry because the pane may
+    /// already be closed when one lands: attachment uploads and the agentic review's deferred dispatch.
     let presentToast: @MainActor @Sendable (String) -> Void
-    /// Spawns the footer's agentic review thread and answers with its main-conversation
-    /// id. A closure rather than the service so tests and previews stay light; nil means
-    /// the footer's Agentic review option does nothing.
-    let agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)?
+    /// Spawns the footer's agentic review thread and answers as soon as it exists. A closure
+    /// rather than the service so tests and previews stay light; nil means the footer's Agentic
+    /// review option does nothing. The pane's loaded detail rides along so linking need not
+    /// refetch what this screen already has.
+    let agenticReviewStarter: (
+        @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticReviewStart
+    )?
     /// Resolves the pane's attached review proposal and owns the envelope it renders from.
     /// This is not the `ModelContext` this view model deliberately does without — the
     /// coordinator holds its own private context; the view model still holds none. Optional
@@ -133,7 +136,9 @@ final class PullRequestsViewModel {
         attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
         attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
-        agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)? = nil,
+        agenticReviewStarter: (
+            @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticReviewStart
+        )? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
         now: @escaping () -> Date = Date.init
     ) {

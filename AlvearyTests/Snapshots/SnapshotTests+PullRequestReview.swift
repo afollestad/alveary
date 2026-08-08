@@ -188,6 +188,23 @@ extension SnapshotTests {
         )
     }
 
+    func testPullRequestPaneReviewFooterAgenticReviewStarting() {
+        // Starting the review swaps the brain glyph for the shared spinner in the same box, so
+        // the pill neither greys out nor changes width while the thread is being created.
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            status: .open,
+            selectedReviewAction: .agenticReview,
+            isStartingAgenticReview: true
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_agentic_starting"
+        )
+    }
+
     func testPullRequestPaneReviewFooterClosedWithDeletedBranch() {
         // A closed pull request whose branch is gone: Reopen PR is dead and the
         // note above says why.
@@ -307,7 +324,8 @@ struct PullRequestReviewFooterFixture {
         summaryStatus: PullRequestStatus = .open,
         viewerCanUpdate: Bool = true,
         headRefExists: Bool = true,
-        selectedReviewAction: PullRequestReviewFooterAction.Kind = .submitReview
+        selectedReviewAction: PullRequestReviewFooterAction.Kind = .submitReview,
+        isStartingAgenticReview: Bool = false
     ) {
         let service = StubPullRequestsService()
         // The footer seeds its split-button selection from settings at init, so the stored
@@ -332,6 +350,11 @@ struct PullRequestReviewFooterFixture {
                     headRefExists: headRefExists,
                     pendingReviewNodeID: pendingCommentCount > 0 ? "PRR_pending" : nil
                 )
+            }
+        }
+        if isStartingAgenticReview {
+            viewModel.mutateActiveSession { session in
+                session.isStartingAgenticReview = true
             }
         }
         guard let session = viewModel.activePaneSession else {

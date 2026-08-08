@@ -35,6 +35,9 @@ struct SplitActionButton<Option: Hashable>: View {
     var emphasis = SplitActionButtonEmphasis.primary
     /// Fills the available width, for the even-split pane footer rows.
     var expandsHorizontally = false
+    /// Swaps the leading glyph for a spinner and blocks the control while its action runs.
+    /// A greyed-out button alone reads as unavailable rather than working.
+    var isBusy = false
     let selectedOption: Option
     let options: [Option]
     let optionTitle: (Option) -> String
@@ -60,6 +63,10 @@ struct SplitActionButton<Option: Hashable>: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(!isInteractive)
+            // The spinner is decorative, so without this VoiceOver reads a busy button as
+            // nothing but dimmed — the "unavailable" meaning the fill deliberately avoids.
+            .accessibilityValue(isBusy ? "Working" : "")
 
             Rectangle()
                 .fill(emphasis.foreground.opacity(isEnabled ? 0.16 : 0.08))
@@ -75,7 +82,7 @@ struct SplitActionButton<Option: Hashable>: View {
                     selectedOption: selectedOption,
                     options: options,
                     optionTitle: optionTitle,
-                    isEnabled: isEnabled,
+                    isEnabled: isInteractive,
                     selectOption: selectOption
                 )
                 .frame(width: menuWidth, height: controlHeight)
@@ -110,14 +117,20 @@ struct SplitActionButton<Option: Hashable>: View {
     @ViewBuilder
     private var label: some View {
         if let icon {
-            ActionButtonLabel(title: title, icon: icon)
+            ActionButtonLabel(title: title, icon: icon, isBusy: isBusy, busyTint: emphasis.foreground)
         } else {
             Text(title)
         }
     }
 
+    /// Busy blocks clicks and the caret menu but deliberately leaves the fill, border, and label
+    /// at their enabled opacities — a working button that greys out reads as unavailable.
+    private var isInteractive: Bool {
+        isEnabled && !isBusy
+    }
+
     private var showsHoverOverlay: Bool {
-        isHovering && isEnabled
+        isHovering && isInteractive
     }
 
     private var backgroundColor: Color {

@@ -10,7 +10,7 @@ extension AppComponent {
                 lifecycleService: threadLifecycleService,
                 linkService: pullRequestLinkService,
                 settingsService: settingsService,
-                providerDiscovery: agentCLIKitProviderDiscoveryService,
+                providerDiscovery: cachedAgentProviderDiscoveryService,
                 startInitialPrompt: { conversation, prompt in
                     self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)
                 }

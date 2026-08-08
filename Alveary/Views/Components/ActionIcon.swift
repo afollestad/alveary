@@ -64,10 +64,20 @@ struct ActionButtonLabel: View {
     let title: String
     let icon: ActionIcon
     var scale = ActionButtonLabelScale.prominent
+    /// Swaps the glyph for a spinner in the glyph's own box, so a button that starts working
+    /// cannot change width mid-action.
+    var isBusy = false
+    /// The label's own color. The `.secondary` working gray the status dots use would vanish
+    /// inside a filled pill, which is the only place this spinner appears.
+    var busyTint = Color.primary
 
     var body: some View {
         HStack(spacing: scale.iconLabelSpacing) {
-            ActionIconImage(icon: icon, octiconSize: scale.octiconSize)
+            if isBusy {
+                StatusIndicatorSpinner(color: busyTint, diameter: scale.octiconSize)
+            } else {
+                ActionIconImage(icon: icon, octiconSize: scale.octiconSize)
+            }
             Text(title)
         }
     }

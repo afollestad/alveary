@@ -8,6 +8,10 @@ import SwiftUI
 final class SettingsViewModel {
     @ObservationIgnored let settingsService: any SettingsService
     @ObservationIgnored let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
+    /// Drops the shared discovery cache before this screen reads. Installing a CLI or finishing
+    /// a provider setup happens here, so this is the one surface that must never see a cached
+    /// readiness snapshot.
+    @ObservationIgnored let invalidateProviderDiscoveryCache: @Sendable () async -> Void
     @ObservationIgnored let agentRegistry: AgentRegistry
     /// Built once so the AGENTS.md editor's draft and document store survive re-renders.
     @ObservationIgnored let instructionsEditor: GlobalInstructionsEditorModel
@@ -22,6 +26,7 @@ final class SettingsViewModel {
     init(
         settingsService: any SettingsService,
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
+        invalidateProviderDiscoveryCache: @escaping @Sendable () async -> Void = {},
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         globalAgentInstructionsService: GlobalAgentInstructionsService? = nil,
         codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies },
@@ -29,6 +34,7 @@ final class SettingsViewModel {
     ) {
         self.settingsService = settingsService
         self.providerDiscovery = providerDiscovery
+        self.invalidateProviderDiscoveryCache = invalidateProviderDiscoveryCache
         self.agentRegistry = agentRegistry
         instructionsEditor = GlobalInstructionsEditorModel(
             service: globalAgentInstructionsService

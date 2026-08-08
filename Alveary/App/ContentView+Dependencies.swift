@@ -6,7 +6,10 @@ struct ContentViewDependencies {
     let shellRunner: ShellRunner
     let gitHubCLI: GitHubCLIService
     let providerDetection: any ProviderDetectionService
+    /// The cached decorator, so thread creation and the composer do not each re-probe.
     let providerDiscovery: any AgentCLIKit.AgentProviderDiscoveryService
+    /// The same object, concrete, for the Agents settings screen's invalidation.
+    let providerDiscoveryCache: CachingAgentProviderDiscoveryService
     let agentRegistry: AgentRegistry
     let providerRegistry: ProviderRegistry
     let skillsService: SkillsService
@@ -51,7 +54,8 @@ struct ContentViewDependencies {
             shellRunner: component.shellRunner,
             gitHubCLI: component.gitHubCLIService,
             providerDetection: component.providerDetectionService,
-            providerDiscovery: component.agentCLIKitProviderDiscoveryService,
+            providerDiscovery: component.cachedAgentProviderDiscoveryService,
+            providerDiscoveryCache: component.cachedAgentProviderDiscoveryService,
             agentRegistry: component.agentRegistry,
             providerRegistry: component.providerRegistry,
             skillsService: component.skillsService,

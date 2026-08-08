@@ -2,6 +2,19 @@ import AgentCLIKit
 import Foundation
 import SwiftData
 
+/// What `startReview` hands back. The conversation is answered as soon as the thread exists so
+/// the caller can navigate immediately; everything that still has to happen rides `dispatch`.
+///
+/// Deliberately a plain value rather than a nested type, so the pane's view model can name it
+/// without reaching for the service.
+struct PullRequestAgenticReviewStart {
+    /// The new thread's sole-main-conversation id, which is what the caller navigates to.
+    let conversationID: String
+    /// Links the pull request, then dispatches the first prompt — in that order, behind the
+    /// navigation. Await it only to surface a failure; nothing else may depend on it.
+    let dispatch: Task<Void, Error>
+}
+
 /// Starts the agentic review the pull request pane's footer offers: a Task thread whose first
 /// prompt asks for the review the way the user would. The agent picks the workflow up from the
 /// `alveary_host` tools — `get_pr_review_instructions` first, `propose_pr_review` last, which
@@ -54,9 +67,18 @@ final class PullRequestAgenticReviewService {
         self.startInitialPrompt = startInitialPrompt
     }
 
-    /// Returns the new thread's sole-main-conversation id, which is what the caller navigates to.
-    @discardableResult
-    func startReview(identifier: PullRequestIdentifier, url: URL) async throws -> String {
+    /// Creates the review thread and answers the moment it exists, so the caller can navigate
+    /// without waiting on GitHub. Linking and the first prompt run behind that navigation on the
+    /// returned `dispatch` — they used to sit in front of the return, which put a `gh` round trip
+    /// between the footer click and the sidebar selection.
+    ///
+    /// `knownDetail` lets a caller that already fetched this pull request — the pane always has —
+    /// spare the link its own round trip.
+    func startReview(
+        identifier: PullRequestIdentifier,
+        url: URL,
+        knownDetail: PullRequestDetail? = nil
+    ) async throws -> PullRequestAgenticReviewStart {
         let settings = settingsService.current
         let seed = try await resolvedSeedSettings(settings: settings)
 
@@ -74,28 +96,39 @@ final class PullRequestAgenticReviewService {
                 grantedRoots: []
             )
         )
-        // Snapshotted before the link `await`, which can invalidate the model references.
-        guard thread.soleMainConversation != nil else {
+        guard let conversation = thread.soleMainConversation else {
             throw StartError.conversationMissing
         }
+        // Snapshotted before the dispatch task, which suspends and can invalidate the models.
         let threadID = thread.persistentModelID
+        let conversationID = conversation.id
 
-        // Linked before the prompt is dispatched, not after: this route links regardless of
-        // `automaticallyLinkPullRequests`, and doing it first means transcript detection finds the
-        // pull request already linked and asks no redundant "link this?" question under the
-        // prompt. Best-effort — a GitHub hiccup must not stop a review from starting.
-        _ = try? await linkService.link(identifier, owner: .thread(threadID))
+        return PullRequestAgenticReviewStart(
+            conversationID: conversationID,
+            dispatch: Task { @MainActor [linkService, lifecycleService, startInitialPrompt] in
+                // Linked before the prompt is dispatched, not after: this route links regardless
+                // of `automaticallyLinkPullRequests`, and doing it first means transcript
+                // detection finds the pull request already linked and asks no redundant
+                // "link this?" question under the prompt. Best-effort — a GitHub hiccup must not
+                // stop a review from starting.
+                _ = try? await linkService.link(
+                    identifier,
+                    owner: .thread(threadID),
+                    detail: knownDetail
+                )
 
-        // Re-resolved after the await rather than carried across it.
-        guard let liveThread = lifecycleService.modelContext.resolveThread(id: threadID),
-              let conversation = liveThread.soleMainConversation else {
-            throw StartError.conversationMissing
-        }
-        // Deliberately short. The instructions are not inlined here — the agent fetches them with
-        // `get_pr_review_instructions`, exactly as it does when the user asks for a review in a
-        // thread that already exists, so both routes run one shared path and show the same card.
-        startInitialPrompt(conversation, Self.reviewRequestPrompt(url: url))
-        return conversation.id
+                // Re-resolved after the await rather than carried across it.
+                guard let liveThread = lifecycleService.modelContext.resolveThread(id: threadID),
+                      let conversation = liveThread.soleMainConversation else {
+                    throw StartError.conversationMissing
+                }
+                // Deliberately short. The instructions are not inlined here — the agent fetches
+                // them with `get_pr_review_instructions`, exactly as it does when the user asks
+                // for a review in a thread that already exists, so both routes run one shared
+                // path and show the same card.
+                startInitialPrompt(conversation, Self.reviewRequestPrompt(url: url))
+            }
+        )
     }
 
     /// Reads like something the user would type, because that is what it stands in for. The URL

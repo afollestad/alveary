@@ -318,6 +318,9 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             icon: action.icon,
             emphasis: .primary,
             expandsHorizontally: expandsHorizontally,
+            // Starting a review reaches the provider and GitHub, so the button says it is
+            // working rather than only refusing the next click.
+            isBusy: session.isStartingAgenticReview,
             selectedOption: action.kind,
             options: PullRequestReviewFooterAction.all.map(\.kind),
             optionTitle: { PullRequestReviewFooterAction.action(for: $0).title },
@@ -327,7 +330,6 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 viewModel.selectReviewFooterAction(kind)
             }
         )
-        .disabled(session.isStartingAgenticReview)
         .help(action.title)
     }
 

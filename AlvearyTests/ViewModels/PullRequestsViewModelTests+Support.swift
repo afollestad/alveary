@@ -12,7 +12,9 @@ func makePullRequestsViewModel(
     attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
     attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
     presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
-    agenticReviewStarter: (@MainActor (PullRequestIdentifier, URL) async throws -> String)? = nil,
+    agenticReviewStarter: (
+        @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticReviewStart
+    )? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
     now: @escaping () -> Date = Date.init
 ) -> PullRequestsViewModel {
@@ -28,6 +30,19 @@ func makePullRequestsViewModel(
         agenticReviewStarter: agenticReviewStarter,
         reviewProposalCoordinator: reviewProposalCoordinator,
         now: now
+    )
+}
+
+/// Builds the value a real starter answers with. `dispatch` defaults to already-succeeded work,
+/// so a test that only cares about the navigation half writes nothing extra.
+@MainActor
+func makeAgenticReviewStart(
+    conversationID: String,
+    dispatch: @escaping @Sendable () async throws -> Void = {}
+) -> PullRequestAgenticReviewStart {
+    PullRequestAgenticReviewStart(
+        conversationID: conversationID,
+        dispatch: Task { try await dispatch() }
     )
 }
 

@@ -43,6 +43,9 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
         _ = component.agentCLIKitProjectTrustService
         _ = component.agentCLIKitProviderDiscoveryService
+        // The decorator is only worth anything shared: a per-resolution instance would give every
+        // injection site its own empty cache, silently restoring the per-thread-creation probe.
+        XCTAssertTrue(component.cachedAgentProviderDiscoveryService === component.cachedAgentProviderDiscoveryService)
         assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
         assertSameInstance(component.claudeApprovalPersistenceStore, component.claudeApprovalPersistenceStore)
         assertSameInstance(component.executablePathResolver, component.executablePathResolver)

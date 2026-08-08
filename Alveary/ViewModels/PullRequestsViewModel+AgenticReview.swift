@@ -23,9 +23,11 @@ extension PullRequestsViewModel {
         }
     }
 
-    /// Spawns the review thread and navigates to it. Navigation unmounts this pane — it is
+    /// Spawns the review thread and navigates to it as soon as it exists, then waits out the
+    /// linking and first prompt behind that navigation. Navigation unmounts this pane — it is
     /// origin-scoped — so every write is generation-guarded; a completion that lands after
-    /// the session is gone applies nothing.
+    /// the session is gone applies nothing, which is why the deferred half reports through the
+    /// app-level toast instead of the footer's banner.
     func startAgenticReview() {
         guard let target = activePaneTarget,
               let session = paneSessions[target],
@@ -46,24 +48,36 @@ extension PullRequestsViewModel {
             session.agenticReviewError = nil
             session.isStartingAgenticReview = true
         }
+        // The pane already fetched this pull request; handing its detail over spares the link an
+        // identical round trip, which is what keeps the new thread from sitting empty.
+        let detail = session.detail
         Task {
+            let start: PullRequestAgenticReviewStart
             do {
-                let conversationID = try await agenticReviewStarter(identifier, url)
-                updateSession(target, generation: generation) { session in
-                    session.isStartingAgenticReview = false
-                }
-                NotificationCenter.default.post(
-                    name: .threadOpenRequested,
-                    object: nil,
-                    userInfo: [
-                        ThreadOpenRequestNotificationKey.request: ThreadOpenRequest(conversationID: conversationID)
-                    ]
-                )
+                start = try await agenticReviewStarter(identifier, url, detail)
             } catch {
                 updateSession(target, generation: generation) { session in
                     session.agenticReviewError = error.localizedDescription
                     session.isStartingAgenticReview = false
                 }
+                return
+            }
+            updateSession(target, generation: generation) { session in
+                session.isStartingAgenticReview = false
+            }
+            NotificationCenter.default.post(
+                name: .threadOpenRequested,
+                object: nil,
+                userInfo: [
+                    ThreadOpenRequestNotificationKey.request: ThreadOpenRequest(
+                        conversationID: start.conversationID
+                    )
+                ]
+            )
+            do {
+                try await start.dispatch.value
+            } catch {
+                presentToast(error.localizedDescription)
             }
         }
     }
