@@ -25,6 +25,7 @@ When a test class grows large, split it into companion files named `<BaseTests>+
 - Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests. Its `usage()` covers verify/record forms and focused identifiers.
 - `./scripts/snapshots.sh record` tolerates SnapshotTesting's expected non-zero record exit and then verifies the same identifiers before reporting success.
 - Snapshot failure artifacts default to `.build/snapshot-failures` through `SNAPSHOT_ARTIFACTS`; set that environment variable only when a caller needs a different artifact directory.
+- Audit for stale baselines by recording the full suite and diffing **decoded pixels**, not `git status`: the decode drift under `assertMacSnapshot()` Internals marks most PNGs byte-changed, burying the few that actually drifted.
 
 ### Organizing Baselines
 
