@@ -3,13 +3,14 @@ import SwiftUI
 
 struct GitSettingsTabView: View {
     let gitHubCLI: GitHubCLIService
-    /// The agentic-review agent pickers read provider discovery through the view model, the
-    /// way the Threads tab's defaults do.
+    /// The agentic agent pickers read provider discovery through the view model, the way
+    /// the Threads tab's defaults do.
     let viewModel: SettingsViewModel
     @Binding var branchPrefix: String
     @Binding var commitMessageGenerationPrompt: String
     @Binding var pullRequestGenerationPrompt: String
     @Binding var pullRequestReviewPrompt: String
+    @Binding var pullRequestAddressFeedbackPrompt: String
     @Binding var worktreesBaseDirectory: String
     @Binding var createWorktreeByDefault: Bool
     @Binding var pullRequestsEnabled: Bool
@@ -83,6 +84,14 @@ struct GitSettingsTabView: View {
                     )
 
                     SettingsPromptEditorRow(
+                        "Address feedback instructions",
+                        helpText: GitSettingsHelp.pullRequestAddressFeedbackPrompt,
+                        prompt: $pullRequestAddressFeedbackPrompt,
+                        defaultPrompt: AppSettings.defaultPullRequestAddressFeedbackPrompt,
+                        placeholder: "Write the instructions the agent follows when addressing feedback on a pull request."
+                    )
+
+                    SettingsPromptEditorRow(
                         "Agentic review instructions",
                         helpText: GitSettingsHelp.pullRequestReviewPrompt,
                         prompt: $pullRequestReviewPrompt,
@@ -90,7 +99,7 @@ struct GitSettingsTabView: View {
                         placeholder: "Write the instructions the agent follows when reviewing a pull request."
                     )
 
-                    agenticReviewAgentRows
+                    agenticAgentRows
                 }
 
                 SettingsFormSection("Worktrees") {
@@ -117,14 +126,19 @@ struct GitSettingsTabView: View {
 }
 
 private extension GitSettingsTabView {
-    /// Which agent runs an agentic review. Each picker's first row is "Default", meaning the
-    /// Threads tab's own default; effort hides entirely when the model reports no options.
+    /// Which agent runs either agentic route — reviewing or addressing feedback. Each
+    /// picker's first row is "Default", meaning the Threads tab's own default; effort hides
+    /// entirely when the model reports no options.
     @ViewBuilder
-    var agenticReviewAgentRows: some View {
+    var agenticAgentRows: some View {
         SettingsFormRow {
-            SettingsResponsiveControlRow("Review agent", horizontalControlSizing: .intrinsic) {
+            SettingsResponsiveControlRow(
+                "Agent",
+                helpText: GitSettingsHelp.pullRequestAgent,
+                horizontalControlSizing: .intrinsic
+            ) {
                 SettingsMenuPicker(
-                    "Review agent",
+                    "Agent",
                     selection: Binding(
                         get: { viewModel.pullRequestReviewProviderSelection },
                         set: { viewModel.setPullRequestReviewProvider($0) }
@@ -137,9 +151,9 @@ private extension GitSettingsTabView {
 
         let effortOptions = viewModel.pullRequestReviewEffortOptions
         SettingsFormRow(showsDivider: !effortOptions.isEmpty) {
-            SettingsResponsiveControlRow("Review model", horizontalControlSizing: .intrinsic) {
+            SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
                 SettingsMenuPicker(
-                    "Review model",
+                    "Model",
                     selection: Binding(
                         get: { viewModel.pullRequestReviewModelSelection },
                         set: { viewModel.setPullRequestReviewModel($0) }
@@ -152,9 +166,9 @@ private extension GitSettingsTabView {
 
         if !effortOptions.isEmpty {
             SettingsFormRow(showsDivider: false) {
-                SettingsResponsiveControlRow("Review effort", horizontalControlSizing: .intrinsic) {
+                SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
                     SettingsMenuPicker(
-                        "Review effort",
+                        "Effort",
                         selection: Binding(
                             get: { viewModel.pullRequestReviewEffortSelection },
                             set: { viewModel.setPullRequestReviewEffort($0) }
@@ -281,4 +295,10 @@ private enum GitSettingsHelp {
         "Instructions the agent follows when reviewing a pull request — one started by \"Agentic review\" "
         + "in a pull request's footer, or any thread you ask for a review. "
         + "It reviews the diff, then proposes a review for you to confirm."
+    static let pullRequestAddressFeedbackPrompt =
+        "Instructions the agent follows when addressing feedback on a pull request — one started by "
+        + "\"Address feedback\" in a pull request's footer, or any thread you ask to address feedback. "
+        + "It reads the feedback, changes the code where the feedback holds up, then replies and resolves the threads."
+    static let pullRequestAgent =
+        "Which agent runs \"Agentic review\" and \"Address feedback\". Default follows the Threads tab."
 }

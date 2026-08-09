@@ -82,8 +82,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     var commitMessageGenerationPrompt = Self.defaultCommitMessageGenerationPrompt
     var pullRequestGenerationPrompt = Self.defaultPullRequestGenerationPrompt
     var pullRequestReviewPrompt = Self.defaultPullRequestReviewPrompt
-    // Nil follows the Threads tab's defaults, so a review thread inherits whatever a
-    // typed thread would get unless the user pins one here.
+    var pullRequestAddressFeedbackPrompt = Self.defaultPullRequestAddressFeedbackPrompt
+    // Shared by both agentic pull-request routes, review and address-feedback; the
+    // `pullRequestReview` names are historical. Nil follows the Threads tab's defaults,
+    // so an agentic thread inherits whatever a typed thread would get unless the user
+    // pins one here.
     var pullRequestReviewProvider: String?
     var pullRequestReviewModel: String?
     var pullRequestReviewEffort: String?
@@ -270,6 +273,9 @@ struct AppSettings: Codable, Sendable, Equatable {
         }
         if pullRequestReviewPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             pullRequestReviewPrompt = Self.defaultPullRequestReviewPrompt
+        }
+        if pullRequestAddressFeedbackPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pullRequestAddressFeedbackPrompt = Self.defaultPullRequestAddressFeedbackPrompt
         }
         normalizePullRequestReviewAgentDefaults()
     }

@@ -51,9 +51,18 @@ final class PromptDefaultsMarkdownRoundTripTests: XCTestCase {
         }
     }
 
+    func testTheAddressFeedbackPromptBackticksEveryToolItNames() {
+        let prompt = AppSettings.defaultPullRequestAddressFeedbackPrompt
+        let tools = ["alveary_host", "get_pr", "get_pr_timeline", "get_pr_diff", "reply_to_pr_thread", "resolve_pr_thread", "comment_on_pr"]
+        for tool in tools {
+            XCTAssertTrue(prompt.contains("`\(tool)`"), "\(tool) is not backticked")
+        }
+    }
+
     private static var packagedPrompts: [(String, String)] {
         [
             ("defaultPullRequestReviewPrompt", AppSettings.defaultPullRequestReviewPrompt),
+            ("defaultPullRequestAddressFeedbackPrompt", AppSettings.defaultPullRequestAddressFeedbackPrompt),
             ("defaultPullRequestGenerationPrompt", AppSettings.defaultPullRequestGenerationPrompt),
             ("defaultCommitMessageGenerationPrompt", AppSettings.defaultCommitMessageGenerationPrompt),
             ("defaultSessionHandoffPrompt", AppSettings.defaultSessionHandoffPrompt)

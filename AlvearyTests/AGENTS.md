@@ -38,6 +38,7 @@ When a test class grows large, split it into companion files named `<BaseTests>+
 - When changing transcript bubble spacing or bubble chrome, keep grouped chat-bubble snapshots (for example stacked outbound and stacked assistant bubbles) alongside single-bubble cases; single-item baselines do not catch inter-bubble spacing regressions.
 - AppKit owns the live transcript surface. Keep native transcript snapshots in `SnapshotTests+AppKitTranscript.swift`; do not add new SwiftUI transcript-row snapshots.
 - Native migration snapshots are parity gates. Verify the replaced SwiftUI surface before recording baselines, and add focused coverage for hover or pressed states when a migrated AppKit control has custom interaction styling.
+- **A prose-dense baseline reflows on CI.** A newer local macOS fits slightly more text per line than the runner, so any wrapped line sitting at its break point moves and the diff clears the tolerance — re-recording locally cannot fix it, since it already matches locally. Assert wording textually rather than adding a baseline whose only delta from an existing one is its prose.
 
 ### `assertMacSnapshot()` Internals
 

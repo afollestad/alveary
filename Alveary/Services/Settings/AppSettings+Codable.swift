@@ -61,6 +61,7 @@ extension AppSettings {
         case commitMessageGenerationPrompt
         case pullRequestGenerationPrompt
         case pullRequestReviewPrompt
+        case pullRequestAddressFeedbackPrompt
         case pullRequestReviewProvider
         case pullRequestReviewModel
         case pullRequestReviewEffort
@@ -261,6 +262,10 @@ extension AppSettings {
             String.self,
             forKey: .pullRequestReviewPrompt
         ) ?? pullRequestReviewPrompt
+        pullRequestAddressFeedbackPrompt = try container.decodeIfPresent(
+            String.self,
+            forKey: .pullRequestAddressFeedbackPrompt
+        ) ?? pullRequestAddressFeedbackPrompt
         // Absent means "follow the Threads defaults", so these stay nil rather than
         // falling back to the packaged value the way the prompts do.
         pullRequestReviewProvider = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewProvider)

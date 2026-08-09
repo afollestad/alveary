@@ -168,6 +168,7 @@ struct SettingsScreen: View {
                 commitMessageGenerationPrompt: binding(for: \.commitMessageGenerationPrompt),
                 pullRequestGenerationPrompt: binding(for: \.pullRequestGenerationPrompt),
                 pullRequestReviewPrompt: binding(for: \.pullRequestReviewPrompt),
+                pullRequestAddressFeedbackPrompt: binding(for: \.pullRequestAddressFeedbackPrompt),
                 worktreesBaseDirectory: binding(for: \.worktreesBaseDirectory),
                 createWorktreeByDefault: binding(for: \.createWorktreeByDefault),
                 pullRequestsEnabled: binding(for: \.pullRequestsEnabled),

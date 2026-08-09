@@ -1,9 +1,11 @@
 import AgentCLIKit
 import SwiftUI
 
-/// The Git tab's agentic-review agent settings. Each picker offers a leading "Default" row
-/// meaning "follow the Threads tab", which is what `nil` persists as; only an explicit pick
-/// pins the review to a provider, model, or effort of its own.
+/// The Git tab's agentic pull-request settings, shared by both routes the footer offers.
+/// Each picker offers a leading "Default" row meaning "follow the Threads tab", which is
+/// what `nil` persists as; only an explicit pick pins a provider, model, or effort. The
+/// `pullRequestReview` names are historical — the pins have never been review-only since
+/// address-feedback shipped.
 extension SettingsViewModel {
     /// Distinct from `AppSettings.defaultModelValue`, which means "the provider's default
     /// model" — a narrower claim than "follow the Threads defaults".
@@ -12,6 +14,11 @@ extension SettingsViewModel {
     var pullRequestReviewPrompt: String {
         get { settingsService.current.pullRequestReviewPrompt }
         set { settingsService.update { $0.pullRequestReviewPrompt = newValue } }
+    }
+
+    var pullRequestAddressFeedbackPrompt: String {
+        get { settingsService.current.pullRequestAddressFeedbackPrompt }
+        set { settingsService.update { $0.pullRequestAddressFeedbackPrompt = newValue } }
     }
 
     /// The provider the review's model and effort options are read from: the pinned one while

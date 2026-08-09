@@ -381,8 +381,10 @@ extension SnapshotTests {
 }
 
 extension SnapshotTests {
-    /// The prompt sheet is the only place a packaged prompt is legible, so its
-    /// baseline is what catches the default going back to hand-wrapped lines.
+    /// One baseline covers the sheet for every packaged prompt: it pins the chrome and the
+    /// markdown rendering, not any one prompt's wording. `PromptDefaultsMarkdownRoundTripTests`
+    /// owns the hand-wrap check, so a sibling baseline per prompt would only add prose that
+    /// reflows on CI.
     func testSettingsPromptEditorSheetShowsTheReviewInstructions() {
         assertMacSnapshot(
             settingsPromptEditorSheet(prompt: AppSettings.defaultPullRequestReviewPrompt),
