@@ -1,8 +1,8 @@
 import Foundation
 
-/// Composes what `get_pr_review_instructions` returns: the user's editable instructions
-/// followed by a fixed block naming the pull request. The context block is what keeps a
-/// fully rewritten prompt pointed at a target, so it is never part of the editable half.
+/// Composes what the two instruction tools return: the user's editable instructions followed
+/// by a fixed block naming the pull request. The context block is what keeps a fully rewritten
+/// prompt pointed at a target, so it is never part of the editable half.
 enum PullRequestReviewPromptBuilder {
     /// The one composition every review follows. Both routes fetch it through the tool —
     /// a thread the footer's "Agentic review" spawned and a thread the user asked directly
@@ -15,6 +15,20 @@ enum PullRequestReviewPromptBuilder {
     ) -> String {
         build(
             editablePrompt: settings.pullRequestReviewPrompt,
+            context: context(url: url, identifier: identifier, title: title)
+        )
+    }
+
+    /// The address-feedback sibling, composed the same way from the same context block so the
+    /// two instruction tools differ only in which prompt the user edited.
+    static func addressFeedbackInstructions(
+        settings: AppSettings,
+        url: URL,
+        identifier: PullRequestIdentifier,
+        title: String?
+    ) -> String {
+        build(
+            editablePrompt: settings.pullRequestAddressFeedbackPrompt,
             context: context(url: url, identifier: identifier, title: title)
         )
     }

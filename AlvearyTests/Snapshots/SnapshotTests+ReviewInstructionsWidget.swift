@@ -4,8 +4,9 @@ import XCTest
 
 @testable import Alveary
 
-/// The `get_pr_review_instructions` card: collapsed it names the pull request under review,
-/// expanded it shows the instructions the agent received.
+/// The instructions card: collapsed it names the pull request being worked on, expanded it shows
+/// the instructions the agent received. Both tools that return instructions share it, so the
+/// address-feedback baseline is what catches a summary that stopped naming its own work.
 @MainActor
 extension SnapshotTests {
     func testReviewInstructionsWidgetCollapsed() {
@@ -37,9 +38,34 @@ extension SnapshotTests {
             named: "review_instructions_widget_running"
         )
     }
+
+    /// The same card for the sibling tool; only the summary line differs.
+    func testAddressFeedbackInstructionsWidgetCollapsed() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewInstructionsSnapshotFixture.widgetRow(kind: .addressFeedback)
+            },
+            size: CGSize(width: 700, height: 90),
+            named: "address_feedback_instructions_widget_collapsed"
+        )
+    }
+
+    func testAddressFeedbackInstructionsWidgetRunning() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewInstructionsSnapshotFixture.widgetRow(
+                    kind: .addressFeedback,
+                    status: .running,
+                    isComplete: false
+                )
+            },
+            size: CGSize(width: 700, height: 90),
+            named: "address_feedback_instructions_widget_running"
+        )
+    }
 }
 
-/// Builds review-instructions cards from fixed content, so a baseline never depends on settings.
+/// Builds instructions cards from fixed content, so a baseline never depends on settings.
 @MainActor
 enum ReviewInstructionsSnapshotFixture {
     static let instructions = """
@@ -51,20 +77,23 @@ enum ReviewInstructionsSnapshotFixture {
     """
 
     static func widgetRow(
+        kind: ReviewInstructionsWidgetContent.Kind = .review,
         status: ReviewInstructionsWidgetContent.Status = .loaded,
         isComplete: Bool = true,
         expanded: Bool = false
     ) -> AppKitTranscriptHostToolWidgetRowView {
+        let toolName = kind == .review
+            ? PullRequestHostToolCatalog.reviewInstructionsToolName
+            : PullRequestHostToolCatalog.addressFeedbackInstructionsToolName
         let view = AppKitTranscriptHostToolWidgetRowView(frame: .zero)
         view.configure(
             .init(
                 entry: HostToolWidgetEntry(
-                    id: "review-instructions-snapshot",
-                    toolName: HostToolTranscriptCatalog.toolName(
-                        PullRequestHostToolCatalog.reviewInstructionsToolName
-                    ),
+                    id: "instructions-snapshot",
+                    toolName: HostToolTranscriptCatalog.toolName(toolName),
                     content: .pullRequestReviewInstructions(
                         ReviewInstructionsWidgetContent(
+                            kind: kind,
                             identifier: PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
                             instructions: status == .loaded ? instructions : nil,
                             status: status

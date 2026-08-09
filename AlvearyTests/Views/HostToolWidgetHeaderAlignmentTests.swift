@@ -74,6 +74,7 @@ final class HostToolWidgetHeaderAlignmentTests: XCTestCase {
             toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.reviewInstructionsToolName),
             content: .pullRequestReviewInstructions(
                 ReviewInstructionsWidgetContent(
+                    kind: .review,
                     identifier: Self.pullRequest,
                     instructions: "Focus on correctness.",
                     status: .loaded

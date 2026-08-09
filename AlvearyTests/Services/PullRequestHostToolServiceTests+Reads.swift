@@ -135,4 +135,54 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(try object(events.first)["body_markdown"], .string("Comment 3"))
         XCTAssertEqual(try object(events.last)["body_markdown"], .string("Comment 4"))
     }
+
+    /// A thread's replies are where it says whether the point was answered or argued. Carrying
+    /// only the root comment made a settled thread read as outstanding.
+    func testTimelineThreadsCarryTheirWholeConversation() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.reviewThreads = [
+            makeReviewThread(
+                nodeID: "THREAD_1",
+                path: "File0.swift",
+                line: 1,
+                isPending: false,
+                bodies: ["This leaks.", "It does not — the pool owns it.", "Agreed, my mistake."]
+            )
+        ]
+        fixture.pullRequests.detailResult = .success(detail)
+
+        let result = await fixture.handle(PullRequestHostToolCatalog.timelineToolName)
+
+        let events = try array(try object(result.structuredContent)["events"]).map { try object($0) }
+        let thread = try XCTUnwrap(events.first { $0["type"] == .string("review_thread") })
+        XCTAssertEqual(thread["comment_count"], .number(3))
+        XCTAssertEqual(thread["comments_truncated"], .bool(false))
+        let bodies = try array(thread["comments"]).map { try object($0)["body_markdown"] }
+        XCTAssertEqual(bodies, [.string("This leaks."), .string("It does not — the pool owns it."), .string("Agreed, my mistake.")])
+        // The root is comments[0], so repeating it as body_markdown would send it twice.
+        XCTAssertNil(thread["body_markdown"])
+        // The text fallback is the only half Codex sees, so it carries the replies too.
+        XCTAssertTrue(result.text.contains("Agreed, my mistake."), result.text)
+    }
+
+    /// Outdated threads reach the timeline already, but nothing said so — and an unlabelled
+    /// outdated thread reads as feedback on code that still looks that way.
+    func testTimelineFlagsOutdatedThreads() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.reviewThreads = [
+            makeReviewThread(nodeID: "THREAD_OLD", path: "File0.swift", line: nil, isPending: false, isOutdated: true)
+        ]
+        fixture.pullRequests.detailResult = .success(detail)
+
+        let result = await fixture.handle(PullRequestHostToolCatalog.timelineToolName)
+
+        let events = try array(try object(result.structuredContent)["events"]).map { try object($0) }
+        let thread = try XCTUnwrap(events.first { $0["type"] == .string("review_thread") })
+        XCTAssertEqual(thread["is_outdated"], .bool(true))
+        XCTAssertTrue(result.text.contains("outdated"), result.text)
+    }
 }

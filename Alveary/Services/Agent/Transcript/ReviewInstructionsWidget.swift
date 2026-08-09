@@ -1,12 +1,20 @@
 import AgentCLIKit
 import Foundation
 
-/// A `get_pr_review_instructions` call, as recorded durably in the transcript.
+/// A `get_pr_review_instructions` or `get_pr_address_feedback_instructions` call, as recorded
+/// durably in the transcript.
 ///
-/// The card is what makes the user's standing review preferences visible at the moment they are
-/// applied: collapsed it names the pull request being reviewed, expanded it shows the exact
-/// instructions the agent received. Both review routes go through the tool, so both get the card.
+/// The card is what makes the user's standing preferences visible at the moment they are applied:
+/// collapsed it names the pull request being worked on, expanded it shows the exact instructions
+/// the agent received. Every route to either tool goes through it, so every route gets the card.
 struct ReviewInstructionsWidgetContent: Equatable {
+    /// Which set of instructions was read. The card, its glyph, and its disclosure are identical
+    /// either way — only the summary copy differs, because the sentence names the work.
+    enum Kind: Equatable {
+        case review
+        case addressFeedback
+    }
+
     enum Status: Equatable {
         /// The call has not returned yet.
         case running
@@ -18,6 +26,7 @@ struct ReviewInstructionsWidgetContent: Equatable {
         case failed
     }
 
+    let kind: Kind
     /// Parsed from the call's own `url` argument, so the card can name its pull request while
     /// the call is still running.
     let identifier: PullRequestIdentifier?
@@ -34,6 +43,7 @@ struct ReviewInstructionsWidgetContent: Equatable {
 
 enum ReviewInstructionsWidgetParsing {
     static func content(
+        kind: ReviewInstructionsWidgetContent.Kind,
         input: String?,
         output: String?,
         isError: Bool
@@ -41,6 +51,7 @@ enum ReviewInstructionsWidgetParsing {
         let inputIdentifier = identifier(fromInput: input)
         guard let output else {
             return ReviewInstructionsWidgetContent(
+                kind: kind,
                 identifier: inputIdentifier,
                 instructions: nil,
                 status: isError ? .failed : .running
@@ -48,17 +59,19 @@ enum ReviewInstructionsWidgetParsing {
         }
         guard !isError else {
             return ReviewInstructionsWidgetContent(
+                kind: kind,
                 identifier: inputIdentifier,
                 instructions: nil,
                 status: .failed
             )
         }
         // Claude emits the structured payload as JSON text; Codex emits the plain-text fallback,
-        // which for this tool is the instructions themselves.
+        // which for these tools is the instructions themselves.
         let object = HostToolWidgetJSON.object(from: output)
         let instructions = object.flatMap { HostToolWidgetJSON.string($0["instructions"]) }
             ?? plainTextInstructions(output)
         return ReviewInstructionsWidgetContent(
+            kind: kind,
             identifier: inputIdentifier ?? identifier(fromOutput: object),
             instructions: instructions,
             status: instructions == nil ? .loadedWithoutInstructions : .loaded

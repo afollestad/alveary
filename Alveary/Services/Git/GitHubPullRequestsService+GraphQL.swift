@@ -59,9 +59,16 @@ extension GitHubPullRequestsService {
     /// a thread created optimistically decodes exactly like a fetched one. Adding
     /// a field to only one of the two would leave freshly added pending comments
     /// missing state the rest of the UI reads.
+    ///
+    /// The comment page is deliberately large and carries `totalCount`. GitHub returns a
+    /// thread's comments oldest-first, so a small page drops the *newest* replies — which is
+    /// exactly where a thread says whether its point was already answered. 100 covers every
+    /// realistic thread, and `totalCount` keeps the count honest past it rather than reporting
+    /// the page size as the total.
     private static let reviewThreadSelection = """
     id path line diffSide isResolved isOutdated
-    comments(first: 20) {
+    comments(first: 100) {
+      totalCount
       nodes {
         id databaseId viewerCanUpdate viewerCanDelete diffHunk state
         pullRequestReview { id }

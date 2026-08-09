@@ -404,22 +404,25 @@ private extension HostToolWidgetSummary {
 }
 
 private extension HostToolWidgetSummary {
-    /// "Reading…" while running; once the instructions are in hand the review itself is what is
+    /// "Reading…" while running; once the instructions are in hand the work itself is what is
     /// underway, so the landed copy stays progressive rather than following the other cards'
-    /// past-tense rule.
+    /// past-tense rule. Only the noun and the verb change between the two kinds — the sentence
+    /// names the work, and reviewing a pull request is not addressing its feedback.
     static func reviewInstructionsText(
         _ content: ReviewInstructionsWidgetContent,
         entry: HostToolWidgetEntry
     ) -> String {
         let name = content.identifier?.displayKey
+        let subject = content.kind == .review ? "review" : "feedback"
         if entry.isError || content.status == .failed {
-            return name.map { "Could not read the review instructions for \($0)" }
-                ?? "Could not read the review instructions"
+            return name.map { "Could not read the \(subject) instructions for \($0)" }
+                ?? "Could not read the \(subject) instructions"
         }
         guard entry.isComplete, content.status != .running else {
-            return name.map { "Reading the review instructions for \($0)…" }
-                ?? "Reading the review instructions…"
+            return name.map { "Reading the \(subject) instructions for \($0)…" }
+                ?? "Reading the \(subject) instructions…"
         }
-        return name.map { "Reviewing \($0) with your instructions" } ?? "Reviewing with your instructions"
+        let landed = content.kind == .review ? "Reviewing" : "Addressing feedback on"
+        return name.map { "\(landed) \($0) with your instructions" } ?? "\(landed) with your instructions"
     }
 }

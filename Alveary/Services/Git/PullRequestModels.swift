@@ -169,6 +169,20 @@ struct PullRequestReviewThread: Equatable, Sendable {
     /// Node id of the review the root comment was submitted with; the Overview
     /// timeline nests the thread under that review's card.
     let reviewNodeID: String?
+    /// GitHub's own count, when the fetch reported one. `comments` is a page — a large one,
+    /// but a page — so this is what may exceed it; nil means the array is the whole thread.
+    let totalCommentCount: Int?
+
+    /// How many comments the thread really has, which is not always how many were fetched.
+    var commentCount: Int {
+        max(totalCommentCount ?? comments.count, comments.count)
+    }
+
+    /// True when the fetch returned fewer comments than the thread holds, so a reader is
+    /// looking at a prefix rather than the conversation.
+    var hasUnfetchedComments: Bool {
+        commentCount > comments.count
+    }
 
     /// A thread the viewer has drafted but not submitted. GitHub creates the
     /// whole thread pending, so its root comment's state decides.
@@ -199,7 +213,8 @@ struct PullRequestReviewThread: Equatable, Sendable {
         comments: [PullRequestComment],
         diffHunkExcerpt: String? = nil,
         nodeID: String? = nil,
-        reviewNodeID: String? = nil
+        reviewNodeID: String? = nil,
+        totalCommentCount: Int? = nil
     ) {
         self.path = path
         self.line = line
@@ -210,6 +225,7 @@ struct PullRequestReviewThread: Equatable, Sendable {
         self.diffHunkExcerpt = diffHunkExcerpt
         self.nodeID = nodeID
         self.reviewNodeID = reviewNodeID
+        self.totalCommentCount = totalCommentCount
     }
 }
 

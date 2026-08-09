@@ -24,20 +24,29 @@ extension PullRequestHostToolService {
                 fileCount: files.count
             )
         }
-        // Outdated threads anchor to lines this diff no longer has, so they would attach to
-        // nothing; the pane drops them for the same reason.
-        let threadsByPath = Dictionary(
-            grouping: detail.reviewThreads.filter { !$0.isOutdated && $0.line != nil },
-            by: \.path
-        )
+        // Every thread on the file, outdated ones included. An outdated thread anchors to a line
+        // this diff no longer has — often to no line at all — so it carries no `line` and cannot
+        // be read off the patch, but it is feedback that still needs an answer, and `is_outdated`
+        // is what tells the model to judge it against the current code rather than the old.
+        let threadsByPath = Dictionary(grouping: detail.reviewThreads, by: \.path)
         let window = Self.patchWindow(files: files, from: request.offset)
+        // Only files inside the patch window carry their threads, so the budget is shared
+        // across those and not across every thread on the pull request.
+        let renderedThreadCount = files.enumerated().reduce(into: 0) { total, entry in
+            guard window.patches[entry.offset] != nil else {
+                return
+            }
+            total += threadsByPath[entry.element.path]?.count ?? 0
+        }
+        let commentAllowance = PullRequestHostToolJSON.threadCommentAllowance(threadCount: renderedThreadCount)
 
         let rows = files.enumerated().map { index, file in
             PullRequestHostToolDiffFileRow(
                 file: file,
                 threads: threadsByPath[file.path] ?? [],
                 patch: window.patches[index],
-                includesThreads: window.patches[index] != nil
+                includesThreads: window.patches[index] != nil,
+                commentAllowance: commentAllowance
             )
         }
         return AgentCLIKit.AgentHostToolResult(
@@ -69,6 +78,8 @@ private struct PullRequestHostToolDiffFileRow {
     let threads: [PullRequestReviewThread]
     let patch: PullRequestHostToolRenderedPatch?
     let includesThreads: Bool
+    /// Comments each of this row's threads may render, shared across the whole response.
+    let commentAllowance: Int
 
     var structuredRow: AgentCLIKit.JSONValue {
         var row: [String: AgentCLIKit.JSONValue] = [
@@ -86,7 +97,7 @@ private struct PullRequestHostToolDiffFileRow {
             row["patch_truncated"] = .bool(patch.wasTruncated)
         }
         if includesThreads, !threads.isEmpty {
-            row["threads"] = .array(threads.map(Self.structuredThread))
+            row["threads"] = .array(threads.map { Self.structuredThread($0, commentAllowance: commentAllowance) })
         }
         return .object(row)
     }
@@ -97,7 +108,7 @@ private struct PullRequestHostToolDiffFileRow {
             rows.append(patch.text)
         }
         if includesThreads {
-            rows.append(contentsOf: threads.map(Self.threadText))
+            rows.append(contentsOf: threads.map { Self.threadText($0, commentAllowance: commentAllowance) })
         }
         return rows
     }
@@ -113,7 +124,11 @@ private struct PullRequestHostToolDiffFileRow {
         return "\(file.path) (\(parts.joined(separator: ", ")))"
     }
 
-    private static func structuredThread(_ thread: PullRequestReviewThread) -> AgentCLIKit.JSONValue {
+    private static func structuredThread(
+        _ thread: PullRequestReviewThread,
+        commentAllowance: Int
+    ) -> AgentCLIKit.JSONValue {
+        let bounded = PullRequestHostToolJSON.boundedThreadComments(thread, limit: commentAllowance)
         var row: [String: AgentCLIKit.JSONValue] = [
             "is_resolved": .bool(thread.isResolved),
             "is_outdated": .bool(thread.isOutdated),
@@ -121,7 +136,9 @@ private struct PullRequestHostToolDiffFileRow {
             // GitHub takes no reply until a pending review is submitted, so saying so here keeps
             // the model from calling reply_to_pr_thread on a draft.
             "can_reply": .bool(thread.replyTargetCommentID != nil),
-            "comments": .array(thread.comments.map(Self.structuredComment))
+            "comment_count": .number(Double(thread.commentCount)),
+            "comments": .array(bounded.comments.map(PullRequestHostToolJSON.comment)),
+            "comments_truncated": .bool(bounded.wasTruncated)
         ]
         if let nodeID = thread.nodeID {
             row["thread_id"] = .string(nodeID)
@@ -133,31 +150,7 @@ private struct PullRequestHostToolDiffFileRow {
         return .object(row)
     }
 
-    private static func structuredComment(_ comment: PullRequestComment) -> AgentCLIKit.JSONValue {
-        let body = PullRequestHostToolJSON.truncated(
-            comment.bodyMarkdown,
-            limit: PullRequestHostToolLimits.maxBodyCharacters
-        )
-        var row: [String: AgentCLIKit.JSONValue] = [
-            "author": PullRequestHostToolJSON.author(
-                login: comment.authorLogin,
-                avatarURL: comment.authorAvatarURL
-            ),
-            "body_markdown": .string(body.text),
-            "body_truncated": .bool(body.wasTruncated),
-            "is_bot": .bool(comment.isBot),
-            "is_pending": .bool(comment.isPending)
-        ]
-        if let createdAt = comment.createdAt {
-            row["created_at"] = .string(PullRequestHostToolDates.canonical(createdAt))
-        }
-        if !comment.reactions.isEmpty {
-            row["reactions"] = PullRequestHostToolJSON.reactions(comment.reactions)
-        }
-        return .object(row)
-    }
-
-    private static func threadText(_ thread: PullRequestReviewThread) -> String {
+    private static func threadText(_ thread: PullRequestReviewThread, commentAllowance: Int) -> String {
         var parts: [String] = []
         if let nodeID = thread.nodeID {
             parts.append("thread_id: \(nodeID)")
@@ -166,16 +159,13 @@ private struct PullRequestHostToolDiffFileRow {
             parts.append("line \(line) \(thread.side.rawValue)")
         }
         parts.append(thread.isResolved ? "resolved" : "unresolved")
+        if thread.isOutdated {
+            parts.append("outdated")
+        }
         if thread.isPending {
             parts.append("pending")
         }
-        let comments = thread.comments.map { comment in
-            let body = PullRequestHostToolJSON.truncated(
-                comment.bodyMarkdown,
-                limit: PullRequestHostToolLimits.maxBodyCharacters
-            )
-            return "    \(comment.authorLogin): \(body.text.replacingOccurrences(of: "\n", with: " "))"
-        }
+        let comments = PullRequestHostToolText.threadCommentLines(thread, indent: "    ", limit: commentAllowance)
         return (["  [\(parts.joined(separator: ", "))]"] + comments).joined(separator: "\n")
     }
 }

@@ -3,7 +3,7 @@ import XCTest
 
 @testable import Alveary
 
-/// The card for `get_pr_review_instructions`: it reports rather than navigates, so clicking it
+/// The card both instruction tools share: it reports rather than navigates, so clicking it
 /// reveals the instructions in place instead of opening the pull request.
 @MainActor
 final class ReviewInstructionsWidgetRowTests: XCTestCase {
@@ -58,10 +58,11 @@ final class ReviewInstructionsWidgetRowTests: XCTestCase {
         XCTAssertFalse(entry(status: .running, instructions: nil, isComplete: false).isSettledWithoutDecision)
     }
 
-    /// Codex emits the plain-text fallback rather than structured content, and for this tool that
-    /// text is the instructions.
+    /// Codex emits the plain-text fallback rather than structured content, and for these tools
+    /// that text is the instructions.
     func testAPlainTextResultStillCarriesTheInstructions() {
         let content = ReviewInstructionsWidgetParsing.content(
+            kind: .review,
             input: #"{"url":"https://github.com/octo/alpha/pull/7"}"#,
             output: Self.instructions,
             isError: false
@@ -75,6 +76,7 @@ final class ReviewInstructionsWidgetRowTests: XCTestCase {
     /// The card can name its pull request from the call's own argument, before the result lands.
     func testARunningCallNamesItsPullRequestFromTheInput() {
         let content = ReviewInstructionsWidgetParsing.content(
+            kind: .review,
             input: #"{"url":"https://github.com/octo/alpha/pull/7"}"#,
             output: nil,
             isError: false
@@ -84,17 +86,45 @@ final class ReviewInstructionsWidgetRowTests: XCTestCase {
         XCTAssertEqual(content?.identifier, Self.pullRequest)
     }
 
+    /// The two kinds share every affordance, so only the sentence may differ — a card that said
+    /// "Reviewing" while the agent was fixing things would describe the wrong work.
+    func testTheAddressFeedbackCardNamesItsOwnWork() {
+        let loaded = host(for: entry(kind: .addressFeedback, status: .loaded, instructions: Self.instructions))
+        XCTAssertTrue(labels(in: loaded).contains {
+            $0.contains("Addressing feedback on octo/alpha#7 with your instructions")
+        })
+
+        let running = host(for: entry(kind: .addressFeedback, status: .running, instructions: nil, isComplete: false))
+        XCTAssertTrue(labels(in: running).contains { $0.contains("Reading the feedback instructions") })
+    }
+
+    /// Its card discloses the same way, so the second tool needs no view of its own.
+    func testPressingTheAddressFeedbackCardTogglesTheDisclosure() throws {
+        let entry = entry(kind: .addressFeedback, status: .loaded, instructions: Self.instructions)
+
+        XCTAssertNil(entry.openableTarget)
+        let card = try XCTUnwrap(pressableCard(in: host(for: entry)))
+        XCTAssertEqual(card.accessibilityValue() as? String, "Collapsed")
+        _ = card.accessibilityPerformPress()
+        XCTAssertEqual(card.accessibilityValue() as? String, "Expanded")
+    }
+
     private func entry(
+        kind: ReviewInstructionsWidgetContent.Kind = .review,
         status: ReviewInstructionsWidgetContent.Status,
         instructions: String?,
         isComplete: Bool = true,
         isError: Bool = false
     ) -> HostToolWidgetEntry {
-        HostToolWidgetEntry(
+        let toolName = kind == .review
+            ? PullRequestHostToolCatalog.reviewInstructionsToolName
+            : PullRequestHostToolCatalog.addressFeedbackInstructionsToolName
+        return HostToolWidgetEntry(
             id: "call-1",
-            toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.reviewInstructionsToolName),
+            toolName: HostToolTranscriptCatalog.toolName(toolName),
             content: .pullRequestReviewInstructions(
                 ReviewInstructionsWidgetContent(
+                    kind: kind,
                     identifier: Self.pullRequest,
                     instructions: instructions,
                     status: status

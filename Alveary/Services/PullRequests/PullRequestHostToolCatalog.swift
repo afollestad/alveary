@@ -12,6 +12,10 @@ enum PullRequestHostToolCatalog {
     static let timelineToolName = "get_pr_timeline"
     static let diffToolName = "get_pr_diff"
     static let reviewInstructionsToolName = "get_pr_review_instructions"
+    /// Long on purpose. A shorter `get_pr_feedback` reads like a tool that *returns* the
+    /// feedback, which is `get_pr_timeline`'s job — the same confusion `list_involved_prs`
+    /// already had to be renamed out of.
+    static let addressFeedbackInstructionsToolName = "get_pr_address_feedback_instructions"
     static let replyToThreadToolName = "reply_to_pr_thread"
     static let resolveThreadToolName = "resolve_pr_thread"
     static let unresolveThreadToolName = "unresolve_pr_thread"
@@ -46,7 +50,11 @@ enum PullRequestHostToolCatalog {
     get_pr_diff read one pull request, and thread_id values come from their output — never invent one. When the user \
     asks you to review a pull request, in any words, call get_pr_review_instructions before anything else: the user \
     keeps standing review preferences in Alveary, that tool is the only way to read them, and a review that skips it is \
-    done wrong. When get_pr_diff \
+    done wrong. The user keeps a second set of preferences for the opposite job — addressing the feedback a pull \
+    request already received — so when they ask you to address, fix, answer, or resolve feedback on one, in any words, \
+    call get_pr_address_feedback_instructions before anything else for the same reasons. Reviewing gives new feedback \
+    and ends at propose_pr_review; addressing answers existing feedback and ends at reply_to_pr_thread and \
+    resolve_pr_thread, so pick the tool that matches what was asked. When get_pr_diff \
     returns next_offset, call it again with that offset or narrow it with paths, and copy @@ hunk headers exactly as \
     returned when you quote a patch, because Alveary renders the line numbers from them. propose_pr_review carries the \
     whole review — the verdict, an optional summary body, and every inline comment — and submits nothing itself: it opens \
@@ -76,6 +84,7 @@ enum PullRequestHostToolCatalog {
         timelineTool,
         diffTool,
         reviewInstructionsTool,
+        addressFeedbackInstructionsTool,
         replyToThreadTool,
         resolveThreadTool,
         unresolveThreadTool,
@@ -130,20 +139,46 @@ private extension PullRequestHostToolCatalog {
         look at octo/repo#42", "what do you think of these changes", and every other phrasing of the same request. The \
         instructions it returns are the user's standing preferences for how their reviews are done, so follow them for \
         the rest of the review; they name the workflow to use and what to look for. Calling this does not review \
-        anything or notify anyone, so calling it when unsure costs nothing.
+        anything or notify anyone, so calling it when unsure costs nothing. Its sibling \
+        get_pr_address_feedback_instructions covers the opposite job — answering feedback the pull request already \
+        received rather than giving new feedback.
         """,
-        inputSchema: HostToolSchema.strictObject(
-            properties: ["url": HostToolSchema.nonEmptyStringSchema],
-            required: ["url"]
-        ),
-        outputSchema: HostToolSchema.strictObject(
-            properties: [
-                "repository": HostToolSchema.stringSchema,
-                "number": HostToolSchema.integerSchema(minimum: 1),
-                "instructions": HostToolSchema.stringSchema
-            ],
-            required: ["repository", "number", "instructions"]
-        )
+        inputSchema: instructionsInputSchema,
+        outputSchema: instructionsOutputSchema
+    )
+
+    /// The user's own guidance for answering feedback. Calling it is also how the model declares
+    /// that it is about to address feedback, exactly as the review tool does for reviewing.
+    static let addressFeedbackInstructionsTool = AgentCLIKit.AgentHostToolDefinition(
+        name: addressFeedbackInstructionsToolName,
+        title: "Get the user's instructions for addressing a pull request's feedback",
+        description: """
+        Read the user's own instructions for addressing the feedback left on a pull request, written in Alveary's Git \
+        settings. This returns instructions, not the feedback — get_pr_timeline is what reads the comments and review \
+        threads themselves. Call this first, before any other tool, whenever the user asks you to address, fix, answer, \
+        or resolve feedback on a pull request — "address the PR feedback", "handle the review comments on octo/repo#42", \
+        "respond to what they said", and every other phrasing of the same request. The instructions it returns are the \
+        user's standing preferences for how that work is done, so follow them for the rest of the run; they name the \
+        workflow to use, when to push back instead of changing code, and how to reply and resolve. Calling this changes \
+        nothing and notifies no one, so calling it when unsure costs nothing. Its sibling get_pr_review_instructions \
+        covers the opposite job — reviewing a pull request to give new feedback.
+        """,
+        inputSchema: instructionsInputSchema,
+        outputSchema: instructionsOutputSchema
+    )
+
+    static let instructionsInputSchema = HostToolSchema.strictObject(
+        properties: ["url": HostToolSchema.nonEmptyStringSchema],
+        required: ["url"]
+    )
+
+    static let instructionsOutputSchema = HostToolSchema.strictObject(
+        properties: [
+            "repository": HostToolSchema.stringSchema,
+            "number": HostToolSchema.integerSchema(minimum: 1),
+            "instructions": HostToolSchema.stringSchema
+        ],
+        required: ["repository", "number", "instructions"]
     )
 
     static let detailTool = AgentCLIKit.AgentHostToolDefinition(
@@ -251,10 +286,14 @@ private extension PullRequestHostToolCatalog {
         title: "Get a GitHub pull request's timeline",
         description: """
         Read one GitHub pull request's conversation chronologically: comments, reviews with their verdicts, review threads, \
-        pushed commits, state transitions, and review requests. Returns the newest limit entries (default \
+        pushed commits, state transitions, and review requests. This is the tool for reading the feedback a pull request \
+        has received. Returns the newest limit entries (default \
         \(PullRequestHostToolLimits.defaultTimelineLimit), max \(PullRequestHostToolLimits.maxTimelineLimit)), oldest \
         first within that window; total_count and shown_count say what was left out. Bodies are capped, with per-entry \
-        truncation flags. Review-thread entries carry the thread_id that reply_to_pr_thread and resolve_pr_thread take.
+        truncation flags. A review-thread entry carries its whole conversation in comments, so the replies say whether \
+        the point was answered or argued, and the thread_id that reply_to_pr_thread and resolve_pr_thread take. Threads \
+        marked is_outdated discuss code that has since changed — the feedback may still stand, so judge it against the \
+        current code rather than skipping it.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: [
@@ -284,7 +323,9 @@ private extension PullRequestHostToolCatalog {
         response lists every changed file with its counts and thread_count; patch text is included for as many whole files \
         as fit the output budget, starting at offset (a file index, default 0). When next_offset is returned, more files \
         remain — call again with that offset, or pass paths to read only the named files. Threads carry the thread_id that \
-        reply_to_pr_thread and resolve_pr_thread take; pending ones are the user's own unsubmitted draft comments.
+        reply_to_pr_thread and resolve_pr_thread take; pending ones are the user's own unsubmitted draft comments, and \
+        is_outdated ones discuss code that has since changed, so they carry no line to read off the patch but are still \
+        feedback awaiting an answer.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: [

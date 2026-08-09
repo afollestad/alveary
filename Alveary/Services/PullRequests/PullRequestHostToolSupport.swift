@@ -113,6 +113,22 @@ enum PullRequestHostToolLimits {
     static let maxTimelineLimit = 100
     /// Comment and review bodies inside list-shaped output.
     static let maxBodyCharacters = 2_000
+    /// Comments one review thread's rendering may carry.
+    static let maxThreadComments = 10
+    /// Thread comments one response targets across *all* its threads. The per-thread cap alone
+    /// is not a bound: `get_pr_timeline` can window 100 threads, so ten comments each would
+    /// multiply into megabytes, and AgentCLIKit replaces an oversized result with an error
+    /// rather than truncating it — the whole call would fail. Threads share this evenly.
+    ///
+    /// It is a target rather than a ceiling: `minThreadComments` outranks it, so a response with
+    /// more than half this many threads exceeds it. That is deliberate — the real ceiling is
+    /// `max(this, 2 × threadCount)`, and the fetch already caps threads at 100, so the worst case
+    /// is 200 comments. Every thread keeping both ends is worth more than a round number.
+    static let maxResponseThreadComments = 150
+    /// The root is the feedback and the newest reply is where the thread stands, so no thread
+    /// renders less than both — a thread showing only its root cannot say whether it was already
+    /// answered, which is the question an address-feedback run is asking.
+    static let minThreadComments = 2
     /// The pull request's own description in `get_pr`.
     static let maxDescriptionCharacters = 4_000
     /// Total patch text `get_pr_diff` includes before paging the rest.
@@ -144,6 +160,57 @@ enum PullRequestHostToolJSON {
         })
     }
 
+    /// One review-thread comment, shared by `get_pr_timeline` and `get_pr_diff` so a thread
+    /// reads the same whichever tool returned it.
+    static func comment(_ comment: PullRequestComment) -> AgentCLIKit.JSONValue {
+        let body = truncated(comment.bodyMarkdown, limit: PullRequestHostToolLimits.maxBodyCharacters)
+        var row: [String: AgentCLIKit.JSONValue] = [
+            "author": author(login: comment.authorLogin, avatarURL: comment.authorAvatarURL),
+            "body_markdown": .string(body.text),
+            "body_truncated": .bool(body.wasTruncated),
+            "is_bot": .bool(comment.isBot),
+            "is_pending": .bool(comment.isPending)
+        ]
+        if let createdAt = comment.createdAt {
+            row["created_at"] = .string(PullRequestHostToolDates.canonical(createdAt))
+        }
+        if !comment.reactions.isEmpty {
+            row["reactions"] = reactions(comment.reactions)
+        }
+        return .object(row)
+    }
+
+    /// How many comments each thread may render when a response carries `threadCount` of them.
+    /// Every thread keeps at least its root and the newest reply — the feedback and where it
+    /// stands — so a response with many threads goes shallow rather than dropping threads.
+    static func threadCommentAllowance(threadCount: Int) -> Int {
+        guard threadCount > 1 else {
+            return PullRequestHostToolLimits.maxThreadComments
+        }
+        let share = PullRequestHostToolLimits.maxResponseThreadComments / threadCount
+        return min(
+            PullRequestHostToolLimits.maxThreadComments,
+            max(PullRequestHostToolLimits.minThreadComments, share)
+        )
+    }
+
+    /// Bounds one thread's comments. The root comment is the feedback itself and the tail is
+    /// where the thread currently stands — including whether the user already replied — so a
+    /// long thread keeps both ends and drops the middle rather than its most recent turns.
+    ///
+    /// `wasTruncated` also covers comments the *fetch* never returned, so a caller reporting it
+    /// is telling the truth about the whole pipeline rather than only about this cap.
+    static func boundedThreadComments(
+        _ thread: PullRequestReviewThread,
+        limit: Int = PullRequestHostToolLimits.maxThreadComments
+    ) -> (comments: [PullRequestComment], wasTruncated: Bool) {
+        let comments = thread.comments
+        guard comments.count > limit, let root = comments.first else {
+            return (comments, thread.hasUnfetchedComments)
+        }
+        return ([root] + comments.suffix(limit - 1), true)
+    }
+
     /// Bounds a markdown body for list-shaped output. The flag rides beside the
     /// text so the model knows the tail exists rather than assuming it read it.
     static func truncated(_ text: String, limit: Int) -> (text: String, wasTruncated: Bool) {
@@ -151,6 +218,43 @@ enum PullRequestHostToolJSON {
             return (text, false)
         }
         return (String(text.prefix(limit)) + "…", true)
+    }
+}
+
+/// Shared text-fallback rows. Codex surfaces only the text half of a result, so a thread has
+/// to read as well there as it does in `structuredContent`.
+enum PullRequestHostToolText {
+    /// One line per comment, bounded exactly as the structured half is, with a note wherever
+    /// comments are missing so the text reader is not left thinking it saw the whole
+    /// conversation. The two gaps sit at opposite ends and say opposite things: the render cap
+    /// drops the *middle*, while the fetch page drops the *newest* replies — and a note calling
+    /// the latter "earlier" would tell the model it has the thread's last word when it does not.
+    static func threadCommentLines(
+        _ thread: PullRequestReviewThread,
+        indent: String,
+        limit: Int = PullRequestHostToolLimits.maxThreadComments
+    ) -> [String] {
+        let bounded = PullRequestHostToolJSON.boundedThreadComments(thread, limit: limit)
+        var lines = bounded.comments.map { comment in
+            let body = PullRequestHostToolJSON.truncated(
+                comment.bodyMarkdown,
+                limit: PullRequestHostToolLimits.maxBodyCharacters
+            )
+            return "\(indent)\(comment.authorLogin): \(body.text.replacingOccurrences(of: "\n", with: " "))"
+        }
+        let capOmitted = thread.comments.count - bounded.comments.count
+        if capOmitted > 0, !lines.isEmpty {
+            lines.insert("\(indent)(\(capOmitted) earlier \(replyNoun(capOmitted)) omitted)", at: 1)
+        }
+        let unfetched = thread.commentCount - thread.comments.count
+        if unfetched > 0 {
+            lines.append("\(indent)(\(unfetched) newer \(replyNoun(unfetched)) not fetched)")
+        }
+        return lines
+    }
+
+    private static func replyNoun(_ count: Int) -> String {
+        count == 1 ? "reply" : "replies"
     }
 }
 

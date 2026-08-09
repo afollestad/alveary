@@ -93,6 +93,10 @@ struct DiffLineCommentThread: Hashable, Sendable {
     /// The viewer's own unsubmitted thread. GitHub accepts neither replies nor
     /// resolution on one until the review is submitted, so the footer hides.
     var isPending = false
+    /// GitHub's own count when it exceeded the fetched page; nil means `comments` is whole.
+    var totalCommentCount: Int?
+
+    var commentCount: Int { max(totalCommentCount ?? comments.count, comments.count) }
 
     /// The REST id replies attach to — GitHub replies always target the root
     /// comment. Pending comments are skipped; they cannot be replied to.
@@ -305,7 +309,7 @@ struct DiffCommentThreadRow: View {
     }
 
     private var resolvedHeader: some View {
-        PullRequestResolvedThreadHeader(commentCount: thread.comments.count, isExpanded: $isManuallyExpanded)
+        PullRequestResolvedThreadHeader(commentCount: thread.commentCount, isExpanded: $isManuallyExpanded)
     }
 
     @ViewBuilder

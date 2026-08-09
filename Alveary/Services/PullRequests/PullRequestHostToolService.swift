@@ -70,6 +70,8 @@ final class PullRequestHostToolService {
             return try await pullRequestDiff(context: context, arguments: call.arguments)
         case PullRequestHostToolCatalog.reviewInstructionsToolName:
             return try await pullRequestReviewInstructions(context: context, arguments: call.arguments)
+        case PullRequestHostToolCatalog.addressFeedbackInstructionsToolName:
+            return try await pullRequestAddressFeedbackInstructions(context: context, arguments: call.arguments)
         default:
             return nil
         }

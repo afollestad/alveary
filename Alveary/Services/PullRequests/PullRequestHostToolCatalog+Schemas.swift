@@ -130,12 +130,15 @@ extension PullRequestHostToolCatalog {
             "path": HostToolSchema.stringSchema,
             "line": HostToolSchema.integerSchema(minimum: 1),
             "is_resolved": HostToolSchema.booleanSchema,
-            "comment_count": HostToolSchema.integerSchema(minimum: 0)
+            "is_outdated": HostToolSchema.booleanSchema,
+            "comment_count": HostToolSchema.integerSchema(minimum: 0),
+            "comments": HostToolSchema.arraySchema(items: threadCommentSchema),
+            "comments_truncated": HostToolSchema.booleanSchema
         ],
         required: ["type"]
     )
 
-    static let diffThreadCommentSchema = HostToolSchema.strictObject(
+    static let threadCommentSchema = HostToolSchema.strictObject(
         properties: [
             "author": authorSchema,
             "body_markdown": HostToolSchema.stringSchema,
@@ -157,9 +160,14 @@ extension PullRequestHostToolCatalog {
             "is_outdated": HostToolSchema.booleanSchema,
             "is_pending": HostToolSchema.booleanSchema,
             "can_reply": HostToolSchema.booleanSchema,
-            "comments": HostToolSchema.arraySchema(items: diffThreadCommentSchema)
+            "comment_count": HostToolSchema.integerSchema(minimum: 0),
+            "comments": HostToolSchema.arraySchema(items: threadCommentSchema),
+            "comments_truncated": HostToolSchema.booleanSchema
         ],
-        required: ["is_resolved", "is_outdated", "is_pending", "can_reply", "comments"]
+        required: [
+            "is_resolved", "is_outdated", "is_pending", "can_reply",
+            "comment_count", "comments", "comments_truncated"
+        ]
     )
 
     static let diffFileSchema = HostToolSchema.strictObject(

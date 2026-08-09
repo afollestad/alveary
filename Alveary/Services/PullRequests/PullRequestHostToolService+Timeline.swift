@@ -18,7 +18,15 @@ extension PullRequestHostToolService {
         let events = Self.events(from: detail)
         // The newest entries are the ones worth spending the budget on, but they read oldest-first
         // once the window is chosen.
-        let shown = events.suffix(request.limit)
+        var shown = Array(events.suffix(request.limit))
+        // The window decides how many threads are in this response, so the comment budget can
+        // only be shared out once it is known.
+        let allowance = PullRequestHostToolJSON.threadCommentAllowance(
+            threadCount: shown.filter { $0.thread != nil }.count
+        )
+        for index in shown.indices {
+            shown[index].commentAllowance = allowance
+        }
 
         return AgentCLIKit.AgentHostToolResult(
             text: listText(
@@ -51,7 +59,13 @@ private struct PullRequestHostToolTimelineRow {
     var path: String?
     var line: Int?
     var isResolved: Bool?
-    var commentCount: Int?
+    var isOutdated: Bool?
+    /// The thread this row renders, carried whole so its conversation and true comment count
+    /// travel together. Only thread rows have one, and they leave `body` nil in exchange — the
+    /// root comment is `comments[0]`, so filling both would send it twice.
+    var thread: PullRequestReviewThread?
+    /// How many of that conversation to render, shared across the whole response.
+    var commentAllowance = PullRequestHostToolLimits.maxThreadComments
 
     var structuredRow: AgentCLIKit.JSONValue {
         var row: [String: AgentCLIKit.JSONValue] = [
@@ -86,8 +100,14 @@ private struct PullRequestHostToolTimelineRow {
         if let isResolved {
             row["is_resolved"] = .bool(isResolved)
         }
-        if let commentCount {
-            row["comment_count"] = .number(Double(commentCount))
+        if let isOutdated {
+            row["is_outdated"] = .bool(isOutdated)
+        }
+        if let thread {
+            let bounded = PullRequestHostToolJSON.boundedThreadComments(thread, limit: commentAllowance)
+            row["comment_count"] = .number(Double(thread.commentCount))
+            row["comments"] = .array(bounded.comments.map(PullRequestHostToolJSON.comment))
+            row["comments_truncated"] = .bool(bounded.wasTruncated)
         }
         return .object(row)
     }
@@ -103,11 +123,19 @@ private struct PullRequestHostToolTimelineRow {
         if let isResolved {
             parts.append(isResolved ? "resolved" : "unresolved")
         }
+        if isOutdated == true {
+            parts.append("outdated")
+        }
         if let detail {
             parts.append(detail)
         }
         var row = "- \(parts.joined(separator: ", "))"
-        if let body, !body.isEmpty {
+        if let thread {
+            let lines = PullRequestHostToolText.threadCommentLines(thread, indent: "  ", limit: commentAllowance)
+            if !lines.isEmpty {
+                row += "\n" + lines.joined(separator: "\n")
+            }
+        } else if let body, !body.isEmpty {
             row += "\n  \(body.replacingOccurrences(of: "\n", with: "\n  "))"
         }
         return row
@@ -188,25 +216,22 @@ private extension PullRequestHostToolService {
         )
     }
 
+    /// The whole conversation, not just its root. A thread's replies are where it says whether
+    /// the point was answered, argued, or left open — reading only the first comment made a
+    /// settled thread look outstanding and an answered one look unanswered.
     static func threadRow(_ thread: PullRequestReviewThread) -> PullRequestHostToolTimelineRow {
         let root = thread.comments.first
-        let body = PullRequestHostToolJSON.truncated(
-            root?.bodyMarkdown ?? "",
-            limit: PullRequestHostToolLimits.maxBodyCharacters
-        )
         return PullRequestHostToolTimelineRow(
             type: "review_thread",
             actorLogin: root?.authorLogin ?? "unknown",
             actorAvatarURL: root?.authorAvatarURL,
             date: root?.createdAt,
-            body: body.text,
-            bodyWasTruncated: body.wasTruncated,
-            reactions: root?.reactions ?? [],
             threadID: thread.nodeID,
             path: thread.path,
             line: thread.line,
             isResolved: thread.isResolved,
-            commentCount: thread.comments.count
+            isOutdated: thread.isOutdated,
+            thread: thread
         )
     }
 

@@ -39,6 +39,7 @@ enum HostToolTranscriptCatalog {
         pullRequestUnlinkDescriptor,
         pullRequestReviewProposalDescriptor,
         pullRequestReviewInstructionsDescriptor,
+        addressFeedbackInstructionsDescriptor,
         pullRequestListDescriptor
     ] + threadActionDescriptors
 
@@ -88,15 +89,34 @@ private extension HostToolTranscriptCatalog {
         )
     }
 
-    /// A read-only lookup with a card, and the second exception to "a lookup that only reports
-    /// stays a tool row": this call is the moment a review begins, and the guidance it returns is
-    /// the user's own, so it is worth being able to check. It decides nothing, so like the link
-    /// tools it records no outcome marker.
+    /// A read-only lookup with a card, and an exception to "a lookup that only reports stays a
+    /// tool row": this call is the moment a review begins, and the guidance it returns is the
+    /// user's own, so it is worth being able to check. It decides nothing, so like the link tools
+    /// it records no outcome marker.
     static var pullRequestReviewInstructionsDescriptor: HostToolTranscriptDescriptor {
+        instructionsDescriptor(
+            toolName: PullRequestHostToolCatalog.reviewInstructionsToolName,
+            kind: .review
+        )
+    }
+
+    /// The address-feedback sibling, on the same card for the same reason.
+    static var addressFeedbackInstructionsDescriptor: HostToolTranscriptDescriptor {
+        instructionsDescriptor(
+            toolName: PullRequestHostToolCatalog.addressFeedbackInstructionsToolName,
+            kind: .addressFeedback
+        )
+    }
+
+    static func instructionsDescriptor(
+        toolName: String,
+        kind: ReviewInstructionsWidgetContent.Kind
+    ) -> HostToolTranscriptDescriptor {
         HostToolTranscriptDescriptor(
-            hostToolName: PullRequestHostToolCatalog.reviewInstructionsToolName,
+            hostToolName: toolName,
             makeContent: { input, output, isError in
                 guard let content = ReviewInstructionsWidgetParsing.content(
+                    kind: kind,
                     input: input,
                     output: output,
                     isError: isError

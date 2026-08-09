@@ -144,6 +144,9 @@ struct PullRequestDetailNode: Decodable {
 }
 
 struct GraphQLCommentsNode: Decodable {
+    /// Requested only by the review-thread selection, so a page smaller than the thread can
+    /// still report the real total. Absent elsewhere.
+    let totalCount: Int?
     let nodes: [GraphQLCommentNode?]?
 }
 

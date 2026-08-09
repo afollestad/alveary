@@ -139,6 +139,11 @@ struct PullRequestPaneFiles: View, Equatable {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = true
         if let detail = session.detail {
+            // Outdated threads are dropped because the row builder walks *lines* asking which
+            // has a thread, so an anchor matching nothing is discarded anyway — and the rare
+            // outdated thread that still has a line would land on whatever code now occupies
+            // it. The Overview renders them with the "Outdated" pill, and the host tools list
+            // them (`Alveary/Services/PullRequests/AGENTS.md`); only the diff cannot place them.
             for thread in detail.reviewThreads where !thread.isOutdated {
                 guard let line = thread.line else {
                     continue
@@ -153,7 +158,8 @@ struct PullRequestPaneFiles: View, Equatable {
                     isResolved: thread.isResolved,
                     isOutdated: thread.isOutdated,
                     threadID: thread.nodeID,
-                    isPending: thread.isPending
+                    isPending: thread.isPending,
+                    totalCommentCount: thread.totalCommentCount
                 )
             }
         }

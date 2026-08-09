@@ -248,7 +248,8 @@ extension GitHubPullRequestsService {
             comments: makeComments(from: thread.comments),
             diffHunkExcerpt: diffHunkExcerpt(thread.comments?.nodes?.first??.diffHunk),
             nodeID: thread.id,
-            reviewNodeID: thread.comments?.nodes?.first??.pullRequestReview?.id
+            reviewNodeID: thread.comments?.nodes?.first??.pullRequestReview?.id,
+            totalCommentCount: thread.comments?.totalCount
         )
     }
 

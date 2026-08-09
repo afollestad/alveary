@@ -65,7 +65,9 @@ struct PullRequestReviewThreadView: View {
 
             if thread.isResolved {
                 PullRequestResolvedThreadHeader(
-                    commentCount: thread.comments.count,
+                    // GitHub's own count, not the fetched page's — a thread past the fetch cap
+                    // would otherwise offer to expand fewer comments than it says it holds.
+                    commentCount: thread.commentCount,
                     isExpanded: $isManuallyExpanded
                 )
             }
