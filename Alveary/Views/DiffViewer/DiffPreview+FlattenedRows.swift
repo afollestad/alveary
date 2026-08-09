@@ -23,6 +23,12 @@ struct FlattenedDiffPreview: View {
     /// (host-side padding would inset the scroller with it); the diff viewer
     /// keeps the default.
     let horizontalContentInset: CGFloat
+    /// Axis the file headers' collapse carets center their *ink* on, measured from
+    /// the scroll view's trailing edge. `nil` leaves each caret its natural inset
+    /// inboard of the diff's own content edge, which is the diff viewer's behavior;
+    /// the PR pane passes `ContextualPaneLayout.trailingGlyphAxis` so the carets join
+    /// the lane the header's close button and Open-on-GitHub button sit on.
+    let collapseCaretAxis: CGFloat?
     /// A one-shot ask to bring one row into view. Deliberately absent from
     /// `renderFingerprint` — it changes no row, and folding it in would rebuild
     /// every prepared row (and flash the preparing state on a large diff) for a
@@ -48,6 +54,7 @@ struct FlattenedDiffPreview: View {
         commentInteraction: DiffCommentInteraction? = nil,
         contentTopInset: CGFloat = 0,
         horizontalContentInset: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset,
+        collapseCaretAxis: CGFloat? = nil,
         scrollTarget: FlattenedDiffPreviewScrollTarget? = nil,
         onScrollTargetConsumed: ((UUID) -> Void)? = nil
     ) {
@@ -63,6 +70,7 @@ struct FlattenedDiffPreview: View {
         self.commentInteraction = commentInteraction
         self.contentTopInset = contentTopInset
         self.horizontalContentInset = horizontalContentInset
+        self.collapseCaretAxis = collapseCaretAxis
         self.scrollTarget = scrollTarget
         self.onScrollTargetConsumed = onScrollTargetConsumed
     }
@@ -130,6 +138,20 @@ struct FlattenedDiffPreview: View {
         }
     }
 
+    /// How far past the content inset a file header must reach for its caret to
+    /// center on `collapseCaretAxis`. The caret's ink centers in its own square
+    /// frame — the rotation that opens it turns about that same center — so the
+    /// frame's midpoint is the whole calculation. Derived rather than passed so a
+    /// change to `horizontalContentInset` cannot leave the caret behind; clamped at
+    /// zero because an axis *inside* the diff's own edge is the natural placement.
+    private var fileHeaderTrailingExtension: CGFloat {
+        guard let collapseCaretAxis else {
+            return 0
+        }
+        let naturalAxis = horizontalContentInset + DiffPreviewFileHeader.collapseCaretFrameWidth / 2
+        return max(naturalAxis - collapseCaretAxis, 0)
+    }
+
     private func clearPreparedRows() {
         preparedRows = nil
         preparedRowsID = nil
@@ -152,7 +174,8 @@ struct FlattenedDiffPreview: View {
                                 loadImage: loadImage,
                                 openImage: openImage,
                                 allowsCommentComposing: commentAnnotations.allowsComposing,
-                                commentInteraction: commentInteraction
+                                commentInteraction: commentInteraction,
+                                fileHeaderTrailingExtension: fileHeaderTrailingExtension
                             )
                         }
                     }
@@ -362,6 +385,7 @@ private struct FlattenedDiffPreviewRenderRow: View {
     let openImage: (DiffImageVersion) async throws -> Void
     let allowsCommentComposing: Bool
     let commentInteraction: DiffCommentInteraction?
+    let fileHeaderTrailingExtension: CGFloat
 
     @ViewBuilder
     var body: some View {
@@ -370,7 +394,8 @@ private struct FlattenedDiffPreviewRenderRow: View {
             let collapseState = collapseState(for: fileID)
             DiffPreviewFileHeader(
                 file: file,
-                collapseState: collapseState
+                collapseState: collapseState,
+                trailingExtension: fileHeaderTrailingExtension
             )
                 .padding(.top, topPadding)
                 .padding(.bottom, collapseState?.isCollapsed == true ? 4 : 10)

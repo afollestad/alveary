@@ -2,9 +2,22 @@ import SwiftUI
 
 struct DiffViewerCurrentChangesContent: View, Equatable {
     let viewModel: DiffViewerViewModel
-    @Binding var topSectionFraction: CGFloat
+    /// Compared state arrives as plain values with change closures, never `@Binding`s.
+    /// `==` has to be `nonisolated` to satisfy `Equatable`, while a binding's projected
+    /// read is a main-actor computed property — comparing one there reads across
+    /// isolation. `body` rebuilds the bindings its children need from these.
+    /// The change closures are `@MainActor` because `Binding.init(get:set:)` wants a
+    /// `@Sendable` setter, and a global-actor-isolated function value is one; these
+    /// only ever run from `body` anyway.
+    /// A rebuilt binding's getter is a per-pass snapshot, unlike a `@Binding` forwarded
+    /// from the owner's storage: a child reading back what it just wrote inside one body
+    /// pass sees the old value. `DiffViewerVerticalSplit`'s drag is safe because it
+    /// captures its start fraction in `@State` rather than re-reading between frames.
+    let topSectionFraction: CGFloat
+    let onTopSectionFractionChange: @MainActor (CGFloat) -> Void
     let onTopSectionFractionCommit: (CGFloat) -> Void
-    @Binding var isFileListTopDividerVisible: Bool
+    let isFileListTopDividerVisible: Bool
+    let onFileListTopDividerVisibleChange: @MainActor (Bool) -> Void
     let fileDisplayName: (FileStatus) -> String
     let statusTitle: (FileStatus.Status) -> String
     let diffPreviewIdentity: (FileStatus) -> String
@@ -24,9 +37,27 @@ struct DiffViewerCurrentChangesContent: View, Equatable {
 
     @State private var latestKeyboardNavigationLoadID = UUID()
 
+    /// Explicitly typed so the rebuilt bindings resolve in their own scope rather than
+    /// on `body`'s type-check budget.
+    ///
+    /// Each setter is a closure literal that *calls* the change closure, never the change
+    /// closure passed as a value. `Binding.init(set:)` takes an `@isolated(any)` function,
+    /// so handing it a `@MainActor` one asks for a reabstraction thunk between the two
+    /// isolation lowerings — and emitting that thunk crashes Swift 6.3.2's IRGen in Debug
+    /// (`SyncCallEmission::setArgs`), which built green locally on a newer toolchain and
+    /// failed only on CI. A literal is emitted at the abstraction level the parameter
+    /// already wants, so no thunk exists to miscompile.
+    private var topSectionFractionBinding: Binding<CGFloat> {
+        Binding(get: { topSectionFraction }, set: { onTopSectionFractionChange($0) })
+    }
+
+    private var fileListTopDividerBinding: Binding<Bool> {
+        Binding(get: { isFileListTopDividerVisible }, set: { onFileListTopDividerVisibleChange($0) })
+    }
+
     var body: some View {
         DiffViewerVerticalSplit(
-            splitFraction: $topSectionFraction,
+            splitFraction: topSectionFractionBinding,
             bounds: AppSettings.supportedDiffViewerSplitRange,
             onCommit: onTopSectionFractionCommit
         ) {
@@ -43,7 +74,7 @@ struct DiffViewerCurrentChangesContent: View, Equatable {
                 onStageFiles: stageFiles,
                 onUnstageFiles: unstageFiles,
                 onDiscardFiles: onDiscardFiles,
-                isTopDividerVisible: $isFileListTopDividerVisible
+                isTopDividerVisible: fileListTopDividerBinding
             )
         } bottom: {
             DiffViewerPreviewSection(

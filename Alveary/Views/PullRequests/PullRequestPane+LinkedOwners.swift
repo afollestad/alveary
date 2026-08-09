@@ -78,6 +78,7 @@ private struct PullRequestLinkedOwnerRow: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .contextualPaneTrailingGlyphLane()
                 .accessibilityHidden(true)
         }
     }

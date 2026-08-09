@@ -34,6 +34,7 @@ struct ContextualPaneHeader: View {
             Spacer(minLength: 0)
 
             ModalCloseButton(closeAccessibilityLabel, action: onClose)
+                .contextualPaneTrailingGlyphLane(controlWidth: ActionButtonMetrics.iconButtonDiameter)
         }
         .frame(minHeight: PaneHeaderLayout.height - 32)
         .contextualPaneHorizontalInsets()

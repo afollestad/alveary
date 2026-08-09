@@ -3,7 +3,10 @@ import SwiftUI
 
 struct DiffViewerCommitsContent: View, Equatable {
     let viewModel: DiffViewerViewModel
-    @Binding var topSectionFraction: CGFloat
+    /// Plain value plus a change closure rather than a `@Binding`, for the isolation
+    /// reason `DiffViewerCurrentChangesContent` spells out above its own copy.
+    let topSectionFraction: CGFloat
+    let onTopSectionFractionChange: @MainActor (CGFloat) -> Void
     let onTopSectionFractionCommit: (CGFloat) -> Void
 
     /// Equality carries the same weight as `DiffViewerCurrentChangesContent`'s, for the
@@ -22,9 +25,17 @@ struct DiffViewerCommitsContent: View, Equatable {
     /// False while the pane's other mode is showing and this one stays mounted behind it.
     @Environment(\.keepAliveTabIsActive) private var isTabActive
 
+    /// Explicitly typed so the rebuilt binding resolves in its own scope rather than
+    /// on `body`'s type-check budget. The setter is a closure literal rather than the
+    /// change closure itself, for the IRGen reason `DiffViewerCurrentChangesContent`
+    /// spells out above its own copy.
+    private var topSectionFractionBinding: Binding<CGFloat> {
+        Binding(get: { topSectionFraction }, set: { onTopSectionFractionChange($0) })
+    }
+
     var body: some View {
         DiffViewerVerticalSplit(
-            splitFraction: $topSectionFraction,
+            splitFraction: topSectionFractionBinding,
             bounds: AppSettings.supportedDiffViewerSplitRange,
             onCommit: onTopSectionFractionCommit
         ) {

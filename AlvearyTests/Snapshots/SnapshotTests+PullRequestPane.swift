@@ -118,12 +118,12 @@ extension SnapshotTests {
         )
     }
 
-    /// The full pane is the only surface where the tab row's Open-on-GitHub
-    /// button and the header's trailing column meet: the button's glyph and the
-    /// diff stats right-align on the shared 28pt trailing column (the Edit
-    /// menu's dots join it in the editable-description baseline). The
-    /// Overview-only baselines cannot catch the tab row drifting off that
-    /// column.
+    /// The full pane is the only surface where the header's close button, the tab
+    /// row's Open-on-GitHub button, and the scroll content meet: both glyphs center
+    /// their *ink* on the pane's trailing glyph lane, while the diff stats and footer
+    /// button below them stay right-aligned on the 16pt content column. The
+    /// Overview-only baselines have neither the header nor the tab row, so they
+    /// cannot catch either drifting — they guard the row glyphs on the same lane.
     func testPullRequestPaneTrailingColumn() async throws {
         let fixture = await PullRequestPaneSnapshots.makeLoadedFixture()
 

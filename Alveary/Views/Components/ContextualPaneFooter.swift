@@ -10,6 +10,22 @@ enum ContextualPaneLayout {
     static let actionSpacing: CGFloat = 12
     static let minimumHorizontalActionWidth: CGFloat = 128
 
+    /// Width of the lane a pane's chromeless trailing glyphs center in, its outer
+    /// edge on `horizontalInset`. 12 is the widest of those glyphs, so the lane is
+    /// the narrowest one that holds them all without pulling the wide ones inboard.
+    static let trailingGlyphLaneWidth: CGFloat = 12
+
+    /// The vertical axis every chromeless trailing glyph centers its *ink* on,
+    /// measured from the pane's trailing edge (see `contextualPaneTrailingGlyphLane`).
+    static var trailingGlyphAxis: CGFloat { horizontalInset + trailingGlyphLaneWidth / 2 }
+
+    /// How far `contextualPaneTrailingGlyphLane(controlWidth:)` pulls a control past
+    /// `horizontalInset` to reach the axis. A header reserving room for one of these
+    /// must measure to where the control lands, not to its untouched frame.
+    static func trailingGlyphLaneOverhang(controlWidth: CGFloat) -> CGFloat {
+        horizontalInset + controlWidth / 2 - trailingGlyphAxis
+    }
+
     /// All-edges content insets for pane *scroll content*. Footers are not scroll
     /// content: they take their padding from `contextualPaneFooterChrome()`,
     /// which is the only surface allowed to decide a footer's vertical inset.
@@ -33,6 +49,28 @@ private let contextualPaneFooterVerticalPadding: CGFloat = 16
 private struct ContextualPaneHorizontalInsets: ViewModifier {
     func body(content: Content) -> some View {
         content.padding(.horizontal, ContextualPaneLayout.horizontalInset)
+    }
+}
+
+/// Sizes a bare trailing glyph to the lane so its ink centers on the shared axis
+/// (see `contextualPaneTrailingGlyphLane`). The frame does not clip: a glyph wider
+/// than the lane overhangs it symmetrically, which keeps the center where it is.
+private struct ContextualPaneTrailingGlyphLane: ViewModifier {
+    func body(content: Content) -> some View {
+        content.frame(width: ContextualPaneLayout.trailingGlyphLaneWidth, alignment: .center)
+    }
+}
+
+/// Pulls a chromeless control outward until its frame center — and so its centered
+/// glyph's ink — lands on the lane axis (see `contextualPaneTrailingGlyphLane`).
+private struct ContextualPaneTrailingGlyphLaneControl: ViewModifier {
+    let controlWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        content.padding(
+            .trailing,
+            -ContextualPaneLayout.trailingGlyphLaneOverhang(controlWidth: controlWidth)
+        )
     }
 }
 
@@ -61,6 +99,28 @@ extension View {
     /// background, or hairline is what let the surfaces diverge.
     func contextualPaneFooterChrome() -> some View {
         modifier(ContextualPaneFooterChrome())
+    }
+
+    /// Centers a bare trailing glyph's *ink* on `ContextualPaneLayout.trailingGlyphAxis`,
+    /// the one axis every chromeless glyph down the pane's trailing edge shares.
+    ///
+    /// These glyphs are sparse and far apart vertically, so the eye reads each one's
+    /// mass rather than a right rule — and right-aligning ink scatters the centers,
+    /// because SF Symbols of one point size differ in width (a 5.5pt chevron landed
+    /// 2.8pt off a 12pt bubble beside it). The lane is fixed-width so width stops
+    /// mattering. Text — timestamps, diff stats — stays right-aligned on the content
+    /// column instead; a ragged right edge down a run of them reads worse.
+    func contextualPaneTrailingGlyphLane() -> some View {
+        modifier(ContextualPaneTrailingGlyphLane())
+    }
+
+    /// Puts a chromeless *control* on the same axis by pulling its frame outward,
+    /// for a glyph centered in a hit target wider than the lane (a 30pt icon button).
+    /// The hit target overhangs the pane inset, which is fine because these draw
+    /// nothing until hover. Chrome *outside* a scroll view only — an interactive
+    /// control inside one still owes `AppScrollIndicatorLayout.interactiveTrailingClearance`.
+    func contextualPaneTrailingGlyphLane(controlWidth: CGFloat) -> some View {
+        modifier(ContextualPaneTrailingGlyphLaneControl(controlWidth: controlWidth))
     }
 }
 

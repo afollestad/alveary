@@ -121,12 +121,6 @@ struct PullRequestPaneOverview: View, Equatable {
     }
 
     private func headerSection(summary: PullRequestSummary) -> some View {
-        // The header's trailing column (diff stats, the description Edit menu)
-        // aligns to the timeline cards' menu column below: 16pt content inset
-        // plus this pad equals the clearance an interactive control needs to
-        // stay out of the scroll indicator's grab region.
-        let trailingLanePad = AppScrollIndicatorLayout.interactiveTrailingClearance
-            - ContextualPaneLayout.horizontalInset
         let title = session.detail?.title ?? summary.title
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 8) {
@@ -150,7 +144,10 @@ struct PullRequestPaneOverview: View, Equatable {
 
             metaRow(summary: summary)
         }
-        .padding(.trailing, trailingLanePad)
+        // No trailing pad: the header sits on the pane's own content column with
+        // the close and Open-on-GitHub glyphs above it, not on the timeline cards'
+        // inset menu column. See the trailing-column bullets in this folder's
+        // `AGENTS.md` for what the Edit menu accepts by leaving that column.
     }
 
     private func metaRow(summary: PullRequestSummary) -> some View {
@@ -247,7 +244,11 @@ struct PullRequestPaneOverview: View, Equatable {
                         .accessibilityLabel("Re-request review from \(reviewer.login)")
                     }
 
+                    // On the lane here rather than inside `reviewerStateIcon`, so
+                    // the four verdict glyphs — which differ in ink width — share
+                    // one axis without each case restating it.
                     reviewerStateIcon(reviewer.state)
+                        .contextualPaneTrailingGlyphLane()
                 }
                 .accessibilityElement(children: .combine)
             }
@@ -395,6 +396,7 @@ private struct PullRequestCheckRow: View {
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .contextualPaneTrailingGlyphLane()
                     .accessibilityHidden(true)
             }
         }

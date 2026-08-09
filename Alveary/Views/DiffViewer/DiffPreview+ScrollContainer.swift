@@ -46,6 +46,11 @@ private struct DiffPreviewMinimumContentWidthModifier: ViewModifier {
 /// thing with a bounded fallback suited to an unmeasured composer; a header
 /// instead wants to fill whatever width it is handed.
 private struct DiffPreviewViewportContentWidthModifier: ViewModifier {
+    /// Extra width past the viewport, so a trailing glyph can reach a column
+    /// outside the diff's own content inset. Widening the *frame* rather than
+    /// padding the glyph is what keeps the row's hit rect under it.
+    let trailingExtension: CGFloat
+
     @Environment(\.diffPreviewViewportContentWidth) private var viewportContentWidth
 
     func body(content: Content) -> some View {
@@ -53,7 +58,7 @@ private struct DiffPreviewViewportContentWidthModifier: ViewModifier {
         // without an exact frame reports its untruncated ideal and widens the
         // diff even when it contributes no scrollable width.
         if viewportContentWidth > 0 {
-            content.frame(width: viewportContentWidth, alignment: .leading)
+            content.frame(width: viewportContentWidth + trailingExtension, alignment: .leading)
         } else {
             content.frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -78,8 +83,8 @@ extension View {
         modifier(DiffPreviewMinimumContentWidthModifier())
     }
 
-    func diffPreviewViewportContentWidthFrame() -> some View {
-        modifier(DiffPreviewViewportContentWidthModifier())
+    func diffPreviewViewportContentWidthFrame(trailingExtension: CGFloat = 0) -> some View {
+        modifier(DiffPreviewViewportContentWidthModifier(trailingExtension: trailingExtension))
     }
 
     func diffPreviewViewportPinned() -> some View {

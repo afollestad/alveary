@@ -106,8 +106,12 @@ struct PullRequestPaneFiles: View, Equatable {
                 // wrapping the preview, so the scroll bar sits flush with the
                 // pane edge like the Overview tab's while the rows keep the tab
                 // row's and pane title's horizontal alignment.
-                horizontalContentInset: ContextualPaneLayout.horizontalInset
-                    + DiffViewerPaneMetrics.diffPreviewContentInset,
+                horizontalContentInset: ContextualPaneLayout.horizontalInset,
+                // The file headers' collapse carets join the pane's trailing glyph
+                // lane, so they center under the tab row's Open-on-GitHub button and
+                // the header's close button rather than sitting inboard of the
+                // diff's own edge.
+                collapseCaretAxis: ContextualPaneLayout.trailingGlyphAxis,
                 scrollTarget: session.pendingCommentScrollTarget.map {
                     FlattenedDiffPreviewScrollTarget(token: $0.token, rowID: $0.rowID)
                 },

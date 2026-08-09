@@ -159,12 +159,7 @@ struct PullRequestPane: View, Equatable {
             Image(systemName: "arrow.up.right.square")
         }
         .iconActionButtonStyle()
-        // Lands the glyph's right edge on the pane's icon column — the close
-        // button above (25.5pt inset, measured ink) and the Changes tab's file
-        // collapse carets below (26.5pt) — splitting the half-point difference
-        // at 26pt. The glyph centers in the style's 30pt frame with ~8.5pt of
-        // interior inset and the tab row is inset 16, so 26 - 16 - 8.5 = 1.5.
-        .padding(.trailing, 1.5)
+        .contextualPaneTrailingGlyphLane(controlWidth: ActionButtonMetrics.iconButtonDiameter)
         .help("Open on GitHub")
         .accessibilityLabel("Open pull request on GitHub")
     }

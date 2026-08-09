@@ -46,6 +46,7 @@ struct DiffViewerPaneHeader: View {
             // mode chip row instead of a title.
             if let onClose {
                 ModalCloseButton("Hide Diff Viewer", action: onClose)
+                    .contextualPaneTrailingGlyphLane(controlWidth: ActionButtonMetrics.iconButtonDiameter)
             }
         }
         .animation(diffViewerHeaderActionAnimation, value: headerActionLayoutID)

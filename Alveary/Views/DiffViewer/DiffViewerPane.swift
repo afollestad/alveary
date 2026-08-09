@@ -16,15 +16,15 @@ enum DiffViewerPaneMetrics {
     static let selectionBackgroundLeadingInset = ContextualPaneLayout.horizontalInset - 4
     static let selectionBackgroundTrailingInset = ContextualPaneLayout.horizontalInset + 1
     static let diffPreviewHorizontalInset = ContextualPaneLayout.horizontalInset - 4
-    /// The preview's inset *inside* its scroll container — not a pane edge. The
-    /// pull-request pane adds this to its own pane inset to fold both into one
-    /// scroll padding, so it must stay independent of the diff viewer's edge.
-    static let diffPreviewContentInset: CGFloat = 6
     static let diffPreviewTopInset: CGFloat = 1
     static let diffPreviewBottomInset: CGFloat = 14
     /// Width the header reserves for its trailing close button, so the button
     /// keeps its own lane instead of competing with the clipping action row.
+    /// Measured to where the button *draws*: the glyph lane pulls it past the pane
+    /// inset, so reserving its whole frame both widened the gap to the last action
+    /// and, in the overflowing 320pt case, pushed the button clean off the pane.
     static let headerCloseButtonReservedWidth = ActionButtonMetrics.iconButtonDiameter + 6
+        - ContextualPaneLayout.trailingGlyphLaneOverhang(controlWidth: ActionButtonMetrics.iconButtonDiameter)
 }
 
 struct DiffViewerPane: View {
@@ -197,9 +197,11 @@ private extension DiffViewerPane {
             case .currentChanges:
                 DiffViewerCurrentChangesContent(
                     viewModel: viewModel,
-                    topSectionFraction: $topSectionFraction,
+                    topSectionFraction: topSectionFraction,
+                    onTopSectionFractionChange: { topSectionFraction = $0 },
                     onTopSectionFractionCommit: onTopSectionFractionCommit,
-                    isFileListTopDividerVisible: $isFileListTopDividerVisible,
+                    isFileListTopDividerVisible: isFileListTopDividerVisible,
+                    onFileListTopDividerVisibleChange: { isFileListTopDividerVisible = $0 },
                     fileDisplayName: fileDisplayName,
                     statusTitle: statusTitle,
                     diffPreviewIdentity: diffPreviewIdentity,
@@ -210,7 +212,8 @@ private extension DiffViewerPane {
             case .commits:
                 DiffViewerCommitsContent(
                     viewModel: viewModel,
-                    topSectionFraction: $topSectionFraction,
+                    topSectionFraction: topSectionFraction,
+                    onTopSectionFractionChange: { topSectionFraction = $0 },
                     onTopSectionFractionCommit: onTopSectionFractionCommit
                 )
                 .equatable()

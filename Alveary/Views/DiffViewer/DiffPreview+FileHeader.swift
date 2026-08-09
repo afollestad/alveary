@@ -1,8 +1,17 @@
 import SwiftUI
 
 struct DiffPreviewFileHeader: View {
+    /// The collapse caret's square frame. A host aligning the caret to a trailing
+    /// glyph axis outside the diff's content inset extends the header frame by
+    /// however far half of this overshoots that axis.
+    static let collapseCaretFrameWidth: CGFloat = 18
+
     let file: DiffFile
     let collapseState: DiffPreviewFileHeaderCollapseState?
+    /// How far past the viewport the header's frame reaches, so the collapse caret
+    /// lands on the host's trailing glyph column. `0` leaves the caret inboard of
+    /// the diff's own content edge, which is the diff viewer's behavior.
+    let trailingExtension: CGFloat
 
     var body: some View {
         if let collapseState {
@@ -42,7 +51,7 @@ struct DiffPreviewFileHeader: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(collapseState.isCollapsed ? 0 : 90))
-                    .frame(width: 18, height: 18)
+                    .frame(width: Self.collapseCaretFrameWidth, height: Self.collapseCaretFrameWidth)
                     .accessibilityHidden(true)
                     .animation(appExpansionAnimation, value: collapseState.isCollapsed)
             }
@@ -53,7 +62,13 @@ struct DiffPreviewFileHeader: View {
         // than the scrollable width so the badges and collapse caret sit on the
         // pane's trailing edge, and the pin keeps the whole header at the pane's
         // leading edge while the diff scrolls sideways beneath it.
-        .diffPreviewViewportContentWidthFrame()
+        //
+        // Only a caret-bearing header takes the extension: it is what carries the
+        // row's hit rect out under the moved caret, and a header without one has
+        // no glyph to align.
+        .diffPreviewViewportContentWidthFrame(
+            trailingExtension: collapseState == nil ? 0 : trailingExtension
+        )
         .diffPreviewViewportPinned()
     }
 

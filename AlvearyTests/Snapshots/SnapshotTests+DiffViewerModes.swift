@@ -216,7 +216,8 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffViewerCommitsContent(
                 viewModel: fixture.viewModel,
-                topSectionFraction: .constant(0.42),
+                topSectionFraction: 0.42,
+                onTopSectionFractionChange: { _ in },
                 onTopSectionFractionCommit: { _ in }
             ),
             size: CGSize(width: 260, height: 360),
