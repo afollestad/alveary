@@ -366,7 +366,7 @@ extension AppComponent {
     }
 
     var gitService: GitService {
-        return shared { CLIGitService(shell: shellRunner) }
+        return shared { demoGitService ?? CLIGitService(shell: shellRunner) }
     }
 
     var worktreeManager: WorktreeManager {
@@ -405,7 +405,7 @@ extension AppComponent {
     }
 
     var skillsService: SkillsService {
-        return shared { DefaultSkillsService(agentRegistry: agentRegistry) }
+        return shared { demoSkillsService ?? DefaultSkillsService(agentRegistry: agentRegistry) }
     }
 
     var globalAgentInstructionsService: GlobalAgentInstructionsService {
@@ -414,7 +414,7 @@ extension AppComponent {
 
     var mcpService: MCPService {
         return shared {
-            DefaultMCPService(
+            demoMCPService ?? DefaultMCPService(
                 claudeConfigStore: agentCLIKitClaudeConfigStore,
                 codexConfigStore: agentCLIKitCodexConfigStore,
                 providerDetection: providerDetectionService,

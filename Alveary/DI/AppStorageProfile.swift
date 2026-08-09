@@ -5,6 +5,8 @@ struct AppStorageProfile: @unchecked Sendable {
     private static let hostedUnitTestDefaultsSuitePrefix = "com.afollestad.alveary.hosted-unit-tests"
     private static let scratchDefaultsSuitePrefix = "com.afollestad.alveary.scratch"
     private static let scratchDirectoryName = "AlvearyScratch"
+    private static let demoDefaultsSuiteName = "com.afollestad.alveary.demo"
+    private static let demoDirectoryName = "AlvearyDemo"
 
     let applicationSupportBaseURL: URL
     let settingsDefaults: UserDefaults
@@ -12,17 +14,23 @@ struct AppStorageProfile: @unchecked Sendable {
     /// Only ephemeral profiles opt into teardown. A scratch profile names a suite it must keep,
     /// so wiping cannot be inferred from `settingsDefaultsSuiteName` being non-nil.
     let wipesSettingsDefaultsOnExit: Bool
+    /// Whether this is the DEBUG-only demo profile. `AppComponent+Demo.swift` branches on it to
+    /// swap in the fake services, so it — not `AppRuntimeProfile.kind` — is the single source of
+    /// truth; a computed `kind == .demo` could disagree with the storage actually in use.
+    let isDemo: Bool
 
     init(
         applicationSupportBaseURL: URL,
         settingsDefaults: UserDefaults,
         settingsDefaultsSuiteName: String?,
-        wipesSettingsDefaultsOnExit: Bool = false
+        wipesSettingsDefaultsOnExit: Bool = false,
+        isDemo: Bool = false
     ) {
         self.applicationSupportBaseURL = applicationSupportBaseURL
         self.settingsDefaults = settingsDefaults
         self.settingsDefaultsSuiteName = settingsDefaultsSuiteName
         self.wipesSettingsDefaultsOnExit = wipesSettingsDefaultsOnExit
+        self.isDemo = isDemo
     }
 
     static var production: AppStorageProfile {
@@ -51,6 +59,79 @@ struct AppStorageProfile: @unchecked Sendable {
             settingsDefaultsSuiteName: suiteName
         )
     }
+
+    #if DEBUG
+    /// Isolated storage for the DEBUG-only demo mode, wiped on every launch so screenshots are
+    /// deterministic. The opposite contract to `scratch(name:)`, which deliberately survives quit.
+    ///
+    /// Deletion happens here, in the factory, before the store is opened — `AppRuntimeProfile`
+    /// resolves the profile before the model container exists, so nothing has the tree open yet.
+    /// Every failure is fatal rather than `try?`: a swallowed one would leave the seeder running
+    /// against a populated store and double-seed it.
+    static func demo(fileManager: FileManager = .default) -> AppStorageProfile {
+        let baseURL = userApplicationSupportBaseURL
+            .appendingPathComponent(demoDirectoryName, isDirectory: true)
+        let suiteName = demoDefaultsSuiteName
+        // Deliberately no `return .production` fallback: falling through would run demo mode
+        // against the user's real storage, possibly after the wipe below already ran.
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("Failed to create the demo UserDefaults suite: \(suiteName)")
+        }
+
+        wipeDemoStorage(at: baseURL, suiteName: suiteName, defaults: defaults, fileManager: fileManager)
+
+        let profile = AppStorageProfile(
+            applicationSupportBaseURL: baseURL,
+            settingsDefaults: defaults,
+            // Wiped on *entry*, never on exit: an exit wipe would race a relaunching successor
+            // that has already seeded the shared suite.
+            settingsDefaultsSuiteName: suiteName,
+            wipesSettingsDefaultsOnExit: false,
+            isDemo: true
+        )
+        assert(
+            !fileManager.fileExists(atPath: profile.mainStoreURL.path),
+            "Demo store already exists after the wipe; something opened it before the profile resolved"
+        )
+        return profile
+    }
+
+    /// Guards the delete target before removing it. This is the most destructive code in the app,
+    /// and the suite name in particular is load-bearing: `removePersistentDomain` on the main
+    /// bundle identifier would erase the user's entire real preference domain.
+    private static func wipeDemoStorage(
+        at baseURL: URL,
+        suiteName: String,
+        defaults: UserDefaults,
+        fileManager: FileManager
+    ) {
+        guard suiteName.hasPrefix("com.afollestad.alveary."),
+              suiteName != Bundle.main.bundleIdentifier else {
+            fatalError("Refusing to wipe a demo defaults suite that is not demo-scoped: \(suiteName)")
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let standardizedBaseURL = baseURL.standardizedFileURL
+        let expectedParentPath = userApplicationSupportBaseURL.standardizedFileURL.path
+        guard standardizedBaseURL.lastPathComponent == demoDirectoryName,
+              standardizedBaseURL.deletingLastPathComponent().path == expectedParentPath else {
+            fatalError("Refusing to wipe an unexpected demo directory: \(standardizedBaseURL.path)")
+        }
+
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: standardizedBaseURL.path, isDirectory: &isDirectory) else {
+            return
+        }
+        guard isDirectory.boolValue else {
+            fatalError("Refusing to wipe a demo path that is not a directory: \(standardizedBaseURL.path)")
+        }
+        do {
+            try fileManager.removeItem(at: standardizedBaseURL)
+        } catch {
+            fatalError("Failed to wipe the demo storage directory: \(error.localizedDescription)")
+        }
+    }
+    #endif
 
     static func sanitizedScratchName(_ name: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))

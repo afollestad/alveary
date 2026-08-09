@@ -46,7 +46,7 @@ extension AppComponent {
 
     var pullRequestsService: any PullRequestsService {
         return shared {
-            GitHubPullRequestsService(
+            demoPullRequestsService ?? GitHubPullRequestsService(
                 shellRunner: shellRunner,
                 executableResolver: executablePathResolver
             )

@@ -53,6 +53,28 @@ if len(exported.get("artifacts", [])) != 14:
     raise SystemExit("error: exported voice-model descriptor does not contain 14 artifacts")
 PY
 
+# Demo mode is DEBUG-only, but `#if DEBUG` cannot strip a *resource*, and Copy Bundle Resources
+# flattens — so a leaked demo image would sit at the top of Contents/Resources in the public ZIP.
+# This is the layer that actually guarantees it never ships.
+if [ -d "$app_path/Contents/Resources/DemoAssets" ]; then
+  echo "error: exported app contains a DemoAssets directory" >&2
+  exit 1
+fi
+leaked_demo_assets=$(find "$app_path" -iname 'demo*.png' -o -ipath '*DemoAssets*' | head -n 5)
+if [ -n "$leaked_demo_assets" ]; then
+  echo "error: exported app contains demo-mode assets:" >&2
+  echo "$leaked_demo_assets" >&2
+  exit 1
+fi
+for demo_asset in "$repository_root"/DemoAssets/*; do
+  [ -e "$demo_asset" ] || continue
+  demo_asset_name=$(basename "$demo_asset")
+  if find "$app_path" -name "$demo_asset_name" | grep -q .; then
+    echo "error: exported app bundles the demo asset ${demo_asset_name}" >&2
+    exit 1
+  fi
+done
+
 temp_root=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 entitlements_plist=$(mktemp "$temp_root/alveary-entitlements.XXXXXX")
 trap 'rm -f "$entitlements_plist"' EXIT

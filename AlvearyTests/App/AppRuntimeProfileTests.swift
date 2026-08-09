@@ -80,6 +80,36 @@ final class AppRuntimeProfileTests: XCTestCase {
         #endif
     }
 
+    func testDemoModeMarkerSelectsDemoProfileOnlyWithoutHostedMarkers() {
+        #if DEBUG
+        XCTAssertEqual(
+            AppRuntimeProfile.detectKind(environment: [AppRuntimeProfile.demoEnvironmentKey: "1"]),
+            .demo
+        )
+        XCTAssertEqual(
+            AppRuntimeProfile.detectKind(environment: [AppRuntimeProfile.demoEnvironmentKey: "0"]),
+            .application
+        )
+        // Without this a stray `ALVEARY_DEMO_MODE` in a shell would divert the whole test suite
+        // into demo storage, which wipes itself on every launch.
+        XCTAssertEqual(
+            AppRuntimeProfile.detectKind(environment: [
+                AppRuntimeProfile.hostedUnitTestEnvironmentKey: "1",
+                AppRuntimeProfile.demoEnvironmentKey: "1"
+            ]),
+            .hostedUnitTest
+        )
+        // Demo outranks scratch: a launch asking for both should get the mode that reseeds.
+        XCTAssertEqual(
+            AppRuntimeProfile.detectKind(environment: [
+                AppRuntimeProfile.demoEnvironmentKey: "1",
+                AppRuntimeProfile.storageProfileEnvironmentKey: "fresh"
+            ]),
+            .demo
+        )
+        #endif
+    }
+
     func testScratchStorageProfileIsIsolatedStableAndSurvivesCleanup() throws {
         let profile = AppStorageProfile.scratch(name: "unit-test-scratch")
         let suiteName = try XCTUnwrap(profile.settingsDefaultsSuiteName)

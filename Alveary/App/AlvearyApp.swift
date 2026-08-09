@@ -8,6 +8,11 @@ struct AlvearyApp: App {
 
     init() {
         _ = AppDI.component
+        #if DEBUG
+        // Before any scene body evaluates, so onboarding state and every `@Query` see the
+        // seeded store on their first read.
+        DemoMode.prepareIfNeeded()
+        #endif
     }
 
     var body: some Scene {
@@ -103,6 +108,14 @@ struct AlvearyApp: App {
                 Button("Copy app-shot permission diagnostics") {
                     AppShotPermissionDiagnostics.copyToPasteboard()
                 }
+
+                Divider()
+
+                Button(demoRelaunchTitle) {
+                    DemoMode.relaunch(inDemoMode: !AppDI.component.storageProfile.isDemo) { message in
+                        appState.presentUnexpectedError(message: message)
+                    }
+                }
             }
             #endif
         }
@@ -121,6 +134,12 @@ struct AlvearyApp: App {
         .restorationBehavior(AppRuntimeProfile.current.isHostedUnitTest ? .disabled : .automatic)
         #endif
     }
+
+    #if DEBUG
+    private var demoRelaunchTitle: String {
+        AppDI.component.storageProfile.isDemo ? "Relaunch Without Demo Mode" : "Relaunch in Demo Mode"
+    }
+    #endif
 
     @MainActor
     private func showAboutPanel() {

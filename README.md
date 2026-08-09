@@ -49,6 +49,10 @@ To build, lint, or run the app:
 # Build and run the app
 ./scripts/run.sh -b
 
+# Run in demo mode: a DEBUG-only isolated profile, wiped and reseeded with fake
+# data each launch, for screenshots
+./scripts/run.sh --demo
+
 # Run the whole test suite
 ./scripts/test.sh
 

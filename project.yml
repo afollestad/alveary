@@ -71,6 +71,11 @@ targets:
       configs:
         Debug:
           OTHER_CODE_SIGN_FLAGS: "--requirements $(SRCROOT)/Config/CodeSigning/AlvearyDebugTCC.requirements"
+        Release:
+          # Belt-and-braces: demo mode is already `#if DEBUG` in every file, and `DemoAssets/`
+          # sits outside every `sources:` path so xcodegen cannot bundle it. This also drops the
+          # demo sources from the Release compile if an `#if DEBUG` is ever forgotten.
+          EXCLUDED_SOURCE_FILE_NAMES: "$(SRCROOT)/Alveary/Demo/*"
     preBuildScripts:
       - name: Needle Code Generation
         basedOnDependencyAnalysis: false
@@ -105,6 +110,19 @@ targets:
         script: |
           if command -v swiftlint &> /dev/null; then
             swiftlint
+          fi
+      - name: Copy Demo Assets (Debug only)
+        basedOnDependencyAnalysis: false
+        script: |
+          # `DemoAssets/` deliberately lives outside every `sources:` path so xcodegen cannot add
+          # it to Copy Bundle Resources; `#if DEBUG` cannot strip a bundled resource. This phase
+          # is the only route into the app, and `scripts/ci/verify-exported-app.sh` fails the
+          # release if one ever reaches an exported build anyway.
+          if [ "$CONFIGURATION" = "Debug" ]; then
+            demo_assets="$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/DemoAssets"
+            rm -rf "$demo_assets"
+            mkdir -p "$demo_assets"
+            cp "$SRCROOT"/DemoAssets/*.png "$demo_assets/"
           fi
   AlvearyTests:
     type: bundle.unit-test
