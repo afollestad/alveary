@@ -77,11 +77,15 @@ extension AppSettings {
         case pullRequestsStatusFilters
         case pullRequestsRepositoryFilters
         case scheduledTasksSelectedTab
-        case pullRequestReviewFooterActionKind
+        case pullRequestOwnFooterActionKind
+        case pullRequestOthersFooterActionKind
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
         case autoTrustWorktrees
+        // One footer pick for every pull request, before the split into an authored and an
+        // others default.
+        case pullRequestReviewFooterActionKind
         // The lane used to persist a width per destination — `diffViewerWidth`,
         // `skillsPaneWidth`, `mcpPaneWidth`, `scheduledTasksPaneWidth`, and
         // `pullRequestsPaneWidth`. Only the Diff Viewer's is read back, because
@@ -104,10 +108,13 @@ extension AppSettings {
         try decodeLayout(from: container, legacyContainer: legacyContainer)
         try decodeContextManagement(from: container)
         try decodeStorage(from: container, storedSchemaVersion: storedSchemaVersion)
-        decodeScreenTabs(from: container)
+        decodeScreenTabs(from: container, legacyContainer: legacyContainer)
     }
 
-    private mutating func decodeScreenTabs(from container: KeyedDecodingContainer<CodingKeys>) {
+    private mutating func decodeScreenTabs(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        legacyContainer: KeyedDecodingContainer<LegacyCodingKeys>
+    ) {
         if let tab = try? container.decodeIfPresent(String.self, forKey: .pullRequestsSelectedTab) {
             pullRequestsSelectedTab = tab
         }
@@ -121,8 +128,28 @@ extension AppSettings {
         if let repositories = try? container.decodeIfPresent(Set<String>.self, forKey: .pullRequestsRepositoryFilters) {
             pullRequestsRepositoryFilters = repositories
         }
-        if let kind = try? container.decodeIfPresent(String.self, forKey: .pullRequestReviewFooterActionKind) {
-            pullRequestReviewFooterActionKind = kind
+        decodeFooterActionKinds(from: container, legacyContainer: legacyContainer)
+    }
+
+    /// The one footer pick that preceded the split seeds *both* new keys, but only when it names
+    /// something other than its own old default: every settings file ever encoded carries
+    /// `"submitReview"` whether the user chose it or never touched the caret, so honouring that
+    /// value would hand the whole install base a stored pick nobody made and hide the
+    /// authorship-aware defaults from everyone.
+    private mutating func decodeFooterActionKinds(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        legacyContainer: KeyedDecodingContainer<LegacyCodingKeys>
+    ) {
+        if let legacy = try? legacyContainer.decodeIfPresent(String.self, forKey: .pullRequestReviewFooterActionKind),
+           legacy != "submitReview" {
+            pullRequestOwnFooterActionKind = legacy
+            pullRequestOthersFooterActionKind = legacy
+        }
+        if let kind = try? container.decodeIfPresent(String.self, forKey: .pullRequestOwnFooterActionKind) {
+            pullRequestOwnFooterActionKind = kind
+        }
+        if let kind = try? container.decodeIfPresent(String.self, forKey: .pullRequestOthersFooterActionKind) {
+            pullRequestOthersFooterActionKind = kind
         }
     }
 

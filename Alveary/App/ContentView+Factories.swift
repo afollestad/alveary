@@ -166,12 +166,13 @@ extension ContentView {
             presentToast: { message in
                 appState.presentUnexpectedError(message: message)
             },
-            agenticReviewStarter: { identifier, url, detail in
+            agenticThreadStarter: { request in
                 try await dependencies.pullRequestAgenticThreadService.start(
-                    kind: .review,
-                    identifier: identifier,
-                    url: url,
-                    knownDetail: detail
+                    kind: request.kind,
+                    identifier: request.identifier,
+                    url: request.url,
+                    knownDetail: request.knownDetail,
+                    preferredProjectID: request.preferredProjectID
                 )
             },
             reviewProposalCoordinator: reviewProposalCoordinator

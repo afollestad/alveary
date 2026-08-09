@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 // Agentic pull-request settings: the two sets of editable instructions, the pinned agent
-// trio they share, and the footer's remembered split-button pick.
+// trio they share, and the footer's two remembered split-button picks.
 extension AppSettingsTests {
     func testPullRequestReviewDefaultsWhenFieldsAreMissing() throws {
         let json = Data("{}".utf8)
@@ -16,7 +16,8 @@ extension AppSettingsTests {
         XCTAssertNil(settings.pullRequestReviewProvider)
         XCTAssertNil(settings.pullRequestReviewModel)
         XCTAssertNil(settings.pullRequestReviewEffort)
-        XCTAssertEqual(settings.pullRequestReviewFooterActionKind, "submitReview")
+        XCTAssertEqual(settings.pullRequestOwnFooterActionKind, "addressFeedback")
+        XCTAssertEqual(settings.pullRequestOthersFooterActionKind, "agenticReview")
     }
 
     func testPullRequestReviewSettingsRoundTripThroughCodable() throws {
@@ -26,7 +27,8 @@ extension AppSettingsTests {
         settings.pullRequestReviewProvider = "codex"
         settings.pullRequestReviewModel = "gpt-5"
         settings.pullRequestReviewEffort = "high"
-        settings.pullRequestReviewFooterActionKind = "agenticReview"
+        settings.pullRequestOwnFooterActionKind = "submitReview"
+        settings.pullRequestOthersFooterActionKind = "addressFeedback"
 
         let encoded = try JSONEncoder().encode(settings)
         let decoded = try JSONDecoder().decode(AppSettings.self, from: encoded)
@@ -36,7 +38,57 @@ extension AppSettingsTests {
         XCTAssertEqual(decoded.pullRequestReviewProvider, "codex")
         XCTAssertEqual(decoded.pullRequestReviewModel, "gpt-5")
         XCTAssertEqual(decoded.pullRequestReviewEffort, "high")
-        XCTAssertEqual(decoded.pullRequestReviewFooterActionKind, "agenticReview")
+        XCTAssertEqual(decoded.pullRequestOwnFooterActionKind, "submitReview")
+        XCTAssertEqual(decoded.pullRequestOthersFooterActionKind, "addressFeedback")
+    }
+
+    // MARK: - The single footer pick that preceded the split
+
+    /// Nobody chose the old default — every settings file ever encoded carries it — so honouring
+    /// it would hand the whole install base a pick it never made and hide the new defaults.
+    func testTheLegacyFooterPickIsIgnoredWhenItNamesTheOldDefault() throws {
+        let json = Data(#"{"pullRequestReviewFooterActionKind":"submitReview"}"#.utf8)
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.pullRequestOwnFooterActionKind, "addressFeedback")
+        XCTAssertEqual(settings.pullRequestOthersFooterActionKind, "agenticReview")
+    }
+
+    /// Anything else was a deliberate trip to the caret, so it survives on both halves.
+    func testADeliberateLegacyFooterPickSeedsBothNewKeys() throws {
+        let json = Data(#"{"pullRequestReviewFooterActionKind":"agenticReview"}"#.utf8)
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.pullRequestOwnFooterActionKind, "agenticReview")
+        XCTAssertEqual(settings.pullRequestOthersFooterActionKind, "agenticReview")
+    }
+
+    /// Once the new keys exist they are the record; the legacy value lingers in the file until
+    /// the next encode drops it, and must not overwrite them.
+    func testTheNewFooterKeysOutrankTheLegacyOne() throws {
+        let json = Data(
+            #"{"pullRequestReviewFooterActionKind":"agenticReview","pullRequestOwnFooterActionKind":"submitReview"}"#
+                .utf8
+        )
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.pullRequestOwnFooterActionKind, "submitReview")
+        XCTAssertEqual(settings.pullRequestOthersFooterActionKind, "agenticReview")
+    }
+
+    /// Re-encoding drops the retired key rather than carrying it forward forever.
+    func testEncodingDropsTheLegacyFooterKey() throws {
+        let decoded = try JSONDecoder().decode(
+            AppSettings.self,
+            from: Data(#"{"pullRequestReviewFooterActionKind":"agenticReview"}"#.utf8)
+        )
+
+        let reencoded = try XCTUnwrap(String(data: JSONEncoder().encode(decoded), encoding: .utf8))
+
+        XCTAssertFalse(reencoded.contains("pullRequestReviewFooterActionKind"))
     }
 
     /// The two prompts are separate settings; editing one must not reach the other.

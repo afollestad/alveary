@@ -24,6 +24,9 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     /// memoization boundary whose `==` excludes settings, so a `body` read would not
     /// re-render when the stored kind changed anyway.
     @State private var selectedReviewKind: PullRequestReviewFooterAction.Kind
+    /// Stops the authorship re-seed from overwriting a pick the user made while the detail was
+    /// still landing. A different pull request remounts this view, so it resets for free.
+    @State private var hasPickedReviewKind = false
     /// BlockInputKit store for the overall comment; created when the composer
     /// expands, serialized back into the pending draft on collapse or submit.
     @State private var overallDraft: PullRequestCommentDraftBox?
@@ -38,7 +41,11 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         self.session = session
         self.target = target
         _isExpanded = State(initialValue: initiallyExpanded)
-        _selectedReviewKind = State(initialValue: viewModel.selectedReviewFooterActionKind)
+        _selectedReviewKind = State(
+            initialValue: viewModel.selectedReviewFooterActionKind(
+                for: PullRequestReviewFooterAuthorship.resolve(summary: session.summary, detail: session.detail)
+            )
+        )
         // Production expands through the button, which seeds the draft; snapshots
         // mount pre-expanded and need the editor present from the first render.
         _overallDraft = State(
@@ -63,12 +70,12 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 )
             }
 
-            if let error = session.agenticReviewError {
+            if let error = session.agenticThreadError {
                 InlineBanner(
                     message: error,
                     severity: .error,
                     autoDismissAfter: nil,
-                    onDismiss: viewModel.clearAgenticReviewError
+                    onDismiss: viewModel.clearAgenticThreadError
                 )
             }
 
@@ -85,29 +92,29 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             onDrop: attach
         )
         .contextualPaneFooterChrome()
+        .onChange(of: authorship) { _, settled in
+            reseedReviewKind(for: settled)
+        }
     }
 
-    /// GitHub rejects Approve and Request changes on your own pull request, so
-    /// they only appear for other people's PRs; your own submit as a comment.
-    private var allowsVerdictEvents: Bool {
-        guard let summary = session.summary else {
-            // An identifier-opened pane knows nothing about authorship until its
-            // first detail lands; withhold the verdicts rather than offer one
-            // GitHub would reject. `effectiveEvent` demotes a stale selection.
-            return false
+    /// Both the verdict gating and which agentic option leads ride on who wrote the pull request.
+    private var authorship: PullRequestReviewFooterAuthorship {
+        PullRequestReviewFooterAuthorship.resolve(summary: session.summary, detail: session.detail)
+    }
+
+    /// The footer renders before the detail lands, so authorship can settle after the seed — and
+    /// it picks which of the two stored kinds applies. Re-seed when it does, but never over a
+    /// pick the user has already made here.
+    private func reseedReviewKind(for authorship: PullRequestReviewFooterAuthorship) {
+        guard !hasPickedReviewKind else {
+            return
         }
-        if summary.isAuthored {
-            return false
-        }
-        if let detail = session.detail, let viewer = detail.viewerLogin {
-            return viewer != detail.authorLogin
-        }
-        return true
+        selectedReviewKind = viewModel.selectedReviewFooterActionKind(for: authorship)
     }
 
     private var summaryComposer: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if allowsVerdictEvents {
+            if authorship.allowsVerdictEvents {
                 Picker("Review action", selection: $selectedEvent) {
                     Text("Comment").tag(PullRequestReviewEvent.comment)
                     Text("Approve").tag(PullRequestReviewEvent.approve)
@@ -161,7 +168,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     /// hides the picker (e.g. the detail resolves the viewer as the author
     /// after Approve was already selected).
     private var effectiveEvent: PullRequestReviewEvent {
-        allowsVerdictEvents ? selectedEvent : .comment
+        authorship.allowsVerdictEvents ? selectedEvent : .comment
     }
 
     private var isUploading: Bool {
@@ -309,7 +316,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         }
     }
 
-    /// Both options apply to every pull request, so this is always a split button. The caret
+    /// Every option applies to every pull request, so this is always a split button. The caret
     /// selects only — the row's one accent voice stays `.primary` either way.
     private func reviewActionButton(expandsHorizontally: Bool) -> some View {
         let action = PullRequestReviewFooterAction.action(for: effectiveReviewKind)
@@ -318,26 +325,27 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             icon: action.icon,
             emphasis: .primary,
             expandsHorizontally: expandsHorizontally,
-            // Starting a review reaches the provider and GitHub, so the button says it is
-            // working rather than only refusing the next click.
-            isBusy: session.isStartingAgenticReview,
+            // Starting an agentic thread reaches the provider and GitHub, so the button says it
+            // is working rather than only refusing the next click.
+            isBusy: session.isStartingAgenticThread,
             selectedOption: action.kind,
             options: PullRequestReviewFooterAction.all.map(\.kind),
             optionTitle: { PullRequestReviewFooterAction.action(for: $0).title },
             action: { runReviewAction(action.kind) },
             selectOption: { kind in
                 selectedReviewKind = kind
-                viewModel.selectReviewFooterAction(kind)
+                hasPickedReviewKind = true
+                viewModel.selectReviewFooterAction(kind, for: authorship)
             }
         )
         .help(action.title)
     }
 
     /// A written review outranks the stored pick. With staged comments waiting, the default
-    /// action is finishing that review — starting a second agentic one would be the wrong door,
-    /// and its proposal would supersede the comments on screen. The caret still reaches Agentic
-    /// review, so this changes the default rather than removing the option; it mirrors
-    /// `effectiveEvent` and `effectiveStateAction`, which retire stale picks the same way.
+    /// action is finishing that review — starting a second agentic thread would be the wrong
+    /// door, and a review's proposal would supersede the comments on screen. The caret still
+    /// reaches both agentic options, so this changes the default rather than removing them; it
+    /// mirrors `effectiveEvent` and `effectiveStateAction`, which retire stale picks the same way.
     private var effectiveReviewKind: PullRequestReviewFooterAction.Kind {
         guard viewModel.pendingReviewProposal(for: target)?.comments.isEmpty == false else {
             return selectedReviewKind
@@ -353,7 +361,9 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             )
             isExpanded = true
         case .agenticReview:
-            viewModel.startAgenticReview()
+            viewModel.startAgenticThread(kind: .review)
+        case .addressFeedback:
+            viewModel.startAgenticThread(kind: .addressFeedback)
         }
     }
 

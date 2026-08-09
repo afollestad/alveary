@@ -247,7 +247,8 @@ extension SnapshotTests {
     /// GitHub's word for the draft alone, and a staged comment wears the "Proposed" pill.
     func testPullRequestPaneFooterPrefersSubmitWithProposedComments() throws {
         let viewModel = try PullRequestPaneSnapshots.viewModelWithPendingProposal()
-        viewModel.selectReviewFooterAction(.agenticReview)
+        // The fixture's pull request is somebody else's, so that is the key the footer seeds from.
+        viewModel.selectReviewFooterAction(.agenticReview, for: .other)
 
         assertMacSnapshot(
             PullRequestPaneReviewFooter(

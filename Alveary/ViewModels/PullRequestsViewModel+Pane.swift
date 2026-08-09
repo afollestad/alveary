@@ -110,11 +110,12 @@ struct PullRequestPaneSession: Equatable {
     /// A failed close or reopen; rendered as a banner in the review footer, where
     /// the action lives.
     var stateChangeError: String?
-    /// Set while the agentic review's thread is being created; disables the footer's
-    /// split button so the action cannot double-fire into two review threads.
-    var isStartingAgenticReview = false
-    /// A failed agentic review start; rendered beside `stateChangeError` in the footer.
-    var agenticReviewError: String?
+    /// Set while an agentic thread is being created; shows the footer's split button as busy so
+    /// the action cannot double-fire into two threads on one pull request. Shared by both kinds,
+    /// which is what also stops a review and an address-feedback run from starting together.
+    var isStartingAgenticThread = false
+    /// A failed agentic thread start; rendered beside `stateChangeError` in the footer.
+    var agenticThreadError: String?
     /// Non-nil token asks the freshly mounted composer editor to take first responder.
     var composerFocusToken: UUID?
     /// Awaiting user confirmation before permanently deleting a submitted comment.

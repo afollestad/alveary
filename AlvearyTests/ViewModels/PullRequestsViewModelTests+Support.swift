@@ -12,8 +12,8 @@ func makePullRequestsViewModel(
     attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
     attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
     presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
-    agenticReviewStarter: (
-        @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticThreadStart
+    agenticThreadStarter: (
+        @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
     now: @escaping () -> Date = Date.init
@@ -27,7 +27,7 @@ func makePullRequestsViewModel(
         attachmentImageSeeder: attachmentImageSeeder,
         attachmentImageRepositoryRegistrar: attachmentImageRepositoryRegistrar,
         presentToast: presentToast,
-        agenticReviewStarter: agenticReviewStarter,
+        agenticThreadStarter: agenticThreadStarter,
         reviewProposalCoordinator: reviewProposalCoordinator,
         now: now
     )
@@ -36,7 +36,7 @@ func makePullRequestsViewModel(
 /// Builds the value a real starter answers with. `dispatch` defaults to already-succeeded work,
 /// so a test that only cares about the navigation half writes nothing extra.
 @MainActor
-func makeAgenticReviewStart(
+func makeAgenticThreadStart(
     conversationID: String,
     dispatch: @escaping @Sendable () async throws -> Void = {}
 ) -> PullRequestAgenticThreadStart {

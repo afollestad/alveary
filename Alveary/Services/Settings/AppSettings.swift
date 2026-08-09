@@ -102,9 +102,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     // stored value no longer names a tab.
     var pullRequestsSelectedTab = "All"
     var scheduledTasksSelectedTab = "All"
-    // Raw `PullRequestReviewFooterAction.Kind`; the footer falls back to Submit review
-    // when the stored value no longer names a kind.
-    var pullRequestReviewFooterActionKind = "submitReview"
+    // Raw `PullRequestReviewFooterAction.Kind`, one per authorship, because the two halves of a
+    // pull request's life want opposite defaults. A stored value that no longer names a kind
+    // falls back to the default beside it.
+    var pullRequestOwnFooterActionKind = "addressFeedback"
+    var pullRequestOthersFooterActionKind = "agenticReview"
     var pullRequestsStatusFilters: Set<PullRequestStatus> = []
     var pullRequestsRepositoryFilters: Set<String> = []
 

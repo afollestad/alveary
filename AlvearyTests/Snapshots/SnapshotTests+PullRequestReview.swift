@@ -188,6 +188,38 @@ extension SnapshotTests {
         )
     }
 
+    func testPullRequestPaneReviewFooterDefaultsToAddressFeedbackOnYourOwnPullRequest() {
+        // Nothing stored: your own pull request opens on answering the feedback it received,
+        // wearing the same brain glyph as Agentic review.
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            isAuthored: true,
+            status: .open,
+            selectedReviewAction: nil
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_authored_default"
+        )
+    }
+
+    func testPullRequestPaneReviewFooterDefaultsToAgenticReviewOnSomebodyElses() {
+        // The same footer on a pull request you did not write leads with reviewing instead.
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            status: .open,
+            selectedReviewAction: nil
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_others_default"
+        )
+    }
+
     func testPullRequestPaneReviewFooterAgenticReviewStarting() {
         // Starting the review swaps the brain glyph for the shared spinner in the same box, so
         // the pill neither greys out nor changes width while the thread is being created.
@@ -195,7 +227,7 @@ extension SnapshotTests {
             pendingCommentCount: 0,
             status: .open,
             selectedReviewAction: .agenticReview,
-            isStartingAgenticReview: true
+            isStartingAgenticThread: true
         )
 
         assertMacSnapshot(
@@ -324,14 +356,21 @@ struct PullRequestReviewFooterFixture {
         summaryStatus: PullRequestStatus = .open,
         viewerCanUpdate: Bool = true,
         headRefExists: Bool = true,
-        selectedReviewAction: PullRequestReviewFooterAction.Kind = .submitReview,
-        isStartingAgenticReview: Bool = false
+        selectedReviewAction: PullRequestReviewFooterAction.Kind? = .submitReview,
+        isStartingAgenticThread: Bool = false
     ) {
         let service = StubPullRequestsService()
         // The footer seeds its split-button selection from settings at init, so the stored
-        // kind is what puts Agentic review on the button's primary side.
+        // kind is what puts a particular option on the button's primary side. Both authorship
+        // keys are written because the fixture renders either side; nil stores neither, which
+        // is what leaves the packaged authorship defaults showing.
         let settingsService = InMemorySettingsService()
-        settingsService.update { $0.pullRequestReviewFooterActionKind = selectedReviewAction.rawValue }
+        if let selectedReviewAction {
+            settingsService.update {
+                $0.pullRequestOwnFooterActionKind = selectedReviewAction.rawValue
+                $0.pullRequestOthersFooterActionKind = selectedReviewAction.rawValue
+            }
+        }
         viewModel = makePullRequestsViewModel(service: service, settingsService: settingsService)
         let summary = makePullRequestSummary(number: 7, status: summaryStatus, isAuthored: isAuthored)
         viewModel.requestDetails(summary)
@@ -352,9 +391,9 @@ struct PullRequestReviewFooterFixture {
                 )
             }
         }
-        if isStartingAgenticReview {
+        if isStartingAgenticThread {
             viewModel.mutateActiveSession { session in
-                session.isStartingAgenticReview = true
+                session.isStartingAgenticThread = true
             }
         }
         guard let session = viewModel.activePaneSession else {

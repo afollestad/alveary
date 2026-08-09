@@ -110,7 +110,9 @@ extension PullRequestsViewModelTests {
         try makeOwnerIdentifiers().thread
     }
 
-    private func makeOwnerIdentifiers() throws -> (thread: PersistentIdentifier, project: PersistentIdentifier) {
+    /// Internal so the agentic-thread suite can name a project origin without standing up a
+    /// second in-memory container of its own.
+    func makeOwnerIdentifiers() throws -> (thread: PersistentIdentifier, project: PersistentIdentifier) {
         let container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
