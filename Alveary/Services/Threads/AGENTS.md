@@ -6,6 +6,8 @@ App-scoped thread lifecycle plus the `alveary_host` thread tools. `Services/Host
 
 - `ThreadLifecycleService` is the shared implementation of thread creation and archiving; `Alveary/ViewModels/AGENTS.md` owns the split with `SidebarViewModel` and the external-archive selection rule.
 - **`insertTaskThread` puts a directory on disk before it persists anything**, so a failed save removes that private workspace again; otherwise the orphan survives until the next launch's sweep. `TaskThreadSeed.grantedRoots` must already be canonical — the seed is rehydrated, never re-resolved, so a symlink swapped in since validation cannot change what was granted.
+    - **The rollback removes only a workspace this call minted.** `TaskThreadSeed.workspace` may be a checkout another thread is still working in, so its owner cleans it up, not the insert.
+- **`replaceTaskWorkspace` is for a caller that had to answer before the real workspace existed** — the pull request pane navigates first and checks the branch out after. It swaps the descriptor, saves, then releases a replaced *private* workspace; it never touches `branch`, `worktreePath`, or `useWorktree`, and `Services/PullRequests/AGENTS.md` owns why a Task's branch must stay nil.
 
 ### Host Tools
 
@@ -26,4 +28,4 @@ App-scoped thread lifecycle plus the `alveary_host` thread tools. `Services/Host
 - **`link_pr` normally loses the race to `AppSettings.automaticallyLinkPullRequests`**, which links a pull request the moment its URL appears in a transcript message — including the message asking for the link — so `already_linked` is the usual outcome, not a duplicate request. The result message and the tool description both say so; do not "fix" the status.
 - **A GitHub reachability failure surfaces as `pullRequestUnavailable`**, not as a persistence error. `Alveary/ViewModels/AGENTS.md` owns how `PullRequestLinkService.link` validates.
 - **The initial prompt is fire-and-forget through the ordinary first-send path.** `AppComponent+Threads.startHeadlessInitialPrompt` takes a background lease and calls `setupAndStart`, so a created thread creates its worktree, spawns, auto-names, and gets ordinary host-tool exposure exactly like one the user typed into. The tool claims dispatch, never an outcome; a spawn failure leaves a retryable first message on the new thread.
-- **`startHeadlessInitialPrompt` is shared with the pull request pane's agentic review**, which differs only in the prompt it dispatches. Keep it prompt-only: the review's guidance reaches the agent through `get_pr_review_instructions`, not through a longer signature here.
+- **`startHeadlessInitialPrompt` is shared with the pull request pane's agentic threads**, which differ only in the prompt they dispatch. Keep it prompt-only: their guidance reaches the agent through an instructions tool, not through a longer signature here.

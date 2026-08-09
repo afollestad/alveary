@@ -13,7 +13,7 @@ func makePullRequestsViewModel(
     attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
     presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
     agenticReviewStarter: (
-        @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticReviewStart
+        @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticThreadStart
     )? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
     now: @escaping () -> Date = Date.init
@@ -39,8 +39,8 @@ func makePullRequestsViewModel(
 func makeAgenticReviewStart(
     conversationID: String,
     dispatch: @escaping @Sendable () async throws -> Void = {}
-) -> PullRequestAgenticReviewStart {
-    PullRequestAgenticReviewStart(
+) -> PullRequestAgenticThreadStart {
+    PullRequestAgenticThreadStart(
         conversationID: conversationID,
         dispatch: Task { try await dispatch() }
     )
@@ -103,6 +103,7 @@ func makePullRequestDetail(
     id: PullRequestIdentifier,
     title: String = "Detail title",
     status: PullRequestStatus = .open,
+    headRefName: String = "feat/change",
     comments: [PullRequestComment] = [],
     reviews: [PullRequestReview] = [],
     reviewThreads: [PullRequestReviewThread] = [],
@@ -120,7 +121,7 @@ func makePullRequestDetail(
         status: status,
         authorLogin: "alice",
         authorAvatarURL: nil,
-        headRefName: "feat/change",
+        headRefName: headRefName,
         baseRefName: "main",
         createdAt: Date(timeIntervalSince1970: 500),
         updatedAt: Date(timeIntervalSince1970: 1_000),

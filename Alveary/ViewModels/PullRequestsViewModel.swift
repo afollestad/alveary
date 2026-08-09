@@ -45,7 +45,7 @@ final class PullRequestsViewModel {
     /// review option does nothing. The pane's loaded detail rides along so linking need not
     /// refetch what this screen already has.
     let agenticReviewStarter: (
-        @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticReviewStart
+        @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticThreadStart
     )?
     /// Resolves the pane's attached review proposal and owns the envelope it renders from.
     /// This is not the `ModelContext` this view model deliberately does without — the
@@ -137,7 +137,7 @@ final class PullRequestsViewModel {
         attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         agenticReviewStarter: (
-            @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticReviewStart
+            @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticThreadStart
         )? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
         now: @escaping () -> Date = Date.init

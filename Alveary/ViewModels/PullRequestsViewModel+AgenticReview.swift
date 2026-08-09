@@ -52,7 +52,7 @@ extension PullRequestsViewModel {
         // identical round trip, which is what keeps the new thread from sitting empty.
         let detail = session.detail
         Task {
-            let start: PullRequestAgenticReviewStart
+            let start: PullRequestAgenticThreadStart
             do {
                 start = try await agenticReviewStarter(identifier, url, detail)
             } catch {

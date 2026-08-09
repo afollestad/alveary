@@ -3,14 +3,14 @@ import XCTest
 
 @testable import Alveary
 
-/// What `startReview` answers with, and when. The split it encodes: the caller gets its
-/// conversation as soon as the thread exists, and everything that reaches GitHub rides the
-/// returned `dispatch` behind that navigation.
+/// What `start` answers with, and when. The split it encodes: the caller gets its conversation as
+/// soon as the thread exists, and everything that reaches GitHub rides the returned `dispatch`
+/// behind that navigation.
 @MainActor
-extension PullRequestAgenticReviewServiceTests {
-    private struct StartFixture {
+extension PullRequestAgenticThreadServiceTests {
+    struct StartFixture {
         let fixture: SidebarTestFixture
-        let service: PullRequestAgenticReviewService
+        let service: PullRequestAgenticThreadService
         let pullRequests: StubPullRequestsService
         let prompts: RecordedPrompts
         let identifier: PullRequestIdentifier
@@ -30,19 +30,28 @@ extension PullRequestAgenticReviewServiceTests {
         }
     }
 
-    private func makeStartFixture() throws -> StartFixture {
-        let fixture = try SidebarTestFixture()
+    /// `existingDirectories` stands in for the filesystem the workspace ladder probes, so a rung
+    /// can be made to find or miss a checkout without one being on disk.
+    func makeStartFixture(
+        fixture: SidebarTestFixture? = nil,
+        existingDirectories: Set<String> = []
+    ) throws -> StartFixture {
+        let fixture = try fixture ?? SidebarTestFixture()
         let pullRequests = StubPullRequestsService()
         let identifier = makePullRequestSummary(number: 7, status: .open).id
         pullRequests.detailResult = .success(makePullRequestDetail(id: identifier, status: .open))
         let linkService = PullRequestLinkService(modelContext: fixture.context, service: pullRequests)
         let prompts = RecordedPrompts()
-        let service = PullRequestAgenticReviewService(
+        let service = PullRequestAgenticThreadService(
             lifecycleService: fixture.viewModel.threadLifecycle,
             linkService: linkService,
+            pullRequestsService: pullRequests,
             settingsService: fixture.settingsService,
+            worktreeManager: fixture.worktreeManager,
+            taskWorkspaceOwnershipService: fixture.taskWorkspaceOwnershipService,
             // nil discovery takes the static fallback resolver, so no provider subprocess runs.
             providerDiscovery: nil,
+            directoryExists: { existingDirectories.contains($0) },
             startInitialPrompt: { conversation, prompt in
                 let isLinked = conversation.thread?.linkedPullRequests.isEmpty == false
                 prompts.record(prompt: prompt, wasLinked: isLinked)
@@ -64,7 +73,7 @@ extension PullRequestAgenticReviewServiceTests {
         let gate = PullRequestsServiceGate()
         start.pullRequests.detailGate = gate
 
-        let started = try await start.service.startReview(identifier: start.identifier, url: start.url)
+        let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
 
         XCTAssertFalse(started.conversationID.isEmpty)
         XCTAssertTrue(start.prompts.prompts.isEmpty, "The first prompt must not have been dispatched yet")
@@ -72,7 +81,7 @@ extension PullRequestAgenticReviewServiceTests {
         gate.open()
         try await started.dispatch.value
 
-        XCTAssertEqual(start.prompts.prompts, [PullRequestAgenticReviewService.reviewRequestPrompt(url: start.url)])
+        XCTAssertEqual(start.prompts.prompts, [PullRequestAgenticThreadService.Kind.review.requestPrompt(url: start.url)])
     }
 
     /// Linking still precedes dispatch — moving both behind navigation must not reorder them, or
@@ -80,7 +89,7 @@ extension PullRequestAgenticReviewServiceTests {
     func testTheDeferredHalfLinksBeforeItDispatchesTheFirstPrompt() async throws {
         let start = try makeStartFixture()
 
-        let started = try await start.service.startReview(identifier: start.identifier, url: start.url)
+        let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
         try await started.dispatch.value
 
         XCTAssertEqual(start.prompts.wasLinkedAtDispatch, [true])
@@ -91,7 +100,8 @@ extension PullRequestAgenticReviewServiceTests {
         let start = try makeStartFixture()
         let detail = makePullRequestDetail(id: start.identifier, title: "Handed over", status: .open)
 
-        let started = try await start.service.startReview(
+        let started = try await start.service.start(
+            kind: .review,
             identifier: start.identifier,
             url: start.url,
             knownDetail: detail
@@ -110,7 +120,8 @@ extension PullRequestAgenticReviewServiceTests {
         let otherIdentifier = makePullRequestSummary(number: 8, status: .open).id
         let mismatched = makePullRequestDetail(id: otherIdentifier, title: "Wrong pull request", status: .open)
 
-        let started = try await start.service.startReview(
+        let started = try await start.service.start(
+            kind: .review,
             identifier: start.identifier,
             url: start.url,
             knownDetail: mismatched
@@ -129,7 +140,7 @@ extension PullRequestAgenticReviewServiceTests {
         let start = try makeStartFixture()
         start.pullRequests.detailResult = .failure(.transport("offline"))
 
-        let started = try await start.service.startReview(identifier: start.identifier, url: start.url)
+        let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
         try await started.dispatch.value
 
         XCTAssertEqual(start.prompts.prompts.count, 1)

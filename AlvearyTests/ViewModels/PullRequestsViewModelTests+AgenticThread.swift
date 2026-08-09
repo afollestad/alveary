@@ -32,7 +32,7 @@ extension PullRequestsViewModelTests {
         settingsService: (any SettingsService)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         starter: (
-            @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticReviewStart
+            @MainActor (PullRequestIdentifier, URL, PullRequestDetail?) async throws -> PullRequestAgenticThreadStart
         )? = nil
     ) async -> OpenedReviewPane {
         let service = StubPullRequestsService()
@@ -146,7 +146,7 @@ extension PullRequestsViewModelTests {
             },
             starter: { _, _, _ in
                 makeAgenticReviewStart(conversationID: "conversation-1") {
-                    throw PullRequestAgenticReviewService.StartError.conversationMissing
+                    throw PullRequestAgenticThreadService.StartError.conversationMissing
                 }
             }
         )
@@ -156,7 +156,7 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(
             message.value,
-            PullRequestAgenticReviewService.StartError.conversationMissing.localizedDescription
+            PullRequestAgenticThreadService.StartError.conversationMissing.localizedDescription
         )
         // A deferred failure is not the footer's to report — navigation already unmounted it.
         XCTAssertNil(pane.viewModel.paneSessions[.details(pane.id)]?.agenticReviewError)
@@ -164,7 +164,7 @@ extension PullRequestsViewModelTests {
 
     func testAFailedStartSurfacesAsAFooterBannerAndReleasesTheButton() async {
         let pane = await openedReviewPane(starter: { _, _, _ in
-            throw PullRequestAgenticReviewService.StartError.noReadyProvider
+            throw PullRequestAgenticThreadService.StartError.noReadyProvider
         })
 
         pane.viewModel.startAgenticReview()
@@ -174,7 +174,7 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(session?.isStartingAgenticReview, false)
         XCTAssertEqual(
             session?.agenticReviewError,
-            PullRequestAgenticReviewService.StartError.noReadyProvider.localizedDescription
+            PullRequestAgenticThreadService.StartError.noReadyProvider.localizedDescription
         )
 
         pane.viewModel.clearAgenticReviewError()

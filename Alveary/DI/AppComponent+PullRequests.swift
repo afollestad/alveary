@@ -13,14 +13,17 @@ extension AppComponent {
         }
     }
 
-    /// Starts the pull request pane's agentic reviews. App-scoped alongside the thread tools it
+    /// Starts the pull request pane's agentic threads. App-scoped alongside the thread tools it
     /// shares a spawn path with; the pane's view model reaches it through a closure.
-    var pullRequestAgenticReviewService: PullRequestAgenticReviewService {
+    var pullRequestAgenticThreadService: PullRequestAgenticThreadService {
         return shared {
-            PullRequestAgenticReviewService(
+            PullRequestAgenticThreadService(
                 lifecycleService: threadLifecycleService,
                 linkService: pullRequestLinkService,
+                pullRequestsService: pullRequestsService,
                 settingsService: settingsService,
+                worktreeManager: worktreeManager,
+                taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
                 providerDiscovery: cachedAgentProviderDiscoveryService,
                 startInitialPrompt: { conversation, prompt in
                     self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)

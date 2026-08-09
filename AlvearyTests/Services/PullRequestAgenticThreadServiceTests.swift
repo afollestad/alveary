@@ -7,7 +7,7 @@ import XCTest
 /// pinned provider, model, or effort that a provider no longer offers falls back to what a
 /// typed thread would get, because a footer button has nowhere to explain a refusal.
 @MainActor
-final class PullRequestAgenticReviewServiceTests: XCTestCase {
+final class PullRequestAgenticThreadServiceTests: XCTestCase {
     private func resolution(
         providerID: String? = "claude",
         storedThreadModel: String? = nil,
@@ -31,8 +31,8 @@ final class PullRequestAgenticReviewServiceTests: XCTestCase {
         resolution: ThreadDefaultResolution,
         provider: String = "claude",
         modelOptions: [AgentCLIKit.AgentModelOption] = AgentModelOptionTestFixtures.claudeModelOptions
-    ) -> PullRequestAgenticReviewService.SeedSettings {
-        PullRequestAgenticReviewService.resolveSeedSettings(
+    ) -> PullRequestAgenticThreadService.SeedSettings {
+        PullRequestAgenticThreadService.resolveSeedSettings(
             settings: settings,
             resolution: resolution,
             provider: provider,
@@ -147,20 +147,51 @@ final class PullRequestAgenticReviewServiceTests: XCTestCase {
     /// The spawned thread's first message stands in for something the user would type: the URL
     /// alone, with no shorthand or title beside it, and none of the instructions — the agent
     /// fetches those with the same tool a manual ask uses.
-    func testTheSpawnedPromptIsJustTheReviewRequestAndTheLink() {
+    func testTheSpawnedPromptIsJustTheRequestAndTheLink() {
         // swiftlint:disable:next force_unwrapping
         let url = URL(string: "https://github.com/octo/alpha/pull/7")!
 
-        let prompt = PullRequestAgenticReviewService.reviewRequestPrompt(url: url)
+        for kind in PullRequestAgenticThreadService.Kind.allCases {
+            let prompt = kind.requestPrompt(url: url)
 
-        XCTAssertEqual(prompt, "Review pull request: https://github.com/octo/alpha/pull/7")
-        XCTAssertFalse(prompt.contains(PullRequestHostToolCatalog.diffToolName))
+            XCTAssertTrue(prompt.hasSuffix("https://github.com/octo/alpha/pull/7"), prompt)
+            XCTAssertFalse(prompt.contains(PullRequestHostToolCatalog.diffToolName), prompt)
+        }
+        XCTAssertEqual(
+            PullRequestAgenticThreadService.Kind.review.requestPrompt(url: url),
+            "Review pull request: https://github.com/octo/alpha/pull/7"
+        )
+        XCTAssertEqual(
+            PullRequestAgenticThreadService.Kind.addressFeedback.requestPrompt(url: url),
+            "Address feedback on pull request: https://github.com/octo/alpha/pull/7"
+        )
+    }
+
+    /// The sidebar row has to say which job the thread is doing; both kinds spawn from the same
+    /// footer, so a shared name would leave two indistinguishable rows on one pull request.
+    func testEachKindNamesItsThreadForTheSidebar() {
+        let identifier = makePullRequestSummary(number: 7, status: .open).id
+
+        XCTAssertEqual(
+            PullRequestAgenticThreadService.Kind.review.threadName(for: identifier),
+            "Review \(identifier.displayKey)"
+        )
+        XCTAssertEqual(
+            PullRequestAgenticThreadService.Kind.addressFeedback.threadName(for: identifier),
+            "Address feedback \(identifier.displayKey)"
+        )
+    }
+
+    /// Reviewing is deliberately project-less; addressing feedback edits, tests, and pushes.
+    func testOnlyAddressingFeedbackWantsACheckout() {
+        XCTAssertFalse(PullRequestAgenticThreadService.Kind.review.needsCheckout)
+        XCTAssertTrue(PullRequestAgenticThreadService.Kind.addressFeedback.needsCheckout)
     }
 
     func testNoReadyProviderIsTheOnlyStartFailure() {
         XCTAssertEqual(
-            PullRequestAgenticReviewService.StartError.noReadyProvider.errorDescription,
-            "No agent is ready to run a review. Check the Agents settings."
+            PullRequestAgenticThreadService.StartError.noReadyProvider.errorDescription,
+            "No agent is ready to start this thread. Check the Agents settings."
         )
     }
 }

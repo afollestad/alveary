@@ -46,15 +46,27 @@ App-scoped pull-request linking plus the `alveary_host` pull request tools. `Ser
 
 - `PullRequestLinkService` is the app-scoped link store; `Alveary/ViewModels/AGENTS.md` owns its split with `PullRequestLinksViewModel`, and `Services/Threads/AGENTS.md` owns the `link_pr`/`unlink_pr` tools that write through it.
 
-### Agentic Review
+### Agentic Threads
 
-- **`PullRequestAgenticReviewService` spawns a project-less Task thread, never a project one.** Every step runs through the host tools against GitHub, so it needs no checkout — and a project worktree would have the agent reviewing whatever is checked out there rather than the pull request. `grantedRoots` stays empty for the same reason.
+`PullRequestAgenticThreadService` spawns both footer routes. `Kind` is the whole difference between them — thread name, first prompt, and whether a checkout is resolved; add a caller by using the service, never by copying it.
+
+- **A `.review` thread is project-less, never a project one.** Every step runs through the host tools against GitHub, so it needs no checkout — and a project worktree would have the agent reviewing whatever is checked out there rather than the pull request. `grantedRoots` stays empty for both kinds: the workspace root is the only grant either needs.
 - **Seed resolution degrades, it does not refuse.** A pinned provider that is no longer ready, or a model or effort the provider retired, falls back to what a typed thread would get; only "no ready provider at all" throws. The trigger is a footer button with nowhere to explain a rejection, unlike `create_thread`, whose caller can correct itself.
-- **Both review routes run one path, and the tool is the seam.** The footer spawns a thread whose first prompt is a short request — *not* the instructions — and the agent fetches those with `get_pr_review_instructions`, exactly as it does when the user asks for a review in a thread that already exists. So the guidance cannot drift, both show the same card, and only the prompt differs. Do not inline the instructions here to save a round trip.
-- **Answer as soon as the thread exists.** `startReview` returns `PullRequestAgenticReviewStart` the moment `insertTaskThread` succeeds, so the caller navigates without waiting on GitHub; linking used to precede the return and put a `gh api graphql` round trip between the footer click and the sidebar selection. Nothing may move back in front of it.
-- **`dispatch` carries the rest, and links before dispatching**, best-effort, regardless of `automaticallyLinkPullRequests`. Linking first means transcript detection finds the pull request already linked and asks no redundant "link this?" question under the prompt. A GitHub hiccup must not stop the review, and a racing auto-link resolves as `alreadyLinked`. Re-resolve the thread after that `await` rather than carrying the model across it.
+- **Both routes for a job run one path, and the instructions tool is the seam.** The footer spawns a thread whose first prompt is a short request — *not* the instructions — and the agent fetches those itself, exactly as it does when the user asks in a thread that already exists. So the guidance cannot drift, both show the same card, and only the prompt differs. Do not inline the instructions here to save a round trip.
+- **Answer as soon as the thread exists.** `start` returns `PullRequestAgenticThreadStart` the moment `insertTaskThread` succeeds, so the caller navigates without waiting on GitHub; linking used to precede the return and put a `gh api graphql` round trip between the footer click and the sidebar selection. Nothing may move back in front of it.
+- **`dispatch` carries the rest, and links before dispatching**, best-effort, regardless of `automaticallyLinkPullRequests`. Linking first means transcript detection finds the pull request already linked and asks no redundant "link this?" question under the prompt. A GitHub hiccup must not stop the thread, and a racing auto-link resolves as `alreadyLinked`. Re-resolve the thread after that `await` rather than carrying the model across it.
     - Its only consumer is the caller's error toast — navigation already unmounted the footer that would have shown a banner. Do not give it a second consumer.
-- **The pane hands over the detail it already fetched** as `knownDetail`, so the link costs no round trip on this route and the new thread does not sit empty waiting for one. Nil or naming a different pull request falls back to fetching; `Alveary/ViewModels/AGENTS.md` owns the rule.
+- **The pane hands over the detail it already fetched** as `knownDetail`, so the link costs no round trip on this route and the new thread does not sit empty waiting for one. Nil or naming a different pull request falls back to fetching; `Alveary/ViewModels/AGENTS.md` owns the rule. `.addressFeedback` also reads its head branch, so a missing detail is fetched once and handed to both.
+
+#### The Checkout Ladder
+
+`+Workspace.swift` resolves where an `.addressFeedback` thread runs: a linked thread's checkout, then one already on the head branch, then a fresh worktree in a local project, then nothing. Its doc comment owns the ordering; these are the constraints behind it.
+
+- **`thread.branch` stays nil on every rung, and so do `worktreePath` and `useWorktree`.** `cleanupOwnedTaskWorktree` computes `branchToDelete` from `branch` and `branch -D`s it when git still reports it on the worktree — here that is the user's live pull request head. A Task carries its checkout in the descriptor alone.
+- **A borrow is `.projectLocal`, whose cleanup does nothing**, so deleting the thread leaves the lender's checkout intact. Only rung 3's own worktree is `.projectWorktreeOwned`.
+- **A lender must have a source project.** A private workspace is a scratch directory rather than a checkout, and it belongs to a thread whose deletion would remove it — that filter is also what keeps the new thread from lending to itself once linking has put it in rung 1's results.
+- **Branch-match must precede creating a worktree**: `git worktree add` refuses a branch already checked out elsewhere.
+- **Every rung degrades rather than refuses**, silently. The thread already exists and the user is looking at it; the instructions have the agent check `git status` and its branch, so a private workspace makes it say so rather than edit the wrong tree.
 
 ### Instruction Tools
 

@@ -21,6 +21,13 @@ actor SidebarMockWorktreeManager: WorktreeManager {
         let expectedOID: String
     }
 
+    struct CreateFromBranchCall: Sendable, Equatable {
+        let projectPath: String
+        let threadName: String
+        let branch: String
+        let remoteName: String?
+    }
+
     struct RemoveCall: Sendable, Equatable {
         let projectPath: String
         let worktreePath: String
@@ -28,6 +35,9 @@ actor SidebarMockWorktreeManager: WorktreeManager {
     }
 
     private var recordedCreateCalls: [CreateCall] = []
+    private var recordedCreateFromBranchCalls: [CreateFromBranchCall] = []
+    private var createFromBranchInfo: WorktreeInfo?
+    private var createFromBranchError: MockError?
     private var recordedPrepareForkContextCalls: [PrepareForkContextCall] = []
     private var recordedDeleteBranchCalls: [DeleteBranchCall] = []
     private var recordedRemoveCalls: [RemoveCall] = []
@@ -57,6 +67,15 @@ actor SidebarMockWorktreeManager: WorktreeManager {
 
     func setCreateError(_ error: MockError?) {
         createError = error
+    }
+
+    func setCreateFromBranchResult(_ info: WorktreeInfo?, error: MockError? = nil) {
+        createFromBranchInfo = info
+        createFromBranchError = error
+    }
+
+    func createFromBranchCalls() -> [CreateFromBranchCall] {
+        recordedCreateFromBranchCalls
     }
 
     func setPrepareForkContextError(_ error: MockError?) {
@@ -117,7 +136,18 @@ actor SidebarMockWorktreeManager: WorktreeManager {
         branch: String,
         remoteName: String?
     ) async throws -> WorktreeInfo {
-        WorktreeInfo(path: "/tmp/worktree", branch: branch)
+        recordedCreateFromBranchCalls.append(
+            CreateFromBranchCall(
+                projectPath: projectPath,
+                threadName: threadName,
+                branch: branch,
+                remoteName: remoteName
+            )
+        )
+        if let createFromBranchError {
+            throw createFromBranchError
+        }
+        return createFromBranchInfo ?? WorktreeInfo(path: "/tmp/worktree", branch: branch)
     }
 
     func prepareForkContext(sourcePath: String, worktreePath: String) async throws {
@@ -264,6 +294,7 @@ actor SidebarMockBranchDeletionGate {
 extension SidebarMockWorktreeManager {
     enum MockError: Error, Sendable, Equatable {
         case createFailed
+        case createFromBranchFailed
         case prepareForkContextFailed
         case removeFailed
         case removeAllFailed

@@ -38,7 +38,7 @@ struct ContentViewDependencies {
     let gitService: GitService
     let diffWorkspaceStore: DiffWorkspaceStore
     let pullRequestsService: any PullRequestsService
-    let pullRequestAgenticReviewService: PullRequestAgenticReviewService
+    let pullRequestAgenticThreadService: PullRequestAgenticThreadService
     let gitHubAttachmentUploadService: any GitHubAttachmentUploadService
     let gitHubAttachmentImageURLResolver: GitHubAttachmentImageURLResolver
     let gitHubAvatarLoader: GitHubAvatarLoader
@@ -84,7 +84,7 @@ struct ContentViewDependencies {
             gitService: component.gitService,
             diffWorkspaceStore: component.diffWorkspaceStore,
             pullRequestsService: component.pullRequestsService,
-            pullRequestAgenticReviewService: component.pullRequestAgenticReviewService,
+            pullRequestAgenticThreadService: component.pullRequestAgenticThreadService,
             gitHubAttachmentUploadService: component.gitHubAttachmentUploadService,
             gitHubAttachmentImageURLResolver: component.gitHubAttachmentImageURLResolver,
             gitHubAvatarLoader: component.gitHubAvatarLoader,

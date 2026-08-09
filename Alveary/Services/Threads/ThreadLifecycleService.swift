@@ -44,6 +44,10 @@ struct TaskThreadSeed {
     let name: String?
     let pinned: Bool
     let grantedRoots: [String]
+    /// A workspace the caller already resolved, for a Task that has to start somewhere specific —
+    /// nil mints the usual private one. Whatever the caller supplies, it also owns: a failed
+    /// insert rolls back without removing it, because a borrowed checkout belongs to someone else.
+    let workspace: TaskWorkspaceDescriptor?
 
     init(
         provider: String,
@@ -53,7 +57,8 @@ struct TaskThreadSeed {
         isDraft: Bool,
         name: String? = nil,
         pinned: Bool = false,
-        grantedRoots: [String] = []
+        grantedRoots: [String] = [],
+        workspace: TaskWorkspaceDescriptor? = nil
     ) {
         self.provider = provider
         self.permissionMode = permissionMode
@@ -63,6 +68,7 @@ struct TaskThreadSeed {
         self.name = name
         self.pinned = pinned
         self.grantedRoots = grantedRoots
+        self.workspace = workspace
     }
 }
 
@@ -166,17 +172,28 @@ final class ThreadLifecycleService {
         return thread
     }
 
-    /// Creates a Task thread over a freshly minted private workspace.
+    /// Creates a Task thread over a freshly minted private workspace, or over the one the seed
+    /// carries.
     ///
     /// Unlike a Project thread, this puts a directory on disk before it persists anything, so a
     /// failed save has to remove that workspace again; an orphan would otherwise survive until the
-    /// next launch's orphan sweep.
+    /// next launch's orphan sweep. Only a workspace *this* call minted is removed on failure — a
+    /// seeded one may be a checkout another thread is still using.
     func insertTaskThread(seed: TaskThreadSeed) throws -> AgentThread {
         // Unrelated pending edits must reach the store before a failed insert rolls the context back.
         if modelContext.hasChanges {
             try modelContext.save()
         }
-        let workspace = try taskWorkspaceOwnershipService.createPrivateWorkspace()
+        let workspace: TaskWorkspaceDescriptor
+        let mintedWorkspace: TaskWorkspaceDescriptor?
+        if let seeded = seed.workspace {
+            workspace = seeded
+            mintedWorkspace = nil
+        } else {
+            let created = try taskWorkspaceOwnershipService.createPrivateWorkspace()
+            workspace = created
+            mintedWorkspace = created
+        }
         let thread = AgentThread(
             name: seed.name ?? "New task",
             hasCustomName: seed.name != nil,
@@ -206,10 +223,36 @@ final class ThreadLifecycleService {
             try saveThreadCreation(modelContext)
         } catch {
             modelContext.rollback()
-            try? taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
+            if let mintedWorkspace {
+                try? taskWorkspaceOwnershipService.removeOwnedWorkspace(mintedWorkspace)
+            }
             throw error
         }
         return thread
+    }
+
+    /// Moves a Task thread onto a workspace resolved after it was created, for a caller that had
+    /// to answer before the real one existed — the pull request pane's address-feedback route
+    /// navigates first and only then checks out the branch.
+    ///
+    /// Deliberately does not touch `branch`, `worktreePath`, or `useWorktree`. Those are the
+    /// Project-thread field family; a Task carries its checkout in the descriptor alone, and a
+    /// non-nil `branch` here would offer the user's live pull request head to `branch -D` on
+    /// permanent deletion.
+    func replaceTaskWorkspace(threadID: PersistentIdentifier, with descriptor: TaskWorkspaceDescriptor) throws {
+        let thread = try requireThread(id: threadID)
+        guard thread.effectiveMode == .task else {
+            throw SidebarViewModelError.threadMissingTaskWorkspace
+        }
+        let replaced = thread.taskWorkspaceDescriptor
+        thread.taskWorkspaceDescriptor = descriptor
+        try modelContext.save()
+        // Only after the save: the thread must never be left pointing at a directory that is
+        // already gone. A private workspace whose thread no longer names it is orphaned, and the
+        // next launch's sweep removes it, so a failure here costs disk rather than correctness.
+        if let replaced, replaced.ownershipStrategy == .privateOwned, replaced != descriptor {
+            try? taskWorkspaceOwnershipService.removeOwnedWorkspace(replaced)
+        }
     }
 
     func requireThread(id: PersistentIdentifier) throws -> AgentThread {

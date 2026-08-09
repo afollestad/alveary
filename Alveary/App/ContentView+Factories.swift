@@ -167,7 +167,8 @@ extension ContentView {
                 appState.presentUnexpectedError(message: message)
             },
             agenticReviewStarter: { identifier, url, detail in
-                try await dependencies.pullRequestAgenticReviewService.startReview(
+                try await dependencies.pullRequestAgenticThreadService.start(
+                    kind: .review,
                     identifier: identifier,
                     url: url,
                     knownDetail: detail
