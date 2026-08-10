@@ -320,7 +320,8 @@ final class ThreadLifecycleService {
                     providerID: $0.provider,
                     providerSessionID: $0.providerSessionId,
                     providerSessionProviderID: $0.providerSessionProviderId,
-                    providerSessionWorkingDirectory: $0.providerSessionWorkingDirectory
+                    providerSessionWorkingDirectory: $0.providerSessionWorkingDirectory,
+                    hasStartedProviderSession: thread.hasCompletedInitialSetup
                 )
             },
             workingDirectory: workingDirectory

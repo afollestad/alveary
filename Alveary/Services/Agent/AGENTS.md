@@ -38,6 +38,7 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 
 - Provider-native archive/unarchive/delete is a best-effort companion to Alveary's local archive and delete lifecycle. Resolve records through `AgentSessionStore`, then route through `ProviderSessionActionService`; do not let provider action failures roll back local archive, restore, or delete state.
 - **Keep missing bindings visible on delete.** A conversation whose provider session cannot be resolved leaves a live provider-side session behind, so the resolution carries it through for a diagnostic instead of dropping it.
+    - **Except when the thread never started.** `ThreadLifecycleService` sources `ProviderSessionConversationSnapshot.hasStartedProviderSession` from `hasCompletedInitialSetup`, and resolution drops those unresolved bindings — a thread whose first spawn failed has no session to strand.
 - **Gate every action on its capability**, deletion included. A provider without native deletion is skipped, not handed to the adapter's validate-only default that reports success having done nothing.
 - **A record retires its whole lineage.** `AgentSessionRecord.supersededProviderSessionIds` (see AgentCLIKit's `Runtime/AGENTS.md`) travels with the record, so removing one — as session handoff does — must archive it first or the lineage becomes unreachable.
 

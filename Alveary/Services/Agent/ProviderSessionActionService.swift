@@ -50,19 +50,25 @@ struct ProviderSessionConversationSnapshot: Equatable, Sendable {
     let providerSessionID: String?
     let providerSessionProviderID: String?
     let providerSessionWorkingDirectory: String?
+    /// Whether this conversation's thread ever completed initial setup. `false` means no provider
+    /// session can exist, so an unresolved binding is nothing to report. Defaults to `true` so a
+    /// caller that only ever snapshots started threads keeps reporting them.
+    let hasStartedProviderSession: Bool
 
     init(
         conversationID: String,
         providerID: String?,
         providerSessionID: String? = nil,
         providerSessionProviderID: String? = nil,
-        providerSessionWorkingDirectory: String? = nil
+        providerSessionWorkingDirectory: String? = nil,
+        hasStartedProviderSession: Bool = true
     ) {
         self.conversationID = conversationID
         self.providerID = providerID
         self.providerSessionID = providerSessionID
         self.providerSessionProviderID = providerSessionProviderID
         self.providerSessionWorkingDirectory = providerSessionWorkingDirectory.map(CanonicalPath.normalize)
+        self.hasStartedProviderSession = hasStartedProviderSession
     }
 
     var actionProviderID: String? {
@@ -328,6 +334,12 @@ actor AgentCLIKitProviderSessionActionService: ProviderSessionActionService {
 
             if let record = fallbackRecord(from: conversation, providerID: providerID, snapshot: snapshot) {
                 append(record, to: &records, seenRecords: &seenRecords)
+                continue
+            }
+
+            // A thread whose initial setup never completed has no provider session to strand, so
+            // its unresolved binding is a false alarm rather than something to warn about.
+            guard conversation.hasStartedProviderSession else {
                 continue
             }
 

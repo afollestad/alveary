@@ -68,6 +68,7 @@ extension SidebarViewModelTests {
             projectName: "Alveary",
             projectPath: "/tmp/alveary-project",
             conversationIDs: ["main"],
+            hasCompletedInitialSetup: true,
             archivedAt: Date(),
             provider: "codex"
         )

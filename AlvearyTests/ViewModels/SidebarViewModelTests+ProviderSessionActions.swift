@@ -12,6 +12,7 @@ extension SidebarViewModelTests {
             projectName: "Alveary",
             projectPath: "/tmp/alveary-project",
             conversationIDs: ["main"],
+            hasCompletedInitialSetup: true,
             archivedAt: nil,
             provider: "codex"
         )
@@ -85,6 +86,7 @@ extension SidebarViewModelTests {
             projectName: "Alveary",
             projectPath: "/tmp/alveary-project",
             conversationIDs: ["main"],
+            hasCompletedInitialSetup: true,
             provider: "codex",
             providerSessionId: "codex-thread",
             providerSessionProviderId: "codex",
@@ -101,6 +103,37 @@ extension SidebarViewModelTests {
                     providerSessionID: "codex-thread",
                     providerSessionProviderID: "codex",
                     providerSessionWorkingDirectory: "/tmp/alveary-project"
+                )
+            ],
+            workingDirectory: URL(fileURLWithPath: "/tmp/alveary-project", isDirectory: true)
+        )
+        let actions = await fixture.providerSessionActions.actions
+        XCTAssertEqual(actions, [
+            .resolve(snapshot),
+            .delete(snapshot)
+        ])
+    }
+
+    /// The snapshot has to carry the thread's started state, or the service cannot tell a failed first spawn's
+    /// phantom binding from a real one worth reporting.
+    func testDeleteThreadReportsNeverStartedThreadInProviderSessionSnapshot() async throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-project",
+            conversationIDs: ["main"],
+            hasCompletedInitialSetup: false,
+            provider: "codex"
+        )
+
+        try await fixture.viewModel.deleteThread(thread)
+
+        let snapshot = ProviderSessionActionSnapshot(
+            conversations: [
+                ProviderSessionConversationSnapshot(
+                    conversationID: "main",
+                    providerID: "codex",
+                    hasStartedProviderSession: false
                 )
             ],
             workingDirectory: URL(fileURLWithPath: "/tmp/alveary-project", isDirectory: true)
@@ -195,6 +228,7 @@ extension SidebarViewModelTests {
             projectName: "Alveary",
             projectPath: "/tmp/alveary-project",
             conversationIDs: ["main"],
+            hasCompletedInitialSetup: true,
             archivedAt: Date(),
             provider: "codex"
         )
@@ -222,6 +256,7 @@ extension SidebarViewModelTests {
             projectName: "Alveary",
             projectPath: "/tmp/alveary-project",
             conversationIDs: ["main"],
+            hasCompletedInitialSetup: true,
             archivedAt: Date(),
             provider: "codex",
             providerSessionId: "codex-thread",

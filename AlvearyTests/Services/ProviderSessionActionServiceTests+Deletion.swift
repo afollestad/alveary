@@ -69,6 +69,29 @@ extension ProviderSessionActionServiceTests {
         XCTAssertEqual(diagnostics.map(\.message), ["No provider session binding is available."])
     }
 
+    /// A thread whose first spawn failed never bound a provider session, so the unresolved binding
+    /// is not something to warn about — deleting it should be silent.
+    func testDeleteStaysSilentForConversationsWhoseThreadNeverStarted() async throws {
+        let state = ProviderActionAdapterState()
+        let service = try await makeService(records: [], state: state)
+
+        let resolution = await service.resolveSessions(matching: ProviderSessionActionSnapshot(
+            conversations: [
+                ProviderSessionConversationSnapshot(
+                    conversationID: "main",
+                    providerID: "codex",
+                    hasStartedProviderSession: false
+                )
+            ],
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        ))
+        let diagnostics = await service.deleteSessions(resolution)
+
+        XCTAssertEqual(resolution.records, [])
+        XCTAssertEqual(resolution.missingBindings, [])
+        XCTAssertEqual(diagnostics, [])
+    }
+
     func testDeleteSkipsProvidersWithoutNativeDeletion() async throws {
         let state = ProviderActionAdapterState()
         let service = try await makeService(
