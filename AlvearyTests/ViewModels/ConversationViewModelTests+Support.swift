@@ -121,6 +121,9 @@ actor MockAgentsManager: AgentsManager {
     private var failsSendWhenCurrentTaskIsCancelled = false
     private var failsDestroyWhenCurrentTaskIsCancelled = false
     private var pausesNextSpawn = false
+    /// Runs inside `spawn` before it can fail, so a test can reproduce the runtime's ordering:
+    /// installing the spawn's event buffer arms the turn before the provider process starts.
+    private var spawnPrologue: (@MainActor @Sendable () -> Void)?
     private var spawnEntered = false
     private var spawnCancellationObserved = false
     private var spawnEntryContinuation: CheckedContinuation<Void, Never>?
@@ -178,6 +181,9 @@ actor MockAgentsManager: AgentsManager {
 
     func spawn(id: String, config: AgentSpawnConfig, forkSession: Bool) async throws {
         recordedSpawnCalls.append(SpawnCall(id: id, config: config, forkSession: forkSession))
+        if let spawnPrologue {
+            await MainActor.run { spawnPrologue() }
+        }
         if pausesNextSpawn {
             pausesNextSpawn = false
             spawnEntered = true
@@ -340,6 +346,8 @@ actor MockAgentsManager: AgentsManager {
     func enqueueSendError(_ error: Error) { queuedSendResults.append(.failure(error)) }
 
     func enqueueSpawnError(_ error: Error) { queuedSpawnErrors.append(error) }
+
+    func setSpawnPrologue(_ prologue: (@MainActor @Sendable () -> Void)?) { spawnPrologue = prologue }
 
     func enqueueDestroyError(_ error: Error) { queuedDestroyErrors.append(error) }
 
