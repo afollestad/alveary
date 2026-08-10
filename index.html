@@ -37,21 +37,16 @@
     <meta name="twitter:image:alt"
         content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff, and a sidebar of pinned threads, projects, and tasks.">
 
-    <!-- The icon mirrors the app icon, which is drawn on a gold plate in light
-         appearance and a graphite one in dark, so it ships in both. The media
-         queries match the theme stylesheets below; scripts/dark-mode.js flips
-         them the same way when the toggle overrides the system preference. The
-         dark pair comes first so a browser that ignores media on an icon link
-         (it is honored inconsistently) settles on the light one. -->
-    <link rel="icon" href="favicon-dark.svg" type="image/svg+xml" data-theme="dark"
-        media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="favicon-dark.png" type="image/png" sizes="96x96" data-theme="dark"
-        media="(prefers-color-scheme: dark)">
-    <link rel="icon" href="favicon-light.svg" type="image/svg+xml" data-theme="light"
-        media="(prefers-color-scheme: no-preference), (prefers-color-scheme: light)">
-    <link rel="icon" href="favicon-light.png" type="image/png" sizes="96x96" data-theme="light"
-        media="(prefers-color-scheme: no-preference), (prefers-color-scheme: light)">
-    <!-- Home screen icons can't follow the theme, so this one stays the light plate. -->
+    <!-- The icon mirrors the app icon and stays on the gold plate in both
+         appearances. A graphite plate is the obvious dark counterpart, but Safari
+         draws its own light backdrop behind any favicon too dark for its dark tab
+         bar — an opaque graphite square still comes out ringed in white, and the
+         plate has to reach roughly #7A7A72 before Safari leaves it alone. Safari
+         also reads these links once at load and ignores every later change to
+         them, so the toggle could not flip a themed icon anyway. Gold reads
+         cleanly against both tab bars and needs neither. -->
+    <link rel="icon" href="favicon-light.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon-light.png" type="image/png" sizes="96x96">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
     <link rel="stylesheet" href="styles/spectre.min.css">

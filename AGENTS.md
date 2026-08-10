@@ -76,18 +76,25 @@ loading, and a working no-JS page.
 
 ### Icons
 
-`favicon-light.*` and `favicon-dark.*` mirror the app icon: a gold plate under the
-dark bee, a graphite plate under the gold one. The plate gradients come from
-`.app-icon` in the theme sheets — if those change, re-export the icons. Each SVG
-embeds its bee as a 96px PNG; the `.png` files are the same artwork rasterized for
-browsers that don't take SVG icons.
+`favicon-light.*` mirrors the app icon: the dark bee on a gold plate. The plate
+gradient comes from `.app-icon` in the theme sheets — if that changes, re-export
+the icons. The SVG embeds its bee as a 96px PNG; `favicon-light.png` is the same
+artwork rasterized for browsers that don't take SVG icons.
 
-Icons are the exception to the media-scoping rule above: browsers honor `media` on
-`rel="icon"` inconsistently and settle on one icon rather than re-running the query
-later, so `dark-mode.js` applies them on *every* theme change, override or not, and
-re-inserts each link to make the browser look again. The dark pair is listed first
-in `<head>` so a browser that ignores `media` entirely falls back to the light one.
-`apple-touch-icon.png` stays light — home screen icons can't follow the theme.
+Icons are the exception to the media-scoping rule above — they aren't themed at
+all, and deliberately so. A graphite plate is the obvious dark counterpart, but
+Safari draws its own light backdrop behind any favicon too dark for its dark tab
+bar; even a fully opaque graphite square comes out ringed in white, and the plate
+has to reach roughly `#7A7A72` before Safari leaves it alone. Safari also reads
+`rel="icon"` once at load and ignores every later change to those links, so the
+toggle can't flip a themed icon anyway — replacing the `href`, or removing the
+links and inserting fresh ones, both leave the tab icon untouched. Gold reads
+cleanly against both tab bars, so it is the only plate shipped, and
+`apple-touch-icon.png` matches it.
+
+Export the `.png` files with **transparent** corners. The rounded plate leaves the
+corners empty, and a rasterizer that flattens onto white bakes an opaque white
+matte into them that shows as light corner artifacts in the tab bar.
 
 ### Link preview
 

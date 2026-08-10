@@ -49,20 +49,6 @@
         }
     }
 
-    // Icon links carry the same media queries, but browsers honor media on
-    // rel="icon" inconsistently and settle on one icon rather than re-running
-    // the queries later. So this runs on every theme change, override or not,
-    // and re-inserts each link to make the browser look again.
-    function applyIcons(theme) {
-        var icons = document.querySelectorAll('link[rel="icon"][data-theme]');
-        for (var i = 0; i < icons.length; i++) {
-            var icon = icons[i];
-            icon.media = icon.getAttribute('data-theme') === theme ? 'all' : 'not all';
-            icon.parentNode.removeChild(icon);
-            document.head.appendChild(icon);
-        }
-    }
-
     function applyTheme(theme) {
         if (theme === 'dark') {
             darkSheet.media = 'all';
@@ -80,11 +66,10 @@
     // Without a stored override the stylesheets, the screenshot sources, and the
     // theme-color metas are all media-scoped, so the browser follows the OS on
     // its own — including live appearance changes. Only an override needs
-    // applying here. The icons are the exception noted above.
+    // applying here.
     if (stored) {
         applyTheme(currentTheme);
     }
-    applyIcons(currentTheme);
 
     document.addEventListener('DOMContentLoaded', function () {
         // The <picture> elements didn't exist when an override was applied above.
@@ -107,18 +92,16 @@
             stored = currentTheme;
             writeStored(currentTheme);
             applyTheme(currentTheme);
-            applyIcons(currentTheme);
             syncPressed();
         });
 
         // With no stored override the media-scoped stylesheets and screenshot
-        // sources follow OS appearance changes on their own, but the icons need
-        // the nudge, and currentTheme (with it the toggle's next-click direction
-        // and aria-pressed) would go stale.
+        // sources follow OS appearance changes on their own, but currentTheme
+        // (with it the toggle's next-click direction and aria-pressed) would go
+        // stale.
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
             if (stored) return;
             currentTheme = e.matches ? 'dark' : 'light';
-            applyIcons(currentTheme);
             syncPressed();
         });
     });
