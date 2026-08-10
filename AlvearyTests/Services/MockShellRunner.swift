@@ -26,6 +26,7 @@ actor MockShellRunner: ShellRunner {
     private let defaultResponse: Response
     private(set) var invocations: [Invocation]
     private var queuedResponses: [Response]
+    private var responder: (@Sendable (Invocation) -> Response?)?
     private var gate: MockShellRunnerGate?
 
     init(
@@ -42,6 +43,14 @@ actor MockShellRunner: ShellRunner {
         queuedResponses.append(response)
     }
 
+    /// Answers by inspecting the invocation instead of by arrival order, for callers that fan out:
+    /// their legs reach the runner in whatever order the task group schedules them, so a FIFO queue
+    /// would hand a leg another leg's response. Consulted first; returning nil falls back to the
+    /// queue and then the default.
+    func setResponder(_ responder: (@Sendable (Invocation) -> Response?)?) {
+        self.responder = responder
+    }
+
     /// Holds every subsequent `run` open after it has recorded its invocation, so a
     /// test can observe a call in flight — needed to prove concurrent callers share
     /// one spawn rather than each starting their own.
@@ -55,20 +64,20 @@ actor MockShellRunner: ShellRunner {
         in directory: String?,
         options: ShellRunOptions
     ) async throws -> ShellResult {
-        invocations.append(
-            Invocation(
-                executable: executable,
-                args: args,
-                directory: directory,
-                environment: options.environment,
-                timeout: options.timeout,
-                stdoutLimitBytes: options.stdoutLimitBytes,
-                stderrLimitBytes: options.stderrLimitBytes,
-                standardInput: options.standardInput
-            )
+        let invocation = Invocation(
+            executable: executable,
+            args: args,
+            directory: directory,
+            environment: options.environment,
+            timeout: options.timeout,
+            stdoutLimitBytes: options.stdoutLimitBytes,
+            stderrLimitBytes: options.stderrLimitBytes,
+            standardInput: options.standardInput
         )
+        invocations.append(invocation)
 
-        let response = queuedResponses.isEmpty ? defaultResponse : queuedResponses.removeFirst()
+        let response = responder?(invocation)
+            ?? (queuedResponses.isEmpty ? defaultResponse : queuedResponses.removeFirst())
         await gate?.wait()
         switch response {
         case .success(let result):

@@ -146,8 +146,8 @@ struct PullRequestSummary: Identifiable, Equatable, Sendable, Codable {
     }
 }
 
-/// One involvement search bucket. Callers ask for the buckets the visible tab renders and
-/// they travel in a single batched query; see the fetch bullets in `Alveary/Services/Git/AGENTS.md`.
+/// One involvement search bucket. Callers ask for the buckets the visible tab renders and each
+/// one is searched by its own request; see the fetch bullets in `Alveary/Services/Git/AGENTS.md`.
 ///
 /// String-backed so the list cache can key its stored buckets readably.
 enum PullRequestInvolvementBucket: String, Sendable, Hashable, CaseIterable, Codable {
@@ -159,6 +159,19 @@ enum PullRequestInvolvementBucket: String, Sendable, Hashable, CaseIterable, Cod
     /// cannot leave the document and the `-f` arguments disagreeing.
     var queryVariableName: String {
         rawValue
+    }
+
+    /// Names the involvement in a warning about a bucket that could not be loaded; `rawValue`
+    /// would say "requested", which reads as a truncated sentence rather than an involvement.
+    var involvementDisplayName: String {
+        switch self {
+        case .authored:
+            return "authored"
+        case .reviewRequested:
+            return "review-requested"
+        case .reviewed:
+            return "reviewed"
+        }
     }
 
     /// `status` nil searches every state, which is GitHub's own default.
@@ -247,6 +260,11 @@ struct PullRequestListResult: Equatable, Sendable {
     }
 }
 
+/// One bucket's fetch outcome. Carries the concrete error type rather than `any Error` because
+/// these cross task-group boundaries — in the service's own fan-out and in the screen's — and so
+/// have to be `Sendable`; the mapping happens in the child task.
+typealias PullRequestBucketOutcome = Result<PullRequestListResult, PullRequestsServiceError>
+
 enum PullRequestReviewEvent: String, Sendable, Equatable {
     case approve = "APPROVE"
     case requestChanges = "REQUEST_CHANGES"
@@ -285,12 +303,15 @@ extension PullRequestsServiceError: LocalizedError {
 }
 
 protocol PullRequestsService: Sendable {
-    /// Lists pull requests involving the authenticated user, in one batched request.
+    /// Lists pull requests involving the authenticated user, one search per requested bucket.
     ///
     /// Callers ask only for the buckets they render, so a tab showing one involvement does not
     /// pay for the other two. `status` narrows every requested bucket the same way; nil searches
     /// every state. There is deliberately no defaulted overload — an implicit bucket set or
     /// status would let a call site silently fetch something other than what it displays.
+    ///
+    /// Several buckets degrade to a partial result: a bucket that failed is *absent* from
+    /// `summariesByBucket` and named in `warnings`, and only every bucket failing throws.
     func listInvolvedPullRequests(
         buckets: Set<PullRequestInvolvementBucket>,
         status: PullRequestStatus?

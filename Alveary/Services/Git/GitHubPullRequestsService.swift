@@ -5,6 +5,14 @@ import Foundation
 actor GitHubPullRequestsService: PullRequestsService {
     private static let maxTransientRetries = 2
 
+    /// What one list or detail attempt may take, and what the whole call may take including
+    /// retries and their backoff. Both sit under the 30 seconds the host-tool bridge allows a
+    /// tool call, so a wedged `gh` fails as its own named timeout with room left to decode and
+    /// merge — at 30 seconds per attempt the bridge always won the race and replaced every
+    /// cause with a generic "Host tool call timed out."
+    private static let readAttemptTimeout = Duration.seconds(20)
+    private static let readRetryBudget = Duration.seconds(25)
+
     private let shellRunner: any ShellRunner
     private let executableResolver: any ExecutablePathResolving
     private let decoder: JSONDecoder
@@ -27,18 +35,16 @@ actor GitHubPullRequestsService: PullRequestsService {
         buckets: Set<PullRequestInvolvementBucket>,
         status: PullRequestStatus?
     ) async throws -> PullRequestListResult {
-        guard !buckets.isEmpty else {
+        let ordered = Self.orderedBuckets(buckets)
+        guard !ordered.isEmpty else {
             return PullRequestListResult(summariesByBucket: [:], warnings: [])
         }
         let ghExecutable = try await resolveGitHubCLI()
-        let result = try await runGitHubCLIRetryingTransientFailures(
-            executable: ghExecutable,
-            args: Self.listArgs(buckets: buckets, status: status),
-            timeout: .seconds(30),
-            stdoutLimitBytes: 4 * 1024 * 1024
-        )
-        let decoded = try decodeGraphQL(ListGraphQLData.self, from: result)
-        return Self.makeListResult(data: decoded.data, warnings: decoded.warnings, buckets: buckets)
+        guard ordered.count > 1 else {
+            return try await listBucket(ordered[0], status: status, ghExecutable: ghExecutable)
+        }
+        let outcomes = await fetchBucketsConcurrently(ordered, status: status, ghExecutable: ghExecutable)
+        return try Self.mergeBucketOutcomes(outcomes)
     }
 
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {
@@ -46,8 +52,9 @@ actor GitHubPullRequestsService: PullRequestsService {
         let result = try await runGitHubCLIRetryingTransientFailures(
             executable: ghExecutable,
             args: Self.detailArgs(for: id),
-            timeout: .seconds(30),
-            stdoutLimitBytes: 8 * 1024 * 1024
+            timeout: Self.readAttemptTimeout,
+            stdoutLimitBytes: 8 * 1024 * 1024,
+            retryBudget: Self.readRetryBudget
         )
         let decoded = try decodeGraphQL(DetailGraphQLData.self, from: result)
         guard let node = decoded.data.repository?.pullRequest else {
@@ -72,6 +79,53 @@ actor GitHubPullRequestsService: PullRequestsService {
         }
         return result.stdout
     }
+
+    /// One `gh` invocation per bucket, in parallel. GitHub runs a batched request's aliased
+    /// searches *serially*, so three buckets in one request cost about three searches while three
+    /// requests cost about one — which is what keeps a multi-bucket call inside the host-tool
+    /// bridge's budget. Legs land as `Result`s so one refusing bucket degrades the answer instead
+    /// of failing it; `mergeBucketOutcomes` owns that contract.
+    private func fetchBucketsConcurrently(
+        _ buckets: [PullRequestInvolvementBucket],
+        status: PullRequestStatus?,
+        ghExecutable: String
+    ) async -> [PullRequestInvolvementBucket: PullRequestBucketOutcome] {
+        await withTaskGroup(of: (PullRequestInvolvementBucket, PullRequestBucketOutcome).self) { group in
+            for bucket in buckets {
+                group.addTask {
+                    do {
+                        let result = try await self.listBucket(bucket, status: status, ghExecutable: ghExecutable)
+                        return (bucket, .success(result))
+                    } catch let error as PullRequestsServiceError {
+                        return (bucket, .failure(error))
+                    } catch {
+                        return (bucket, .failure(.transport(error.localizedDescription)))
+                    }
+                }
+            }
+            var outcomes: [PullRequestInvolvementBucket: PullRequestBucketOutcome] = [:]
+            for await (bucket, outcome) in group {
+                outcomes[bucket] = outcome
+            }
+            return outcomes
+        }
+    }
+
+    private func listBucket(
+        _ bucket: PullRequestInvolvementBucket,
+        status: PullRequestStatus?,
+        ghExecutable: String
+    ) async throws -> PullRequestListResult {
+        let result = try await runGitHubCLIRetryingTransientFailures(
+            executable: ghExecutable,
+            args: Self.listArgs(buckets: [bucket], status: status),
+            timeout: Self.readAttemptTimeout,
+            stdoutLimitBytes: 4 * 1024 * 1024,
+            retryBudget: Self.readRetryBudget
+        )
+        let decoded = try decodeGraphQL(ListGraphQLData.self, from: result)
+        return Self.makeListResult(data: decoded.data, warnings: decoded.warnings, buckets: [bucket])
+    }
 }
 
 // Shared shell plumbing for the reads above and the mutations in
@@ -87,18 +141,26 @@ extension GitHubPullRequestsService {
     /// Read-only calls retry transient GitHub 5xx responses (the GraphQL search
     /// endpoint 502s intermittently). Mutations such as review submission must not
     /// use this — they are not idempotent.
+    ///
+    /// `retryBudget` bounds the attempts *and their backoff* together; nil lets them run as long
+    /// as `timeout` times the attempt count allows. A caller working under someone else's deadline
+    /// passes one so its own failure arrives first and names the cause.
     func runGitHubCLIRetryingTransientFailures(
         executable: String,
         args: [String],
         timeout: Duration,
-        stdoutLimitBytes: Int? = 64 * 1024
+        stdoutLimitBytes: Int? = 64 * 1024,
+        retryBudget: Duration? = nil
     ) async throws -> ShellResult {
+        let clock = ContinuousClock()
+        let startedAt = clock.now
         var attempt = 0
+        var attemptTimeout = timeout
         while true {
             let result = try await runGitHubCLI(
                 executable: executable,
                 args: args,
-                timeout: timeout,
+                timeout: attemptTimeout,
                 stdoutLimitBytes: stdoutLimitBytes
             )
             guard !result.succeeded,
@@ -107,13 +169,42 @@ extension GitHubPullRequestsService {
                 return result
             }
             attempt += 1
+            let backoff = transientRetryDelay * attempt
+            if let retryBudget {
+                guard let nextTimeout = Self.nextRetryAttemptTimeout(
+                    elapsed: clock.now - startedAt,
+                    nextBackoff: backoff,
+                    attemptTimeout: timeout,
+                    budget: retryBudget
+                ) else {
+                    return result
+                }
+                attemptTimeout = nextTimeout
+            }
             do {
-                try await Task.sleep(for: transientRetryDelay * attempt)
+                try await Task.sleep(for: backoff)
             } catch {
                 // Cancelled mid-backoff: surface the last failure instead of retrying.
                 return result
             }
         }
+    }
+
+    /// How long the next retry may run, or nil to stop and return the failure already in hand.
+    /// Under two seconds an attempt can only time out, and doing that *past* the budget is the
+    /// case this exists to prevent — a caller's own deadline would fire first and replace a
+    /// nameable failure with a generic one.
+    static func nextRetryAttemptTimeout(
+        elapsed: Duration,
+        nextBackoff: Duration,
+        attemptTimeout: Duration,
+        budget: Duration
+    ) -> Duration? {
+        let remaining = budget - elapsed - nextBackoff
+        guard remaining >= .seconds(2) else {
+            return nil
+        }
+        return min(attemptTimeout, remaining)
     }
 
     static func isTransientServerFailure(_ result: ShellResult) -> Bool {
@@ -126,13 +217,17 @@ extension GitHubPullRequestsService {
     /// `directory` is nil for the `gh api` calls, which name their repository
     /// explicitly; `pr create` resolves the repository from the working
     /// directory instead, so it is the one caller that passes it.
+    ///
+    /// Nothing here feeds `gh` on stdin, so the default is `.nullDevice`: inheriting it lets a
+    /// credential or keychain prompt block the child until the caller's timeout, turning a
+    /// one-keystroke re-auth into an unexplained hang.
     func runGitHubCLI(
         executable: String,
         args: [String],
         in directory: String? = nil,
         timeout: Duration,
         stdoutLimitBytes: Int? = 64 * 1024,
-        standardInput: ShellStandardInput = .inherit
+        standardInput: ShellStandardInput = .nullDevice
     ) async throws -> ShellResult {
         do {
             return try await shellRunner.run(

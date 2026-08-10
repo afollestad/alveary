@@ -21,6 +21,50 @@ extension GitHubPullRequestsService {
         return PullRequestListResult(summariesByBucket: summariesByBucket, warnings: warnings)
     }
 
+    /// Folds the legs of a fan-out list fetch into the single result the caller asked for.
+    ///
+    /// A bucket that *failed* is absent from `summariesByBucket`, which is what distinguishes it
+    /// from a SAML-forbidden one — that decodes as null and stays keyed as loaded-and-empty, since
+    /// the caller must not refetch it forever. Every failure is also named in `warnings`, so a
+    /// caller that only reads those still learns the answer is short a bucket.
+    ///
+    /// Only every leg failing throws, and then with the first failure in `allCases` order so which
+    /// leg finished first cannot change the error the caller sees.
+    static func mergeBucketOutcomes(
+        _ outcomes: [PullRequestInvolvementBucket: PullRequestBucketOutcome]
+    ) throws -> PullRequestListResult {
+        var summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]] = [:]
+        var warnings: [String] = []
+        var failures: [(bucket: PullRequestInvolvementBucket, error: PullRequestsServiceError)] = []
+        var succeeded = false
+        for bucket in PullRequestInvolvementBucket.allCases {
+            switch outcomes[bucket] {
+            case .success(let result):
+                succeeded = true
+                summariesByBucket.merge(result.summariesByBucket) { _, leg in leg }
+                // Every leg carries the same SAML message, so without this a three-bucket call
+                // would report it three times.
+                for warning in result.warnings where !warnings.contains(warning) {
+                    warnings.append(warning)
+                }
+            case .failure(let error):
+                failures.append((bucket, error))
+            case nil:
+                continue
+            }
+        }
+        if !succeeded, let failure = failures.first {
+            throw failure.error
+        }
+        for failure in failures {
+            warnings.append(
+                "Could not load \(failure.bucket.involvementDisplayName) pull requests: "
+                    + failure.error.localizedDescription
+            )
+        }
+        return PullRequestListResult(summariesByBucket: summariesByBucket, warnings: warnings)
+    }
+
     private static func node(for bucket: PullRequestInvolvementBucket, in data: ListGraphQLData) -> SearchBucketNode? {
         switch bucket {
         case .authored:

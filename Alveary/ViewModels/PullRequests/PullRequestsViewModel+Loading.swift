@@ -8,12 +8,6 @@ struct PullRequestBucketState: Equatable {
     var fetchedAt: Date
 }
 
-/// One bucket's fetch outcome. Carries the concrete error type rather than `any Error` because
-/// these cross a task-group boundary and so have to be `Sendable`; the mapping happens in the
-/// child task, and a cancelled leg's wrapped error is discarded by `load`'s cancellation guard
-/// before it can be read.
-typealias PullRequestBucketOutcome = Result<PullRequestListResult, PullRequestsServiceError>
-
 // MARK: - Loading
 
 extension PullRequestsViewModel {

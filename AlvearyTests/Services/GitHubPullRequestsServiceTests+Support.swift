@@ -17,6 +17,12 @@ func makeGitHubPullRequestsService(
     )
 }
 
+/// A runner that answers *every* invocation the same way, which is what a multi-bucket list needs:
+/// its legs fan out, so a single queued response would only reach whichever leg ran first.
+func makeUniformShellRunner(_ result: ShellResult) -> MockShellRunner {
+    MockShellRunner(defaultResponse: .success(result))
+}
+
 func assertListFailure(
     _ expected: PullRequestsServiceError,
     stderr: String,
@@ -24,8 +30,7 @@ func assertListFailure(
     file: StaticString = #filePath,
     line: UInt = #line
 ) async {
-    let shell = MockShellRunner()
-    await shell.enqueue(.success(pullRequestsShellResult(stderr: stderr, exitCode: exitCode)))
+    let shell = makeUniformShellRunner(pullRequestsShellResult(stderr: stderr, exitCode: exitCode))
     let service = makeGitHubPullRequestsService(shell: shell)
 
     do {
@@ -52,6 +57,15 @@ func assertPullRequestsServiceThrows(
     } catch {
         XCTFail("Unexpected error \(error)", file: file, line: line)
     }
+}
+
+/// The one `-f <bucket>=<query>` argument a fan-out leg carries, naming which bucket it searched.
+func searchArgument(_ invocation: MockShellRunner.Invocation) -> String? {
+    invocation.args.first(where: isSearchArgument)
+}
+
+func isSearchArgument(_ argument: String) -> Bool {
+    PullRequestInvolvementBucket.allCases.contains { argument.hasPrefix("\($0.queryVariableName)=") }
 }
 
 func pullRequestsShellResult(
