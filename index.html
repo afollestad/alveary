@@ -16,12 +16,14 @@
     <meta property="og:url" content="https://alveary.af.codes">
     <meta property="og:description"
         content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
-    <!-- images/og-image.png is the hero screenshot letterboxed onto an opaque
-         #0b0b0a canvas (the dark --bg) at the 1200x630 link previews expect.
-         Pointing at the WebP instead doesn't work: crawler support for WebP is
-         patchy, filling 1.91:1 from 1952x1136 would crop the window, and its
-         rounded corners are transparent, which previews composite unpredictably.
-         Re-export it whenever the hero screenshot changes. -->
+    <!-- images/og-image.png is the dark hero screenshot letterboxed onto an
+         opaque #0b0b0a canvas (the dark --bg) at the 1200x630 link previews
+         expect. A preview can't know the reader's theme, so it always gets the
+         dark shot on its matching canvas. Pointing at the WebP instead doesn't
+         work: crawler support for WebP is patchy, filling 1.91:1 from 1952x1136
+         would crop the window, and its rounded corners are transparent, which
+         previews composite unpredictably. Re-export it whenever the hero
+         screenshot changes. -->
     <meta property="og:image" content="https://alveary.af.codes/images/og-image.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
@@ -35,8 +37,21 @@
     <meta name="twitter:image:alt"
         content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff, and a sidebar of pinned threads, projects, and tasks.">
 
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="favicon.png" type="image/png" sizes="96x96">
+    <!-- The icon mirrors the app icon, which is drawn on a gold plate in light
+         appearance and a graphite one in dark, so it ships in both. The media
+         queries match the theme stylesheets below; scripts/dark-mode.js flips
+         them the same way when the toggle overrides the system preference. The
+         dark pair comes first so a browser that ignores media on an icon link
+         (it is honored inconsistently) settles on the light one. -->
+    <link rel="icon" href="favicon-dark.svg" type="image/svg+xml" data-theme="dark"
+        media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="favicon-dark.png" type="image/png" sizes="96x96" data-theme="dark"
+        media="(prefers-color-scheme: dark)">
+    <link rel="icon" href="favicon-light.svg" type="image/svg+xml" data-theme="light"
+        media="(prefers-color-scheme: no-preference), (prefers-color-scheme: light)">
+    <link rel="icon" href="favicon-light.png" type="image/png" sizes="96x96" data-theme="light"
+        media="(prefers-color-scheme: no-preference), (prefers-color-scheme: light)">
+    <!-- Home screen icons can't follow the theme, so this one stays the light plate. -->
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
     <link rel="stylesheet" href="styles/spectre.min.css">
@@ -105,10 +120,18 @@
             </div>
 
             <!-- Window screenshots are cropped to the window itself; the rounded
-                 corners are transparent, so .screenshot draws no frame of its own. -->
-            <img class="screenshot screenshot-hero" src="images/screenshot-main.webp"
-                alt="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff and a commit button, and a sidebar of pinned threads, projects, and tasks."
-                width="1952" height="1136" decoding="async" fetchpriority="high">
+                 corners are transparent, so .screenshot draws no frame of its own.
+                 Each ships in both appearances: the dark shot is the <source>, so
+                 the light one stays the <img> fallback and only the matching
+                 appearance is ever downloaded. scripts/dark-mode.js flips the
+                 source's media when the toggle overrides the system preference. -->
+            <picture>
+                <source srcset="images/screenshot-main-dark.webp" type="image/webp" data-theme="dark"
+                    media="(prefers-color-scheme: dark)">
+                <img class="screenshot screenshot-hero" src="images/screenshot-main-light.webp"
+                    alt="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff and a commit button, and a sidebar of pinned threads, projects, and tasks."
+                    width="1952" height="1136" decoding="async" fetchpriority="high">
+            </picture>
         </div>
     </section>
 
@@ -124,9 +147,13 @@
                     </p>
                 </div>
             </div>
-            <img class="screenshot" src="images/screenshot-scheduled-tasks.webp"
-                alt="The Scheduled tab, listing recurring agent tasks with their cadence, next run time, and run, edit, and delete controls, with the task editor open beside it for the instructions, schedule, and workspace."
-                width="1952" height="1136" loading="lazy" decoding="async">
+            <picture>
+                <source srcset="images/screenshot-scheduled-tasks-dark.webp" type="image/webp" data-theme="dark"
+                    media="(prefers-color-scheme: dark)">
+                <img class="screenshot" src="images/screenshot-scheduled-tasks-light.webp"
+                    alt="The Scheduled tab, listing recurring agent tasks with their cadence, next run time, and run, edit, and delete controls, with the task editor open beside it for the instructions, schedule, and workspace."
+                    width="1952" height="1136" loading="lazy" decoding="async">
+            </picture>
         </div>
     </section>
 
@@ -142,9 +169,13 @@
                     </p>
                 </div>
             </div>
-            <img class="screenshot" src="images/screenshot-pull-requests.webp"
-                alt="The Pull requests tab: pull requests on the left grouped into authored, pending review, and previously reviewed, and a detail pane on the right with the description, linked threads, reviewers, and checks."
-                width="1952" height="1136" loading="lazy" decoding="async">
+            <picture>
+                <source srcset="images/screenshot-pull-requests-dark.webp" type="image/webp" data-theme="dark"
+                    media="(prefers-color-scheme: dark)">
+                <img class="screenshot" src="images/screenshot-pull-requests-light.webp"
+                    alt="The Pull requests tab: pull requests on the left grouped into authored, pending review, and previously reviewed, and a detail pane on the right with the description, linked threads, reviewers, and checks."
+                    width="1952" height="1136" loading="lazy" decoding="async">
+            </picture>
         </div>
     </section>
 

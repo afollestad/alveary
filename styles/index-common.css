@@ -287,6 +287,13 @@ h1 {
 
 /* Screenshots ------------------------------------------------------------ */
 
+/* Each shot is wrapped in a <picture> so it can carry a dark variant. Left
+   inline it would put the block-level image in an inline box, adding a
+   line-height gap under it. */
+picture {
+    display: block;
+}
+
 /* The shots are cropped to the window, whose own rounded corners are
    transparent — so no border or radius here; drop-shadow follows the alpha and
    rounds the shadow to match. */
