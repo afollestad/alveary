@@ -11,6 +11,6 @@ These instructions cover Claude-related Alveary code under `Alveary/Services/Age
 - Claude resume checks and transcript path construction must use `AgentCLIKit.ClaudePathEncoder`.
 - Treat Claude permission and collaboration updates from the stream as the live runtime source of truth:
     - **Sync `system/init` and `system/status`.** When Claude emits `permissionMode`, update both the in-memory runtime mode and the persisted thread picker state.
-    - **Keep plan resumes in plan** — see the `spawnPlanModeOverride` bullet in `Alveary/ViewModels/AGENTS.md`.
+    - **Keep plan resumes in plan** — see the `spawnPlanModeOverride` bullet in `Alveary/ViewModels/Conversation/AGENTS.md`.
     - **Restore fallback mode after plan exit.** Track the last non-plan mode so Alveary can fall back to it if `ExitPlanMode` succeeds but no later status event arrives before the turn resolves.
 - Claude event decoding details, including local-command caveats, interruption markers, deferred-tool attachments, hook failures, and context-compaction events, belong in `AgentCLIKit` tests and docs.

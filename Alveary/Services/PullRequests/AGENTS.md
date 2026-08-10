@@ -16,7 +16,7 @@ App-scoped pull-request linking plus the `alveary_host` pull request tools. `Ser
 - **`mark_pr_ready` and `mark_pr_draft` are one reversible pair, and each names the other as its undo.** Both mutations are GraphQL-only, so a detail without a node id refuses instead of acting — the same case where the footer drops both buttons; `Services/Git/AGENTS.md` owns the mutations.
 - **Thread IDs are GraphQL node ids from the read tools.** No tool accepts a REST comment id — the handler resolves reply targets itself — so a model can only name a thread it actually read.
 - **Keep `list_involved_prs` and the threads feature's `list_linked_prs` telling each other apart.** They list pull requests from different sources — a live GitHub search of the user's involvement versus Alveary's hand-linked bookmarks for one thread — and an earlier `list_prs` read as the generic default beside `list_linked_prs`, so models picked the wrong one for "what am I working on". Naming the sibling was not enough: `list_linked_prs` also has to refuse the generic ask in its own words, because answering it returns an empty list that reads as truth. Each description names the other, both fragments state the split, and `AlvearyHostToolCatalogTests` pins it. Any third pull-request listing tool owes the same treatment.
-- **A successful mutation announces itself once, from `handle`.** The pane cannot see an agent's write, and posting per handler is a step a new tool would forget; `propose_pr_review` is excluded because it changes nothing on GitHub. `Alveary/ViewModels/AGENTS.md` owns what the announcement drives.
+- **A successful mutation announces itself once, from `handle`.** The pane cannot see an agent's write, and posting per handler is a step a new tool would forget; `propose_pr_review` is excluded because it changes nothing on GitHub. `Alveary/ViewModels/PullRequests/AGENTS.md` owns what the announcement drives.
 - **"Involved" is not "mine".** The reviewing buckets return pull requests other people opened that await this user's review, so no name or copy may call the results the user's own — that phrasing had the model skipping review requests when asked what needed its attention.
 - **`list_involved_prs` is open-only and fetches just its filter's buckets.** It answers "what is on my plate", where a merged or closed pull request is noise, and unlike the screen it has no user session carrying a status choice — so it passes `.open` unconditionally and the description says drafts, merged, and closed are never listed, or the model reads an absent pull request as deleted. `PullRequestHostToolListFilter.requiredBuckets` mirrors `PullRequestsFilter.requiredBuckets`, so `filter: "authored"` costs one GitHub search rather than three; keep the two in step.
 
@@ -47,7 +47,7 @@ App-scoped pull-request linking plus the `alveary_host` pull request tools. `Ser
 
 ### Linking
 
-- `PullRequestLinkService` is the app-scoped link store; `Alveary/ViewModels/AGENTS.md` owns its split with `PullRequestLinksViewModel`, and `Services/Threads/AGENTS.md` owns the `link_pr`/`unlink_pr` tools that write through it.
+- `PullRequestLinkService` is the app-scoped link store; `Alveary/ViewModels/PullRequests/Links/AGENTS.md` owns its split with `PullRequestLinksViewModel`, and `Services/Threads/AGENTS.md` owns the `link_pr`/`unlink_pr` tools that write through it.
 
 ### Agentic Threads
 
@@ -59,7 +59,7 @@ App-scoped pull-request linking plus the `alveary_host` pull request tools. `Ser
 - **Answer as soon as the thread exists.** `start` returns `PullRequestAgenticThreadStart` the moment `insertTaskThread` succeeds, so the caller navigates without waiting on GitHub; linking used to precede the return and put a `gh api graphql` round trip between the footer click and the sidebar selection. Nothing may move back in front of it.
 - **`dispatch` carries the rest, and links before dispatching**, best-effort, regardless of `automaticallyLinkPullRequests`. Linking first means transcript detection finds the pull request already linked and asks no redundant "link this?" question under the prompt. A GitHub hiccup must not stop the thread, and a racing auto-link resolves as `alreadyLinked`. Re-resolve the thread after that `await` rather than carrying the model across it.
     - Its only consumer is the caller's error toast — navigation already unmounted the footer that would have shown a banner. Do not give it a second consumer.
-- **The pane hands over the detail it already fetched** as `knownDetail`, so the link costs no round trip on this route and the new thread does not sit empty waiting for one. Nil or naming a different pull request falls back to fetching; `Alveary/ViewModels/AGENTS.md` owns the rule. `.addressFeedback` also reads its head branch, so a missing detail is fetched once and handed to both.
+- **The pane hands over the detail it already fetched** as `knownDetail`, so the link costs no round trip on this route and the new thread does not sit empty waiting for one. Nil or naming a different pull request falls back to fetching; `Alveary/ViewModels/PullRequests/Links/AGENTS.md` owns the rule. `.addressFeedback` also reads its head branch, so a missing detail is fetched once and handed to both.
 
 #### The Checkout Ladder
 

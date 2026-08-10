@@ -1,0 +1,33 @@
+## Sidebar View Models
+
+These instructions apply to files under `Alveary/ViewModels/Sidebar/`. `ArchivedThreadsViewModel` is not here — see `Alveary/ViewModels/AGENTS.md`.
+
+### Thread Lifecycle
+
+- Thread removal routes through `SidebarViewModel` lifecycle methods so runtime teardown, notification cleanup, provider-native session retirement (archive on archive, delete on delete — see `Alveary/Services/Agent/AGENTS.md`), worktree cleanup, and branch cleanup stay coordinated. Views needing to delete a thread — including project-trust denial flows — receive a focused delete closure instead of calling `ModelContext.delete(_:)` on `AgentThread`.
+- **Thread creation and archiving live in `ThreadLifecycleService`**, not in `SidebarViewModel`. The view model is per-window, so app-scoped callers (the `alveary_host` thread tools) cannot route through it; both build the service over the shared `mainContext` and it holds no state. Add a new caller by using the service, never by copying the body — `SidebarViewModel` keeps only the UI half (ordering refresh, selection routing, diagnostics presentation) and delegates. Drafts, restore, delete, and fork stay view-side; a draft is the service's `isDraft` seed plus the view model's caching and materialization.
+    - **Route around an externally archived selection.** An archive from outside the window posts `.threadLifecycleChanged` with the thread already archived; `SidebarView.handleThreadLifecycleChanged` reuses the same replacement-selection path the window's own archive uses. Restores post it too, so check `SidebarViewModel.archivedThread(id:)` before acting.
+- Sidebar order normalization lives in `SidebarOrderNormalization`, parameterized by `ModelContext`, because a lifecycle mutation with no window still has to renumber pinned and regular orders inside the same save.
+- Thread pinning is `ThreadLifecycleService.setThreadPinned(threadID:isPinned:)` for the same reason; `SidebarViewModel` delegates and owns only the `refreshThreadOrder` that follows. Its `ThreadPinOutcome` distinguishes "already in that state" from "a pinned project absorbs it", which the sidebar treats alike but the host tool must not.
+- Keep draft deletion atomic with its lifecycle boundary:
+  - Commit the SwiftData removal before the first `await` so concurrent New Thread requests cannot reuse or materialize the deleted row.
+  - Remove conversation attachment directories only after runtime teardown has been attempted, including teardown-failure paths.
+  - Before a targeted mutation that may call `ModelContext.rollback()`, synchronously save pre-existing shared-context changes — a target failure must not discard unrelated pending work.
+- Project and Task drafts are independent mode-keyed identities; materializing or deleting one mode must not clear the other's cached draft, creation task, or pending Project destination.
+
+### Scheduled Attachments
+
+- A Task row with pending scheduled-worktree cleanup is the user-visible retry owner: complete that cleanup before committing permanent deletion; never leave retry-only provenance on a threadless run.
+  Reject overlapping cleanup attempts for the same run while its durable branch-retirement fence may represent an in-flight deletion. Once branch ownership is durably retired, a later retry may clear that provenance only after identity-aware removal proves the persisted worktree and ownership sidecar absent; leave the unprovable branch behind.
+- Archiving or permanently deleting a Task linked to a scheduled run must quiesce that coordinator launch before the SwiftData commit: stop nonterminal runs, but only wait for already-terminal runs so runtime finalization and notification routing finish without mutating historical schedule state.
+
+### Ordering And Drag
+
+- Pinned sidebar ordering keeps Task threads in the Task drag domain, but placement is mode-agnostic: a Task with a `project` is one of that project's children, so Project pin normalization absorbs pinned children of either mode. Unpinned Tasks may enter the Pinned order via the `.unpinnedTask` drag item (setting `isPinned` and a dense `pinnedSortOrder` at commit); `.pinnedTask` sources require an actually-pinned Task. A `.tasks`-section drop is never a reorder: for a `.pinnedTask` it unpins through `setThreadPinned(_:isPinned: false)`, which owns the scheduled-attachment guard, and for a project-nested `.unpinnedTask` it clears `project` through `detachTaskFromProject`, leaving workspace grants untouched. An `.into` drop on the dragged thread's own project (`commitSidebarDropToOwningProject`) also unpins through `setThreadPinned` but leaves `project` untouched.
+- `SidebarViewModel.moveTaskIntoProject(_:projectID:)` owns the sidebar's Task-to-Project drop. It changes placement and grants folder access; it never changes mode:
+    - **Set `project` and add the grant.** `AgentThread.project` is placement for a Task, so setting it nests the row; the canonicalized project path also joins `taskWorkspaceDescriptor.grantedRoots`. Mode stays `.task`, so working directory, cleanup, and diff routing keep reading the Task's own workspace.
+    - **Suspend, never destroy.** A running process was launched without the new root, so suspend it; the working directory is unchanged, so the provider resumes its session next turn. `kill`/`destroyRuntime` would discard the session record and lose the conversation.
+    - **Refuse rather than half-apply.** Drafts, archived threads, multi-conversation Tasks, scheduled-attached Tasks, busy or waiting runtimes, unresolved approvals, an already-granted project, and a vanished project path all reject before any mutation.
+    - **Clear the pin.** Placement in a project always drops a standalone pin — leaving it renders the Task as a project child *and* its own `Pinned` row, so the drop looks like a no-op. A pinned destination additionally absorbs the child. Pinning afterwards still promotes it back out.
+    - **Trust does not apply.** Provider trust is a working-directory concept; granted roots are never auto-trusted.
+- Task folder grants may change only while the conversation is fully idle. Phase 3 also limits editing to Tasks with exactly one live conversation; lift that only with thread-wide runtime coordination. Persist canonical roots, restart an already-tracked idle runtime, leave suspended runtimes asleep, and roll back both persistence and runtime configuration when replacement cannot be applied.
