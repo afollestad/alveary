@@ -17,9 +17,7 @@ private struct PullRequestPaneRowButtonBody: View {
 
     var body: some View {
         configuration.label
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .pullRequestOverviewRowInsets()
             .background(
                 AppSelectionRowBackground(
                     isSelected: false,

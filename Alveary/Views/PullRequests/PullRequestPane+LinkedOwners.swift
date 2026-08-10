@@ -21,22 +21,14 @@ struct PullRequestPaneLinkedOwners: View {
             linking: identifier
         )
         if !owners.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(PullRequestLinkedOwnerLookup.title(for: owners))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityAddTraits(.isHeader)
-
-                VStack(alignment: .leading, spacing: 0) {
+            PullRequestOverviewSection(PullRequestLinkedOwnerLookup.title(for: owners)) {
+                PullRequestOverviewSectionRows {
                     ForEach(owners) { owner in
                         PullRequestLinkedOwnerRow(owner: owner) {
                             openOwner?(owner.linkOwner)
                         }
                     }
                 }
-                // Row hover/press fills carry their own 8pt inset; pull the stack back
-                // so row text stays aligned with the section heading.
-                .padding(.horizontal, -8)
             }
         }
     }

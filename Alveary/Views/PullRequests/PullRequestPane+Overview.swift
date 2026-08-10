@@ -36,7 +36,7 @@ struct PullRequestPaneOverview: View, Equatable {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: PullRequestOverviewSectionMetrics.sectionSpacing) {
                 // A pane opened from an identifier alone has no snapshot until its
                 // first fetch backfills one, so the spinner or error banner below
                 // stands in for the header. A loaded detail always has a summary
@@ -197,13 +197,9 @@ struct PullRequestPaneOverview: View, Equatable {
     /// GitHub's Reviewers sidebar, condensed: pending requests show a question
     /// mark, verdicts show their state icon, and past reviewers offer re-request.
     private func reviewersSection(_ reviewers: [PullRequestReviewer]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Reviewers")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .accessibilityAddTraits(.isHeader)
-
+        PullRequestOverviewSection("Reviewers") {
             // Re-request failures land here, next to the button that caused them.
+            // Outside the row stack, so the banner keeps the content column.
             if let error = session.reviewersError {
                 InlineBanner(
                     message: error,
@@ -213,71 +209,18 @@ struct PullRequestPaneOverview: View, Equatable {
                 )
             }
 
-            ForEach(reviewers, id: \.login) { reviewer in
-                HStack(alignment: .center, spacing: 6) {
-                    PullRequestAvatarView(login: reviewer.login, url: reviewer.avatarURL, loader: avatarLoader)
-
-                    Text(reviewer.login)
-                        .font(.callout)
-
-                    if reviewer.isBot {
-                        PullRequestBotBadge()
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if reviewer.canReRequest {
-                        Button {
-                            viewModel.reRequestReview(from: reviewer.login)
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22, height: 20)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
+            PullRequestOverviewSectionRows {
+                ForEach(reviewers, id: \.login) { reviewer in
+                    PullRequestPaneReviewerRow(
+                        reviewer: reviewer,
+                        avatarLoader: avatarLoader,
                         // One in-flight request per reviewer; the refetch then flips
                         // the row to "requested", which hides the button entirely.
-                        .disabled(session.reRequestsInFlight.contains(reviewer.login))
-                        .help("Re-request review from \(reviewer.login)")
-                        .accessibilityLabel("Re-request review from \(reviewer.login)")
-                    }
-
-                    // On the lane here rather than inside `reviewerStateIcon`, so
-                    // the four verdict glyphs — which differ in ink width — share
-                    // one axis without each case restating it.
-                    reviewerStateIcon(reviewer.state)
-                        .contextualPaneTrailingGlyphLane()
+                        isReRequestInFlight: session.reRequestsInFlight.contains(reviewer.login),
+                        onReRequest: { viewModel.reRequestReview(from: reviewer.login) }
+                    )
                 }
-                .accessibilityElement(children: .combine)
             }
-        }
-    }
-
-    @ViewBuilder
-    private func reviewerStateIcon(_ state: PullRequestReviewer.State) -> some View {
-        switch state {
-        case .requested:
-            Image(systemName: "questionmark.circle")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Review requested")
-        case .approved:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(.green)
-                .accessibilityLabel("Approved")
-        case .changesRequested:
-            Image(systemName: "exclamationmark.bubble.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(.red)
-                .accessibilityLabel("Requested changes")
-        case .commented:
-            Image(systemName: "bubble.left")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Commented")
         }
     }
 
@@ -339,19 +282,84 @@ struct PullRequestPaneChecks: View {
     let checks: [PullRequestCheck]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Checks")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-
-            VStack(alignment: .leading, spacing: 0) {
+        PullRequestOverviewSection("Checks") {
+            PullRequestOverviewSectionRows {
                 ForEach(Array(checks.enumerated()), id: \.offset) { _, check in
                     PullRequestCheckRow(check: check)
                 }
             }
-            // Row hover/press fills carry their own 8pt inset; pull the stack back so
-            // row text stays aligned with the section heading.
-            .padding(.horizontal, -8)
+        }
+    }
+}
+
+/// One reviewer. Extracted so the Reviewers section stays a short expression —
+/// see the type-check budget rules in `Alveary/Views/AGENTS.md`.
+private struct PullRequestPaneReviewerRow: View {
+    let reviewer: PullRequestReviewer
+    let avatarLoader: GitHubAvatarLoader
+    let isReRequestInFlight: Bool
+    let onReRequest: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 6) {
+            PullRequestAvatarView(login: reviewer.login, url: reviewer.avatarURL, loader: avatarLoader)
+
+            Text(reviewer.login)
+                .font(.callout)
+
+            if reviewer.isBot {
+                PullRequestBotBadge()
+            }
+
+            Spacer(minLength: 8)
+
+            if reviewer.canReRequest {
+                Button(action: onReRequest) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isReRequestInFlight)
+                .help("Re-request review from \(reviewer.login)")
+                .accessibilityLabel("Re-request review from \(reviewer.login)")
+            }
+
+            // On the lane here rather than inside `stateIcon`, so the four verdict
+            // glyphs — which differ in ink width — share one axis without each
+            // case restating it.
+            stateIcon
+                .contextualPaneTrailingGlyphLane()
+        }
+        .pullRequestOverviewRowInsets()
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var stateIcon: some View {
+        switch reviewer.state {
+        case .requested:
+            Image(systemName: "questionmark.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Review requested")
+        case .approved:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.green)
+                .accessibilityLabel("Approved")
+        case .changesRequested:
+            Image(systemName: "exclamationmark.bubble.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.red)
+                .accessibilityLabel("Requested changes")
+        case .commented:
+            Image(systemName: "bubble.left")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Commented")
         }
     }
 }
@@ -372,8 +380,7 @@ private struct PullRequestCheckRow: View {
             .accessibilityHint("Opens the check's details page")
         } else {
             rowContent(showsLinkGlyph: false)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
+                .pullRequestOverviewRowInsets()
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(check.name), \(stateAccessibilityName)")
         }
