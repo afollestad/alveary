@@ -33,6 +33,54 @@ final class PullRequestHostToolServiceTests: XCTestCase {
         }
     }
 
+    /// An open pane cannot see a mutation the agent made, so every tool that changes the pull
+    /// request on GitHub has to announce it. Table-driven because the announcement is posted once
+    /// centrally — a tool added later inherits it, and this is what proves the wiring.
+    func testEverySuccessfulMutationAnnouncesTheChangeExceptTheReviewProposal() async throws {
+        for toolName in PullRequestHostToolCatalog.mutatingToolNames.sorted() {
+            let fixture = try PullRequestHostToolFixture()
+            let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+            fixture.pullRequests.detailResult = .success(
+                makePullRequestDetail(id: identifier, reviewThreads: [
+                    makeReviewThread(nodeID: "THREAD_1", path: "Sources/Alpha.swift", line: 3, isPending: false)
+                ], viewerCanUpdate: true)
+            )
+            let recorder = fixture.recordAnnouncements()
+
+            let result = await fixture.handle(toolName)
+
+            XCTAssertFalse(result.isError, "\(toolName): \(result.text)")
+            guard toolName != PullRequestHostToolCatalog.proposeReviewToolName else {
+                // It writes Alveary's own envelope; the pane already re-reads that every render.
+                XCTAssertTrue(recorder.announcements.isEmpty, "propose_pr_review announced a GitHub change")
+                continue
+            }
+            XCTAssertEqual(
+                recorder.announcements.map(\.identifier),
+                [identifier],
+                "\(toolName) did not announce its change"
+            )
+            XCTAssertEqual(
+                recorder.announcements.map(\.affectsListRow),
+                [PullRequestHostToolCatalog.stateChangeToolNames.contains(toolName)],
+                "\(toolName) misreported whether it moves a list row"
+            )
+        }
+    }
+
+    /// A refusal throws before the announcement, so nothing tells the pane to refetch a pull
+    /// request that did not move.
+    func testAFailedMutationAnnouncesNothing() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.addIssueCommentResult = .failure(.rateLimited)
+        let recorder = fixture.recordAnnouncements()
+
+        let result = await fixture.handle(PullRequestHostToolCatalog.commentToolName)
+
+        XCTAssertTrue(result.isError)
+        XCTAssertTrue(recorder.announcements.isEmpty)
+    }
+
     func testOnlyClosingRefusesAnAutomatedScheduledRun() async throws {
         let fixture = try PullRequestHostToolFixture()
         try fixture.attachAutomatedScheduledRun()
@@ -216,6 +264,28 @@ final class PullRequestHostToolFixture {
         )
     }
 
+    /// Collects the change announcements this fixture's service posts, so a table-driven test can
+    /// assert that a mutation told an open pane to reload.
+    func recordAnnouncements() -> PullRequestHostToolAnnouncementRecorder {
+        let recorder = PullRequestHostToolAnnouncementRecorder()
+        recorder.notificationCenter = notificationCenter
+        recorder.token = notificationCenter.addObserver(
+            forName: .pullRequestChangedOnGitHub,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let announcement = notification.userInfo?[
+                PullRequestChangeNotificationKey.announcement
+            ] as? PullRequestChangeAnnouncement else {
+                return
+            }
+            MainActor.assumeIsolated {
+                recorder.announcements.append(announcement)
+            }
+        }
+        return recorder
+    }
+
     /// Enough arguments for each tool to pass parsing, so a table-driven test reaches the
     /// rule it is actually asserting.
     func minimalArguments(for toolName: String) -> [String: AgentCLIKit.JSONValue] {
@@ -324,5 +394,21 @@ final class PullRequestHostToolFixture {
         modelContext.insert(run)
         thread.scheduledTaskRun = run
         try modelContext.save()
+    }
+}
+
+/// Holds the announcements one test observed, and removes its observer when the test lets go of it.
+@MainActor
+final class PullRequestHostToolAnnouncementRecorder {
+    var announcements: [PullRequestChangeAnnouncement] = []
+    var token: (any NSObjectProtocol)?
+    var notificationCenter: NotificationCenter?
+
+    deinit {
+        MainActor.assumeIsolated {
+            if let token {
+                notificationCenter?.removeObserver(token)
+            }
+        }
     }
 }

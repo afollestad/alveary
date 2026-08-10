@@ -82,10 +82,35 @@ extension PullRequestsViewModel {
         tasks.cancelAll()
     }
 
-    private func startDetailLoad(target: PullRequestPaneTarget, generation: UUID) {
+    /// Refetches a session's detail after something outside the pane changed the pull request —
+    /// see `PullRequestsViewModel+RemoteChanges.swift`.
+    ///
+    /// Registered like every other pane load rather than awaited inline the way the pane's own
+    /// mutations are: this can fire for a *retained* session the user routed away from, which is
+    /// exactly what `cancelPaneLoads(except:)` bounds. A load already in flight is therefore also
+    /// the dedupe — it is at most one debounce old, so it already carries the change.
+    ///
+    /// Unlike `retryDetailLoad()` this refetches a leg that previously failed: that rule guards
+    /// passive reopens, not data known to have just moved.
+    func refreshDetailAfterRemoteChange(target: PullRequestPaneTarget) {
+        guard let generation = paneSessions[target]?.generation,
+              paneLoadTasks[target]?.detail == nil else {
+            return
+        }
+        updateSession(target, generation: generation) { session in
+            session.isLoadingDetail = true
+        }
+        startDetailLoad(target: target, generation: generation, reportsFailure: false)
+    }
+
+    private func startDetailLoad(
+        target: PullRequestPaneTarget,
+        generation: UUID,
+        reportsFailure: Bool = true
+    ) {
         let token = UUID()
         let task = Task {
-            await loadDetail(target: target, generation: generation)
+            await loadDetail(target: target, generation: generation, reportsFailure: reportsFailure)
             finishLoad(target: target, keyPath: \.detail, token: token)
         }
         paneLoadTasks[target, default: PullRequestPaneLoadTasks()].detail =
@@ -123,9 +148,15 @@ extension PullRequestsViewModel {
     /// `onFinish` mutates the session in the same write that applies the load's
     /// outcome, so callers can swap dependent state (e.g. the pending review batch
     /// after submission) without an intermediate frame where both are absent.
+    ///
+    /// `reportsFailure: false` is for a refetch nobody asked for: the session keeps
+    /// whatever detail it already had, and the Overview's banner — written for a
+    /// first load with nothing to show, so it offers no dismiss — must not appear
+    /// over it because a background refresh met a flaky network.
     func loadDetail(
         target: PullRequestPaneTarget,
         generation: UUID,
+        reportsFailure: Bool = true,
         onFinish: ((inout PullRequestPaneSession) -> Void)? = nil
     ) async {
         do {
@@ -152,7 +183,9 @@ extension PullRequestsViewModel {
                 return
             }
             updateSession(target, generation: generation) { session in
-                session.detailError = error.localizedDescription
+                if reportsFailure {
+                    session.detailError = error.localizedDescription
+                }
                 session.isLoadingDetail = false
                 onFinish?(&session)
             }

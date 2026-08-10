@@ -256,6 +256,9 @@ final class ReviewProposalAttachmentFixture {
     let coordinator: PullRequestReviewProposalCoordinator
     let viewModel: PullRequestsViewModel
     let summary: PullRequestSummary
+    /// Shared by the coordinator and the view model, so a confirm announces onto the bus the pane
+    /// is listening to — which is the whole subject of the refresh tests.
+    let notificationCenter = NotificationCenter()
     private let modelContext: ModelContext
 
     var target: PullRequestPaneTarget {
@@ -295,17 +298,56 @@ final class ReviewProposalAttachmentFixture {
         coordinator = PullRequestReviewProposalCoordinator(
             modelContext: context,
             pullRequestsService: service,
-            notificationCenter: NotificationCenter(),
+            notificationCenter: notificationCenter,
             now: { Date(timeIntervalSince1970: 2_000) }
         )
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: fileCount))
-        viewModel = makePullRequestsViewModel(service: service, reviewProposalCoordinator: coordinator)
+        viewModel = makePullRequestsViewModel(
+            service: service,
+            reviewProposalCoordinator: coordinator,
+            notificationCenter: notificationCenter
+        )
     }
 
     func openPane() async {
         viewModel.requestDetails(summary)
         await waitForPaneContent(viewModel, target: target)
+    }
+
+    /// Stands in for an `alveary_host` mutation, which is app-scoped and reaches the pane only
+    /// through this notification.
+    func announceChange(identifier: PullRequestIdentifier? = nil, affectsListRow: Bool) {
+        notificationCenter.post(
+            name: .pullRequestChangedOnGitHub,
+            object: nil,
+            userInfo: [
+                PullRequestChangeNotificationKey.announcement: PullRequestChangeAnnouncement(
+                    identifier: identifier ?? summary.id,
+                    affectsListRow: affectsListRow
+                )
+            ]
+        )
+    }
+
+    /// What GitHub answers with once the review has been submitted.
+    func reviewedDetail() -> PullRequestDetail {
+        var detail = makePullRequestDetail(
+            id: summary.id,
+            reviews: [
+                PullRequestReview(
+                    authorLogin: "bob",
+                    authorAvatarURL: nil,
+                    state: .approved,
+                    bodyMarkdown: "Some notes.",
+                    submittedAt: Date(timeIntervalSince1970: 3_000)
+                )
+            ]
+        )
+        detail.reviewers = [
+            PullRequestReviewer(login: "bob", avatarURL: nil, isBot: false, state: .approved, canReRequest: true)
+        ]
+        return detail
     }
 
     /// `submitReview` marks the session submitting before its first suspension, but the caller runs

@@ -1,20 +1,6 @@
 import Foundation
 import Observation
 
-enum PullRequestsUnavailableReason: Equatable {
-    case notInstalled
-    case notAuthenticated
-    case rateLimited
-    case failed(String)
-}
-
-enum PullRequestsLoadPhase: Equatable {
-    case idle
-    case loading
-    case loaded
-    case unavailable(PullRequestsUnavailableReason)
-}
-
 @MainActor
 @Observable
 final class PullRequestsViewModel {
@@ -52,6 +38,17 @@ final class PullRequestsViewModel {
     /// because tests and previews construct the view model without one, which simply leaves
     /// every pane unattached. See `PullRequestsViewModel+ReviewProposalAttachment.swift`.
     let reviewProposalCoordinator: PullRequestReviewProposalCoordinator?
+
+    /// The bus a pull request Alveary changed elsewhere announces itself on; see
+    /// `PullRequestsViewModel+RemoteChanges.swift`. Injectable so a test suite gets its own.
+    @ObservationIgnored let notificationCenter: NotificationCenter
+    /// How long an announcement waits before its refetch, coalescing the burst one agent turn can
+    /// produce. Injectable so tests need not sleep.
+    @ObservationIgnored let remoteRefreshDelay: Duration
+    @ObservationIgnored var remoteChangeObserver: (any NSObjectProtocol)?
+    /// Debounced detail refetches, keyed by the target whose session they refresh.
+    @ObservationIgnored var remoteRefreshTasks: [PullRequestPaneTarget: Task<Void, Never>] = [:]
+    @ObservationIgnored var remoteListRefreshTask: Task<Void, Never>?
 
     private var hasLoadedListCache = false
 
@@ -139,8 +136,12 @@ final class PullRequestsViewModel {
             @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
         )? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
+        notificationCenter: NotificationCenter = .default,
+        remoteRefreshDelay: Duration = .milliseconds(750),
         now: @escaping () -> Date = Date.init
     ) {
+        self.notificationCenter = notificationCenter
+        self.remoteRefreshDelay = remoteRefreshDelay
         self.service = service
         self.avatarLoader = avatarLoader
         self.listCache = listCache
@@ -157,6 +158,13 @@ final class PullRequestsViewModel {
             selectedFilter = PullRequestsFilter(rawValue: settings.pullRequestsSelectedTab) ?? .all
             selectedStatuses = settings.pullRequestsStatusFilters
             selectedRepositories = settings.pullRequestsRepositoryFilters
+        }
+        observeRemoteChanges()
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            endRemoteChangeObservation()
         }
     }
 
@@ -265,7 +273,7 @@ final class PullRequestsViewModel {
 
     private func applyFailure(_ error: PullRequestsServiceError) {
         if items.isEmpty {
-            loadPhase = .unavailable(Self.unavailableReason(for: error))
+            loadPhase = .unavailable(PullRequestsUnavailableReason(error))
         } else {
             // Keep the stale rows visible and say why the refresh failed.
             errorMessage = error.localizedDescription
@@ -301,20 +309,6 @@ final class PullRequestsViewModel {
             await listCache.save(snapshot)
         }
     }
-
-    private static func unavailableReason(for error: PullRequestsServiceError) -> PullRequestsUnavailableReason {
-        switch error {
-        case .ghNotInstalled:
-            return .notInstalled
-        case .notAuthenticated:
-            return .notAuthenticated
-        case .rateLimited:
-            return .rateLimited
-        case .requestFailed, .responseTooLarge, .decodingFailed, .transport:
-            return .failed(error.localizedDescription)
-        }
-    }
-
 }
 
 // MARK: - Pane Sessions
@@ -451,6 +445,8 @@ extension PullRequestsViewModel {
         pendingPaneDismissals.remove(request)
         deactivatedPaneDismissals.remove(request)
         cancelPaneLoads(for: target)
+        // The session is going, so a debounced refetch waiting on it has nothing left to refresh.
+        remoteRefreshTasks.removeValue(forKey: target)?.cancel()
         paneSessions[target] = nil
         if activePaneTarget == target {
             activePaneTarget = nil

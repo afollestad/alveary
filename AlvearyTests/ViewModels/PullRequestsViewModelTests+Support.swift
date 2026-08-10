@@ -16,6 +16,11 @@ func makePullRequestsViewModel(
         @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
+    // A private bus by default, so a suite cannot be disturbed by anything posting on `.default`;
+    // pass a shared one to wire a coordinator or host-tool service to this view model. The delay
+    // goes to zero so the debounce still coalesces without a test having to sleep through it.
+    notificationCenter: NotificationCenter = NotificationCenter(),
+    remoteRefreshDelay: Duration = .zero,
     now: @escaping () -> Date = Date.init
 ) -> PullRequestsViewModel {
     PullRequestsViewModel(
@@ -29,6 +34,8 @@ func makePullRequestsViewModel(
         presentToast: presentToast,
         agenticThreadStarter: agenticThreadStarter,
         reviewProposalCoordinator: reviewProposalCoordinator,
+        notificationCenter: notificationCenter,
+        remoteRefreshDelay: remoteRefreshDelay,
         now: now
     )
 }

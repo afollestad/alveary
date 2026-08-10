@@ -48,10 +48,38 @@ final class PullRequestHostToolService {
             if let result = try await readOnlyResult(context: context, call: call) {
                 return result
             }
-            return try await mutatingResult(context: context, call: call)
+            let result = try await mutatingResult(context: context, call: call)
+            announceChange(for: call)
+            return result
         } catch {
             return errorResult(for: error, toolName: call.name)
         }
+    }
+
+    /// Tells an open pull request pane to reload after a mutation it cannot see. Announced once
+    /// here rather than from each handler, so a tool added later inherits it; every refusal throws
+    /// into the `catch` above, so reaching this line means the call landed.
+    ///
+    /// `propose_pr_review` is excluded: it writes only Alveary's own envelope, which the pane
+    /// already re-reads on every render.
+    private func announceChange(for call: AgentCLIKit.AgentHostToolCall) {
+        guard call.name != PullRequestHostToolCatalog.proposeReviewToolName,
+              // Not `parseIdentifier`, whose `requireOnly(["url"])` rejects the further arguments
+              // these tools carry; the handler has already proven the URL parses.
+              case .string(let url)? = call.arguments["url"],
+              let identifier = PullRequestURLParser.identifier(from: url) else {
+            return
+        }
+        notificationCenter.post(
+            name: .pullRequestChangedOnGitHub,
+            object: self,
+            userInfo: [
+                PullRequestChangeNotificationKey.announcement: PullRequestChangeAnnouncement(
+                    identifier: identifier,
+                    affectsListRow: PullRequestHostToolCatalog.stateChangeToolNames.contains(call.name)
+                )
+            ]
+        )
     }
 
     /// nil when the call names no read-only tool, so `handle` falls through to the mutating ones.

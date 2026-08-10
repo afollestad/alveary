@@ -78,6 +78,16 @@ enum PullRequestHostToolCatalog {
         proposeReviewToolName
     ]
 
+    /// The mutations that change a pull request's status, so a change announcement from one also
+    /// refreshes the list. Named here rather than re-derived from `stateChangingResult`'s switch,
+    /// which routes rather than classifies.
+    static let stateChangeToolNames: Set<String> = [
+        closeToolName,
+        reopenToolName,
+        markReadyToolName,
+        markDraftToolName
+    ]
+
     static let tools: [AgentCLIKit.AgentHostToolDefinition] = [
         listTool,
         detailTool,

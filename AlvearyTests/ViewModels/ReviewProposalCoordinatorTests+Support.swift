@@ -65,6 +65,29 @@ final class ReviewProposalFixture {
         )
     }
 
+    /// Collects the change announcements this fixture's coordinator posts. `onEach` runs inside
+    /// the post, which is how a test can observe state as it stood at that moment.
+    func recordAnnouncements(onEach: (@MainActor () -> Void)? = nil) -> ReviewProposalAnnouncementRecorder {
+        let recorder = ReviewProposalAnnouncementRecorder()
+        recorder.token = notificationCenter.addObserver(
+            forName: .pullRequestChangedOnGitHub,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let announcement = notification.userInfo?[
+                PullRequestChangeNotificationKey.announcement
+            ] as? PullRequestChangeAnnouncement else {
+                return
+            }
+            MainActor.assumeIsolated {
+                recorder.announcements.append(announcement)
+                onEach?()
+            }
+        }
+        recorder.notificationCenter = notificationCenter
+        return recorder
+    }
+
     static func stagedComment(
         path: String = "File0.swift",
         line: Int = 1,
@@ -103,5 +126,21 @@ final class ReviewProposalFixture {
             }
         }
         XCTFail("the preview never settled")
+    }
+}
+
+/// Holds the announcements one test observed, and removes its observer when the test lets go of it.
+@MainActor
+final class ReviewProposalAnnouncementRecorder {
+    var announcements: [PullRequestChangeAnnouncement] = []
+    var token: (any NSObjectProtocol)?
+    var notificationCenter: NotificationCenter?
+
+    deinit {
+        MainActor.assumeIsolated {
+            if let token {
+                notificationCenter?.removeObserver(token)
+            }
+        }
     }
 }

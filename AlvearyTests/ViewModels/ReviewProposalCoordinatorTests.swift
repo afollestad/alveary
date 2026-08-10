@@ -255,6 +255,64 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["The reviewer's own words."])
     }
 
+    /// The pane cannot see a review submitted here, so the announcement is what catches it up.
+    func testConfirmingAnnouncesTheSubmittedReview() async throws {
+        let fixture = try ReviewProposalFixture()
+        fixture.service.detailResult = .success(
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
+        )
+        let recorder = fixture.recordAnnouncements()
+
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(recorder.announcements.map(\.identifier), [ReviewProposalFixture.identifier])
+        // A submitted review moves the pull request out of the review-requested bucket.
+        XCTAssertEqual(recorder.announcements.map(\.affectsListRow), [true])
+    }
+
+    /// Announced ahead of `clearProposal`, which returns early on a save failure while the review
+    /// is already live — the pane must refresh either way.
+    func testTheAnnouncementPrecedesTheCardResolution() async throws {
+        let fixture = try ReviewProposalFixture()
+        fixture.service.detailResult = .success(
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
+        )
+        var envelopeAtAnnouncement: PullRequestReviewProposalRecord??
+        let recorder = fixture.recordAnnouncements { [conversation = fixture.conversation] in
+            envelopeAtAnnouncement = try? conversation.pullRequestReviewProposal()
+        }
+
+        _ = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
+
+        XCTAssertEqual(recorder.announcements.count, 1)
+        XCTAssertNotNil(envelopeAtAnnouncement ?? nil)
+    }
+
+    func testAFailedSubmissionAnnouncesNothing() async throws {
+        let fixture = try ReviewProposalFixture()
+        fixture.service.detailResult = .success(
+            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
+        )
+        fixture.service.submitPendingReviewResult = .failure(.rateLimited)
+        let recorder = fixture.recordAnnouncements()
+
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
+
+        XCTAssertFalse(didSubmit)
+        XCTAssertTrue(recorder.announcements.isEmpty)
+    }
+
+    /// Nothing was published, so nothing on GitHub moved.
+    func testRejectingAnnouncesNothing() async throws {
+        let fixture = try ReviewProposalFixture()
+        let recorder = fixture.recordAnnouncements()
+
+        XCTAssertTrue(fixture.coordinator.reject(proposalID: ReviewProposalFixture.proposalID))
+
+        XCTAssertTrue(recorder.announcements.isEmpty)
+    }
+
     func testAFailedPreviewLoadLeavesTheCardConfirmable() async throws {
         let fixture = try ReviewProposalFixture()
         fixture.service.detailResult = .failure(.rateLimited)

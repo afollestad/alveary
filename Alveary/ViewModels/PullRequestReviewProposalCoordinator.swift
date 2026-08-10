@@ -172,6 +172,20 @@ final class PullRequestReviewProposalCoordinator {
         }
 
         // Submitted. From here a failure may leave the card unresolved, never wrongly resolved.
+        //
+        // Announce ahead of that, because the review is live on GitHub now: the guard below returns
+        // on a save failure, and a pane still showing the pre-review timeline would compound an
+        // unresolved card rather than merely accompany it.
+        notificationCenter.post(
+            name: .pullRequestChangedOnGitHub,
+            object: self,
+            userInfo: [
+                PullRequestChangeNotificationKey.announcement: PullRequestChangeAnnouncement(
+                    identifier: presentation.identifier,
+                    affectsListRow: true
+                )
+            ]
+        )
         guard clearProposal(proposalID: proposalID, conversationID: presentation.sourceConversationID) else {
             errorMessages[proposalID] = "The review was submitted, but Alveary could not update this card."
             return false
