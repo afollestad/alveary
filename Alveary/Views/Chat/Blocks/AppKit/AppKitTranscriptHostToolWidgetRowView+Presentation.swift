@@ -22,22 +22,30 @@ extension AppKitTranscriptHostToolWidgetRowView {
         return attributed
     }
 
-    func readsReviewInstructions(_ entry: HostToolWidgetEntry) -> Bool {
-        guard case .pullRequestReviewInstructions(let content) = entry.content else {
-            return false
+    /// The octicon a card wears in place of the shell's status glyph, naming the activity rather
+    /// than an outcome. `nil` falls back to `statusSymbol(for:)`, which is what carries a failure —
+    /// and a review proposal's verdict, once the user has given one.
+    static func activityOcticon(for entry: HostToolWidgetEntry) -> Octicon? {
+        guard !entry.isError else {
+            return nil
         }
-        return !entry.isError && content.status != .failed
+        switch entry.content {
+        case .pullRequestReviewInstructions(let content):
+            return content.status == .failed ? nil : .codeReview16
+        case .pullRequestList(let content):
+            return content.status == .failed ? nil : PullRequestStatusGlyph.octicon16(for: .open)
+        case .pullRequestReviewProposal:
+            return awaitsReviewDecision(entry) ? PullRequestStatusGlyph.octicon16(for: .open) : nil
+        case .scheduledTaskProposal, .pullRequestLink, .threadAction:
+            return nil
+        }
     }
 
-    func awaitsReviewDecision(_ entry: HostToolWidgetEntry) -> Bool {
+    static func awaitsReviewDecision(_ entry: HostToolWidgetEntry) -> Bool {
         guard case .pullRequestReviewProposal = entry.content else {
             return false
         }
         return !entry.isError && entry.outcome == nil && !entry.isSettledWithoutDecision
-    }
-
-    func pullRequestOcticon(size: CGFloat) -> NSImage? {
-        octicon(PullRequestStatusGlyph.octicon16(for: .open), size: size)
     }
 
     /// Fixed-canvas octicon artwork does not size by font, so it is redrawn at the icon size the

@@ -342,23 +342,15 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         applyIcon(for: entry, typography: configuration.typography)
     }
 
-    /// A pending review proposal names its pull request with GitHub's own octicon, and the
-    /// review-instructions card wears the code-review octicon whenever it has not failed — the
-    /// glyph names the activity. Every other state keeps the shell's status glyph, which is what
-    /// carries the outcome.
+    /// A card that has an activity to name wears GitHub's octicon for it; every other state keeps
+    /// the shell's status glyph, which is what carries the outcome.
     func applyIcon(for entry: HostToolWidgetEntry, typography: TranscriptTypography) {
         let size = typography.size(for: .toolIcon)
         iconView.summaryCapHeight = typography.nsFont(.toolSummary).capHeight
-        if readsReviewInstructions(entry), let octicon = octicon(.codeReview16, size: size) {
-            iconView.symbolConfiguration = nil
-            iconView.image = octicon
-            iconView.setDynamicContentTintColor(.secondaryLabelColor)
-            return
-        }
-        if awaitsReviewDecision(entry), let octicon = pullRequestOcticon(size: size) {
+        if let activity = Self.activityOcticon(for: entry), let image = octicon(activity, size: size) {
             // The asset is artwork, not a symbol, so a stale symbol configuration would rescale it.
             iconView.symbolConfiguration = nil
-            iconView.image = octicon
+            iconView.image = image
             iconView.setDynamicContentTintColor(.secondaryLabelColor)
             return
         }
