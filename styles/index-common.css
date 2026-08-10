@@ -239,6 +239,21 @@ h1 {
     outline-offset: 2px;
 }
 
+/* Two-line button label. Both lines together are shorter than the button's
+   2.4rem height, so the GitHub button stays level with the download one. */
+.btn-stack {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.15;
+}
+
+.btn-subtext {
+    font-size: .55rem;
+    font-weight: 500;
+    color: var(--secondary);
+}
+
 /* scripts/platform-gate.js flags non-Mac visitors on <html>; the download is
    macOS-only, so the button becomes a faded, inert label there. */
 .download-label-unavailable {
@@ -272,13 +287,14 @@ h1 {
 
 /* Screenshots ------------------------------------------------------------ */
 
+/* The shots are cropped to the window, whose own rounded corners are
+   transparent — so no border or radius here; drop-shadow follows the alpha and
+   rounds the shadow to match. */
 .screenshot {
+    display: block;
     width: 100%;
-    aspect-ratio: 3104 / 1954;
-    object-fit: cover;
-    border: 1px solid var(--screenshot-border);
-    border-radius: 16px;
-    background-color: rgba(128, 128, 128, .1);
+    height: auto;
+    aspect-ratio: 1952 / 1136;
     filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .2)) drop-shadow(0 4px 8px rgba(0, 0, 0, .15));
 }
 
