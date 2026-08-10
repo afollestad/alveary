@@ -107,7 +107,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     // falls back to the default beside it.
     var pullRequestOwnFooterActionKind = "addressFeedback"
     var pullRequestOthersFooterActionKind = "agenticReview"
-    var pullRequestsStatusFilters: Set<PullRequestStatus> = []
+    /// Single-select because it is pushed into the GitHub search, where qualifiers only AND —
+    /// see `PullRequestStatusFilter`. The packaged default keeps "needs my review" free of
+    /// merged, closed, and draft pull requests.
+    var pullRequestsStatusFilter: PullRequestStatusFilter = .open
     var pullRequestsRepositoryFilters: Set<String> = []
 
     func normalized() -> AppSettings {

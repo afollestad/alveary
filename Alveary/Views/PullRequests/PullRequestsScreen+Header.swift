@@ -42,7 +42,7 @@ struct PullRequestsScreenHeader: View {
     }
 
     private var filterButton: some View {
-        // A popover, not a `Menu`: both filter groups are multi-select, and a menu
+        // A popover, not a `Menu`: the repository group is multi-select, and a menu
         // would dismiss on the first click.
         Button {
             isFilterPopoverPresented.toggle()
@@ -65,9 +65,9 @@ struct PullRequestsScreenHeader: View {
     }
 
     private var filterAccessibilityValue: String {
-        let statuses = viewModel.selectedStatuses.isEmpty
+        let statuses = viewModel.selectedStatusFilter == .all
             ? "All statuses"
-            : viewModel.selectedStatuses.map(\.filterLabel).sorted().joined(separator: ", ")
+            : viewModel.selectedStatusFilter.filterLabel
         let repositories = viewModel.selectedRepositories.isEmpty
             ? "All repositories"
             : viewModel.selectedRepositories.sorted().joined(separator: ", ")

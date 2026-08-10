@@ -80,14 +80,14 @@ final class PullRequestsViewModelTests: XCTestCase {
         let viewModel = makePullRequestsViewModel(service: service)
         await viewModel.refresh()
 
-        viewModel.toggleStatusFilter(.draft)
+        viewModel.selectStatusFilter(.draft)
         XCTAssertEqual(viewModel.visibleRows(for: .all).map(\.id.number), [1])
 
-        // Multi-select: adding a second status widens the result.
-        viewModel.toggleStatusFilter(.merged)
-        XCTAssertEqual(viewModel.visibleRows(for: .all).map(\.id.number), [1, 2])
+        // Single-select: picking another status replaces rather than widens.
+        viewModel.selectStatusFilter(.merged)
+        XCTAssertEqual(viewModel.visibleRows(for: .all).map(\.id.number), [2])
 
-        viewModel.clearStatusFilters()
+        viewModel.selectStatusFilter(.all)
         viewModel.toggleRepositoryFilter("octo/beta")
         XCTAssertEqual(viewModel.visibleRows(for: .all).map(\.id.number), [2])
         XCTAssertFalse(viewModel.showsRepositoryInRows)
@@ -206,6 +206,8 @@ final class PullRequestsViewModelTests: XCTestCase {
             warnings: []
         ))
         let viewModel = makePullRequestsViewModel(service: service)
+        // Ordering is the subject here, so every status has to be visible.
+        viewModel.selectStatusFilter(.all)
         await viewModel.refresh()
 
         // The row's displayed date orders the list, newest first, regardless of status.
@@ -216,14 +218,14 @@ final class PullRequestsViewModelTests: XCTestCase {
         let settings = InMemorySettingsService()
         settings.update {
             $0.pullRequestsSelectedTab = "Reviewing"
-            $0.pullRequestsStatusFilters = [.open, .draft]
+            $0.pullRequestsStatusFilter = .draft
             $0.pullRequestsRepositoryFilters = ["octo/alpha"]
         }
 
         let viewModel = makePullRequestsViewModel(service: StubPullRequestsService(), settingsService: settings)
 
         XCTAssertEqual(viewModel.selectedFilter, .reviewing)
-        XCTAssertEqual(viewModel.selectedStatuses, [.open, .draft])
+        XCTAssertEqual(viewModel.selectedStatusFilter, .draft)
         XCTAssertEqual(viewModel.selectedRepositories, ["octo/alpha"])
     }
 
@@ -256,16 +258,16 @@ final class PullRequestsViewModelTests: XCTestCase {
         let settings = InMemorySettingsService()
         let viewModel = makePullRequestsViewModel(service: StubPullRequestsService(), settingsService: settings)
 
-        viewModel.toggleStatusFilter(.merged)
+        viewModel.selectStatusFilter(.merged)
         viewModel.toggleRepositoryFilter("octo/alpha")
 
-        XCTAssertEqual(settings.current.pullRequestsStatusFilters, [.merged])
+        XCTAssertEqual(settings.current.pullRequestsStatusFilter, .merged)
         XCTAssertEqual(settings.current.pullRequestsRepositoryFilters, ["octo/alpha"])
 
-        viewModel.clearStatusFilters()
+        viewModel.selectStatusFilter(.all)
         viewModel.clearRepositoryFilters()
 
-        XCTAssertEqual(settings.current.pullRequestsStatusFilters, [])
+        XCTAssertEqual(settings.current.pullRequestsStatusFilter, .all)
         XCTAssertEqual(settings.current.pullRequestsRepositoryFilters, [])
     }
 
@@ -291,7 +293,9 @@ final class PullRequestsViewModelTests: XCTestCase {
         await refreshTask.value
 
         XCTAssertNil(viewModel.errorMessage)
-        XCTAssertEqual(viewModel.loadPhase, .loading)
+        // The phase is derived from the buckets, so a cancelled load leaves no trace at all —
+        // no rows, no recorded failure, nothing in flight.
+        XCTAssertEqual(viewModel.loadPhase, .idle)
         XCTAssertFalse(viewModel.isRefreshing)
     }
 
@@ -332,7 +336,7 @@ final class PullRequestsViewModelTests: XCTestCase {
             try? FileManager.default.removeItem(at: cacheURL)
         }
         let cache = PullRequestsListCache(fileURL: cacheURL)
-        await cache.save([makePullRequestSummary(number: 9, isAuthored: true)])
+        await cache.save([.authored: [makePullRequestSummary(number: 9, isAuthored: true)]], filter: .open)
 
         let service = StubPullRequestsService()
         let gate = PullRequestsServiceGate()
@@ -362,13 +366,16 @@ final class PullRequestsViewModelTests: XCTestCase {
 
         // The refresh persists the fresh list for the next launch.
         for _ in 0..<2_000 {
-            if await cache.load()?.map(\.id.number) == [10] {
+            if await cache.load(filter: .open)?[.authored]?.map(\.id.number) == [10] {
                 break
             }
             await Task.yield()
         }
-        let persisted = await cache.load()
-        XCTAssertEqual(persisted?.map(\.id.number), [10])
+        let persisted = await cache.load(filter: .open)
+        XCTAssertEqual(persisted?[.authored]?.map(\.id.number), [10])
+        // Buckets written under one status must not paint under another.
+        let underAnotherFilter = await cache.load(filter: .merged)
+        XCTAssertNil(underAnotherFilter)
     }
 
     func testCorruptOrMissingCacheLoadsAsNil() async {
@@ -376,7 +383,7 @@ final class PullRequestsViewModelTests: XCTestCase {
             fileURL: FileManager.default.temporaryDirectory
                 .appendingPathComponent("pr-cache-missing-\(UUID().uuidString).json")
         )
-        let missingResult = await missing.load()
+        let missingResult = await missing.load(filter: .open)
         XCTAssertNil(missingResult)
 
         let corruptURL = FileManager.default.temporaryDirectory
@@ -386,8 +393,19 @@ final class PullRequestsViewModelTests: XCTestCase {
         }
         try? Data("not json".utf8).write(to: corruptURL)
         let corrupt = PullRequestsListCache(fileURL: corruptURL)
-        let corruptResult = await corrupt.load()
+        let corruptResult = await corrupt.load(filter: .open)
         XCTAssertNil(corruptResult)
+
+        // The flat pre-bucket file shape retires by failing to decode, which is a cold cache.
+        let legacyURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pr-cache-legacy-\(UUID().uuidString).json")
+        defer {
+            try? FileManager.default.removeItem(at: legacyURL)
+        }
+        try? Data("[]".utf8).write(to: legacyURL)
+        let legacy = PullRequestsListCache(fileURL: legacyURL)
+        let legacyResult = await legacy.load(filter: .open)
+        XCTAssertNil(legacyResult)
     }
 
     func testVisibleSectionsBucketAllTabByInvolvement() async {

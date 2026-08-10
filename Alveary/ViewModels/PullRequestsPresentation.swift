@@ -6,14 +6,29 @@ enum PullRequestsFilter: String, CaseIterable, Identifiable {
     case authored = "Authored"
 
     var id: String { rawValue }
+
+    /// The involvement buckets this tab renders, and so the only ones it fetches. Reviewing is
+    /// both review buckets because it sections "Pending review" above "Previously reviewed".
+    var requiredBuckets: Set<PullRequestInvolvementBucket> {
+        switch self {
+        case .all:
+            return Set(PullRequestInvolvementBucket.allCases)
+        case .reviewing:
+            return [.reviewRequested, .reviewed]
+        case .authored:
+            return [.authored]
+        }
+    }
 }
 
-extension PullRequestStatus {
-    /// Menu ordering for the status filter.
-    static let filterCases: [PullRequestStatus] = [.open, .draft, .merged, .closed]
+extension PullRequestStatusFilter {
+    /// Menu ordering for the status filter; `all` leads because it is the widest choice.
+    static let menuCases: [PullRequestStatusFilter] = [.all, .open, .draft, .merged, .closed]
 
     var filterLabel: String {
         switch self {
+        case .all:
+            return "All"
         case .open:
             return "Open"
         case .draft:

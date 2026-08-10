@@ -7,21 +7,16 @@ extension PullRequestsViewModel {
         Set(items.map(\.repositoryNameWithOwner)).sorted()
     }
 
+    /// Whether the menu narrows the list at all. True for the packaged `.open` default too — the
+    /// list genuinely is narrowed there, and the highlighted button is what points at why merged
+    /// and closed pull requests are absent.
     var hasActiveMenuFilters: Bool {
-        !selectedStatuses.isEmpty || !selectedRepositories.isEmpty
+        selectedStatusFilter != .all || !selectedRepositories.isEmpty
     }
 
     /// Rows hide the repository text only while the filter narrows to one repository.
     var showsRepositoryInRows: Bool {
         selectedRepositories.count != 1
-    }
-
-    func clearStatusFilters() {
-        guard !selectedStatuses.isEmpty else {
-            return
-        }
-        selectedStatuses = []
-        persistStatusFilters()
     }
 
     func clearRepositoryFilters() {
@@ -30,15 +25,6 @@ extension PullRequestsViewModel {
         }
         selectedRepositories = []
         persistRepositoryFilters()
-    }
-
-    func toggleStatusFilter(_ status: PullRequestStatus) {
-        if selectedStatuses.contains(status) {
-            selectedStatuses.remove(status)
-        } else {
-            selectedStatuses.insert(status)
-        }
-        persistStatusFilters()
     }
 
     func toggleRepositoryFilter(_ nameWithOwner: String) {
@@ -65,7 +51,7 @@ extension PullRequestsViewModel {
     func visibleRows(for tab: PullRequestsFilter) -> [PullRequestSummary] {
         let key = VisibleRowsCacheKey(
             tab: tab,
-            statuses: selectedStatuses,
+            status: selectedStatusFilter,
             repositories: selectedRepositories,
             searchQuery: searchQuery.trimmingCharacters(in: .whitespaces),
             items: items
@@ -81,7 +67,11 @@ extension PullRequestsViewModel {
     private func computeVisibleRows(for tab: PullRequestsFilter) -> [PullRequestSummary] {
         items.filter { summary in
             matchesTab(summary, tab: tab)
-                && (selectedStatuses.isEmpty || selectedStatuses.contains(summary.status))
+                // Kept alongside the search qualifier so the rows can never contradict the
+                // selected filter: between a status change and its reload `items` still holds
+                // the previous search, and `applyStatus` writes a close or reopen with no
+                // reload behind it at all.
+                && selectedStatusFilter.matches(summary.status)
                 && matchesRepositoryFilter(summary)
                 && matchesSearch(summary)
         }
@@ -163,11 +153,6 @@ extension PullRequestsViewModel {
         selectedRepositories.formIntersection(repositoryFilterOptions)
     }
 
-    private func persistStatusFilters() {
-        let statuses = selectedStatuses
-        settingsService?.update { $0.pullRequestsStatusFilters = statuses }
-    }
-
     private func persistRepositoryFilters() {
         let repositories = selectedRepositories
         settingsService?.update { $0.pullRequestsRepositoryFilters = repositories }
@@ -232,7 +217,7 @@ struct VisibleListCache {
 /// is unchanged, so a cache hit costs no per-row work.
 struct VisibleRowsCacheKey: Equatable {
     let tab: PullRequestsFilter
-    let statuses: Set<PullRequestStatus>
+    let status: PullRequestStatusFilter
     let repositories: Set<String>
     let searchQuery: String
     let items: [PullRequestSummary]

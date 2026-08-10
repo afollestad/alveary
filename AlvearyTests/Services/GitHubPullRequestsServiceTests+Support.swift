@@ -3,6 +3,9 @@ import XCTest
 
 @testable import Alveary
 
+/// Every involvement bucket, which is what the All tab asks for.
+let allBuckets = Set(PullRequestInvolvementBucket.allCases)
+
 func makeGitHubPullRequestsService(
     shell: MockShellRunner,
     executablePath: String? = "/opt/homebrew/bin/gh"
@@ -26,7 +29,7 @@ func assertListFailure(
     let service = makeGitHubPullRequestsService(shell: shell)
 
     do {
-        _ = try await service.listInvolvedPullRequests()
+        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
         XCTFail("Expected \(expected)", file: file, line: line)
     } catch let error as PullRequestsServiceError {
         XCTAssertEqual(error, expected, file: file, line: line)

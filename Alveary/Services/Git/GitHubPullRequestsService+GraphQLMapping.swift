@@ -5,29 +5,51 @@ import Foundation
 // app renders. The queries themselves live in
 // `GitHubPullRequestsService+GraphQL.swift`.
 extension GitHubPullRequestsService {
-    static func makeListResult(data: ListGraphQLData, warnings: [String]) -> PullRequestListResult {
-        let buckets: [(SearchBucketNode?, PullRequestInvolvementBucket)] = [
-            (data.authored, .authored),
-            (data.requested, .reviewRequested),
-            (data.reviewed, .reviewed)
-        ]
-        let bucketSummaries = buckets.map { node, bucket in
-            (node?.nodes ?? []).compactMap { node -> PullRequestSummary? in
-                guard let node, var summary = makeSummary(from: node) else {
-                    return nil
-                }
-                switch bucket {
-                case .authored:
-                    summary.isAuthored = true
-                case .reviewRequested:
-                    summary.isReviewRequested = true
-                case .reviewed:
-                    summary.hasReviewed = true
-                }
-                return summary
+    /// Keys the result by the buckets that were *requested*, not the ones that came back with
+    /// nodes: a SAML-forbidden bucket decodes as `null` and must still read as loaded-and-empty,
+    /// or the caller would treat it as never fetched and ask again on every pass.
+    static func makeListResult(
+        data: ListGraphQLData,
+        warnings: [String],
+        buckets: Set<PullRequestInvolvementBucket>
+    ) -> PullRequestListResult {
+        let summariesByBucket = Dictionary(
+            uniqueKeysWithValues: orderedBuckets(buckets).map { bucket in
+                (bucket, makeSummaries(from: node(for: bucket, in: data), bucket: bucket))
             }
+        )
+        return PullRequestListResult(summariesByBucket: summariesByBucket, warnings: warnings)
+    }
+
+    private static func node(for bucket: PullRequestInvolvementBucket, in data: ListGraphQLData) -> SearchBucketNode? {
+        switch bucket {
+        case .authored:
+            return data.authored
+        case .reviewRequested:
+            return data.requested
+        case .reviewed:
+            return data.reviewed
         }
-        return PullRequestListResult(summaries: PullRequestListMerge.merge(bucketSummaries), warnings: warnings)
+    }
+
+    private static func makeSummaries(
+        from node: SearchBucketNode?,
+        bucket: PullRequestInvolvementBucket
+    ) -> [PullRequestSummary] {
+        (node?.nodes ?? []).compactMap { node -> PullRequestSummary? in
+            guard let node, var summary = makeSummary(from: node) else {
+                return nil
+            }
+            switch bucket {
+            case .authored:
+                summary.isAuthored = true
+            case .reviewRequested:
+                summary.isReviewRequested = true
+            case .reviewed:
+                summary.hasReviewed = true
+            }
+            return summary
+        }
     }
 
     static func makeSummary(from node: PullRequestListNode) -> PullRequestSummary? {

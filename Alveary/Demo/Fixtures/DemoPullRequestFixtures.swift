@@ -47,7 +47,7 @@ enum DemoPullRequestFixtures {
             title: "Idempotent webhook retries",
             author: "marcus",
             branch: "webhook-retries",
-            status: .draft,
+            status: .open,
             updatedAt: DemoData.hoursAgo(9),
             additions: 38,
             deletions: 3,

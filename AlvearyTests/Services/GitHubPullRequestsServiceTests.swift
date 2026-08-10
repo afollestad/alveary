@@ -10,7 +10,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests()
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
 
         XCTAssertEqual(result.warnings, [])
         // Empty and null nodes drop out; buckets merge by id and sort newest first.
@@ -49,7 +49,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        _ = try await service.listInvolvedPullRequests()
+        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
 
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 1)
@@ -66,6 +66,66 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         XCTAssertFalse(query.contains("statusCheckRollup"))
         XCTAssertEqual(invocation.stdoutLimitBytes, 4 * 1024 * 1024)
         XCTAssertEqual(invocation.timeout, .seconds(30))
+    }
+
+    func testListNarrowsEveryBucketToTheSelectedStatus() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: .open)
+
+        let invocations = await shell.invocations
+        let invocation = try XCTUnwrap(invocations.first)
+        // `is:open` alone would keep drafts, which are open pull requests.
+        XCTAssertTrue(invocation.args.contains("authored=is:pr is:open draft:false author:@me sort:updated-desc"))
+        XCTAssertTrue(
+            invocation.args.contains("requested=is:pr is:open draft:false review-requested:@me sort:updated-desc")
+        )
+        XCTAssertTrue(invocation.args.contains("reviewed=is:pr is:open draft:false reviewed-by:@me sort:updated-desc"))
+    }
+
+    func testListStatusQualifiersCoverEveryStatus() {
+        XCTAssertEqual(PullRequestStatus.open.searchQualifier, "is:open draft:false")
+        XCTAssertEqual(PullRequestStatus.draft.searchQualifier, "is:open draft:true")
+        XCTAssertEqual(PullRequestStatus.merged.searchQualifier, "is:merged")
+        // `is:closed` alone counts merged pull requests as closed.
+        XCTAssertEqual(PullRequestStatus.closed.searchQualifier, "is:closed is:unmerged")
+    }
+
+    func testListRequestsOnlyTheBucketsAskedFor() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        let result = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil)
+
+        let invocations = await shell.invocations
+        let invocation = try XCTUnwrap(invocations.first)
+        XCTAssertTrue(invocation.args.contains("authored=is:pr author:@me sort:updated-desc"))
+        XCTAssertFalse(invocation.args.contains { $0.hasPrefix("requested=") })
+        XCTAssertFalse(invocation.args.contains { $0.hasPrefix("reviewed=") })
+        let query = try XCTUnwrap(invocation.args.first { $0.hasPrefix("query=") })
+        XCTAssertTrue(query.contains("query($authored: String!)"))
+        XCTAssertFalse(query.contains("requested:"))
+        XCTAssertFalse(query.contains("reviewed:"))
+        // The fixture carries all three buckets; only the requested one is keyed back.
+        XCTAssertEqual(Set(result.summariesByBucket.keys), [.authored])
+    }
+
+    func testListKeysARequestedButForbiddenBucketAsEmptyRatherThanMissing() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(pullRequestsShellResult(
+            stdout: PullRequestsServiceFixtures.samlPartial,
+            exitCode: 1
+        )))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+
+        // A null bucket must read as fetched-and-empty; absent would have the caller refetch forever.
+        XCTAssertEqual(Set(result.summariesByBucket.keys), allBuckets)
+        XCTAssertEqual(result.summariesByBucket[.reviewRequested], [])
     }
 
     func testMergeCombinesBucketsFlagsAndSorts() {
@@ -101,7 +161,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.samlPartial, exitCode: 1)))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests()
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
 
         XCTAssertEqual(result.summaries.map(\.id.number), [1])
         XCTAssertTrue(result.summaries[0].isAuthored)
@@ -113,7 +173,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         let service = makeGitHubPullRequestsService(shell: shell, executablePath: nil)
 
         await assertPullRequestsServiceThrows(.ghNotInstalled) {
-            _ = try await service.listInvolvedPullRequests()
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
         }
         let invocations = await shell.invocations
         XCTAssertTrue(invocations.isEmpty)
@@ -159,7 +219,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests()
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
 
         XCTAssertEqual(result.summaries.count, 3)
         let invocations = await shell.invocations
@@ -174,7 +234,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.requestFailed(statusCode: 502)) {
-            _ = try await service.listInvolvedPullRequests()
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
         }
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 3)
@@ -186,7 +246,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.notAuthenticated) {
-            _ = try await service.listInvolvedPullRequests()
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
         }
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 1)
@@ -214,7 +274,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.responseTooLarge) {
-            _ = try await service.listInvolvedPullRequests()
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
         }
     }
 
@@ -224,7 +284,7 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         do {
-            _ = try await service.listInvolvedPullRequests()
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
             XCTFail("Expected an error")
         } catch let error as PullRequestsServiceError {
             guard case .decodingFailed = error else {

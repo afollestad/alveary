@@ -87,6 +87,11 @@ extension PullRequestsViewModel {
                 return
             }
             remoteListRefreshTask = nil
+            // The mutation may have moved rows in buckets the visible tab does not render — an
+            // agent closing an authored pull request while Reviewing is up — and `refresh()`
+            // reloads only the visible tab's buckets. Staling the rest keeps a tab visited
+            // inside the freshness window from painting the pre-mutation row as current.
+            markAllBucketsStale()
             await refresh()
         }
     }

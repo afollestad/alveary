@@ -74,7 +74,7 @@ extension AppSettings {
         case lastOpenConversationID
         case settingsSchemaVersion
         case pullRequestsSelectedTab
-        case pullRequestsStatusFilters
+        case pullRequestsStatusFilter
         case pullRequestsRepositoryFilters
         case scheduledTasksSelectedTab
         case pullRequestOwnFooterActionKind
@@ -83,6 +83,9 @@ extension AppSettings {
 
     private enum LegacyCodingKeys: String, CodingKey {
         case autoTrustWorktrees
+        // The multi-select status filter, before it became single-select so it could be pushed
+        // into the GitHub search (whose qualifiers only AND).
+        case pullRequestsStatusFilters
         // One footer pick for every pull request, before the split into an authored and an
         // others default.
         case pullRequestReviewFooterActionKind
@@ -121,14 +124,36 @@ extension AppSettings {
         if let tab = try? container.decodeIfPresent(String.self, forKey: .scheduledTasksSelectedTab) {
             scheduledTasksSelectedTab = tab
         }
-        // Element-tolerant: unknown status strings drop out instead of failing the load.
-        if let rawStatuses = try? container.decodeIfPresent([String].self, forKey: .pullRequestsStatusFilters) {
-            pullRequestsStatusFilters = Set(rawStatuses.compactMap(PullRequestStatus.init(rawValue:)))
-        }
+        decodePullRequestsStatusFilter(from: container, legacyContainer: legacyContainer)
         if let repositories = try? container.decodeIfPresent(Set<String>.self, forKey: .pullRequestsRepositoryFilters) {
             pullRequestsRepositoryFilters = repositories
         }
         decodeFooterActionKinds(from: container, legacyContainer: legacyContainer)
+    }
+
+    /// The multi-select predecessor carries over only when it named exactly one status, which is
+    /// all single-select can express; no selection (its old default) or a combination takes the
+    /// new packaged default instead, so an upgrade lands on open-only rather than on "everything".
+    private mutating func decodePullRequestsStatusFilter(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        legacyContainer: KeyedDecodingContainer<LegacyCodingKeys>
+    ) {
+        if let filter = try? container.decodeIfPresent(PullRequestStatusFilter.self, forKey: .pullRequestsStatusFilter) {
+            pullRequestsStatusFilter = filter
+            return
+        }
+        // Element-tolerant like the decode it replaces: an unknown status string drops out.
+        guard let rawStatuses = try? legacyContainer.decodeIfPresent(
+            [String].self,
+            forKey: .pullRequestsStatusFilters
+        ) else {
+            return
+        }
+        let statuses = rawStatuses.compactMap(PullRequestStatus.init(rawValue:))
+        guard statuses.count == 1, let status = statuses.first else {
+            return
+        }
+        pullRequestsStatusFilter = PullRequestStatusFilter(status)
     }
 
     /// The one footer pick that preceded the split seeds *both* new keys, but only when it names

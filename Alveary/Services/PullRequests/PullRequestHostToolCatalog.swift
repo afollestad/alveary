@@ -112,14 +112,16 @@ private extension PullRequestHostToolCatalog {
         name: listToolName,
         title: "List the GitHub pull requests the user is involved in",
         description: """
-        Search GitHub for the pull requests the signed-in user is involved in, newest activity first. This is the tool for \
-        "what pull requests am I working on" or "what needs my review": it queries GitHub live, across every repository. \
-        These are not only the user's own pull requests — the reviewing side returns other people's, opened by their \
-        authors and waiting on this user. filter narrows to "authored", "reviewing" (asked to review or already \
-        reviewed), or "all" (the default). Involvement is the whole search, so it cannot list an arbitrary repository's \
-        pull requests, and it is not list_linked_prs, which reads Alveary's local record of what was attached to one \
-        thread by hand. Returns up to 50 rows, with total_count reporting how many matched; warnings names organizations \
-        whose results were unavailable, usually because the GitHub CLI token lacks their SSO authorization.
+        Search GitHub for the open pull requests the signed-in user is involved in, newest activity first. This is the \
+        tool for "what pull requests am I working on" or "what needs my review": it queries GitHub live, across every \
+        repository. These are not only the user's own pull requests — the reviewing side returns other people's, opened \
+        by their authors and waiting on this user. Only open pull requests are returned; drafts, merged, and closed ones \
+        are never listed, so it cannot answer a question about a pull request that is already finished. filter narrows \
+        to "authored", "reviewing" (asked to review or already reviewed), or "all" (the default). Involvement is the \
+        whole search, so it cannot list an arbitrary repository's pull requests, and it is not list_linked_prs, which \
+        reads Alveary's local record of what was attached to one thread by hand. Returns up to 50 rows, with \
+        total_count reporting how many matched; warnings names organizations whose results were unavailable, usually \
+        because the GitHub CLI token lacks their SSO authorization.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: ["filter": HostToolSchema.enumSchema(PullRequestHostToolListFilter.allCases.map(\.rawValue))],

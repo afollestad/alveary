@@ -9,10 +9,12 @@ final class PullRequestsViewModel {
     // Internal (not private) so the review-batch companion can reach the service.
     let service: any PullRequestsService
     let avatarLoader: GitHubAvatarLoader
-    private let listCache: PullRequestsListCache?
+    // Internal (not private) so the loading companion can paint and persist buckets.
+    let listCache: PullRequestsListCache?
     // Internal (not private) so the filtering companion can persist filter changes.
     let settingsService: (any SettingsService)?
-    private let now: () -> Date
+    // Internal (not private) so the loading companion can stamp bucket fetch times.
+    let now: () -> Date
     /// Internal so the attachments companion can upload; optional because tests
     /// and previews construct the view model without an uploader.
     let attachmentUploadService: (any GitHubAttachmentUploadService)?
@@ -50,7 +52,7 @@ final class PullRequestsViewModel {
     @ObservationIgnored var remoteRefreshTasks: [PullRequestPaneTarget: Task<Void, Never>] = [:]
     @ObservationIgnored var remoteListRefreshTask: Task<Void, Never>?
 
-    private var hasLoadedListCache = false
+    @ObservationIgnored var hasLoadedListCache = false
 
     // Contextual-pane session state; lifecycle in the Pane Sessions extension below.
     private(set) var activePaneTarget: PullRequestPaneTarget?
@@ -68,14 +70,36 @@ final class PullRequestsViewModel {
     private(set) var pendingPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<PullRequestPaneTarget>> = []
 
-    private(set) var loadPhase: PullRequestsLoadPhase = .idle
+    /// What each involvement bucket last returned. Fetching is bucket-demand-driven — a tab loads
+    /// only the buckets it renders — so these are stored separately rather than as one list, which
+    /// is what lets a tab reuse a bucket another tab already paid for. Mutated by
+    /// `PullRequestsViewModel+Loading.swift`.
+    var bucketStates: [PullRequestInvolvementBucket: PullRequestBucketState] = [:]
+    /// Buckets with a request outstanding. `isRefreshing` derives from this, so it stays observable.
+    var inFlightBuckets: Set<PullRequestInvolvementBucket> = []
+    /// The last failure per bucket, which is what makes a tab whose buckets all failed unavailable
+    /// while a tab sharing one healthy bucket still renders.
+    var bucketFailures: [PullRequestInvolvementBucket: PullRequestsServiceError] = [:]
+    /// The loaded buckets merged into one list; rebuilt from `bucketStates` on every change.
     private(set) var items: [PullRequestSummary] = []
     /// Non-fatal fetch warnings, such as SAML-protected organizations withholding results.
-    private(set) var warnings: [String] = []
+    var warnings: [String] = []
     /// A refresh failure while stale rows remain visible; unavailability replaces the list instead.
-    private(set) var errorMessage: String?
-    private(set) var isRefreshing = false
-    private(set) var lastRefreshedAt: Date?
+    var errorMessage: String?
+
+    var isRefreshing: Bool {
+        !inFlightBuckets.isEmpty
+    }
+
+    /// Newest bucket fetch, so a screen appearance can tell a cold start from a warm one.
+    var lastRefreshedAt: Date? {
+        bucketStates.values.map(\.fetchedAt).max()
+    }
+
+    /// The visible tab's phase; the screen renders one tab, so this is what it switches on.
+    var loadPhase: PullRequestsLoadPhase {
+        loadPhase(for: selectedFilter)
+    }
 
     /// The open comment-composing session's BlockInputKit store; created by the
     /// composer-opening methods and cleared on cancel or successful save.
@@ -110,8 +134,11 @@ final class PullRequestsViewModel {
     var visibleListCache: VisibleListCache?
 
     var searchQuery = ""
-    /// Empty sets mean "no constraint" — every status / repository passes.
-    var selectedStatuses: Set<PullRequestStatus> = []
+    /// Single-select, and pushed into the GitHub search rather than only applied here — see
+    /// `PullRequestStatusFilter`. Changing it invalidates every bucket. Mutated through
+    /// `selectStatusFilter(_:)` in the filtering companion.
+    private(set) var selectedStatusFilter: PullRequestStatusFilter = .open
+    /// An empty set means "no constraint" — every repository passes.
     var selectedRepositories: Set<String> = []
     /// The active tab; restored from settings and persisted through `selectFilter(_:)`.
     private(set) var selectedFilter = PullRequestsFilter.all
@@ -156,7 +183,7 @@ final class PullRequestsViewModel {
         self.referenceDate = now()
         if let settings = settingsService?.current {
             selectedFilter = PullRequestsFilter(rawValue: settings.pullRequestsSelectedTab) ?? .all
-            selectedStatuses = settings.pullRequestsStatusFilters
+            selectedStatusFilter = settings.pullRequestsStatusFilter
             selectedRepositories = settings.pullRequestsRepositoryFilters
         }
         observeRemoteChanges()
@@ -168,80 +195,66 @@ final class PullRequestsViewModel {
         }
     }
 
-    /// Switches the visible tab and persists it as the next launch's initial tab.
+    /// Switches the visible tab, persists it as the next launch's initial tab, and loads whatever
+    /// buckets the new tab still needs — nothing is fetched for a tab until it is shown.
     func selectFilter(_ filter: PullRequestsFilter) {
         guard selectedFilter != filter else {
             return
         }
         selectedFilter = filter
         settingsService?.update { $0.pullRequestsSelectedTab = filter.rawValue }
-    }
-
-    // MARK: - Refresh
-
-    /// Screen-appearance refresh: paints the persisted last list immediately, then
-    /// refreshes over the network, throttled so tab flips do not hammer GitHub.
-    func refreshForScreen() async {
-        await loadCachedListIfNeeded()
-        if let lastRefreshedAt, now().timeIntervalSince(lastRefreshedAt) < Self.refreshInterval {
-            return
-        }
-        await refresh()
-    }
-
-    /// Spawns an unthrottled refresh; for the header's explicit refresh action.
-    func requestRefresh() {
         Task {
-            await refresh()
-        }
-    }
-
-    /// Fetches all three involvement buckets in one batched request, so every tab
-    /// settles in a single UI invalidation.
-    func refresh() async {
-        guard !isRefreshing else {
-            return
-        }
-        isRefreshing = true
-        if items.isEmpty {
-            loadPhase = .loading
-        }
-        defer {
-            isRefreshing = false
-        }
-        do {
-            let result = try await service.listInvolvedPullRequests()
-            items = result.summaries
-            warnings = result.warnings
-            errorMessage = nil
-            lastRefreshedAt = now()
-            touchReferenceDate()
-            loadPhase = .loaded
-            normalizeRepositoryFilter()
-            saveListCache()
-        } catch is CancellationError {
-            // Leaving the screen cancels the load; that is not an error worth a banner.
-        } catch let error as PullRequestsServiceError {
-            guard !Task.isCancelled else {
-                // Shell teardown wraps cancellation in service errors; same non-error.
-                return
-            }
-            applyFailure(error)
-        } catch {
-            guard !Task.isCancelled else {
-                return
-            }
-            applyFailure(.transport(error.localizedDescription))
+            await loadIfNeeded(for: filter)
         }
     }
 
     /// Applies a locally-known status to a list row, so closing or reopening a
     /// pull request updates its glyph before the next list fetch confirms it.
+    ///
+    /// Writes through every bucket holding the row rather than `items`, which is derived.
     func applyStatus(_ status: PullRequestStatus, toRow id: PullRequestIdentifier) {
-        guard let index = items.firstIndex(where: { $0.id == id }) else {
+        var didChange = false
+        for (bucket, state) in bucketStates {
+            guard let index = state.summaries.firstIndex(where: { $0.id == id }) else {
+                continue
+            }
+            bucketStates[bucket]?.summaries[index].status = status
+            didChange = true
+        }
+        guard didChange else {
             return
         }
-        items[index].status = status
+        rebuildItems()
+    }
+
+    /// Re-derives `items` from the loaded buckets. `items` keeps a private setter because this is
+    /// the only way it may change — every write goes through `bucketStates` first.
+    func rebuildItems() {
+        items = PullRequestListMerge.merge(
+            PullRequestInvolvementBucket.allCases.compactMap { bucketStates[$0]?.summaries }
+        )
+    }
+
+    /// Narrows every bucket's GitHub search to one status, persisting it as the next launch's
+    /// selection. Every loaded bucket answered the previous search, so all of them are marked
+    /// stale: the visible tab reloads immediately and the rest reload when next shown.
+    ///
+    /// The rows themselves stay — the client-side status filter narrows them on the spot, so a
+    /// narrowing change is correct before the reload lands and a widening one merely reads empty
+    /// for a moment rather than blanking a list that was showing the right thing.
+    func selectStatusFilter(_ filter: PullRequestStatusFilter) {
+        guard selectedStatusFilter != filter else {
+            return
+        }
+        selectedStatusFilter = filter
+        settingsService?.update { $0.pullRequestsStatusFilter = filter }
+        markAllBucketsStale()
+        // A failure under the previous search says nothing about this one.
+        bucketFailures = [:]
+        errorMessage = nil
+        Task {
+            await loadIfNeeded(for: selectedFilter)
+        }
     }
 
     /// Advances the clock relative ages are measured against. Guarded on equality so an
@@ -256,58 +269,12 @@ final class PullRequestsViewModel {
         referenceDate = value
     }
 
-    func retry() {
-        loadPhase = .idle
-        requestRefresh()
-    }
-
     func clearError() {
         errorMessage = nil
     }
 
     func dismissWarnings() {
         warnings = []
-    }
-
-    // MARK: - Private
-
-    private func applyFailure(_ error: PullRequestsServiceError) {
-        if items.isEmpty {
-            loadPhase = .unavailable(PullRequestsUnavailableReason(error))
-        } else {
-            // Keep the stale rows visible and say why the refresh failed.
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    /// Paints the persisted last list once per app run, so the screen shows the
-    /// previous rows instantly while the network refresh runs behind it.
-    private func loadCachedListIfNeeded() async {
-        guard !hasLoadedListCache else {
-            return
-        }
-        hasLoadedListCache = true
-        guard items.isEmpty, let listCache, let cached = await listCache.load() else {
-            return
-        }
-        // A refresh may have landed while the cache read was in flight.
-        guard items.isEmpty else {
-            return
-        }
-        items = cached
-        touchReferenceDate()
-        loadPhase = .loaded
-        normalizeRepositoryFilter()
-    }
-
-    private func saveListCache() {
-        guard let listCache else {
-            return
-        }
-        let snapshot = items
-        Task.detached {
-            await listCache.save(snapshot)
-        }
     }
 }
 

@@ -159,13 +159,11 @@ private extension DemoDataSeeder {
     }
 
     static let pullRequestListOutput = #"""
-        {"filter":"all","total_count":6,"warnings":[],"pull_requests":[\#
+        {"filter":"all","total_count":4,"warnings":[],"pull_requests":[\#
         {"repository":"demo/waypoint","number":61,"title":"Rework the onboarding walkthrough","status":"open"},\#
         {"repository":"demo/hummingbird","number":74,"title":"Search results empty state","status":"open"},\#
-        {"repository":"demo/ledger","number":128,"title":"Idempotent webhook retries","status":"draft"},\#
-        {"repository":"demo/waypoint","number":57,"title":"Cache tile downloads for offline maps","status":"open"},\#
-        {"repository":"demo/ledger","number":96,"title":"Rate limit middleware for the public API","status":"merged"},\#
-        {"repository":"demo/hummingbird","number":41,"title":"Try a bottom sheet for filters","status":"closed"}]}
+        {"repository":"demo/ledger","number":128,"title":"Idempotent webhook retries","status":"open"},\#
+        {"repository":"demo/waypoint","number":57,"title":"Cache tile downloads for offline maps","status":"open"}]}
         """#
 
     static let linkPullRequestOutput = #"""

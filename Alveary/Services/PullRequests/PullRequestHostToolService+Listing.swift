@@ -7,7 +7,11 @@ extension PullRequestHostToolService {
     /// GitHub's search is what bounds this: the service asks for the user's own authored,
     /// review-requested, and reviewed buckets, so there is no way to steer it at an arbitrary
     /// repository. The filter narrows that merged set the same way the Pull Requests screen's tabs
-    /// do, so the tool and the UI can never disagree about what "reviewing" means.
+    /// do, so the tool and the UI can never disagree about what "reviewing" means — and it picks
+    /// the buckets to fetch, so a narrow filter costs one search rather than three.
+    ///
+    /// Open-only, unconditionally: this answers "what is on my plate", where a merged or closed
+    /// pull request is noise, and unlike the screen there is no user session carrying a choice.
     func listPullRequests(
         context: AgentCLIKit.AgentHostToolCallContext,
         arguments: [String: AgentCLIKit.JSONValue]
@@ -17,7 +21,10 @@ extension PullRequestHostToolService {
 
         let result: PullRequestListResult
         do {
-            result = try await pullRequestsService.listInvolvedPullRequests()
+            result = try await pullRequestsService.listInvolvedPullRequests(
+                buckets: filter.requiredBuckets,
+                status: .open
+            )
         } catch let error as PullRequestsServiceError {
             throw Self.unavailable(error)
         }

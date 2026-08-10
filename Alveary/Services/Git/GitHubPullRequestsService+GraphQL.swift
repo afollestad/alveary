@@ -3,13 +3,19 @@ import Foundation
 // MARK: - Queries
 
 extension GitHubPullRequestsService {
-    static let listArgs: [String] = [
-        "api", "graphql",
-        "-f", "query=\(listQuery)",
-        "-f", "authored=\(PullRequestInvolvementBucket.authored.searchQuery)",
-        "-f", "requested=\(PullRequestInvolvementBucket.reviewRequested.searchQuery)",
-        "-f", "reviewed=\(PullRequestInvolvementBucket.reviewed.searchQuery)"
-    ]
+    /// One `-f` search string per requested bucket, in `allCases` order so the argument list
+    /// and the document it accompanies stay deterministic.
+    static func listArgs(buckets: Set<PullRequestInvolvementBucket>, status: PullRequestStatus?) -> [String] {
+        let ordered = orderedBuckets(buckets)
+        return ["api", "graphql", "-f", "query=\(listQuery(buckets: ordered))"]
+            + ordered.flatMap { bucket in
+                ["-f", "\(bucket.queryVariableName)=\(bucket.searchQuery(status: status))"]
+            }
+    }
+
+    static func orderedBuckets(_ buckets: Set<PullRequestInvolvementBucket>) -> [PullRequestInvolvementBucket] {
+        PullRequestInvolvementBucket.allCases.filter(buckets.contains)
+    }
 
     /// `addReaction` / `removeReaction` GraphQL mutations; both take the comment's
     /// node id and one fixed `ReactionContent` value.
@@ -37,16 +43,26 @@ extension GitHubPullRequestsService {
         ]
     }
 
-    // One batched request for all three involvement buckets so every tab settles in
-    // a single UI invalidation. The fragment deliberately omits `statusCheckRollup`:
-    // the list never shows check status, and rollup is the field that makes GitHub's
-    // GraphQL endpoint slow and 502-prone — without it the combined query is cheap.
-    private static let listQuery = """
-    query($authored: String!, $requested: String!, $reviewed: String!) {
-      authored: search(type: ISSUE, query: $authored, first: 50) { nodes { ...pr } }
-      requested: search(type: ISSUE, query: $requested, first: 50) { nodes { ...pr } }
-      reviewed: search(type: ISSUE, query: $reviewed, first: 50) { nodes { ...pr } }
+    // One aliased `search` per requested bucket, batched into a single request so a tab
+    // always settles in one UI invalidation no matter how many buckets it renders.
+    private static func listQuery(buckets: [PullRequestInvolvementBucket]) -> String {
+        let variables = buckets.map { "$\($0.queryVariableName): String!" }.joined(separator: ", ")
+        let searches = buckets.map { bucket in
+            let name = bucket.queryVariableName
+            return "  \(name): search(type: ISSUE, query: $\(name), first: 50) { nodes { ...pr } }"
+        }
+        return """
+        query(\(variables)) {
+        \(searches.joined(separator: "\n"))
+        }
+        \(listFragment)
+        """
     }
+
+    // Deliberately omits `statusCheckRollup`: the list never shows check status, and rollup is
+    // the field that makes GitHub's GraphQL endpoint slow and 502-prone — without it the
+    // combined query is cheap. One constant so that invariant has a single place to hold.
+    private static let listFragment = """
     fragment pr on PullRequest {
       number title url state isDraft
       author { login avatarUrl(size: 64) }

@@ -8,8 +8,20 @@ import Foundation
 struct DemoPullRequestsService: PullRequestsService {
     private static let unavailable = PullRequestsServiceError.transport("Not available in demo mode")
 
-    func listInvolvedPullRequests() async throws -> PullRequestListResult {
-        PullRequestListResult(summaries: DemoPullRequestFixtures.summaries, warnings: [])
+    /// Narrows the fixtures the same way the real search does, so demo mode cannot show a bucket
+    /// or a status the app would not return.
+    func listInvolvedPullRequests(
+        buckets: Set<PullRequestInvolvementBucket>,
+        status: PullRequestStatus?
+    ) async throws -> PullRequestListResult {
+        let summariesByBucket = Dictionary(
+            uniqueKeysWithValues: buckets.map { bucket in
+                (bucket, DemoPullRequestFixtures.summaries.filter {
+                    $0.belongs(to: bucket) && (status == nil || $0.status == status)
+                })
+            }
+        )
+        return PullRequestListResult(summariesByBucket: summariesByBucket, warnings: [])
     }
 
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {

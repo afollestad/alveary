@@ -34,6 +34,63 @@ enum PullRequestStatus: String, Sendable, Hashable, Codable {
     case draft
     case merged
     case closed
+
+    /// GitHub search qualifiers narrowing a bucket to this status. The screen's status
+    /// filter is single-select because these cannot be combined: GitHub search has no
+    /// `OR`, so `is:open is:merged` ANDs down to zero results.
+    var searchQualifier: String {
+        switch self {
+        case .open:
+            // Drafts are open pull requests, so excluding them takes its own qualifier.
+            return "is:open draft:false"
+        case .draft:
+            // `.draft` here means open *and* draft; a closed draft maps to `.closed`.
+            return "is:open draft:true"
+        case .merged:
+            return "is:merged"
+        case .closed:
+            // `is:closed` alone counts merged pull requests as closed.
+            return "is:closed is:unmerged"
+        }
+    }
+}
+
+/// The Pull Requests screen's status selection, persisted in `AppSettings` and pushed into the
+/// GitHub search. Single-select — and so an enum carrying its own `all` case rather than an
+/// optional — for two reasons: GitHub search qualifiers only AND, so `is:open is:merged` matches
+/// nothing, and `AppSettings` encodes synthesized, which would drop a nil optional's key entirely
+/// and make an explicit "All" indistinguishable from a fresh install.
+enum PullRequestStatusFilter: String, Sendable, Hashable, CaseIterable, Codable {
+    case all
+    case open
+    case draft
+    case merged
+    case closed
+
+    init(_ status: PullRequestStatus?) {
+        switch status {
+        case .none: self = .all
+        case .open: self = .open
+        case .draft: self = .draft
+        case .merged: self = .merged
+        case .closed: self = .closed
+        }
+    }
+
+    /// nil for `all`, which searches every state.
+    var status: PullRequestStatus? {
+        switch self {
+        case .all: return nil
+        case .open: return .open
+        case .draft: return .draft
+        case .merged: return .merged
+        case .closed: return .closed
+        }
+    }
+
+    func matches(_ status: PullRequestStatus) -> Bool {
+        self.status == nil || self.status == status
+    }
 }
 
 enum PullRequestChecksState: Sendable, Equatable {
@@ -70,22 +127,55 @@ struct PullRequestSummary: Identifiable, Equatable, Sendable, Codable {
     var repositoryNameWithOwner: String {
         id.nameWithOwner
     }
+
+    var belongsToAnyBucket: Bool {
+        isAuthored || isReviewRequested || hasReviewed
+    }
+
+    /// Which search bucket produced this summary. A pull request can belong to several —
+    /// `PullRequestListMerge` ORs the flags together when the buckets are merged.
+    func belongs(to bucket: PullRequestInvolvementBucket) -> Bool {
+        switch bucket {
+        case .authored:
+            return isAuthored
+        case .reviewRequested:
+            return isReviewRequested
+        case .reviewed:
+            return hasReviewed
+        }
+    }
 }
 
-/// One involvement search bucket of the batched list query.
-enum PullRequestInvolvementBucket: Sendable {
+/// One involvement search bucket. Callers ask for the buckets the visible tab renders and
+/// they travel in a single batched query; see the fetch bullets in `Alveary/Services/Git/AGENTS.md`.
+///
+/// String-backed so the list cache can key its stored buckets readably.
+enum PullRequestInvolvementBucket: String, Sendable, Hashable, CaseIterable, Codable {
     case authored
-    case reviewRequested
+    case reviewRequested = "requested"
     case reviewed
 
-    var searchQuery: String {
+    /// GraphQL variable name and `search` alias. One source for both so a renamed case
+    /// cannot leave the document and the `-f` arguments disagreeing.
+    var queryVariableName: String {
+        rawValue
+    }
+
+    /// `status` nil searches every state, which is GitHub's own default.
+    func searchQuery(status: PullRequestStatus?) -> String {
+        ["is:pr", status?.searchQualifier, involvementQualifier, "sort:updated-desc"]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
+
+    private var involvementQualifier: String {
         switch self {
         case .authored:
-            return "is:pr author:@me sort:updated-desc"
+            return "author:@me"
         case .reviewRequested:
-            return "is:pr review-requested:@me sort:updated-desc"
+            return "review-requested:@me"
         case .reviewed:
-            return "is:pr reviewed-by:@me sort:updated-desc"
+            return "reviewed-by:@me"
         }
     }
 }
@@ -120,8 +210,41 @@ enum PullRequestListMerge {
 /// A successful list fetch. `warnings` carries non-fatal GraphQL errors — for example
 /// SAML-protected organizations return `FORBIDDEN` per-node errors alongside valid data.
 struct PullRequestListResult: Equatable, Sendable {
-    let summaries: [PullRequestSummary]
+    /// Only the buckets the caller asked for; the view model stores these separately so a
+    /// tab can reuse a bucket another tab already loaded.
+    let summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]]
     let warnings: [String]
+    /// The buckets merged into one list, so callers wanting the flat view do not each repeat it.
+    let summaries: [PullRequestSummary]
+
+    init(summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]], warnings: [String]) {
+        self.summariesByBucket = summariesByBucket
+        self.warnings = warnings
+        // `allCases` order rather than the dictionary's: `merge` lets the newest entry supply
+        // field values and resolves `updatedAt` ties by iteration order, so feeding it an
+        // unordered sequence would make the merged list nondeterministic.
+        self.summaries = PullRequestListMerge.merge(
+            PullRequestInvolvementBucket.allCases.compactMap { summariesByBucket[$0] }
+        )
+    }
+
+    /// For test fixtures that start from already-merged summaries; `summaries` is kept exactly as
+    /// given and the buckets are derived from each one's involvement flags.
+    ///
+    /// A summary carrying no flag falls into `.authored`. Nothing in production can produce one —
+    /// `makeListResult` sets a flag per bucket — but a fixture built without them would otherwise
+    /// belong to no bucket and vanish from a list assembled bucket by bucket.
+    init(summaries: [PullRequestSummary], warnings: [String]) {
+        self.summaries = summaries
+        self.warnings = warnings
+        self.summariesByBucket = Dictionary(
+            uniqueKeysWithValues: PullRequestInvolvementBucket.allCases.map { bucket in
+                (bucket, summaries.filter {
+                    $0.belongs(to: bucket) || (bucket == .authored && !$0.belongsToAnyBucket)
+                })
+            }
+        )
+    }
 }
 
 enum PullRequestReviewEvent: String, Sendable, Equatable {
@@ -162,9 +285,16 @@ extension PullRequestsServiceError: LocalizedError {
 }
 
 protocol PullRequestsService: Sendable {
-    /// Lists pull requests involving the authenticated user — authored,
-    /// review-requested, and reviewed — merged, in one batched request.
-    func listInvolvedPullRequests() async throws -> PullRequestListResult
+    /// Lists pull requests involving the authenticated user, in one batched request.
+    ///
+    /// Callers ask only for the buckets they render, so a tab showing one involvement does not
+    /// pay for the other two. `status` narrows every requested bucket the same way; nil searches
+    /// every state. There is deliberately no defaulted overload — an implicit bucket set or
+    /// status would let a call site silently fetch something other than what it displays.
+    func listInvolvedPullRequests(
+        buckets: Set<PullRequestInvolvementBucket>,
+        status: PullRequestStatus?
+    ) async throws -> PullRequestListResult
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail
     /// Returns the raw unified diff for the pull request.
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String

@@ -1,22 +1,22 @@
 import SwiftUI
 
-/// Multi-select status/repository filters. A popover rather than a `Menu` because
-/// menus dismiss on every click; this stays open so several options can be toggled
-/// in one visit.
+/// Single-select status plus multi-select repositories. A popover rather than a `Menu` because
+/// menus dismiss on every click; the repository group stays open so several can be toggled in
+/// one visit. Status is radio because it is pushed into the GitHub search, whose qualifiers only
+/// AND — see `PullRequestStatusFilter`.
 struct PullRequestsFilterPopover: View {
     let viewModel: PullRequestsViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             filterSection(title: "Status") {
-                filterToggle("All", isOn: viewModel.selectedStatuses.isEmpty) {
-                    viewModel.clearStatusFilters()
-                }
-                ForEach(PullRequestStatus.filterCases, id: \.self) { status in
-                    filterToggle(status.filterLabel, isOn: viewModel.selectedStatuses.contains(status)) {
-                        viewModel.toggleStatusFilter(status)
+                Picker("Status", selection: statusSelection) {
+                    ForEach(PullRequestStatusFilter.menuCases, id: \.self) { status in
+                        Text(status.filterLabel).tag(status)
                     }
                 }
+                .pickerStyle(.radioGroup)
+                .labelsHidden()
             }
 
             filterSection(title: "Repository") {
@@ -32,6 +32,15 @@ struct PullRequestsFilterPopover: View {
         }
         .padding(14)
         .frame(minWidth: 200, maxWidth: 320, alignment: .leading)
+    }
+
+    /// Writes go through `selectStatusFilter(_:)`, which persists the choice and reloads the
+    /// visible tab — the selection is part of the search, not a local narrowing.
+    private var statusSelection: Binding<PullRequestStatusFilter> {
+        Binding(
+            get: { viewModel.selectedStatusFilter },
+            set: { viewModel.selectStatusFilter($0) }
+        )
     }
 
     private func filterSection(title: String, @ViewBuilder rows: () -> some View) -> some View {

@@ -164,6 +164,23 @@ func makeUnifiedDiffFixture(fileCount: Int, addedLinesPerFile: Int = 1) -> Strin
     }.joined(separator: "\n") + "\n"
 }
 
+/// Polls until `condition` holds, for the loads the view model spawns in a detached `Task` —
+/// selecting a tab or a status filter, which have no handle to await.
+@MainActor
+func waitFor(
+    _ condition: () -> Bool,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    for _ in 0..<2_000 {
+        if condition() {
+            return
+        }
+        await Task.yield()
+    }
+    XCTFail("Condition never became true", file: file, line: line)
+}
+
 /// Polls until the pane session's detail and diff loads both settle.
 @MainActor
 func waitForPaneContent(

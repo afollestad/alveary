@@ -23,16 +23,22 @@ actor GitHubPullRequestsService: PullRequestsService {
         self.transientRetryDelay = transientRetryDelay
     }
 
-    func listInvolvedPullRequests() async throws -> PullRequestListResult {
+    func listInvolvedPullRequests(
+        buckets: Set<PullRequestInvolvementBucket>,
+        status: PullRequestStatus?
+    ) async throws -> PullRequestListResult {
+        guard !buckets.isEmpty else {
+            return PullRequestListResult(summariesByBucket: [:], warnings: [])
+        }
         let ghExecutable = try await resolveGitHubCLI()
         let result = try await runGitHubCLIRetryingTransientFailures(
             executable: ghExecutable,
-            args: Self.listArgs,
+            args: Self.listArgs(buckets: buckets, status: status),
             timeout: .seconds(30),
             stdoutLimitBytes: 4 * 1024 * 1024
         )
         let decoded = try decodeGraphQL(ListGraphQLData.self, from: result)
-        return Self.makeListResult(data: decoded.data, warnings: decoded.warnings)
+        return Self.makeListResult(data: decoded.data, warnings: decoded.warnings, buckets: buckets)
     }
 
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {

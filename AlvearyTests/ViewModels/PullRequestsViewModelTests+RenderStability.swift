@@ -265,6 +265,8 @@ extension PullRequestsViewModelTests {
             )
         )
         let viewModel = makePullRequestsViewModel(service: service)
+        // The merged row has to be visible for the status filter to have something to narrow.
+        viewModel.selectStatusFilter(.all)
         await viewModel.refresh()
 
         XCTAssertEqual(viewModel.visibleSections(for: .all).flatMap(\.rows).count, 2)
@@ -274,10 +276,10 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.visibleSections(for: .all).flatMap(\.rows).map(\.title), ["Beta"])
 
         viewModel.searchQuery = ""
-        viewModel.toggleStatusFilter(.merged)
+        viewModel.selectStatusFilter(.merged)
         XCTAssertEqual(viewModel.visibleSections(for: .all).flatMap(\.rows).map(\.title), ["Beta"])
 
-        viewModel.toggleStatusFilter(.merged)
+        viewModel.selectStatusFilter(.all)
         XCTAssertEqual(viewModel.visibleSections(for: .authored).flatMap(\.rows), [])
 
         service.listResult = .success(

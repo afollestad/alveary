@@ -8,6 +8,19 @@ enum PullRequestHostToolListFilter: String, CaseIterable {
     case authored
     case reviewing
 
+    /// The involvement buckets this scope needs fetched, so a narrow filter costs one search
+    /// instead of three. Mirrors `PullRequestsFilter.requiredBuckets` for the tab it matches.
+    var requiredBuckets: Set<PullRequestInvolvementBucket> {
+        switch self {
+        case .all:
+            return Set(PullRequestInvolvementBucket.allCases)
+        case .authored:
+            return [.authored]
+        case .reviewing:
+            return [.reviewRequested, .reviewed]
+        }
+    }
+
     func matches(_ summary: PullRequestSummary) -> Bool {
         switch self {
         case .all:

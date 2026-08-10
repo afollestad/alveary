@@ -44,6 +44,13 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     /// Holds `createPendingReview` open so a concurrency test can fire a second
     /// comment while the first one's review is still being opened.
     var createPendingReviewGate: PullRequestsServiceGate?
+    /// What each list call asked for, so the bucket-demand model can be asserted directly.
+    struct ListRequest: Equatable {
+        let buckets: Set<PullRequestInvolvementBucket>
+        let status: PullRequestStatus?
+    }
+
+    private(set) var listRequests: [ListRequest] = []
     private(set) var listCallCount = 0
     private(set) var detailCallCount = 0
     private(set) var diffCallCount = 0
@@ -130,10 +137,20 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     private(set) var deletedPendingReviewNodeIDs: [String] = []
     private(set) var submittedPendingReviews: [SubmittedPendingReview] = []
 
-    func listInvolvedPullRequests() async throws -> PullRequestListResult {
+    func listInvolvedPullRequests(
+        buckets: Set<PullRequestInvolvementBucket>,
+        status: PullRequestStatus?
+    ) async throws -> PullRequestListResult {
         listCallCount += 1
+        listRequests.append(ListRequest(buckets: buckets, status: status))
         await listGate?.wait()
-        return try listResult.get()
+        let result = try listResult.get()
+        // Answer only what was asked for, like the real service, so a test can prove a tab
+        // fetched one bucket without its rows arriving from the fixture's other buckets.
+        return PullRequestListResult(
+            summariesByBucket: result.summariesByBucket.filter { buckets.contains($0.key) },
+            warnings: result.warnings
+        )
     }
 
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {

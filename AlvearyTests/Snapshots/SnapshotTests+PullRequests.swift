@@ -163,8 +163,7 @@ extension SnapshotTests {
     // Content-only: live popover hosts crash on macOS 26 (see AlvearyTests/AGENTS.md).
     func testPullRequestsFilterPopoverContent() async {
         let fixture = await PullRequestsSnapshotFixture()
-        fixture.viewModel.toggleStatusFilter(.open)
-        fixture.viewModel.toggleStatusFilter(.merged)
+        fixture.viewModel.selectStatusFilter(.merged)
 
         assertMacSnapshot(
             PullRequestsFilterPopover(viewModel: fixture.viewModel),
@@ -215,6 +214,9 @@ private final class PullRequestsSnapshotFixture {
             avatarLoader: GitHubAvatarLoader(),
             now: { Self.referenceDate }
         )
+        // These baselines exercise row rendering across every status glyph, not the packaged
+        // open-only default, so the filter is widened before the rows land.
+        viewModel.selectStatusFilter(.all)
         await viewModel.refresh()
     }
 
@@ -324,7 +326,10 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
         PullRequestListResult(summaries: [], warnings: [])
     )
 
-    func listInvolvedPullRequests() async throws -> PullRequestListResult {
+    func listInvolvedPullRequests(
+        buckets: Set<PullRequestInvolvementBucket>,
+        status: PullRequestStatus?
+    ) async throws -> PullRequestListResult {
         try listResult.get()
     }
 
