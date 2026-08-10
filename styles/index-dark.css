@@ -1,5 +1,6 @@
 /* Dark theme.
-   Don't forget to update the theme colors in scripts/dark-mode.js if --bg changes. */
+   Don't forget to update the theme colors in scripts/dark-mode.js if --bg changes,
+   and re-export images/og-image.png, which bakes it in as its canvas. */
 
 :root {
     color-scheme: dark;

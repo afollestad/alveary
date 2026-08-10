@@ -16,10 +16,24 @@
     <meta property="og:url" content="https://alveary.af.codes">
     <meta property="og:description"
         content="Alveary is a free and open source native macOS app for orchestrating AI coding agents like Claude Code and Codex — with scheduled tasks, Git worktrees, and pull request workflows built in.">
-    <!-- TODO: add og:image. The screenshots are WebP with transparent window
-         corners; link previews want an opaque JPEG or PNG, so it needs its own
-         export rather than a reuse of one of them. -->
-    <meta name="twitter:card" content="summary">
+    <!-- images/og-image.png is the hero screenshot letterboxed onto an opaque
+         #0b0b0a canvas (the dark --bg) at the 1200x630 link previews expect.
+         Pointing at the WebP instead doesn't work: crawler support for WebP is
+         patchy, filling 1.91:1 from 1952x1136 would crop the window, and its
+         rounded corners are transparent, which previews composite unpredictably.
+         Re-export it whenever the hero screenshot changes. -->
+    <meta property="og:image" content="https://alveary.af.codes/images/og-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt"
+        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff, and a sidebar of pinned threads, projects, and tasks.">
+    <!-- Twitter falls back to og:image on its own, but it never reads
+         og:image:alt — so the image is repeated here to give its alt an anchor. -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://alveary.af.codes/images/og-image.png">
+    <meta name="twitter:image:alt"
+        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff, and a sidebar of pinned threads, projects, and tasks.">
 
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="icon" href="favicon.png" type="image/png" sizes="96x96">
