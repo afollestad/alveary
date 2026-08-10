@@ -298,15 +298,64 @@ extension PullRequestsViewModelTests {
         )
         let viewModel = makePullRequestsViewModel(service: service)
         await viewModel.refresh()
-        viewModel.visibleListCache = nil
+        viewModel.visibleListCaches = [:]
 
         _ = viewModel.visibleSections(for: .all)
-        XCTAssertNotNil(viewModel.visibleListCache?.sections)
-        XCTAssertEqual(viewModel.visibleListCache?.key.tab, .all)
+        XCTAssertNotNil(viewModel.visibleListCaches[.all]?.sections)
+        XCTAssertEqual(viewModel.visibleListCaches[.all]?.key.tab, .all)
 
         viewModel.searchQuery = "nothing matches"
         _ = viewModel.visibleSections(for: .all)
-        XCTAssertEqual(viewModel.visibleListCache?.key.searchQuery, "nothing matches")
-        XCTAssertEqual(viewModel.visibleListCache?.sections, [])
+        XCTAssertEqual(viewModel.visibleListCaches[.all]?.key.searchQuery, "nothing matches")
+        XCTAssertEqual(viewModel.visibleListCaches[.all]?.sections, [])
+    }
+
+    /// Lazy per-tab loading makes switching tabs routine, and a single-entry memo missed every
+    /// time the user alternated between two of them.
+    func testEachTabKeepsItsOwnMemoEntryAcrossSwitches() async {
+        let service = StubPullRequestsService()
+        service.listResult = .success(
+            PullRequestListResult(
+                summaries: [
+                    makePullRequestSummary(number: 1, title: "Alpha", isAuthored: true),
+                    makePullRequestSummary(number: 2, title: "Beta", isReviewRequested: true)
+                ],
+                warnings: []
+            )
+        )
+        let viewModel = makePullRequestsViewModel(service: service)
+        await viewModel.refresh()
+
+        let allSections = viewModel.visibleSections(for: .all)
+        let authoredSections = viewModel.visibleSections(for: .authored)
+        XCTAssertEqual(viewModel.visibleListCaches.keys.sorted(by: { $0.rawValue < $1.rawValue }), [.all, .authored])
+
+        // Both entries survive each other rather than one evicting the other, so coming back to
+        // a tab answers from its own entry.
+        XCTAssertEqual(viewModel.visibleSections(for: .all), allSections)
+        XCTAssertEqual(viewModel.visibleSections(for: .authored), authoredSections)
+        XCTAssertEqual(allSections.flatMap(\.rows).map(\.title), ["Alpha", "Beta"])
+        XCTAssertEqual(authoredSections.flatMap(\.rows).map(\.title), ["Alpha"])
+    }
+
+    /// A shared input changing has to invalidate every tab's entry, not just the visible one.
+    func testAnotherTabsMemoEntryRevalidatesAfterASharedInputChanges() async {
+        let service = StubPullRequestsService()
+        service.listResult = .success(
+            PullRequestListResult(
+                summaries: [makePullRequestSummary(number: 1, title: "Alpha", isAuthored: true)],
+                warnings: []
+            )
+        )
+        let viewModel = makePullRequestsViewModel(service: service)
+        await viewModel.refresh()
+        XCTAssertEqual(viewModel.visibleRows(for: .authored).map(\.title), ["Alpha"])
+
+        viewModel.searchQuery = "nothing matches"
+        _ = viewModel.visibleRows(for: .all)
+
+        // `.authored` was memoized before the query and not read since, so its stale entry is
+        // still in the dictionary; the key check is what keeps it from being served.
+        XCTAssertEqual(viewModel.visibleRows(for: .authored), [])
     }
 }

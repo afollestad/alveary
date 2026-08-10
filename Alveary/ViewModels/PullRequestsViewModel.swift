@@ -47,6 +47,10 @@ final class PullRequestsViewModel {
     /// How long an announcement waits before its refetch, coalescing the burst one agent turn can
     /// produce. Injectable so tests need not sleep.
     @ObservationIgnored let remoteRefreshDelay: Duration
+    /// How long the search field waits after a keystroke before the list reshapes. `.zero`
+    /// commits synchronously with no `Task` hop, which is what lets tests and snapshot fixtures
+    /// set `searchQuery` and read the narrowed list in the same turn.
+    @ObservationIgnored let searchDebounce: Duration
     @ObservationIgnored var remoteChangeObserver: (any NSObjectProtocol)?
     /// Debounced detail refetches, keyed by the target whose session they refresh.
     @ObservationIgnored var remoteRefreshTasks: [PullRequestPaneTarget: Task<Void, Never>] = [:]
@@ -128,12 +132,23 @@ final class PullRequestsViewModel {
     /// Full Disk Access guidance sheet. Mutated by the attachments companion.
     var attachmentAccessRequest: PullRequestAttachmentAccessRequest?
 
-    /// Memoized list shaping, owned by `PullRequestsViewModel+Filtering.swift`.
-    /// `@ObservationIgnored` so filling it during a render publishes nothing.
+    /// Memoized list shaping per tab, owned by `PullRequestsViewModel+Filtering.swift`.
+    /// One entry per tab rather than one overall, so alternating tabs hits instead of
+    /// recomputing each way. `@ObservationIgnored` so filling it during a render publishes
+    /// nothing. Entries for tabs the user is not looking at self-invalidate on their key.
     @ObservationIgnored
-    var visibleListCache: VisibleListCache?
+    var visibleListCaches: [PullRequestsFilter: VisibleListCache] = [:]
 
-    var searchQuery = ""
+    // Search state; the field/list split and the debounce live in the filtering companion, so
+    // these are internal rather than private.
+    var typedSearchQuery = ""
+    /// The committed query, already trimmed, that every filtering path reads. Written only by
+    /// `commitSearchQuery()`.
+    var activeSearchQuery = ""
+    @ObservationIgnored var searchCommitTask: Task<Void, Never>?
+    /// Bumped per keystroke so a debounce that already slept past its cancellation check still
+    /// declines to commit a query the user has moved on from.
+    @ObservationIgnored var searchCommitGeneration = 0
     /// Single-select, and pushed into the GitHub search rather than only applied here — see
     /// `PullRequestStatusFilter`. Changing it invalidates every bucket. Mutated through
     /// `selectStatusFilter(_:)` in the filtering companion.
@@ -165,10 +180,12 @@ final class PullRequestsViewModel {
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
         notificationCenter: NotificationCenter = .default,
         remoteRefreshDelay: Duration = .milliseconds(750),
+        searchDebounce: Duration = .milliseconds(200),
         now: @escaping () -> Date = Date.init
     ) {
         self.notificationCenter = notificationCenter
         self.remoteRefreshDelay = remoteRefreshDelay
+        self.searchDebounce = searchDebounce
         self.service = service
         self.avatarLoader = avatarLoader
         self.listCache = listCache
@@ -191,6 +208,7 @@ final class PullRequestsViewModel {
 
     deinit {
         MainActor.assumeIsolated {
+            searchCommitTask?.cancel()
             endRemoteChangeObservation()
         }
     }

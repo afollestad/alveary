@@ -3,6 +3,55 @@ import Foundation
 // MARK: - Filtering
 
 extension PullRequestsViewModel {
+    /// What the search field shows, republished on every keystroke so typing stays responsive.
+    /// The list shapes from `activeSearchQuery` instead, which trails this by `searchDebounce`.
+    ///
+    /// Computed over storage so that assigning it — from the field's binding, a test, or a
+    /// snapshot fixture — always schedules the commit; an `onChange` in the view would miss the
+    /// last two.
+    var searchQuery: String {
+        get { typedSearchQuery }
+        set {
+            guard newValue != typedSearchQuery else {
+                return
+            }
+            typedSearchQuery = newValue
+            scheduleSearchCommit()
+        }
+    }
+
+    /// Restarts the debounce for the keystroke just typed. The pending commit is cancelled rather
+    /// than left to fire, so a burst of keystrokes reshapes the list once.
+    private func scheduleSearchCommit() {
+        searchCommitTask?.cancel()
+        searchCommitGeneration += 1
+        guard searchDebounce != .zero else {
+            commitSearchQuery()
+            return
+        }
+        let generation = searchCommitGeneration
+        let delay = searchDebounce
+        searchCommitTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled,
+                  let self,
+                  self.searchCommitGeneration == generation else {
+                return
+            }
+            self.commitSearchQuery()
+        }
+    }
+
+    private func commitSearchQuery() {
+        let trimmed = typedSearchQuery.trimmingCharacters(in: .whitespaces)
+        // Typing only whitespace onto a committed query changes nothing the list shapes from, so
+        // publishing it would invalidate every tab's memo for an identical result.
+        guard trimmed != activeSearchQuery else {
+            return
+        }
+        activeSearchQuery = trimmed
+    }
+
     var repositoryFilterOptions: [String] {
         Set(items.map(\.repositoryNameWithOwner)).sorted()
     }
@@ -36,15 +85,17 @@ extension PullRequestsViewModel {
         persistRepositoryFilters()
     }
 
+    /// Reads the committed query, not the field's, so the empty-state copy cannot claim a
+    /// narrowed list the rows have not been narrowed by yet.
     var hasActiveNarrowing: Bool {
-        hasActiveMenuFilters || !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
+        hasActiveMenuFilters || !activeSearchQuery.isEmpty
     }
 
     /// Filtered rows ordered by recency — the date each row displays — so the list
     /// reads naturally top-to-bottom. Applied here so every tab and section
     /// inherits it, with a stable key breaking timestamp ties.
     ///
-    /// Memoized on its own inputs: the screen calls this once per body pass, and a root
+    /// Memoized per tab on its own inputs: the screen calls this once per body pass, and a root
     /// invalidation from anywhere re-runs that pass. Every input is read before the cache
     /// is consulted so `@Observable` still registers the same dependencies, and the cache
     /// itself is `@ObservationIgnored`, so filling it publishes nothing.
@@ -53,14 +104,14 @@ extension PullRequestsViewModel {
             tab: tab,
             status: selectedStatusFilter,
             repositories: selectedRepositories,
-            searchQuery: searchQuery.trimmingCharacters(in: .whitespaces),
+            searchQuery: activeSearchQuery,
             items: items
         )
-        if let visibleListCache, visibleListCache.key == key {
-            return visibleListCache.rows
+        if let cached = visibleListCaches[tab], cached.key == key {
+            return cached.rows
         }
         let rows = computeVisibleRows(for: tab)
-        visibleListCache = VisibleListCache(key: key, rows: rows)
+        visibleListCaches[tab] = VisibleListCache(key: key, rows: rows)
         return rows
     }
 
@@ -92,14 +143,14 @@ extension PullRequestsViewModel {
     /// arrays lets `PullRequestsSectionedList`'s equality take Swift's shared-buffer fast
     /// path instead of comparing every row.
     func visibleSections(for tab: PullRequestsFilter) -> [PullRequestListSection] {
-        // Leaves `visibleListCache` holding this tab's entry, so the sections below
-        // attach to the rows they were built from.
+        // Populates this tab's entry first, so the sections below attach to the rows they
+        // were built from.
         let rows = visibleRows(for: tab)
-        if let sections = visibleListCache?.sections {
+        if let sections = visibleListCaches[tab]?.sections {
             return sections
         }
         let sections = buildSections(tab: tab, rows: rows)
-        visibleListCache?.sections = sections
+        visibleListCaches[tab]?.sections = sections
         return sections
     }
 
@@ -194,7 +245,7 @@ extension PullRequestsViewModel {
     }
 
     private func matchesSearch(_ summary: PullRequestSummary) -> Bool {
-        let query = searchQuery.trimmingCharacters(in: .whitespaces)
+        let query = activeSearchQuery
         guard !query.isEmpty else {
             return true
         }
@@ -214,7 +265,9 @@ struct VisibleListCache {
 }
 
 /// Every input `visibleRows(for:)` reads. `items` compares by shared buffer while the list
-/// is unchanged, so a cache hit costs no per-row work.
+/// is unchanged, so a cache hit costs no per-row work. This is what lets the tabs the user is
+/// not looking at keep their own entries: each one revalidates against the current inputs
+/// before it is served, so a stale entry is recomputed rather than shown.
 struct VisibleRowsCacheKey: Equatable {
     let tab: PullRequestsFilter
     let status: PullRequestStatusFilter

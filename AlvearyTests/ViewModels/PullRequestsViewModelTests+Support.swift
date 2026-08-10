@@ -21,6 +21,9 @@ func makePullRequestsViewModel(
     // goes to zero so the debounce still coalesces without a test having to sleep through it.
     notificationCenter: NotificationCenter = NotificationCenter(),
     remoteRefreshDelay: Duration = .zero,
+    // Zero commits the search synchronously, so a test can assign `searchQuery` and assert the
+    // narrowed rows on the next line; pass a real duration to exercise the debounce itself.
+    searchDebounce: Duration = .zero,
     now: @escaping () -> Date = Date.init
 ) -> PullRequestsViewModel {
     PullRequestsViewModel(
@@ -36,6 +39,7 @@ func makePullRequestsViewModel(
         reviewProposalCoordinator: reviewProposalCoordinator,
         notificationCenter: notificationCenter,
         remoteRefreshDelay: remoteRefreshDelay,
+        searchDebounce: searchDebounce,
         now: now
     )
 }

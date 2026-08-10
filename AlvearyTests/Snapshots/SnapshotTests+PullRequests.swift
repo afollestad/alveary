@@ -212,6 +212,9 @@ private final class PullRequestsSnapshotFixture {
         viewModel = PullRequestsViewModel(
             service: service,
             avatarLoader: GitHubAvatarLoader(),
+            // Zero so a baseline that sets `searchQuery` renders the narrowed list in the same
+            // turn, with no debounce to wait out before the snapshot is taken.
+            searchDebounce: .zero,
             now: { Self.referenceDate }
         )
         // These baselines exercise row rendering across every status glyph, not the packaged
