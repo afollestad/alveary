@@ -18,6 +18,12 @@ final class AppKitContextWindowIndicatorView: NSView {
 
     override var isFlipped: Bool { true }
 
+    /// This view is flipped, so upward is `.minY`; derived rather than hardcoded so the edge stays
+    /// correct if `isFlipped` changes.
+    var hoverPopoverPreferredEdge: NSRectEdge {
+        ComposerReasoningMenuPresenter.upwardEdge(for: self)
+    }
+
     override var intrinsicContentSize: NSSize {
         NSSize(width: hitTargetSize, height: hitTargetSize)
     }
@@ -155,7 +161,7 @@ final class AppKitContextWindowIndicatorView: NSView {
         popover.contentSize = preferredSize
         popover.behavior = .transient
         popover.animates = false
-        popover.show(relativeTo: bounds, of: self, preferredEdge: .maxY)
+        popover.show(relativeTo: bounds, of: self, preferredEdge: hoverPopoverPreferredEdge)
         hoverPopover = popover
     }
 

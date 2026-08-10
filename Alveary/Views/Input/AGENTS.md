@@ -35,6 +35,7 @@ These instructions cover composer-specific view code under `Alveary/Views/Input/
 
 - Composer popup menus must reuse `AppKitComposerPopoverSurfaceView` and `AppKitComposerPopoverDividerView` from `Components/AppKit/` instead of hand-rolled popover surfaces or divider views.
 - Menu-anchor buttons fire on mouse-up; do not switch them to mouse-down activation (explicit user decision).
+- Every composer popover opens above its anchor; none open downward. Derive the edge from the anchor's `isFlipped` via `ComposerReasoningMenuPresenter.upwardEdge(for:)`, whose doc comment owns the coordinate-space rule.
 - The reasoning menu builds its model rows lazily on first disclosure expansion (`hasBuiltModelRows` in `ComposerReasoningMenuView`); collapsed opens and collapsed updates must not pay the per-model row build, and the first expansion must build synchronously before the immediate resize.
 - Permission rows wrap subtitles to at most 2 lines with per-option measured heights (`ComposerPermissionMenuMetrics.rowHeight(for:)`); reasoning rows stay single-line. Multi-line rows always reserve the trailing icon slot so selection cannot change wrap width.
 
