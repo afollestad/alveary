@@ -234,6 +234,80 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.loadPhase, .loaded)
     }
 
+    // MARK: - Launch prefetch
+
+    func testTheLaunchPrefetchWarmsThePersistedTabSoItsFirstVisitFetchesNothing() async {
+        let service = StubPullRequestsService()
+        service.listResult = .success(PullRequestListResult(
+            summaries: [makePullRequestSummary(number: 1, isAuthored: true)],
+            warnings: []
+        ))
+        let settings = InMemorySettingsService()
+        settings.update { $0.pullRequestsSelectedTab = "Authored" }
+        let viewModel = makePullRequestsViewModel(service: service, settingsService: settings)
+
+        await viewModel.prefetchAtLaunch()
+
+        // The tab the screen will open on, not every bucket.
+        XCTAssertEqual(service.bucketsRequested(since: 0), PullRequestsFilter.authored.requiredBuckets)
+        XCTAssertEqual(viewModel.items.map(\.id.number), [1])
+
+        // The screen's own appearance load shares the freshness throttle, which is what makes
+        // this one load rather than a second path.
+        let afterPrefetch = service.listRequests.count
+        await viewModel.refreshForScreen()
+        XCTAssertEqual(service.listRequests.count, afterPrefetch)
+        XCTAssertEqual(viewModel.loadPhase, .loaded)
+    }
+
+    func testTheLaunchPrefetchIssuesNothingWithTheIntegrationOff() async {
+        let service = StubPullRequestsService()
+        let settings = InMemorySettingsService()
+        settings.update { $0.pullRequestsEnabled = false }
+        let viewModel = makePullRequestsViewModel(service: service, settingsService: settings)
+
+        await viewModel.prefetchAtLaunch()
+
+        // The setting hides the screen entirely, so launch must not spawn `gh` for it.
+        XCTAssertTrue(service.listRequests.isEmpty)
+        XCTAssertEqual(viewModel.loadPhase, .idle)
+    }
+
+    func testTheLaunchPrefetchIssuesNothingWithoutASettingsService() async {
+        let service = StubPullRequestsService()
+        let viewModel = makePullRequestsViewModel(service: service)
+
+        await viewModel.prefetchAtLaunch()
+
+        // No settings service is the tests-and-previews shape, not the app root; the guard's
+        // `== true` treats it like the integration being off rather than defaulting to a fetch.
+        XCTAssertTrue(service.listRequests.isEmpty)
+        XCTAssertEqual(viewModel.loadPhase, .idle)
+    }
+
+    func testAFailedLaunchPrefetchStillLetsTheScreenLoad() async {
+        let service = StubPullRequestsService()
+        service.listResult = .failure(.rateLimited)
+        let viewModel = makePullRequestsViewModel(service: service, settingsService: InMemorySettingsService())
+
+        await viewModel.prefetchAtLaunch()
+
+        XCTAssertEqual(viewModel.loadPhase, .unavailable(PullRequestsUnavailableReason(.rateLimited)))
+
+        // A failure records no bucket state, so nothing about it satisfies the freshness throttle
+        // and the screen's own load retries rather than opening on a stale unavailable state.
+        let afterPrefetch = service.listRequests.count
+        service.listResult = .success(PullRequestListResult(
+            summaries: [makePullRequestSummary(number: 1, isAuthored: true)],
+            warnings: []
+        ))
+        await viewModel.refreshForScreen()
+
+        XCTAssertEqual(service.bucketsRequested(since: afterPrefetch), PullRequestsFilter.all.requiredBuckets)
+        XCTAssertEqual(viewModel.items.map(\.id.number), [1])
+        XCTAssertEqual(viewModel.loadPhase, .loaded)
+    }
+
     func testAFailedBucketLeavesATabRenderingItsHealthyOne() async {
         let service = StubPullRequestsService()
         service.listResult = .success(PullRequestListResult(

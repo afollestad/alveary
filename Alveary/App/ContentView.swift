@@ -137,6 +137,12 @@ struct ContentView: View {
             .task(id: toolbarProjectActionsSelection) {
                 await refreshToolbarProjectActions()
             }
+            // Warms the Pull Requests screen's first visit from here rather than from the screen,
+            // which only appears once the user has already navigated to it. Shares the screen's
+            // freshness throttle, so this is one load and not a second path.
+            .task {
+                await pullRequestsViewModel.prefetchAtLaunch()
+            }
             .onAppear {
                 wireNotificationManager()
                 wireMarkdownImageFallbackResolver()

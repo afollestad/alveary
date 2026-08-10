@@ -17,6 +17,23 @@ typealias PullRequestBucketOutcome = Result<PullRequestListResult, PullRequestsS
 // MARK: - Loading
 
 extension PullRequestsViewModel {
+    /// Warms the tab the screen will open on while the user is still elsewhere, so the first
+    /// visit of a session usually issues nothing at all.
+    ///
+    /// Delegates to `refreshForScreen()` rather than introducing a second loading path: its
+    /// halves are all idempotent — `hasLoadedListCache`, `inFlightBuckets`, and the per-bucket
+    /// freshness cutoff — so the screen's own appearance load is a no-op inside the window.
+    ///
+    /// Gated on the setting that hides the sidebar row, since with the integration off there is
+    /// no screen to warm. No settings service at all means no persisted tab either, which is the
+    /// tests-and-previews shape rather than the app root, so it does not prefetch.
+    func prefetchAtLaunch() async {
+        guard settingsService?.current.pullRequestsEnabled == true else {
+            return
+        }
+        await refreshForScreen()
+    }
+
     /// Screen-appearance load: paints the persisted buckets once, then fetches whatever the
     /// visible tab still needs.
     func refreshForScreen() async {
