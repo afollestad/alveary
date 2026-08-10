@@ -155,10 +155,10 @@ final class AppKitPullRequestCommentBadgeView: NSView {
 
 /// The comment card's three-dot menu, holding the one action a staged comment has.
 ///
-/// Mirrors the pane's `PullRequestCommentActionsMenu`: the same `ellipsis` glyph, the same
-/// trailing-aligned hit target, the same "Comment actions" name, and one destructive row. Deleting
-/// asks for no confirmation, exactly as it does not in the pane — a staged comment exists only in
-/// the stored envelope, so dropping it publishes nothing.
+/// Mirrors the pane's `PullRequestCommentActionsMenu`: the same `ellipsis` glyph, the same hit
+/// target — which is also the hover circle, so the glyph centers in it — the same "Comment actions"
+/// name, and one destructive row. Deleting asks for no confirmation, exactly as it does not in the
+/// pane — a staged comment exists only in the stored envelope, so dropping it publishes nothing.
 ///
 /// Built on `AppKitHostToolWidgetBubbleView` for the transcript's press, cursor, and button role.
 @MainActor
@@ -184,6 +184,22 @@ final class AppKitReviewProposalCommentMenuButton: AppKitHostToolWidgetBubbleVie
 
     override var intrinsicContentSize: NSSize {
         PullRequestCommentActionsMenu.hitTargetSize
+    }
+
+    /// Drawn rather than layered: `draw(_:)` resolves the fill against the live
+    /// appearance, while a `CALayer` background would need its own theme observer.
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard isHovered else {
+            return
+        }
+
+        // The pane's fill is `Color.secondary.opacity(0.16)`, which *multiplies* the
+        // label colour's own alpha rather than replacing it. Matching that keeps the
+        // two circles the same weight; setting 0.16 outright renders twice as dark.
+        let base = NSColor.secondaryLabelColor.usingColorSpace(.sRGB) ?? .secondaryLabelColor
+        base.withAlphaComponent(base.alphaComponent * 0.16).setFill()
+        NSBezierPath(ovalIn: bounds).fill()
     }
 
     /// The pane draws its ellipsis at a fixed size beside `.caption` text; the transcript's caption
@@ -224,9 +240,16 @@ private extension AppKitReviewProposalCommentMenuButton {
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: PullRequestCommentActionsMenu.hitTargetSize.width),
             heightAnchor.constraint(equalToConstant: PullRequestCommentActionsMenu.hitTargetSize.height),
-            glyphView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            // Centered, matching the pane now that the hit target is the hover
+            // circle rather than a wider lane the glyph hugged the end of.
+            glyphView.centerXAnchor.constraint(equalTo: centerXAnchor),
             glyphView.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
+        // The bubble tracks hover but draws nothing; this is the pane's hover
+        // circle, so the same control reads the same way on both surfaces.
+        onHoverChanged = { [weak self] _ in
+            self?.needsDisplay = true
+        }
         setAccessibilityLabel(PullRequestCommentActionsMenu.name)
         toolTip = PullRequestCommentActionsMenu.name
     }

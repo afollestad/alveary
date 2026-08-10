@@ -19,6 +19,12 @@ enum ActionButtonMetrics {
     /// width for a row of icon buttons cannot re-hardcode a diverging number.
     static let iconButtonDiameter: CGFloat = 30
 
+    /// Footprint of `iconActionButtonStyle(.inline)`, for a glyph riding inside a
+    /// list row or a comment's header rather than a header bar. The regular
+    /// circle is taller than the rows these sit in, which is why they had all
+    /// gone chromeless — and so hoverless — instead.
+    static let inlineIconButtonDiameter: CGFloat = 20
+
     /// Gap between an action button's glyph and its label.
     static let iconLabelSpacing: CGFloat = 6
 
@@ -69,6 +75,32 @@ enum ActionButtonMetrics {
             return 38
         @unknown default:
             return 30
+        }
+    }
+}
+
+/// Footprint of an `iconActionButtonStyle()` button. `.regular` also imposes the
+/// shared glyph font; `.inline` leaves it to the caller, whose glyph is sized to
+/// the text it rides beside.
+enum IconActionButtonSize {
+    case regular
+    case inline
+
+    var diameter: CGFloat {
+        switch self {
+        case .regular:
+            return ActionButtonMetrics.iconButtonDiameter
+        case .inline:
+            return ActionButtonMetrics.inlineIconButtonDiameter
+        }
+    }
+
+    var glyphFont: Font? {
+        switch self {
+        case .regular:
+            return .system(size: 13, weight: .bold)
+        case .inline:
+            return nil
         }
     }
 }
@@ -141,8 +173,15 @@ extension View {
     /// Pass a `foregroundColor` only when the glyph's colour *is* the information, such
     /// as an active-state tint; the style still modulates it for hover, press, and
     /// disabled, so a tinted button needs no local feedback of its own.
-    func iconActionButtonStyle(foregroundColor: Color = .primary) -> some View {
-        buttonStyle(IconActionButtonStyle(foregroundColor: foregroundColor))
+    ///
+    /// Pass `.inline` for a glyph inside a row or a comment header, where the regular
+    /// circle would outgrow its line. The inline size leaves the glyph's own font
+    /// alone, since those callers size their glyph to the text beside it.
+    func iconActionButtonStyle(
+        _ size: IconActionButtonSize = .regular,
+        foregroundColor: Color = .primary
+    ) -> some View {
+        buttonStyle(IconActionButtonStyle(size: size, foregroundColor: foregroundColor))
     }
 
     func destructiveIconActionButtonStyle() -> some View {
@@ -276,13 +315,16 @@ private struct ProminentActionButtonBody: View {
 }
 
 private struct IconActionButtonStyle: ButtonStyle {
+    let size: IconActionButtonSize
     let foregroundColor: Color
     let backgroundColor: Color
 
     init(
+        size: IconActionButtonSize = .regular,
         foregroundColor: Color = .primary,
         backgroundColor: Color = iconActionButtonTint
     ) {
+        self.size = size
         self.foregroundColor = foregroundColor
         self.backgroundColor = backgroundColor
     }
@@ -292,6 +334,7 @@ private struct IconActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         IconActionButtonBody(
             configuration: configuration,
+            size: size,
             isEnabled: isEnabled,
             foregroundColor: foregroundColor,
             backgroundColor: backgroundColor
@@ -301,6 +344,7 @@ private struct IconActionButtonStyle: ButtonStyle {
 
 private struct IconActionButtonBody: View {
     let configuration: ButtonStyle.Configuration
+    let size: IconActionButtonSize
     let isEnabled: Bool
     let foregroundColor: Color
     let backgroundColor: Color
@@ -310,12 +354,9 @@ private struct IconActionButtonBody: View {
 
     var body: some View {
         configuration.label
-            .font(.system(size: 13, weight: .bold))
+            .font(size.glyphFont)
             .foregroundStyle(foregroundColor.opacity(foregroundOpacity))
-            .frame(
-                width: ActionButtonMetrics.iconButtonDiameter,
-                height: ActionButtonMetrics.iconButtonDiameter
-            )
+            .frame(width: size.diameter, height: size.diameter)
             .contentShape(Circle())
             .background(
                 Circle()

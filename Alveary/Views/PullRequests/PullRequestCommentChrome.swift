@@ -98,13 +98,16 @@ struct PullRequestCommentAuthorRow<Trailing: View>: View {
 struct PullRequestCommentActionsMenu: View {
     static let glyphSymbolName = "ellipsis"
     static let glyphPointSize: CGFloat = 11
-    /// The bare glyph is a sliver; this is the control's real hit target, with the
-    /// glyph trailing-aligned inside it. Every surface that places this menu on the
-    /// pane's shared trailing column then aligns the glyph by construction, while the
-    /// hit target extends leading-ward, away from the scroll indicator's grab region.
-    /// The width also sets the gap to whatever sits beside it — the glyph is 13pt, so
-    /// 24 leaves 11pt of leading slack.
-    static let hitTargetSize = CGSize(width: 24, height: 20)
+    /// The bare glyph is a sliver; this is the control's real hit target, and also
+    /// the hover circle `iconActionButtonStyle(.inline)` draws inside it, so the
+    /// glyph *centers* rather than trailing-aligning. A surface placing this menu
+    /// on the pane's shared trailing column therefore owes it
+    /// `contextualPaneTrailingGlyphLane(controlWidth:)` — the glyph no longer lands
+    /// on the axis by construction the way a trailing-aligned one did.
+    static let hitTargetSize = CGSize(
+        width: ActionButtonMetrics.inlineIconButtonDiameter,
+        height: ActionButtonMetrics.inlineIconButtonDiameter
+    )
     /// Both the hover tooltip and the VoiceOver name; the glyph carries no text.
     static let name = "Comment actions"
     static let editTitle = "Edit"
@@ -134,13 +137,12 @@ struct PullRequestCommentActionsMenu: View {
         } label: {
             Image(systemName: Self.glyphSymbolName)
                 .font(.system(size: Self.glyphPointSize, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: Self.hitTargetSize.width, height: Self.hitTargetSize.height, alignment: .trailing)
-                .contentShape(Rectangle())
         }
         .menuStyle(.button)
         .menuIndicator(.hidden)
-        .buttonStyle(.plain)
+        // The tint rides the style's parameter rather than a local `foregroundStyle`,
+        // so the glyph still fades through hover and pressed.
+        .iconActionButtonStyle(.inline, foregroundColor: .secondary)
         .fixedSize()
         .help(Self.name)
         .accessibilityLabel(Self.name)

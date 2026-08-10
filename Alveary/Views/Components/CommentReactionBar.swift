@@ -28,46 +28,19 @@ struct CommentReactionBar: View {
     var body: some View {
         HStack(spacing: 6) {
             ForEach(reactions, id: \.content) { reaction in
-                Button {
+                CommentReactionChip(reaction: reaction) {
                     onToggle(reaction.content)
-                } label: {
-                    Text("\(reaction.emoji) \(reaction.count)")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule().fill(
-                                reaction.viewerHasReacted
-                                    ? Color.accentColor.opacity(0.18)
-                                    : Color.secondary.opacity(0.1)
-                            )
-                        )
-                        .overlay(
-                            Capsule().strokeBorder(
-                                reaction.viewerHasReacted ? Color.accentColor : .clear,
-                                lineWidth: 1
-                            )
-                        )
                 }
-                .buttonStyle(.plain)
+                // The count is the only text; the emoji carries the meaning, so the
+                // tooltip is the sighted reader's name for the control.
+                .help(reactionAccessibilityLabel(for: reaction))
                 .accessibilityLabel(reactionAccessibilityLabel(for: reaction))
             }
 
             if !options.isEmpty {
-                Button {
+                CommentReactionAddButton {
                     isPickerPresented.toggle()
-                } label: {
-                    Image(systemName: "face.smiling")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .padding(4)
-                        .background(Circle().fill(Color.secondary.opacity(0.1)))
-                        .overlay(Circle().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1))
                 }
-                .buttonStyle(.plain)
-                .help("Add reaction")
-                .accessibilityLabel("Add reaction")
                 .popover(isPresented: $isPickerPresented, arrowEdge: .bottom) {
                     reactionPicker
                 }
@@ -109,5 +82,74 @@ struct CommentReactionBar: View {
 
     private func pickerAccessibilityLabel(for option: CommentReactionOption) -> String {
         viewerReacted(option.content) ? "Remove \(option.emoji) reaction" : "React with \(option.emoji)"
+    }
+}
+
+/// One reaction group. Both chrome states already carry a fill, so hover deepens
+/// the fill the chip already has rather than adding the icon buttons' circle —
+/// this control has visible content, so it is not an icon-only button.
+private struct CommentReactionChip: View {
+    let reaction: CommentReaction
+    let onToggle: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: onToggle) {
+            Text("\(reaction.emoji) \(reaction.count)")
+                .font(.caption)
+                .monospacedDigit()
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(fill))
+                .overlay(
+                    Capsule().strokeBorder(
+                        reaction.viewerHasReacted ? Color.accentColor : .clear,
+                        lineWidth: 1
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
+    }
+
+    private var fill: Color {
+        if reaction.viewerHasReacted {
+            return Color.accentColor.opacity(isHovering ? 0.28 : 0.18)
+        }
+
+        return Color.secondary.opacity(isHovering ? 0.2 : 0.1)
+    }
+}
+
+/// The add-reaction affordance. It keeps its resting circle and border — the
+/// picker is otherwise undiscoverable — so hover deepens that fill instead of
+/// taking `iconActionButtonStyle`, whose circle appears only on hover.
+private struct CommentReactionAddButton: View {
+    let onOpen: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: onOpen) {
+            Image(systemName: "face.smiling")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(4)
+                .background(Circle().fill(Color.secondary.opacity(isHovering ? 0.22 : 0.1)))
+                .overlay(Circle().strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help("Add reaction")
+        .accessibilityLabel("Add reaction")
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
     }
 }

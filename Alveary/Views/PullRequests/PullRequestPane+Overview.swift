@@ -177,6 +177,12 @@ struct PullRequestPaneOverview: View, Equatable {
                     onEdit: { viewModel.openDescriptionEditor() },
                     onDelete: nil
                 )
+                // Off-card, so this one sits on the pane's trailing column and needs
+                // the lane: its glyph centers in the hover circle rather than
+                // trailing-aligning, so it no longer reaches the axis on its own.
+                .contextualPaneTrailingGlyphLane(
+                    controlWidth: PullRequestCommentActionsMenu.hitTargetSize.width
+                )
             }
         }
         .font(.subheadline)
@@ -317,11 +323,10 @@ private struct PullRequestPaneReviewerRow: View {
                 Button(action: onReRequest) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, height: 20)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                // The tint rides the style's parameter, not a local
+                // `foregroundStyle`, so it still fades through hover and disabled.
+                .iconActionButtonStyle(.inline, foregroundColor: .secondary)
                 .disabled(isReRequestInFlight)
                 .help("Re-request review from \(reviewer.login)")
                 .accessibilityLabel("Re-request review from \(reviewer.login)")
