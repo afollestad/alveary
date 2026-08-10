@@ -49,12 +49,10 @@ extension PullRequestHostToolCatalog {
         )
     }
 
-    static let statusSchema = HostToolSchema.enumSchema([
-        PullRequestStatus.open.rawValue,
-        PullRequestStatus.draft.rawValue,
-        PullRequestStatus.merged.rawValue,
-        PullRequestStatus.closed.rawValue
-    ])
+    /// Every status the search can run, for both the reported one on a row and the one
+    /// `list_involved_prs` accepts as input — so the tool cannot advertise a status it would then
+    /// refuse.
+    static let statusSchema = HostToolSchema.enumSchema(PullRequestStatus.allCases.map(\.rawValue))
 
     static let authorSchema = HostToolSchema.strictObject(
         properties: [

@@ -120,7 +120,9 @@ enum PullRequestHostToolDates {
 /// than truncating it, and every payload is emitted twice (text fallback plus
 /// structured content), so each cap has to leave half the wire budget free.
 enum PullRequestHostToolLimits {
-    /// `list_involved_prs` rows; the merged fetch caps at 150 (50 per involvement bucket).
+    /// `list_involved_prs` rows per call: both the default `limit` and its ceiling, and the page
+    /// size each involvement bucket is fetched at — so a three-bucket call merges at most 150 rows
+    /// down to this many.
     static let maxListRows = 50
     static let defaultTimelineLimit = 30
     static let maxTimelineLimit = 100

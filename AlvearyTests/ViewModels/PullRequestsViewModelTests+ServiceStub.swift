@@ -50,6 +50,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     struct ListRequest: Equatable {
         let buckets: Set<PullRequestInvolvementBucket>
         let status: PullRequestStatus?
+        let options: PullRequestListOptions
     }
 
     private(set) var listRequests: [ListRequest] = []
@@ -147,10 +148,11 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
 
     func listInvolvedPullRequests(
         buckets: Set<PullRequestInvolvementBucket>,
-        status: PullRequestStatus?
+        status: PullRequestStatus?,
+        options: PullRequestListOptions
     ) async throws -> PullRequestListResult {
         listCallCount += 1
-        listRequests.append(ListRequest(buckets: buckets, status: status))
+        listRequests.append(ListRequest(buckets: buckets, status: status, options: options))
         await listGate?.wait()
         // A single-bucket override, so a test can fail one concurrent leg while its sibling
         // succeeds — something one shared `listResult` cannot express.
@@ -162,7 +164,8 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
         // fetched one bucket without its rows arriving from the fixture's other buckets.
         return PullRequestListResult(
             summariesByBucket: result.summariesByBucket.filter { buckets.contains($0.key) },
-            warnings: result.warnings
+            warnings: result.warnings,
+            pageInfoByBucket: result.pageInfoByBucket.filter { buckets.contains($0.key) }
         )
     }
 

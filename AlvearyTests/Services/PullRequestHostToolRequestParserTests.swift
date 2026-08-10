@@ -13,15 +13,114 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
 
     func testUnknownKeysAreRefusedNotIgnored() {
         XCTAssertThrowsError(
-            try parser.parseListFilter(arguments: ["filter": .string("all"), "repo": .string("octo/alpha")])
+            try parser.parseListRequest(arguments: ["filter": .string("all"), "repo": .string("octo/alpha")])
         ) { error in
             XCTAssertTrue("\(error.localizedDescription)".contains("repo"))
         }
     }
 
     func testAnInvalidFilterNamesTheValidValues() {
-        XCTAssertThrowsError(try parser.parseListFilter(arguments: ["filter": .string("mine")])) { error in
+        XCTAssertThrowsError(try parser.parseListRequest(arguments: ["filter": .string("mine")])) { error in
             XCTAssertTrue(error.localizedDescription.contains("all, authored, reviewing"))
+        }
+    }
+
+    /// The no-arguments call is what every model makes first, so its defaults are the behavior
+    /// contract: everything the user is involved in, open only, the newest fifty.
+    func testAnEmptyListCallKeepsTheDefaultsItAlwaysHad() throws {
+        let request = try parser.parseListRequest(arguments: [:])
+
+        XCTAssertEqual(request.filter, .all)
+        XCTAssertEqual(request.status, .open)
+        XCTAssertEqual(request.limit, PullRequestHostToolLimits.maxListRows)
+        XCTAssertNil(request.updatedAfter)
+        XCTAssertNil(request.updatedBefore)
+        XCTAssertEqual(request.buckets, Set(PullRequestInvolvementBucket.allCases))
+        XCTAssertTrue(request.cursors.isEmpty)
+    }
+
+    func testListOptionsAreReadAndBounded() throws {
+        let request = try parser.parseListRequest(arguments: [
+            "filter": .string("authored"),
+            "status": .string("merged"),
+            "limit": .number(10),
+            "updated_after": .string("2026-01-01"),
+            "updated_before": .string("2026-03-02")
+        ])
+
+        XCTAssertEqual(request.filter, .authored)
+        XCTAssertEqual(request.status, .merged)
+        XCTAssertEqual(request.limit, 10)
+        XCTAssertEqual(request.updatedAfter, Date(timeIntervalSince1970: 1_767_225_600))
+        XCTAssertEqual(request.updatedBefore, Date(timeIntervalSince1970: 1_772_409_600))
+        XCTAssertEqual(request.buckets, [.authored])
+
+        XCTAssertThrowsError(try parser.parseListRequest(arguments: ["limit": .number(0)]))
+        XCTAssertThrowsError(try parser.parseListRequest(arguments: ["limit": .number(51)]))
+        XCTAssertThrowsError(try parser.parseListRequest(arguments: ["status": .string("all")]))
+        // A lenient parse would search a window the user never named and report it as theirs.
+        XCTAssertThrowsError(try parser.parseListRequest(arguments: ["updated_after": .string("2026-1-1")]))
+        XCTAssertThrowsError(try parser.parseListRequest(arguments: [
+            "updated_after": .string("2026-03-02"),
+            "updated_before": .string("2026-01-01")
+        ]))
+    }
+
+    /// A paginating model passes the cursor alone, so the token has to supply the rest of the
+    /// query — otherwise page two would silently be a different search.
+    func testACursorAloneInheritsTheQueryItIsPaging() throws {
+        let token = PullRequestListCursorToken(
+            filter: .reviewing,
+            limit: 5,
+            status: .closed,
+            updatedAfter: Date(timeIntervalSince1970: 1_767_225_600),
+            updatedBefore: nil,
+            buckets: [.reviewed],
+            cursors: [.reviewed: "reviewed-5"]
+        )
+
+        let request = try parser.parseListRequest(arguments: ["cursor": .string(try token.encoded())])
+
+        XCTAssertEqual(request.filter, .reviewing)
+        XCTAssertEqual(request.limit, 5)
+        XCTAssertEqual(request.status, .closed)
+        XCTAssertEqual(request.updatedAfter, Date(timeIntervalSince1970: 1_767_225_600))
+        // Only the buckets with pages left, so a drained one costs no GitHub search.
+        XCTAssertEqual(request.buckets, [.reviewed])
+        XCTAssertEqual(request.cursors, [.reviewed: "reviewed-5"])
+    }
+
+    func testAnArgumentBesideACursorMayAgreeButNotContradict() throws {
+        let token = PullRequestListCursorToken(
+            filter: .authored,
+            limit: 50,
+            status: .open,
+            updatedAfter: nil,
+            updatedBefore: nil,
+            buckets: [.authored],
+            cursors: [:]
+        )
+        let cursor = try token.encoded()
+
+        let agreeing = try parser.parseListRequest(arguments: [
+            "cursor": .string(cursor),
+            "filter": .string("authored")
+        ])
+        XCTAssertEqual(agreeing.filter, .authored)
+
+        XCTAssertThrowsError(
+            try parser.parseListRequest(arguments: ["cursor": .string(cursor), "filter": .string("reviewing")])
+        ) { error in
+            XCTAssertTrue(error.localizedDescription.contains("disagrees"), error.localizedDescription)
+        }
+        XCTAssertThrowsError(
+            try parser.parseListRequest(arguments: ["cursor": .string(cursor), "status": .string("merged")])
+        )
+    }
+
+    func testAnUnreadableCursorIsRefusedRatherThanIgnored() {
+        XCTAssertThrowsError(try parser.parseListRequest(arguments: ["cursor": .string("%%%")])) { error in
+            XCTAssertTrue(error.localizedDescription.contains("cursor"), error.localizedDescription)
         }
     }
 

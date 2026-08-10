@@ -9,7 +9,7 @@ extension GitHubPullRequestsServiceTests {
         let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
 
         XCTAssertEqual(result.warnings, [])
         // Empty and null nodes drop out; buckets merge by id and sort newest first.
@@ -77,7 +77,7 @@ extension GitHubPullRequestsServiceTests {
         let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
 
         // One request per bucket: GitHub runs a batched request's aliased searches serially, so
         // three in one request cost about three searches.
@@ -110,7 +110,7 @@ extension GitHubPullRequestsServiceTests {
         await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil)
+        let result = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
 
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 1)
@@ -119,7 +119,7 @@ extension GitHubPullRequestsServiceTests {
         XCTAssertFalse(invocation.args.contains { $0.hasPrefix("requested=") })
         XCTAssertFalse(invocation.args.contains { $0.hasPrefix("reviewed=") })
         let query = try XCTUnwrap(invocation.args.first { $0.hasPrefix("query=") })
-        XCTAssertTrue(query.contains("query($authored: String!)"))
+        XCTAssertTrue(query.contains("query($authored: String!, $authoredAfter: String)"))
         XCTAssertFalse(query.contains("requested:"))
         XCTAssertFalse(query.contains("reviewed:"))
         // The fixture carries all three buckets; only the requested one is keyed back.
@@ -136,7 +136,7 @@ extension GitHubPullRequestsServiceTests {
         }
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
 
         // A failed bucket is absent rather than empty, which is what tells it apart from the
         // SAML-forbidden bucket below; the warning is what says the answer is short one bucket.
@@ -160,8 +160,101 @@ extension GitHubPullRequestsServiceTests {
 
         // `allCases` order, not completion order, so repeated runs report the same failure.
         await assertPullRequestsServiceThrows(.notAuthenticated) {
-            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
         }
+    }
+
+    // MARK: - Paging
+
+    func testListDecodesPageInfoAndAlignsRowCursorsWithTheRowsThatMapped() async throws {
+        let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
+
+        // The authored bucket's second and third edges map to nothing, so neither contributes a
+        // row cursor — the two arrays have to stay index-for-index.
+        XCTAssertEqual(result.summariesByBucket[.authored]?.count, 1)
+        XCTAssertEqual(result.pageInfoByBucket[.authored]?.rowCursors, ["authored-1"])
+        XCTAssertEqual(result.pageInfoByBucket[.authored]?.hasNextPage, false)
+
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.rowCursors, ["requested-1", "requested-2"])
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.endCursor, "requested-2")
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.hasNextPage, true)
+    }
+
+    func testListSelectsEdgeCursorsAndPageInfoAndClampsThePageSize() async throws {
+        let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        _ = try await service.listInvolvedPullRequests(
+            buckets: [.authored],
+            status: nil,
+            // Past GitHub's own `search` ceiling, which the query must clamp rather than send.
+            options: PullRequestListOptions(pageSize: 500)
+        )
+
+        let invocations = await shell.invocations
+        let query = try XCTUnwrap(invocations.first?.args.first { $0.hasPrefix("query=") })
+        XCTAssertTrue(query.contains("first: 100"), query)
+        XCTAssertTrue(query.contains("edges { cursor node { ...pr } }"), query)
+        XCTAssertTrue(query.contains("pageInfo { endCursor hasNextPage }"), query)
+        XCTAssertFalse(query.contains("nodes { ...pr }"), query)
+    }
+
+    func testListPassesACursorOnlyForTheBucketThatHasOne() async throws {
+        let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        _ = try await service.listInvolvedPullRequests(
+            buckets: allBuckets,
+            status: nil,
+            options: PullRequestListOptions(cursors: [.reviewRequested: "requested-2"])
+        )
+
+        let invocations = await shell.invocations
+        let afterArguments = invocations.flatMap { $0.args.filter { $0.contains("After=") } }
+        // The variable is declared on every leg, but only the resumed bucket is given a value —
+        // an omitted one arrives as null, which is GitHub's "start at the first page".
+        XCTAssertEqual(afterArguments, ["requestedAfter=requested-2"])
+        for invocation in invocations {
+            let query = try XCTUnwrap(invocation.args.first { $0.hasPrefix("query=") })
+            XCTAssertTrue(query.contains("After: String)"), query)
+        }
+    }
+
+    func testListPutsTheUpdatedBoundsInEveryBucketsSearchQuery() async throws {
+        let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        _ = try await service.listInvolvedPullRequests(
+            buckets: [.authored],
+            status: .open,
+            options: PullRequestListOptions(
+                updatedAfter: Date(timeIntervalSince1970: 1_767_225_600),
+                updatedBefore: Date(timeIntervalSince1970: 1_772_409_600)
+            )
+        )
+
+        let invocations = await shell.invocations
+        XCTAssertEqual(
+            invocations.compactMap(searchArgument),
+            ["authored=is:pr is:open draft:false author:@me updated:>=2026-01-01 updated:<=2026-03-02 sort:updated-desc"]
+        )
+    }
+
+    func testListReportsASAMLForbiddenBucketAsHavingNoNextPage() async throws {
+        let shell = makeUniformShellRunner(pullRequestsShellResult(
+            stdout: PullRequestsServiceFixtures.samlPartial,
+            exitCode: 1
+        ))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
+
+        // Loaded-and-empty, not more-pages-unknown: a caller must never page a bucket GitHub
+        // refuses to answer.
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested], .exhausted)
     }
 
     // MARK: - Search qualifiers
@@ -170,7 +263,7 @@ extension GitHubPullRequestsServiceTests {
         let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: .open)
+        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: .open, options: .firstPage)
 
         let invocations = await shell.invocations
         // `is:open` alone would keep drafts, which are open pull requests.
@@ -198,7 +291,7 @@ extension GitHubPullRequestsServiceTests {
         ))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
 
         // A null bucket must read as fetched-and-empty; absent would have the caller refetch forever.
         XCTAssertEqual(Set(result.summariesByBucket.keys), allBuckets)
@@ -211,7 +304,7 @@ extension GitHubPullRequestsServiceTests {
         )
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
 
         XCTAssertEqual(result.summaries.map(\.id.number), [1])
         XCTAssertTrue(result.summaries[0].isAuthored)
@@ -224,7 +317,7 @@ extension GitHubPullRequestsServiceTests {
         let service = makeGitHubPullRequestsService(shell: shell, executablePath: nil)
 
         await assertPullRequestsServiceThrows(.ghNotInstalled) {
-            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
         }
         let invocations = await shell.invocations
         XCTAssertTrue(invocations.isEmpty)
@@ -270,7 +363,7 @@ extension GitHubPullRequestsServiceTests {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.responseTooLarge) {
-            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
         }
     }
 
@@ -279,7 +372,7 @@ extension GitHubPullRequestsServiceTests {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         do {
-            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+            _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
             XCTFail("Expected an error")
         } catch let error as PullRequestsServiceError {
             guard case .decodingFailed = error else {
@@ -301,7 +394,7 @@ extension GitHubPullRequestsServiceTests {
         await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
         let service = makeGitHubPullRequestsService(shell: shell)
 
-        let result = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil)
+        let result = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
 
         XCTAssertEqual(result.summaries.map(\.id.number), [1])
         let invocations = await shell.invocations
@@ -315,7 +408,7 @@ extension GitHubPullRequestsServiceTests {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.requestFailed(statusCode: 502)) {
-            _ = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil)
+            _ = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
         }
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 3)
@@ -328,7 +421,7 @@ extension GitHubPullRequestsServiceTests {
         let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.notAuthenticated) {
-            _ = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil)
+            _ = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
         }
         let invocations = await shell.invocations
         XCTAssertEqual(invocations.count, 1)

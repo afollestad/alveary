@@ -6,6 +6,23 @@ import Foundation
 struct PullRequestBucketState: Equatable {
     var summaries: [PullRequestSummary]
     var fetchedAt: Date
+    /// Where "Load more" resumes this bucket, and whether it has anything left. Written from every
+    /// *fresh* apply — a page-one load, a status change, a refresh — so nothing has to reset them:
+    /// the load that replaces a bucket's rows replaces its position with them.
+    var endCursor: String?
+    var hasNextPage: Bool
+
+    init(
+        summaries: [PullRequestSummary],
+        fetchedAt: Date,
+        endCursor: String? = nil,
+        hasNextPage: Bool = false
+    ) {
+        self.summaries = summaries
+        self.fetchedAt = fetchedAt
+        self.endCursor = endCursor
+        self.hasNextPage = hasNextPage
+    }
 }
 
 // MARK: - Loading
@@ -64,9 +81,15 @@ extension PullRequestsViewModel {
     /// the visible tab refetches on its next load and the others refetch when next shown. For the
     /// events that invalidate all buckets at once: a status-filter change, or Alveary itself
     /// mutating a pull request somewhere else.
+    ///
+    /// The paging position goes with the staleness. A cursor is opaque and belongs to the search
+    /// that produced it, so a status change would otherwise leave "Load more" offering to page the
+    /// previous search's position under the new one; each bucket's next fresh apply restores it.
     func markAllBucketsStale() {
         for bucket in bucketStates.keys {
             bucketStates[bucket]?.fetchedAt = .distantPast
+            bucketStates[bucket]?.endCursor = nil
+            bucketStates[bucket]?.hasNextPage = false
         }
     }
 
@@ -88,6 +111,58 @@ extension PullRequestsViewModel {
 
     func hasLoadedData(for tab: PullRequestsFilter) -> Bool {
         tab.requiredBuckets.contains { bucketStates[$0] != nil }
+    }
+
+    /// Whether the tab's footer offers another page. A bucket already in flight is excluded so the
+    /// button cannot queue a second page on top of a load that is about to replace its cursor.
+    func canLoadMore(for tab: PullRequestsFilter) -> Bool {
+        tab.requiredBuckets.contains { bucket in
+            !inFlightBuckets.contains(bucket) && bucketStates[bucket]?.hasNextPage == true
+        }
+    }
+
+    func requestLoadMore() {
+        Task {
+            await loadMore()
+        }
+    }
+
+    /// Appends the next page of every bucket the visible tab still has one for.
+    ///
+    /// The rows land on one barrier, like `load(buckets:)`, and are *appended* rather than
+    /// replacing what is held; `fetchedAt` is deliberately untouched, so paging deeper never
+    /// refreshes the freshness throttle that governs page one.
+    func loadMore() async {
+        let tab = selectedFilter
+        let pending = tab.requiredBuckets.filter { bucket in
+            !inFlightBuckets.contains(bucket) && bucketStates[bucket]?.hasNextPage == true
+        }
+        guard !pending.isEmpty, !isLoadingMore else {
+            return
+        }
+        var cursors: [PullRequestInvolvementBucket: String] = [:]
+        for bucket in pending {
+            cursors[bucket] = bucketStates[bucket]?.endCursor
+        }
+        isLoadingMore = true
+        inFlightBuckets.formUnion(pending)
+        let filter = selectedStatusFilter
+        let outcomes = await fetchConcurrently(buckets: pending, status: filter.status, cursors: cursors)
+        inFlightBuckets.subtract(pending)
+        isLoadingMore = false
+
+        guard !Task.isCancelled else {
+            // Same rule as `load(buckets:)`: applying part of a cancelled fan-out would leave the
+            // tab holding rows from a page whose siblings never arrived.
+            return
+        }
+        guard selectedStatusFilter == filter else {
+            // These rows answer the previous search. The buckets were skipped as in-flight while
+            // this ran, so hand off rather than dropping them silently.
+            await loadIfNeeded(for: selectedFilter)
+            return
+        }
+        applyMore(outcomes)
     }
 
     // MARK: - Private
@@ -113,7 +188,7 @@ extension PullRequestsViewModel {
         }
         inFlightBuckets.formUnion(buckets)
         let filter = selectedStatusFilter
-        let outcomes = await fetchConcurrently(buckets: buckets, status: filter.status)
+        let outcomes = await fetchConcurrently(buckets: buckets, status: filter.status, cursors: [:])
         inFlightBuckets.subtract(buckets)
 
         guard !Task.isCancelled else {
@@ -138,17 +213,26 @@ extension PullRequestsViewModel {
     /// serially, so a three-bucket tab used to cost about three searches where concurrently it
     /// costs about one. Collecting the legs here rather than applying each as it lands is what
     /// keeps the single settle — see `apply(_:)`.
+    ///
+    /// `cursors` is empty for a page-one load and carries one entry per bucket for "Load more"; a
+    /// leg only ever receives its own bucket's position.
     private func fetchConcurrently(
         buckets: Set<PullRequestInvolvementBucket>,
-        status: PullRequestStatus?
+        status: PullRequestStatus?,
+        cursors: [PullRequestInvolvementBucket: String]
     ) async -> [PullRequestInvolvementBucket: PullRequestBucketOutcome] {
         await withTaskGroup(of: (PullRequestInvolvementBucket, PullRequestBucketOutcome).self) { group in
             for bucket in buckets {
+                let options = PullRequestListOptions(
+                    pageSize: PullRequestsViewModel.listPageSize,
+                    cursors: cursors[bucket].map { [bucket: $0] } ?? [:]
+                )
                 group.addTask { [service] in
                     do {
                         let result = try await service.listInvolvedPullRequests(
                             buckets: [bucket],
-                            status: status
+                            status: status,
+                            options: options
                         )
                         return (bucket, .success(result))
                     } catch let error as PullRequestsServiceError {
@@ -191,9 +275,12 @@ extension PullRequestsViewModel {
             for (bucket, result) in successes {
                 // Absent means the bucket came back empty — a SAML-forbidden bucket decodes as null
                 // and must still count as fetched, or it would be reloaded on every pass.
+                let pageInfo = result.pageInfoByBucket[bucket]
                 bucketStates[bucket] = PullRequestBucketState(
                     summaries: result.summariesByBucket[bucket] ?? [],
-                    fetchedAt: fetchedAt
+                    fetchedAt: fetchedAt,
+                    endCursor: pageInfo?.endCursor,
+                    hasNextPage: pageInfo?.hasNextPage ?? false
                 )
                 bucketFailures[bucket] = nil
                 // Every leg carries the same SAML message, so without this the banner repeats it
@@ -224,6 +311,47 @@ extension PullRequestsViewModel {
         if hasLoadedData(for: selectedFilter) {
             errorMessage = failure.localizedDescription
         }
+    }
+
+    /// The load-more barrier. Unlike `apply(_:)` this *adds* to what each bucket holds and leaves
+    /// `fetchedAt` alone, so a deeper page never satisfies the page-one freshness throttle — and a
+    /// later refresh legitimately replaces the bucket, dropping the appended pages by design.
+    ///
+    /// A failed leg keeps its `hasNextPage`, so the footer stays and doubles as the retry, and it
+    /// records no `bucketFailures` entry: the tab is rendering rows, so a deeper page failing must
+    /// not be able to send it to `.unavailable`.
+    private func applyMore(_ outcomes: [PullRequestInvolvementBucket: PullRequestBucketOutcome]) {
+        var appended = false
+        var failure: PullRequestsServiceError?
+        // `allCases` order rather than the dictionary's, so which leg landed first cannot change
+        // the error reported or the order rows are appended in.
+        for bucket in PullRequestInvolvementBucket.allCases {
+            switch outcomes[bucket] {
+            case .success(let result):
+                guard var state = bucketStates[bucket] else {
+                    // The bucket was dropped while the page was in flight; appending would
+                    // resurrect it without its first page.
+                    continue
+                }
+                let held = Set(state.summaries.map(\.id))
+                state.summaries += (result.summariesByBucket[bucket] ?? []).filter { !held.contains($0.id) }
+                let pageInfo = result.pageInfoByBucket[bucket]
+                state.endCursor = pageInfo?.endCursor
+                state.hasNextPage = pageInfo?.hasNextPage ?? false
+                bucketStates[bucket] = state
+                appended = true
+            case .failure(let error):
+                failure = failure ?? error
+            case nil:
+                continue
+            }
+        }
+        if appended {
+            rebuildItems()
+            normalizeRepositoryFilter()
+            saveListCache()
+        }
+        errorMessage = failure?.localizedDescription
     }
 
     /// Deterministic pick when several of a tab's buckets failed differently.
@@ -263,11 +391,15 @@ extension PullRequestsViewModel {
 
     /// Persists every bucket held, not just the ones a load refreshed, so a lazy per-tab fetch
     /// cannot drop another tab's cached rows.
+    ///
+    /// Only the first page is persisted: the cache stores no cursors, and painting it is followed
+    /// by a page-one fetch that replaces the bucket anyway, so appended pages would be rows the
+    /// next load discards.
     private func saveListCache() {
         guard let listCache else {
             return
         }
-        let snapshot = bucketStates.mapValues(\.summaries)
+        let snapshot = bucketStates.mapValues { Array($0.summaries.prefix(PullRequestsViewModel.listPageSize)) }
         let filter = selectedStatusFilter
         Task.detached {
             await listCache.save(snapshot, filter: filter)

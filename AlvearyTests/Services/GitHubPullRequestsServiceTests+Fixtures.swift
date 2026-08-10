@@ -1,63 +1,81 @@
 enum PullRequestsServiceFixtures {
-    // PR 1 appears in both `authored` and `requested` so the merge must OR its flags.
+    // PR 1 appears in both `authored` and `requested` so the merge must OR its flags. The
+    // `authored` bucket carries an unmappable edge of each kind — an empty node and a null edge —
+    // so the row cursors have to stay aligned with the summaries that survived. `requested` is the
+    // only bucket with a next page, so a paging assertion has exactly one bucket to follow.
     static let list = """
 {
   "data": {
     "authored": {
-      "nodes": [
+      "edges": [
         {
-          "number": 1,
-          "title": "Add feature one",
-          "url": "https://github.com/octo/alpha/pull/1",
-          "state": "OPEN",
-          "isDraft": false,
-          "author": { "login": "alice", "avatarUrl": "https://avatars.example.com/alice" },
-          "headRefName": "feat/one",
-          "baseRefName": "main",
-          "updatedAt": "2026-07-01T10:00:00Z",
-          "additions": 5,
-          "deletions": 2,
-          "reviewDecision": "REVIEW_REQUIRED",
-          "repository": { "nameWithOwner": "octo/alpha" }
+          "cursor": "authored-1",
+          "node": {
+            "number": 1,
+            "title": "Add feature one",
+            "url": "https://github.com/octo/alpha/pull/1",
+            "state": "OPEN",
+            "isDraft": false,
+            "author": { "login": "alice", "avatarUrl": "https://avatars.example.com/alice" },
+            "headRefName": "feat/one",
+            "baseRefName": "main",
+            "updatedAt": "2026-07-01T10:00:00Z",
+            "additions": 5,
+            "deletions": 2,
+            "reviewDecision": "REVIEW_REQUIRED",
+            "repository": { "nameWithOwner": "octo/alpha" }
+          }
         },
-        {},
+        { "cursor": "authored-2", "node": {} },
         null
-      ]
+      ],
+      "pageInfo": { "endCursor": "authored-2", "hasNextPage": false }
     },
     "requested": {
-      "nodes": [
+      "edges": [
         {
-          "number": 2,
-          "title": "Draft work",
-          "state": "OPEN",
-          "isDraft": true,
-          "author": null,
-          "updatedAt": "2026-07-10T10:00:00Z",
-          "repository": { "nameWithOwner": "octo/beta" }
+          "cursor": "requested-1",
+          "node": {
+            "number": 2,
+            "title": "Draft work",
+            "state": "OPEN",
+            "isDraft": true,
+            "author": null,
+            "updatedAt": "2026-07-10T10:00:00Z",
+            "repository": { "nameWithOwner": "octo/beta" }
+          }
         },
         {
-          "number": 1,
-          "title": "Add feature one (stale)",
-          "state": "OPEN",
-          "isDraft": false,
-          "author": { "login": "alice", "avatarUrl": "https://avatars.example.com/alice" },
-          "updatedAt": "2026-07-01T09:00:00Z",
-          "repository": { "nameWithOwner": "octo/alpha" }
+          "cursor": "requested-2",
+          "node": {
+            "number": 1,
+            "title": "Add feature one (stale)",
+            "state": "OPEN",
+            "isDraft": false,
+            "author": { "login": "alice", "avatarUrl": "https://avatars.example.com/alice" },
+            "updatedAt": "2026-07-01T09:00:00Z",
+            "repository": { "nameWithOwner": "octo/alpha" }
+          }
         }
-      ]
+      ],
+      "pageInfo": { "endCursor": "requested-2", "hasNextPage": true }
     },
     "reviewed": {
-      "nodes": [
+      "edges": [
         {
-          "number": 3,
-          "title": "Merged cleanup",
-          "state": "MERGED",
-          "isDraft": false,
-          "author": { "login": "carol", "avatarUrl": null },
-          "updatedAt": "2026-06-01T00:00:00Z",
-          "repository": { "nameWithOwner": "octo/alpha" }
+          "cursor": "reviewed-1",
+          "node": {
+            "number": 3,
+            "title": "Merged cleanup",
+            "state": "MERGED",
+            "isDraft": false,
+            "author": { "login": "carol", "avatarUrl": null },
+            "updatedAt": "2026-06-01T00:00:00Z",
+            "repository": { "nameWithOwner": "octo/alpha" }
+          }
         }
-      ]
+      ],
+      "pageInfo": { "endCursor": "reviewed-1", "hasNextPage": false }
     }
   }
 }
@@ -66,19 +84,25 @@ enum PullRequestsServiceFixtures {
     static let samlPartial = """
 {
   "data": {
-    "authored": { "nodes": [
-      {
-        "number": 1,
-        "title": "Add feature one",
-        "state": "OPEN",
-        "isDraft": false,
-        "updatedAt": "2026-07-01T10:00:00Z",
-        "repository": { "nameWithOwner": "octo/alpha" }
-      },
-      null
-    ] },
+    "authored": {
+      "edges": [
+        {
+          "cursor": "authored-1",
+          "node": {
+            "number": 1,
+            "title": "Add feature one",
+            "state": "OPEN",
+            "isDraft": false,
+            "updatedAt": "2026-07-01T10:00:00Z",
+            "repository": { "nameWithOwner": "octo/alpha" }
+          }
+        },
+        null
+      ],
+      "pageInfo": { "endCursor": "authored-1", "hasNextPage": false }
+    },
     "requested": null,
-    "reviewed": { "nodes": [ null, null ] }
+    "reviewed": { "edges": [ null, null ], "pageInfo": { "endCursor": null, "hasNextPage": false } }
   },
   "errors": [
     { "type": "FORBIDDEN", "message": "Resource protected by organization SAML enforcement." },

@@ -45,6 +45,16 @@ extension SnapshotTests {
         )
     }
 
+    func testPullRequestsScreenLoadMoreFooter() async {
+        let fixture = await PullRequestsSnapshotFixture(hasNextPage: true)
+
+        assertMacSnapshot(
+            fixture.screen,
+            size: CGSize(width: 1_120, height: 900),
+            named: "pull_requests_load_more_footer"
+        )
+    }
+
     func testPullRequestsScreenNoSearchMatches() async {
         let fixture = await PullRequestsSnapshotFixture()
         fixture.viewModel.searchQuery = "nothing matches this"
@@ -198,7 +208,8 @@ private final class PullRequestsSnapshotFixture {
     init(
         summaries: [PullRequestSummary]? = nil,
         warnings: [String] = [],
-        failure: PullRequestsServiceError? = nil
+        failure: PullRequestsServiceError? = nil,
+        hasNextPage: Bool = false
     ) async {
         let service = SnapshotPullRequestsService()
         if let failure {
@@ -206,7 +217,14 @@ private final class PullRequestsSnapshotFixture {
         } else {
             service.listResult = .success(PullRequestListResult(
                 summaries: summaries ?? Self.defaultSummaries,
-                warnings: warnings
+                warnings: warnings,
+                // Nothing more to page by default, so every existing baseline renders without the
+                // "Load more" footer exactly as it did before pagination.
+                pageInfoByBucket: hasNextPage
+                    ? Dictionary(uniqueKeysWithValues: PullRequestInvolvementBucket.allCases.map {
+                        ($0, PullRequestListPageInfo(endCursor: "page-1", hasNextPage: true, rowCursors: []))
+                    })
+                    : [:]
             ))
         }
         viewModel = PullRequestsViewModel(
@@ -331,7 +349,8 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
 
     func listInvolvedPullRequests(
         buckets: Set<PullRequestInvolvementBucket>,
-        status: PullRequestStatus?
+        status: PullRequestStatus?,
+        options: PullRequestListOptions
     ) async throws -> PullRequestListResult {
         let result = try listResult.get()
         // Answer only what was asked for, like the real service and `StubPullRequestsService`.
@@ -340,7 +359,8 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
         // stops the next change from being caught here.
         return PullRequestListResult(
             summariesByBucket: result.summariesByBucket.filter { buckets.contains($0.key) },
-            warnings: result.warnings
+            warnings: result.warnings,
+            pageInfoByBucket: result.pageInfoByBucket.filter { buckets.contains($0.key) }
         )
     }
 

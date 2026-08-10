@@ -128,6 +128,39 @@ extension HostToolTranscriptCatalogTests {
         XCTAssertTrue(content.hasWarnings)
     }
 
+    /// The card reports what this call listed, so a paging cursor must change nothing it renders —
+    /// in either half of the result.
+    func testTheCardIgnoresThePagingCursorInBothRepresentations() throws {
+        let structured = try XCTUnwrap(
+            PullRequestListWidgetParsing.content(
+                input: Self.listInput,
+                output: """
+                {"filter":"reviewing","next_cursor":"ZXhhbXBsZQ","pull_requests":[{"number":7,\
+                "repository":"octo/alpha","status":"open","title":"Keep"}],"total_count":1}
+                """,
+                isError: false
+            )
+        )
+        XCTAssertEqual(structured.rows.map(\.title), ["Keep"])
+        XCTAssertEqual(structured.totalCount, 1)
+
+        let fallback = try XCTUnwrap(
+            PullRequestListWidgetParsing.content(
+                input: Self.listInput,
+                output: """
+                Found 1 open pull request (reviewing):
+                - octo/alpha#7 Keep (open, by afollestad, +6/-1)
+                More results are available — call list_involved_prs again with cursor: ZXhhbXBsZQ
+                """,
+                isError: false
+            )
+        )
+        // The trailing line is not a row, so it must not become one.
+        XCTAssertEqual(fallback.rows.map(\.identifier.displayKey), ["octo/alpha#7"])
+        XCTAssertEqual(fallback.totalCount, 1)
+        XCTAssertEqual(fallback.filter, .reviewing)
+    }
+
     /// A landed result whose shape we do not recognize still has to settle the card, because the
     /// grouper patches a widget only when its parser returns something.
     func testAnUnreadableResultStillLandsTheCard() throws {

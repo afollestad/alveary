@@ -5,12 +5,30 @@ import Foundation
 extension GitHubPullRequestsService {
     /// One `-f` search string per requested bucket, in `allCases` order so the argument list
     /// and the document it accompanies stay deterministic.
-    static func listArgs(buckets: Set<PullRequestInvolvementBucket>, status: PullRequestStatus?) -> [String] {
+    ///
+    /// A bucket's `After` cursor is passed only when it has one. The variable is declared either
+    /// way, so an omitted one arrives as null — GitHub's own "start at the first page" — and the
+    /// document text stays identical between a first page and a resumed one.
+    static func listArgs(
+        buckets: Set<PullRequestInvolvementBucket>,
+        status: PullRequestStatus?,
+        options: PullRequestListOptions
+    ) -> [String] {
         let ordered = orderedBuckets(buckets)
-        return ["api", "graphql", "-f", "query=\(listQuery(buckets: ordered))"]
-            + ordered.flatMap { bucket in
-                ["-f", "\(bucket.queryVariableName)=\(bucket.searchQuery(status: status))"]
+        var args = ["api", "graphql", "-f", "query=\(listQuery(buckets: ordered, pageSize: options.resolvedPageSize))"]
+        for bucket in ordered {
+            let name = bucket.queryVariableName
+            let query = bucket.searchQuery(
+                status: status,
+                updatedAfter: options.updatedAfter,
+                updatedBefore: options.updatedBefore
+            )
+            args += ["-f", "\(name)=\(query)"]
+            if let cursor = options.cursors[bucket] {
+                args += ["-f", "\(name)After=\(cursor)"]
             }
+        }
+        return args
     }
 
     static func orderedBuckets(_ buckets: Set<PullRequestInvolvementBucket>) -> [PullRequestInvolvementBucket] {
@@ -43,13 +61,24 @@ extension GitHubPullRequestsService {
         ]
     }
 
-    // One aliased `search` per requested bucket, batched into a single request so a tab
-    // always settles in one UI invalidation no matter how many buckets it renders.
-    private static func listQuery(buckets: [PullRequestInvolvementBucket]) -> String {
-        let variables = buckets.map { "$\($0.queryVariableName): String!" }.joined(separator: ", ")
+    // One aliased `search` per requested bucket. Every leg names exactly one bucket — see the
+    // never-batch bullet in `Alveary/Services/Git/AGENTS.md` — so this renders a single search in
+    // practice; the loop remains because the shape is per bucket.
+    //
+    // `edges { cursor node }` rather than `nodes`: a per-row cursor is what lets a caller that
+    // emitted only a prefix of a page resume from that row instead of skipping the rest.
+    private static func listQuery(buckets: [PullRequestInvolvementBucket], pageSize: Int) -> String {
+        let variables = buckets
+            .map { "$\($0.queryVariableName): String!, $\($0.queryVariableName)After: String" }
+            .joined(separator: ", ")
         let searches = buckets.map { bucket in
             let name = bucket.queryVariableName
-            return "  \(name): search(type: ISSUE, query: $\(name), first: 50) { nodes { ...pr } }"
+            return """
+              \(name): search(type: ISSUE, query: $\(name), first: \(pageSize), after: $\(name)After) {
+                edges { cursor node { ...pr } }
+                pageInfo { endCursor hasNextPage }
+              }
+            """
         }
         return """
         query(\(variables)) {

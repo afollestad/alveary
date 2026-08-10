@@ -62,6 +62,8 @@ struct PullRequestsScreen: View {
         let showsRepository = viewModel.showsRepositoryInRows
         let referenceDate = viewModel.referenceDate
         let avatarLoader = viewModel.avatarLoader
+        let canLoadMore = viewModel.canLoadMore(for: viewModel.selectedFilter)
+        let isLoadingMore = viewModel.isLoadingMore
         return GeometryReader { proxy in
             ScrollViewReader { scrollProxy in
                 ScrollView {
@@ -90,6 +92,17 @@ struct PullRequestsScreen: View {
                                     }
                                 )
                                 .equatable()
+
+                                // `canLoadMore` goes false the moment a page is requested — its
+                                // buckets are in flight — so `isLoadingMore` is what keeps the
+                                // footer mounted long enough to show its spinner.
+                                if canLoadMore || isLoadingMore {
+                                    PullRequestsLoadMoreFooter(
+                                        isLoading: isLoadingMore,
+                                        onLoadMore: { viewModel.requestLoadMore() }
+                                    )
+                                    .equatable()
+                                }
                             }
                         }
                     }

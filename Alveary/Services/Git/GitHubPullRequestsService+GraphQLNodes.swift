@@ -24,9 +24,23 @@ struct ListGraphQLData: Decodable {
 }
 
 struct SearchBucketNode: Decodable {
-    // Nodes are optional twice over: SAML-forbidden entries decode as `null`, and
+    // Edges are optional twice over: SAML-forbidden entries decode as `null`, and
     // `search(type: ISSUE)` can emit non-PR nodes as empty objects.
-    let nodes: [PullRequestListNode?]?
+    let edges: [SearchEdgeNode?]?
+    let pageInfo: SearchPageInfoNode?
+}
+
+/// One search hit plus the cursor that resumes *after* it. GitHub declares `cursor` non-null, so
+/// an absent one means a malformed response rather than a real position; it decodes as optional
+/// only so the row itself still maps.
+struct SearchEdgeNode: Decodable {
+    let cursor: String?
+    let node: PullRequestListNode?
+}
+
+struct SearchPageInfoNode: Decodable {
+    let endCursor: String?
+    let hasNextPage: Bool?
 }
 
 struct PullRequestListNode: Decodable {

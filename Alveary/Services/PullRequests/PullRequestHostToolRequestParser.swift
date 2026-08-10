@@ -7,20 +7,54 @@ import Foundation
 /// has to be derivable from the request alone, before GitHub or host state is consulted, so a retry
 /// that arrives after the world changed still replays its recorded result.
 struct PullRequestHostToolRequestParser {
-    /// `list_involved_prs`. An omitted filter means everything the user is involved in.
-    func parseListFilter(arguments: [String: AgentCLIKit.JSONValue]) throws -> PullRequestHostToolListFilter {
+    /// `list_involved_prs`. Every argument is optional and every default reproduces the call the
+    /// tool has always made: everything the user is involved in, open only, the newest 50 rows.
+    ///
+    /// A `cursor` is authoritative — it carries the query it is paging, so `{cursor}` alone
+    /// continues that search. An argument passed beside it that disagrees is refused rather than
+    /// merged; one that agrees is harmless and passes.
+    func parseListRequest(
+        arguments: [String: AgentCLIKit.JSONValue]
+    ) throws -> PullRequestHostToolListRequest {
         let object = StrictHostToolObject(arguments, path: "arguments")
-        try object.requireOnly(["filter"])
-        guard let raw = try object.optionalNonEmptyString("filter") else {
-            return .all
-        }
-        guard let filter = PullRequestHostToolListFilter(rawValue: raw) else {
+        try object.requireOnly(["filter", "limit", "status", "updated_after", "updated_before", "cursor"])
+        let filter = try listFilter(in: object)
+        let limit = try listLimit(in: object)
+        let status = try listStatus(in: object)
+        let updatedAfter = try listDate(in: object, key: "updated_after")
+        let updatedBefore = try listDate(in: object, key: "updated_before")
+        if let updatedAfter, let updatedBefore, updatedAfter > updatedBefore {
             throw invalid(
-                "\(object.path).filter must be one of: " +
-                    "\(PullRequestHostToolListFilter.allCases.map(\.rawValue).joined(separator: ", "))."
+                "\(object.path).updated_after must not be later than \(object.path).updated_before."
             )
         }
-        return filter
+        guard let rawCursor = try object.optionalNonEmptyString("cursor") else {
+            let filter = filter ?? .all
+            return PullRequestHostToolListRequest(
+                filter: filter,
+                limit: limit ?? PullRequestHostToolLimits.maxListRows,
+                status: status ?? .open,
+                updatedAfter: updatedAfter,
+                updatedBefore: updatedBefore,
+                buckets: filter.requiredBuckets,
+                cursors: [:]
+            )
+        }
+        let token = try PullRequestListCursorToken.decoded(from: rawCursor, path: object.path)
+        try requireAgreement(filter, with: token.filter, key: "filter", path: object.path)
+        try requireAgreement(limit, with: token.limit, key: "limit", path: object.path)
+        try requireAgreement(status, with: token.status, key: "status", path: object.path)
+        try requireAgreement(updatedAfter, with: token.updatedAfter, key: "updated_after", path: object.path)
+        try requireAgreement(updatedBefore, with: token.updatedBefore, key: "updated_before", path: object.path)
+        return PullRequestHostToolListRequest(
+            filter: token.filter,
+            limit: token.limit,
+            status: token.status,
+            updatedAfter: token.updatedAfter,
+            updatedBefore: token.updatedBefore,
+            buckets: Set(token.buckets),
+            cursors: token.cursors
+        )
     }
 
     /// The shape every tool that names one pull request and nothing else takes — `get_pr`.
@@ -198,6 +232,74 @@ struct PullRequestHostToolRequestParser {
 }
 
 private extension PullRequestHostToolRequestParser {
+    func listFilter(in object: StrictHostToolObject) throws -> PullRequestHostToolListFilter? {
+        guard let raw = try object.optionalNonEmptyString("filter") else {
+            return nil
+        }
+        guard let filter = PullRequestHostToolListFilter(rawValue: raw) else {
+            throw invalid(
+                "\(object.path).filter must be one of: " +
+                    "\(PullRequestHostToolListFilter.allCases.map(\.rawValue).joined(separator: ", "))."
+            )
+        }
+        return filter
+    }
+
+    func listLimit(in object: StrictHostToolObject) throws -> Int? {
+        guard object.values["limit"] != nil else {
+            return nil
+        }
+        let limit = try object.requiredPositiveInteger("limit")
+        guard limit <= PullRequestHostToolLimits.maxListRows else {
+            throw invalid("\(object.path).limit must be at most \(PullRequestHostToolLimits.maxListRows).")
+        }
+        return limit
+    }
+
+    /// One status per call: GitHub search qualifiers only AND, so there is no set to accept here —
+    /// `PullRequestStatus.searchQualifier` owns why.
+    func listStatus(in object: StrictHostToolObject) throws -> PullRequestStatus? {
+        guard let raw = try object.optionalNonEmptyString("status") else {
+            return nil
+        }
+        guard let status = PullRequestStatus(rawValue: raw) else {
+            throw invalid(
+                "\(object.path).status must be one of: " +
+                    "\(PullRequestStatus.allCases.map(\.rawValue).joined(separator: ", "))."
+            )
+        }
+        return status
+    }
+
+    /// Strict `YYYY-MM-DD` in UTC. A partial or lenient parse would search a window the user never
+    /// asked for and report it as theirs.
+    func listDate(in object: StrictHostToolObject, key: String) throws -> Date? {
+        guard let raw = try object.optionalNonEmptyString(key) else {
+            return nil
+        }
+        guard let date = PullRequestSearchDates.date(fromDay: raw) else {
+            throw invalid("\(object.path).\(key) must be a UTC date in YYYY-MM-DD form.")
+        }
+        return date
+    }
+
+    /// An argument passed alongside a cursor may repeat what the cursor already says, but may not
+    /// contradict it: paging one search while claiming another is the failure this prevents.
+    func requireAgreement<Value: Equatable>(
+        _ argument: Value?,
+        with token: Value?,
+        key: String,
+        path: String
+    ) throws {
+        guard let argument, argument != token else {
+            return
+        }
+        throw invalid(
+            "\(path).\(key) disagrees with the search \(path).cursor is paging. Pass cursor on its " +
+                "own to continue that search, or omit cursor to start a new one."
+        )
+    }
+
     static func identifier(from url: String) throws -> PullRequestIdentifier {
         guard let identifier = PullRequestURLParser.identifier(from: url) else {
             throw PullRequestHostToolServiceError.invalidPullRequestURL(url)

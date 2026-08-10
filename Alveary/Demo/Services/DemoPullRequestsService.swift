@@ -10,18 +10,31 @@ struct DemoPullRequestsService: PullRequestsService {
 
     /// Narrows the fixtures the same way the real search does, so demo mode cannot show a bucket
     /// or a status the app would not return.
+    ///
+    /// The fixtures never fill a page, so every bucket answers as exhausted and no "Load more"
+    /// footer appears; the `updated:` bounds are honoured so a bounded call cannot show a row the
+    /// real search would have excluded.
     func listInvolvedPullRequests(
         buckets: Set<PullRequestInvolvementBucket>,
-        status: PullRequestStatus?
+        status: PullRequestStatus?,
+        options: PullRequestListOptions
     ) async throws -> PullRequestListResult {
         let summariesByBucket = Dictionary(
             uniqueKeysWithValues: buckets.map { bucket in
-                (bucket, DemoPullRequestFixtures.summaries.filter {
-                    $0.belongs(to: bucket) && (status == nil || $0.status == status)
-                })
+                let matching = DemoPullRequestFixtures.summaries.filter { summary in
+                    summary.belongs(to: bucket)
+                        && (status == nil || summary.status == status)
+                        && (options.updatedAfter.map { summary.updatedAt >= $0 } ?? true)
+                        && (options.updatedBefore.map { summary.updatedAt <= $0 } ?? true)
+                }
+                return (bucket, Array(matching.prefix(options.resolvedPageSize)))
             }
         )
-        return PullRequestListResult(summariesByBucket: summariesByBucket, warnings: [])
+        return PullRequestListResult(
+            summariesByBucket: summariesByBucket,
+            warnings: [],
+            pageInfoByBucket: summariesByBucket.mapValues { _ in .exhausted }
+        )
     }
 
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {

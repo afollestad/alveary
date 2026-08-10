@@ -54,6 +54,132 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(content["warnings"], .array([.string("octo-corp is not SSO-authorized")]))
     }
 
+    /// The no-arguments call is the one every model makes, so what reaches the service for it must
+    /// stay byte-for-byte what it always was.
+    func testAnUnargumentedListCallFetchesExactlyWhatItAlwaysDid() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.listResult = .success(PullRequestListResult(summaries: [], warnings: []))
+
+        _ = await fixture.handle(PullRequestHostToolCatalog.listToolName)
+
+        let request = try XCTUnwrap(fixture.pullRequests.listRequests.first)
+        XCTAssertEqual(request.buckets, Set(PullRequestInvolvementBucket.allCases))
+        XCTAssertEqual(request.status, .open)
+        XCTAssertEqual(request.options, .firstPage)
+    }
+
+    func testListOptionsReachTheService() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.listResult = .success(PullRequestListResult(summaries: [], warnings: []))
+
+        _ = await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: [
+                "filter": .string("authored"),
+                "status": .string("merged"),
+                "limit": .number(5),
+                "updated_after": .string("2026-01-01")
+            ]
+        )
+
+        let request = try XCTUnwrap(fixture.pullRequests.listRequests.first)
+        XCTAssertEqual(request.buckets, [.authored])
+        XCTAssertEqual(request.status, .merged)
+        XCTAssertEqual(request.options.pageSize, 5)
+        XCTAssertEqual(request.options.updatedAfter, Date(timeIntervalSince1970: 1_767_225_600))
+    }
+
+    /// A text-only consumer never sees `structuredContent`, so a cursor that rode only there would
+    /// leave it unable to ask for page two.
+    func testTheNextCursorReachesBothHalvesOfTheResultAndRoundTrips() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let summaries = (1...3).map { makePullRequestSummary(number: $0, isAuthored: true) }
+        fixture.pullRequests.listResult = .success(
+            PullRequestListResult(
+                summariesByBucket: [.authored: summaries],
+                warnings: [],
+                pageInfoByBucket: [
+                    .authored: PullRequestListPageInfo(
+                        endCursor: "a3",
+                        hasNextPage: true,
+                        rowCursors: ["a1", "a2", "a3"]
+                    )
+                ]
+            )
+        )
+
+        let first = await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: ["filter": .string("authored"), "limit": .number(2)]
+        )
+
+        let content = try object(first.structuredContent)
+        let cursorValue = try XCTUnwrap(content["next_cursor"])
+        guard case .string(let cursor) = cursorValue else {
+            return XCTFail("next_cursor must be a string")
+        }
+        XCTAssertTrue(first.text.contains(cursor), first.text)
+        XCTAssertTrue(first.text.contains("More results are available"), first.text)
+        // Two of three rows went out, so the next page resumes at the second row's cursor rather
+        // than at the page boundary, which would have skipped the third.
+        XCTAssertEqual(
+            try PullRequestListCursorToken.decoded(from: cursor, path: "arguments").cursors,
+            [.authored: "a2"]
+        )
+
+        _ = await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: ["cursor": .string(cursor)]
+        )
+
+        let resumed = try XCTUnwrap(fixture.pullRequests.listRequests.last)
+        XCTAssertEqual(resumed.buckets, [.authored])
+        XCTAssertEqual(resumed.options.cursors, [.authored: "a2"])
+        XCTAssertEqual(resumed.options.pageSize, 2)
+    }
+
+    func testNoCursorComesBackWhenEveryBucketIsDrained() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.listResult = .success(
+            PullRequestListResult(
+                summariesByBucket: [.authored: [makePullRequestSummary(number: 1, isAuthored: true)]],
+                warnings: [],
+                pageInfoByBucket: [.authored: PullRequestListPageInfo(
+                    endCursor: "a1",
+                    hasNextPage: false,
+                    rowCursors: ["a1"]
+                )]
+            )
+        )
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: ["filter": .string("authored")]
+        )
+
+        XCTAssertNil(try object(result.structuredContent)["next_cursor"])
+        XCTAssertFalse(result.text.contains("More results are available"), result.text)
+    }
+
+    /// The status has to be visible in the text half now that it is settable, but the parenthetical
+    /// stays the filter alone — the transcript card finds the filter by matching it.
+    func testTheHeaderNamesTheStatusWithoutDisturbingTheFilterParenthetical() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.listResult = .success(
+            PullRequestListResult(
+                summaries: [makePullRequestSummary(number: 1, isAuthored: true)],
+                warnings: []
+            )
+        )
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: ["filter": .string("authored"), "status": .string("merged")]
+        )
+
+        XCTAssertTrue(result.text.hasPrefix("Found 1 merged pull request (authored)"), result.text)
+    }
+
     func testDetailReportsLinkedThreadsAndTheViewersPendingDraft() async throws {
         let fixture = try PullRequestHostToolFixture()
         let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)

@@ -5,6 +5,8 @@ import Observation
 @Observable
 final class PullRequestsViewModel {
     static let refreshInterval: TimeInterval = 60
+    /// Rows fetched per involvement bucket, for the first page and every "Load more" after it.
+    static let listPageSize = 50
 
     // Internal (not private) so the review-batch companion can reach the service.
     let service: any PullRequestsService
@@ -90,6 +92,9 @@ final class PullRequestsViewModel {
     var warnings: [String] = []
     /// A refresh failure while stale rows remain visible; unavailability replaces the list instead.
     var errorMessage: String?
+    /// A "Load more" page in flight. Stored rather than derived from `inFlightBuckets`, which a
+    /// concurrent page-one refresh also fills — only the footer's own request may disable it.
+    var isLoadingMore = false
 
     var isRefreshing: Bool {
         !inFlightBuckets.isEmpty

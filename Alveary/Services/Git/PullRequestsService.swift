@@ -28,8 +28,10 @@ struct PullRequestIdentifier: Hashable, Sendable, Codable {
     }
 }
 
-// String-backed so persisted copies (settings filters, the list cache) stay readable.
-enum PullRequestStatus: String, Sendable, Hashable, Codable {
+// String-backed so persisted copies (settings filters, the list cache) stay readable, and
+// `CaseIterable` so the `list_involved_prs` schema and its refusals name the same set the search
+// can actually run.
+enum PullRequestStatus: String, Sendable, Hashable, CaseIterable, Codable {
     case open
     case draft
     case merged
@@ -174,11 +176,24 @@ enum PullRequestInvolvementBucket: String, Sendable, Hashable, CaseIterable, Cod
         }
     }
 
-    /// `status` nil searches every state, which is GitHub's own default.
-    func searchQuery(status: PullRequestStatus?) -> String {
-        ["is:pr", status?.searchQualifier, involvementQualifier, "sort:updated-desc"]
-            .compactMap { $0 }
-            .joined(separator: " ")
+    /// `status` nil searches every state, which is GitHub's own default. The `updated:` bounds are
+    /// day-granular in UTC, which is the granularity `PullRequestSearchDates` and the host tool's
+    /// input schema both advertise; nil leaves the bucket unbounded in that direction.
+    func searchQuery(
+        status: PullRequestStatus?,
+        updatedAfter: Date?,
+        updatedBefore: Date?
+    ) -> String {
+        [
+            "is:pr",
+            status?.searchQualifier,
+            involvementQualifier,
+            updatedAfter.map { "updated:>=\(PullRequestSearchDates.day($0))" },
+            updatedBefore.map { "updated:<=\(PullRequestSearchDates.day($0))" },
+            "sort:updated-desc"
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
     }
 
     private var involvementQualifier: String {
@@ -227,12 +242,21 @@ struct PullRequestListResult: Equatable, Sendable {
     /// tab can reuse a bucket another tab already loaded.
     let summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]]
     let warnings: [String]
+    /// Where each requested bucket's page ended, keyed exactly like `summariesByBucket`. A bucket
+    /// absent here was never fetched or its leg failed; one present with `hasNextPage` false is
+    /// fully drained.
+    let pageInfoByBucket: [PullRequestInvolvementBucket: PullRequestListPageInfo]
     /// The buckets merged into one list, so callers wanting the flat view do not each repeat it.
     let summaries: [PullRequestSummary]
 
-    init(summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]], warnings: [String]) {
+    init(
+        summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]],
+        warnings: [String],
+        pageInfoByBucket: [PullRequestInvolvementBucket: PullRequestListPageInfo] = [:]
+    ) {
         self.summariesByBucket = summariesByBucket
         self.warnings = warnings
+        self.pageInfoByBucket = pageInfoByBucket
         // `allCases` order rather than the dictionary's: `merge` lets the newest entry supply
         // field values and resolves `updatedAt` ties by iteration order, so feeding it an
         // unordered sequence would make the merged list nondeterministic.
@@ -247,9 +271,14 @@ struct PullRequestListResult: Equatable, Sendable {
     /// A summary carrying no flag falls into `.authored`. Nothing in production can produce one —
     /// `makeListResult` sets a flag per bucket — but a fixture built without them would otherwise
     /// belong to no bucket and vanish from a list assembled bucket by bucket.
-    init(summaries: [PullRequestSummary], warnings: [String]) {
+    init(
+        summaries: [PullRequestSummary],
+        warnings: [String],
+        pageInfoByBucket: [PullRequestInvolvementBucket: PullRequestListPageInfo] = [:]
+    ) {
         self.summaries = summaries
         self.warnings = warnings
+        self.pageInfoByBucket = pageInfoByBucket
         self.summariesByBucket = Dictionary(
             uniqueKeysWithValues: PullRequestInvolvementBucket.allCases.map { bucket in
                 (bucket, summaries.filter {
@@ -312,9 +341,13 @@ protocol PullRequestsService: Sendable {
     ///
     /// Several buckets degrade to a partial result: a bucket that failed is *absent* from
     /// `summariesByBucket` and named in `warnings`, and only every bucket failing throws.
+    ///
+    /// `options` carries the page size, per-bucket resume cursors, and `updated:` bounds;
+    /// `.firstPage` is what every caller fetched before pagination existed.
     func listInvolvedPullRequests(
         buckets: Set<PullRequestInvolvementBucket>,
-        status: PullRequestStatus?
+        status: PullRequestStatus?,
+        options: PullRequestListOptions
     ) async throws -> PullRequestListResult
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail
     /// Returns the raw unified diff for the pull request.

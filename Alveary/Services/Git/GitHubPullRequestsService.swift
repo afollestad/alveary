@@ -33,7 +33,8 @@ actor GitHubPullRequestsService: PullRequestsService {
 
     func listInvolvedPullRequests(
         buckets: Set<PullRequestInvolvementBucket>,
-        status: PullRequestStatus?
+        status: PullRequestStatus?,
+        options: PullRequestListOptions
     ) async throws -> PullRequestListResult {
         let ordered = Self.orderedBuckets(buckets)
         guard !ordered.isEmpty else {
@@ -41,9 +42,14 @@ actor GitHubPullRequestsService: PullRequestsService {
         }
         let ghExecutable = try await resolveGitHubCLI()
         guard ordered.count > 1 else {
-            return try await listBucket(ordered[0], status: status, ghExecutable: ghExecutable)
+            return try await listBucket(ordered[0], status: status, options: options, ghExecutable: ghExecutable)
         }
-        let outcomes = await fetchBucketsConcurrently(ordered, status: status, ghExecutable: ghExecutable)
+        let outcomes = await fetchBucketsConcurrently(
+            ordered,
+            status: status,
+            options: options,
+            ghExecutable: ghExecutable
+        )
         return try Self.mergeBucketOutcomes(outcomes)
     }
 
@@ -88,13 +94,19 @@ actor GitHubPullRequestsService: PullRequestsService {
     private func fetchBucketsConcurrently(
         _ buckets: [PullRequestInvolvementBucket],
         status: PullRequestStatus?,
+        options: PullRequestListOptions,
         ghExecutable: String
     ) async -> [PullRequestInvolvementBucket: PullRequestBucketOutcome] {
         await withTaskGroup(of: (PullRequestInvolvementBucket, PullRequestBucketOutcome).self) { group in
             for bucket in buckets {
                 group.addTask {
                     do {
-                        let result = try await self.listBucket(bucket, status: status, ghExecutable: ghExecutable)
+                        let result = try await self.listBucket(
+                            bucket,
+                            status: status,
+                            options: options,
+                            ghExecutable: ghExecutable
+                        )
                         return (bucket, .success(result))
                     } catch let error as PullRequestsServiceError {
                         return (bucket, .failure(error))
@@ -111,14 +123,18 @@ actor GitHubPullRequestsService: PullRequestsService {
         }
     }
 
+    /// One bucket's page. `options` is passed through whole rather than narrowed to this bucket's
+    /// cursor: `listArgs` reads only the entries whose bucket it is building an argument for, so a
+    /// sibling's cursor cannot reach this leg's request.
     private func listBucket(
         _ bucket: PullRequestInvolvementBucket,
         status: PullRequestStatus?,
+        options: PullRequestListOptions,
         ghExecutable: String
     ) async throws -> PullRequestListResult {
         let result = try await runGitHubCLIRetryingTransientFailures(
             executable: ghExecutable,
-            args: Self.listArgs(buckets: [bucket], status: status),
+            args: Self.listArgs(buckets: [bucket], status: status, options: options),
             timeout: Self.readAttemptTimeout,
             stdoutLimitBytes: 4 * 1024 * 1024,
             retryBudget: Self.readRetryBudget

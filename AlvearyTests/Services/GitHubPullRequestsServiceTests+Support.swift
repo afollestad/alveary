@@ -34,7 +34,7 @@ func assertListFailure(
     let service = makeGitHubPullRequestsService(shell: shell)
 
     do {
-        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil)
+        _ = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
         XCTFail("Expected \(expected)", file: file, line: line)
     } catch let error as PullRequestsServiceError {
         XCTAssertEqual(error, expected, file: file, line: line)

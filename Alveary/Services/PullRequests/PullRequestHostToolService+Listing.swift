@@ -10,26 +10,36 @@ extension PullRequestHostToolService {
     /// do, so the tool and the UI can never disagree about what "reviewing" means — and it picks
     /// the buckets to fetch, so a narrow filter costs one search rather than three.
     ///
-    /// Open-only, unconditionally: this answers "what is on my plate", where a merged or closed
-    /// pull request is noise, and unlike the screen there is no user session carrying a choice.
+    /// Open by default: this answers "what is on my plate", where a merged or closed pull request
+    /// is noise, and unlike the screen there is no user session carrying a choice. `status` is what
+    /// asks for a different one, a single value because GitHub search qualifiers only AND.
+    ///
+    /// Paging is cursor-based. `next_cursor` rides in both the structured content *and* the text
+    /// fallback, because a text-only consumer that never sees it cannot ask for page two.
     func listPullRequests(
         context: AgentCLIKit.AgentHostToolCallContext,
         arguments: [String: AgentCLIKit.JSONValue]
     ) async throws -> AgentCLIKit.AgentHostToolResult {
         _ = try resolveSource(context: context)
-        let filter = try parseListFilter(arguments: arguments)
+        let request = try parseListRequest(arguments: arguments)
 
         let result: PullRequestListResult
         do {
             result = try await pullRequestsService.listInvolvedPullRequests(
-                buckets: filter.requiredBuckets,
-                status: .open
+                buckets: request.buckets,
+                status: request.status,
+                options: PullRequestListOptions(
+                    pageSize: request.limit,
+                    cursors: request.cursors,
+                    updatedAfter: request.updatedAfter,
+                    updatedBefore: request.updatedBefore
+                )
             )
         } catch let error as PullRequestsServiceError {
             throw Self.unavailable(error)
         }
 
-        let matching = result.summaries.filter(filter.matches)
+        let matching = result.summaries.filter(request.filter.matches)
         // Newest activity first, matching the screen; the display key breaks ties so repeated calls
         // agree on the order.
         let sorted = matching.sorted { lhs, rhs in
@@ -38,32 +48,105 @@ extension PullRequestHostToolService {
             }
             return lhs.id.displayKey < rhs.id.displayKey
         }
-        let shown = Array(sorted.prefix(PullRequestHostToolLimits.maxListRows))
+        let shown = Array(sorted.prefix(request.limit))
+        let nextCursor = try Self.nextCursor(request: request, result: result, shown: shown)
 
         var content: [String: AgentCLIKit.JSONValue] = [
-            "filter": .string(filter.rawValue),
+            "filter": .string(request.filter.rawValue),
             "pull_requests": .array(shown.map(Self.structuredRow)),
             "total_count": .number(Double(matching.count))
         ]
         if !result.warnings.isEmpty {
             content["warnings"] = .array(result.warnings.map(AgentCLIKit.JSONValue.string))
         }
+        if let nextCursor {
+            content["next_cursor"] = .string(nextCursor)
+        }
+        let header = header(
+            request: request,
+            shown: shown.count,
+            total: matching.count,
+            warnings: result.warnings
+        )
         return AgentCLIKit.AgentHostToolResult(
-            text: listText(header: header(filter: filter, shown: shown.count, total: matching.count, warnings: result.warnings),
-                           rows: shown.map(Self.textRow)),
+            text: Self.appendingCursor(
+                to: listText(header: header, rows: shown.map(Self.textRow)),
+                cursor: nextCursor
+            ),
             structuredContent: .object(content)
         )
     }
 }
 
 private extension PullRequestHostToolService {
+    /// The token the next page resumes from, or nil when every bucket is drained.
+    ///
+    /// A row is *consumed* once it has been emitted or rejected by the filter — no later page can
+    /// change either — and each bucket advances past its consumed prefix rather than to its page
+    /// boundary, since only the newest `limit` rows of the merged buckets went out.
+    /// `PullRequestListCursorAdvance` owns that rule; a bucket whose leg failed has no page info
+    /// and is dropped, so a failure cannot be paged past.
+    static func nextCursor(
+        request: PullRequestHostToolListRequest,
+        result: PullRequestListResult,
+        shown: [PullRequestSummary]
+    ) throws -> String? {
+        let emitted = Set(shown.map(\.id))
+        var buckets: [PullRequestInvolvementBucket] = []
+        var cursors: [PullRequestInvolvementBucket: String] = [:]
+        for bucket in PullRequestInvolvementBucket.allCases where request.buckets.contains(bucket) {
+            guard let pageInfo = result.pageInfoByBucket[bucket] else {
+                continue
+            }
+            let outcome = PullRequestListCursorAdvance.outcome(
+                pageInfo: pageInfo,
+                summaries: result.summariesByBucket[bucket] ?? [],
+                incoming: request.cursors[bucket],
+                isConsumed: { emitted.contains($0.id) || !request.filter.matches($0) }
+            )
+            switch outcome {
+            case .exhausted:
+                continue
+            case .restart:
+                buckets.append(bucket)
+            case .resume(let cursor):
+                buckets.append(bucket)
+                cursors[bucket] = cursor
+            }
+        }
+        guard !buckets.isEmpty else {
+            return nil
+        }
+        return try PullRequestListCursorToken(
+            filter: request.filter,
+            limit: request.limit,
+            status: request.status,
+            updatedAfter: request.updatedAfter,
+            updatedBefore: request.updatedBefore,
+            buckets: buckets,
+            cursors: cursors
+        ).encoded()
+    }
+
+    /// Its own trailing line rather than a row, so `PullRequestListWidgetParsing`'s text fallback —
+    /// which reads only lines beginning `- ` — keeps ignoring it.
+    static func appendingCursor(to text: String, cursor: String?) -> String {
+        guard let cursor else {
+            return text
+        }
+        return text + "\nMore results are available — call list_involved_prs again with cursor: \(cursor)"
+    }
+
+    /// The status rides in the sentence rather than the parenthetical, which stays the filter
+    /// alone: the transcript card's text fallback finds the filter by matching `(<filter>)`.
     func header(
-        filter: PullRequestHostToolListFilter,
+        request: PullRequestHostToolListRequest,
         shown: Int,
         total: Int,
         warnings: [String]
     ) -> String {
-        var header = "Found \(count(total, singular: "pull request")) (\(filter.rawValue))"
+        var header = "Found \(count(total, singular: "\(request.status.rawValue) pull request")) " +
+            "(\(request.filter.rawValue))"
         if shown < total {
             header += ", showing the \(shown) most recently updated"
         }

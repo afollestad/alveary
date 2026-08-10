@@ -149,10 +149,10 @@ final class PullRequestHostToolService {
 
     // MARK: - Parsing
 
-    func parseListFilter(
+    func parseListRequest(
         arguments: [String: AgentCLIKit.JSONValue]
-    ) throws -> PullRequestHostToolListFilter {
-        try requestParser.parseListFilter(arguments: arguments)
+    ) throws -> PullRequestHostToolListRequest {
+        try requestParser.parseListRequest(arguments: arguments)
     }
 
     func parseIdentifier(arguments: [String: AgentCLIKit.JSONValue]) throws -> PullRequestIdentifier {

@@ -13,15 +13,24 @@ extension GitHubPullRequestsService {
         warnings: [String],
         buckets: Set<PullRequestInvolvementBucket>
     ) -> PullRequestListResult {
-        let summariesByBucket = Dictionary(
-            uniqueKeysWithValues: orderedBuckets(buckets).map { bucket in
-                (bucket, makeSummaries(from: node(for: bucket, in: data), bucket: bucket))
-            }
+        var summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]] = [:]
+        var pageInfoByBucket: [PullRequestInvolvementBucket: PullRequestListPageInfo] = [:]
+        for bucket in orderedBuckets(buckets) {
+            let page = makePage(from: node(for: bucket, in: data), bucket: bucket)
+            summariesByBucket[bucket] = page.summaries
+            pageInfoByBucket[bucket] = page.pageInfo
+        }
+        return PullRequestListResult(
+            summariesByBucket: summariesByBucket,
+            warnings: warnings,
+            pageInfoByBucket: pageInfoByBucket
         )
-        return PullRequestListResult(summariesByBucket: summariesByBucket, warnings: warnings)
     }
 
     /// Folds the legs of a fan-out list fetch into the single result the caller asked for.
+    ///
+    /// `pageInfoByBucket` unions exactly like `summariesByBucket`, so a failed bucket has no page
+    /// info either and a caller building a resume token cannot advance past a page it never saw.
     ///
     /// A bucket that *failed* is absent from `summariesByBucket`, which is what distinguishes it
     /// from a SAML-forbidden one — that decodes as null and stays keyed as loaded-and-empty, since
@@ -34,6 +43,7 @@ extension GitHubPullRequestsService {
         _ outcomes: [PullRequestInvolvementBucket: PullRequestBucketOutcome]
     ) throws -> PullRequestListResult {
         var summariesByBucket: [PullRequestInvolvementBucket: [PullRequestSummary]] = [:]
+        var pageInfoByBucket: [PullRequestInvolvementBucket: PullRequestListPageInfo] = [:]
         var warnings: [String] = []
         var failures: [(bucket: PullRequestInvolvementBucket, error: PullRequestsServiceError)] = []
         var succeeded = false
@@ -42,6 +52,7 @@ extension GitHubPullRequestsService {
             case .success(let result):
                 succeeded = true
                 summariesByBucket.merge(result.summariesByBucket) { _, leg in leg }
+                pageInfoByBucket.merge(result.pageInfoByBucket) { _, leg in leg }
                 // Every leg carries the same SAML message, so without this a three-bucket call
                 // would report it three times.
                 for warning in result.warnings where !warnings.contains(warning) {
@@ -62,7 +73,11 @@ extension GitHubPullRequestsService {
                     + failure.error.localizedDescription
             )
         }
-        return PullRequestListResult(summariesByBucket: summariesByBucket, warnings: warnings)
+        return PullRequestListResult(
+            summariesByBucket: summariesByBucket,
+            warnings: warnings,
+            pageInfoByBucket: pageInfoByBucket
+        )
     }
 
     private static func node(for bucket: PullRequestInvolvementBucket, in data: ListGraphQLData) -> SearchBucketNode? {
@@ -76,13 +91,22 @@ extension GitHubPullRequestsService {
         }
     }
 
-    private static func makeSummaries(
+    /// One bucket's rows beside the cursors that resume them.
+    ///
+    /// An edge that maps to no summary — a SAML `null`, or a non-PR search hit — contributes
+    /// neither a summary nor a row cursor, which is what keeps the two arrays aligned
+    /// index-for-index. A missing `pageInfo` (the SAML-forbidden bucket, which decodes as null
+    /// throughout) reads as exhausted rather than as more-pages-unknown, so a caller cannot page
+    /// a bucket GitHub will never answer.
+    private static func makePage(
         from node: SearchBucketNode?,
         bucket: PullRequestInvolvementBucket
-    ) -> [PullRequestSummary] {
-        (node?.nodes ?? []).compactMap { node -> PullRequestSummary? in
-            guard let node, var summary = makeSummary(from: node) else {
-                return nil
+    ) -> (summaries: [PullRequestSummary], pageInfo: PullRequestListPageInfo) {
+        var summaries: [PullRequestSummary] = []
+        var rowCursors: [String] = []
+        for edge in node?.edges ?? [] {
+            guard let edge, let listNode = edge.node, var summary = makeSummary(from: listNode) else {
+                continue
             }
             switch bucket {
             case .authored:
@@ -92,8 +116,20 @@ extension GitHubPullRequestsService {
             case .reviewed:
                 summary.hasReviewed = true
             }
-            return summary
+            summaries.append(summary)
+            rowCursors.append(edge.cursor ?? "")
         }
+        guard let pageInfo = node?.pageInfo else {
+            return (summaries, PullRequestListPageInfo(endCursor: nil, hasNextPage: false, rowCursors: rowCursors))
+        }
+        return (
+            summaries,
+            PullRequestListPageInfo(
+                endCursor: pageInfo.endCursor,
+                hasNextPage: pageInfo.hasNextPage ?? false,
+                rowCursors: rowCursors
+            )
+        )
     }
 
     static func makeSummary(from node: PullRequestListNode) -> PullRequestSummary? {
