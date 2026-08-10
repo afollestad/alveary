@@ -11,6 +11,8 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var listResult: Result<PullRequestListResult, PullRequestsServiceError> = .success(
         PullRequestListResult(summaries: [], warnings: [])
     )
+    /// Per-bucket answers, consulted before `listResult` for a single-bucket request.
+    var listResultsByBucket: [PullRequestInvolvementBucket: Result<PullRequestListResult, PullRequestsServiceError>] = [:]
     var listGate: PullRequestsServiceGate?
     var detailResult: Result<PullRequestDetail, PullRequestsServiceError> = .failure(.transport("unused"))
     var diffResult: Result<String, PullRequestsServiceError> = .failure(.transport("unused"))
@@ -137,6 +139,12 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     private(set) var deletedPendingReviewNodeIDs: [String] = []
     private(set) var submittedPendingReviews: [SubmittedPendingReview] = []
 
+    /// Buckets asked for since `index`, as a set. A tab's buckets are fetched concurrently, so the
+    /// order the legs record themselves in is nondeterministic and only membership is meaningful.
+    func bucketsRequested(since index: Int) -> Set<PullRequestInvolvementBucket> {
+        Set(listRequests.dropFirst(index).flatMap(\.buckets))
+    }
+
     func listInvolvedPullRequests(
         buckets: Set<PullRequestInvolvementBucket>,
         status: PullRequestStatus?
@@ -144,7 +152,12 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
         listCallCount += 1
         listRequests.append(ListRequest(buckets: buckets, status: status))
         await listGate?.wait()
-        let result = try listResult.get()
+        // A single-bucket override, so a test can fail one concurrent leg while its sibling
+        // succeeds — something one shared `listResult` cannot express.
+        let answer = buckets.count == 1
+            ? buckets.first.flatMap { listResultsByBucket[$0] } ?? listResult
+            : listResult
+        let result = try answer.get()
         // Answer only what was asked for, like the real service, so a test can prove a tab
         // fetched one bucket without its rows arriving from the fixture's other buckets.
         return PullRequestListResult(

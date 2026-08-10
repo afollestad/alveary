@@ -26,13 +26,16 @@ final class PullRequestsViewModelTests: XCTestCase {
         var currentDate = Date(timeIntervalSince1970: 1_000)
         let viewModel = makePullRequestsViewModel(service: service, now: { currentDate })
 
+        // One request per bucket, so the visible tab's bucket count is the unit here.
+        let perLoad = PullRequestsFilter.all.requiredBuckets.count
+
         await viewModel.refreshForScreen()
         await viewModel.refreshForScreen()
-        XCTAssertEqual(service.listCallCount, 1)
+        XCTAssertEqual(service.listCallCount, perLoad)
 
         currentDate = currentDate.addingTimeInterval(PullRequestsViewModel.refreshInterval + 1)
         await viewModel.refreshForScreen()
-        XCTAssertEqual(service.listCallCount, 2)
+        XCTAssertEqual(service.listCallCount, perLoad * 2)
     }
 
     func testTabBucketing() async {
@@ -299,16 +302,17 @@ final class PullRequestsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isRefreshing)
     }
 
-    func testRefreshOfPopulatedListAppliesTheBatchedResultOnce() async {
+    func testRefreshOfPopulatedListAppliesEveryBucketOnce() async {
         let service = StubPullRequestsService()
+        let perLoad = PullRequestsFilter.all.requiredBuckets.count
         let original = makePullRequestSummary(number: 1, title: "Original", isAuthored: true)
         service.listResult = .success(PullRequestListResult(summaries: [original], warnings: []))
         let viewModel = makePullRequestsViewModel(service: service)
         await viewModel.refresh()
         XCTAssertEqual(viewModel.items.map(\.title), ["Original"])
-        XCTAssertEqual(service.listCallCount, 1)
+        XCTAssertEqual(service.listCallCount, perLoad)
 
-        // Second refresh: the single batched request is held open mid-flight.
+        // Second refresh: every concurrent leg is held open mid-flight.
         let updated = makePullRequestSummary(number: 1, title: "Updated", isAuthored: true)
         service.listResult = .success(PullRequestListResult(summaries: [updated], warnings: []))
         let gate = PullRequestsServiceGate()
@@ -325,8 +329,7 @@ final class PullRequestsViewModelTests: XCTestCase {
         gate.open()
         await refreshTask.value
         XCTAssertEqual(viewModel.items.map(\.title), ["Updated"])
-        // All three involvement buckets travel in that one request.
-        XCTAssertEqual(service.listCallCount, 2)
+        XCTAssertEqual(service.listCallCount, perLoad * 2)
     }
 
     func testCachedListPaintsBeforeNetworkAndRefreshSaves() async throws {

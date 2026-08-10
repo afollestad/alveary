@@ -8,6 +8,12 @@ struct PullRequestBucketState: Equatable {
     var fetchedAt: Date
 }
 
+/// One bucket's fetch outcome. Carries the concrete error type rather than `any Error` because
+/// these cross a task-group boundary and so have to be `Sendable`; the mapping happens in the
+/// child task, and a cancelled leg's wrapped error is discarded by `load`'s cancellation guard
+/// before it can be read.
+typealias PullRequestBucketOutcome = Result<PullRequestListResult, PullRequestsServiceError>
+
 // MARK: - Loading
 
 extension PullRequestsViewModel {
@@ -88,22 +94,25 @@ extension PullRequestsViewModel {
         }
     }
 
-    /// One batched request for every bucket named, so a tab always settles in a single UI
-    /// invalidation no matter how many involvements it renders.
+    /// Fetches every bucket named concurrently, then applies them in one pass, so a tab settles in
+    /// a single UI invalidation no matter how many involvements it renders.
     private func load(buckets: Set<PullRequestInvolvementBucket>) async {
         guard !buckets.isEmpty else {
             return
         }
         inFlightBuckets.formUnion(buckets)
         let filter = selectedStatusFilter
-        let outcome: Result<PullRequestListResult, any Error>
-        do {
-            outcome = .success(try await service.listInvolvedPullRequests(buckets: buckets, status: filter.status))
-        } catch {
-            outcome = .failure(error)
-        }
+        let outcomes = await fetchConcurrently(buckets: buckets, status: filter.status)
         inFlightBuckets.subtract(buckets)
 
+        guard !Task.isCancelled else {
+            // Leaving the screen cancels the load. Legs that already succeeded are dropped rather
+            // than applied: a partial apply would stamp a half-loaded tab with a fresh `fetchedAt`,
+            // and the freshness throttle would then suppress the load that should complete it.
+            // Shell teardown also wraps cancellation in a `PullRequestsServiceError`, so the thrown
+            // type cannot be trusted for this — only the cancellation flag can.
+            return
+        }
         guard selectedStatusFilter == filter else {
             // The status filter moved while this was in flight, so these rows answer the previous
             // search. Hand off rather than just dropping them: `selectStatusFilter` skipped these
@@ -111,50 +120,98 @@ extension PullRequestsViewModel {
             await loadIfNeeded(for: selectedFilter)
             return
         }
-        switch outcome {
-        case .success(let result):
-            apply(result, for: buckets)
-        case .failure(let error):
-            applyFailure(error, for: buckets)
+        apply(outcomes)
+    }
+
+    /// One request per bucket, in parallel. GitHub runs a batched request's aliased searches
+    /// serially, so a three-bucket tab used to cost about three searches where concurrently it
+    /// costs about one. Collecting the legs here rather than applying each as it lands is what
+    /// keeps the single settle — see `apply(_:)`.
+    private func fetchConcurrently(
+        buckets: Set<PullRequestInvolvementBucket>,
+        status: PullRequestStatus?
+    ) async -> [PullRequestInvolvementBucket: PullRequestBucketOutcome] {
+        await withTaskGroup(of: (PullRequestInvolvementBucket, PullRequestBucketOutcome).self) { group in
+            for bucket in buckets {
+                group.addTask { [service] in
+                    do {
+                        let result = try await service.listInvolvedPullRequests(
+                            buckets: [bucket],
+                            status: status
+                        )
+                        return (bucket, .success(result))
+                    } catch let error as PullRequestsServiceError {
+                        return (bucket, .failure(error))
+                    } catch {
+                        return (bucket, .failure(.transport(error.localizedDescription)))
+                    }
+                }
+            }
+            var outcomes: [PullRequestInvolvementBucket: PullRequestBucketOutcome] = [:]
+            for await (bucket, outcome) in group {
+                outcomes[bucket] = outcome
+            }
+            return outcomes
         }
     }
 
-    private func apply(_ result: PullRequestListResult, for buckets: Set<PullRequestInvolvementBucket>) {
-        let fetchedAt = now()
-        for bucket in buckets {
-            // Absent means the bucket came back empty — a SAML-forbidden bucket decodes as null
-            // and must still count as fetched, or it would be reloaded on every pass.
-            bucketStates[bucket] = PullRequestBucketState(
-                summaries: result.summariesByBucket[bucket] ?? [],
-                fetchedAt: fetchedAt
-            )
-            bucketFailures[bucket] = nil
+    /// The barrier every concurrent leg lands on. Applying per leg would publish once per bucket
+    /// and write the cache once per bucket, which is the "reads as loading twice" flicker the
+    /// batched request existed to avoid.
+    private func apply(_ outcomes: [PullRequestInvolvementBucket: PullRequestBucketOutcome]) {
+        // Split in `allCases` order rather than the dictionary's, so which leg finished first
+        // cannot change what this pass does.
+        var successes: [(bucket: PullRequestInvolvementBucket, result: PullRequestListResult)] = []
+        var failures: [(bucket: PullRequestInvolvementBucket, error: PullRequestsServiceError)] = []
+        for bucket in PullRequestInvolvementBucket.allCases {
+            switch outcomes[bucket] {
+            case .success(let result):
+                successes.append((bucket, result))
+            case .failure(let error):
+                failures.append((bucket, error))
+            case nil:
+                continue
+            }
         }
-        rebuildItems()
-        warnings = result.warnings
-        errorMessage = nil
-        touchReferenceDate()
-        normalizeRepositoryFilter()
-        saveListCache()
-    }
 
-    private func applyFailure(_ error: any Error, for buckets: Set<PullRequestInvolvementBucket>) {
-        if error is CancellationError {
-            // Leaving the screen cancels the load; that is not an error worth a banner.
+        if !successes.isEmpty {
+            let fetchedAt = now()
+            var collectedWarnings: [String] = []
+            for (bucket, result) in successes {
+                // Absent means the bucket came back empty — a SAML-forbidden bucket decodes as null
+                // and must still count as fetched, or it would be reloaded on every pass.
+                bucketStates[bucket] = PullRequestBucketState(
+                    summaries: result.summariesByBucket[bucket] ?? [],
+                    fetchedAt: fetchedAt
+                )
+                bucketFailures[bucket] = nil
+                // Every leg carries the same SAML message, so without this the banner repeats it
+                // once per bucket.
+                for warning in result.warnings where !collectedWarnings.contains(warning) {
+                    collectedWarnings.append(warning)
+                }
+            }
+            rebuildItems()
+            warnings = collectedWarnings
+            touchReferenceDate()
+            normalizeRepositoryFilter()
+            saveListCache()
+        }
+
+        // After the successes, on both counts: a healthy sibling clears its own `bucketFailures`
+        // entry, and `hasLoadedData` below has to see the rows this pass just landed.
+        for (bucket, error) in failures {
+            bucketFailures[bucket] = error
+        }
+        guard let failure = failures.first?.error else {
+            errorMessage = nil
             return
         }
-        guard !Task.isCancelled else {
-            // Shell teardown wraps cancellation in service errors; same non-error.
-            return
-        }
-        let serviceError = error as? PullRequestsServiceError ?? .transport(error.localizedDescription)
-        for bucket in buckets {
-            bucketFailures[bucket] = serviceError
-        }
-        // A tab still holding rows keeps them and says why the refresh failed; one with nothing to
-        // show goes unavailable, which `loadPhase(for:)` derives from `bucketFailures`.
+        // A tab still holding rows keeps them and says why the load failed; one with nothing to
+        // show goes unavailable, which `loadPhase(for:)` derives from `bucketFailures`. A load that
+        // failed entirely leaves `warnings` alone — they still describe the rows on screen.
         if hasLoadedData(for: selectedFilter) {
-            errorMessage = serviceError.localizedDescription
+            errorMessage = failure.localizedDescription
         }
     }
 

@@ -330,7 +330,15 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
         buckets: Set<PullRequestInvolvementBucket>,
         status: PullRequestStatus?
     ) async throws -> PullRequestListResult {
-        try listResult.get()
+        let result = try listResult.get()
+        // Answer only what was asked for, like the real service and `StubPullRequestsService`.
+        // The view model fetches one bucket per request and indexes the reply by bucket, so
+        // returning the whole fixture happens to work — but a fake that ignores its arguments
+        // stops the next change from being caught here.
+        return PullRequestListResult(
+            summariesByBucket: result.summariesByBucket.filter { buckets.contains($0.key) },
+            warnings: result.warnings
+        )
     }
 
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {

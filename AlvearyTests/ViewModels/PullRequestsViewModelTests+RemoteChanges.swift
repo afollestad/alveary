@@ -35,8 +35,13 @@ extension PullRequestsViewModelTests {
 
         _ = await fixture.coordinator.confirm(proposalID: ReviewProposalAttachmentFixture.proposalID, event: .approve)
 
-        await waitForPullRequestCondition { fixture.service.listCallCount > 0 }
-        XCTAssertEqual(fixture.service.listCallCount, 1)
+        await waitForPullRequestCondition {
+            // A load is one request per bucket and they land independently, so waiting on the
+            // first would let the assertion below race the siblings.
+            fixture.service.listCallCount >= fixture.viewModel.selectedFilter.requiredBuckets.count
+        }
+        // One load, which is one request per bucket the visible tab renders.
+        XCTAssertEqual(fixture.service.listCallCount, fixture.viewModel.selectedFilter.requiredBuckets.count)
     }
 
     /// The card publishes what the model wrote, so a summary typed into the footer was never sent.
@@ -48,7 +53,9 @@ extension PullRequestsViewModelTests {
 
         _ = await fixture.coordinator.confirm(proposalID: ReviewProposalAttachmentFixture.proposalID, event: .approve)
 
-        await waitForPullRequestCondition { fixture.service.listCallCount > 0 }
+        await waitForPullRequestCondition {
+            fixture.service.listCallCount >= fixture.viewModel.selectedFilter.requiredBuckets.count
+        }
         XCTAssertEqual(fixture.session?.pendingReview.overallComment, "Typed but never sent")
         // What was published is the proposal's body, which is what proves the text went nowhere.
         XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Some notes."])
@@ -93,8 +100,10 @@ extension PullRequestsViewModelTests {
 
         fixture.announceChange(affectsListRow: true)
 
-        await waitForPullRequestCondition { fixture.service.listCallCount > 0 }
-        XCTAssertEqual(fixture.service.listCallCount, 1)
+        await waitForPullRequestCondition {
+            fixture.service.listCallCount >= fixture.viewModel.selectedFilter.requiredBuckets.count
+        }
+        XCTAssertEqual(fixture.service.listCallCount, fixture.viewModel.selectedFilter.requiredBuckets.count)
     }
 
     /// One agent turn answers and resolves several threads in a row; that is one round trip's
@@ -111,7 +120,8 @@ extension PullRequestsViewModelTests {
         await waitForPullRequestCondition { fixture.service.detailCallCount > before }
         await drainMainQueue()
         XCTAssertEqual(fixture.service.detailCallCount, before + 1)
-        XCTAssertEqual(fixture.service.listCallCount, 1)
+        // Four announcements still coalesce into one load, not one per announcement.
+        XCTAssertEqual(fixture.service.listCallCount, fixture.viewModel.selectedFilter.requiredBuckets.count)
     }
 
     /// The list screen can be open with no pane beside it.
@@ -120,7 +130,9 @@ extension PullRequestsViewModelTests {
 
         fixture.announceChange(affectsListRow: true)
 
-        await waitForPullRequestCondition { fixture.service.listCallCount > 0 }
+        await waitForPullRequestCondition {
+            fixture.service.listCallCount >= fixture.viewModel.selectedFilter.requiredBuckets.count
+        }
         XCTAssertEqual(fixture.service.detailCallCount, 0)
     }
 
