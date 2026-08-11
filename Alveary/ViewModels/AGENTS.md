@@ -28,8 +28,8 @@ These instructions apply to files directly under `Alveary/ViewModels/`. The rule
 ### File Organization
 
 - Put feature-specific view-model rules in the narrowest subfolder guidance:
-  - `Conversation/` — controller registry and leases, `ConversationViewModel` companion split, handoff, tool approvals, transcript pull-request detection.
-  - `PullRequests/` — list loading, search debounce, detail pane loads, review proposals; the link store in `PullRequests/Links/`.
+  - `Conversation/` — the `ConversationViewModel` companion split, subscription coalescing, session settings, transcript pull-request detection; leases and thread status in `Conversation/ControllerRegistry/`, tool approvals and plan exits in `Conversation/Approvals/`, handoff in `Conversation/SessionHandoff/`, the send path in `Conversation/Outbound/`.
+  - `PullRequests/` — list loading and search debounce; detail pane loads in `PullRequests/Pane/`, comments and review proposals in `PullRequests/Review/`, the link store in `PullRequests/Links/`.
   - `Sidebar/` — thread creation/removal/pinning, drafts, sidebar ordering and drag, Task-to-Project moves.
   - `Scheduled/` — scheduled-task management UI.
   - `DiffViewer/` — diff viewer state.

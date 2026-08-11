@@ -1,6 +1,14 @@
 import SwiftData
 import SwiftUI
 
+/// Snapshots a SwiftData-backed view, then waits for its observations to unregister.
+///
+/// `assertMacSnapshot` builds and releases the query-bearing view inside its own autorelease
+/// pool, but SwiftUI queues the `@Query` teardown as main-actor work that a synchronous return
+/// never lets run. The next test's in-memory context save then reaches a stale observation and
+/// crashes. Suspending here — while retaining the *container*, not the constructed view — lets
+/// that queued work drain first. The synchronous helper stays correct for views without
+/// SwiftData observations.
 @MainActor
 func assertMacModelSnapshot<V: View>(
     modelContainer: ModelContainer,

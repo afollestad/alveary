@@ -22,7 +22,7 @@ struct DiffCreatePullRequestModal: View {
 
                 // The shared BlockInputKit editor: four visible lines, growing
                 // to its built-in ten-line cap. Never wrap it in a drop
-                // modifier — see `Alveary/Views/PullRequests/AGENTS.md`.
+                // modifier — see `Alveary/Views/PullRequests/Comments/AGENTS.md`.
                 PullRequestCommentEditor(
                     draft: model.descriptionDraft,
                     placeholder: DiffCreatePullRequestModalModel.descriptionPlaceholder,

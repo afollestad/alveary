@@ -1,6 +1,12 @@
 import AppKit
 
 extension AppKitChatSurfaceView {
+    /// Picks the scroll view a wheel event belongs to, preferring the vertical transcript owner
+    /// whenever the event is mostly vertical.
+    ///
+    /// The deepest-scroll-view rule alone would hand a vertical flick over a markdown table or code
+    /// block to that nested horizontal scroll view, which then has to replay it upward — and AppKit
+    /// drops the scroll momentum on the replay, so the transcript stops dead mid-gesture.
     func scrollViewForWheelForwarding(target: NSView, surfacePoint: NSPoint, event: NSEvent) -> NSScrollView? {
         if shouldPreferVerticalScrollOwner(for: event),
            let verticalScrollView = verticalScrollViewForWheelForwarding(target: target, surfacePoint: surfacePoint) {

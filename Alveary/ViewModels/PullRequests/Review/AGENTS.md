@@ -1,0 +1,11 @@
+## Pull Request Comments And Review Proposals
+
+These instructions cover `Alveary/ViewModels/PullRequests/Review/` — inline and conversation comments, their attachments, and the coordinator behind a transcript review-proposal card. The pane these write into is `Alveary/ViewModels/PullRequests/Pane/AGENTS.md`; `Alveary/Services/PullRequests/HostTools/AGENTS.md` owns propose time and `Alveary/Views/PullRequests/Review/AGENTS.md` the rendering half.
+
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Every optimistic edit's revert path, `pendingReviewCreationTasks`' serialization, `removeStagedComment` pruning instead of refetching, `addStagedComment`'s differing invalidation, `previewTasks`' clear-after-cancellation-guard, the `.reviewProposalCardStateChanged` versus lifecycle-notification choice, and the clear-envelope-before-marker save order each carry theirs.
+
+- **Comments are optimistic *and* server-owned.** A placeholder renders and the composer closes, then GitHub's copy swaps in; failure withdraws the placeholder and restores the text. There is no local fallback bucket — GitHub stays the single source of truth. Insert and swap are idempotent upserts keyed by node id, because a concurrent `loadDetail` from `Alveary/ViewModels/PullRequests/Pane/` can land mid-flight.
+- **Do not poll session state for the pending review.** A spin loop waiting on `pendingReviewNodeID` burns the main actor for the whole round trip; awaiting the stored creation `Task` is what serialization means here.
+- **`PullRequestsViewModel` holds the review-proposal coordinator, and that is not the `ModelContext` it does without.** The coordinator owns its own private context, so the split with `PullRequestLinksViewModel` (`Alveary/ViewModels/PullRequests/Links/AGENTS.md`) stays intact.
+- **A pending proposal reroutes the pane's composer and its Submit.** `saveComposerComment` stages into the envelope rather than posting a pending comment, and `submitReview` hands off to `submitProposedReview`, which calls the coordinator's `confirm(proposalID:event:bodyOverride:)` so both sets publish as one review.
+- **`submittableCommentCount(for:session:)` is the single count both the footer and `submitReview`'s guard read.** It takes the session rather than looking one up, so the footer resolves for the session it was handed.

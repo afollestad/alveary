@@ -19,7 +19,9 @@ import XCTest
 /// `0.99` admits up to 1% of pixels crossing the Delta-E line, which is where
 /// channel-rounding drift tends to spread. Together they absorb sub-visible encoder
 /// noise without giving up coverage of anything a reviewer could actually see.
-/// Override per call site if a specific test wants stricter or looser matching.
+/// Override per call site if a specific test wants stricter or looser matching, but do
+/// not tighten these shared values: the drift class is not specific to one baseline, so
+/// raising them brings it back for every large, color-rich image at once.
 let defaultPixelPrecision: Float = 0.99
 let defaultPerceptualPrecision: Float = 0.99
 private let appKitSnapshotScale: CGFloat = 2
@@ -46,6 +48,10 @@ func fixedScaleSnapshotComparisonPrecision(
     )
 }
 
+/// Picks the renderer for one comparison: SnapshotTesting's native AppKit path on a Retina
+/// display, and a fixed-scale capture when headless CI exposes only a 1x screen. The 1x path
+/// normalizes the stored 2x reference in memory rather than expecting a 1x baseline, which is
+/// why baselines stay recorded at 2x and must never be re-recorded against a 1x runner.
 func macSnapshotImage(
     precision: Float = defaultPixelPrecision,
     perceptualPrecision: Float = defaultPerceptualPrecision,
@@ -304,6 +310,18 @@ private func renderSnapshotRepresentation(
     return bitmapRep
 }
 
+/// Renders `makeView` into a real `NSWindow` and compares it against the stored baseline.
+///
+/// The window is not incidental. A bare `NSHostingController` with no window display pass
+/// captures sidebar `List` content with custom section headers as a blank background, so the
+/// hosting controller must be installed in a window and driven through `displayIfNeeded()`.
+///
+/// `colorScheme` sets the SwiftUI environment *and* the hosting `NSAppearance` together; a
+/// dark-mode snapshot that moves only one of them renders AppKit-backed colors such as
+/// `separatorColor` for the wrong appearance.
+///
+/// Use `assertMacModelSnapshot` instead when the view reads `@Query` — this helper returns
+/// before SwiftData observations finish unregistering.
 @MainActor
 func assertMacSnapshot<V: View>(
     _ makeView: @autoclosure () -> V,
@@ -382,100 +400,5 @@ func assertMacSnapshot<V: View>(
             testName: testName,
             line: line
         )
-    }
-}
-
-extension SnapshotTests {
-    static func modifiedDiff(path: String) -> String {
-        let leadingContext = (1...5).map { "    private let leadingContext\($0) = \($0)" }
-        let middleContext = (6...20).map { "        let intermediateContext\($0) = \($0)" }
-        let trailingContext = (21...24).map { "    private let trailingContext\($0) = \($0)" }
-
-        var lines = [
-            "diff --git a/\(path) b/\(path)",
-            "--- a/\(path)",
-            "+++ b/\(path)",
-            "@@ -10,34 +10,36 @@ struct ChatView: View {",
-            " struct ChatView: View {"
-        ]
-        lines.append(contentsOf: leadingContext.map { " \($0)" })
-        lines.append(contentsOf: [
-            "-    private let maxAutocompleteResults = 40",
-            "+    private let maxAutocompleteResults = 50",
-            "+    private let autocompleteDebounceNanoseconds: UInt64 = 75_000_000",
-            "+    private let diffPreviewFont = Font.system(.caption, design: .monospaced)"
-        ])
-        lines.append(contentsOf: middleContext.map { " \($0)" })
-        lines.append(contentsOf: [
-            "-        Button(\"Send\", action: onSubmit)",
-            "+        Button(\"Send\", action: onSubmit)",
-            "+            .keyboardShortcut(.return, modifiers: [.command])"
-        ])
-        lines.append(contentsOf: trailingContext.map { " \($0)" })
-        lines.append(" }")
-        return lines.joined(separator: "\n")
-    }
-
-    static func newFileDiff(path: String) -> String {
-        let lines = [
-            "Nullam quis risus eget urna mollis ornare",
-            "",
-            "Integer posuere erat a ante venenatis dapibus",
-            "",
-            "Donec sed odio dui. Morbi leo risus, porta ac consectetur ac"
-        ]
-
-        return """
-        diff --git a/\(path) b/\(path)
-        new file mode 100644
-        --- /dev/null
-        +++ b/\(path)
-        @@ -0,0 +1,\(lines.count) @@
-        \(lines.map { "+\($0)" }.joined(separator: "\n"))
-        """
-    }
-
-    static func deletedFileDiff(path: String) -> String {
-        let lines = [
-            "Aenean lacinia bibendum nulla sed consectetur",
-            "",
-            "Cras justo odio, dapibus ac facilisis in",
-            "",
-            "Vestibulum id ligula porta felis euismod semper"
-        ]
-
-        return """
-        diff --git a/\(path) b/\(path)
-        deleted file mode 100644
-        --- a/\(path)
-        +++ /dev/null
-        @@ -1,\(lines.count) +0,0 @@
-        \(lines.map { "-\($0)" }.joined(separator: "\n"))
-        """
-    }
-
-    static func renamedDiff(oldPath: String, newPath: String) -> String {
-        """
-        diff --git a/\(oldPath) b/\(newPath)
-        similarity index 100%
-        rename from \(oldPath)
-        rename to \(newPath)
-        """
-    }
-
-    static func rawFallbackDiff(path: String) -> String {
-        let longLine = String(repeating: "stream-json-output-segment-", count: 12)
-
-        return """
-        diff --git a/\(path) b/\(path)
-        --- a/\(path)
-        +++ b/\(path)
-        +\(longLine)
-        +func testCancellationWhileStreamingOutputDoesNotCrash() async throws {
-        +    let runner = DefaultShellRunner()
-        +    let task = Task {
-        +        try await runner.run(executable: "/usr/bin/perl", args: ["-e", "...streaming output..."])
-        +    }
-        """
     }
 }

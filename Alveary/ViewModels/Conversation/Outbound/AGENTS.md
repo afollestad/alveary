@@ -1,0 +1,9 @@
+## Outbound Messages
+
+These instructions cover `Alveary/ViewModels/Conversation/Outbound/` — everything on the send path: entry points and readiness, the reservation that serializes them, queued-message dispatch and pausing, locally recorded user rows, and steering. Inbound events, subscription coalescing, and session recovery stay in `Alveary/ViewModels/Conversation/AGENTS.md`.
+
+- **Entry points wrap; dispatch executes.** `ConversationViewModel+OutboundEntryPoints.swift` holds the user-facing sends, each inside a reservation; `ConversationViewModel+MessageDispatch.swift` holds `sendReserved`, transport message construction, queue draining, and steering.
+- **Every outbound producer wraps itself in a reservation, and which one matters.** `withOrdinaryOutboundReservation` layers the scheduled-run deferral check over `withOutboundReservation`'s readiness gates and keep-awake assertion. `Alveary/ViewModels/Conversation/SessionHandoff/` and `ConversationViewModel+ScheduledTaskExecution.swift` take the plain one because they already guard `defersOrdinaryScheduledOutbound` where it matters for them; moving either to the ordinary wrapper duplicates that check rather than adding one.
+- **Separate visible and transport text.** `QueuedMessage.transportText` and send-attempt transport overrides are provider-facing only; persisted user rows, drafts, queued chips, worktree slugs, slash commands, and titles all use the visible text.
+- **Record local user messages in `ConversationViewModel+LocalMessages.swift`**, plus secondary-conversation preview titles. Main thread titles come from provider metadata in `ConversationViewModel+EventHandling.swift` instead.
+- **Two gates live elsewhere.** A nonterminal scheduled run blocks ordinary outbound entirely (`Alveary/ViewModels/Conversation/ControllerRegistry/AGENTS.md`), and a pending handoff holds queued messages behind it (`Alveary/ViewModels/Conversation/SessionHandoff/AGENTS.md`).

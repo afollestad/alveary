@@ -1,13 +1,13 @@
 ## Thread Services
 
-App-scoped thread lifecycle plus the `alveary_host` thread tools. `Services/HostMCP/AGENTS.md` owns the generic handler contract (strict validation, trusted identity, source-first reads, dual name shapes, exposure) and how a feature enrolls; the rules below are what threads add on top.
+App-scoped thread lifecycle plus the `alveary_host` thread tools. `Alveary/Services/HostMCP/AGENTS.md` owns the generic handler contract (strict validation, trusted identity, source-first reads, dual name shapes, exposure) and how a feature enrolls; the rules below are what threads add on top.
 
 ### Lifecycle
 
 - `ThreadLifecycleService` is the shared implementation of thread creation and archiving; `Alveary/ViewModels/Sidebar/AGENTS.md` owns the split with `SidebarViewModel` and the external-archive selection rule.
 - **`insertTaskThread` puts a directory on disk before it persists anything**, so a failed save removes that private workspace again; otherwise the orphan survives until the next launch's sweep. `TaskThreadSeed.grantedRoots` must already be canonical — the seed is rehydrated, never re-resolved, so a symlink swapped in since validation cannot change what was granted.
     - **The rollback removes only a workspace this call minted.** `TaskThreadSeed.workspace` may be a checkout another thread is still working in, so its owner cleans it up, not the insert.
-- **`replaceTaskWorkspace` is for a caller that had to answer before the real workspace existed** — the pull request pane navigates first and checks the branch out after. It swaps the descriptor, saves, then releases a replaced *private* workspace; it never touches `branch`, `worktreePath`, or `useWorktree`, and `Services/PullRequests/AGENTS.md` owns why a Task's branch must stay nil.
+- **`replaceTaskWorkspace` is for a caller that had to answer before the real workspace existed** — the pull request pane navigates first and checks the branch out after. It swaps the descriptor, saves, then releases a replaced *private* workspace; it never touches `branch`, `worktreePath`, or `useWorktree`, and `Alveary/Services/PullRequests/AGENTS.md` owns why a Task's branch must stay nil.
 
 ### Host Tools
 
@@ -18,7 +18,7 @@ App-scoped thread lifecycle plus the `alveary_host` thread tools. `Services/Host
 - **`create_thread` applies immediately and keeps a receipt.** The ledger (`Conversation+ThreadHostToolReceipts.swift`) is what stops a replayed call from making a second thread *and* re-dispatching its initial prompt. `archive_thread` needs no ledger — it is idempotent, and already-archived is a success.
 - **Persist the receipt in its own save.** A failed ledger write must not roll back a thread the user can already see.
 - **`create_thread` inherits the caller's placement when a request names none.** Neither `project_path` nor `mode` means the source thread's Project, or a fresh private workspace when the source is a Task; `ThreadHostToolSourcePlacement` snapshots that before the defaults resolver's `await`. `granted_roots` stays Task-only, so an inherited Project placement refuses grants instead of dropping them.
-- **Grants are canonical absolute folders that already exist**, resolved in the handler because existence is host state; `Services/Scheduled/AGENTS.md` owns why the stored form is canonical. Two spellings of one folder collapse there, which the parser's literal duplicate check cannot see.
+- **Grants are canonical absolute folders that already exist**, resolved in the handler because existence is host state; `Alveary/Services/Scheduled/HostTools/AGENTS.md` owns why the stored form is canonical. Two spellings of one folder collapse there, which the parser's literal duplicate check cannot see.
 - **Re-resolve models after the defaults resolver's `await`.** It suspends on provider discovery; the Project or the calling conversation can vanish across it.
 - **Validate every setting against host state and name the valid values.** Provider against `readyProviderIDs`, model through `AgentModelOptionSelection`, effort against that model's supported options, permission mode against `AppSettings.supportedPermissionModes(forProvider:)` — a rejection the model can act on beats one it has to guess at.
 - **Mutating tools reject automated scheduled-run sources.** Exposure attaches the catalog to those turns (the pull request tools serve them), so this service gate is what actually refuses. Read-only tools stay available to them; listing changes nothing.

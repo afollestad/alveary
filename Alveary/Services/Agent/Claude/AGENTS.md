@@ -3,7 +3,7 @@
 These instructions cover Claude-related Alveary code under `Alveary/Services/Agent/Claude/`.
 
 - Provider launch, hook transport, stream decoding, Claude session paths, provider approval policy, and transcript inspection live in `AgentCLIKit`. Do not reintroduce local Claude adapters, decoders, hook listeners, generated hook settings, launch tokens, or transcript-path encoders here.
-- Alveary-owned durable approval persistence and approval display policy lives under `Approvals/`; follow `Approvals/AGENTS.md` for that subsystem.
+- Alveary-owned durable approval persistence and approval display policy lives under `Approvals/`; follow `Alveary/Services/Agent/Claude/Approvals/AGENTS.md` for that subsystem.
 - `AgentCLIKit.ClaudeConfigStore` is the sole serialized writer and observer for Claude-owned config in `~/.claude.json`. Provider setup, trust-entry updates, and MCP config writes must flow through `AgentCLIKit`; Alveary owns only prompt policy and UI behavior.
 - UI should observe provider-neutral project-trust updates through `ProviderSetupService` instead of adding Claude-specific notifications or file watchers.
 - Claude structured streaming details and `--include-hook-events` behavior belong in `AgentCLIKit` docs/tests, not Alveary.

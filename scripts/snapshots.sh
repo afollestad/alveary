@@ -92,6 +92,10 @@ run_build_for_testing() {
     "${typecheck_budget_flags[@]+"${typecheck_budget_flags[@]}"}" < "$tmp_args"
 }
 
+# Writes the snapshot environment into a copy of the generated `.xctestrun` rather than
+# exporting it. `xcodebuild test` does not reliably forward an exported variable into the
+# app-hosted test process, so `RECORD_SNAPSHOTS=1 ./scripts/test.sh` silently verifies
+# instead of recording. Patching the manifest is what makes the setting actually arrive.
 prepare_patched_xctestrun() {
   local suffix=$1
   local records_snapshots=$2
@@ -207,6 +211,9 @@ fi
 run_build_for_testing
 prepare_patched_xctestrun record true false
 
+# SnapshotTesting fails every test it records, by design, so a non-zero status here says
+# nothing about whether the baselines are good. Swallow it and let the verify pass below be
+# the judge — that is what makes `record` safe to trust as a single command.
 set +e
 run_patched_tests
 record_status=$?

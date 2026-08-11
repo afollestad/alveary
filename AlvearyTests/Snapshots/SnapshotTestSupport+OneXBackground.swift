@@ -50,6 +50,11 @@ func snapshotImageCopyingBitmapData(from bitmap: NSBitmapImageRep, size: CGSize)
     return snapshot
 }
 
+/// The bitmap's background color, taken as whichever pixel occupies at least three of the four
+/// corners. Requiring three rather than all four tolerates a rounded or decorated corner while
+/// still refusing to guess on an image whose corners genuinely disagree. Callers canonicalize
+/// that color across both images so a macOS-version change to native `List` backgrounds cannot
+/// swamp the cross-renderer comparison, leaving the foreground pixels doing the actual checking.
 func snapshotCornerBackgroundPixel(in bitmap: NSBitmapImageRep) -> SnapshotPixel? {
     guard bitmap.pixelsWide > 0,
           bitmap.pixelsHigh > 0,

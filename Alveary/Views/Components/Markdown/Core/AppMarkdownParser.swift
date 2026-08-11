@@ -359,6 +359,13 @@ struct AppMarkdownParser {
         return lowerAttr..<upperAttr
     }
 
+    /// Each condition is load-bearing: a chip may not overwrite a link, a fenced code block, or an
+    /// inline code span.
+    ///
+    /// The inline-code guard is the subtle one. `composerChipProvider` is handed the *parsed* flat
+    /// string, with backticks already stripped, so its own code-range filter finds nothing to
+    /// exclude. Without this check, a user writing an `@path/to/file.swift` mention inside inline
+    /// code would lose that code to a chip truncating the path to `@file.swift`.
     private func runsConflictWithComposerChip(
         in runs: AttributedString.Runs
     ) -> Bool {

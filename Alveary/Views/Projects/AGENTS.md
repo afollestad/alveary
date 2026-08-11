@@ -24,4 +24,4 @@ These instructions cover the project settings UI under `Alveary/Views/Projects/`
 
 - It refuses pre-existing destination paths so cleanup is always scoped to a directory it created itself.
 - Before `mkdir -p`'ing the parent chain, it snapshots the deepest already-existing ancestor. On failure — including `CancellationError` from the caller — a `Task.detached` block removes the destination and walks back up removing only the *empty* intermediate directories the clone itself created, stopping at that pre-existing ancestor. User-owned parents like `~/Development` are never touched even if they end up empty by coincidence. Mirror this pattern if you add sibling async destination-creating flows.
-- On success, the project is persisted through `createProject(path:)` so the `Project.remoteName` / `Project.gitRemote` paired invariant in `Data/AGENTS.md` is preserved automatically.
+- On success, the project is persisted through `createProject(path:)` so the `Project.remoteName` / `Project.gitRemote` paired invariant in `Alveary/Data/AGENTS.md` is preserved automatically.

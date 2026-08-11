@@ -4,7 +4,7 @@ Rules for `AppMarkdownEditor`, `AppTextEditor`, `AppKitTextView`, and their comp
 
 ## AppMarkdownEditor
 
-`AppMarkdownEditor` + `AppMarkdownDraft` are the app's shared BlockInputKit host. This section owns their rules; `PullRequests/`, `Settings/`, `Skills/`, `Scheduled/`, and `DiffViewer/` consume them.
+`AppMarkdownEditor` + `AppMarkdownDraft` are the app's shared BlockInputKit host. This section owns their rules; `Alveary/Views/PullRequests/`, `Alveary/Views/Settings/`, `Alveary/Views/Skills/`, `Alveary/Views/Scheduled/`, and `Alveary/Views/DiffViewer/` consume them.
 
 - **Reach for it whenever the content is markdown prose** — comments, agent prompts, commit messages, skill and scheduled-task instructions. Keep `AppTextEditor` for raw non-markdown text a block editor would reformat, such as `MCPServerPane`'s headers and env blocks, and `AppTextField` for single-line values.
 - **Never write serialized markdown back into a `String` while the user types.** `BlockInputView.configure` always reloads the document from its store, so a per-keystroke write-back reconfigures the editor mid-edit. Hosts hold the draft and read `draft.markdown` at their own commit point — Save, Submit, and `onDisappear` when a closed pane must reopen with its text.

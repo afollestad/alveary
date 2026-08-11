@@ -216,6 +216,10 @@ final class AppKitChatQueuedMessagesView: NSView {
     }
 }
 
+/// A queued message rendered the way the composer wrote it: Markdown through the shared parser
+/// with the composer inline-code palette, plus legacy `@` mention chips from
+/// `ChatComposerTextSupport`. Plain text would hide BlockInput's links and images, and dropping
+/// the chip provider would leave mentions stored before BlockInput as bare paths.
 private final class AppKitChatQueuedMessageRowView: NSView {
     struct Configuration {
         let message: QueuedMessage

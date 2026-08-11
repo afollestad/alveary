@@ -4,10 +4,10 @@ Rules for shared markdown semantics plus the SwiftUI and AppKit renderer entry p
 
 Narrower scopes:
 
-- `Core/AGENTS.md`: parser, cache, shared model, NSColor palette tokens, and task state.
-- `SwiftUI/AGENTS.md`: public SwiftUI entry points and inline labels.
-- `SwiftUI/Rendering/AGENTS.md`: SwiftUI-only markdown block rendering, tables, and code highlighting.
-- `AppKit/AGENTS.md`: AppKit markdown renderer internals.
+- `Alveary/Views/Components/Markdown/Core/AGENTS.md`: parser, cache, shared model, NSColor palette tokens, and task state.
+- `Alveary/Views/Components/Markdown/SwiftUI/AGENTS.md`: public SwiftUI entry points and inline labels.
+- `Alveary/Views/Components/Markdown/SwiftUI/Rendering/AGENTS.md`: SwiftUI-only markdown block rendering, tables, and code highlighting.
+- `Alveary/Views/Components/Markdown/AppKit/AGENTS.md`: AppKit markdown renderer internals.
 
 ## Renderer Contract
 
@@ -72,4 +72,4 @@ Narrower scopes:
 - Keep scheme-aware palette colors as cached `static let NSColor` values.
 - Dynamic `NSColor` resolves per appearance at draw time.
 - Do not reintroduce `(for: ColorScheme)` for cached attributed-string test values; fresh dynamic `NSColor` instances are not `==`.
-- If palette colors depend on the accent, use `NSColor.accentDerived(transform:)`; see `../Accent/AGENTS.md`.
+- If palette colors depend on the accent, use `NSColor.accentDerived(transform:)`; see `Alveary/Views/Components/Accent/AGENTS.md`.

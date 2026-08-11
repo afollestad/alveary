@@ -12,7 +12,7 @@ These instructions cover Alveary's status-bar item under `Alveary/Services/MenuB
 
 - **Rebuild in `menuNeedsUpdate(_:)`.** The menu only exists while it is open, so a click-time query is cheaper than observing thread changes — do not add store observers to keep it in sync.
 - **Recency and openability are not defined here.** `AgentThread.isListableHostToolThread` says which threads a user can be sent to and `AgentThreadOrdering` says how recent they are; copying either predicate would let the menu drift from the host tool that shares it.
-- Key equivalents are labels only — a status-item menu does not participate in key-equivalent matching, so the bindings stay owned by `AlvearyApp.commands`. Derive them from the `KeyboardShortcut` constants through `MenuBarKeyEquivalent`; the define-once rule lives in `Alveary/App/AGENTS.md`. Quit's ⌘Q is the system-standard literal, not an app binding.
+- Key equivalents are labels only — a status-item menu does not participate in key-equivalent matching, so the bindings stay owned by `AlvearyApp.commands`. Derive them from the `KeyboardShortcut` constants through `MenuBarKeyEquivalent`; the define-once rule lives in `Alveary/App/Shortcuts/AGENTS.md`. Quit's ⌘Q is the system-standard literal, not an app binding.
 - The icon's asset name lives once in `MenuBarController.templateImageName`, and the image stays `isTemplate` so macOS tints it for light and dark menu bars.
 
 ## Lifecycle And Tests

@@ -1,102 +1,32 @@
 ## Chat View Details
 
-These instructions cover chat-specific view code under `Alveary/Views/Chat/`. Narrower scopes:
+These instructions cover the chat shell at `Alveary/Views/Chat/` — `AppKitChatSurfaceView`, `ChatView`, and the presentation types they share. Narrower scopes:
 
-- Transcript shell and approval plumbing → `Transcript/AGENTS.md`.
-- Transcript scrolling and follow-mode → `Transcript/Scrolling/AGENTS.md`.
-- Transcript markdown-link resolution → `Transcript/Links/AGENTS.md`.
-- Conversation tab row (chip rendering, rename, shortcuts, scroll hooks, sentinel, divider) → `ConversationTabs/AGENTS.md`.
-- Transcript block primitives → `Blocks/AGENTS.md`.
-- Tool, approval, prompt, and task block rules → `Blocks/*/AGENTS.md`.
+- `Alveary/Views/Chat/Conversation/AGENTS.md`: `ConversationView`, its lifecycle, session settings, and transcript data flow.
+- `Alveary/Views/Chat/ThreadDetail/AGENTS.md`: conversation resolution, the tab strip gate, and project trust.
+- `Alveary/Views/Chat/Composer/AGENTS.md`: composer panel shell, top content, interaction overlays.
+- `Alveary/Views/Chat/VoiceInput/AGENTS.md`: dictation and its model modal.
+- `Alveary/Views/Chat/Transcript/AGENTS.md`: transcript shell and approvals, plus `Alveary/Views/Chat/Transcript/Scrolling/` and `Alveary/Views/Chat/Transcript/Links/`.
+- `Alveary/Views/Chat/ConversationTabs/AGENTS.md`: the conversation tab row.
+- `Alveary/Views/Chat/Blocks/AGENTS.md`: block primitives, plus `Alveary/Views/Chat/Blocks/AppKit/`, `Alveary/Views/Chat/Blocks/Prompts/`, `Alveary/Views/Chat/Blocks/Tasks/`, and `Alveary/Views/Chat/Blocks/Tools/`.
+
+`Alveary/Views/Input/AGENTS.md` owns the composer controls a local command reaches through, and `Alveary/ViewModels/Conversation/AGENTS.md` owns what `ConversationViewModel` does with the intent these views route to it.
 
 > **READ FIRST — Focus and keyboard rules are centralized.** Before touching `@FocusState`, `.onKeyPress`, or `.keyboardShortcut` on any chat surface, consult the **Focus And Keyboard Coordination** section in `Alveary/Views/AGENTS.md`.
 
-## Transcript And Composer Rendering
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `ChatPresentation`'s purity, `ChatView.usageSummary`'s render-path restriction, and the surface's mostly-vertical wheel routing each carry theirs.
 
-### Surfaces And Panels
+### The Chat Surface
 
-- `AppKitChatSurfaceView` owns the active chat surface's parent layout.
-  `ChatView` may still build SwiftUI content-mode child views, but the vertical
-  transcript/empty-state/composer frame split belongs to the AppKit surface.
-- Mostly-vertical wheel events over nested horizontal scroll views, such as
-  markdown tables and code blocks, should route directly to the vertical
-  transcript scroll owner from the chat surface. Do not send those events to the
-  horizontal child first; replaying them upward loses AppKit scroll momentum.
-- `AppKitChatComposerPanelView` owns the composer panel shell:
-    - **Keep shell chrome native.** Transparent outer background, horizontal
-      padding, top-content vertical offset, top divider, and panel measurement
-      belong there.
-    - **Own production top content.** Last-turn errors, session-continuity
-      notices, and staged-context banners render through native AppKit top
-      content so their height and hit testing share the editor/action-row
-      coordinate space.
-    - **Own production action-row and queued-message placement.** Active
-      `ChatView` routes `ChatComposerActionRowView` and pending queued messages
-      (`AppKitChatQueuedMessagesView`, above the native composer body) through
-      the AppKit panel; production queued rows must not re-enter a SwiftUI
-      editor stack.
-    - **Own production composer editor hosting.** Active `ChatView` configures
-      the native panel's BlockInputKit editor bridge, preferred-height
-      invalidation, and shortcut configuration; production fixes stay on the
-      native panel/controller path.
-    - **Own interaction overlays.** `AskUserQuestion` and `ExitPlanMode`
-      confirmations render as composer interaction overlays, not transcript
-      controls. Keep the normal composer mounted underneath, cover it with the
-      full-bounds hit-test blocker, measure the overlay as the active composer
-      height, and preserve transcript follow/anchor behavior during height
-      changes.
-    - **Keep overlay interaction native.** Shared `AppKitComposerOverlay*`
-      controls own row focus, hover/pressed states, shortcut badges, and
-      keyboard routing. Rows must be focusable; `Up`/`Down` move between
-      options, `Tab` reaches options and footer buttons, `Space` selects, `Esc`
-      dismisses, and `Return` selects the focused row then advances or submits.
-      For `ExitPlanMode`, keep the plan markdown in the transcript while only
-      the approval confirmation moves into the composer overlay.
-    - **Keep the accessory slot `ExitPlanMode`-only.** `Configuration.accessory`
-      puts a reasoning dropdown immediately left of Dismiss, because approving a
-      plan is where the user may want a different implementation model and the
-      overlay covers the composer's own chip. Its menu must open upward —
-      `ComposerReasoningMenuPresenter.upwardEdge(for:)` resolves the edge, since
-      the flipped panel inverts `.maxY`. `AskUserQuestion` leaves the slot
-      `nil`; its measured geometry must not change.
-        - **Keep the accessory view long-lived.** `accessoryButton` is a stored
-          property, never rebuilt per `configure`. The panel is reconfigured on
-          every `ChatView` render and picking a model mutates SwiftData, which
-          triggers one — a recreated anchor closes the popover mid-interaction.
-          `rebuildRows` reuses rows by id for the same reason.
-        - **Keep the overlay id free of the selection.** It gates
-          `focusFirstOptionAfterLayout()`, so folding the accessory's selection
-          into it re-steals focus on every pick.
-        - **Close the popover with the overlay.** `configure(nil)` must close
-          it; a popover is a window and would otherwise outlive its overlay.
-        - **Tab order is rows, accessory, then footer buttons**, matching
-          reading order. A disabled accessory leaves the key-view loop.
-          `Return`/`Space` on a focused accessory open its menu rather than
-          submitting the overlay; every other key routes back to the panel.
-- User-triggered outbound composer clears must request composer focus through
-  `appState.requestComposerFocus()` after the draft is cleared. Do not introduce
-  another focus path.
-- `ProjectTrustPromptView` lives in `ProjectTrustPrompt.swift`; `ThreadDetailView+ProjectTrust.swift` owns the trust-state checks and denial selection handling. Denial deletion must call the injected provider-aware thread deletion lifecycle instead of directly deleting `AgentThread`.
-- `EmptyThreadState` lives in `ChatView+EmptyThreadState.swift` and checks `isCancellingInitialSetup` before `setupPhase` so cancellation feedback takes precedence even when `setupPhase` is still set mid-rollback. Keep that ordering if you restructure the view; otherwise the empty-thread pane flickers back to "Creating worktree" during the rollback shell commands.
+- **`AppKitChatSurfaceView` owns the active surface's parent layout.** `ChatView` may still build SwiftUI content-mode children, but the vertical transcript/empty-state/composer frame split belongs to the AppKit surface.
+- **Clear the draft, then call `appState.requestComposerFocus()`.** Every user-triggered outbound clear takes that one path; do not add another.
+- **`EmptyThreadState` checks `isCancellingInitialSetup` before `setupPhase`.** Keep that order, or the pane flickers back to `Creating worktree` while the rollback shell commands run.
 
 ### Transcript Bubbles
 
-- Transcript rendering is AppKit-owned. Keep live transcript row work under `Blocks/AppKit/` and route it through `Transcript/Scrolling/AppKitTranscriptRowFactory.swift`; do not reintroduce SwiftUI transcript row views.
-- User transcript bubbles still render as markdown, including slash-command and `@`-mention chips. AppKit rows reuse `AppMarkdownParser.attachComposerChips(to:)` and `ChatComposerTextSupport.composerTextChips(in:)`; chip labels are always `lastPathComponent`, so bubble rendering does not need a working directory.
-- Long static user and assistant bubbles should keep exact AppKit markdown measurement for frame/clipping/fade controls. Keep Show more/less on the AppKit header toggle; do not add bubble-wide gestures or nested vertical scroll views.
-- `attachComposerChips(to:)` skips any attributed-string range that already carries a markdown `.link`, a `.codeBlock` block-level `presentationIntent` (fenced code block), or a `.code` `inlinePresentationIntent` (backtick inline code). The inline-code guard is load-bearing: `composerTextChips` is invoked with the *parsed* flat string (backticks stripped), so the helper's own `codeRanges`-based filter returns nothing to exclude. Without the guard, a user writing `` `@path/to/file.swift` `` would have their inline code clobbered by a composer chip that truncates the path to `@file.swift`. Keep each condition; each covers a distinct case.
-
-### Composer Chrome
-
-- Composer top separators that appear while the transcript is scrolled up should be the composer panel's own top overlay, not a parent overlay or a child inside the background fill. Keeping the divider overlaid avoids clipping when vertical panel padding is small.
-- Composer panel top/bottom clearance should have one owner per edge. Production editor-to-action-row spacing comes from `AppKitChatComposerPanelView.Layout.actionRowSpacing`; do not stack that padding with native panel spacing.
-- Native staged-context banner production rendering lives in `AppKitChatComposerTopContentView`. Keep staged context above the composer without introducing transcript rows.
-
-### Voice Model Overlay
-
-- Voice-model installation, update, repair, and failure states render through the chat window's shared `AppWindowModalOverlayPresenter`, not composer top content: window blocked, only Cancel until preparation finishes, then a green success check plus Continue. Validated-cache warmup is the exception — modal-free, microphone spinner only, auto-starting a still-valid activation.
-- Re-check the voice-model modal after every suspension in thread-level actions that can restore or replace selection. An operation started before preparation must not unmount the blocking modal when it later completes.
-- Do not reintroduce a changed-files strip above the composer. Diff status belongs in the main toolbar button that opens the Diff Viewer, so changed-file loading cannot alter transcript/composer height or leave stale transcript measurements.
+- **Transcript rendering is AppKit-owned.** Keep live row work under `Blocks/AppKit/`, route it through `Transcript/Scrolling/AppKitTranscriptRowFactory.swift`, and do not reintroduce SwiftUI transcript row views.
+- **User bubbles still render as markdown**, slash-command and `@`-mention chips included, by handing `ChatComposerTextSupport.composerTextChips(in:)` to the shared parser as its `composerChipProvider` (`Alveary/Views/Components/Markdown/AGENTS.md`). Chip labels are always `lastPathComponent`, so a bubble needs no working directory.
+- **Keep exact AppKit markdown measurement for long static bubbles**, driving frame, clipping, and fade. Show more/less stays on the AppKit header toggle — no bubble-wide gestures, no nested vertical scroll views.
 
 ## Interaction Contracts
 
@@ -104,73 +34,44 @@ These capture conversation-view interaction patterns. Keep new UI aligned with t
 
 ### Presentation Contracts
 
-- **Share contracts.** Route content-mode, composer-mode, and thread-setting display decisions through `ChatPresentation` / `ChatThreadPresentation`.
-- **Keep presentation pure.** Presentation types may read caller-owned state and compute labels/modes, but must not own runtime state, start tasks, save models, or call services.
-- **Avoid branch drift.** SwiftUI hosts and native AppKit views should consume the same contracts instead of duplicating branching.
-- **Preserve visuals during native migration.** AppKit replacements must match the SwiftUI surface they replace for sizing, spacing, typography, colors, disabled treatment, hover, and pressed states unless the change is explicitly approved as a redesign.
+- **Route content-mode, composer-mode, and thread-setting display decisions through `ChatPresentation` / `ChatThreadPresentation`**, and have SwiftUI hosts and native AppKit views consume the same contracts rather than duplicate the branching.
+- **Preserve visuals during native migration.** An AppKit replacement matches the SwiftUI surface it replaces for sizing, spacing, typography, colors, disabled treatment, hover, and pressed states unless a redesign is approved.
+
+### Local Commands
+
+`ChatView+LocalCommands.swift` runs an Alveary local command once `ComposerLocalCommand` has parsed it; `Alveary/Views/Input/AGENTS.md` owns when each one is offered at all.
+
+- **Bare `/effort` and `/model` open the reasoning popover instead of sending.** Both clear only the command text, preserve attachments, send nothing, and do not request editor focus — `/effort` lands on the effort slider, `/model` opens with the Models disclosure expanded and keyboard focus on the selected model row.
+- **An argument that is not accepted leaves the composer as it was.** Clear and refocus only on accepted, applied, or unchanged; otherwise retain the draft and attachments and surface either the current dynamic options or the underlying setting error. `/effort <value>` takes exactly one case-insensitive canonical option; `/model <name>` matching order and the `provider:name` qualifier are documented in `ComposerLocalCommand+ModelOptions.swift`.
+- **`/fast` toggles first, then sends.** Bare `/fast` only toggles; `/fast <prompt>` toggles and then sends or queues that prompt with the resulting speed as its next-turn requirement. It takes no inline argument hint.
+- **`/handoff` passes its argument as the steering prompt, or `nil` for none**, and clears and refocuses once the flow starts. Bare `/handoff` prompts for steering without a countdown.
 
 ### Conversation Behavior
 
-- `ThreadDetailView` should fetch live conversations for the selected thread before sorting/rendering tabs. Do not sort `thread.conversations` directly in its render path; stale relationship entries can trap when SwiftUI refreshes after a conversation delete.
-- `ThreadDetailView` must observe `.agentStatusChanged` for the current thread's conversation IDs and invalidate itself when one fires — the tab row reads `agentsManager.status(for:)` synchronously during render, so without explicit invalidation a selected tab misses busy/idle/error transitions until unrelated state re-renders the header. Thread the invalidation token into `ThreadDetailConversationTabs` as an explicit input (`statusVersion` today), not a closure side effect, so SwiftUI re-evaluates the selected chip immediately.
-- `ThreadDetailView` owns the provider project-trust gate for new threads. Keep trust-state checks and denial selection handling in `ThreadDetailView+ProjectTrust.swift`, and pass a plain disabled flag down to composer surfaces instead of letting input controls read provider config directly.
-- `ThreadDetailView`'s selection task (`.task(id: selectedConversationID)`) owns persisting the last-open restore selection and marking the mounted conversation read. Keep both deferred behind the `Task.yield()` plus still-selected guards so the selection switch renders without synchronous settings writes, and keep `updateRestoreSelection` gated on `thread.archivedAt == nil`. `ContentView` must not re-add selection-change observers for these.
-
-#### Session Settings
-
-- Session reconfiguration is a between-turn action. Model, effort, speed, and permission changes may be edited during active/deferred turns, but they must stage for the next new user-visible turn instead of reconfiguring the live continuation. Provider and worktree changes remain pre-startup only.
-- Context-window summary derivation belongs in `ConversationUsageSummary`, not in composer controls. Pass provider/accounting context into derivation so Codex cached-input rows and Claude cache-read rows are counted correctly. Keep the split semantics intact: the latest token row drives current token usage, the latest post-invalidation reported `contextWindowSize` wins over cache, cached max only seeds the UI when no reported max is available, and total spend sums token rows for the active conversation only.
-- Composer-dropdown `apply*Change` handlers live on `ConversationViewModel` companions. Session-setting handlers (`applyModelChange` / `applyEffortChange` / `applySpeedModeChange` / `applyPermissionModeChange`) run their state/DB write synchronously and return a `@discardableResult Task<Void, Never>` carrying the async reconfigure when allowed; during active/deferred turns they persist the selected value and stage it for the next turn. `applyProviderChange` and `applyWorktreePreferenceChange` are pre-startup-only DB writes. Rules:
-    - **Do not inline the handler logic back into `ChatView`** — the view-model home makes them unit-testable against `MockAgentsManager` (`ConversationViewModelTests+Settings.swift`).
-    - **Call the handlers directly from `Picker` `set:` — no outer `Task { await ... }`.** The sync prologue must run on the click's cycle so the next render observes the new value; an outer `Task` defers one MainActor cycle and briefly paints the stale selection.
-    - **Use the right write gate.** Model, effort, and permission use `canApplySettingsChange`; provider and worktree use the stricter pre-startup gate. Active/deferred session-setting writes stage, but send-in-flight, setup, handoff steering, reconfiguration, and project-trust blocks still reject writes.
-    - **Keep continuations on the live config.** Prompt answers, queued steering, deferred tool approvals, live approval resumes, and hidden handoff generation are current-turn continuations. They must not consume staged model, effort, speed, or permission settings. An approved `ExitPlanMode` is the one exception, and only for model and effort — see the plan-approval bullet in `Alveary/ViewModels/Conversation/AGENTS.md`.
-    - **Consume staged settings before new visible turns.** Normal sends, queued auto-drain, respawn-before-new-send, and fresh handoff sessions should apply pending settings before sending user-visible content or removing queue rows.
-    - **Do *not* gate the fork on `agentsManager.isRunning(conversationId:)`.** Claude's `-p --input-format stream-json` process can exit between turns, so `isRunning` silently drops the fork. `reconfigureSession` already handles a dead process (no-op teardown, then `--resume <id> --fork-session` spawn). Gate through `shouldReconfigureOnSettingChange()` — "thread completed initial setup" — which is the real precondition.
-    - **Do *not* add a `!isReconfiguringSession` check at the handler layer.** Concurrent fork attempts are handled inside `reconfigureSession` (`!state.isReconfiguringSession` silently returns), and the composer enters `.progressOnly(.reconfiguringSession)` which disables the pickers while a fork is in flight.
-
 #### Queues, Prompts, And Cancellation
 
-- Queued messages stay stacked above the composer until actually sent. Don't render pending queued entries in the transcript as if they were already history.
-- Once a queued message is actually attempted, it belongs to the transcript. If that attempted send fails, show retry affordances on the transcript user message rather than moving it back into the queue.
-- `AskUserQuestion` answers and deferred tool approvals share one conversation-scoped interaction lane:
-    - **Prioritize the question.** If an unanswered prompt is on screen, keep the prompt submit path available and reject tool approval actions until the question is answered.
-    - **Revisit skipped questions.** Required `AskUserQuestion` overlays may be inspected out of order, but answer selection should advance to the next unanswered question, wrapping to earlier gaps when needed. Once no unanswered questions remain, show `Submit` and make `Return` submit.
-    - **Supersede stale approvals after the answer sends.** If a deferred tool approval was pending from the same turn, answering the prompt should mark that approval row `superseded` instead of resuming Claude through the old approval path.
-    - **Keep normal composer sends blocked.** The transcript prompt is the only allowed outbound action while the question is pending; do not reopen normal freeform sending. Session settings may stage for the next new turn, but the prompt answer itself must keep using the live config.
-- User-requested turn cancellation is an interruption, not a generic failure. Stopped turns clear composer error banners, render a trailing-aligned `Interrupted` transcript note at the user-bubble right edge, and persist a `stop` session note so restore/archive context doesn't summarize the turn as an error.
+- **A queued message belongs to the queue until it is attempted, then to the transcript.** Do not render pending entries as history; once an attempt fails, retry affordances go on the transcript user row rather than moving it back into the queue.
+- **An unanswered `AskUserQuestion` owns the conversation's interaction lane.** Keep its submit path available, reject tool approval actions and freeform sends until it is answered, and answer it on the live config even while other settings stage.
+- **Answer selection advances to the next unanswered question**, wrapping to earlier gaps; required overlays may still be inspected out of order. Once none remain, show `Submit` and let `Return` submit.
+- **Mark a same-turn deferred approval `superseded` once the answer sends**, rather than resuming Claude through the old approval path.
+- **A user-requested cancellation is an interruption, not a failure.** A stopped turn clears composer error banners, renders a trailing-aligned `Interrupted` note at the user bubble's right edge, and persists a `stop` session note so restore and archive context do not summarize the turn as an error.
 
 #### Session Handoff
 
-- Session handoff is a between-turn hidden flow.
-    - **Hide the handoff exchange.** The handoff prompt/response must not render as transcript rows; when handoff starts, show one centered `Handing off session...` lifecycle note, then update that same note to `Session handed off` after the fresh provider session starts.
-    - **Keep handoff context ahead of queues.** Staged, edited, and immediate handoff output must use the handoff send path so it seeds the fresh session before any queued messages resume.
-    - **Keep failures blocking.** Failed hidden handoffs stay in a blocking retry state so later visible sends cannot continue from provider-only context.
-    - **Keep steering scoped.** Automatic handoff steering is controlled by `handoffSteeringEnabled` and uses the steering countdown. No-argument `/handoff` commands always prompt for steering without a countdown, while `/handoff <prompt>` skips that step and uses the provided prompt directly. Retries go straight to the hidden handoff flow, reusing any already-submitted steering after a failure.
-    - **Keep countdowns independent.** `handoffSteeringCountdownSeconds` controls only the user's steering prompt. `handoffPromptSendCountdownSeconds` controls only generated handoff output sending, and `0s` means send the generated output immediately without staging it in the composer.
-    - **Keep steering app-owned.** User steering must be appended through `SessionHandoffPromptBuilder`, not through the customizable default prompt. The hidden prompt receives the non-customizable steering contract, and the fresh-session seed appends raw steering under `## User Prompt`.
-    - **Preserve interrupted drafts.** When automatic handoff temporarily takes over a non-empty composer draft, restore that draft after the handoff seed message sends successfully, and restore it on hidden handoff failure.
-- Other subtle runtime lifecycle cues should use the same transcript-note treatment instead of inventing new bubble styles. Provider plan-mode transitions belong on that text-only transcript-note path, including `Entered plan mode`, `Exited plan mode`, and denied exits as `Staying in plan mode`, not in standalone tool pills.
+Session handoff is a between-turn hidden flow. Its steering, countdowns, and prompt building live in `Alveary/ViewModels/Conversation/SessionHandoff/` and `Alveary/Services/Settings/`; below are the parts a chat surface can break.
+
+- **Hide the exchange.** The handoff prompt and response never render as transcript rows; one centered `Handing off session...` note appears at start and becomes `Session handed off` once the fresh provider session starts.
+- **Seed the fresh session before queues resume.** Staged, edited, and immediate handoff output all take the handoff send path.
+- **Keep failures blocking.** A failed hidden handoff holds a blocking retry state so a later visible send cannot continue from provider-only context, and a retry goes straight to the hidden flow reusing already-submitted steering.
+- **Restore an interrupted draft** after the handoff seed sends successfully, and also on hidden handoff failure.
+- **Keep the two countdowns independent.** `handoffSteeringCountdownSeconds` governs only the user's steering prompt; `handoffPromptSendCountdownSeconds` governs only generated output, where `0s` sends immediately without staging it in the composer.
+- **Runtime lifecycle cues are transcript notes, not new bubble styles.** Provider plan-mode transitions take that text-only path — `Entered plan mode`, `Exited plan mode`, and a denied exit as `Staying in plan mode` — never a standalone tool pill.
 
 #### First Sends And Setup
 
-- First sends are durable transcript attempts once accepted:
-    - **Materialize drafts atomically.** For a provisional thread, insert the first user row and attachment metadata, set `isDraft = false`, and synchronously save them together before setup. Publish materialization only after that save succeeds; on failure, roll back to the draft and restore composer state without revealing a sidebar row.
-    - **Persist real threads before setup.** `deliverMessageReserved` inserts the user row before initial setup starts.
-    - **Keep failures on the transcript.** Setup/spawn/send failures mark that row retryable instead of returning to a centered empty retry state.
-    - **Treat cancellation as reset.** `ConversationViewModel.cancel()` cancels `initialSetupTask`, restores draft/staged context, deletes the attempted row, and clears `hasCompletedInitialSetup`. `sendDraft` swallows `CancellationError`.
-- The empty-thread hero's project menu is interactive only for provisional drafts. Preserve the menu label's intrinsic width, draw its underline explicitly, and use middle truncation only for unusually long names; materialized transcript-empty threads render the same larger copy with a static project name.
-- Show the conversation tab strip only after initial setup and only when the already-resolved live conversation array contains more than one conversation. Keep the root toolbar divider visible while the strip is mounted, and keep the strip's own bottom horizontal divider so the strip sits between two separators. Keep `New Conversation` commands disabled until setup completes; additional conversations have no usable runtime context before that boundary.
-- Treat an empty/failed manual conversation fetch as potentially transient. `ThreadDetailConversationResolver` must fall back to the selected persisted conversation and then a secondary live conversation fetch before allowing selection repair to clear the conversation; periodic parent refreshes must not replace a provisional thread with the no-conversation fallback.
-- Draft project reassignment preserves conversation view identity.
-  Project-derived async work must capture its request key or path before suspension and revalidate the current selection after every `await`
-  before updating provider state, cache entries, trust state, files, or diff routing.
-
-#### Transcript Data Flow
-
-- While a turn is active, keep transcript updates incremental. Persisted live-turn events append directly into `ChatItemGrouper`; full transcript regrouping from the `events` query is deferred until the turn ends so the active turn doesn't starve composer interactions like autocomplete or text insertion.
-- At transcript mount and regrouping boundaries, fetch the conversation's current records through `ConversationViewModel`; a SwiftUI `@Query` snapshot can lag behind records inserted by background services such as scheduled-task materialization. On mount and non-forced refreshes, use that snapshot after a fetch failure only when it is not older than the current grouper. At forced turn-end refreshes, do not fall back to the query snapshot; preserve the current grouper if the fetch fails.
-- Keep `ChatView`'s `events` query behind `body`. `composerActionRowConfiguration(usageSummary:)` takes the derived summary as a parameter because tests build it on an uninstalled view, where reading `@Query` warns and rebuilds its controller per access. Do not resolve a query read back into a configuration builder or action closure.
-- Live root-assistant `messageChunk` events are coalesced before hopping onto the main actor. Do not process every streamed text delta as its own `MainActor` mutation, or active turns can starve transcript completion and composer interactions.
-- `ConversationView` receives an inactive app-scoped `ConversationControllerLease`. Activate/deactivate that lease from `.task`/`.onDisappear`; never construct a view-owned `ConversationViewModel` or start subscriptions from `init`. The controller registry keeps active or waiting turns alive after the view unmounts without marking a background controller as view-mounted.
-- App-shot trigger observation and capture routing are app-root responsibilities, not chat-view responsibilities. Chat views retain only the debug transport-preview action. Keep `ConversationState` mount tracking paired with the existing view-lifecycle activation so root-routed storage failures can choose between a visible `lastTurnError` and app-level feedback.
+- **A first send is a durable transcript attempt once accepted.**
+    - **Materialize a draft atomically.** Insert the first user row and attachment metadata, set `isDraft = false`, and save them together before setup. Publish materialization only after that save succeeds; on failure, roll back to the draft and restore composer state without revealing a sidebar row.
+    - **Persist real threads before setup** — `deliverMessageReserved` inserts the user row before initial setup starts.
+    - **Keep failures on the transcript.** A setup, spawn, or send failure marks that row retryable instead of returning to a centered empty retry state.
+    - **Treat cancellation as reset.** `ConversationViewModel.cancel()` restores draft and staged context, deletes the attempted row, and clears `hasCompletedInitialSetup`; `sendDraft` swallows `CancellationError`.
+- **The empty-thread hero's project menu is interactive only for a provisional draft.** Preserve the label's intrinsic width, draw its underline explicitly, and middle-truncate only unusually long names; a materialized transcript-empty thread renders the same larger copy with a static project name.

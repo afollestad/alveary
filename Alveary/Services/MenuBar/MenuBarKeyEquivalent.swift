@@ -6,7 +6,7 @@ import SwiftUI
 /// Status-item menus do not participate in key-equivalent matching, so these are labels only —
 /// the bindings themselves stay owned by `AlvearyApp.commands`. Deriving them from the same
 /// `KeyboardShortcut` constants keeps the label from drifting off the active binding, the rule
-/// `Alveary/App/AGENTS.md` states for tooltips.
+/// `Alveary/App/Shortcuts/AGENTS.md` states for tooltips.
 enum MenuBarKeyEquivalent {
     static func apply(_ shortcut: KeyboardShortcut, to item: NSMenuItem) {
         item.keyEquivalent = String(shortcut.key.character).lowercased()

@@ -53,7 +53,7 @@ fi
 #   the ceiling instead would take the whole test target past the point where a genuine
 #   multi-second expression — the app-side `#Predicate` that measured 5965ms — is still caught.
 #
-#   Alveary/Views/Chat/Blocks/AppKit/AppKitReviewProposalCommentChrome.swift — AppKit's
+#   Alveary/Views/Chat/Blocks/AppKit/Widgets/AppKitReviewProposalCommentChrome.swift — AppKit's
 #   `NSMenu`/`NSMenuItem` metadata, billed to whichever function in the batch builds a menu first.
 #   Measured 3264ms on CI for `makeMenu()`; locally on the same toolchain a four-line function
 #   whose whole body is one all-literal `NSMenuItem` takes 1277ms and drops `makeMenu()` off the
@@ -61,7 +61,7 @@ fi
 #   AppKit sources — the bill previously landed on `AppKitReviewProposalWidgetView` and passed
 #   under the threshold there — so the reading is a property of file order, not of this code.
 typecheck_budget_exempt_prefixes="AlvearyTests/App/AppDelegateTests
-Alveary/Views/Chat/Blocks/AppKit/AppKitReviewProposalCommentChrome.swift"
+Alveary/Views/Chat/Blocks/AppKit/Widgets/AppKitReviewProposalCommentChrome.swift"
 
 typecheck_budget_report_offenders() {
   local log_path=$1

@@ -1,0 +1,44 @@
+## Pull Request Host Tools
+
+These instructions cover `Alveary/Services/PullRequests/HostTools/` — the `alveary_host` pull request tools: the catalog and the fragment that routes to them, the request parser, the list tool and its cursor, the read tools' bounds, review proposals at propose time, and the two instruction tools. `Alveary/Services/HostMCP/AGENTS.md` owns the generic handler contract (strict validation, trusted identity, source-first reads, dual name shapes, exposure) and how a feature enrolls. The GitHub client these tools call is `Alveary/Services/PullRequests/GitHub/`; linking and the agentic threads a review runs in are the parent scope.
+
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a comment there, at the declaration or at the line that enforces it: `PullRequestHostToolLimits`, `minThreadComments`, `threadCommentAllowance`, `PullRequestHostToolListFilter`, `requiredBuckets`, `listToolName`, `PullRequestListCursorToken`, `PullRequestListCursorAdvance`, `announceChange`, `postReply`'s pending-thread refusal, `comment_count`'s `totalCount`, both `review_decision` absences, `+Receipts.swift`, `+Diff.swift`, `+StateChanges.swift`, and `+ReviewProposal.swift`'s `proposeReview`, `validatedDetail`, and `resolvedAgainstExisting` each carry theirs.
+
+### The Tool Surface
+
+- **The fragment has to claim every pull request question outright**, naming the substitutes it displaces — shelling out to `gh`, searching the web — and saying these tools run the user's own authenticated CLI. Models route around a tool surface that never says it is the route; `Alveary/Services/HostMCP/AGENTS.md` owns the matching preamble rule.
+- **That claim stops at pull requests that already exist.** Nothing here opens one, so the fragment hands creation back to the model's own `gh pr create` — otherwise "never run `gh` yourself" bans the only route — and `reopen_pr`'s description disowns it too, because its name is what an "open a pull request" ask reaches for.
+- **Gate every tool on `AppSettings.pullRequestsEnabled`** as the first statement of `handle`. With the integration off, the pane the user would check the result in does not exist. The catalog stays static — exposure is all-or-nothing per turn — so the tools remain advertised and the refusal names the setting.
+- **Only `propose_pr_review` needs confirmation, and it carries the whole review.** Do not reintroduce an immediate `add_pr_review_comments`-style writer: even a private draft is GitHub state a cancelled review would leave behind. Everything else here is undoable from Alveary's pane or github.com, so it applies immediately and says so.
+- **Thread IDs are GraphQL node ids from the read tools.** No tool accepts a REST comment id — the handler resolves reply targets itself — so a model can only name a thread it actually read.
+- **State-change preconditions mirror `PullRequestStateAction.available(for:)`**, so a refusal here is one the pane's footer would have shown as a missing button. `Alveary/Services/PullRequests/GitHub/AGENTS.md` owns which of them are GraphQL-only and why.
+- **`Alveary/ViewModels/PullRequests/Pane/AGENTS.md` owns what a mutation's change announcement drives.**
+- **A tool whose name invites the wrong ask has to disown it in its own description**, naming the tool that serves it instead — `list_involved_prs` against the threads feature's `list_linked_prs`, `get_pr_address_feedback_instructions` against `get_pr_timeline`, `reopen_pr` against opening a new pull request. Renaming alone does not work: the wrong tool still answers, and `list_linked_prs` returning an empty list reads as truth. So the sibling refuses in its own words too, both fragments state the split, and `AlvearyHostToolCatalogTests` pins it. A tool added next to an existing one owes the same.
+
+### The List Tool
+
+- **Every argument is optional and every default is the pre-pagination call** — `filter: all`, `status: open`, `limit: 50`, no bounds, no cursor — pinned by `testAnEmptyListCallKeepsTheDefaultsItAlwaysHad` and `testAnUnargumentedListCallFetchesExactlyWhatItAlwaysDid`, because that call is the one every model makes first.
+- **`status` takes exactly one value, never a set.** GitHub search qualifiers only AND; `Alveary/Services/PullRequests/GitHub/AGENTS.md` owns why.
+- **A re-request counts as pending**, as it does in `Alveary/Views/PullRequests/List/AGENTS.md`; the screen and the tool must not disagree.
+- **The text half of the result is parsed downstream**, so its shape is a contract, not formatting. `PullRequestListWidgetParsing` reads it; `header`, `textRow`, and `appendingCursor` each carry what their own piece must keep.
+
+### Read Tools
+
+- **Neither read tool hides an outdated thread.** Feedback on code that has since changed is exactly what an address-feedback run must answer, and GitHub reports no `line` for most of them — so they list under their file with `is_outdated` set and no line, rather than being filtered out for having nowhere to anchor. Whether they can be *drawn* in the pane's Changes tab is a separate question (`Alveary/Views/PullRequests/Review/AGENTS.md`); do not re-derive the tool filter from it.
+
+### Review Proposals
+
+Propose time only. `Alveary/ViewModels/PullRequests/Review/AGENTS.md` owns confirming and the envelope's other writers; `Alveary/Views/PullRequests/Review/AGENTS.md` owns how the pane renders, badges, and edits what is staged.
+
+- **The proposal is a JSON envelope on `Conversation`, not a `@Model`.** The invariant is already one per conversation, and a new model with a `Conversation` inverse would have to be registered in every `ModelContainer` the app and its tests build; `Alveary/Data/PullRequests/AGENTS.md` holds the precedent. Its version decodes `<=`, refusing newer — an optional field added later reads nil from an older envelope, but an envelope from a newer build must never let a confirm submit less than the card showed. Bump `currentPayloadVersion` when adding a field a confirm acts on.
+- **Anchors validate through `FlattenedDiffPreviewRows.commentAnchor(for:path:)`, the pane's own mapping**, never a raw line-number comparison. Sharing it is what keeps a confirmable proposal renderable.
+- **The decision is invisible to the model.** The outcome marker is not an `isVisibleTranscriptEvent`, so confirming or cancelling sends nothing back and the model's last word stays `pending_confirmation`. The tool description and fragment must therefore say a repeated request is one to propose afresh — without that, "do not re-propose while one is pending" strands the model on a card the user already dismissed.
+
+### Instruction Tools
+
+`get_pr_review_instructions` and `get_pr_address_feedback_instructions` are one pattern twice. Every rule below holds for both; each has its own editable prompt (`Alveary/Services/Settings/AGENTS.md`) and they share `PullRequestReviewPromptBuilder`'s context block, so only the user's text differs.
+
+- **Calling one is how Alveary learns which job was asked for.** Deciding that from the wording of a message would need intent heuristics, and "I already reviewed #42" reads the same to a regex as "review #42" — so the decision stays with the model, which understands the sentence. A call made in error costs a read and nothing else.
+- **The fragment is the only thing that routes to them.** It has to say, in the always-in-context text, that the user keeps standing preferences for both jobs and that these tools are the only way to read them; without that they exist and nothing calls them. It also has to say which job is which — reviewing gives new feedback and ends at `propose_pr_review`, addressing answers existing feedback and ends at `reply_to_pr_thread`/`resolve_pr_thread` — or "address the feedback" reaches the reviewing tool. The two `+…Instructions` test companions pin that wording.
+- **They fetch the pull request rather than assuming it.** A URL naming one that does not exist fails here instead of halfway through work the model has already begun narrating.
+- **One transcript card serves both**, keyed by `ReviewInstructionsWidgetContent.Kind`; `Alveary/Views/Chat/Blocks/AppKit/Widgets/AGENTS.md` owns what the kind may change.

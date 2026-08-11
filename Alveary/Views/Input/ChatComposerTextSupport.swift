@@ -1,5 +1,9 @@
 import Foundation
 
+/// Shared composer *presentation* text, not an editor helper — BlockInputKit owns editing
+/// (`Alveary/Views/Input/Editor/AGENTS.md`). Keep this to labels, progress placeholders,
+/// effective-empty checks for string fallbacks, and the legacy `@` mention chips that
+/// transcript and queued rows still render for text stored before BlockInput.
 enum ChatComposerTextSupport {
     struct FileMentionMatch: Equatable {
         let highlightRange: NSRange

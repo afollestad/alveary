@@ -185,6 +185,13 @@ private enum SettingsResponsiveControlRowPlacement {
     case stacked(width: CGFloat)
 }
 
+/// How much width a settings control claims beside its label.
+///
+/// The default is half the row (`SettingsScreenLayout.settingsControlWidthFraction`); compact
+/// controls such as pickers and steppers hug `settingsMinimumHorizontalControlWidth` instead and
+/// only fill once the row stacks. `intrinsicInline` is for a control small enough to stay beside
+/// its label at any width — a switch — so it skips both stacking guards and gives way only when
+/// the label has no room left at all.
 enum SettingsControlHorizontalSizing {
     case fillsAvailableWidth
     case fillsAvailableWidthFraction(CGFloat)

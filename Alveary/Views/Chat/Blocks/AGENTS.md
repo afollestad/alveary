@@ -2,10 +2,11 @@
 
 Shared transcript block constants and presentation helpers live here. Narrower scopes:
 
-- `AppKit/AGENTS.md`: AppKit transcript row primitives.
-- `Prompts/AGENTS.md`: submitted prompt response parsing and prompt-row rules.
-- `Tasks/AGENTS.md`: task presentation ordering and task-row rules.
-- `Tools/AGENTS.md`: shared tool summary formatters and tool-row rules.
+- `Alveary/Views/Chat/Blocks/AppKit/AGENTS.md`: AppKit transcript row primitives.
+- `Alveary/Views/Chat/Blocks/AppKit/Widgets/AGENTS.md`: host MCP tool cards.
+- `Alveary/Views/Chat/Blocks/Prompts/AGENTS.md`: submitted prompt response parsing and prompt-row rules.
+- `Alveary/Views/Chat/Blocks/Tasks/AGENTS.md`: task presentation ordering and task-row rules.
+- `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`: shared tool summary formatters and tool-row rules.
 
 ## Bubble Widths
 

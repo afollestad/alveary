@@ -2,8 +2,8 @@
 
 Transcript-shell rules live here. Narrower scopes:
 
-- `Scrolling/AGENTS.md`: follow-mode, pending scrolls, watchdogs.
-- `Links/AGENTS.md`: markdown and file-mention link resolution.
+- `Alveary/Views/Chat/Transcript/Scrolling/AGENTS.md`: follow-mode, pending scrolls, watchdogs.
+- `Alveary/Views/Chat/Transcript/Links/AGENTS.md`: markdown and file-mention link resolution.
 
 > **READ FIRST:** Focus and keyboard rules are centralized in `Alveary/Views/AGENTS.md`.
 
@@ -11,7 +11,7 @@ Transcript-shell rules live here. Narrower scopes:
 
 - Tool approval rendering and actions are AppKit-owned through `Scrolling/ChatView+Transcript+AppKitBridge.swift`.
 - Prompt/approval interaction policy lives in `Alveary/Views/Chat/AGENTS.md`.
-- Native approval surface rendering lives in `../Blocks/AppKit/AGENTS.md`.
+- Native approval surface rendering lives in `Alveary/Views/Chat/Blocks/AppKit/AGENTS.md`.
 
 ## Typography
 

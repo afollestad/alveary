@@ -1,0 +1,13 @@
+## Conversation Controller Registry
+
+These instructions cover `Alveary/ViewModels/Conversation/ControllerRegistry/` — who owns a `ConversationViewModel`, how long, and the thread status the surfaces derive from that. The view model itself is `Alveary/ViewModels/Conversation/AGENTS.md`; scheduled-task management is `Alveary/ViewModels/Scheduled/AGENTS.md`.
+
+**Keep a rule here only when the code that would violate it is not the code that documents it.** `ConversationDecisionAttention` owns why a completed turn can still await the user and how a new such surface enrolls, and `ThreadStatus` owns where `awaitsUserDecision` ranks.
+
+- `ConversationControllerRegistry` is the app-scoped owner for conversation view models. View and background leases for one conversation share its subscription, queue drain, persistence path, and terminal outcome stream.
+- Keep background retention distinct from view mounting: background leases may keep provider work alive, but only view leases change `ConversationState.isViewMounted`.
+- Terminal outcomes come from explicit `ConversationState` boundary snapshots, not sampled idle UI state. Keep `tool_deferred` boundaries open through delayed approvals, publish terminal results only after the required record flush, and preserve resumable sessions plus the controller when maintenance fails.
+- A nonterminal provider goal remains controller-owned work even while its runtime is idle or paused; keep its controller and resumable runtime until the goal reaches a terminal state.
+- Scheduled-run background leases defer automatic suspension until their executor persists the run and unread state, then explicitly flush and suspend the runtime. Verify the provider process is actually gone and retry transient status lag before releasing the controller lease or coordinator-owned keep-awake assertion.
+- A linked nonterminal scheduled run or in-memory scheduled finalization blocks ordinary outbound, hidden commit generation, session handoff, and settings/reconfiguration producers. Transcript Stop routes through coordinator-owned user-stop handling so the run is interrupted and coalesced pending work cleared before provider cancellation.
+- **Never seed persisted-but-unanswered prompts into `DefaultAgentsManager.statusSnapshot`.** `ThreadStatus.waitingForUser` unions those with the runtime's own waiting, but that snapshot also drives the keep-awake assertion and the sudden-termination gate, so a prompt recovered from history would hold a power assertion open for a turn nobody is running.

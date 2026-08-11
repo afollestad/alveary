@@ -1,6 +1,6 @@
 ## Test Execution
 
-These instructions apply to files under `AlvearyTests/`.
+These instructions apply to files under `AlvearyTests/`. `AlvearyTests/Snapshots/AGENTS.md` owns the snapshot suite — running `./scripts/snapshots.sh`, the `assertMacSnapshot()` helpers, and baseline organization.
 
 - Run the smallest relevant test scope you can, typically with `./scripts/test.sh <focused identifier>`.
 - When updating UI, verify whether snapshot tests need to be updated and run the relevant snapshot checks before finishing.
@@ -15,43 +15,5 @@ When a test class grows large, split it into companion files named `<BaseTests>+
 
 - **Use an `extension <BaseTests>` in companion files**, not a new `final class`. This matches the convention in the main app (for example `ConversationViewModel+Settings.swift`) and keeps all tests for a single subject under one class so shared fixtures, helpers, and `setUp`/`tearDown` apply uniformly.
   - Why: mixing separate `final class <Base><Topic>Tests: XCTestCase` into `<BaseTests>+<Topic>.swift` files made the `+` convention ambiguous — readers could not tell from the filename whether the file extended the base suite or introduced a parallel one.
-  - How to apply: when adding a new `<BaseTests>+<Topic>.swift` companion, declare `extension <BaseTests> { ... }`. Preserve the base class's actor annotation (for example `@MainActor`) on the extension. Only declare a separate `XCTestCase` subclass when the suite is genuinely independent; in that case do *not* use the `+` filename — name the file after the new class (for example `WorktreeCloneFlowTests.swift`).
+  - How to apply: when adding a new `<BaseTests>+<Topic>.swift` companion, declare `extension <BaseTests> { ... }`. Preserve the base class's actor annotation (for example `@MainActor`) on the extension. Only declare a separate `XCTestCase` subclass when the suite is genuinely independent; in that case do *not* use the `+` filename — name the file after the new class (for example `ScheduledTaskRootLockTests.swift`).
 - Support files that define fixtures, mocks, or helper types (for example `*+Support.swift`, `*+Fixtures.swift`) are an accepted exception — those declare separate helper types rather than extending the base suite.
-
-## Snapshot Testing
-
-### Running Snapshots
-
-- Use `./scripts/snapshots.sh` for snapshot workflows instead of prefixing `./scripts/test.sh` with `RECORD_SNAPSHOTS=1`; plain `xcodebuild test` does not reliably propagate that environment variable into the app-hosted macOS snapshot tests. Its `usage()` covers verify/record forms and focused identifiers.
-- `./scripts/snapshots.sh record` tolerates SnapshotTesting's expected non-zero record exit and then verifies the same identifiers before reporting success.
-- **Pass at most four focused identifiers per run.** Beyond that the run executes *zero* tests and still prints `status: success` and "Snapshot verification passed", so a batch re-record silently leaves every baseline stale. A real run prints `passed_tests` (two per test) and, recording, one "Record mode is on" error per baseline — neither line means nothing ran. Split longer lists into batches.
-- Snapshot failure artifacts default to `.build/snapshot-failures` through `SNAPSHOT_ARTIFACTS`; set that environment variable only when a caller needs a different artifact directory.
-- Audit for stale baselines by recording the full suite and diffing **decoded pixels**, not `git status`: the decode drift under `assertMacSnapshot()` Internals marks most PNGs byte-changed, burying the few that actually drifted.
-- **A macOS update can fail text baselines locally while CI stays green.** Local runs compare at 2x/`0.99`, CI's 1x fallback at `0.9`, so glyph-metric drift clears one threshold and not the other. Re-record, then confirm through the 1x path under `assertMacSnapshot()` Internals before committing.
-
-### Organizing Baselines
-
-- Prefer focused companion snapshot files such as `SnapshotTests+Terminal.swift` instead of continuing to grow `SnapshotTests.swift`; keep snapshot coverage grouped by screen or feature area.
-- Moving a snapshot test into a different file changes the baseline lookup path under `AlvearyTests/Snapshots/__Snapshots__/`; move or re-record the reference images to match the new companion file, and run `xcodegen generate` afterward if you added, removed, or renamed snapshot test source files.
-
-### Coverage Guidance
-
-- When changing transcript bubble spacing or bubble chrome, keep grouped chat-bubble snapshots (for example stacked outbound and stacked assistant bubbles) alongside single-bubble cases; single-item baselines do not catch inter-bubble spacing regressions.
-- AppKit owns the live transcript surface. Keep native transcript snapshots in `SnapshotTests+AppKitTranscript.swift`; do not add new SwiftUI transcript-row snapshots.
-- Native migration snapshots are parity gates. Verify the replaced SwiftUI surface before recording baselines, and add focused coverage for hover or pressed states when a migrated AppKit control has custom interaction styling.
-- **A prose-dense baseline reflows on CI.** A newer local macOS fits slightly more text per line than the runner, so any wrapped line sitting at its break point moves and the diff clears the tolerance — re-recording locally cannot fix it, since it already matches locally. Assert wording textually rather than adding a baseline whose only delta from an existing one is its prose.
-
-### `assertMacSnapshot()` Internals
-
-- Keep `assertMacSnapshot()` window-backed. macOS SwiftUI snapshots that render sidebar `List` content with custom section headers can capture as a blank background if they are hosted in a bare `NSHostingController` without an `NSWindow` display pass.
-- `assertMacSnapshot()` supports dark-mode coverage via its `colorScheme:` argument; when adding dark-mode snapshots, keep the SwiftUI `colorScheme` and the hosting `NSAppearance` in sync or AppKit-backed colors such as `separatorColor` will render incorrectly.
-- `assertMacSnapshot()` positions its `NSWindow` *far* off-screen and flushes first responder before rendering. Don't revert those: a window positioned at on-screen coordinates sits inside the primary-display space and picks up the real cursor's position, which AppKit consults mid-render and applies as a hover highlight on whichever control happens to be under that point (e.g. a `Picker` rendering a gray rounded rect behind its selected label on only some runs). `window.makeFirstResponder(nil)` before `displayIfNeeded()` produces a deterministic, focus-free baseline — `NSHostingController` can settle on an initial first responder during its first layout pass.
-- Use async `assertMacModelSnapshot()` for views backed by SwiftData. It builds and releases the query-bearing view inside the snapshot autorelease pool, then cooperatively suspends the main actor while retaining the model dependencies, not the constructed view, so queued observation teardown can finish before another in-memory context save. The synchronous `assertMacSnapshot()` remains appropriate for views without SwiftData observations. Custom persistent hosts that reach `@Query` must explicitly call `closeSnapshotWindow()` and await the same teardown helper.
-- `assertMacSnapshot()` uses SnapshotTesting's native AppKit renderer on Retina displays and falls back to the display's native 1x capture when headless CI exposes only a 1x screen. The fallback normalizes the Retina reference to 1x in memory for comparison; keep the stored baselines at 2x. Use `ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS=true ./scripts/snapshots.sh verify ...` to verify this path locally; the script injects the override into the `.xctestrun` environment. Do not re-record baselines only because CI is 1x.
-    - Automatic 1x comparison canonicalizes a differing background color when it occupies at least three image corners. This keeps macOS-version changes to native `List` backgrounds from overwhelming the cross-renderer comparison while preserving foreground pixel checks and native 2x coverage.
-    - Automatic 1x fallback keeps the cross-renderer `0.9` tolerance. A call-site `forceFixedScale: true` uses the caller's precision instead.
-- `assertMacSnapshot()` runs its pixel comparison at a relaxed precision, not the SnapshotTesting library's strict default. Both knobs are parameters on the function and fall back to shared default constants at the top of `SnapshotTestSupport.swift`.
-    - **Default values: `precision: 0.99, perceptualPrecision: 0.99`.** Both have to move together — `perceptualPrecision` sets the per-pixel Delta-E tolerance, but with `precision` still at `1.0` the test fails if even one pixel crosses it. `0.99` on both maps to the Delta-E band the library documents as "mimics the precision of the human eye".
-    - **Why not `1.0`/`1.0`:** Core Graphics' color-managed PNG decode path is not reliably bit-stable across runs. The embedded iCCP profile is resolved through `CGContext`, and tiny per-channel rounding differences survive the encoder round trip on larger, color-rich baselines (diff viewer with syntax highlighting, settings screens, composer autocomplete at scroll offset). Those baselines had been re-recorded more than once with no accompanying code change before this loosening landed.
-    - **Overriding at a call site:** if a specific test wants stricter or looser matching, pass an explicit `precision:` and/or `perceptualPrecision:` argument to `assertMacSnapshot(...)`. Do *not* tighten the shared defaults — the drift class returns for every baseline at the same time.
-    - **Relaxed precision can verify green against a stale baseline.** `precision: 0.99` budgets 1% of pixels; a changed label in a full-screen baseline occupies far less (the Git tab's toggle-title rename measured ~0.2% of its 2200×1640 image), so `verify` passed with the old text still in the PNG. For an intentional visible change, `record` the affected baselines and eyeball the new PNGs — never treat a passing `verify` as proof the baseline is current. Do not chase this with tighter call-site precision on full-screen baselines: the decode-drift class above lives on exactly those images, and a threshold strict enough to catch a one-line text change reintroduces it.

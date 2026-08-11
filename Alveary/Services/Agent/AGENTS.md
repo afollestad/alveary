@@ -2,10 +2,10 @@
 
 These instructions cover provider-neutral interfaces under `Alveary/Services/Agent/`.
 
-- Runtime process management lives under `Runtime/`; follow `Runtime/AGENTS.md` for `DefaultAgentsManager`, event buffers, lifecycle, and deferred-tool runtime behavior.
+- Runtime process management lives under `Runtime/`; follow `Alveary/Services/Agent/Runtime/AGENTS.md` for `DefaultAgentsManager`, event buffers, and lifecycle, and `Alveary/Services/Agent/Runtime/ToolApproval/AGENTS.md` for live and deferred tool approval.
 - Claude provider runtime, stream decoding, hook transport, provider approval policy, transcript paths, and transcript inspection live in `AgentCLIKit`; Alveary bridges those services but does not duplicate them.
-- Claude approval persistence and UI display policy lives under `Claude/Approvals/`; follow `Claude/Approvals/AGENTS.md` for durable session approvals, approval selections, and approval-row display rules.
-- Transcript grouping code lives under `Transcript/`; follow `Transcript/AGENTS.md` for `ChatItemGrouper` behavior.
+- Claude approval persistence and UI display policy lives under `Claude/Approvals/`; follow `Alveary/Services/Agent/Claude/Approvals/AGENTS.md` for durable session approvals, approval selections, and approval-row display rules.
+- Transcript grouping code lives under `Transcript/`; follow `Alveary/Services/Agent/Transcript/AGENTS.md` for `ChatItemGrouper` behavior.
 
 ### Context And Usage
 
@@ -40,7 +40,7 @@ These instructions cover provider-neutral interfaces under `Alveary/Services/Age
 - **Keep missing bindings visible on delete.** A conversation whose provider session cannot be resolved leaves a live provider-side session behind, so the resolution carries it through for a diagnostic instead of dropping it.
     - **Except when the thread never started.** `ThreadLifecycleService` sources `ProviderSessionConversationSnapshot.hasStartedProviderSession` from `hasCompletedInitialSetup`, and resolution drops those unresolved bindings — a thread whose first spawn failed has no session to strand.
 - **Gate every action on its capability**, deletion included. A provider without native deletion is skipped, not handed to the adapter's validate-only default that reports success having done nothing.
-- **A record retires its whole lineage.** `AgentSessionRecord.supersededProviderSessionIds` (see AgentCLIKit's `Runtime/AGENTS.md`) travels with the record, so removing one — as session handoff does — must archive it first or the lineage becomes unreachable.
+- **A record retires its whole lineage.** `AgentSessionRecord.supersededProviderSessionIds` travels with the record, so removing one — as session handoff does — must archive it first or the lineage becomes unreachable.
 
 ## Cross-Folder Debugging
 

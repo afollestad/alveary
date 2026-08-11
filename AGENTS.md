@@ -1,12 +1,17 @@
 ## Keep Guidance Current
 
 - Keep `AGENTS.md` accurate when changes create useful future-agent context; put new rules in the narrowest `AGENTS.md` that covers the affected files.
+- **Default to not writing the bullet.** A rule belongs here only when the code that would violate it is not the code that documents it; mechanism whose only reader is its own file belongs in that file's doc comment instead.
+    - Keep what the code cannot show: cross-file couplings, deliberate absences, and prohibitions against reintroducing removed behavior.
+    - **The eviction has a destination.** A rule this test removes lands on the declaration that enforces it, in the same change — never only in a commit message. Name the owner in the scope's admission-test line so the next reader can find it.
 - A bullet states one rule, imperatively. Cap rationale at one clause naming the failure mode; drop discovery narratives, rejected alternatives, and measurements unless the number itself is the constraint.
-- Do not add bullets that restate what the named code already says — prefer improving that code's doc comment. Keep rules the code cannot show: cross-file couplings, deliberate absences, and prohibitions against reintroducing removed behavior.
 - One owner per rule. Cross-reference a rule that lives in another `AGENTS.md` instead of restating it, and when adding guidance, check whether existing guidance now duplicates or supersedes it.
+- **Every path a bullet names must resolve.** Anchor a cross-scope reference at the repo root (`Alveary/Services/HostMCP/AGENTS.md`); anchor one inside this scope at this file's own folder. Never at a middle segment, and confirm the target exists.
+    - Moving or renaming a scope means grepping its old path and repointing every inbound reference, doc comments included.
 - Soft budget: ~40 words per bullet, ~1500 words per file. On breach, trim or split into sections rather than letting the file grow. Avoid file-listing maps in small folders; they rot silently.
 - Categorize bullets with `##` sections when there are enough points; split dense rules into short sub-bullets with bold imperative leads.
-- When adding a nested `AGENTS.md`, create its sibling symlink with `ln -s AGENTS.md CLAUDE.md`; that symlink is what loads the file into context. `project.yml` already excludes `**/CLAUDE.md`.
+- **Give a cohesive subsystem its own folder and `AGENTS.md` once trimming and sectioning stop being enough.** `git mv` its files together, write the nested file, and leave the parent one line naming what the child now owns.
+    - Create the sibling symlink with `ln -s AGENTS.md CLAUDE.md`; that symlink is what loads the file into context. `project.yml` already excludes `**/CLAUDE.md`.
 - Update `README.md` plus scoped guidance when dependencies, project structure, or lint rules change.
 
 ## Scoped Guidance
@@ -17,6 +22,7 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 
 - `Alveary.xcodeproj` is generated from `project.yml`; never edit it directly.
 - After creating, moving, removing, or renaming Swift files, run `xcodegen generate`.
+    - **A pure move or rename needs only `xcodegen generate` and `./scripts/build.sh`.** The build proves the regenerated target still compiles; a rename that compiles cannot change behavior, so the test and snapshot suites add nothing.
 - After adding an SPM dependency, update `project.yml`, then run `xcodegen generate`.
 - After changing an SPM pin's revision, run `xcodegen generate`, then `xcodebuild -project Alveary.xcodeproj -scheme Alveary -derivedDataPath .build/xcode -resolvePackageDependencies`, and confirm `.build/xcode/SourcePackages/checkouts/<dep>` is at the new revision. Omitting `-derivedDataPath` resolves the default DerivedData instead of the tree the scripts build from, leaving that checkout untouched. `Package.resolved` can also carry the new revision while the checkout stays on the old one, and no build script forces resolution, so build, test, and snapshot runs all pass green against the old dependency.
 - Do not commit `Alveary.xcodeproj/`; it is gitignored and regenerated.
@@ -63,6 +69,9 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 ## Code Style
 
 - Put private types below public types.
-- Add concise comments only where they help future readers.
+- **Give a declaration a `///` doc comment when its contract is not obvious from its signature** — types, functions, and stored properties alike. Write the *why*: the failure mode it avoids, the ordering it depends on, the alternative that was rejected. Never restate what the body plainly does.
+    - An `extension` that groups a subsystem takes a file-level `///` for what the whole group shares, so each member's own comment stays short.
+    - A declaration whose rule used to live in an `AGENTS.md` needs this before that bullet may be deleted.
+- Add concise inline comments only where they explain non-obvious intent at a specific line.
 - Search for same-type companion files before editing behavior.
 - Split large types into focused companions like `Type+Feature.swift`.
