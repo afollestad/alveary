@@ -16,6 +16,10 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(AppSettings().maxTerminalSessions, 10)
     }
 
+    func testMenuBarIconIsShownByDefault() {
+        XCTAssertTrue(AppSettings().showsMenuBarIcon)
+    }
+
     func testDefaultLastSettingsPageIsAgents() {
         XCTAssertEqual(AppSettings().lastSettingsPage, .agents)
     }
@@ -23,7 +27,10 @@ final class AppSettingsTests: XCTestCase {
     func testSettingsPagesAreInVisibleAlphabeticalOrder() {
         XCTAssertEqual(
             AppSettings.SettingsPage.allCases.map(\.rawValue),
-            ["agents", "interface", "appShots", "git", "handoff", "notifications", "terminal", "threads", "appUpdates"]
+            [
+                "agents", "interface", "appShots", "git", "handoff",
+                "menuBar", "notifications", "terminal", "threads", "appUpdates"
+            ]
         )
     }
 

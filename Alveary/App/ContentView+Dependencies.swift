@@ -32,6 +32,10 @@ struct ContentViewDependencies {
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let notificationRouter: NotificationRouter
+    let menuBarCommandRouter: MenuBarCommandRouter
+    let mainWindowPresenter: MainWindowPresenter
+    /// App-scoped: its global shortcut has to outlive the window.
+    let appShotCoordinator: AppShotCoordinator
     let appUpdateManager: AppUpdateManager
     let onboardingDependencyService: any OnboardingDependencyService
     let threadActivityRecorder: any ThreadActivityRecording
@@ -78,6 +82,9 @@ struct ContentViewDependencies {
             fileListManager: component.fileListManager,
             notificationManager: component.notificationManager,
             notificationRouter: component.notificationRouter,
+            menuBarCommandRouter: component.menuBarCommandRouter,
+            mainWindowPresenter: component.mainWindowPresenter,
+            appShotCoordinator: component.appShotCoordinator,
             appUpdateManager: component.appUpdateManager,
             onboardingDependencyService: component.onboardingDependencyService,
             threadActivityRecorder: component.threadActivityRecorder,

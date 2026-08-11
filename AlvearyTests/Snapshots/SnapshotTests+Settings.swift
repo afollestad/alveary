@@ -184,6 +184,40 @@ extension SnapshotTests {
         )
     }
 
+    func testSettingsScreenMenuBarTab() {
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
+                onClose: {},
+                initialTabRawValue: "menuBar"
+            ),
+            size: CGSize(width: 1100, height: 820),
+            named: "settings_screen_menu_bar"
+        )
+    }
+
+    func testSettingsScreenMenuBarTabNarrowKeepsToggleInline() {
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
+                onClose: {},
+                initialTabRawValue: "menuBar"
+            ),
+            size: CGSize(width: 400, height: 700),
+            named: "settings_screen_menu_bar_narrow_toggle"
+        )
+    }
+
     func testNotificationsSettingsTabSystemDeniedHint() {
         let viewModel = SettingsViewModel(settingsService: InMemorySettingsService())
 

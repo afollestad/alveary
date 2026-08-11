@@ -35,10 +35,10 @@ func resolvedLastOpenThreadSelection(
 
 extension ContentView {
     func restoreLastOpenThreadSelectionIfNeeded() {
-        guard !didAttemptLaunchSelectionRestore else {
+        guard !appState.didAttemptLaunchSelectionRestore else {
             return
         }
-        didAttemptLaunchSelectionRestore = true
+        appState.didAttemptLaunchSelectionRestore = true
 
         let settings = settingsService.current
 

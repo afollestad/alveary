@@ -38,6 +38,12 @@ struct PreparedAppShotCapture: Equatable, Sendable {
 @Observable
 final class AppShotCoordinator {
     private let targetTracker: AppShotTargetTracker
+    /// The capture shortcut is registered with the *system*, so a second Alveary-hosted process
+    /// steals it from the one the developer is using. Hosted test runs pass `false`; everything
+    /// else about the coordinator still runs, the same way the status item suppresses only its
+    /// chrome (`Alveary/DI/AppComponent+AppShots.swift`).
+    private let installsGlobalShortcut: Bool
+    private let presentMainWindowIfClosed: @MainActor () -> Void
     private var localKeyMonitor: Any?
     private var localFlagsMonitor: Any?
     private var globalKeyMonitor: Any?
@@ -51,7 +57,11 @@ final class AppShotCoordinator {
     private var didFireBothCommandChord = false
     private var currentSettings = AppShotsRuntimeSettings()
 
-    var triggerID = UUID()
+    /// A capture request waiting for `ContentView` to route it, because destination resolution and
+    /// staging need `AppState` and the mounted conversation. Non-nil until the root drains it, so
+    /// a press taken with the window closed still lands once the window mounts — `.onChange` alone
+    /// cannot fire retroactively.
+    private(set) var pendingTriggerID: UUID?
 
     /// The app a capture would target right now, or `nil` when nothing can be attached.
     ///
@@ -64,19 +74,54 @@ final class AppShotCoordinator {
         return targetTracker.attachableApp
     }
 
-    init(targetTracker: AppShotTargetTracker = AppShotTargetTracker()) {
+    init(
+        targetTracker: AppShotTargetTracker = AppShotTargetTracker(),
+        installsGlobalShortcut: Bool = true,
+        presentMainWindowIfClosed: @escaping @MainActor () -> Void = {}
+    ) {
         self.targetTracker = targetTracker
+        self.installsGlobalShortcut = installsGlobalShortcut
+        self.presentMainWindowIfClosed = presentMainWindowIfClosed
+    }
+
+    /// True while any of the shortcut's monitors are installed. The primary registrations — the
+    /// Carbon hot key, the event tap, the global monitor — are system-wide, which is why hosted
+    /// runs suppress them; this is how that suppression is asserted rather than taken on faith.
+    /// A new monitor belongs here as well as in `removeMonitors()`.
+    var hasInstalledShortcutMonitors: Bool {
+        carbonHotKey != nil
+            || modifierEventTap != nil
+            || globalKeyMonitor != nil
+            || localKeyMonitor != nil
+            || localFlagsMonitor != nil
     }
 
     /// Requests a capture from UI that is not the global shortcut, such as the composer `+` menu.
     ///
-    /// This only raises the trigger; `ContentView` remains the sole trigger observer and
+    /// This only raises the pending trigger; `ContentView` remains the sole trigger observer and
     /// destination router.
     func requestCapture() {
+        raiseTrigger()
+    }
+
+    /// Drops a request the root has acted on. A stale id is a no-op, so a drain racing a fresh
+    /// press cannot swallow the newer one.
+    func clearPendingTrigger(_ id: UUID) {
+        guard pendingTriggerID == id else {
+            return
+        }
+        pendingTriggerID = nil
+    }
+
+    private func raiseTrigger() {
         guard currentSettings.enabled else {
             return
         }
-        triggerID = UUID()
+        pendingTriggerID = UUID()
+        // Only when the scene is closed: routing lives in `ContentView`, so with no window there
+        // is nothing to route into. A capture taken while Alveary is merely behind another app
+        // must not steal focus, which is why this is not a plain `activate()`.
+        presentMainWindowIfClosed()
     }
 
     func start(settingsService: any SettingsService) {
@@ -136,7 +181,7 @@ final class AppShotCoordinator {
             shortcut: settings.appShotShortcut
         )
         removeMonitors()
-        guard currentSettings.enabled else {
+        guard currentSettings.enabled, installsGlobalShortcut else {
             return
         }
         installMonitors()
@@ -267,19 +312,17 @@ final class AppShotCoordinator {
     }
 
     private func handleKeyDown(_ event: NSEvent) {
-        guard currentSettings.enabled,
-              currentSettings.shortcut.matches(event: event) else {
+        guard currentSettings.shortcut.matches(event: event) else {
             return
         }
-        triggerID = UUID()
+        raiseTrigger()
     }
 
     fileprivate func handleCarbonHotKeyPressed() {
-        guard currentSettings.enabled,
-              currentSettings.shortcut.kind == .keyChord else {
+        guard currentSettings.shortcut.kind == .keyChord else {
             return
         }
-        triggerID = UUID()
+        raiseTrigger()
     }
 
     fileprivate func handleFlagsChanged(keyCode: UInt16, commandIsDown: Bool) {
@@ -310,7 +353,7 @@ final class AppShotCoordinator {
                 return
             }
             didFireBothCommandChord = true
-            triggerID = UUID()
+            raiseTrigger()
         } else {
             didFireBothCommandChord = false
         }

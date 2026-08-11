@@ -3,10 +3,10 @@ import SwiftData
 
 struct ContentViewBootstrapState {
     let sidebarViewModel: SidebarViewModel
-    let appShotCoordinator: AppShotCoordinator
     let appShotCaptureController: AppShotCaptureController
     let lastActiveProjectRecorder: LastActiveProjectRecorder
     let diffViewModel: DiffViewerViewModel
+    let scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     let reviewProposalCoordinator: PullRequestReviewProposalCoordinator
     /// Built here rather than in `ContentView.init` because it needs `reviewProposalCoordinator`,
     /// which this state already owns.
@@ -20,19 +20,18 @@ extension ContentView {
         appState: AppState
     ) -> ContentViewBootstrapState {
         let sidebarViewModel = makeSidebarViewModel(dependencies: dependencies, appState: appState)
-        let appShotCoordinator = AppShotCoordinator()
         let reviewProposalCoordinator = makePullRequestReviewProposalCoordinator(dependencies: dependencies)
         return ContentViewBootstrapState(
             sidebarViewModel: sidebarViewModel,
-            appShotCoordinator: appShotCoordinator,
             appShotCaptureController: makeAppShotCaptureController(
                 dependencies: dependencies,
                 appState: appState,
-                appShotCoordinator: appShotCoordinator,
+                appShotCoordinator: dependencies.appShotCoordinator,
                 sidebarViewModel: sidebarViewModel
             ),
             lastActiveProjectRecorder: makeLastActiveProjectRecorder(dependencies: dependencies),
             diffViewModel: makeDiffViewModel(dependencies: dependencies),
+            scheduledTaskProposalQueueCoordinator: makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies),
             reviewProposalCoordinator: reviewProposalCoordinator,
             pullRequestsViewModel: makePullRequestsViewModel(
                 dependencies: dependencies,
@@ -69,7 +68,8 @@ extension ContentView {
                     throw SidebarViewModelError.projectMissing
                 }
                 return try await sidebarViewModel.openDraftThread(project: project).persistentModelID
-            }
+            },
+            activateAlveary: { [presenter = dependencies.mainWindowPresenter] in presenter.activate() }
         )
     }
 

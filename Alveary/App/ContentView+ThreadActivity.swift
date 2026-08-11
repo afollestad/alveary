@@ -1,9 +1,9 @@
 extension ContentView {
     func startThreadActivityBackfillIfNeeded() {
-        guard !didStartThreadActivityBackfill else {
+        guard !appState.didStartThreadActivityBackfill else {
             return
         }
-        didStartThreadActivityBackfill = true
+        appState.didStartThreadActivityBackfill = true
         Task { @MainActor [threadActivityRecorder] in
             await threadActivityRecorder.backfillMissingModifiedDates(batchSize: 100)
         }

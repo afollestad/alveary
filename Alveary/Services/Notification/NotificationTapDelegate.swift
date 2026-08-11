@@ -1,12 +1,16 @@
-import AppKit
 import Foundation
 @preconcurrency import UserNotifications
 
 final class NotificationTapDelegate: NSObject, UNUserNotificationCenterDelegate {
     private let router: NotificationRouter
+    /// Bringing Alveary forward has one owner (`MainWindowPresenter`), because the app now
+    /// survives its last window closing — a bare `NSApp.activate` would foreground a windowless
+    /// app and leave the routed request undrained.
+    private let activateAlveary: @MainActor () -> Void
 
-    init(router: NotificationRouter) {
+    init(router: NotificationRouter, activateAlveary: @escaping @MainActor () -> Void) {
         self.router = router
+        self.activateAlveary = activateAlveary
         super.init()
     }
 
@@ -33,8 +37,9 @@ final class NotificationTapDelegate: NSObject, UNUserNotificationCenterDelegate 
         }
 
         let router = router
+        let activateAlveary = activateAlveary
         Task { @MainActor in
-            NSApp.activate(ignoringOtherApps: true)
+            activateAlveary()
             switch destination {
             case .conversation(let conversationId):
                 router.requestOpen(conversationId: conversationId)

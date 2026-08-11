@@ -9,18 +9,6 @@ enum AppShotCaptureFeedback {
         "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Grab.aif"
     ]
 
-    static func activateAlveary() {
-        NSApp.unhide(nil)
-        if let window = mainAlvearyWindow() {
-            if window.isMiniaturized {
-                window.deminiaturize(nil)
-            }
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
-        }
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
     static func playScreenshotSound() {
         let sound = screenshotSound ?? loadScreenshotSound()
         screenshotSound = sound
@@ -32,12 +20,6 @@ enum AppShotCaptureFeedback {
             sound.stop()
         }
         sound.play()
-    }
-
-    private static func mainAlvearyWindow() -> NSWindow? {
-        NSApp.windows.first { window in
-            window.title == "Alveary" && window.canBecomeKey
-        } ?? NSApp.mainWindow ?? NSApp.keyWindow
     }
 
     private static func loadScreenshotSound() -> NSSound? {

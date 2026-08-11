@@ -35,6 +35,7 @@ final class SettingsServiceTests: XCTestCase {
             $0.diffViewerMode = .commits
             $0.expandTerminalWhenActionsRun = true
             $0.maxTerminalSessions = 12
+            $0.showsMenuBarIcon = false
             $0.contextManagementEnabled = false
             $0.sessionHandoffWindowPercentage = 75
             $0.handoffSteeringEnabled = false
@@ -46,30 +47,32 @@ final class SettingsServiceTests: XCTestCase {
 
         let reloadedService = UserDefaultsSettingsService(defaults: defaults)
 
-        XCTAssertEqual(reloadedService.current.lastSettingsPage, .git)
-        XCTAssertEqual(reloadedService.current.permissionMode, "acceptEdits")
-        XCTAssertEqual(reloadedService.current.effort, "high")
-        XCTAssertEqual(reloadedService.current.defaultThreadCleanupAction, .delete)
-        XCTAssertEqual(reloadedService.current.defaultEnterBehavior, .steer)
-        XCTAssertFalse(reloadedService.current.reopenLastThreadAndConversationOnLaunch)
-        XCTAssertEqual(
-            reloadedService.current.turnAwake,
-            TurnAwakeSettings(enabled: true, preventDisplaySleep: false)
-        )
-        XCTAssertEqual(reloadedService.current.branchPrefix, "feature/")
-        XCTAssertEqual(reloadedService.current.rightPaneWidth, 520)
-        XCTAssertEqual(reloadedService.current.diffViewerTopSectionFraction, 0.35)
-        XCTAssertEqual(reloadedService.current.diffViewerCommitsTopSectionFraction, 0.65)
-        XCTAssertEqual(reloadedService.current.diffViewerMode, .commits)
-        XCTAssertTrue(reloadedService.current.expandTerminalWhenActionsRun)
-        XCTAssertEqual(reloadedService.current.maxTerminalSessions, 12)
-        XCTAssertFalse(reloadedService.current.contextManagementEnabled)
-        XCTAssertEqual(reloadedService.current.sessionHandoffWindowPercentage, 75)
-        XCTAssertFalse(reloadedService.current.handoffSteeringEnabled)
-        XCTAssertEqual(reloadedService.current.handoffSteeringCountdownSeconds, 15)
-        XCTAssertEqual(reloadedService.current.handoffPromptSendCountdownSeconds, 0)
-        XCTAssertFalse(reloadedService.current.handoffContextCustomizationEnabled)
-        XCTAssertEqual(reloadedService.current.sessionHandoffPrompt, "Custom handoff prompt")
+        assertReloadedSettingsMatchPersistedUpdates(reloadedService.current)
+    }
+
+    private func assertReloadedSettingsMatchPersistedUpdates(_ settings: AppSettings) {
+        XCTAssertEqual(settings.lastSettingsPage, .git)
+        XCTAssertEqual(settings.permissionMode, "acceptEdits")
+        XCTAssertEqual(settings.effort, "high")
+        XCTAssertEqual(settings.defaultThreadCleanupAction, .delete)
+        XCTAssertEqual(settings.defaultEnterBehavior, .steer)
+        XCTAssertFalse(settings.reopenLastThreadAndConversationOnLaunch)
+        XCTAssertEqual(settings.turnAwake, TurnAwakeSettings(enabled: true, preventDisplaySleep: false))
+        XCTAssertEqual(settings.branchPrefix, "feature/")
+        XCTAssertEqual(settings.rightPaneWidth, 520)
+        XCTAssertEqual(settings.diffViewerTopSectionFraction, 0.35)
+        XCTAssertEqual(settings.diffViewerCommitsTopSectionFraction, 0.65)
+        XCTAssertEqual(settings.diffViewerMode, .commits)
+        XCTAssertTrue(settings.expandTerminalWhenActionsRun)
+        XCTAssertEqual(settings.maxTerminalSessions, 12)
+        XCTAssertFalse(settings.showsMenuBarIcon)
+        XCTAssertFalse(settings.contextManagementEnabled)
+        XCTAssertEqual(settings.sessionHandoffWindowPercentage, 75)
+        XCTAssertFalse(settings.handoffSteeringEnabled)
+        XCTAssertEqual(settings.handoffSteeringCountdownSeconds, 15)
+        XCTAssertEqual(settings.handoffPromptSendCountdownSeconds, 0)
+        XCTAssertFalse(settings.handoffContextCustomizationEnabled)
+        XCTAssertEqual(settings.sessionHandoffPrompt, "Custom handoff prompt")
     }
 
     func testUserDefaultsSettingsServicePersistsLastOpenThreadSelectionAcrossReloads() throws {

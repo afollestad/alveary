@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="-0.5 -0.5 19 19">
+  <defs>
+    <mask id="bee-cutouts" maskUnits="userSpaceOnUse" x="0" y="0" width="18" height="18">
+      <rect width="18" height="18" fill="#fff"/>
+      <circle cx="7.45" cy="7.75" r="0.72" fill="#000"/>
+      <circle cx="10.55" cy="7.75" r="0.72" fill="#000"/>
+      <path d="M5.25 11.15 Q9 12.35 12.75 11.15" fill="none" stroke="#000" stroke-width="1.1" stroke-linecap="round"/>
+      <path d="M5.8 13.75 Q9 14.8 12.2 13.75" fill="none" stroke="#000" stroke-width="1.1" stroke-linecap="round"/>
+    </mask>
+  </defs>
+
+  <g fill="#000" mask="url(#bee-cutouts)">
+    <ellipse cx="3.55" cy="11.35" rx="2.25" ry="3.15" transform="rotate(-18 3.55 11.35)"/>
+    <ellipse cx="14.45" cy="11.35" rx="2.25" ry="3.15" transform="rotate(18 14.45 11.35)"/>
+    <circle cx="9" cy="8.15" r="4.05"/>
+    <ellipse cx="9" cy="12.55" rx="4.15" ry="4.65"/>
+    <path d="M7.1 5.3 5.05 2.25M10.9 5.3l2.05-3.05" fill="none" stroke="#000" stroke-width="1.45" stroke-linecap="round"/>
+    <circle cx="4.62" cy="1.62" r="1.02"/>
+    <circle cx="13.38" cy="1.62" r="1.02"/>
+  </g>
+</svg>

@@ -16,7 +16,7 @@ struct AlvearyApp: App {
     }
 
     var body: some Scene {
-        Window("Alveary", id: "main") {
+        Window("Alveary", id: MainWindowPresenter.sceneID) {
             ContentView(component: AppDI.component, appState: appState)
         }
         .defaultSize(width: 1440, height: 920)

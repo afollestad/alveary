@@ -274,6 +274,18 @@ final class AppRuntimeProfileTests: XCTestCase {
         XCTAssertFalse(NSApp.windows.contains { $0.isVisible && appOwnedWindowTitles.contains($0.title) })
     }
 
+    /// The capture shortcut is registered with the *system*, so a hosted run that installed it
+    /// would take ⌃⇧S away from the developer's own Alveary for the length of the run. Suppressing
+    /// the registration is the app-shot counterpart of the suppressed window asserted above.
+    func testHostedProcessDoesNotHoldTheGlobalCaptureShortcut() {
+        XCTAssertEqual(AppRuntimeProfile.current.kind, .hostedUnitTest)
+        let component = AppDI.component
+
+        // Not vacuous: the setting that would otherwise install it is on.
+        XCTAssertTrue(component.settingsService.current.appShotsEnabled)
+        XCTAssertFalse(component.appShotCoordinator.hasInstalledShortcutMonitors)
+    }
+
     func testInMemoryTestComponentStillUsesHostedStorageProfileForFileBackedServices() {
         let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
 

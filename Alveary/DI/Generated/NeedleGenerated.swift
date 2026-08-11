@@ -1,6 +1,7 @@
 
 
 import AgentCLIKit
+import AppKit
 import Foundation
 import NeedleFoundation
 import SwiftData

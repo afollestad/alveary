@@ -9,6 +9,7 @@ extension AppSettings {
         case appShots
         case git
         case handoff
+        case menuBar
         case notifications
         case terminal
         case threads
@@ -45,6 +46,7 @@ extension AppSettings {
         case terminalPaneHeight
         case expandTerminalWhenActionsRun
         case maxTerminalSessions
+        case showsMenuBarIcon
         case appShotsEnabled
         case appShotShortcut
         case voiceInputShortcut
@@ -259,6 +261,7 @@ extension AppSettings {
             forKey: .expandTerminalWhenActionsRun
         ) ?? expandTerminalWhenActionsRun
         maxTerminalSessions = try container.decodeIfPresent(Int.self, forKey: .maxTerminalSessions) ?? maxTerminalSessions
+        showsMenuBarIcon = try container.decodeIfPresent(Bool.self, forKey: .showsMenuBarIcon) ?? showsMenuBarIcon
         appShotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .appShotsEnabled) ?? appShotsEnabled
         appShotShortcut = Self.normalizedAppShotShortcut(from: container)
         decodeVoiceInputShortcut(from: container)

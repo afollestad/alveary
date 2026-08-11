@@ -184,6 +184,8 @@ struct SettingsScreen: View {
                 handoffContextCustomizationEnabled: binding(for: \.handoffContextCustomizationEnabled),
                 sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )
+        case .menuBar:
+            MenuBarSettingsTabView(showsMenuBarIcon: binding(for: \.showsMenuBarIcon))
         case .notifications:
             NotificationsSettingsTabView(
                 viewModel: viewModel,
@@ -304,6 +306,8 @@ private extension AppSettings.SettingsPage {
             return "Git"
         case .handoff:
             return "Handoff"
+        case .menuBar:
+            return "Menu bar"
         case .notifications:
             return "Notifications"
         case .terminal:
@@ -327,6 +331,8 @@ private extension AppSettings.SettingsPage {
             return .octicon(.gitBranch16)
         case .handoff:
             return .system("hand.palm.facing")
+        case .menuBar:
+            return .system("menubar.rectangle")
         case .notifications:
             return .system("bell")
         case .terminal:
@@ -350,6 +356,8 @@ private extension AppSettings.SettingsPage {
             return "Configure Git defaults, pull requests, and GitHub authentication."
         case .handoff:
             return "Configure Alveary's Amp-inspired take on compaction: automatic session handoff, steering, and context customization."
+        case .menuBar:
+            return "Show Alveary in the system menu bar for recent threads and quick actions."
         case .notifications:
             return "Configure notification delivery and sounds."
         case .terminal:

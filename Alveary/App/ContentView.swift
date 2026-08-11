@@ -6,6 +6,7 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var appState: AppState
     @Environment(\.modelContext) var uiModelContext
+    @Environment(\.openWindow) private var openWindow
     @FocusedValue(\.newConversationAction) var newConversationAction
 
     let settingsService: SettingsService
@@ -24,6 +25,10 @@ struct ContentView: View {
     private let fileListManager: FileListManager
     let notificationManager: any NotificationManager
     let notificationRouter: NotificationRouter
+    let menuBarCommandRouter: MenuBarCommandRouter
+    let mainWindowPresenter: MainWindowPresenter
+    /// App-scoped, so the capture shortcut it registers survives the window closing.
+    let appShotCoordinator: AppShotCoordinator
     let threadActivityRecorder: any ThreadActivityRecording
     let gitService: GitService
     private let gitHubAttachmentImageURLResolver: GitHubAttachmentImageURLResolver
@@ -54,7 +59,6 @@ struct ContentView: View {
     @State private var archivedThreadsViewModel: ArchivedThreadsViewModel
     @State var onboardingViewModel: OnboardingViewModel
     @State var terminalManager = TerminalManager()
-    @State var appShotCoordinator: AppShotCoordinator
     @State var appShotCaptureController: AppShotCaptureController
     // Internal so `ContentView+RootToolbar.swift` can build the button group.
     @State var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
@@ -68,8 +72,6 @@ struct ContentView: View {
     @State var terminalToolbarDisplayState = TerminalToolbarDisplayState.idle
     @State var terminalToolbarTrackedSessionIDs = Set<UUID>()
     @State var terminalToolbarResetTask: Task<Void, Never>?
-    @State var didAttemptLaunchSelectionRestore = false
-    @State var didStartThreadActivityBackfill = false
     @State var voiceInputInteractionLockGeneration = 0
 
     init(component: AppComponent, appState: AppState) {
@@ -94,6 +96,9 @@ struct ContentView: View {
         self.fileListManager = dependencies.fileListManager
         self.notificationManager = dependencies.notificationManager
         self.notificationRouter = dependencies.notificationRouter
+        self.menuBarCommandRouter = dependencies.menuBarCommandRouter
+        self.mainWindowPresenter = dependencies.mainWindowPresenter
+        self.appShotCoordinator = dependencies.appShotCoordinator
         self.threadActivityRecorder = dependencies.threadActivityRecorder
         self.gitService = dependencies.gitService
         self.gitHubAttachmentImageURLResolver = dependencies.gitHubAttachmentImageURLResolver
@@ -113,9 +118,7 @@ struct ContentView: View {
         _skillsViewModel = State(initialValue: SkillsViewModel(skillsService: dependencies.skillsService))
         _mcpViewModel = State(initialValue: MCPViewModel(mcpService: dependencies.mcpService))
         _scheduledTasksViewModel = State(initialValue: Self.makeScheduledTasksViewModel(dependencies: dependencies))
-        _scheduledTaskProposalQueueCoordinator = State(
-            initialValue: Self.makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies)
-        )
+        _scheduledTaskProposalQueueCoordinator = State(initialValue: bootstrapState.scheduledTaskProposalQueueCoordinator)
         _pullRequestReviewProposalCoordinator = State(initialValue: bootstrapState.reviewProposalCoordinator)
         _unresolvedApprovalRegistry = State(initialValue: Self.makeUnresolvedApprovalRegistry(dependencies: dependencies))
         _pullRequestsViewModel = State(initialValue: bootstrapState.pullRequestsViewModel)
@@ -123,7 +126,6 @@ struct ContentView: View {
         _settingsViewModel = State(initialValue: Self.makeSettingsViewModel(dependencies: dependencies))
         _archivedThreadsViewModel = State(initialValue: bootstrapState.archivedThreadsViewModel)
         _onboardingViewModel = State(initialValue: Self.makeOnboardingViewModel(dependencies: dependencies))
-        _appShotCoordinator = State(initialValue: bootstrapState.appShotCoordinator)
         _appShotCaptureController = State(initialValue: bootstrapState.appShotCaptureController)
         _lastActiveProjectRecorder = State(initialValue: bootstrapState.lastActiveProjectRecorder)
         _diffViewModel = State(initialValue: bootstrapState.diffViewModel)
@@ -144,6 +146,9 @@ struct ContentView: View {
                 await pullRequestsViewModel.prefetchAtLaunch()
             }
             .onAppear {
+                // The scene can be re-created after the user closes it, and only the view tree
+                // can hand AppKit an action that rebuilds it.
+                mainWindowPresenter.register { openWindow(id: MainWindowPresenter.sceneID) }
                 wireNotificationManager()
                 wireMarkdownImageFallbackResolver()
                 startThreadActivityBackfillIfNeeded()
@@ -281,9 +286,6 @@ private extension ContentView {
             unresolvedApprovalRegistry.start()
         }
         .task {
-            appShotCoordinator.start(settingsService: settingsService)
-        }
-        .task {
             appUpdateManager.startAutomaticChecks()
         }
         .task {
@@ -340,8 +342,8 @@ private extension ContentView {
         .onChange(of: appState.selectedConversationIDs) { _, _ in
             appState.invalidateCommitMessageGenerationForSelectionChange()
         }
-        .onChange(of: appShotCoordinator.triggerID) { _, _ in
-            appShotCaptureController.captureIfIdle()
+        .onChange(of: appShotCoordinator.pendingTriggerID) { _, _ in
+            drainPendingAppShotCapture()
         }
     }
 
@@ -396,6 +398,9 @@ private extension ContentView {
         content
         .onChange(of: appState.pendingCommand) { _, command in
             handlePendingCommand(command)
+        }
+        .onChange(of: menuBarCommandRouter.pendingCommand) { _, command in
+            routePendingMenuBarCommandIfModelPreparationAllows(command)
         }
         .onChange(of: notificationRouter.pendingConversationId) { _, newValue in
             routePendingConversationIfModelPreparationAllows(newValue)

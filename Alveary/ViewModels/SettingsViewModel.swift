@@ -166,6 +166,11 @@ final class SettingsViewModel {
         set { settingsService.update { $0.maxTerminalSessions = newValue } }
     }
 
+    var showsMenuBarIcon: Bool {
+        get { settingsService.current.showsMenuBarIcon }
+        set { settingsService.update { $0.showsMenuBarIcon = newValue } }
+    }
+
     var appShotsEnabled: Bool {
         get { settingsService.current.appShotsEnabled }
         set { settingsService.update { $0.appShotsEnabled = newValue } }

@@ -37,7 +37,7 @@ final class AppShotCaptureController {
         presentPermission: @escaping @MainActor (AppShotPermission) -> Void = { permission in
             AppShotPermissionDragGrantAssistant.shared.present(permission: permission, sourceFrameInScreen: nil)
         },
-        activateAlveary: @escaping @MainActor () -> Void = AppShotCaptureFeedback.activateAlveary,
+        activateAlveary: @escaping @MainActor () -> Void,
         playSuccessSound: @escaping @MainActor () -> Void = AppShotCaptureFeedback.playScreenshotSound
     ) {
         self.appState = appState

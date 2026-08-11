@@ -67,6 +67,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var terminalPaneHeight = Self.defaultTerminalPaneHeight
     var expandTerminalWhenActionsRun = false
     var maxTerminalSessions = Self.defaultMaxTerminalSessions
+    var showsMenuBarIcon = true
     var appShotsEnabled = true
     var appShotShortcut = Self.defaultAppShotShortcut
     var voiceInputShortcut: PhysicalKeyboardShortcut? = Self.defaultVoiceInputShortcut

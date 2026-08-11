@@ -48,10 +48,7 @@ extension AppDelegateTestFixture {
             dependencies: .init(
                 agentsManager: agentsManager,
                 providerDetection: providerDetection,
-                // Inert: these are startup-order tests, so launch must not probe the machine.
-                providerDiscoveryCache: CachingAgentProviderDiscoveryService(
-                    base: RecordingProviderDiscoveryService(statuses: [:])
-                ),
+                providerDiscoveryCache: inertProviderDiscoveryCache,
                 sessionManager: sessionManager,
                 attachmentStore: recordingAttachmentStore,
                 taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
@@ -62,17 +59,17 @@ extension AppDelegateTestFixture {
                     recorder.record("scheduled-activation")
                     scheduledTaskLifecycle.recordActivation()
                 },
-                reconcileScheduledTasks: {
-                    scheduledTaskLifecycle.recordReconciliation()
-                },
+                reconcileScheduledTasks: scheduledTaskLifecycle.recordReconciliation,
                 teardownVoiceInput: {
                     recorder.record("voice-teardown")
                 },
-                prepareScheduledTasksForTermination: { actionDate in
-                    scheduledTaskLifecycle.prepareForTermination(at: actionDate)
-                },
+                prepareScheduledTasksForTermination: scheduledTaskLifecycle.prepareForTermination(at:),
                 cleanupRuntimePreferences: {},
                 notificationRouter: NotificationRouter(),
+                settingsService: settingsService,
+                menuBarController: makeMenuBarController(),
+                mainWindowPresenter: mainWindowPresenter,
+                appShotCoordinator: AppShotCoordinator(installsGlobalShortcut: false),
                 workspaceNotificationCenter: workspaceNotificationCenter,
                 notificationCenter: appNotificationCenter,
                 disableSuddenTermination: {},

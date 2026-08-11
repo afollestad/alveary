@@ -65,6 +65,9 @@ extension ContentView {
         handlePendingCommand(appState.pendingCommand)
         routePendingConversationIfModelPreparationAllows(notificationRouter.pendingConversationId)
         routePendingScheduledTaskIfModelPreparationAllows(notificationRouter.pendingScheduledTaskDefinitionId)
+        routePendingMenuBarCommandIfModelPreparationAllows(menuBarCommandRouter.pendingCommand)
+        // A capture taken while the window was closed waits here for the window it needs.
+        drainPendingAppShotCapture()
     }
 
     func routePendingConversationIfModelPreparationAllows(_ conversationID: String?) {
