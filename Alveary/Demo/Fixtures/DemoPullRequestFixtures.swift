@@ -121,7 +121,6 @@ enum DemoPullRequestFixtures {
             updatedAt: updatedAt,
             additions: additions,
             deletions: deletions,
-            reviewDecision: nil,
             isAuthored: isAuthored,
             isReviewRequested: isReviewRequested,
             hasReviewed: hasReviewed

@@ -153,9 +153,6 @@ extension GitHubPullRequestsService {
             updatedAt: updatedAt,
             additions: node.additions ?? 0,
             deletions: node.deletions ?? 0,
-            // The list does not fetch it — too expensive per row. A summary built from a *detail*
-            // (`PullRequestLinkService.makeSummary`) still carries it, so the property stays.
-            reviewDecision: nil,
             isAuthored: false,
             isReviewRequested: false,
             hasReviewed: false

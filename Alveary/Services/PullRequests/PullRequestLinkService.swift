@@ -127,7 +127,6 @@ final class PullRequestLinkService {
             updatedAt: detail.updatedAt ?? linkedAt,
             additions: detail.additions,
             deletions: detail.deletions,
-            reviewDecision: detail.reviewDecision,
             isAuthored: detail.viewerLogin != nil && detail.viewerLogin == detail.authorLogin,
             isReviewRequested: false,
             hasReviewed: false

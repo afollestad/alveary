@@ -333,7 +333,6 @@ private final class PullRequestsSnapshotFixture {
             updatedAt: referenceDate.addingTimeInterval(-ageMinutes * 60),
             additions: additions,
             deletions: deletions,
-            reviewDecision: nil,
             isAuthored: isAuthored,
             isReviewRequested: isReviewRequested,
             hasReviewed: hasReviewed

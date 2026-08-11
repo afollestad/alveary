@@ -103,7 +103,6 @@ func makePullRequestSummary(
         updatedAt: updatedAt,
         additions: 10,
         deletions: 3,
-        reviewDecision: nil,
         isAuthored: isAuthored,
         isReviewRequested: isReviewRequested,
         hasReviewed: hasReviewed

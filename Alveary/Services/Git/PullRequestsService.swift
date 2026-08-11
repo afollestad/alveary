@@ -121,7 +121,9 @@ struct PullRequestSummary: Identifiable, Equatable, Sendable, Codable {
     let updatedAt: Date
     let additions: Int
     let deletions: Int
-    let reviewDecision: String?
+    // No `reviewDecision`: the list search does not fetch it (see the list fragment), so the only
+    // summaries that could carry one are the detail-derived ones, and nothing reads it there.
+    // `PullRequestDetail` keeps it, which is what `get_pr` answers with.
     var isAuthored: Bool
     var isReviewRequested: Bool
     var hasReviewed: Bool

@@ -49,7 +49,7 @@ extension DemoPullRequestFixtures {
             deletions: summary.deletions,
             changedFiles: conversation.changedFiles,
             bodyMarkdown: conversation.bodyMarkdown,
-            reviewDecision: summary.reviewDecision,
+            reviewDecision: nil,
             checks: conversation.checks,
             comments: conversation.comments,
             reviews: conversation.reviews,

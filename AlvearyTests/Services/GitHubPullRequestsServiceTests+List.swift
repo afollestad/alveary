@@ -47,8 +47,6 @@ extension GitHubPullRequestsServiceTests {
         XCTAssertEqual(merged.baseRefName, "main")
         XCTAssertEqual(merged.additions, 5)
         XCTAssertEqual(merged.deletions, 2)
-        // The list does not fetch it; only a detail-derived summary carries one.
-        XCTAssertNil(merged.reviewDecision)
         XCTAssertTrue(merged.isAuthored)
         XCTAssertTrue(merged.isReviewRequested)
         XCTAssertFalse(merged.hasReviewed)
