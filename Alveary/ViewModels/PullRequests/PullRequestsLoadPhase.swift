@@ -17,7 +17,7 @@ enum PullRequestsUnavailableReason: Equatable {
             self = .notAuthenticated
         case .rateLimited:
             self = .rateLimited
-        case .requestFailed, .responseTooLarge, .decodingFailed, .transport:
+        case .requestFailed, .responseTooLarge, .decodingFailed, .queryTooExpensive, .transport:
             self = .failed(error.localizedDescription)
         }
     }

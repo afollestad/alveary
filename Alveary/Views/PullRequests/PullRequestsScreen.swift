@@ -148,10 +148,15 @@ struct PullRequestsScreen: View {
     @ViewBuilder
     private var banners: some View {
         if let errorMessage = viewModel.errorMessage {
+            // Carries its own Retry: this banner renders *over* rows that did load, so the
+            // full-screen unavailable state's Retry is not on screen, and the header's refresh
+            // icon is not a discoverable recovery from a red banner.
             InlineBanner(
                 message: errorMessage,
                 severity: .error,
                 autoDismissAfter: nil,
+                actionTitle: "Retry",
+                onAction: viewModel.retry,
                 onDismiss: viewModel.clearError
             )
         }

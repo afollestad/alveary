@@ -93,7 +93,8 @@ extension PullRequestHostToolCatalog {
             "base_branch": HostToolSchema.stringSchema,
             "additions": HostToolSchema.integerSchema(minimum: 0),
             "deletions": HostToolSchema.integerSchema(minimum: 0),
-            "review_decision": HostToolSchema.stringSchema,
+            // No `review_decision`: the list search does not fetch it — it cost over half that
+            // query on a large account. `get_pr` carries it, and its schema declares it.
             "involvement": HostToolSchema.strictObject(
                 properties: [
                     "authored": HostToolSchema.booleanSchema,

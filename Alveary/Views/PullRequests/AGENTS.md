@@ -33,6 +33,7 @@ These instructions cover the pull-request browsing UI under `Alveary/Views/PullR
 - **Tab and filters persist through `AppSettings`.** The view model restores `pullRequestsSelectedTab` / `pullRequestsStatusFilter` / `pullRequestsRepositoryFilters` in `init` and writes them only on explicit user actions — `normalizeRepositoryFilter()` never persists, so a repository absent from one fetch stays selected for the next launch. The tab is VM-owned (`selectedFilter`), not screen `@State`.
 - **The search field's binding is raw; the list trails it.** `$viewModel.searchQuery` still updates per keystroke, so typing stays responsive and the condensed search glyph tints at once, but the rows and the empty-state copy come from the debounced `activeSearchQuery` — which is invisible from the binding alone. `Alveary/ViewModels/PullRequests/AGENTS.md` owns the split and the `.zero` seam snapshot fixtures pass.
 - **Never surface task cancellation as an error.** Leaving the screen cancels the `.task` refresh; `refresh()` swallows `CancellationError` and checks `Task.isCancelled` before applying wrapped failures.
+- **The error banner carries its own Retry.** It renders *over* rows that loaded, so the `.unavailable` state's Retry is not on screen and the header's refresh icon is not a discoverable recovery from a red banner. Both call `viewModel.retry()`, which clears `errorMessage` too — leaving the message up would read as the retry failing instantly.
 
 ## Detail Pane And Overview
 

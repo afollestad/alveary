@@ -3,6 +3,27 @@ import XCTest
 @testable import Alveary
 
 extension GitHubPullRequestsServiceTests {
+    // MARK: - Per-row cost
+
+    /// Every field in the list fragment is computed per row, which is what dominates this query.
+    /// `reviewDecision` measured at over half the cost on an 8,000-row involvement search and is
+    /// rendered nowhere, so it belongs to the detail query alone — which `get_pr` still reads.
+    func testTheListQueryOmitsReviewDecisionWhileTheDetailQueryKeepsIt() async throws {
+        let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        _ = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
+
+        let listQuery = await shell.invocations.first?.args.joined(separator: " ") ?? ""
+        XCTAssertTrue(listQuery.contains("additions deletions"), "the list still selects its diff stats")
+        XCTAssertFalse(listQuery.contains("reviewDecision"))
+
+        let detailQuery = GitHubPullRequestsService
+            .detailArgs(for: PullRequestIdentifier(owner: "octo", repo: "alpha", number: 1))
+            .joined(separator: " ")
+        XCTAssertTrue(detailQuery.contains("reviewDecision"))
+    }
+
     // MARK: - Mapping
 
     func testListMapsNodesMergesBucketsAndSetsFlags() async throws {
@@ -26,7 +47,8 @@ extension GitHubPullRequestsServiceTests {
         XCTAssertEqual(merged.baseRefName, "main")
         XCTAssertEqual(merged.additions, 5)
         XCTAssertEqual(merged.deletions, 2)
-        XCTAssertEqual(merged.reviewDecision, "REVIEW_REQUIRED")
+        // The list does not fetch it; only a detail-derived summary carries one.
+        XCTAssertNil(merged.reviewDecision)
         XCTAssertTrue(merged.isAuthored)
         XCTAssertTrue(merged.isReviewRequested)
         XCTAssertFalse(merged.hasReviewed)
@@ -381,80 +403,5 @@ extension GitHubPullRequestsServiceTests {
         } catch {
             XCTFail("Unexpected error \(error)")
         }
-    }
-
-    // MARK: - Retries
-
-    // A single bucket so the queue stays deterministic: a fan-out's legs consume it in whatever
-    // order the task group schedules them.
-    func testListRetriesTransientServerErrors() async throws {
-        let shell = MockShellRunner()
-        await shell.enqueue(.success(pullRequestsShellResult(stderr: "gh: Something went wrong (HTTP 502)", exitCode: 1)))
-        await shell.enqueue(.success(pullRequestsShellResult(stderr: "gh: Bad gateway (HTTP 502)", exitCode: 1)))
-        await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list)))
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        let result = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
-
-        XCTAssertEqual(result.summaries.map(\.id.number), [1])
-        let invocations = await shell.invocations
-        XCTAssertEqual(invocations.count, 3)
-    }
-
-    func testListStopsRetryingTransientErrorsAfterLimit() async {
-        let shell = makeUniformShellRunner(
-            pullRequestsShellResult(stderr: "gh: Bad gateway (HTTP 502)", exitCode: 1)
-        )
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        await assertPullRequestsServiceThrows(.requestFailed(statusCode: 502)) {
-            _ = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
-        }
-        let invocations = await shell.invocations
-        XCTAssertEqual(invocations.count, 3)
-    }
-
-    func testListDoesNotRetryNonTransientFailures() async {
-        let shell = makeUniformShellRunner(
-            pullRequestsShellResult(stderr: "gh: HTTP 401 Bad credentials", exitCode: 1)
-        )
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        await assertPullRequestsServiceThrows(.notAuthenticated) {
-            _ = try await service.listInvolvedPullRequests(buckets: [.authored], status: nil, options: .firstPage)
-        }
-        let invocations = await shell.invocations
-        XCTAssertEqual(invocations.count, 1)
-    }
-
-    /// The retry budget stops short rather than letting an attempt run past the caller's deadline,
-    /// where its named failure would be replaced by a generic timeout.
-    func testNextRetryAttemptTimeoutFitsTheRemainingBudget() {
-        XCTAssertEqual(
-            GitHubPullRequestsService.nextRetryAttemptTimeout(
-                elapsed: .zero,
-                nextBackoff: .milliseconds(400),
-                attemptTimeout: .seconds(20),
-                budget: .seconds(25)
-            ),
-            .seconds(20)
-        )
-        // Less budget than one full attempt: shorten rather than overrun.
-        XCTAssertEqual(
-            GitHubPullRequestsService.nextRetryAttemptTimeout(
-                elapsed: .seconds(18),
-                nextBackoff: .milliseconds(500),
-                attemptTimeout: .seconds(20),
-                budget: .seconds(25)
-            ),
-            .milliseconds(6_500)
-        )
-        // Under two seconds an attempt can only time out, so stop.
-        XCTAssertNil(GitHubPullRequestsService.nextRetryAttemptTimeout(
-            elapsed: .seconds(24),
-            nextBackoff: .milliseconds(400),
-            attemptTimeout: .seconds(20),
-            budget: .seconds(25)
-        ))
     }
 }

@@ -307,6 +307,11 @@ enum PullRequestsServiceError: Error, Sendable, Equatable {
     case requestFailed(statusCode: Int)
     case responseTooLarge
     case decodingFailed(String)
+    /// GitHub refused the query as too expensive to run, rather than failing to run it. It
+    /// arrives as a GraphQL body error with no HTTP status, so it would otherwise land in
+    /// `.transport` and surface GitHub's own sentence verbatim to the user. Retrying is
+    /// pointless — the same query costs the same next time — so the remedy is a cheaper query.
+    case queryTooExpensive
     case transport(String)
 }
 
@@ -325,6 +330,8 @@ extension PullRequestsServiceError: LocalizedError {
             return "GitHub response exceeded the size limit"
         case .decodingFailed(let message):
             return "Unable to read the GitHub response: \(message)"
+        case .queryTooExpensive:
+            return "This GitHub search is too large for GitHub to complete"
         case .transport(let message):
             return message
         }

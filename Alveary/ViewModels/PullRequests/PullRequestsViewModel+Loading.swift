@@ -72,8 +72,12 @@ extension PullRequestsViewModel {
         await load(buckets: selectedFilter.requiredBuckets.subtracting(inFlightBuckets))
     }
 
+    /// Clears the banner as well as the typed failures: the error banner offers this as its own
+    /// action, so leaving the message up would read as the retry having failed instantly. The
+    /// reload republishes it if the cause has not gone away.
     func retry() {
         bucketFailures = [:]
+        errorMessage = nil
         requestRefresh()
     }
 

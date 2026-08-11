@@ -172,18 +172,32 @@ extension GitHubPullRequestsService {
         let startedAt = clock.now
         var attempt = 0
         var attemptTimeout = timeout
+        var lastTransientFailure: ShellResult?
         while true {
-            let result = try await runGitHubCLI(
-                executable: executable,
-                args: args,
-                timeout: attemptTimeout,
-                stdoutLimitBytes: stdoutLimitBytes
-            )
+            let result: ShellResult
+            do {
+                result = try await runGitHubCLI(
+                    executable: executable,
+                    args: args,
+                    timeout: attemptTimeout,
+                    stdoutLimitBytes: stdoutLimitBytes
+                )
+            } catch {
+                // A retry attempt runs on a shortened timeout this function chose, so its timing
+                // out says nothing the caller can act on — while the 5xx that caused the retry
+                // does. Surface the failure already in hand rather than replacing it with
+                // `.transport("… timed out after N seconds")`.
+                guard let lastTransientFailure else {
+                    throw error
+                }
+                return lastTransientFailure
+            }
             guard !result.succeeded,
                   attempt < Self.maxTransientRetries,
                   Self.isTransientServerFailure(result) else {
                 return result
             }
+            lastTransientFailure = result
             attempt += 1
             let backoff = transientRetryDelay * attempt
             if let retryBudget {
@@ -206,10 +220,14 @@ extension GitHubPullRequestsService {
         }
     }
 
+    /// The shortest attempt worth starting. A real list request measures around four seconds, so
+    /// anything under this can only time out — and spending the tail of the budget on an attempt
+    /// that cannot win is what replaces a nameable failure with a generic one. Two seconds was
+    /// too low to prevent that: after two gateway timeouts the third attempt got about three
+    /// seconds, timed out, and buried the 504 behind "timed out after 3 seconds".
+    static let minimumRetryAttemptTimeout = Duration.seconds(5)
+
     /// How long the next retry may run, or nil to stop and return the failure already in hand.
-    /// Under two seconds an attempt can only time out, and doing that *past* the budget is the
-    /// case this exists to prevent — a caller's own deadline would fire first and replace a
-    /// nameable failure with a generic one.
     static func nextRetryAttemptTimeout(
         elapsed: Duration,
         nextBackoff: Duration,
@@ -217,7 +235,7 @@ extension GitHubPullRequestsService {
         budget: Duration
     ) -> Duration? {
         let remaining = budget - elapsed - nextBackoff
-        guard remaining >= .seconds(2) else {
+        guard remaining >= minimumRetryAttemptTimeout else {
             return nil
         }
         return min(attemptTimeout, remaining)
@@ -282,12 +300,28 @@ extension GitHubPullRequestsService {
         }
         let warnings = Self.uniqueMessages(from: response.errors)
         guard let data = response.data else {
+            // The body is checked before the exit code: GitHub states an over-expensive query in
+            // the GraphQL `errors` array, which `makeError` cannot see because it reads stderr.
+            if let classified = warnings.lazy.compactMap(Self.classify(graphQLMessage:)).first {
+                throw classified
+            }
             if !result.succeeded {
                 throw Self.makeError(from: result)
             }
             throw PullRequestsServiceError.transport(warnings.first ?? "GraphQL query returned no data")
         }
         return (data, warnings)
+    }
+
+    /// Recognizes GitHub's refusal to *run* a query, as opposed to a query that ran and failed.
+    /// It carries no HTTP status, so without this it falls through to `.transport` and surfaces
+    /// GitHub's raw sentence to the user. Both null-data paths run through it — `makeError` for a
+    /// message on stderr, `decodeGraphQL` for one that arrives only in the response body.
+    static func classify(graphQLMessage message: String) -> PullRequestsServiceError? {
+        guard message.range(of: "resource limit", options: .caseInsensitive) != nil else {
+            return nil
+        }
+        return .queryTooExpensive
     }
 
     static func makeError(from result: ShellResult) -> PullRequestsServiceError {
@@ -302,6 +336,9 @@ extension GitHubPullRequestsService {
         if message.contains("HTTP 403"),
            message.range(of: "rate limit", options: .caseInsensitive) != nil {
             return .rateLimited
+        }
+        if let classified = classify(graphQLMessage: message) {
+            return classified
         }
         if let statusCode = httpStatusCode(in: message) {
             return .requestFailed(statusCode: statusCode)
@@ -320,14 +357,20 @@ extension GitHubPullRequestsService {
         return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The status is read from the digits that follow an `HTTP` marker, not from the first
+    /// in-range number anywhere in the message: `gh` puts repository and pull request numbers on
+    /// stderr too, and one of those landing first used to be returned as the status — which
+    /// silently disabled the transient-failure retry for the 5xx that actually occurred.
     static func httpStatusCode(in message: String) -> Int? {
-        guard message.contains("HTTP") else {
-            return nil
+        var searchRange = message.startIndex..<message.endIndex
+        while let marker = message.range(of: "HTTP", range: searchRange) {
+            let afterMarker = message[marker.upperBound...].drop { $0 == " " || $0 == ":" }
+            if let status = Int(afterMarker.prefix(while: \.isNumber)), (100...599).contains(status) {
+                return status
+            }
+            searchRange = marker.upperBound..<message.endIndex
         }
-        return message
-            .split { !$0.isNumber }
-            .compactMap { Int($0) }
-            .first { (100...599).contains($0) }
+        return nil
     }
 
     static func uniqueMessages(from errors: [GraphQLErrorEntry]?) -> [String] {

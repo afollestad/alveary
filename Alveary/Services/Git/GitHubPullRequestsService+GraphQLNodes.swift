@@ -55,7 +55,7 @@ struct PullRequestListNode: Decodable {
     let updatedAt: Date?
     let additions: Int?
     let deletions: Int?
-    let reviewDecision: String?
+    // No `reviewDecision`: the list fragment does not select it — see the comment there.
     let repository: GraphQLRepositoryNode?
 }
 

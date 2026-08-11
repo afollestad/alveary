@@ -88,14 +88,22 @@ extension GitHubPullRequestsService {
         """
     }
 
-    // Deliberately omits `statusCheckRollup`: the list never shows check status, and rollup is
-    // the field that makes GitHub's GraphQL endpoint slow and 502-prone — without it the
-    // combined query is cheap. One constant so that invariant has a single place to hold.
+    // Every field here is computed *per row*, which is what dominates this query's cost — so a
+    // field the list does not render must not be here. Two are deliberately absent, both for the
+    // same reason and both still fetched by the detail query:
+    //
+    // - `statusCheckRollup`, which makes GitHub's search slow and 502-prone.
+    // - `reviewDecision`, measured at over half this query's cost on a large account: an 8,000-row
+    //   involvement search ran 8.1s with it and 3.8s without, and both Reviewing legs together
+    //   went 7.2s to 3.6s. Nothing renders it (the Overview shows the Reviewers list instead), and
+    //   `get_pr` still carries it for the host tool.
+    //
+    // One constant so that invariant has a single place to hold.
     private static let listFragment = """
     fragment pr on PullRequest {
       number title url state isDraft
       author { login avatarUrl(size: 64) }
-      headRefName baseRefName updatedAt additions deletions reviewDecision
+      headRefName baseRefName updatedAt additions deletions
       repository { nameWithOwner }
     }
     """

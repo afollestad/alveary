@@ -183,9 +183,8 @@ private extension PullRequestHostToolService {
         if let url = summary.url {
             row["url"] = .string(url.absoluteString)
         }
-        if let reviewDecision = summary.reviewDecision {
-            row["review_decision"] = .string(reviewDecision)
-        }
+        // No `review_decision`: the list search does not fetch it, so a row could only ever omit
+        // it. `get_pr` reads it for a model that needs one pull request's verdict.
         return .object(row)
     }
 

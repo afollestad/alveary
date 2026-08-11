@@ -22,7 +22,6 @@ enum PullRequestsServiceFixtures {
             "updatedAt": "2026-07-01T10:00:00Z",
             "additions": 5,
             "deletions": 2,
-            "reviewDecision": "REVIEW_REQUIRED",
             "repository": { "nameWithOwner": "octo/alpha" }
           }
         },

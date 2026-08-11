@@ -332,4 +332,32 @@ extension PullRequestsViewModelTests {
             .unavailable(PullRequestsUnavailableReason(.rateLimited))
         )
     }
+
+    /// The error banner offers Retry itself, so the message has to go with the typed failures —
+    /// a banner still reading the old failure alongside a fresh load reads as the retry having
+    /// failed instantly.
+    func testRetryClearsTheBannerAlongsideTheTypedFailures() async {
+        let service = StubPullRequestsService()
+        service.listResult = .success(PullRequestListResult(
+            summaries: [makePullRequestSummary(number: 1, isAuthored: true)],
+            warnings: []
+        ))
+        let viewModel = makePullRequestsViewModel(service: service)
+        viewModel.selectFilter(.authored)
+        await viewModel.refresh()
+
+        // The banner only exists over rows that loaded; a tab with nothing to show goes
+        // `.unavailable` instead and carries its own Retry.
+        service.listResult = .failure(.rateLimited)
+        await viewModel.refresh()
+
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.bucketFailures.isEmpty)
+
+        viewModel.retry()
+
+        // Both clear synchronously; the reload it spawns republishes them if the cause remains.
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertTrue(viewModel.bucketFailures.isEmpty)
+    }
 }
