@@ -316,6 +316,11 @@ private extension ContentView {
             .frame(width: 0, height: 0)
         }
         .toolbar(removing: .title)
+        // macOS 27 gives the toolbar its own elevated fill on the pane screens — measured ~10
+        // levels lighter than the window background the header and content beneath it draw on —
+        // though not on the AppKit-hosted transcript. Hiding it makes the toolbar defer to that
+        // same background, so the chrome stays one band split only by `AppSeparatorHairline`.
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .toolbar {
             rootToolbarContent
         }
