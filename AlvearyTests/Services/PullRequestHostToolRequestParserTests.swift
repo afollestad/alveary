@@ -21,8 +21,21 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
 
     func testAnInvalidFilterNamesTheValidValues() {
         XCTAssertThrowsError(try parser.parseListRequest(arguments: ["filter": .string("mine")])) { error in
-            XCTAssertTrue(error.localizedDescription.contains("all, authored, reviewing"))
+            XCTAssertTrue(error.localizedDescription.contains("all, authored, reviewing, reviewed"))
         }
+    }
+
+    /// The two review scopes are separate searches, so each has to reach the service as one bucket:
+    /// `reviewing` is what awaits the user's review and `reviewed` is what already had it.
+    func testTheReviewFiltersEachResolveToOneBucket() throws {
+        XCTAssertEqual(
+            try parser.parseListRequest(arguments: ["filter": .string("reviewing")]).buckets,
+            [.reviewRequested]
+        )
+        XCTAssertEqual(
+            try parser.parseListRequest(arguments: ["filter": .string("reviewed")]).buckets,
+            [.reviewed]
+        )
     }
 
     /// The no-arguments call is what every model makes first, so its defaults are the behavior
@@ -69,8 +82,11 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
     /// A paginating model passes the cursor alone, so the token has to supply the rest of the
     /// query — otherwise page two would silently be a different search.
     func testACursorAloneInheritsTheQueryItIsPaging() throws {
+        // `all` is the only multi-bucket filter, so it is what can carry a token down to one
+        // bucket; the non-default status, limit, and bound are what prove the token supplied the
+        // query rather than the parser falling back to its defaults.
         let token = PullRequestListCursorToken(
-            filter: .reviewing,
+            filter: .all,
             limit: 5,
             status: .closed,
             updatedAfter: Date(timeIntervalSince1970: 1_767_225_600),
@@ -81,7 +97,7 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
 
         let request = try parser.parseListRequest(arguments: ["cursor": .string(try token.encoded())])
 
-        XCTAssertEqual(request.filter, .reviewing)
+        XCTAssertEqual(request.filter, .all)
         XCTAssertEqual(request.limit, 5)
         XCTAssertEqual(request.status, .closed)
         XCTAssertEqual(request.updatedAfter, Date(timeIntervalSince1970: 1_767_225_600))

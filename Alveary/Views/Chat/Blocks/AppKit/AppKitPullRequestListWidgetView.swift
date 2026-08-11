@@ -86,10 +86,10 @@ private extension AppKitPullRequestListWidgetView {
         }
         let allRows = configuration.content.rows
         let visible = isExpanded ? allRows : Array(allRows.prefix(Self.collapsedRowLimit))
-        for (index, row) in visible.enumerated() {
-            if index > 0 {
-                stack.addFullWidthArrangedSubview(divider())
-            }
+        // The first row takes a rule too, separating the list from the card's own header rather
+        // than letting the topmost row read as a continuation of the summary line.
+        for row in visible {
+            stack.addFullWidthArrangedSubview(divider())
             stack.addFullWidthArrangedSubview(rowView(row, configuration: configuration))
         }
         // The toggle stays once the list is long enough to fold, in both states, so expanding is

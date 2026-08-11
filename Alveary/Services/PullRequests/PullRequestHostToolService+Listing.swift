@@ -6,9 +6,10 @@ extension PullRequestHostToolService {
     ///
     /// GitHub's search is what bounds this: the service asks for the user's own authored,
     /// review-requested, and reviewed buckets, so there is no way to steer it at an arbitrary
-    /// repository. The filter narrows that merged set the same way the Pull Requests screen's tabs
-    /// do, so the tool and the UI can never disagree about what "reviewing" means — and it picks
-    /// the buckets to fetch, so a narrow filter costs one search rather than three.
+    /// repository. The filter picks which of those to fetch, so every narrow filter costs one
+    /// search rather than three, and narrows the merged set to the same rows the Pull Requests
+    /// screen puts under the matching *section* — `reviewing` is what awaits the user's review,
+    /// never what they already reviewed.
     ///
     /// Open by default: this answers "what is on my plate", where a merged or closed pull request
     /// is noise, and unlike the screen there is no user session carrying a choice. `status` is what
@@ -188,8 +189,27 @@ private extension PullRequestHostToolService {
         return .object(row)
     }
 
+    /// The involvement phrase rides *inside* the trailing parenthetical because the transcript
+    /// card's text fallback reads that shape: it takes the last `(` as the metadata start and the
+    /// first comma-separated component as the status, so appending leaves both untouched.
     static func textRow(_ summary: PullRequestSummary) -> String {
-        "- \(summary.id.displayKey) \(summary.title) (\(summary.status.rawValue), " +
-            "by \(summary.authorLogin), +\(summary.additions)/-\(summary.deletions))"
+        let metadata = [
+            summary.status.rawValue,
+            "by \(summary.authorLogin)",
+            "+\(summary.additions)/-\(summary.deletions)",
+            involvementPhrase(summary)
+        ].compactMap { $0 }
+        return "- \(summary.id.displayKey) \(summary.title) (\(metadata.joined(separator: ", ")))"
+    }
+
+    /// What the structured half carries as `involvement`, for the text-only consumers that never
+    /// see it — without this a `filter: "all"` row cannot say whether it awaits the user's review
+    /// or already had it. Split like the screen's sections: a re-request reads as pending, and an
+    /// authored-only row adds nothing, since its author is already on the line.
+    static func involvementPhrase(_ summary: PullRequestSummary) -> String? {
+        if summary.isReviewRequested {
+            return "review requested"
+        }
+        return summary.hasReviewed ? "already reviewed" : nil
     }
 }

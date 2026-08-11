@@ -147,6 +147,8 @@ private extension HostToolWidgetSummary {
             "\(phrase) you opened"
         case .reviewing:
             "\(phrase) to review"
+        case .reviewed:
+            "\(phrase) you reviewed"
         case .all, nil:
             "\(phrase) you are involved in"
         }

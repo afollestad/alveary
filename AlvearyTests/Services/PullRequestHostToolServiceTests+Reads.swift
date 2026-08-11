@@ -5,7 +5,10 @@ import XCTest
 @testable import Alveary
 
 extension PullRequestHostToolServiceTests {
-    func testListAppliesTheSameFilterMappingTheScreenUses() async throws {
+    /// The question "what needs my review" is answered by `reviewing`, so an already-reviewed pull
+    /// request must not appear there — the screen separates the two into sections, which a flat
+    /// tool result cannot do.
+    func testEachFilterListsOneInvolvementAndReviewingExcludesWhatWasAlreadyReviewed() async throws {
         let fixture = try PullRequestHostToolFixture()
         fixture.pullRequests.listResult = .success(
             PullRequestListResult(
@@ -26,18 +29,98 @@ extension PullRequestHostToolServiceTests {
         )
         XCTAssertEqual(authored["total_count"], .number(1))
 
-        // Reviewing covers both a pending request and an already-submitted review, matching
-        // `PullRequestsViewModel`'s tab.
         let reviewing = try object(
             await fixture.handle(
                 PullRequestHostToolCatalog.listToolName,
                 arguments: ["filter": .string("reviewing")]
             ).structuredContent
         )
-        XCTAssertEqual(reviewing["total_count"], .number(2))
+        XCTAssertEqual(reviewing["total_count"], .number(1))
+        XCTAssertEqual(try listedNumbers(reviewing), [2])
+
+        let reviewed = try object(
+            await fixture.handle(
+                PullRequestHostToolCatalog.listToolName,
+                arguments: ["filter": .string("reviewed")]
+            ).structuredContent
+        )
+        XCTAssertEqual(reviewed["total_count"], .number(1))
+        XCTAssertEqual(try listedNumbers(reviewed), [3])
 
         let all = try object(await fixture.handle(PullRequestHostToolCatalog.listToolName).structuredContent)
         XCTAssertEqual(all["total_count"], .number(3))
+    }
+
+    /// Each review scope is one GitHub search, which is the whole reason the filter picks buckets
+    /// rather than narrowing a merged set after the fact.
+    func testEachReviewFilterFetchesOnlyItsOwnBucket() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.listResult = .success(PullRequestListResult(summaries: [], warnings: []))
+
+        _ = await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: ["filter": .string("reviewing")]
+        )
+        _ = await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: ["filter": .string("reviewed")]
+        )
+
+        XCTAssertEqual(fixture.pullRequests.listRequests.map(\.buckets), [[.reviewRequested], [.reviewed]])
+    }
+
+    /// GitHub clears the review request when a review is submitted, so a pull request carrying both
+    /// flags was requested *again* afterwards and is genuinely waiting — the same rule the screen's
+    /// "Pending review" section follows.
+    func testAReRequestedPullRequestStillNeedsReview() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.listResult = .success(
+            PullRequestListResult(
+                summaries: [
+                    makePullRequestSummary(
+                        number: 4,
+                        repo: "octo/alpha",
+                        isReviewRequested: true,
+                        hasReviewed: true
+                    )
+                ],
+                warnings: []
+            )
+        )
+
+        let reviewing = try object(
+            await fixture.handle(
+                PullRequestHostToolCatalog.listToolName,
+                arguments: ["filter": .string("reviewing")]
+            ).structuredContent
+        )
+
+        XCTAssertEqual(try listedNumbers(reviewing), [4])
+    }
+
+    /// The text half carries no `involvement` object, so without the phrase a Codex-style consumer
+    /// reading a `filter: "all"` result cannot tell what awaits review from what already had it.
+    func testTheTextFallbackSaysWhichRowsAwaitReview() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        fixture.pullRequests.listResult = .success(
+            PullRequestListResult(
+                summaries: [
+                    makePullRequestSummary(number: 2, repo: "octo/alpha", title: "Awaits", isReviewRequested: true),
+                    makePullRequestSummary(number: 3, repo: "octo/alpha", title: "Done", hasReviewed: true),
+                    makePullRequestSummary(number: 1, repo: "octo/alpha", title: "Mine", isAuthored: true)
+                ],
+                warnings: []
+            )
+        )
+
+        let text = await fixture.handle(PullRequestHostToolCatalog.listToolName).text
+
+        let rows = text.split(separator: "\n").filter { $0.hasPrefix("- ") }
+        XCTAssertEqual(rows.count, 3, text)
+        XCTAssertTrue(try XCTUnwrap(rows.first { $0.contains("#2") }).hasSuffix(", review requested)"), text)
+        XCTAssertTrue(try XCTUnwrap(rows.first { $0.contains("#3") }).hasSuffix(", already reviewed)"), text)
+        // An authored-only row says nothing extra: its author is already on the line.
+        XCTAssertFalse(try XCTUnwrap(rows.first { $0.contains("#1") }).contains("review"), text)
     }
 
     func testListSurfacesPartialResultWarningsSoTheModelCannotClaimCompleteness() async throws {
@@ -310,5 +393,16 @@ extension PullRequestHostToolServiceTests {
         let thread = try XCTUnwrap(events.first { $0["type"] == .string("review_thread") })
         XCTAssertEqual(thread["is_outdated"], .bool(true))
         XCTAssertTrue(result.text.contains("outdated"), result.text)
+    }
+
+    /// The rows a list call actually emitted, so a filter assertion can name them instead of
+    /// trusting a count that several fixtures could satisfy.
+    func listedNumbers(_ content: [String: AgentCLIKit.JSONValue]) throws -> [Int] {
+        try array(content["pull_requests"]).compactMap { row in
+            guard case .number(let number)? = try object(row)["number"] else {
+                return nil
+            }
+            return Int(number)
+        }
     }
 }

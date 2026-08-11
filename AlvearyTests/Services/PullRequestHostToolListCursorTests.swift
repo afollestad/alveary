@@ -106,7 +106,7 @@ final class PullRequestHostToolListCursorTests: XCTestCase {
 
     func testTheTokenRoundTripsTheWholeQueryAndIsDeterministic() throws {
         let token = PullRequestListCursorToken(
-            filter: .reviewing,
+            filter: .all,
             limit: 20,
             status: .merged,
             updatedAfter: Date(timeIntervalSince1970: 1_767_225_600),

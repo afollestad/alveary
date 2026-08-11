@@ -98,6 +98,21 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
         XCTAssertTrue(instructions.contains(listLinked.name))
     }
 
+    /// "What needs my review" reaches the reviewing scope, so its copy may never describe that
+    /// scope as also covering what the user already reviewed — the wording it had is what made the
+    /// model report finished reviews as still waiting.
+    func testTheReviewingScopeIsNotDescribedAsCoveringAlreadyReviewedPullRequests() throws {
+        let listInvolved = try XCTUnwrap(
+            AlvearyHostToolCatalog.tools.first { $0.name == PullRequestHostToolCatalog.listToolName }
+        )
+
+        XCTAssertTrue(listInvolved.description.contains("\"reviewing\" (waiting on this user's review"))
+        XCTAssertTrue(listInvolved.description.contains("\"reviewed\" (this user already reviewed it)"))
+        // The fragment is what routes the question to that scope rather than to the unfiltered call.
+        let instructions = try XCTUnwrap(AlvearyHostToolCatalog.serverMetadata.instructions)
+        XCTAssertTrue(instructions.contains("filter: \"reviewing\""))
+    }
+
     /// The draft directions are one reversible pair, so each description names the other as its
     /// undo — without that the model describes either direction as final.
     func testTheDraftDirectionToolsNameEachOtherAsTheUndo() throws {

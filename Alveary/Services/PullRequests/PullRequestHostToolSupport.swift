@@ -1,15 +1,18 @@
 import AgentCLIKit
 import Foundation
 
-/// The list scope `list_involved_prs` takes; the mapping to summary flags matches the
-/// Pull Requests screen's tabs so the tool and the UI never disagree.
+/// The list scope `list_involved_prs` takes. Each narrow scope is one of the Pull Requests
+/// screen's *sections* rather than one of its tabs: the screen's Reviewing tab renders both review
+/// buckets and sections them, which a flat tool result cannot do, so `reviewing` here is the
+/// "Pending review" half alone and `reviewed` is "Previously reviewed".
 enum PullRequestHostToolListFilter: String, CaseIterable {
     case all
     case authored
     case reviewing
+    case reviewed
 
-    /// The involvement buckets this scope needs fetched, so a narrow filter costs one search
-    /// instead of three. Mirrors `PullRequestsFilter.requiredBuckets` for the tab it matches.
+    /// The involvement buckets this scope needs fetched, so every narrow filter costs one search
+    /// instead of three.
     var requiredBuckets: Set<PullRequestInvolvementBucket> {
         switch self {
         case .all:
@@ -17,10 +20,15 @@ enum PullRequestHostToolListFilter: String, CaseIterable {
         case .authored:
             return [.authored]
         case .reviewing:
-            return [.reviewRequested, .reviewed]
+            return [.reviewRequested]
+        case .reviewed:
+            return [.reviewed]
         }
     }
 
+    /// A re-requested pull request satisfies both review scopes: GitHub clears the review request
+    /// when a review is submitted, so one carrying both flags was requested *again* afterwards and
+    /// is genuinely waiting — matching the screen, where a re-request counts as pending.
     func matches(_ summary: PullRequestSummary) -> Bool {
         switch self {
         case .all:
@@ -28,7 +36,9 @@ enum PullRequestHostToolListFilter: String, CaseIterable {
         case .authored:
             summary.isAuthored
         case .reviewing:
-            summary.isReviewRequested || summary.hasReviewed
+            summary.isReviewRequested
+        case .reviewed:
+            summary.hasReviewed
         }
     }
 }

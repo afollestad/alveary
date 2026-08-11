@@ -44,8 +44,10 @@ enum PullRequestHostToolCatalog {
     work stays your own git and gh pr create workflow; use these tools on the pull request that results. \
     list_involved_prs answers "list my pull requests", "what needs my review", "what am I working on", and every other \
     request to see them: it searches GitHub for everything the user authors or reviews, including other people's pull \
-    requests awaiting their review. Never answer those with the threads feature's list_linked_prs, which reads only what \
-    was attached to one Alveary thread by hand and will look empty or misleadingly short. Alveary renders the results as a \
+    requests awaiting their review. Pass filter: "reviewing" for what is waiting on the user's review; the unfiltered \
+    call also returns what they have already reviewed. Never answer those with the threads feature's \
+    list_linked_prs, which reads only what was attached to one Alveary thread by hand and will look empty or \
+    misleadingly short. Alveary renders the results as a \
     list the user can click, so answer what they asked instead of repeating the rows back. get_pr, get_pr_timeline, and \
     get_pr_diff read one pull request, and thread_id values come from their output — never invent one. When the user \
     asks you to review a pull request, in any words, call get_pr_review_instructions before anything else: the user \

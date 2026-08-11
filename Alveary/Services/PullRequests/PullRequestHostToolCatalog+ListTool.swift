@@ -14,8 +14,9 @@ extension PullRequestHostToolCatalog {
         repository. These are not only the user's own pull requests — the reviewing side returns other people's, opened \
         by their authors and waiting on this user. Called with no arguments it returns open pull requests only, so it \
         cannot answer a question about a finished one unless status says so. filter narrows to "authored", "reviewing" \
-        (asked to review or already reviewed), or "all" (the default). status picks exactly one of open (the default), \
-        draft, merged, or closed — GitHub search cannot combine them, so ask for one per call. updated_after and \
+        (waiting on this user's review, which is what needs it), "reviewed" (this user already reviewed it), or "all" \
+        (the default). status picks exactly one of open (the default), draft, merged, or closed — GitHub search cannot \
+        combine them, so ask for one per call. updated_after and \
         updated_before are UTC YYYY-MM-DD bounds on last activity. limit sets rows per call, 1 to 50 (the default). \
         Involvement is the whole search, so it cannot list an arbitrary repository's pull requests, and it is not \
         list_linked_prs, which reads Alveary's local record of what was attached to one thread by hand. total_count \

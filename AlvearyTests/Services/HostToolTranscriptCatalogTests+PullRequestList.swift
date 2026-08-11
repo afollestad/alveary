@@ -80,6 +80,27 @@ extension HostToolTranscriptCatalogTests {
         XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "No pull requests to review")
     }
 
+    /// The scope's copy has to tell the two review filters apart, or a `reviewed` call reads as a
+    /// pile of work still waiting.
+    func testTheReviewedScopeNamesItselfAsAlreadyReviewed() throws {
+        let content = try XCTUnwrap(
+            PullRequestListWidgetParsing.content(
+                input: #"{"filter":"reviewed"}"#,
+                output: #"{"filter":"reviewed","pull_requests":[],"total_count":0}"#,
+                isError: false
+            )
+        )
+
+        XCTAssertEqual(content.filter, .reviewed)
+        let entry = HostToolWidgetEntry(
+            id: "tool-1",
+            toolName: PullRequestHostToolCatalog.listToolName,
+            content: .pullRequestList(content),
+            isComplete: true
+        )
+        XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "No pull requests you reviewed")
+    }
+
     /// Some providers persist only the tool's plain-text fallback, so the card has to read its
     /// rows out of that too — otherwise it lands with nothing to show.
     func testRowsAreReadFromThePlainTextFallback() throws {
@@ -112,8 +133,18 @@ extension HostToolTranscriptCatalogTests {
         fixture.pullRequests.listResult = .success(
             PullRequestListResult(
                 summaries: [
-                    makePullRequestSummary(number: 7, repo: "octo/alpha", title: "Retry transient failures"),
-                    makePullRequestSummary(number: 12, repo: "octo/beta", title: "Split the coordinator")
+                    makePullRequestSummary(
+                        number: 7,
+                        repo: "octo/alpha",
+                        title: "Retry transient failures",
+                        isReviewRequested: true
+                    ),
+                    makePullRequestSummary(
+                        number: 12,
+                        repo: "octo/beta",
+                        title: "Split the coordinator",
+                        hasReviewed: true
+                    )
                 ],
                 warnings: ["octo-corp is not SSO-authorized"]
             )
@@ -124,6 +155,10 @@ extension HostToolTranscriptCatalogTests {
             PullRequestListWidgetParsing.content(input: Self.listInput, output: result.text, isError: false)
         )
         XCTAssertEqual(content.rows.map(\.identifier.displayKey), ["octo/alpha#7", "octo/beta#12"])
+        // The involvement phrase rides inside the metadata parenthetical, so it must leave the
+        // title and the status the parser reads out of that same shape alone.
+        XCTAssertEqual(content.rows.map(\.title), ["Retry transient failures", "Split the coordinator"])
+        XCTAssertEqual(content.rows.map(\.status), [.open, .open])
         XCTAssertEqual(content.totalCount, 2)
         XCTAssertTrue(content.hasWarnings)
     }
