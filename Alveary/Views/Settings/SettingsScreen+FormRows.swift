@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsFormSection<Content: View>: View {
@@ -123,6 +124,39 @@ struct SettingsToggleRow: View {
             return
         }
         isOn.toggle()
+    }
+}
+
+/// Explains why a setting is not doing what its control says, and hands the user the System
+/// Settings pane that owns the real answer. macOS keeps the authority for notification
+/// authorization and login items, so a toggle here can be overruled from outside the app.
+struct SettingsSystemSettingsHintRow: View {
+    let message: String
+    /// Tried in order; later entries are fallbacks for panes that moved between macOS releases.
+    let urlCandidates: [String]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Open System Settings", action: openSystemSettings)
+                .secondaryActionButtonStyle()
+        }
+    }
+
+    private func openSystemSettings() {
+        for urlString in urlCandidates {
+            guard let url = URL(string: urlString) else {
+                continue
+            }
+            if NSWorkspace.shared.open(url) {
+                return
+            }
+        }
     }
 }
 

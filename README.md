@@ -66,6 +66,8 @@ Release workflow details live in [RELEASING.md](RELEASING.md).
 
 Alveary keeps a system menu bar item with your five most recent threads plus New Thread, Open Alveary, Settings, and Quit. Because that item is a way back into the app, closing the main window no longer quits Alveary: agent runs, scheduled tasks, and the app-shot shortcut keep going, and clicking the Dock icon or **Open Alveary** brings the window back. Turn the item off in **Settings → Menu bar**; the Dock icon remains either way.
 
+The same tab has **Launch at startup**, which registers Alveary as a macOS login item. macOS owns that registration, so the switch reflects System Settings → General → Login Items rather than a saved preference, and it tells you when the item is switched off there.
+
 ## Voice Input
 
 Voice input records from the system-default microphone and transcribes English speech on device. Microphone audio and recognition output are not stored separately or sent to remote servers; committed dictation becomes ordinary composer text. Dictation requires Apple silicon, while Alveary remains a universal app.

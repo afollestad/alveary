@@ -120,7 +120,8 @@ extension ContentView {
             },
             agentRegistry: dependencies.agentRegistry,
             globalAgentInstructionsService: dependencies.globalAgentInstructionsService,
-            soundPreviewer: soundPreviewer.play
+            soundPreviewer: soundPreviewer.play,
+            launchAtStartupService: DefaultLaunchAtStartupService()
         )
     }
 

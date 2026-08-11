@@ -17,10 +17,15 @@ final class SettingsViewModel {
     @ObservationIgnored let instructionsEditor: GlobalInstructionsEditorModel
     @ObservationIgnored private let codeFontFamilyLoader: @MainActor () -> [String]
     @ObservationIgnored private let soundPreviewer: @MainActor (String) -> Void
+    @ObservationIgnored private let launchAtStartupService: any LaunchAtStartupService
 
     var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
     var providerOrdering: [String] = []
     var hasLoadedProviderStatuses = false
+    /// Mirrors the login-item registration macOS owns; there is no `AppSettings` key behind it.
+    private(set) var launchAtStartupStatus: LaunchAtStartupStatus = .disabled
+    /// Set when macOS refuses a registration change, so the row can point at System Settings.
+    private(set) var didFailToChangeLaunchAtStartup = false
     private var loadedCodeFontFamilyOptions: [String]?
 
     init(
@@ -30,7 +35,8 @@ final class SettingsViewModel {
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         globalAgentInstructionsService: GlobalAgentInstructionsService? = nil,
         codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies },
-        soundPreviewer: @escaping @MainActor (String) -> Void = { _ in }
+        soundPreviewer: @escaping @MainActor (String) -> Void = { _ in },
+        launchAtStartupService: any LaunchAtStartupService = InertLaunchAtStartupService()
     ) {
         self.settingsService = settingsService
         self.providerDiscovery = providerDiscovery
@@ -43,6 +49,8 @@ final class SettingsViewModel {
         )
         self.codeFontFamilyLoader = codeFontFamilyLoader
         self.soundPreviewer = soundPreviewer
+        self.launchAtStartupService = launchAtStartupService
+        launchAtStartupStatus = launchAtStartupService.status
     }
 
     var themeOptions: [String] {
@@ -169,6 +177,43 @@ final class SettingsViewModel {
     var showsMenuBarIcon: Bool {
         get { settingsService.current.showsMenuBarIcon }
         set { settingsService.update { $0.showsMenuBarIcon = newValue } }
+    }
+
+    var launchAtStartup: Bool {
+        launchAtStartupStatus.isEnabled
+    }
+
+    /// Why the switch does not match what the user asked for, or `nil` when it does.
+    var launchAtStartupHint: String? {
+        if didFailToChangeLaunchAtStartup {
+            return "macOS did not accept the change. You can add or remove Alveary in System Settings."
+        }
+        guard launchAtStartupStatus == .requiresApproval else {
+            return nil
+        }
+        return "Alveary's login item is switched off in System Settings, so it will not launch at startup yet."
+    }
+
+    /// Writes the registration, then reads it back — macOS can refuse, and a switch that moved
+    /// anyway would claim something the system never agreed to.
+    func setLaunchAtStartup(_ isEnabled: Bool) {
+        do {
+            try launchAtStartupService.setEnabled(isEnabled)
+            didFailToChangeLaunchAtStartup = false
+        } catch {
+            didFailToChangeLaunchAtStartup = true
+        }
+        launchAtStartupStatus = launchAtStartupService.status
+    }
+
+    /// The user can change the login item in System Settings while Alveary runs, so the row
+    /// re-reads it on every app activation. Reaching `enabled` also retires a past refusal —
+    /// whatever the system objected to, it no longer holds.
+    func refreshLaunchAtStartupStatus() {
+        launchAtStartupStatus = launchAtStartupService.status
+        if launchAtStartupStatus.isEnabled {
+            didFailToChangeLaunchAtStartup = false
+        }
     }
 
     var appShotsEnabled: Bool {

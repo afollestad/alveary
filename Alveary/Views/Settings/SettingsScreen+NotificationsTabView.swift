@@ -3,6 +3,11 @@ import SwiftUI
 import UserNotifications
 
 struct NotificationsSettingsTabView: View {
+    private static let notificationSettingsURLCandidates = [
+        "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+        "x-apple.systempreferences:com.apple.preference.notifications"
+    ]
+
     let viewModel: SettingsViewModel
     @Binding var notificationsEnabled: Bool
     @Binding var osNotificationsEnabled: Bool
@@ -92,30 +97,9 @@ struct NotificationsSettingsTabView: View {
     }
 
     private var systemDenialHint: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("macOS is blocking notifications from Alveary, so none will be delivered.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button("Open System Settings", action: openNotificationSettings)
-                .secondaryActionButtonStyle()
-        }
-    }
-
-    private func openNotificationSettings() {
-        let candidates = [
-            "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
-            "x-apple.systempreferences:com.apple.preference.notifications"
-        ]
-        for urlString in candidates {
-            guard let url = URL(string: urlString) else {
-                continue
-            }
-            if NSWorkspace.shared.open(url) {
-                return
-            }
-        }
+        SettingsSystemSettingsHintRow(
+            message: "macOS is blocking notifications from Alveary, so none will be delivered.",
+            urlCandidates: Self.notificationSettingsURLCandidates
+        )
     }
 }

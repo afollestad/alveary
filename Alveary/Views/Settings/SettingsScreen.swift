@@ -185,7 +185,10 @@ struct SettingsScreen: View {
                 sessionHandoffPrompt: binding(for: \.sessionHandoffPrompt)
             )
         case .menuBar:
-            MenuBarSettingsTabView(showsMenuBarIcon: binding(for: \.showsMenuBarIcon))
+            MenuBarSettingsTabView(
+                viewModel: viewModel,
+                showsMenuBarIcon: binding(for: \.showsMenuBarIcon)
+            )
         case .notifications:
             NotificationsSettingsTabView(
                 viewModel: viewModel,
@@ -357,7 +360,7 @@ private extension AppSettings.SettingsPage {
         case .handoff:
             return "Configure Alveary's Amp-inspired take on compaction: automatic session handoff, steering, and context customization."
         case .menuBar:
-            return "Show Alveary in the system menu bar for recent threads and quick actions."
+            return "Show Alveary in the system menu bar, and choose whether it opens at login."
         case .notifications:
             return "Configure notification delivery and sounds."
         case .terminal:
