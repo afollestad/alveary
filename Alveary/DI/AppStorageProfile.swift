@@ -78,6 +78,10 @@ struct AppStorageProfile: @unchecked Sendable {
             fatalError("Failed to create the demo UserDefaults suite: \(suiteName)")
         }
 
+        // Held for this process's lifetime, and taken before the wipe: a predecessor demo instance
+        // still holds it while its store is open. `DemoStorageLock` documents why the wait cannot
+        // instead be on that predecessor's process exit.
+        DemoStorageLock.acquire(at: demoStorageLockURL)
         wipeDemoStorage(at: baseURL, suiteName: suiteName, defaults: defaults, fileManager: fileManager)
 
         let profile = AppStorageProfile(
@@ -94,6 +98,13 @@ struct AppStorageProfile: @unchecked Sendable {
             "Demo store already exists after the wipe; something opened it before the profile resolved"
         )
         return profile
+    }
+
+    /// Sibling of the demo tree, never a file inside it: `wipeDemoStorage` deletes that directory
+    /// whole, and a lock file that went with it would leave the next instance locking a fresh inode
+    /// no live predecessor holds — acquiring instantly while the store is still open.
+    static var demoStorageLockURL: URL {
+        userApplicationSupportBaseURL.appendingPathComponent("\(demoDirectoryName).lock")
     }
 
     /// Guards the delete target before removing it. This is the most destructive code in the app,

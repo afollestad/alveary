@@ -38,7 +38,7 @@ enum DemoMode {
         applyFakeActivity(component)
     }
 
-    /// Relaunches the app with (or without) the demo environment variable.
+    /// Relaunches the app into — or out of — demo mode.
     ///
     /// `NSWorkspace`, not `Process`: assigning `Process.environment` *replaces* the environment
     /// rather than merging, which would strip `PATH`/`HOME`/`SHELL` from the child and break
@@ -47,8 +47,7 @@ enum DemoMode {
     /// matches `run.sh --demo`, which uses `open --env` — likewise a LaunchServices launch.
     static func relaunch(inDemoMode enabled: Bool, onFailure: @escaping @MainActor (String) -> Void) {
         let configuration = NSWorkspace.OpenConfiguration()
-        // Merged into launchd's environment rather than replacing it.
-        configuration.environment = enabled ? [AppRuntimeProfile.demoEnvironmentKey: "1"] : [:]
+        configuration.environment = Self.relaunchEnvironment(inDemoMode: enabled)
         // Required: without it LaunchServices just activates the instance that is about to die.
         configuration.createsNewApplicationInstance = true
         configuration.activates = true
@@ -62,6 +61,17 @@ enum DemoMode {
                 onFailure(error.localizedDescription)
             }
         }
+    }
+
+    /// The environment handed to the successor, which `NSWorkspace` *merges* into the one it
+    /// inherits rather than swapping in.
+    ///
+    /// Both directions therefore have to name the key: an empty dictionary looks like it clears the
+    /// variable and cannot, so a demo instance would pass its own `ALVEARY_DEMO_MODE=1` down and
+    /// the relaunch meant to leave demo mode would come back up in it. `detectKind` reads the
+    /// explicit "0" as off.
+    static func relaunchEnvironment(inDemoMode enabled: Bool) -> [String: String] {
+        [AppRuntimeProfile.demoEnvironmentKey: enabled ? "1" : "0"]
     }
 
     /// Status dots and the in-flight tool spinner, without a provider runtime.

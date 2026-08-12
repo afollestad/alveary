@@ -77,9 +77,8 @@ struct AppRuntimeProfile: Sendable {
             // `AppStorageProfile` path is opened. `AlvearyApp.init` resolves `AppDI.component`
             // (and therefore this profile) before the model container, which is what makes the
             // ordering safe today; `demo()` asserts the store is absent to catch a regression.
-            // The handshake covers the other direction: a relaunch must not wipe the tree while
-            // the instance it replaces is still shutting down with the store open.
-            DemoStorageHandshake.waitForOtherInstancesToExit()
+            // It takes `DemoStorageLock` for the other direction: a relaunch must not wipe the tree
+            // while the instance it replaces still has the store open.
             return AppRuntimeProfile(kind: kind, storageProfile: .demo())
         #endif
         }
