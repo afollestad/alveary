@@ -14,7 +14,7 @@ extension ThreadHostToolService {
         arguments: [String: AgentCLIKit.JSONValue]
     ) async throws -> AgentCLIKit.AgentHostToolResult {
         try flushPendingChanges()
-        let source = try resolveMutatingSource(context: context)
+        let source = try resolveSource(context: context)
         let threadID = try parseArchive(arguments: arguments)
 
         guard let conversation = modelContext.resolveConversation(conversationID: threadID),
@@ -31,6 +31,8 @@ extension ThreadHostToolService {
         guard thread.archivedAt == nil else {
             return alreadyArchivedResult(threadID: threadID, name: name)
         }
+        // A schedule's target has to stay where the schedule can post into it. This is the guard an
+        // automated run meets — the caller is not asked whether it is one — so it must not move.
         if let reason = lifecycleService.scheduledTaskAttachmentError(for: thread)?.localizedDescription {
             throw ThreadHostToolServiceError.threadCannotBeArchived(reason: reason)
         }

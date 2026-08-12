@@ -27,6 +27,6 @@ The tools Alveary exposes *to* the agent. Not `Alveary/Services/MCP/`, which con
 
 ### Exposure
 
-- Exposure is all-or-nothing per turn: `ConversationViewModel.hostToolConfiguration` attaches the whole merged catalog or none of it, and suppresses it for continuations and `ConversationState.hostToolsDisabled`. Automated scheduled turns attach the catalog like ordinary outbound; which tools serve them is each feature's service gate (thread and scheduling mutations refuse, pull requests refuse only `close_pr`).
+- Exposure is all-or-nothing per turn: `ConversationViewModel.hostToolConfiguration` attaches the whole merged catalog or none of it, and suppresses it for continuations and `ConversationState.hostToolsDisabled`. Automated scheduled turns attach the catalog like ordinary outbound; which tools serve them is each feature's service gate (scheduling refuses, pull requests refuse only `close_pr`, thread tools serve them).
 - Launch failure retries once without tools through `HostToolFallbackClassifier`; only a current accepting event buffer may disable a replacement runtime.
 - Providers report a called tool either bare or prefixed with the server name. Match through `AlvearyHostToolCatalog.matches`; see `Alveary/Services/Agent/Transcript/HostToolWidgets/AGENTS.md` for how descriptors use it.

@@ -13,7 +13,7 @@ extension ThreadHostToolService {
         let requestID = try requireRequestID(context)
         try flushPendingChanges()
         let requestDate = requestDate()
-        let source = try resolveMutatingSource(context: context)
+        let source = try resolveSource(context: context)
         let parsed = try parseCreate(arguments: arguments)
         let deduplicationKey = HostToolDeduplication.key(
             sourceConversationID: context.conversationId.rawValue,
@@ -34,18 +34,13 @@ extension ThreadHostToolService {
         }
 
         // Snapshot before the resolver's suspension; SwiftData models must not be read across it.
-        let settings = settingsService.current
         let placement = ThreadHostToolSourcePlacement(thread: source.thread)
-        let resolution = await resolvedThreadDefaults(settings: settings)
-        let provider = try validatedProvider(parsed.provider, resolution: resolution)
-        let providerOptions = await modelOptions(for: provider, resolution: resolution)
-        let request = try validatedCreateRequest(
-            parsed,
-            placement: placement,
-            provider: provider,
-            options: providerOptions,
-            resolution: resolution
+        let defaults = try await resolvedSettingDefaults(
+            source: source,
+            fallbackProvider: context.providerId.rawValue,
+            requestedProvider: parsed.provider
         )
+        let request = try validatedCreateRequest(parsed, placement: placement, defaults: defaults)
         let insertion = try insert(request, sourceConversationID: context.conversationId.rawValue)
 
         // The receipt saves separately from the thread: a failed ledger write must not roll back a
@@ -186,21 +181,6 @@ private extension ThreadHostToolService {
         )
     }
 
-    func resolvedThreadDefaults(settings: AppSettings) async -> ThreadDefaultResolution {
-        if let providerDiscovery {
-            return await ThreadDefaultResolver.resolve(
-                settings: settings,
-                providerDiscovery: providerDiscovery
-            )
-        }
-        return ThreadDefaultResolver.resolve(
-            settings: settings,
-            providerOrdering: AppSettings.supportedProviderIDs,
-            providerStatuses: [:],
-            allowStaticFallback: true
-        )
-    }
-
     func resolveProject(path: String) -> Project? {
         let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
             project.path == path
@@ -208,22 +188,24 @@ private extension ThreadHostToolService {
         return try? modelContext.fetch(descriptor).first
     }
 
-    /// Every setting is validated against what this Mac can actually run, and each rejection names
-    /// the valid values so the model can correct itself instead of guessing again.
+    /// Assembles the validated request; `ThreadHostToolService+CreateSettings.swift` owns how each
+    /// setting inherits, falls back, and validates.
     func validatedCreateRequest(
         _ parsed: ThreadHostToolParsedCreateRequest,
         placement: ThreadHostToolSourcePlacement,
-        provider: String,
-        options providerOptions: [AgentCLIKit.AgentModelOption],
-        resolution: ThreadDefaultResolution
+        defaults: ThreadSettingDefaults
     ) throws -> ThreadHostToolCreateRequest {
-        let model = try validatedModel(parsed.model, options: providerOptions, resolution: resolution, provider: provider)
-        let effort = try validatedEffort(parsed.effort, options: providerOptions, model: model, resolution: resolution, provider: provider)
-        let permissionMode = try validatedPermissionMode(parsed.permissionMode, provider: provider, resolution: resolution)
+        let model = try validatedModel(parsed.model, defaults: defaults)
+        let effort = try validatedEffort(parsed.effort, defaults: defaults, model: model)
+        let permissionMode = try validatedPermissionMode(
+            parsed.permissionMode,
+            provider: defaults.provider,
+            resolution: defaults.resolution
+        )
         return ThreadHostToolCreateRequest(
             workspace: try validatedWorkspace(parsed.workspace, placement: placement),
             name: parsed.name,
-            provider: provider,
+            provider: defaults.provider,
             model: model,
             effort: effort,
             permissionMode: permissionMode,
@@ -286,107 +268,6 @@ private extension ThreadHostToolService {
             }
         }
         return canonical
-    }
-
-    /// The model options a requested model and effort validate against. The defaults resolution
-    /// only carries the *default* provider's options, so a request naming a different ready
-    /// provider asks discovery for that provider's own list — otherwise a valid model on the
-    /// non-default provider would be falsely rejected.
-    func modelOptions(
-        for provider: String,
-        resolution: ThreadDefaultResolution
-    ) async -> [AgentCLIKit.AgentModelOption] {
-        if provider == resolution.providerID, !resolution.modelOptions.isEmpty {
-            return resolution.modelOptions
-        }
-        if let providerDiscovery,
-           let providerID = AgentCLIKit.AgentProviderID(rawValue: provider) {
-            let discovered = await providerDiscovery.modelOptions(for: providerID)
-            if !discovered.isEmpty {
-                return discovered
-            }
-        }
-        return ThreadDefaultResolver.modelOptions(for: provider, providerStatuses: [:])
-    }
-
-    func validatedProvider(
-        _ requested: String?,
-        resolution: ThreadDefaultResolution
-    ) throws -> String {
-        guard let requested else {
-            guard let providerID = resolution.providerID else {
-                throw ThreadHostToolServiceError.noReadyProvider
-            }
-            return providerID
-        }
-        guard resolution.readyProviderIDs.contains(requested) else {
-            throw ThreadHostToolServiceError.providerNotReady(
-                providerID: requested,
-                ready: resolution.readyProviderIDs
-            )
-        }
-        return requested
-    }
-
-    /// `nil` means "the provider's default model", which is what an omitted `model` inherits from
-    /// the user's settings when the provider matches.
-    func validatedModel(
-        _ requested: String?,
-        options: [AgentCLIKit.AgentModelOption],
-        resolution: ThreadDefaultResolution,
-        provider: String
-    ) throws -> String? {
-        guard let requested else {
-            return provider == resolution.providerID ? resolution.storedThreadModel : nil
-        }
-        guard let option = AgentModelOptionSelection.option(in: options, matching: requested) else {
-            throw ThreadHostToolServiceError.modelUnavailable(model: requested)
-        }
-        let stored = AgentModelOptionSelection.storedModelValue(for: option)
-        return stored == AppSettings.defaultModelValue ? nil : stored
-    }
-
-    func validatedEffort(
-        _ requested: String?,
-        options: [AgentCLIKit.AgentModelOption],
-        model: String?,
-        resolution: ThreadDefaultResolution,
-        provider: String
-    ) throws -> String {
-        guard let requested else {
-            let inherited = provider == resolution.providerID ? resolution.effort : AppSettings.defaultEffortLevel
-            return AgentModelOptionSelection.normalizedEffort(inherited, options: options, selectedModel: model)
-        }
-        let supported = AgentModelOptionSelection.effortOptions(in: options, selectedModel: model)
-        guard supported.isEmpty || supported.contains(where: { $0.value == requested }) else {
-            throw ThreadHostToolServiceError.effortUnavailable(
-                effort: requested,
-                supported: supported.map(\.value)
-            )
-        }
-        return requested
-    }
-
-    func validatedPermissionMode(
-        _ requested: String?,
-        provider: String,
-        resolution: ThreadDefaultResolution
-    ) throws -> String {
-        let supported = AppSettings.supportedPermissionModes(forProvider: provider)
-        guard let requested else {
-            let inherited = provider == resolution.providerID ? resolution.permissionMode : ""
-            return supported.contains(inherited)
-                ? inherited
-                : AppSettings.defaultPermissionMode(forProvider: provider)
-        }
-        guard supported.contains(requested) else {
-            throw ThreadHostToolServiceError.permissionModeUnavailable(
-                mode: requested,
-                providerID: provider,
-                supported: supported
-            )
-        }
-        return requested
     }
 }
 

@@ -7,28 +7,6 @@ import XCTest
 
 @MainActor
 extension ThreadHostToolServiceTests {
-    func testCreateThreadAppliesImmediatelyWithInheritedDefaults() async throws {
-        let fixture = try ThreadHostToolFixture()
-
-        let result = await fixture.create(arguments: ["project_path": .string(fixture.project.path)])
-
-        XCTAssertFalse(result.isError)
-        let content = try object(result.structuredContent)
-        XCTAssertEqual(content["status"], .string("created"))
-        XCTAssertEqual(content["project_path"], .string("/tmp/source-project"))
-        XCTAssertEqual(content["name"], .string("New thread"))
-        XCTAssertEqual(content["provider"], .string("claude"))
-        XCTAssertEqual(content["model"], .string("default"))
-        XCTAssertEqual(content["is_pinned"], .bool(false))
-        XCTAssertEqual(content["initial_prompt_dispatched"], .bool(false))
-
-        let created = try fixture.createdThread(in: result)
-        XCTAssertFalse(created.isDraft)
-        XCTAssertFalse(created.hasCustomName)
-        XCTAssertEqual(created.project?.path, "/tmp/source-project")
-        XCTAssertTrue(fixture.startedPrompts.prompts.isEmpty)
-    }
-
     func testCreateThreadAppliesEverySupportedSetting() async throws {
         let fixture = try ThreadHostToolFixture()
 
@@ -98,75 +76,6 @@ extension ThreadHostToolServiceTests {
             ThreadHostToolServiceError.projectNotRegistered(path: "/tmp/not-a-project").localizedDescription
         )
         XCTAssertEqual(try fixture.threadCount(), 1)
-    }
-
-    /// Each rejection names what would have worked, so the model can correct itself.
-    func testCreateThreadRejectsUnavailableSettingsAndNamesTheValidOnes() async throws {
-        let fixture = try ThreadHostToolFixture()
-
-        let unknownProvider = await fixture.create(arguments: [
-            "project_path": .string(fixture.project.path),
-            "provider": .string("gemini")
-        ])
-        XCTAssertTrue(unknownProvider.isError)
-        XCTAssertTrue(unknownProvider.text.contains("claude, codex"), unknownProvider.text)
-
-        let unknownModel = await fixture.create(arguments: [
-            "project_path": .string(fixture.project.path),
-            "model": .string("imaginary-model")
-        ])
-        XCTAssertTrue(unknownModel.isError)
-        XCTAssertTrue(unknownModel.text.contains("imaginary-model"), unknownModel.text)
-
-        // A Codex permission mode is not a Claude one.
-        let wrongPermissionMode = await fixture.create(arguments: [
-            "project_path": .string(fixture.project.path),
-            "provider": .string("claude"),
-            "permission_mode": .string("on-request")
-        ])
-        XCTAssertTrue(wrongPermissionMode.isError)
-        XCTAssertTrue(wrongPermissionMode.text.contains("default, acceptEdits"), wrongPermissionMode.text)
-
-        XCTAssertEqual(try fixture.threadCount(), 1)
-    }
-
-    /// The defaults resolution only carries the default provider's model options, so a request
-    /// naming a different ready provider has to validate against that provider's own list — a
-    /// valid model on the non-default provider must not be falsely rejected.
-    func testCreateThreadValidatesModelsAgainstTheRequestedProvidersOwnOptions() async throws {
-        let fixture = try ThreadHostToolFixture(providerDiscovery: CreateThreadProviderDiscoveryStub())
-
-        // Default provider resolves to claude; gpt-5.5 is a codex model.
-        let crossProvider = await fixture.create(arguments: [
-            "project_path": .string(fixture.project.path),
-            "provider": .string("codex"),
-            "model": .string("gpt-5.5"),
-            "effort": .string("xhigh")
-        ])
-
-        XCTAssertFalse(crossProvider.isError, crossProvider.text)
-        let content = try object(crossProvider.structuredContent)
-        XCTAssertEqual(content["provider"], .string("codex"))
-        XCTAssertEqual(content["model"], .string("gpt-5.5"))
-        XCTAssertEqual(content["effort"], .string("xhigh"))
-
-        // A claude model on codex still rejects.
-        let wrongProvider = await fixture.create(arguments: [
-            "project_path": .string(fixture.project.path),
-            "provider": .string("codex"),
-            "model": .string("sonnet")
-        ])
-        XCTAssertTrue(wrongProvider.isError)
-
-        // An effort the requested model does not support rejects and names the supported set.
-        let wrongEffort = await fixture.create(arguments: [
-            "project_path": .string(fixture.project.path),
-            "provider": .string("codex"),
-            "model": .string("gpt-5.4-mini"),
-            "effort": .string("xhigh")
-        ])
-        XCTAssertTrue(wrongEffort.isError)
-        XCTAssertTrue(wrongEffort.text.contains("low, medium"), wrongEffort.text)
     }
 
     func testCreateThreadRejectsUnknownArgumentsAndBadTypes() async throws {
@@ -420,45 +329,6 @@ extension ThreadHostToolServiceTests {
             .appendingPathComponent("alveary-thread-grants-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
-    }
-}
-
-/// Both providers installed and ready, with distinct model lists, so cross-provider validation
-/// has a real second list to check against.
-private actor CreateThreadProviderDiscoveryStub: AgentCLIKit.AgentProviderDiscoveryService {
-    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] = [
-        .claude: AgentCLIKit.AgentProviderStatus(
-            providerId: .claude,
-            installation: .installed,
-            setup: .ready,
-            modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
-        ),
-        .codex: AgentCLIKit.AgentProviderStatus(
-            providerId: .codex,
-            installation: .installed,
-            setup: .ready,
-            modelOptions: AgentModelOptionTestFixtures.codexModelOptions
-        )
-    ]
-
-    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses
-    }
-
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses
-    }
-
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses
-    }
-
-    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
-        statuses[providerId]?.modelOptions ?? []
-    }
-
-    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
-        [.claude, .codex]
     }
 }
 

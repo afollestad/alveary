@@ -12,7 +12,7 @@ extension ThreadHostToolService {
         try flushPendingChanges()
         // Source first: a caller Alveary cannot place gets the source refusal, not an argument
         // critique of a request it was never entitled to make.
-        let source = try resolveMutatingSource(context: context)
+        let source = try resolveSource(context: context)
         let request = try parsePullRequestLink(arguments: arguments)
         let target = try pullRequestTarget(source: source, threadID: request.threadID)
 
@@ -46,7 +46,7 @@ extension ThreadHostToolService {
         arguments: [String: AgentCLIKit.JSONValue]
     ) async throws -> AgentCLIKit.AgentHostToolResult {
         try flushPendingChanges()
-        let source = try resolveMutatingSource(context: context)
+        let source = try resolveSource(context: context)
         let request = try parsePullRequestUnlink(arguments: arguments)
         let target = try pullRequestTarget(source: source, threadID: request.threadID)
         guard let identifier = try resolvedUnlinkIdentifier(request.identifier, target: target) else {

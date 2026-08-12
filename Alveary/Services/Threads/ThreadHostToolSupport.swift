@@ -41,6 +41,16 @@ struct ThreadHostToolSourcePlacement: Equatable {
     }
 }
 
+/// The calling conversation's own provider, model, and effort, as plain values — snapshotted
+/// beside `ThreadHostToolSourcePlacement` for the same pre-`await` reason. A `create_thread`
+/// request that omits a setting inherits these, which is also what hands a scheduled run's
+/// fan-out the task's own settings: the run's thread carries the schedule's snapshots.
+struct ThreadHostToolSourceSettings: Equatable {
+    let provider: String
+    let model: String?
+    let effort: String
+}
+
 /// A validated `create_thread` request. Every field here is already checked against trusted host
 /// state; the handler only has to apply it. A `.task` workspace's granted roots are canonical
 /// absolute folder paths by this point.
@@ -99,7 +109,6 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
     case missingRequestIdentity
     case sourceConversationUnavailable
     case sourceProviderMismatch
-    case automatedRunCannotManageThreads
     case projectNotRegistered(path: String)
     case grantedRootUnavailable(path: String)
     case grantsRequireTaskThread
@@ -130,8 +139,6 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
             "Alveary thread tools require an active, saved Project or Task conversation."
         case .sourceProviderMismatch:
             "The thread request provider does not match its source conversation."
-        case .automatedRunCannotManageThreads:
-            "Automated scheduled runs cannot create or archive Alveary threads."
         case .projectNotRegistered(let path):
             "\(path) is not a Project in Alveary. Call list_projects and use one of its paths."
         case .grantedRootUnavailable(let path):

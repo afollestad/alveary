@@ -52,7 +52,8 @@ final class ThreadHostToolService {
     }
 
     /// nil when the call names no read-only tool, so `handle` falls through to the mutating ones.
-    /// The split is the one `resolveSource` and `resolveMutatingSource` already draw.
+    /// A tool added to `mutatingResult` must also join `ThreadHostToolCatalog.mutatingToolNames`,
+    /// or its failures lose the `status` field its output schema promises.
     private func readOnlyResult(
         context: AgentCLIKit.AgentHostToolCallContext,
         call: AgentCLIKit.AgentHostToolCall
@@ -123,9 +124,12 @@ final class ThreadHostToolService {
         now()
     }
 
-    /// Thread tools' source check: the shared host-tool resolution, plus a refusal for automated
-    /// scheduled runs. Exposure gating already strips host tools from those turns; this is the
-    /// defense in depth that keeps an unattended run from mutating the sidebar if it ever slips.
+    /// Every tool's first step, restating the shared resolution's failures in this feature's error
+    /// type so a caller Alveary cannot place gets a thread-tool message rather than a generic one.
+    ///
+    /// It adds no automated-run refusal, and must not grow one: a scheduled run reaches these tools
+    /// on purpose, and what an unattended run may do to a *given* thread is decided at that thread
+    /// — `archiveThread` and `ThreadLifecycleService.setThreadPinned` each carry their own guard.
     func resolveSource(
         context: AgentCLIKit.AgentHostToolCallContext
     ) throws -> HostToolCallSource {
@@ -136,22 +140,6 @@ final class ThreadHostToolService {
             throw ThreadHostToolServiceError.sourceProviderMismatch
         } catch {
             throw ThreadHostToolServiceError.sourceConversationUnavailable
-        }
-        return source
-    }
-
-    /// The source check mutating tools use. Read-only tools deliberately stay available to an
-    /// automated run: listing changes nothing.
-    func resolveMutatingSource(
-        context: AgentCLIKit.AgentHostToolCallContext
-    ) throws -> HostToolCallSource {
-        let source = try resolveSource(context: context)
-        if let scheduledRun = source.thread.scheduledTaskRun,
-           !scheduledRun.hasKnownTerminalStatus {
-            throw ThreadHostToolServiceError.automatedRunCannotManageThreads
-        }
-        if source.thread.hasBlockingScheduledTaskRunAttachment {
-            throw ThreadHostToolServiceError.automatedRunCannotManageThreads
         }
         return source
     }

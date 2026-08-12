@@ -11,7 +11,7 @@ extension ThreadHostToolService {
         isPinned: Bool
     ) async throws -> AgentCLIKit.AgentHostToolResult {
         try flushPendingChanges()
-        _ = try resolveMutatingSource(context: context)
+        _ = try resolveSource(context: context)
         let threadID = try parseThreadIdentifier(arguments: arguments)
 
         guard let conversation = modelContext.resolveConversation(conversationID: threadID),

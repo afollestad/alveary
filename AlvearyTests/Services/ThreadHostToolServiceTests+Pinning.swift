@@ -119,7 +119,7 @@ extension ThreadHostToolServiceTests {
         }
     }
 
-    func testPinToolsRejectUnknownArgumentsAndAnAutomatedRunSource() async throws {
+    func testPinToolsRejectUnknownArguments() async throws {
         let fixture = try ThreadHostToolFixture()
         try fixture.insertThread(name: "Triage", conversationID: "triage-main")
 
@@ -130,18 +130,43 @@ extension ThreadHostToolServiceTests {
                 arguments: ["thread_id": .string("triage-main"), "order": .number(1)]
             )
         )
+
         XCTAssertTrue(unknownKey.isError)
         XCTAssertTrue(unknownKey.text.contains("unsupported field(s): order"), unknownKey.text)
+    }
 
+    /// Pinning is trivially reversible by its opposite tool, so an automated run gets it too.
+    func testAnAutomatedScheduledRunMayPinAThread() async throws {
+        let fixture = try ThreadHostToolFixture()
+        let target = try fixture.insertThread(name: "Triage", conversationID: "triage-main")
         fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()
         try fixture.modelContext.save()
 
-        let automated = await fixture.pinThread(threadID: "triage-main")
-        XCTAssertTrue(automated.isError)
+        let result = await fixture.pinThread(threadID: "triage-main")
+
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertEqual(try object(result.structuredContent)["status"], .string("pinned"))
+        XCTAssertTrue(target.isPinned)
+    }
+
+    /// Unpinning keeps its attachment guard whoever calls it: a schedule's target has no sidebar
+    /// row of its own once unpinned, so the schedule would post where the user cannot look.
+    func testUnpinningFromAnAutomatedScheduledRunStillRefusesAScheduledTarget() async throws {
+        let fixture = try ThreadHostToolFixture()
+        let target = try fixture.insertThread(name: "Triage", conversationID: "triage-main")
+        target.isPinned = true
+        target.targetedScheduledTaskRuns = [fixture.attachNonterminalScheduledRun()]
+        fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()
+        try fixture.modelContext.save()
+
+        let result = await fixture.unpinThread(threadID: "triage-main")
+
+        XCTAssertTrue(result.isError)
         XCTAssertEqual(
-            automated.text,
-            ThreadHostToolServiceError.automatedRunCannotManageThreads.localizedDescription
+            result.text,
+            SidebarViewModelError.activeScheduledTaskRunAttachment.localizedDescription
         )
+        XCTAssertTrue(target.isPinned)
     }
 }
 

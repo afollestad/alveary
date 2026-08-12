@@ -276,7 +276,6 @@ extension ThreadHostToolServiceTests {
         XCTAssertTrue(result.text.contains("0 linked pull requests"), result.text)
     }
 
-    /// Listing changes nothing, so it stays available where the mutating tools are refused.
     func testListPullRequestsStaysAvailableToAnAutomatedScheduledRun() async throws {
         let fixture = try ThreadHostToolFixture()
         fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()
@@ -287,21 +286,23 @@ extension ThreadHostToolServiceTests {
         XCTAssertFalse(result.isError, result.text)
     }
 
-    func testPullRequestToolsRejectAnAutomatedScheduledRunSource() async throws {
+    /// Both change Alveary's own record and each undoes the other, so a scheduled run linking the
+    /// pull request it just worked on needs no confirmation.
+    func testAnAutomatedScheduledRunMayLinkAndUnlinkPullRequests() async throws {
         let fixture = try ThreadHostToolFixture()
+        fixture.pullRequests.detailResult = .success(
+            makePullRequestDetail(id: Self.identifier, title: "Add caching", status: .open)
+        )
         fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()
         try fixture.modelContext.save()
 
-        for result in [
-            await fixture.linkPullRequest(url: "https://github.com/octo/alpha/pull/7"),
-            await fixture.unlinkPullRequest(url: "https://github.com/octo/alpha/pull/7")
-        ] {
-            XCTAssertTrue(result.isError)
-            XCTAssertEqual(
-                result.text,
-                ThreadHostToolServiceError.automatedRunCannotManageThreads.localizedDescription
-            )
-        }
+        let linked = await fixture.linkPullRequest(url: "https://github.com/octo/alpha/pull/7")
+        XCTAssertFalse(linked.isError, linked.text)
+        XCTAssertEqual(try object(linked.structuredContent)["status"], .string("linked"))
+
+        let unlinked = await fixture.unlinkPullRequest(url: "https://github.com/octo/alpha/pull/7")
+        XCTAssertFalse(unlinked.isError, unlinked.text)
+        XCTAssertEqual(try object(unlinked.structuredContent)["status"], .string("unlinked"))
     }
 
     static let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)

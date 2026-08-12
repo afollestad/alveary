@@ -51,33 +51,101 @@ final class ThreadHostToolServiceTests: XCTestCase {
         XCTAssertTrue(ThreadHostToolCatalog.instructionsFragment.contains("never claim a thread was deleted"))
     }
 
-    func testMutatingToolsRejectAnAutomatedScheduledRunSource() async throws {
-        let fixture = try ThreadHostToolFixture()
-        let run = fixture.attachNonterminalScheduledRun()
-        fixture.thread.scheduledTaskRun = run
-        try fixture.modelContext.save()
+    /// A scheduled run reaches every tool here, so each one answers it exactly as it answers a
+    /// person. Comparing the two sources is what a reintroduced caller-side gate fails, whatever
+    /// wording it refuses in — a message check would miss a gate that phrased itself differently.
+    func testNoToolRefusesAnAutomatedScheduledRunSource() async throws {
+        let automated = try ThreadHostToolFixture()
+        automated.thread.scheduledTaskRun = automated.attachNonterminalScheduledRun()
+        try automated.modelContext.save()
+        let interactive = try ThreadHostToolFixture()
 
-        for call in [
-            AgentCLIKit.AgentHostToolCall(
-                name: ThreadHostToolCatalog.createThreadToolName,
-                arguments: ["project_path": .string(fixture.project.path)]
-            ),
-            AgentCLIKit.AgentHostToolCall(
-                name: ThreadHostToolCatalog.archiveThreadToolName,
-                arguments: ["thread_id": .string("other-main")]
-            )
-        ] {
-            let result = await fixture.service.handle(context: fixture.agentContext(), call: call)
+        for tool in ThreadHostToolCatalog.tools {
+            let arguments = automated.minimalArguments(for: tool.name)
+            let call = AgentCLIKit.AgentHostToolCall(name: tool.name, arguments: arguments)
+            let fromRun = await automated.service.handle(context: automated.agentContext(), call: call)
+            let fromPerson = await interactive.service.handle(context: interactive.agentContext(), call: call)
 
-            XCTAssertTrue(result.isError, call.name)
-            XCTAssertEqual(
-                result.text,
-                ThreadHostToolServiceError.automatedRunCannotManageThreads.localizedDescription
-            )
+            XCTAssertEqual(fromRun.isError, fromPerson.isError, tool.name)
+            // A success carries the created thread's generated id, so only failures compare by text.
+            if fromRun.isError, fromPerson.isError {
+                XCTAssertEqual(fromRun.text, fromPerson.text, tool.name)
+            }
         }
     }
 
-    /// Listing changes nothing, so an automated run may still read.
+    /// Fanning work out is what a scheduled run wants these tools for, so the created thread starts
+    /// its own turn rather than sitting inert until someone opens it.
+    func testCreatingAThreadFromAnAutomatedScheduledRunDispatchesItsInitialPrompt() async throws {
+        let fixture = try ThreadHostToolFixture()
+        fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()
+        try fixture.modelContext.save()
+
+        let result = await fixture.service.handle(
+            context: fixture.agentContext(),
+            call: AgentCLIKit.AgentHostToolCall(
+                name: ThreadHostToolCatalog.createThreadToolName,
+                arguments: ["initial_prompt": .string("Fix the flaky test.")]
+            )
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        let content = try object(result.structuredContent)
+        XCTAssertEqual(content["status"], .string("created"))
+        XCTAssertEqual(content["initial_prompt_dispatched"], .bool(true))
+        // No placement or settings named, so both inherit the run's thread — placement its
+        // Project, and provider/model/effort the schedule's own snapshotted settings.
+        XCTAssertEqual(content["project_path"], .string(fixture.project.path))
+        XCTAssertEqual(content["provider"], .string("codex"))
+        XCTAssertEqual(content["model"], .string("source-model"))
+        XCTAssertEqual(content["effort"], .string("high"))
+        XCTAssertEqual(fixture.startedPrompts.prompts, ["Fix the flaky test."])
+    }
+
+    func testArchivingFromAnAutomatedScheduledRunArchivesAnotherThread() async throws {
+        let fixture = try ThreadHostToolFixture()
+        let target = try fixture.insertThread(name: "Target", conversationID: "target-main")
+        fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()
+        try fixture.modelContext.save()
+
+        let result = await fixture.service.handle(
+            context: fixture.agentContext(),
+            call: AgentCLIKit.AgentHostToolCall(
+                name: ThreadHostToolCatalog.archiveThreadToolName,
+                arguments: ["thread_id": .string("target-main")]
+            )
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertEqual(try object(result.structuredContent)["status"], .string("archived"))
+        XCTAssertNotNil(target.archivedAt)
+    }
+
+    /// The caller is never asked whether it is automated; the target's own attachment is what
+    /// refuses, so a schedule keeps the thread it posts into.
+    func testArchivingFromAnAutomatedScheduledRunStillRefusesAScheduledTarget() async throws {
+        let fixture = try ThreadHostToolFixture()
+        let target = try fixture.insertThread(name: "Target", conversationID: "target-main")
+        target.targetedScheduledTaskRuns = [fixture.attachNonterminalScheduledRun()]
+        fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()
+        try fixture.modelContext.save()
+
+        let result = await fixture.service.handle(
+            context: fixture.agentContext(),
+            call: AgentCLIKit.AgentHostToolCall(
+                name: ThreadHostToolCatalog.archiveThreadToolName,
+                arguments: ["thread_id": .string("target-main")]
+            )
+        )
+
+        XCTAssertTrue(result.isError)
+        XCTAssertEqual(
+            result.text,
+            SidebarViewModelError.activeScheduledTaskRunAttachment.localizedDescription
+        )
+        XCTAssertNil(target.archivedAt)
+    }
+
     func testListingStaysAvailableToAnAutomatedScheduledRunSource() async throws {
         let fixture = try ThreadHostToolFixture()
         fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()

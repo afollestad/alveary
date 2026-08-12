@@ -148,9 +148,10 @@ private extension ThreadHostToolCatalog {
         for a thread that works in that Project, or mode "task" for one that works in its own private empty workspace. \
         Naming neither puts it where this conversation's thread already works, which is usually what the user means. \
         granted_roots gives a task thread access to folders outside its workspace — absolute paths to folders that already \
-        exist, and not accepted for a Project thread. Everything else falls back to the user's Alveary defaults: name \
-        (otherwise Alveary names the thread from its first turn), provider, model, effort, permission_mode, pinned, and \
-        initial_prompt. An initial_prompt starts that thread working in the background immediately, and its output goes \
+        exist, and not accepted for a Project thread. An omitted provider, model, or effort inherits this conversation's \
+        thread's settings, so there is no need to pass them to match it. Everything else falls back to the user's Alveary \
+        defaults: name (otherwise Alveary names the thread from its first turn), permission_mode, and pinned. An \
+        initial_prompt starts that thread working in the background immediately, and its output goes \
         there rather than here, so do not wait for a result or describe what it found. Report the returned thread_id and \
         settings rather than restating what you requested.
         """,
