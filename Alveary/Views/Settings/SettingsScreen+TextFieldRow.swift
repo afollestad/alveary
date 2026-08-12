@@ -13,6 +13,9 @@ enum SettingsScreenLayout {
     static let settingsControlSurfaceHeight: CGFloat = 36
     static let settingsPickerWidth: CGFloat = 150
     static let settingsValueStepperWidth: CGFloat = 150
+    /// Inset shared by the detail column and the compact navigation strip's leading edge, so
+    /// the first chip and the header title below it cannot drift apart.
+    static let settingsContentInset: CGFloat = 28
     static let settingsSectionCornerRadius: CGFloat = 18
     static let settingsSectionSpacing: CGFloat = 28
     static let settingsSectionHeaderSpacing: CGFloat = 10

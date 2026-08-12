@@ -3,6 +3,11 @@ import SwiftUI
 struct SettingsScreen: View {
     private static let sidebarLayoutMinimumWidth: CGFloat = 700
     private static let sidebarWidth: CGFloat = 180
+    /// Resolved once rather than per body run: the compact strip is built inside a
+    /// `GeometryReader`, and these titles never change.
+    private static let compactNavigationItems = AppSettings.SettingsPage.allCases.map {
+        SettingsScreenCompactNavigationItem(page: $0, title: $0.title)
+    }
     /// A couple of points over the row's body font, because octicon artwork
     /// under-fills its canvas beside the SF Symbols in the sibling rows.
     private static let sidebarOcticonSize: CGFloat = 16
@@ -70,14 +75,12 @@ struct SettingsScreen: View {
 
     private func stackedLayout(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Picker("Settings section", selection: selectedPageBinding) {
-                ForEach(AppSettings.SettingsPage.allCases) { page in
-                    Text(page.title).tag(page)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, 28)
+            SettingsScreenCompactNavigation(
+                items: Self.compactNavigationItems,
+                selection: selectedPage,
+                onSelect: selectPage
+            )
+            .equatable()
             .padding(.top, 20)
             .padding(.bottom, 4)
 
@@ -115,7 +118,7 @@ struct SettingsScreen: View {
 
                 selectedPageView
             }
-            .padding(28)
+            .padding(SettingsScreenLayout.settingsContentInset)
             .frame(width: width, alignment: .leading)
         }
         .scrollClipDisabled(false)
@@ -232,13 +235,6 @@ private extension SettingsScreen {
             return storedPage
         }
         return AppSettings.SettingsPage(rawValue: rawValue) ?? .agents
-    }
-
-    var selectedPageBinding: Binding<AppSettings.SettingsPage> {
-        Binding(
-            get: { selectedPage },
-            set: { selectPage($0) }
-        )
     }
 
     func selectPage(_ page: AppSettings.SettingsPage) {

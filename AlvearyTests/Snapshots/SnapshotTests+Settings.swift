@@ -102,6 +102,40 @@ extension SnapshotTests {
         )
     }
 
+    /// The regression guard for `SettingsScreenCompactNavigation`'s overflow handling, in the
+    /// spirit of `testTerminalPaneSessionsOverflow` and `testConversationTabsOverflow`. The
+    /// sibling narrow baselines are named for the *rows* they check, so this one owns the
+    /// navigation strip: it is what should fail if the strip stops scrolling its selection
+    /// into view.
+    ///
+    /// `threads` sits late enough in the alphabetical order that its chip cannot fit a 400pt pane
+    /// unscrolled, so the strip has to scroll to reveal it — under the segmented picker this
+    /// replaced, `Threads` was clipped off the pane entirely. `appUpdates` would be the stronger
+    /// target, being the one page that takes the scroll hook's trailing-sentinel branch, but its
+    /// tab force-checks for updates from its own `.task` on mount; the captured frame would then
+    /// race that check, and a spinner resolves differently on CI hardware than locally. That
+    /// branch is verified by hand in the running app.
+    ///
+    /// This baseline never captures the trailing-edge divider, because scroll geometry publishes
+    /// after the snapshot displays — the same caveat the terminal and conversation-tab strips
+    /// carry. `SettingsScreenCompactNavigationTests` covers the divider's gating math instead.
+    func testSettingsScreenCompactNavigationOverflow() {
+        let viewModel = SettingsViewModel(settingsService: InMemorySettingsService(current: AppSettings()))
+        let gitHubCLI = SidebarMockGitHubCLIService(installedVersion: nil, authenticated: false)
+
+        assertMacSnapshot(
+            SettingsScreen(
+                viewModel: viewModel,
+                gitHubCLI: gitHubCLI,
+                appUpdateManager: snapshotAppUpdateManager(),
+                onClose: {},
+                initialTabRawValue: "threads"
+            ),
+            size: CGSize(width: 400, height: 700),
+            named: "settings_screen_compact_navigation_overflow"
+        )
+    }
+
     func testSettingsScreenNotificationsTab() {
         var settings = AppSettings()
         settings.notifications.soundName = "Pop"
