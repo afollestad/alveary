@@ -58,13 +58,19 @@ final class GlobalInstructionsEditorModel {
         await reloadFromDisk()
     }
 
-    func save() async {
+    /// Writes the draft to the shared file, reporting whether it landed. The editor
+    /// sheet dismisses only on `true` so a failure leaves `errorMessage` on screen
+    /// with the user's text still in the editor.
+    @discardableResult
+    func save() async -> Bool {
         do {
             try await service.saveShared(draft.markdown)
             setDirty(false)
             errorMessage = nil
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 

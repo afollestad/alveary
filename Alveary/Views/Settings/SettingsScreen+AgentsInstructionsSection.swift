@@ -1,48 +1,32 @@
 import SwiftUI
 
 /// The `AGENTS.md` sub-section on the Agents settings tab: a shared global
-/// instructions file at `~/.agents/AGENTS.md`, per-agent link rows, and a
-/// BlockInputKit editor with confirmed Revert/Save actions.
+/// instructions file at `~/.agents/AGENTS.md`, per-agent link rows, and an
+/// `Edit` row opening `AgentsInstructionsEditorSheet`.
 struct AgentsInstructionsSection: View {
     let model: GlobalInstructionsEditorModel
 
     @State private var confirmation: DestructiveConfirmationRequest?
     @State private var linkRequest: AgentInstructionsLinkRequest?
+    @State private var isEditorPresented = false
 
     var body: some View {
-        confirmationDialogs(
-            VStack(alignment: .leading, spacing: SettingsScreenLayout.settingsSectionHeaderSpacing) {
-                SettingsFormSectionHeader("AGENTS.md")
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Shared instructions for every agent, stored at \(model.sharedPathDescription).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if let errorMessage = model.errorMessage {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .textSelection(.enabled)
+        presentations(
+            SettingsFormSection("AGENTS.md") {
+                SettingsFormRow(showsDivider: !visibleLinkRows.isEmpty || model.errorMessage != nil) {
+                    SettingsResponsiveControlRow(
+                        "Shared instructions",
+                        helpText: "Shared instructions for every agent, stored at \(model.sharedPathDescription).",
+                        horizontalControlSizing: .intrinsicInline
+                    ) {
+                        editControl
                     }
-
-                    linkRows
-
-                    AgentsInstructionsEditor(model: model)
-
-                    actionRow
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(
-                        cornerRadius: SettingsScreenLayout.settingsSectionCornerRadius,
-                        style: .continuous
-                    )
-                    .fill(Color.secondary.opacity(0.08))
-                )
+
+                linkRows
+
+                errorRow
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         )
         .task {
             await model.loadIfNeeded()
@@ -51,44 +35,68 @@ struct AgentsInstructionsSection: View {
 }
 
 private extension AgentsInstructionsSection {
+    var editControl: some View {
+        HStack(spacing: 10) {
+            Spacer(minLength: 0)
+
+            if model.isDirty {
+                Text("Unsaved changes")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Button("Edit") {
+                isEditorPresented = true
+            }
+            .secondaryActionButtonStyle()
+        }
+    }
+
     /// Only agents needing attention get a row; a fully linked agent adds
-    /// nothing beyond what the shared-path caption already says, and hiding
+    /// nothing beyond what the shared-path help text already says, and hiding
     /// those rows keeps the section flat as more agents are added.
+    var visibleLinkRows: [(agent: AgentDefinition, state: AgentInstructionsLinkState)] {
+        model.linkRows.filter { $0.state != .linked }
+    }
+
     @ViewBuilder
     var linkRows: some View {
-        let rows = model.linkRows.filter { $0.state != .linked }
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(rows, id: \.agent.id) { row in
-                    AgentInstructionsLinkRow(
-                        agent: row.agent,
-                        state: row.state,
-                        onCopyIntoShared: { requestCopyIntoShared(for: row.agent) },
-                        onLink: { requestLink(for: row.agent) }
-                    )
-                }
+        let rows = visibleLinkRows
+        ForEach(Array(rows.enumerated()), id: \.element.agent.id) { index, row in
+            SettingsFormRow(showsDivider: index < rows.count - 1 || model.errorMessage != nil) {
+                AgentInstructionsLinkRow(
+                    agent: row.agent,
+                    state: row.state,
+                    onCopyIntoShared: { requestCopyIntoShared(for: row.agent) },
+                    onLink: { requestLink(for: row.agent) }
+                )
             }
         }
     }
 
-    var actionRow: some View {
-        HStack(spacing: 10) {
-            Spacer()
-
-            Button("Revert", action: requestRevert)
-                .secondaryActionButtonStyle()
-                .disabled(!model.isDirty)
-
-            Button("Save", action: requestSave)
-                .primaryActionButtonStyle()
-                .disabled(!model.isDirty)
+    @ViewBuilder
+    var errorRow: some View {
+        if let errorMessage = model.errorMessage {
+            SettingsFormRow(showsDivider: false) {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            }
         }
     }
 
     /// Presentation modifiers live in one helper to keep `body` off the type-check budget.
-    func confirmationDialogs<Content: View>(_ content: Content) -> some View {
+    func presentations<Content: View>(_ content: Content) -> some View {
         content
             .destructiveConfirmation($confirmation)
+            .sheet(isPresented: $isEditorPresented) {
+                AgentsInstructionsEditorSheet(
+                    model: model,
+                    onCancel: { isEditorPresented = false },
+                    onSaved: { isEditorPresented = false }
+                )
+            }
             .confirmationDialog(
                 linkRequest?.title ?? "",
                 isPresented: linkDialogPresentationBinding,
@@ -126,41 +134,23 @@ private extension AgentsInstructionsSection {
         )
     }
 
-    func requestSave() {
-        let message = "This overwrites \(model.sharedPathDescription). "
-            + "Formatting is normalized to canonical markdown, so spacing may differ from the original file."
-        confirmation = DestructiveConfirmationRequest(
-            title: "Save shared instructions?",
-            message: message,
-            confirmTitle: "Save",
-            confirm: {
-                Task {
-                    await model.save()
-                }
-            }
-        )
-    }
-
-    func requestRevert() {
-        confirmation = DestructiveConfirmationRequest(
-            title: "Revert changes?",
-            message: "This discards unsaved changes and reloads \(model.sharedPathDescription) from disk.",
-            confirmTitle: "Revert",
-            confirm: {
-                Task {
-                    await model.revert()
-                }
-            }
-        )
+    /// Both migration actions reload the shared file from disk afterwards, which
+    /// drops an unsaved draft. The sheet's Cancel deliberately keeps that draft
+    /// alive off-screen, so the warning is the only thing standing between the
+    /// user and silently losing it.
+    var discardWarning: String {
+        model.isDirty ? " Unsaved changes to the shared file will be discarded." : ""
     }
 
     func requestCopyIntoShared(for agent: AgentDefinition) {
         guard let path = agent.instructionsPath else {
             return
         }
+        let message = "This appends the contents of \(path) to \(model.sharedPathDescription). "
+            + "The original file is left unchanged.\(discardWarning)"
         confirmation = DestructiveConfirmationRequest(
             title: "Copy into shared file?",
-            message: "This appends the contents of \(path) to \(model.sharedPathDescription). The original file is left unchanged.",
+            message: message,
             confirmTitle: "Copy",
             confirm: {
                 Task {
@@ -186,6 +176,7 @@ private extension AgentsInstructionsSection {
             title: "Link \(agent.name) to the shared file?",
             message: "\(path) becomes a symlink to \(model.sharedPathDescription). \(backupSentence)"
                 .trimmingCharacters(in: .whitespaces)
+                + discardWarning
         )
     }
 }

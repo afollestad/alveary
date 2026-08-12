@@ -65,8 +65,9 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         model.draft.replaceText("# Draft")
         model.noteDocumentChanged()
 
-        await model.save()
+        let saved = await model.save()
 
+        XCTAssertTrue(saved)
         XCTAssertEqual(service.shared, "# Draft")
         XCTAssertFalse(model.isDirty)
         XCTAssertNil(model.errorMessage)
@@ -80,8 +81,11 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         model.draft.replaceText("# Draft")
         model.noteDocumentChanged()
 
-        await model.save()
+        let saved = await model.save()
 
+        // The sheet keys its dismissal off this, so a failed write has to report
+        // `false` rather than leaving the caller to infer it from `errorMessage`.
+        XCTAssertFalse(saved)
         XCTAssertNotNil(model.errorMessage)
         XCTAssertTrue(model.isDirty)
         XCTAssertEqual(model.draft.markdown, "# Draft")

@@ -90,10 +90,6 @@ enum AppMarkdownEditorSizing: Equatable {
     /// `onPreferredHeightChange` + `.frame(height:)` round trip applies the height
     /// a frame late and reads as a vertical jump.
     case growsToLineCount(minimum: Int, maximum: Int)
-    /// A constant height for the given line count, applied through the host's own
-    /// `.frame(height:)`. For `ScrollView` hosts, where an unbounded vertical
-    /// proposal makes `sizeThatFits` balloon the editor.
-    case fixedLineCount(Int)
 }
 
 /// The app's shared BlockInputKit markdown editor: PR comments, settings prompts,
@@ -125,15 +121,12 @@ struct AppMarkdownEditor: View {
     /// coarse state such as a dirty flag. Do not serialize markdown here.
     var onDocumentChange: (() -> Void)?
 
-    @State private var fixedHeight: CGFloat?
-
     var body: some View {
         editor
             // Reading the generation here is what invalidates this view when a
             // host calls `resetContent(to:)` — the draft is a reference whose
             // pointer never changes, so nothing else would.
             .id(draft.contentGeneration)
-            .modifier(HeightModifier(height: resolvedFixedHeight))
             .frame(maxWidth: .infinity)
     }
 
@@ -145,19 +138,6 @@ struct AppMarkdownEditor: View {
             BlockInputEditor(configuration: configuration)
         }
     }
-
-    /// `.fixedLineCount` reserves its measured height before BlockInputKit reports
-    /// one, so a first layout pass — including single-pass snapshot renders that
-    /// never process the height callback — does not let the AppKit view spill over
-    /// its neighbors.
-    private var resolvedFixedHeight: CGFloat? {
-        guard case .fixedLineCount(let lineCount) = sizing else {
-            return nil
-        }
-        return fixedHeight ?? CGFloat(lineCount) * Self.fallbackLineHeight
-    }
-
-    private static let fallbackLineHeight: CGFloat = 30
 
     private var configuration: BlockInputConfiguration {
         BlockInputConfiguration(
@@ -188,19 +168,6 @@ struct AppMarkdownEditor: View {
             return BlockInputEditorHeightSizing(
                 defaultVisibleLineCount: minimum,
                 maximumVisibleLineCount: maximum
-            )
-        case .fixedLineCount(let lineCount):
-            // Equal default and maximum keep the reported height constant, so
-            // adding or removing lines never resizes the editor; overflow
-            // scrolls internally.
-            return BlockInputEditorHeightSizing(
-                defaultVisibleLineCount: lineCount,
-                maximumVisibleLineCount: lineCount,
-                onPreferredHeightChange: { height in
-                    if fixedHeight != height {
-                        fixedHeight = height
-                    }
-                }
             )
         }
     }
@@ -242,19 +209,5 @@ struct AppMarkdownEditor: View {
             )
         )
         return style
-    }
-}
-
-/// Applies `.frame(height:)` only for `.fixedLineCount`; the other sizing modes
-/// must leave the editor's own height proposal untouched.
-private struct HeightModifier: ViewModifier {
-    let height: CGFloat?
-
-    func body(content: Content) -> some View {
-        if let height {
-            content.frame(height: height)
-        } else {
-            content
-        }
     }
 }
