@@ -40,27 +40,33 @@ struct MCPScreen: View {
                         NoMCPServersAddedLabel()
                     }
 
+                    let activeTarget = viewModel.activePaneTarget
+
                     if !viewModel.filteredServers.isEmpty {
                         VStack(alignment: .leading, spacing: 14) {
                             Text("Added")
                                 .font(.title3.weight(.semibold))
 
-                            ForEach(viewModel.filteredServers) { server in
-                                MCPServerRow(
-                                    server: server,
-                                    onEdit: {
-                                        viewModel.requestEdit(server)
-                                    },
-                                    onRemove: {
-                                        removalConfirmation = makeServerRemovalConfirmation(for: server) {
-                                            Task { await remove(server) }
-                                        }
-                                    },
-                                    editFocus: $focusedPaneTriggerID,
-                                    editFocusID: "mcp-edit-\(server.id)"
-                                )
-                                .equatable()
+                            LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 16) {
+                                ForEach(viewModel.filteredServers) { server in
+                                    MCPServerRow(
+                                        server: server,
+                                        isSelected: activeTarget == .edit(server.name),
+                                        onEdit: {
+                                            viewModel.requestEdit(server)
+                                        },
+                                        onRemove: {
+                                            removalConfirmation = makeServerRemovalConfirmation(for: server) {
+                                                Task { await remove(server) }
+                                            }
+                                        },
+                                        editFocus: $focusedPaneTriggerID,
+                                        editFocusID: MCPPaneTarget.edit(server.name).defaultFocusRestorationID
+                                    )
+                                    .equatable()
+                                }
                             }
+                            .adaptiveCardGridReflow(columnCount: gridColumnCount)
                         }
                     }
 
@@ -73,15 +79,17 @@ struct MCPScreen: View {
                                 ForEach(viewModel.filteredRecommended) { server in
                                     RecommendedMCPCard(
                                         server: server,
+                                        isSelected: activeTarget == .addRecommended(server.id),
                                         onAdd: {
                                             viewModel.requestAddRecommended(server)
                                         },
                                         addFocus: $focusedPaneTriggerID,
-                                        addFocusID: "mcp-recommended-\(server.id)"
+                                        addFocusID: MCPPaneTarget.addRecommended(server.id).defaultFocusRestorationID
                                     )
                                     .equatable()
                                 }
                             }
+                            .adaptiveCardGridReflow(columnCount: gridColumnCount)
                         }
                     }
 
@@ -119,11 +127,7 @@ struct MCPScreen: View {
             .onChange(of: viewModel.searchQuery) { _, _ in
                 scrollPosition.scrollTo(edge: .top)
             }
-            .onGeometryChange(for: Int.self) { proxy in
-                proxy.size.width >= 544 ? 2 : 1
-            } action: { newValue in
-                gridColumnCount = newValue
-            }
+            .adaptiveCardGridColumnCount($gridColumnCount)
         }
         .task {
             guard !hasLoaded else {
@@ -160,10 +164,7 @@ private extension MCPScreen {
     }
 
     var gridColumns: [GridItem] {
-        Array(
-            repeating: GridItem(.flexible(minimum: 240), spacing: 16),
-            count: gridColumnCount
-        )
+        AdaptiveCardGridLayout.columns(count: gridColumnCount)
     }
 
     func openCustomServer(focusRestorationID: String? = nil) {
@@ -206,108 +207,4 @@ private func makeServerRemovalConfirmation(
         confirmTitle: "Remove",
         confirm: confirm
     )
-}
-
-private struct MCPServerRow: View, Equatable {
-    let server: MCPServer
-    let onEdit: () -> Void
-    let onRemove: () -> Void
-    let editFocus: FocusState<String?>.Binding
-    let editFocusID: String
-
-    /// The actions and the focus binding are excluded: the actions close over the `server`
-    /// compared here plus the screen's view-model reference and its `@State` confirmation
-    /// box, and the binding reads the screen's `@FocusState` storage — none of which a
-    /// captured copy can serve staler than a fresh one.
-    nonisolated static func == (lhs: MCPServerRow, rhs: MCPServerRow) -> Bool {
-        lhs.server == rhs.server && lhs.editFocusID == rhs.editFocusID
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: server.transport == .http ? "globe" : "terminal")
-                .foregroundStyle(AppAccentIcon.foreground)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(server.name)
-                    .font(.headline)
-
-                Text(server.transport == .http ? (server.url ?? "HTTP server") : (server.command ?? "stdio server"))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if !server.providers.isEmpty {
-                    Text("Agents: \(server.providers.joined(separator: ", "))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            Button(action: onEdit) {
-                ActionButtonLabel(title: "Edit", icon: .system("pencil"))
-            }
-            .secondaryActionButtonStyle()
-            .focused(editFocus, equals: editFocusID)
-            Button(role: .destructive, action: onRemove) {
-                ActionButtonLabel(title: "Remove", icon: .system("trash"))
-            }
-            .destructiveActionButtonStyle()
-        }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-    }
-}
-
-private struct RecommendedMCPCard: View, Equatable {
-    let server: RecommendedMCPServer
-    let onAdd: () -> Void
-    let addFocus: FocusState<String?>.Binding
-    let addFocusID: String
-
-    /// The action and the focus binding are excluded, for the same reasons as
-    /// `MCPServerRow`.
-    nonisolated static func == (lhs: RecommendedMCPCard, rhs: RecommendedMCPCard) -> Bool {
-        lhs.server == rhs.server && lhs.addFocusID == rhs.addFocusID
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(server.template.name)
-                    .font(.headline)
-                    .lineLimit(2)
-
-                Spacer()
-
-                Text(server.template.transport.rawValue.uppercased())
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Capsule().fill(Color.secondary.opacity(0.14)))
-            }
-
-            Text(server.description)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-
-            Spacer()
-
-            Button(action: onAdd) {
-                ActionButtonLabel(title: "Add", icon: .system("plus"))
-            }
-            .primaryActionButtonStyle()
-            .focused(addFocus, equals: addFocusID)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 220, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-    }
 }

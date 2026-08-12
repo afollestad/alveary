@@ -94,20 +94,13 @@ struct PullRequestCommentAuthorRow<Trailing: View>: View {
 /// A third surface draws this menu — the transcript's review-proposal card — and it
 /// is AppKit, so it cannot mount this view. It reads the statics below instead, and
 /// they exist for exactly that: a glyph, hit target, or row title that drifts on one
-/// surface stops reading as the same control.
+/// surface stops reading as the same control. The chrome ones forward to
+/// `AppOverflowMenuMetrics` so this menu cannot drift from the other surfaces wearing
+/// the same control.
 struct PullRequestCommentActionsMenu: View {
-    static let glyphSymbolName = "ellipsis"
-    static let glyphPointSize: CGFloat = 11
-    /// The bare glyph is a sliver; this is the control's real hit target, and also
-    /// the hover circle `iconActionButtonStyle(.inline)` draws inside it, so the
-    /// glyph *centers* rather than trailing-aligning. A surface placing this menu
-    /// on the pane's shared trailing column therefore owes it
-    /// `contextualPaneTrailingGlyphLane(controlWidth:)` — the glyph no longer lands
-    /// on the axis by construction the way a trailing-aligned one did.
-    static let hitTargetSize = CGSize(
-        width: ActionButtonMetrics.inlineIconButtonDiameter,
-        height: ActionButtonMetrics.inlineIconButtonDiameter
-    )
+    static let glyphSymbolName = AppOverflowMenuMetrics.glyphSymbolName
+    static let glyphPointSize = AppOverflowMenuMetrics.glyphPointSize
+    static let hitTargetSize = AppOverflowMenuMetrics.hitTargetSize
     /// Both the hover tooltip and the VoiceOver name; the glyph carries no text.
     static let name = "Comment actions"
     static let editTitle = "Edit"
@@ -119,33 +112,23 @@ struct PullRequestCommentActionsMenu: View {
     let onDelete: (() -> Void)?
 
     var body: some View {
-        Menu {
-            // `.titleAndIcon` is required: macOS menu rows default to a
-            // title-only label style, so a bare `Label` renders as text.
+        AppOverflowMenu(name: Self.name) {
             if let onEdit {
-                Button(action: onEdit) {
-                    Label(Self.editTitle, systemImage: Self.editSymbolName)
-                        .labelStyle(.titleAndIcon)
-                }
+                AppOverflowMenuRow(
+                    title: Self.editTitle,
+                    systemImage: Self.editSymbolName,
+                    action: onEdit
+                )
             }
             if let onDelete {
-                Button(role: .destructive, action: onDelete) {
-                    Label(Self.deleteTitle, systemImage: Self.deleteSymbolName)
-                        .labelStyle(.titleAndIcon)
-                }
+                AppOverflowMenuRow(
+                    title: Self.deleteTitle,
+                    systemImage: Self.deleteSymbolName,
+                    role: .destructive,
+                    action: onDelete
+                )
             }
-        } label: {
-            Image(systemName: Self.glyphSymbolName)
-                .font(.system(size: Self.glyphPointSize, weight: .semibold))
         }
-        .menuStyle(.button)
-        .menuIndicator(.hidden)
-        // The tint rides the style's parameter rather than a local `foregroundStyle`,
-        // so the glyph still fades through hover and pressed.
-        .iconActionButtonStyle(.inline, foregroundColor: .secondary)
-        .fixedSize()
-        .help(Self.name)
-        .accessibilityLabel(Self.name)
     }
 }
 

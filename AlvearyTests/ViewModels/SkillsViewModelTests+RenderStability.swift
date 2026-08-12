@@ -115,6 +115,7 @@ extension SkillsViewModelTests {
         XCTAssertNotEqual(card, makeCard(skill: makeSkill(id: "alpha", isInstalled: false)))
         XCTAssertNotEqual(card, makeCard(skill: makeSkill(id: "beta")))
         XCTAssertNotEqual(card, makeCard(skill: skill, focusID: "skills-details-beta"))
+        XCTAssertNotEqual(card, makeCard(skill: skill, isSelected: true))
     }
 }
 
@@ -123,12 +124,17 @@ extension SkillsViewModelTests {
 /// SwiftUI logs that the binding is read outside a `View` body and is therefore constant —
 /// which is exactly what an `==` fixture wants, since the binding is excluded from `==`.
 @MainActor
-private func makeCard(skill: Skill, focusID: String = "skills-details-alpha") -> SkillCard {
-    SkillCardEqualityHost(skill: skill, focusID: focusID).card
+private func makeCard(
+    skill: Skill,
+    isSelected: Bool = false,
+    focusID: String = "skills-details-alpha"
+) -> SkillCard {
+    SkillCardEqualityHost(skill: skill, isSelected: isSelected, focusID: focusID).card
 }
 
 private struct SkillCardEqualityHost: View {
     let skill: Skill
+    let isSelected: Bool
     let focusID: String
 
     @FocusState private var focus: String?
@@ -136,10 +142,11 @@ private struct SkillCardEqualityHost: View {
     var card: SkillCard {
         SkillCard(
             skill: skill,
+            isSelected: isSelected,
             onOpen: {},
             onPrimaryAction: {},
-            detailsFocus: $focus,
-            detailsFocusID: focusID
+            cardFocus: $focus,
+            cardFocusID: focusID
         )
     }
 

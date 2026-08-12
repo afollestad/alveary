@@ -64,6 +64,11 @@ struct AppSelectableRowState: Equatable {
     /// True between mouse-up and the model publishing the new selection.
     var isSelectionPending = false
     var isHovered = false
+    /// True anywhere inside `.appSelectableRow(...)`'s content. A row that is also
+    /// `.focusable()` makes `\.isFocused` report *its* focus to every descendant, so a
+    /// control that draws its own focus ring from that value would ring itself whenever
+    /// the row is focused. Descendants use this to tell "I am focused" from "my row is".
+    var isInsideRow = false
 }
 
 private struct AppSelectableRowStateKey: EnvironmentKey {
@@ -166,7 +171,8 @@ private struct SelectableRowModifier: ViewModifier {
         AppSelectableRowState(
             isPressed: !suppressesPressFeedback && isPressed,
             isSelectionPending: isSelectionPending,
-            isHovered: isHovered
+            isHovered: isHovered,
+            isInsideRow: true
         )
     }
 

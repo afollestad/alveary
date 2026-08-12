@@ -45,6 +45,7 @@ struct SkillsScreen: View {
 
                     let filteredInstalled = viewModel.filteredInstalled
                     let filteredRecommended = viewModel.filteredRecommended
+                    let selectedSkillID = activeDetailSkillID
 
                     if viewModel.hasActiveSearch {
                         // Read inside the branch: it is the only consumer, and the
@@ -61,6 +62,7 @@ struct SkillsScreen: View {
                                 title: "Results",
                                 skills: combinedSearchResults,
                                 columns: gridColumns,
+                                activeDetailSkillID: selectedSkillID,
                                 focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
                                     openDetails(skill)
@@ -104,6 +106,7 @@ struct SkillsScreen: View {
                                 title: "Installed",
                                 skills: filteredInstalled,
                                 columns: gridColumns,
+                                activeDetailSkillID: selectedSkillID,
                                 focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
                                     openDetails(skill)
@@ -127,6 +130,7 @@ struct SkillsScreen: View {
                                 title: "Recommended",
                                 skills: filteredRecommended,
                                 columns: gridColumns,
+                                activeDetailSkillID: selectedSkillID,
                                 focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
                                     openDetails(skill)
@@ -150,6 +154,7 @@ struct SkillsScreen: View {
                                 title: "skills.sh",
                                 skills: viewModel.searchResults,
                                 columns: gridColumns,
+                                activeDetailSkillID: selectedSkillID,
                                 focusedPaneTrigger: $focusedPaneTriggerID,
                                 onOpen: { skill in
                                     openDetails(skill)
@@ -184,11 +189,7 @@ struct SkillsScreen: View {
             .onChange(of: viewModel.searchQuery) { _, _ in
                 scrollPosition.scrollTo(edge: .top)
             }
-            .onGeometryChange(for: Int.self) { proxy in
-                proxy.size.width >= 544 ? 2 : 1
-            } action: { newValue in
-                gridColumnCount = newValue
-            }
+            .adaptiveCardGridColumnCount($gridColumnCount)
         }
         .task {
             guard !hasLoaded else {
@@ -256,11 +257,17 @@ private extension SkillsScreen {
         return ids
     }
 
+    /// The skill whose details pane is open, so its card can render selected. Resolved
+    /// once per body pass and handed down, rather than each card asking the view model.
+    var activeDetailSkillID: String? {
+        guard case .details(let skillID) = viewModel.activePaneTarget else {
+            return nil
+        }
+        return skillID
+    }
+
     var gridColumns: [GridItem] {
-        Array(
-            repeating: GridItem(.flexible(minimum: 240), spacing: 16),
-            count: gridColumnCount
-        )
+        AdaptiveCardGridLayout.columns(count: gridColumnCount)
     }
 
     func openNewSkill(focusRestorationID: String? = nil) {

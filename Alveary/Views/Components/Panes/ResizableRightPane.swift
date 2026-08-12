@@ -15,7 +15,7 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
     @State private var displayedPresentation: RightPanePresentationIdentity<Destination>?
     @State private var displayedWidth: CGFloat?
     @State private var liveResizeWidth: CGFloat?
-    @State private var presentationProgress: CGFloat
+    @State private var presentationProgress: CGFloat = 0
     @State private var pendingDismissal: RightPanePresentationIdentity<Destination>?
     /// A collapse that has been requested but not yet drawn. `beginDismissal`
     /// writes `presentationProgress` synchronously, so the value alone cannot
@@ -24,7 +24,7 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
     @State private var unrenderedCollapse: RightPanePresentationIdentity<Destination>?
     @State private var hiddenPaneCleanup: UUID?
     @State private var resizeHandleActivation: UUID?
-    @State private var isResizeHandleInteractive: Bool
+    @State private var isResizeHandleInteractive = false
     @State private var didInitializePresentation = false
 
     init(
@@ -47,9 +47,6 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
         self.onDismiss = onDismiss
         self.mainContent = mainContent
         self.paneContent = paneContent
-        _displayedPresentation = State(initialValue: nil)
-        _presentationProgress = State(initialValue: 0)
-        _isResizeHandleInteractive = State(initialValue: false)
     }
 
     var body: some View {
@@ -72,6 +69,11 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
                 storedWidth: liveResizeWidth ?? routedPaneWidth,
                 availableWidth: proxy.size.width
             )
+            // Reads the slide's target, not a mid-flight width — see
+            // `RightPaneSettledMainWidthKey` for why `presentationProgress` can promise that.
+            let settledMainWidth = presentationProgress == 1
+                ? max(proxy.size.width - paneWidth - RightPaneWidthPolicy.resizeHandleThickness, 0)
+                : proxy.size.width
             RightPanePresentationLayout(
                 paneWidth: paneWidth,
                 presentationProgress: presentationProgress
@@ -79,6 +81,7 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
                 mainContent()
                     .frame(minWidth: 0, maxWidth: .infinity)
                     .clipped()
+                    .environment(\.rightPaneSettledMainWidth, settledMainWidth)
 
                 if let renderedPresentation {
                     HStack(spacing: 0) {
@@ -100,6 +103,7 @@ struct ResizableRightPane<Destination: Hashable, MainContent: View, PaneContent:
                         }
                         .id(renderedPresentation)
                         .frame(width: paneWidth)
+                        .environment(\.rightPaneHasSettled, isResizeHandleInteractive && isRenderedPresentationSettled)
                     }
                     .frame(width: paneWidth + RightPaneWidthPolicy.resizeHandleThickness)
                     .allowsHitTesting(isRenderedPresentationSettled && pendingDismissal != renderedPresentation)

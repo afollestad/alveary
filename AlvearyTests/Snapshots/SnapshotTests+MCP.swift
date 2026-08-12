@@ -41,6 +41,22 @@ extension SnapshotTests {
         )
     }
 
+    /// Both row types are `private`, so this baseline is the only thing holding
+    /// `isSelected` to the right pane target — comparing a server's id against an
+    /// `.edit` target's name is the shape of bug it catches.
+    func testMCPScreenSelectedRow() async throws {
+        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        await viewModel.load()
+        let server = try XCTUnwrap(viewModel.servers.first)
+        viewModel.requestEdit(server)
+
+        assertMacSnapshot(
+            MCPScreen(viewModel: viewModel),
+            size: CGSize(width: 1120, height: 900),
+            named: "mcp_screen_selected_row"
+        )
+    }
+
     func testMCPScreenPopulatedDark() async {
         let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
         await viewModel.load()

@@ -30,6 +30,23 @@ extension SnapshotTests {
         )
     }
 
+    /// The card owning the open details pane is the only surface that renders the accent
+    /// selection fill, and light mode is where `.secondary` text over that fill is most at
+    /// risk, so this is the baseline that guards the contrast.
+    func testSkillsScreenSelectedCard() async throws {
+        let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
+        await viewModel.load()
+        let skill = try XCTUnwrap(viewModel.installed.first)
+        viewModel.requestDetails(for: skill)
+        try? await Task.sleep(for: .milliseconds(20))
+
+        assertMacSnapshot(
+            SkillsScreen(viewModel: viewModel),
+            size: CGSize(width: 1120, height: 900),
+            named: "skills_screen_selected_card"
+        )
+    }
+
     func testSharedRightPaneCompositeDark() async {
         let viewModel = SkillsViewModel(skillsService: SnapshotSkillsService())
         await viewModel.load()

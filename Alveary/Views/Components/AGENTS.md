@@ -9,7 +9,7 @@ General shared controls live here. Narrower scopes:
 - `Alveary/Views/Components/TabChips/AGENTS.md`: `SelectableTabChip`, `TabChipButtonStyle`.
 - `Alveary/Views/Components/TextInput/AGENTS.md`: `AppTextEditor`, `AppKitTextView`.
 
-**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `ActionIcon` and `ActionButtonLabel`, `ActionButtonMetrics` / `ActionButtonTint`, `Octicon` and `OcticonImage`, `AppKitAnchoredPopover`, `KeepAliveTabContainer`, `SecondaryClickTarget`, `appSelectableRow(...)`, `AppScrollIndicatorLayout`, `StatusIndicatorSpinner`, `CommentReactionBar`, and `SplitActionButton`'s `emphasis` and `isBusy` each carry theirs.
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `ActionIcon` and `ActionButtonLabel`, `ActionButtonMetrics` / `ActionButtonTint`, `Octicon` and `OcticonImage`, `AppKitAnchoredPopover`, `AppOverflowMenu` / `AppOverflowMenuMetrics` / `AppOverflowMenuRow`, `AdaptiveCardGridLayout` / `adaptiveCardGridColumnCount(...)` / `adaptiveCardGridReflow(...)`, `appSelectableCard(...)` / `AppSelectableCardBackground`, `KeepAliveTabContainer`, `SecondaryClickTarget`, `appSelectableRow(...)`, `AppScrollIndicatorLayout`, `StatusIndicatorSpinner`, `CommentReactionBar`, and `SplitActionButton`'s `emphasis` and `isBusy` each carry theirs.
 
 ## Icons
 

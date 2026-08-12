@@ -19,11 +19,10 @@ struct AgentsSettingsTabView: View {
                     )
                 }
             }
-            .onGeometryChange(for: Int.self) { proxy in
-                proxy.size.width >= 544 ? 2 : 1
-            } action: { newValue in
-                gridColumnCount = newValue
-            }
+            .adaptiveCardGridReflow(columnCount: gridColumnCount)
+            // The grid sits behind the settings side list, inset from the lane's slot,
+            // so it cannot follow the published settled width — see the modifier's doc.
+            .adaptiveCardGridColumnCount($gridColumnCount, spansMainPane: false)
 
             AgentsInstructionsSection(model: viewModel.instructionsEditor)
         }
@@ -34,9 +33,6 @@ struct AgentsSettingsTabView: View {
     }
 
     private var gridColumns: [GridItem] {
-        Array(
-            repeating: GridItem(.flexible(minimum: 240), spacing: 16, alignment: .top),
-            count: gridColumnCount
-        )
+        AdaptiveCardGridLayout.columns(count: gridColumnCount, alignment: .top)
     }
 }

@@ -350,6 +350,8 @@ private struct IconActionButtonBody: View {
     let backgroundColor: Color
 
     @Environment(\.isFocused) private var isFocused
+    /// Read only to tell this button's focus from its enclosing row's; see `focusRing`.
+    @Environment(\.appSelectableRowState) private var rowState
     @State private var isHovering = false
 
     var body: some View {
@@ -376,9 +378,13 @@ private struct IconActionButtonBody: View {
 
     /// Only visible under Full Keyboard Access / Tab navigation, which is the
     /// right scope: these buttons are not made focusable on their own.
+    ///
+    /// Suppressed inside `.appSelectableRow(...)`, where `\.isFocused` reports the *row's*
+    /// focus rather than this button's — a focusable card would otherwise ring its trailing
+    /// glyph every time it took focus, which reads as the glyph being clicked.
     @ViewBuilder
     private var focusRing: some View {
-        if isFocused, isEnabled {
+        if isFocused, isEnabled, !rowState.isInsideRow {
             Circle()
                 .strokeBorder(AppAccentFill.primary, lineWidth: 2)
         }

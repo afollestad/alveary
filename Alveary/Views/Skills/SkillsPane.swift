@@ -220,7 +220,7 @@ private struct SkillDetailsPane: View, Equatable {
             Button {
                 Task { await viewModel.installActiveSkill() }
             } label: {
-                ActionButtonLabel(title: "Install", icon: .system("arrow.down.circle"))
+                ActionButtonLabel(title: "Install", icon: .system("plus"))
             }
             .primaryActionButtonStyle(expandsHorizontally: true)
             .disabled(session.isSubmitting)
@@ -233,12 +233,24 @@ private struct SkillMarkdownContent: View {
     let baseURL: URL?
     let isLoading: Bool
 
+    @Environment(\.rightPaneHasSettled) private var paneHasSettled
+
+    /// Latches the first settle so a beginning dismissal, which flips the environment
+    /// back to `false`, cannot swap the document out for the spinner mid-retract —
+    /// see `RightPaneHasSettledKey`.
+    @State private var hasSettledOnce = false
+
+    /// The document waits for the lane's slide on top of its own load: laying out the
+    /// whole markdown on the pane's first frames stalls the main thread mid-animation,
+    /// freezing the slide for the layout's whole cost. The spinner is cheap to animate,
+    /// and the document fades in once the pane has stopped moving.
+    private var showsDocument: Bool {
+        !isLoading && (paneHasSettled || hasSettledOnce)
+    }
+
     var body: some View {
         Group {
-            if isLoading {
-                ProgressView("Loading skill details...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
+            if showsDocument {
                 ScrollView {
                     AppMarkdownText(markdown: markdown, baseURL: baseURL)
                         .environment(\.openURL, OpenURLAction { url in
@@ -248,9 +260,20 @@ private struct SkillMarkdownContent: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(ContextualPaneLayout.contentInsets())
                 }
+                .transition(.opacity)
+            } else {
+                ProgressView("Loading skill details...")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
             }
         }
+        .animation(.easeOut(duration: 0.15), value: showsDocument)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: paneHasSettled, initial: true) { _, hasSettled in
+            if hasSettled {
+                hasSettledOnce = true
+            }
+        }
     }
 
     private func resolvedURL(for url: URL) -> URL {

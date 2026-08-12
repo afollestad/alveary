@@ -2,7 +2,7 @@
 
 These instructions cover `Alveary/Views/Components/Panes/` — `ResponsivePaneHeader` and the middle-pane screen header chrome, `ContextualPaneHeader` / `ContextualPaneFooter` and the insets every detail pane shares, and `ResizableRightPane`, the lane itself. What a route puts *in* the lane is `Alveary/App/Routing/AGENTS.md`.
 
-**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `ResponsivePaneHeader`'s degradation ladder, `PaneHeaderLayout`'s spacing constants, `ContextualPaneLayout` and `contextualPaneFooterChrome()`, `PaneRefreshIconButton`, `RightPanePresentationPolicy.reveal(...)`, and `RightPaneWidthPolicy.effectiveWidth` each carry theirs.
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `ResponsivePaneHeader`'s degradation ladder, `PaneHeaderLayout`'s spacing constants, `ContextualPaneLayout` and `contextualPaneFooterChrome()`, `PaneRefreshIconButton`, `RightPanePresentationPolicy.reveal(...)`, `RightPaneSettledMainWidthKey`, `RightPaneHasSettledKey`, and `RightPaneWidthPolicy.effectiveWidth` each carry theirs.
 
 ### Screen Headers
 

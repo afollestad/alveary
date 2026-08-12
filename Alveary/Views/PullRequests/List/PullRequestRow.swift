@@ -46,7 +46,7 @@ struct PullRequestRow: View, Equatable {
         // `.appSelectableRow` publishes selection chrome via `listRowBackground`,
         // which only renders inside a `List`. It reaches press, pending-selection,
         // and hover through `AppSelectableRowState` instead.
-        .background(PullRequestRowCardBackground(isSelected: isSelected))
+        .background(AppSelectableCardBackground(isSelected: isSelected, cornerRadius: 16))
         .appSelectableRow(
             isSelected: isSelected,
             identity: summary.id,
