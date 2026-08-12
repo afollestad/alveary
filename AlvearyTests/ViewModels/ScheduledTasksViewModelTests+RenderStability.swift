@@ -64,15 +64,16 @@ extension ScheduledTasksViewModelTests {
 
     // MARK: - Render stability
 
-    func testScheduledTaskRowEqualityIgnoresItsActionsAndComparesTheRenderedTask() {
+    func testScheduledTaskCardEqualityIgnoresItsActionsAndComparesTheRenderedTask() {
         let task = makeRowPresentation(title: "Nightly sweep")
-        let row = makeScheduledRow(task: task)
+        let card = makeScheduledCard(task: task)
 
-        XCTAssertEqual(row, makeScheduledRow(task: task, onEdit: { XCTFail("unused") }))
-        XCTAssertNotEqual(row, makeScheduledRow(task: task, isRunNowPending: true))
-        XCTAssertNotEqual(row, makeScheduledRow(task: task, providerName: "Codex"))
-        XCTAssertNotEqual(row, makeScheduledRow(task: task, focusID: "scheduled-edit-other"))
-        XCTAssertNotEqual(row, makeScheduledRow(task: makeRowPresentation(title: "Renamed")))
+        XCTAssertEqual(card, makeScheduledCard(task: task, onOpen: { XCTFail("unused") }))
+        XCTAssertNotEqual(card, makeScheduledCard(task: task, isRunNowPending: true))
+        XCTAssertNotEqual(card, makeScheduledCard(task: task, isSelected: true))
+        XCTAssertNotEqual(card, makeScheduledCard(task: task, providerName: "Codex"))
+        XCTAssertNotEqual(card, makeScheduledCard(task: task, focusID: "scheduled-edit-other"))
+        XCTAssertNotEqual(card, makeScheduledCard(task: makeRowPresentation(title: "Renamed")))
     }
 
     private func makeRowPresentation(title: String) -> ScheduledTaskRowPresentation {
@@ -98,51 +99,55 @@ extension ScheduledTasksViewModelTests {
     }
 }
 
-/// `ScheduledTaskRow` stores a `FocusState` binding, which only a `View` can vend. SwiftUI
+/// `ScheduledTaskCard` stores a `FocusState` binding, which only a `View` can vend. SwiftUI
 /// logs that the binding is read outside a `View` body and is therefore constant — which is
 /// what an `==` fixture wants, since the binding is excluded from `==`.
 @MainActor
-private func makeScheduledRow(
+private func makeScheduledCard(
     task: ScheduledTaskRowPresentation,
     providerName: String = "Claude",
     isRunNowPending: Bool = false,
+    isSelected: Bool = false,
     focusID: String = "scheduled-edit-definition",
-    onEdit: @escaping () -> Void = {}
-) -> ScheduledTaskRow {
-    ScheduledTaskRowEqualityHost(
+    onOpen: @escaping () -> Void = {}
+) -> ScheduledTaskCard {
+    ScheduledTaskCardEqualityHost(
         task: task,
         providerName: providerName,
         isRunNowPending: isRunNowPending,
+        isSelected: isSelected,
         focusID: focusID,
-        onEdit: onEdit
-    ).row
+        onOpen: onOpen
+    ).card
 }
 
-private struct ScheduledTaskRowEqualityHost: View {
+private struct ScheduledTaskCardEqualityHost: View {
     let task: ScheduledTaskRowPresentation
     let providerName: String
     let isRunNowPending: Bool
+    let isSelected: Bool
     let focusID: String
-    let onEdit: () -> Void
+    let onOpen: () -> Void
 
     @FocusState private var focus: String?
 
-    var row: ScheduledTaskRow {
-        ScheduledTaskRow(
+    var card: ScheduledTaskCard {
+        ScheduledTaskCard(
             task: task,
             providerName: providerName,
             isRunNowPending: isRunNowPending,
-            onEdit: onEdit,
+            isSelected: isSelected,
+            onOpen: onOpen,
             onPause: {},
             onResume: {},
             onRunNow: {},
             onDelete: {},
-            editFocus: $focus,
-            editFocusID: focusID
+            cardFocus: $focus,
+            cardFocusID: focusID
         )
     }
 
     var body: some View {
-        row
+        card
     }
 }

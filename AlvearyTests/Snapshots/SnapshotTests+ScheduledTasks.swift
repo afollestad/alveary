@@ -69,6 +69,32 @@ extension SnapshotTests {
         )
     }
 
+    /// Below `AdaptiveCardGridLayout.twoColumnMinimumWidth`, where the grid folds to one
+    /// column — the narrow case above still sits above that threshold and stays paired.
+    func testScheduledTasksScreenPopulatedSqueezed() throws {
+        let fixture = try ScheduledTasksSnapshotFixture()
+
+        assertMacSnapshot(
+            ScheduledTasksScreen(viewModel: fixture.viewModel),
+            size: CGSize(width: 420, height: 900),
+            named: "scheduled_tasks_populated_squeezed"
+        )
+    }
+
+    /// The card is the click target for its own editor pane, so it must render selected
+    /// while that pane is open.
+    func testScheduledTasksScreenSelectedCard() throws {
+        let fixture = try ScheduledTasksSnapshotFixture()
+        let task = try XCTUnwrap(fixture.viewModel.tasks.first)
+        fixture.viewModel.requestEdit(definitionID: task.id)
+
+        assertMacSnapshot(
+            ScheduledTasksScreen(viewModel: fixture.viewModel),
+            size: CGSize(width: 1_120, height: 900),
+            named: "scheduled_tasks_selected_card"
+        )
+    }
+
     func testScheduledTasksFilterChipsActiveSelection() {
         assertMacSnapshot(
             ScheduledTasksScreenHeader(

@@ -218,10 +218,17 @@ struct ScheduledTaskEditorContent: View {
     }
 }
 
-struct ScheduledTaskEditorPane: View {
+struct ScheduledTaskEditorPane: View, Equatable {
     let viewModel: ScheduledTasksViewModel
     let target: ScheduledTaskPaneTarget
     let onDismiss: () -> Void
+
+    /// `onDismiss` is excluded: `ResizableRightPane` keys the pane by presentation
+    /// identity, so a fresh closure meaning something different arrives only with a new
+    /// `.id` — which tears this view down instead of comparing it.
+    nonisolated static func == (lhs: ScheduledTaskEditorPane, rhs: ScheduledTaskEditorPane) -> Bool {
+        lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
+    }
 
     private var draft: Binding<ScheduledTaskEditorDraft> {
         Binding(

@@ -3,7 +3,8 @@ import SwiftUI
 struct ScheduledTasksScreen: View {
     let viewModel: ScheduledTasksViewModel
 
-    @State private var deleteConfirmation: ScheduledTaskRowPresentation?
+    @State private var deleteConfirmation: DestructiveConfirmationRequest?
+    @State private var gridColumnCount = 2
     @FocusState private var focusedPaneTriggerID: String?
 
     private let contentVerticalPadding: CGFloat = 28
@@ -29,6 +30,7 @@ struct ScheduledTasksScreen: View {
             let errorMessage = viewModel.errorMessage
             let pendingRunNowIDs = viewModel.pendingRunNowDefinitionIDs
             let providerNames = providerDisplayNames(for: visibleTasks)
+            let selectedDefinitionID = activeEditDefinitionID
 
             GeometryReader { proxy in
                 ScrollView {
@@ -55,26 +57,33 @@ struct ScheduledTasksScreen: View {
                             }
 
                             if !visibleTasks.isEmpty {
-                                LazyVStack(spacing: 10) {
+                                LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 16) {
                                     ForEach(visibleTasks) { task in
-                                        ScheduledTaskRow(
+                                        ScheduledTaskCard(
                                             task: task,
                                             providerName: providerNames[task.providerID]
                                                 ?? task.providerID.capitalized,
                                             isRunNowPending: pendingRunNowIDs.contains(task.id),
-                                            onEdit: {
+                                            isSelected: task.id == selectedDefinitionID,
+                                            onOpen: {
                                                 viewModel.requestEdit(definitionID: task.id)
                                             },
                                             onPause: { viewModel.pause(task) },
                                             onResume: { viewModel.resume(task) },
                                             onRunNow: { viewModel.runNow(task) },
-                                            onDelete: { deleteConfirmation = task },
-                                            editFocus: $focusedPaneTriggerID,
-                                            editFocusID: "scheduled-edit-\(task.id)"
+                                            onDelete: {
+                                                deleteConfirmation = makeScheduledTaskDeleteConfirmation {
+                                                    viewModel.delete(task)
+                                                }
+                                            },
+                                            cardFocus: $focusedPaneTriggerID,
+                                            cardFocusID: ScheduledTaskPaneTarget.edit(task.id)
+                                                .defaultFocusRestorationID
                                         )
                                         .equatable()
                                     }
                                 }
+                                .adaptiveCardGridReflow(columnCount: gridColumnCount)
                             }
                         }
                     }
@@ -90,6 +99,9 @@ struct ScheduledTasksScreen: View {
                 }
                 // The fixed filters can be changed at any scroll depth; each result set starts at the top.
                 .id(viewModel.selectedFilter.id)
+                // Outside the `.id` above, so the modifier's own seed state survives a chip
+                // click and an unchanged width cannot replay the flip as an animation.
+                .adaptiveCardGridColumnCount($gridColumnCount)
             }
         }
         .task {
@@ -102,29 +114,20 @@ struct ScheduledTasksScreen: View {
                 fallbackID: ScheduledTaskPaneTarget.create.defaultFocusRestorationID
             )
         }
-        .confirmationDialog(
-            "Delete scheduled task?",
-            isPresented: Binding(
-                get: { deleteConfirmation != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        deleteConfirmation = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible,
-            presenting: deleteConfirmation
-        ) { task in
-            Button("Delete", role: .destructive) {
-                viewModel.delete(task)
-                deleteConfirmation = nil
-            }
-            Button("Cancel", role: .cancel) {
-                deleteConfirmation = nil
-            }
-        } message: { _ in
-            Text("Future runs will stop. Existing run history and Task threads are retained.")
+        .destructiveConfirmation($deleteConfirmation)
+    }
+
+    private var gridColumns: [GridItem] {
+        AdaptiveCardGridLayout.columns(count: gridColumnCount)
+    }
+
+    /// The task whose editor pane is open, so its card can render selected. Resolved once
+    /// per body pass and handed down, rather than each card asking the view model.
+    private var activeEditDefinitionID: String? {
+        guard case .edit(let definitionID) = viewModel.activePaneTarget else {
+            return nil
         }
+        return definitionID
     }
 
     private func openCreatePane(focusRestorationID: String? = nil) {
@@ -151,6 +154,19 @@ struct ScheduledTasksScreen: View {
         }
         return ids
     }
+}
+
+/// Unlike its Skills and MCP siblings, this takes no model: the copy names no task on
+/// purpose, matching the dialog it replaced.
+private func makeScheduledTaskDeleteConfirmation(
+    confirm: @escaping () -> Void
+) -> DestructiveConfirmationRequest {
+    DestructiveConfirmationRequest(
+        title: "Delete scheduled task?",
+        message: "Future runs will stop. Existing run history and Task threads are retained.",
+        confirmTitle: "Delete",
+        confirm: confirm
+    )
 }
 
 private struct ScheduledTasksEmptyState: View {
