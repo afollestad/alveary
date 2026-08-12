@@ -54,7 +54,7 @@ struct ThreadDetailConversationTabs: View {
                     // Leading pane-edge inset lives *inside* the scrollable
                     // content so chips can scroll past the pane's visible
                     // leading edge while the first chip still appears 20pt
-                    // in at `contentOffset == 0`.
+                    // in at rest.
                     .padding(.leading, PaneHeaderLayout.leadingInset)
 
                     Color.clear
@@ -68,7 +68,7 @@ struct ThreadDetailConversationTabs: View {
                 ConversationTabsScrollGeometry(
                     contentWidth: geometry.contentSize.width,
                     containerWidth: geometry.containerSize.width,
-                    contentOffset: geometry.contentOffset.x
+                    scrolledDistance: geometry.horizontalScrolledDistance
                 )
             } action: { _, newValue in
                 tabsScrollGeometry = newValue
@@ -349,7 +349,7 @@ private extension ThreadDetailConversationTabs {
     var hasTabsBehindTrailingEdge: Bool {
         let effectiveMaxScroll = tabsMaxScrollableDistance - tabsTrailingSentinelWidth
         return effectiveMaxScroll > 0.5
-            && tabsScrollGeometry.contentOffset < effectiveMaxScroll - 0.5
+            && tabsScrollGeometry.scrolledDistance < effectiveMaxScroll - 0.5
     }
 
     /// Matches the terminal pane's divider tint so the two surfaces stay visually aligned.
@@ -364,7 +364,9 @@ private extension ThreadDetailConversationTabs {
 private struct ConversationTabsScrollGeometry: Equatable {
     var contentWidth: CGFloat = 0
     var containerWidth: CGFloat = 0
-    var contentOffset: CGFloat = 0
+    /// Always `ScrollGeometry.horizontalScrolledDistance`, whose doc comment owns why the raw
+    /// `contentOffset.x` cannot be compared against a scrollable distance.
+    var scrolledDistance: CGFloat = 0
 }
 
 /// `ScrollViewProxy` targets. Chips use their `persistentModelID`; the trailing

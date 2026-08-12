@@ -69,7 +69,7 @@ struct TerminalPane: View {
                             TerminalTabsScrollGeometry(
                                 contentWidth: geometry.contentSize.width,
                                 containerWidth: geometry.containerSize.width,
-                                contentOffset: geometry.contentOffset.x
+                                scrolledDistance: geometry.horizontalScrolledDistance
                             )
                         } action: { _, newValue in
                             tabsScrollGeometry = newValue
@@ -168,7 +168,7 @@ private extension TerminalPane {
     /// scroll area — i.e. the user has scrolled forward from the start. Gates the
     /// left-edge divider so it only appears when there is content to indicate.
     var hasTabsBehindLeadingEdge: Bool {
-        tabsScrollGeometry.contentOffset > 0.5
+        tabsScrollGeometry.scrolledDistance > 0.5
     }
 
     /// `true` when a tab chip extends beyond the trailing edge of the scroll area,
@@ -176,7 +176,7 @@ private extension TerminalPane {
     /// divider so it only appears when there is content to indicate.
     var hasTabsBehindTrailingEdge: Bool {
         tabsMaxScrollableDistance > 0.5
-            && tabsScrollGeometry.contentOffset < tabsMaxScrollableDistance - 0.5
+            && tabsScrollGeometry.scrolledDistance < tabsMaxScrollableDistance - 0.5
     }
 
     func handleSessionActivation(_ session: TerminalSession) {
@@ -275,5 +275,7 @@ private extension TerminalPane {
 private struct TerminalTabsScrollGeometry: Equatable {
     var contentWidth: CGFloat = 0
     var containerWidth: CGFloat = 0
-    var contentOffset: CGFloat = 0
+    /// Always `ScrollGeometry.horizontalScrolledDistance`, whose doc comment owns why the raw
+    /// `contentOffset.x` cannot be compared against a scrollable distance.
+    var scrolledDistance: CGFloat = 0
 }

@@ -63,7 +63,7 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
 
 - Only the trailing divider exists; there is no leading fixed element for a leading divider to abut.
 - Drive divider visibility from `onScrollGeometryChange`, not `GeometryReader` preferences.
-- Compute overflow with `effectiveMaxScroll = tabsMaxScrollableDistance - tabsTrailingSentinelWidth`.
+- Compute overflow with `effectiveMaxScroll = tabsMaxScrollableDistance - tabsTrailingSentinelWidth`, comparing it against the inset-corrected scroll distance that `Alveary/Views/Components/TabChips/AGENTS.md` mandates.
 - Render the divider as `.overlay(alignment: .trailing)` on the `ScrollView`.
 - Keep divider tint and 18pt height matched with the terminal-pane divider.
 - Do not use `.contentMargins(.trailing, ...)`; macOS 26 did not reserve visible trailing space here.

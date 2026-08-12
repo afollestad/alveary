@@ -69,7 +69,7 @@ struct SettingsScreenCompactNavigation: View, Equatable {
                 SettingsCompactNavigationScrollGeometry(
                     contentWidth: geometry.contentSize.width,
                     containerWidth: geometry.containerSize.width,
-                    contentOffset: geometry.contentOffset.x
+                    scrolledDistance: geometry.horizontalScrolledDistance
                 )
             } action: { _, newValue in
                 scrollGeometry = newValue
@@ -126,29 +126,24 @@ private extension SettingsScreenCompactNavigation {
 /// divider can gate on whether chips remain off-screen to the right.
 ///
 /// Internal rather than private so `SettingsScreenCompactNavigationTests` can cover the gating
-/// math directly. No snapshot can reach it — scroll geometry publishes after a baseline displays
-/// — and the one defect this surface needed a running app to catch lived exactly here.
+/// math directly. A snapshot cannot: nothing scrolls a baseline, and this gate has already been
+/// wrong twice at scrolled positions while reading correctly at rest.
 struct SettingsCompactNavigationScrollGeometry: Equatable {
     var contentWidth: CGFloat = 0
     var containerWidth: CGFloat = 0
-    var contentOffset: CGFloat = 0
+    /// Always `ScrollGeometry.horizontalScrolledDistance`, whose doc comment owns why the raw
+    /// `contentOffset.x` cannot be compared against a scrollable distance.
+    var scrolledDistance: CGFloat = 0
 
     /// `true` while a chip is clipped by the trailing edge. Subtracting the sentinel from the
     /// scrollable distance hides the divider as soon as the last *chip* is fully visible,
     /// rather than holding it while the sentinel alone scrolls in, and avoids a false positive
     /// when the chips fit and only the sentinel overflows.
-    ///
-    /// **Compare the distance scrolled, not the raw offset.** This strip's `contentOffset.x`
-    /// runs 0 at rest to *minus* the scrollable distance at the end, so the raw value sits below
-    /// any positive threshold at every position and pinned the divider on permanently. Taking
-    /// the magnitude reads the same at either sign convention and absorbs rubber-band overscroll
-    /// past both ends. The conversation-tab and terminal-session strips compare the raw offset;
-    /// do not "restore" that here without re-checking the sign in the running app.
     var hasChipsBehindTrailingEdge: Bool {
         let maxScroll = max(0, contentWidth - containerWidth)
         let effectiveMaxScroll = maxScroll - compactNavigationSentinelWidth
         return effectiveMaxScroll > 0.5
-            && abs(contentOffset) < effectiveMaxScroll - 0.5
+            && scrolledDistance < effectiveMaxScroll - 0.5
     }
 }
 

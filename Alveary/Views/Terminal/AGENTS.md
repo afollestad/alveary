@@ -14,11 +14,12 @@ These rules cover the floating terminal pane in `Alveary/Views/Terminal/`. The p
 
 ## Tab-Row Edge Dividers
 
-- **Track tab scroll state via `onScrollGeometryChange`, not a GeometryReader + `PreferenceKey` + named `coordinateSpace`.** The ScrollView publishes a `TerminalTabsScrollGeometry` snapshot and the edge dividers gate off it — the GeometryReader pattern did not re-fire on horizontal scroll, leaving the left divider hidden and the right one stuck visible at end-of-scroll.
+- **Track tab scroll state via `onScrollGeometryChange`, not a GeometryReader + `PreferenceKey` + named `coordinateSpace`.** The ScrollView publishes a `TerminalTabsScrollGeometry` snapshot and the edge dividers gate off it — the GeometryReader pattern did not re-fire on horizontal scroll at all.
+    - Publishing the snapshot is necessary but not sufficient: the left divider stayed hidden and the right one stuck visible at end-of-scroll until the gates moved onto the inset-corrected distance that `Alveary/Views/Components/TabChips/AGENTS.md` mandates.
 - **Render the dividers as `.overlay(alignment: .leading / .trailing)` on the ScrollView, not as inline HStack siblings** — a sibling with conditional padding re-flows the tab content by 1pt each time the divider appears.
 - **Keep the ScrollView greedy (`frame(maxWidth: .infinity)`) when sessions exist, and only render a `Spacer` in the no-sessions branch.** A flexible sibling `Spacer` splits the width and floats the trailing divider mid-pane; the no-sessions branch still needs its Spacer so the close button right-aligns.
 
-- **`testTerminalPaneSessionsOverflow` is the regression guard for this surface.** 8 sessions at 600pt pane width force the overflow state, which pins the trailing-edge divider — the 1pt × 18pt divider is captured in the recorded baseline, so `overlay(alignment: .trailing)` / `onScrollGeometryChange` / `hasTabsBehindTrailingEdge` regressions will fail verification. The leading divider is *not* captured because the test records at `contentOffset == 0` where `hasTabsBehindLeadingEdge` is false by design; verify the leading divider manually by scrolling forward in the running app.
+- **`testTerminalPaneSessionsOverflow` is the regression guard for this surface.** 8 sessions at 600pt pane width force the overflow state, which pins the trailing-edge divider — the 1pt × 18pt divider is captured in the recorded baseline, so `overlay(alignment: .trailing)` / `onScrollGeometryChange` / `hasTabsBehindTrailingEdge` regressions will fail verification. The leading divider is *not* captured because the test records at scroll distance 0 where `hasTabsBehindLeadingEdge` is false by design; verify the leading divider manually by scrolling forward in the running app.
 
 ## Tab Visibility On Selection And Insertion
 
