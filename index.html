@@ -20,7 +20,7 @@
          opaque #0b0b0a canvas (the dark --bg) at the 1200x630 link previews
          expect. A preview can't know the reader's theme, so it always gets the
          dark shot on its matching canvas. Pointing at the WebP instead doesn't
-         work: crawler support for WebP is patchy, filling 1.91:1 from 1952x1136
+         work: crawler support for WebP is patchy, filling 1.91:1 from 1953x1299
          would crop the window, and its rounded corners are transparent, which
          previews composite unpredictably. Re-export it whenever the hero
          screenshot changes. -->
@@ -29,13 +29,13 @@
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt"
-        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff, and a sidebar of pinned threads, projects, and tasks.">
+        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files, and a sidebar of pinned threads, projects, and tasks.">
     <!-- Twitter falls back to og:image on its own, but it never reads
          og:image:alt — so the image is repeated here to give its alt an anchor. -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://alveary.af.codes/images/og-image.png">
     <meta name="twitter:image:alt"
-        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff, and a sidebar of pinned threads, projects, and tasks.">
+        content="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files, and a sidebar of pinned threads, projects, and tasks.">
 
     <!-- The icon mirrors the app icon and stays on the gold plate in both
          appearances. A graphite plate is the obvious dark counterpart, but Safari
@@ -124,8 +124,8 @@
                 <source srcset="images/screenshot-main-dark.webp" type="image/webp" data-theme="dark"
                     media="(prefers-color-scheme: dark)">
                 <img class="screenshot screenshot-hero" src="images/screenshot-main-light.webp"
-                    alt="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with their diff and a commit button, and a sidebar of pinned threads, projects, and tasks."
-                    width="1952" height="1136" decoding="async" fetchpriority="high">
+                    alt="The Alveary main window: an agent working through a thread, a Git panel beside it listing staged and unstaged files with a commit button, and a sidebar of pinned threads, projects, and tasks."
+                    width="1953" height="1299" decoding="async" fetchpriority="high">
             </picture>
         </div>
     </section>
@@ -146,8 +146,8 @@
                 <source srcset="images/screenshot-scheduled-tasks-dark.webp" type="image/webp" data-theme="dark"
                     media="(prefers-color-scheme: dark)">
                 <img class="screenshot" src="images/screenshot-scheduled-tasks-light.webp"
-                    alt="The Scheduled tab, listing recurring agent tasks with their cadence, next run time, and run, edit, and delete controls, with the task editor open beside it for the instructions, schedule, and workspace."
-                    width="1952" height="1136" loading="lazy" decoding="async">
+                    alt="The Scheduled tab, listing recurring agent tasks with their cadence and next run time, with the task editor open beside it for the title, instructions, schedule, and workspace."
+                    width="1953" height="1299" loading="lazy" decoding="async">
             </picture>
         </div>
     </section>
@@ -168,8 +168,8 @@
                 <source srcset="images/screenshot-pull-requests-dark.webp" type="image/webp" data-theme="dark"
                     media="(prefers-color-scheme: dark)">
                 <img class="screenshot" src="images/screenshot-pull-requests-light.webp"
-                    alt="The Pull requests tab: pull requests on the left grouped into authored, pending review, and previously reviewed, and a detail pane on the right with the description, linked threads, reviewers, and checks."
-                    width="1952" height="1136" loading="lazy" decoding="async">
+                    alt="The Pull requests tab: pull requests on the left grouped into authored and pending review, and a detail pane on the right with the description, testing notes, linked threads, reviewers, and checks."
+                    width="1953" height="1299" loading="lazy" decoding="async">
             </picture>
         </div>
     </section>

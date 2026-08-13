@@ -44,9 +44,15 @@ on a transparent field, ringed by macOS's window shadow. Then:
    leaving dark RGB behind fringes the downscale). Skip this and each corner draws
    a gray wedge over the light background, which is invisible while you're only
    looking at the dark shot.
-3. **Downscale to 1952x1136**, which re-antialiases the corner from the hard edge
-   left by step 2. Keep this size: `.screenshot` pins `aspect-ratio: 1952 / 1136`
-   and each `<img>` repeats it in `width`/`height` to reserve layout space.
+3. **Downscale by a fraction the crop divides evenly by** — three quarters, at
+   the window size the current set was captured at — which re-antialiases the
+   corner from the hard edge left by step 2. Dividing evenly is what keeps the
+   crop's aspect ratio exact and both sides integral; pick the fraction landing
+   just past 2x the 960px the shots are displayed at (`.container.grid-lg` less
+   its padding). Every shot ships at that one size: `.screenshot` pins the ratio
+   in `aspect-ratio` and each `<img>` repeats the size in `width`/`height` to
+   reserve layout space. So capture the whole set at one window size, and update
+   both of those when the window shape changes.
 4. **Encode lossless WebP** (`cwebp -lossless -z 9 -alpha_q 100`). These are UI
    screenshots — lossy ringing around text is obvious, and lossless lands around
    200-300 KB each.
@@ -62,7 +68,7 @@ alpha channel, `cropping(to:)`, redraw into a smaller context).
     <source srcset="images/screenshot-x-dark.webp" type="image/webp" data-theme="dark"
         media="(prefers-color-scheme: dark)">
     <img class="screenshot" src="images/screenshot-x-light.webp" alt="…"
-        width="1952" height="1136" loading="lazy" decoding="async">
+        width="…" height="…" loading="lazy" decoding="async">
 </picture>
 ```
 
