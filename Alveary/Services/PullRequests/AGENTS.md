@@ -1,12 +1,12 @@
 ## Pull Request Services
 
-App-scoped pull-request services that are neither the tool surface nor the client: `PullRequestLinkService`, `PullRequestAgenticThreadService`, and `PullRequestReviewProposalOutcomeRecorder`. The `alveary_host` tools are the nested `HostTools/` scope and the GitHub client is `GitHub/`; the dependency runs one way, so nothing under `GitHub/` may reach the host tools, linking, SwiftData, or MCP.
+App-scoped pull-request services that are neither the tool surface nor the client: `PullRequestLinkService`, `PullRequestAgenticThreadService`, `PullRequestSummaryHandoff`, and `PullRequestReviewProposalOutcomeRecorder`. The `alveary_host` tools are the nested `HostTools/` scope and the GitHub client is `GitHub/`; the dependency runs one way, so nothing under `GitHub/` may reach the host tools, linking, SwiftData, or MCP.
 
-**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `PullRequestAgenticThreadStart`, `PullRequestAgenticThreadService`, `+Workspace.swift`'s ladder, `PullRequestLinkService.link`, and `PullRequestReviewProposalOutcomeRecorder` each carry theirs.
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `PullRequestAgenticThreadStart`, `PullRequestAgenticThreadService`, `+Workspace.swift`'s ladder, `PullRequestLinkService.link`, `PullRequestSummaryHandoff`, and `PullRequestReviewProposalOutcomeRecorder` each carry theirs.
 
 ### Linking
 
-- `PullRequestLinkService` is the app-scoped link store; `Alveary/ViewModels/PullRequests/Links/AGENTS.md` owns its split with `PullRequestLinksViewModel` and the `detail:` handover a caller that already fetched may use, and `Alveary/Services/Threads/AGENTS.md` owns the `link_pr`/`unlink_pr` tools that write through it.
+- `PullRequestLinkService` is the app-scoped link store; `Alveary/ViewModels/PullRequests/Links/AGENTS.md` owns its split with `PullRequestLinksViewModel` and the `detail:`/`summary:` handovers a caller with a fresh copy may use, and `Alveary/Services/Threads/AGENTS.md` owns the `link_pr`/`unlink_pr` tools that write through it.
 
 ### Agentic Threads
 

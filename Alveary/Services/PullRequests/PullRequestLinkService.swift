@@ -51,10 +51,17 @@ final class PullRequestLinkService {
     /// paying a second identical round trip. The invariant is that a stored link never holds a
     /// snapshot of something unreachable — not that this call is personally the fetcher — so a
     /// supplied detail is used only when it names the same pull request.
+    ///
+    /// `summary` is the same handover for a caller holding an involvement-search row rather than
+    /// a detail — in practice `link_pr` reading `PullRequestSummaryHandoff`. It loses to `detail`,
+    /// which the caller fetched moments ago where a search row may be minutes old, and it is
+    /// stored as searched: its involvement flags and `updatedAt` are real where
+    /// `makeSummary(from:linkedAt:)`'s are stand-ins.
     func link(
         _ identifier: PullRequestIdentifier,
         owner: PullRequestLinkOwner,
-        detail: PullRequestDetail? = nil
+        detail: PullRequestDetail? = nil,
+        summary: PullRequestSummary? = nil
     ) async throws -> PullRequestLinkOutcome {
         guard let links = modelContext.linkedPullRequests(for: owner) else {
             return .superseded
@@ -63,16 +70,19 @@ final class PullRequestLinkService {
             return .alreadyLinked(existing)
         }
 
-        let resolvedDetail: PullRequestDetail
+        let storedSummary: (Date) -> PullRequestSummary
         if let detail, detail.id == identifier {
-            resolvedDetail = detail
+            storedSummary = { Self.makeSummary(from: detail, linkedAt: $0) }
+        } else if let summary, summary.id == identifier {
+            storedSummary = { _ in summary }
         } else {
-            resolvedDetail = try await service.fetchDetail(identifier)
+            let fetched = try await service.fetchDetail(identifier)
+            storedSummary = { Self.makeSummary(from: fetched, linkedAt: $0) }
         }
 
         // Re-resolve after the fetch; the owner may be gone by now, or a concurrent link for the
-        // same pull request may have landed meanwhile. A supplied detail may not have suspended
-        // at all, but the check has to stay correct for both paths.
+        // same pull request may have landed meanwhile. A supplied detail or summary may not have
+        // suspended at all, but the check has to stay correct for every path.
         guard let liveLinks = modelContext.linkedPullRequests(for: owner),
               !liveLinks.contains(where: { $0.id == identifier }) else {
             return .superseded
@@ -81,7 +91,7 @@ final class PullRequestLinkService {
         // `linkedAt` cannot disagree, and tests keep one clock.
         let linkedAt = now()
         let link = LinkedPullRequest(
-            summary: Self.makeSummary(from: resolvedDetail, linkedAt: linkedAt),
+            summary: storedSummary(linkedAt),
             linkedAt: linkedAt
         )
         modelContext.setLinkedPullRequests(liveLinks + [link], for: owner)

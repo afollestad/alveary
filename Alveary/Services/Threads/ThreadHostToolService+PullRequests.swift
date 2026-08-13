@@ -3,8 +3,9 @@ import Foundation
 import SwiftData
 
 extension ThreadHostToolService {
-    /// Links a pull request to a thread. Immediate, and validated by the same GitHub fetch the UI
-    /// uses, so a mistyped or unreachable pull request is refused rather than stored.
+    /// Links a pull request to a thread. Immediate. A pull request the involved-list tool recently
+    /// returned is stored from that row; anything else is validated by the same GitHub fetch the
+    /// UI uses, so a mistyped or unreachable pull request is refused rather than stored.
     func linkPullRequest(
         context: AgentCLIKit.AgentHostToolCallContext,
         arguments: [String: AgentCLIKit.JSONValue]
@@ -16,7 +17,13 @@ extension ThreadHostToolService {
         let request = try parsePullRequestLink(arguments: arguments)
         let target = try pullRequestTarget(source: source, threadID: request.threadID)
 
-        let outcome = try await linkService.link(request.identifier, owner: .thread(target.threadID))
+        let outcome = try await linkService.link(
+            request.identifier,
+            owner: .thread(target.threadID),
+            // The listed-then-linked flow — a scheduled run fanning out reviews — pays one search,
+            // not one fetch per link; the search already proved these rows reachable.
+            summary: summaryHandoff.summary(for: request.identifier)
+        )
         switch outcome {
         case .linked(let link):
             return pullRequestResult(

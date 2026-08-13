@@ -24,21 +24,10 @@ extension PullRequestHostToolService {
         _ = try resolveSource(context: context)
         let request = try parseListRequest(arguments: arguments)
 
-        let result: PullRequestListResult
-        do {
-            result = try await pullRequestsService.listInvolvedPullRequests(
-                buckets: request.buckets,
-                status: request.status,
-                options: PullRequestListOptions(
-                    pageSize: request.limit,
-                    cursors: request.cursors,
-                    updatedAfter: request.updatedAfter,
-                    updatedBefore: request.updatedBefore
-                )
-            )
-        } catch let error as PullRequestsServiceError {
-            throw Self.unavailable(error)
-        }
+        let result = try await fetchList(request: request)
+        // Every fetched row goes to `link_pr`'s fetch-skipping path, pre-filter and pre-limit —
+        // the fetch proved them all reachable, which is the only thing that path relies on.
+        summaryHandoff.record(result.summaries)
 
         let matching = result.summaries.filter(request.filter.matches)
         // Newest activity first, matching the screen; the display key breaks ties so repeated calls
@@ -80,6 +69,25 @@ extension PullRequestHostToolService {
 }
 
 private extension PullRequestHostToolService {
+    /// The search itself, with a service failure mapped to the tool's `unavailable` refusal;
+    /// anything else propagates untouched.
+    func fetchList(request: PullRequestHostToolListRequest) async throws -> PullRequestListResult {
+        do {
+            return try await pullRequestsService.listInvolvedPullRequests(
+                buckets: request.buckets,
+                status: request.status,
+                options: PullRequestListOptions(
+                    pageSize: request.limit,
+                    cursors: request.cursors,
+                    updatedAfter: request.updatedAfter,
+                    updatedBefore: request.updatedBefore
+                )
+            )
+        } catch let error as PullRequestsServiceError {
+            throw Self.unavailable(error)
+        }
+    }
+
     /// The token the next page resumes from, or nil when every bucket is drained.
     ///
     /// A row is *consumed* once it has been emitted or rejected by the filter — no later page can

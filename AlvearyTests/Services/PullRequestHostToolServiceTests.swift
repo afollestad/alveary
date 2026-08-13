@@ -184,6 +184,7 @@ final class PullRequestHostToolFixture {
     let modelContext: ModelContext
     let service: PullRequestHostToolService
     let pullRequests: StubPullRequestsService
+    let summaryHandoff: PullRequestSummaryHandoff
     let settingsService: InMemorySettingsService
     let notificationCenter: NotificationCenter
     let project: Project
@@ -227,10 +228,13 @@ final class PullRequestHostToolFixture {
         pullRequests = stub
         let settings = InMemorySettingsService()
         settingsService = settings
+        let handoff = PullRequestSummaryHandoff(now: now)
+        summaryHandoff = handoff
         service = PullRequestHostToolService(
             modelContext: context,
             pullRequestsService: stub,
             settingsService: settings,
+            summaryHandoff: handoff,
             notificationCenter: notificationCenter,
             now: now,
             makeProposalID: { Self.proposalID }

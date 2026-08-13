@@ -58,6 +58,60 @@ final class PullRequestLinkServiceTests: XCTestCase {
         XCTAssertEqual(harness.thread.linkedPullRequests, [])
     }
 
+    /// The involved-list handover: a summary from a recent search is stored as searched, because
+    /// the search already proved the pull request reachable — the only thing the fetch re-proves.
+    func testLinkStoresAHandedOverSummaryWithoutFetching() async throws {
+        let harness = try Harness()
+        let summary = makePullRequestSummary(number: 7, title: "From the search", isReviewRequested: true)
+
+        let outcome = try await harness.linkService.link(identifier, owner: harness.threadOwner, summary: summary)
+
+        guard case .linked(let link) = outcome else {
+            return XCTFail("Expected a link, got \(outcome)")
+        }
+        XCTAssertEqual(link.summary.title, "From the search")
+        // Stored as searched, not re-derived: the search's involvement flags are real.
+        XCTAssertTrue(link.summary.isReviewRequested)
+        XCTAssertEqual(harness.service.detailCallCount, 0)
+    }
+
+    /// A summary naming a different pull request is ignored, exactly like a mismatched detail.
+    func testAHandedOverSummaryForADifferentPullRequestIsIgnoredAndTheFetchRuns() async throws {
+        let harness = try Harness()
+        harness.service.detailResult = .success(makePullRequestDetail(id: identifier, title: "Fetched", status: .open))
+
+        let outcome = try await harness.linkService.link(
+            identifier,
+            owner: harness.threadOwner,
+            summary: makePullRequestSummary(number: 99, title: "Someone else's row")
+        )
+
+        guard case .linked(let link) = outcome else {
+            return XCTFail("Expected a link, got \(outcome)")
+        }
+        XCTAssertEqual(link.summary.title, "Fetched")
+        XCTAssertEqual(harness.service.detailCallCount, 1)
+    }
+
+    /// A caller holding both handed the detail over moments after fetching it, where a search row
+    /// may be minutes old — the fresher snapshot wins.
+    func testAHandedOverDetailBeatsAHandedOverSummary() async throws {
+        let harness = try Harness()
+
+        let outcome = try await harness.linkService.link(
+            identifier,
+            owner: harness.threadOwner,
+            detail: makePullRequestDetail(id: identifier, title: "Fetched by the caller", status: .open),
+            summary: makePullRequestSummary(number: 7, title: "From the search")
+        )
+
+        guard case .linked(let link) = outcome else {
+            return XCTFail("Expected a link, got \(outcome)")
+        }
+        XCTAssertEqual(link.summary.title, "Fetched by the caller")
+        XCTAssertEqual(harness.service.detailCallCount, 0)
+    }
+
     func testLinkingAVanishedOwnerIsSuperseded() async throws {
         let harness = try Harness()
         let missingThread = AgentThread(name: "Detached")

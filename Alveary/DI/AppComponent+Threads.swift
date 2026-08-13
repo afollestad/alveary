@@ -9,6 +9,7 @@ extension AppComponent {
                 modelContext: modelContainer.mainContext,
                 lifecycleService: threadLifecycleService,
                 linkService: pullRequestLinkService,
+                summaryHandoff: pullRequestSummaryHandoff,
                 settingsService: settingsService,
                 providerDiscovery: cachedAgentProviderDiscoveryService,
                 startInitialPrompt: { conversation, prompt in

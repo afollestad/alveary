@@ -39,9 +39,17 @@ extension AppComponent {
             PullRequestHostToolService(
                 modelContext: modelContainer.mainContext,
                 pullRequestsService: pullRequestsService,
-                settingsService: settingsService
+                settingsService: settingsService,
+                summaryHandoff: pullRequestSummaryHandoff
             )
         }
+    }
+
+    /// Hands `list_involved_prs` rows to `link_pr`, whose link then skips its validating fetch.
+    /// App-scoped because the writer is the pull request tools and the reader the thread tools;
+    /// hand both the same instance, or the reader consults an always-empty store.
+    var pullRequestSummaryHandoff: PullRequestSummaryHandoff {
+        return shared { PullRequestSummaryHandoff() }
     }
 
     var pullRequestsService: any PullRequestsService {

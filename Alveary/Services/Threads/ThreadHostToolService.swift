@@ -9,6 +9,9 @@ final class ThreadHostToolService {
     let modelContext: ModelContext
     let lifecycleService: ThreadLifecycleService
     let linkService: PullRequestLinkService
+    /// Must be the same instance the pull request tools write, or `link_pr` silently degrades
+    /// back to a fetch per link; required in the initializer so a construction site must choose.
+    let summaryHandoff: PullRequestSummaryHandoff
     let settingsService: SettingsService
     let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     /// Starts a created thread's first turn headlessly. Fire-and-forget: `create_thread` reports
@@ -21,6 +24,7 @@ final class ThreadHostToolService {
         modelContext: ModelContext,
         lifecycleService: ThreadLifecycleService,
         linkService: PullRequestLinkService,
+        summaryHandoff: PullRequestSummaryHandoff,
         settingsService: SettingsService,
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         startInitialPrompt: @escaping @MainActor (Conversation, String) -> Void = { _, _ in },
@@ -30,6 +34,7 @@ final class ThreadHostToolService {
         self.modelContext = modelContext
         self.lifecycleService = lifecycleService
         self.linkService = linkService
+        self.summaryHandoff = summaryHandoff
         self.settingsService = settingsService
         self.providerDiscovery = providerDiscovery
         self.startInitialPrompt = startInitialPrompt

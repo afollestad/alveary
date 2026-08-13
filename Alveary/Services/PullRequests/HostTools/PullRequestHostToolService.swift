@@ -12,6 +12,9 @@ final class PullRequestHostToolService {
     let modelContext: ModelContext
     let pullRequestsService: any PullRequestsService
     let settingsService: any SettingsService
+    /// Required rather than defaulted so a construction site must choose the shared instance —
+    /// a private one would compile and silently degrade every `link_pr` back to a fetch.
+    let summaryHandoff: PullRequestSummaryHandoff
     let notificationCenter: NotificationCenter
     private let requestParser: PullRequestHostToolRequestParser
     private let now: () -> Date
@@ -21,6 +24,7 @@ final class PullRequestHostToolService {
         modelContext: ModelContext,
         pullRequestsService: any PullRequestsService,
         settingsService: any SettingsService,
+        summaryHandoff: PullRequestSummaryHandoff,
         notificationCenter: NotificationCenter = .default,
         requestParser: PullRequestHostToolRequestParser = PullRequestHostToolRequestParser(),
         now: @escaping () -> Date = Date.init,
@@ -30,6 +34,7 @@ final class PullRequestHostToolService {
         self.modelContext = modelContext
         self.pullRequestsService = pullRequestsService
         self.settingsService = settingsService
+        self.summaryHandoff = summaryHandoff
         self.notificationCenter = notificationCenter
         self.requestParser = requestParser
         self.now = now

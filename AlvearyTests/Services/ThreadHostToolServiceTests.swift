@@ -249,6 +249,7 @@ final class ThreadHostToolFixture {
     let sidebar: SidebarTestFixture
     let service: ThreadHostToolService
     let pullRequests: StubPullRequestsService
+    let summaryHandoff: PullRequestSummaryHandoff
     let project: Project
     let thread: AgentThread
     let conversation: Conversation
@@ -287,6 +288,7 @@ final class ThreadHostToolFixture {
         let recorder = startedPrompts
         let pullRequestsService = StubPullRequestsService()
         pullRequests = pullRequestsService
+        summaryHandoff = PullRequestSummaryHandoff()
         service = ThreadHostToolService(
             modelContext: sidebar.context,
             lifecycleService: sidebar.viewModel.threadLifecycle,
@@ -295,6 +297,7 @@ final class ThreadHostToolFixture {
                 service: pullRequestsService,
                 now: { Date(timeIntervalSince1970: 4_242) }
             ),
+            summaryHandoff: summaryHandoff,
             settingsService: sidebar.settingsService,
             providerDiscovery: providerDiscovery,
             startInitialPrompt: { conversation, prompt in

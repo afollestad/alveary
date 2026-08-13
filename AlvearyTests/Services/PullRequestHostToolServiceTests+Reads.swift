@@ -51,6 +51,34 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(all["total_count"], .number(3))
     }
 
+    /// Every fetched row reaches `link_pr`'s fetch-skipping handoff — including rows the limit
+    /// drops, because the fetch proved them reachable and that proof is all the handoff carries.
+    func testListingHandsEveryFetchedRowToTheSummaryHandoff() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let newer = makePullRequestSummary(
+            number: 1,
+            updatedAt: Date(timeIntervalSince1970: 2_000),
+            isReviewRequested: true
+        )
+        let older = makePullRequestSummary(
+            number: 2,
+            updatedAt: Date(timeIntervalSince1970: 1_000),
+            isReviewRequested: true
+        )
+        fixture.pullRequests.listResult = .success(
+            PullRequestListResult(summaries: [newer, older], warnings: [])
+        )
+
+        let content = try object(await fixture.handle(
+            PullRequestHostToolCatalog.listToolName,
+            arguments: ["filter": .string("reviewing"), "limit": .number(1)]
+        ).structuredContent)
+
+        XCTAssertEqual(try listedNumbers(content), [1])
+        XCTAssertEqual(fixture.summaryHandoff.summary(for: newer.id), newer)
+        XCTAssertEqual(fixture.summaryHandoff.summary(for: older.id), older)
+    }
+
     /// Each review scope is one GitHub search, which is the whole reason the filter picks buckets
     /// rather than narrowing a merged set after the fact.
     func testEachReviewFilterFetchesOnlyItsOwnBucket() async throws {

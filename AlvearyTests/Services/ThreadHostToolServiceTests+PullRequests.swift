@@ -29,6 +29,22 @@ extension ThreadHostToolServiceTests {
         XCTAssertTrue(result.text.contains("pull request on GitHub is unchanged"), result.text)
     }
 
+    /// A pull request the involved-list tool recently returned skips the validating fetch: the
+    /// search proved it reachable, and its row is exactly what the link stores.
+    func testLinkPullRequestStoresARecentlyListedRowWithoutFetching() async throws {
+        let fixture = try ThreadHostToolFixture()
+        fixture.summaryHandoff.record([
+            makePullRequestSummary(number: 7, title: "From the search", isReviewRequested: true)
+        ])
+
+        let result = await fixture.linkPullRequest(url: "https://github.com/octo/alpha/pull/7")
+
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertEqual(try object(result.structuredContent)["status"], .string("linked"))
+        XCTAssertEqual(fixture.pullRequests.detailCallCount, 0)
+        XCTAssertEqual(fixture.thread.linkedPullRequests.first?.summary.title, "From the search")
+    }
+
     func testLinkPullRequestTargetsANamedThread() async throws {
         let fixture = try ThreadHostToolFixture()
         let target = try fixture.insertThread(name: "Release", conversationID: "release-main")
