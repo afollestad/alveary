@@ -44,7 +44,7 @@ struct PullRequestPaneFiles: View, Equatable {
                 heading: "Diff unavailable",
                 subtext: message,
                 actions: [
-                    EmptyStateView.EmptyStateAction(
+                    EmptyStateAction(
                         title: "Retry",
                         systemImage: "arrow.clockwise",
                         style: .secondary,

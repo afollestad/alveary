@@ -7,11 +7,11 @@ import SwiftData
 @Observable
 final class ScheduledTasksViewModel {
     @ObservationIgnored let modelContext: ModelContext
-    @ObservationIgnored private let mutationService: ScheduledTaskMutationService
+    @ObservationIgnored let mutationService: ScheduledTaskMutationService
     @ObservationIgnored let providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)?
     @ObservationIgnored let settingsService: any SettingsService
     @ObservationIgnored let agentRegistry: AgentRegistry
-    @ObservationIgnored private let runNowAction: @MainActor (ScheduledTaskRunNowRequest) -> Bool
+    @ObservationIgnored let runNowAction: @MainActor (ScheduledTaskRunNowRequest) -> Bool
     @ObservationIgnored let now: () -> Date
     @ObservationIgnored let currentTimeZone: () -> TimeZone
     @ObservationIgnored let notificationCenter: NotificationCenter
@@ -117,11 +117,41 @@ final class ScheduledTasksViewModel {
     }
 
     func requestCreate(focusRestorationID: String? = nil) {
+        openCreatePane(replacementDraft: nil, focusRestorationID: focusRestorationID)
+    }
+
+    /// Opens the create pane seeded from an empty-state suggestion.
+    ///
+    /// The draft is a replacement rather than a fallback: picking a suggestion is an
+    /// explicit choice of starting point, so a session cached from an earlier one must not
+    /// survive it. Dismiss the pull-request suggestion, pick the digest, and reusing the
+    /// cached draft would reopen the pull-request prompt under the new card's name.
+    func requestCreate(from suggestion: ScheduledTaskSuggestion, focusRestorationID: String? = nil) {
+        openCreatePane(
+            replacementDraft: makeSuggestionDraft(suggestion),
+            focusRestorationID: focusRestorationID
+        )
+    }
+
+    /// The one entry point for the create pane, so its dismissal bookkeeping cannot drift
+    /// between the blank and pre-filled routes.
+    ///
+    /// A `nil` `replacementDraft` reuses whatever session is cached, which is what keeps a
+    /// dismissed blank draft's typing alive across a reopen; passing one discards it.
+    private func openCreatePane(
+        replacementDraft: ScheduledTaskEditorDraft?,
+        focusRestorationID: String?
+    ) {
         proposalPaneOriginThreadID = nil
         paneFocusRestorationID = focusRestorationID ?? ScheduledTaskPaneTarget.create.defaultFocusRestorationID
         errorMessage = nil
         discardCompletedSessionIfNeeded(for: .create)
-        if paneSessions[.create] == nil {
+        if let replacementDraft {
+            paneSessions[.create] = ScheduledTaskPaneSession(
+                generation: UUID(),
+                draft: replacementDraft
+            )
+        } else if paneSessions[.create] == nil {
             paneSessions[.create] = ScheduledTaskPaneSession(
                 generation: UUID(),
                 draft: makeNewDraft()
@@ -375,56 +405,6 @@ final class ScheduledTasksViewModel {
         }
     }
 
-    func pause(_ task: ScheduledTaskRowPresentation) {
-        performMutation {
-            try mutationService.pause(
-                definitionID: task.id,
-                expectedRevision: task.revision,
-                at: now()
-            )
-        }
-    }
-
-    func resume(_ task: ScheduledTaskRowPresentation) {
-        performMutation {
-            try mutationService.resume(
-                definitionID: task.id,
-                expectedRevision: task.revision,
-                at: now()
-            )
-        }
-    }
-
-    func delete(_ task: ScheduledTaskRowPresentation) {
-        do {
-            try mutationService.delete(definitionID: task.id, expectedRevision: task.revision)
-            discardEditSession(definitionID: task.id)
-            errorMessage = nil
-            reload()
-        } catch {
-            errorMessage = error.localizedDescription
-            reload()
-        }
-    }
-
-    func runNow(_ task: ScheduledTaskRowPresentation) {
-        do {
-            let request = try mutationService.prepareRunNow(
-                definitionID: task.id,
-                expectedRevision: task.revision,
-                at: now()
-            )
-            guard runNowAction(request) else {
-                throw ScheduledTasksViewModelError.runNowRejected
-            }
-            errorMessage = nil
-            pendingRunNowDefinitionIDs.insert(task.id)
-        } catch {
-            errorMessage = error.localizedDescription
-            reload()
-        }
-    }
-
     func clearError() {
         errorMessage = nil
     }
@@ -465,6 +445,19 @@ private extension ScheduledTasksViewModel {
         reload()
     }
 
+    func discardCompletedSessionIfNeeded(for target: ScheduledTaskPaneTarget) {
+        guard let request = pendingPaneDismissals.first(where: { $0.target == target }) else {
+            return
+        }
+        deactivatedPaneDismissals.remove(request)
+        dismissPane(target, generation: request.generation, restoreFocus: false)
+    }
+}
+
+extension ScheduledTasksViewModel {
+    /// Retires a definition's cached editor session. Lives here rather than beside `delete`
+    /// in `ScheduledTasksViewModel+RowActions.swift` because it writes `pendingPaneDismissals`
+    /// and `paneFocusRestorationID`, whose setters are private to this file.
     func discardEditSession(definitionID: String) {
         let target = ScheduledTaskPaneTarget.edit(definitionID)
         if let generation = paneSessions[target]?.generation {
@@ -474,24 +467,4 @@ private extension ScheduledTasksViewModel {
             pendingPaneDismissals.insert(.init(target: target, generation: generation))
         }
     }
-
-    func discardCompletedSessionIfNeeded(for target: ScheduledTaskPaneTarget) {
-        guard let request = pendingPaneDismissals.first(where: { $0.target == target }) else {
-            return
-        }
-        deactivatedPaneDismissals.remove(request)
-        dismissPane(target, generation: request.generation, restoreFocus: false)
-    }
-
-    func performMutation(_ mutation: () throws -> Void) {
-        do {
-            try mutation()
-            errorMessage = nil
-            reload()
-        } catch {
-            errorMessage = error.localizedDescription
-            reload()
-        }
-    }
-
 }

@@ -8,10 +8,10 @@ extension ScheduledTasksViewModelTests {
         let fixture = try ScheduledTasksViewModelFixture()
         try fixture.insertDefinition(id: "focus-edit")
 
-        fixture.viewModel.requestCreate(focusRestorationID: "scheduled-new-empty")
-        XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-new-empty")
+        fixture.viewModel.requestCreate(focusRestorationID: "scheduled-suggestion-project-digest")
+        XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-suggestion-project-digest")
         fixture.viewModel.dismissActivePane()
-        XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-new-empty")
+        XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-suggestion-project-digest")
 
         fixture.viewModel.requestEdit(definitionID: "focus-edit")
         XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-edit-focus-edit")
@@ -26,14 +26,14 @@ extension ScheduledTasksViewModelTests {
 
     func testMissingEditRequestPreservesActiveTargetAndFocusRestorationID() throws {
         let fixture = try ScheduledTasksViewModelFixture()
-        fixture.viewModel.requestCreate(focusRestorationID: "scheduled-new-empty")
+        fixture.viewModel.requestCreate(focusRestorationID: "scheduled-suggestion-project-digest")
 
         XCTAssertFalse(fixture.viewModel.requestEdit(definitionID: "missing"))
 
         XCTAssertEqual(fixture.viewModel.activePaneTarget, .create)
         XCTAssertNotNil(fixture.viewModel.paneSessions[.create])
         XCTAssertNil(fixture.viewModel.paneSessions[.edit("missing")])
-        XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-new-empty")
+        XCTAssertEqual(fixture.viewModel.paneFocusRestorationID, "scheduled-suggestion-project-digest")
     }
 
     /// A transcript card names its task forever, so the task can be deleted long after the
@@ -201,7 +201,7 @@ extension ScheduledTasksViewModelTests {
 
     func testRequestingPendingSuccessfulSubmitStartsFreshDraftWithoutFocusBump() throws {
         let fixture = try ScheduledTasksViewModelFixture()
-        fixture.viewModel.requestCreate(focusRestorationID: "scheduled-new-empty")
+        fixture.viewModel.requestCreate(focusRestorationID: "scheduled-suggestion-project-digest")
         var draft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
         draft.title = "Created task"
         draft.prompt = "Do useful work."

@@ -266,7 +266,7 @@ private struct PullRequestsUnavailableState: View {
         }
     }
 
-    private var actions: [EmptyStateView.EmptyStateAction] {
+    private var actions: [EmptyStateAction] {
         switch reason {
         case .notInstalled, .notAuthenticated:
             return [

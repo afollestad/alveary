@@ -38,6 +38,42 @@ extension SnapshotTests {
         )
     }
 
+    /// The suggestion cards carry no resting fill, so the hairline border is the whole card
+    /// edge — the one piece of this empty state that only a dark capture can prove.
+    func testScheduledTasksScreenEmptyDark() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+
+        assertMacSnapshot(
+            ScheduledTasksScreen(viewModel: fixture.viewModel),
+            size: CGSize(width: 1_120, height: 900),
+            named: "scheduled_tasks_empty_dark",
+            colorScheme: .dark
+        )
+    }
+
+    /// The roster keeps three cards with the integration off; only the leading one swaps.
+    func testScheduledTasksScreenEmptyWithPullRequestsDisabled() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false, pullRequestsEnabled: false)
+
+        assertMacSnapshot(
+            ScheduledTasksScreen(viewModel: fixture.viewModel),
+            size: CGSize(width: 1_120, height: 900),
+            named: "scheduled_tasks_empty_pull_requests_disabled"
+        )
+    }
+
+    /// Narrower than the suggestions' 420-point cap, so the cards size to the pane instead —
+    /// the width where a title or caption would start truncating.
+    func testScheduledTasksScreenEmptySqueezed() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
+
+        assertMacSnapshot(
+            ScheduledTasksScreen(viewModel: fixture.viewModel),
+            size: CGSize(width: 420, height: 900),
+            named: "scheduled_tasks_empty_squeezed"
+        )
+    }
+
     func testScheduledTasksScreenPopulated() throws {
         let fixture = try ScheduledTasksSnapshotFixture()
 
@@ -283,7 +319,7 @@ private final class ScheduledTasksSnapshotFixture {
     let container: ModelContainer
     let viewModel: ScheduledTasksViewModel
 
-    init(includeTasks: Bool = true) throws {
+    init(includeTasks: Bool = true, pullRequestsEnabled: Bool = true) throws {
         container = try Self.makeContainer()
         let context = ModelContext(container)
         let notificationCenter = NotificationCenter()
@@ -294,10 +330,13 @@ private final class ScheduledTasksSnapshotFixture {
             modelContext: context,
             notificationCenter: notificationCenter
         )
+        // Gates which suggestion leads the empty state's roster.
+        let settingsService = InMemorySettingsService()
+        settingsService.update { $0.pullRequestsEnabled = pullRequestsEnabled }
         viewModel = ScheduledTasksViewModel(
             modelContext: context,
             mutationService: mutationService,
-            settingsService: InMemorySettingsService(),
+            settingsService: settingsService,
             notificationCenter: notificationCenter,
             runNow: { _ in true },
             now: { Date(timeIntervalSince1970: 1_800_000_000) }

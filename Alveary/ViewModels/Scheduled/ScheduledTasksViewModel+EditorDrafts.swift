@@ -150,7 +150,10 @@ extension ScheduledTasksViewModel {
     }
 }
 
-private extension ScheduledTasksViewModel {
+extension ScheduledTasksViewModel {
+    /// Interval anchors are minute-granular, so a schedule started mid-minute would
+    /// otherwise fire at that offset forever. Shared with the suggestion drafts in
+    /// `ScheduledTasksViewModel+Suggestions.swift`.
     func startOfMinute(_ date: Date) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = currentTimeZone()

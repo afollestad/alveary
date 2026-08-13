@@ -8,8 +8,11 @@ struct ScheduledTasksScreen: View {
     @FocusState private var focusedPaneTriggerID: String?
 
     private let contentVerticalPadding: CGFloat = 28
-    // Match the new-thread hero's optical center within the Scheduled pane.
-    private let emptyStateVerticalOffset: CGFloat = -91
+    /// Matches the new-thread hero's optical center. The offset moves a *centered* block, so
+    /// each stacked suggestion below the heading pushes the icon up by half its height: this
+    /// is the sibling screens' -91 plus that correction. Retune it from the empty-state
+    /// snapshots whenever the cards' height or count changes.
+    private let emptyStateVerticalOffset: CGFloat = -12
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,6 +34,7 @@ struct ScheduledTasksScreen: View {
             let pendingRunNowIDs = viewModel.pendingRunNowDefinitionIDs
             let providerNames = providerDisplayNames(for: visibleTasks)
             let selectedDefinitionID = activeEditDefinitionID
+            let suggestions = viewModel.firstTaskSuggestions
 
             GeometryReader { proxy in
                 ScrollView {
@@ -38,10 +42,14 @@ struct ScheduledTasksScreen: View {
                         if visibleTasks.isEmpty {
                             ScheduledTasksEmptyState(
                                 filter: selectedFilter,
-                                onCreate: {
-                                    openCreatePane(focusRestorationID: "scheduled-new-empty")
+                                suggestions: suggestions,
+                                onSelectSuggestion: { suggestion in
+                                    viewModel.requestCreate(
+                                        from: suggestion,
+                                        focusRestorationID: Self.suggestionFocusID(suggestion)
+                                    )
                                 },
-                                createFocus: $focusedPaneTriggerID
+                                suggestionFocus: $focusedPaneTriggerID
                             )
                             .offset(y: emptyStateVerticalOffset)
                         }
@@ -134,6 +142,12 @@ struct ScheduledTasksScreen: View {
         viewModel.requestCreate(focusRestorationID: focusRestorationID)
     }
 
+    /// Shared by the card that opens a pane and by `visiblePaneTriggerFocusIDs`, which has
+    /// to name the same control for dismissal to return focus to it.
+    static func suggestionFocusID(_ suggestion: ScheduledTaskSuggestion) -> String {
+        "scheduled-suggestion-\(suggestion.id)"
+    }
+
     /// One entry per distinct provider, resolved above the `GeometryReader` so the rows do
     /// not each re-read `providerStatuses` on every frame. The call-site fallback repeats
     /// `providerDisplayName`'s own last resort, so a miss cannot render differently.
@@ -150,7 +164,7 @@ struct ScheduledTasksScreen: View {
             ScheduledTaskPaneTarget.edit($0.id).defaultFocusRestorationID
         })
         if viewModel.selectedFilter == .all, visibleTasks.isEmpty {
-            ids.insert("scheduled-new-empty")
+            ids.formUnion(viewModel.firstTaskSuggestions.map(Self.suggestionFocusID))
         }
         return ids
     }
@@ -169,31 +183,50 @@ private func makeScheduledTaskDeleteConfirmation(
     )
 }
 
+/// Suggestions stand in for the create button the other filters never had: the header's own
+/// create action is always there for a blank task, so a button here would only duplicate it,
+/// while a first-time user has no idea what a scheduled task is *for*.
 private struct ScheduledTasksEmptyState: View {
     let filter: ScheduledTasksFilter
-    let onCreate: () -> Void
-    let createFocus: FocusState<String?>.Binding
+    let suggestions: [ScheduledTaskSuggestion]
+    let onSelectSuggestion: (ScheduledTaskSuggestion) -> Void
+    let suggestionFocus: FocusState<String?>.Binding
+
+    /// Sits on the subtext's own column so the heading, subtext, and cards read as one block
+    /// rather than a stack that widens with the window.
+    private let suggestionMaximumWidth: CGFloat = 420
 
     var body: some View {
         EmptyStateView(
             icon: "clock",
             heading: heading,
             subtext: subtext,
-            actions: filter == .all
-                ? [
-                    .init(
-                        title: "New Scheduled Task",
-                        systemImage: "plus",
-                        style: .primary,
-                        focusID: "scheduled-new-empty",
-                        action: onCreate
-                    )
-                ]
-                : [],
-            actionFocus: createFocus,
+            actions: [],
             iconToHeadingSpacing: 16
-        )
+        ) {
+            if filter == .all {
+                suggestionStack
+                    .padding(.top, 24)
+            }
+        }
         .frame(minHeight: 360)
+    }
+
+    /// Always stacked, never reflowed into a row: side by side, the three cards spread the
+    /// heading's own block across the full pane and stop reading as one group under it.
+    private var suggestionStack: some View {
+        VStack(spacing: 8) {
+            ForEach(suggestions) { suggestion in
+                ScheduledTaskSuggestionCard(
+                    suggestion: suggestion,
+                    onSelect: { onSelectSuggestion(suggestion) },
+                    cardFocus: suggestionFocus,
+                    cardFocusID: ScheduledTasksScreen.suggestionFocusID(suggestion)
+                )
+                .equatable()
+            }
+        }
+        .frame(maxWidth: suggestionMaximumWidth)
     }
 
     private var heading: String {
