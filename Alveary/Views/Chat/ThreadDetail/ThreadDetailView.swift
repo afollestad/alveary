@@ -279,34 +279,11 @@ struct ThreadDetailView: View {
         // outside this view, so the menu button reads `action == nil`).
         .focusedSceneValue(
             \.newConversationAction,
-            newConversationAction(isDisabled: isProjectTrustBlocked || !thread.hasCompletedInitialSetup)
+            newConversationAction(isDisabled: isProjectTrustBlocked || liveThread?.hasCompletedInitialSetup != true)
         )
         #if DEBUG
         .focusedSceneValue(\.rawTranscriptWindowRequest, rawTranscriptWindowRequest(for: selectedConversation))
         #endif
-    }
-}
-
-extension ThreadDetailView {
-    func shouldShowConversationStrip(conversationCount: Int) -> Bool {
-        ConversationStripPresentation.shouldShow(
-            hasCompletedInitialSetup: thread.hasCompletedInitialSetup,
-            conversationCount: conversationCount
-        )
-    }
-
-    var canCreateConversationFromEmptyState: Bool {
-        !thread.isDraft && thread.hasCompletedInitialSetup
-    }
-
-    var canPersistEmptyConversationSelection: Bool {
-        !thread.isDraft && thread.archivedAt == nil
-    }
-}
-
-enum ConversationStripPresentation {
-    static func shouldShow(hasCompletedInitialSetup: Bool, conversationCount: Int) -> Bool {
-        hasCompletedInitialSetup && conversationCount > 1
     }
 }
 
@@ -323,13 +300,13 @@ private extension ThreadDetailView {
 
     #if DEBUG
     func rawTranscriptWindowRequest(for conversation: Conversation?) -> RawTranscriptWindowRequestKey.Value? {
-        guard let conversation else {
+        guard let conversation, let liveThread else {
             return nil
         }
 
         let request = RawTranscriptWindowRequest(
             conversationID: conversation.id,
-            threadName: thread.displayName(),
+            threadName: liveThread.displayName(),
             conversationTitle: conversation.displayName(),
             providerID: conversation.providerSessionProviderId ?? conversation.provider,
             providerSessionID: conversation.providerSessionId,
@@ -356,12 +333,12 @@ private extension ThreadDetailView {
     }
 
     func createConversation() async {
-        guard thread.hasCompletedInitialSetup, !isCurrentProjectTrustBlocked() else {
+        guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
+            conversationActionError = "Couldn't create conversation: thread no longer exists"
             return
         }
 
-        guard let dbThread = uiModelContext.resolveThread(id: thread.persistentModelID) else {
-            conversationActionError = "Couldn't create conversation: thread no longer exists"
+        guard dbThread.hasCompletedInitialSetup, !isCurrentProjectTrustBlocked() else {
             return
         }
 

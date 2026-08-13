@@ -26,7 +26,7 @@ struct SidebarThreadRow: View {
     private static let trailingStatusCenterInset = SidebarProjectRow.horizontalPadding + statusIndicatorSize
     private static let cleanupButtonTrailingPadding = trailingStatusCenterInset - cleanupButtonSize / 2
 
-    let thread: AgentThread
+    let presentation: SidebarThreadRowPresentation
     let status: ThreadStatus
     let isSelected: Bool
     let layout: SidebarThreadRowLayout
@@ -57,7 +57,7 @@ struct SidebarThreadRow: View {
     @FocusState var isFieldFocused: Bool
 
     init(
-        thread: AgentThread,
+        presentation: SidebarThreadRowPresentation,
         status: ThreadStatus,
         isSelected: Bool,
         layout: SidebarThreadRowLayout = .project,
@@ -72,7 +72,7 @@ struct SidebarThreadRow: View {
         onCommitRename: @escaping (String) -> Void,
         onConfirmCleanup: @escaping () -> Void = {}
     ) {
-        self.thread = thread
+        self.presentation = presentation
         self.status = status
         self.isSelected = isSelected
         self.layout = layout
@@ -89,9 +89,9 @@ struct SidebarThreadRow: View {
         _isCleanupConfirmationChromeVisible = State(initialValue: initialCleanupConfirmationArmed)
     }
 
-    var isEditing: Bool { editingThreadID == thread.persistentModelID }
+    var isEditing: Bool { editingThreadID == presentation.threadID }
 
-    var displayName: String { thread.displayName() }
+    var displayName: String { presentation.displayName }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -153,7 +153,7 @@ struct SidebarThreadRow: View {
             // input field.
             if editingThreadID == nil, !suppressHoverAffordances {
                 Button("Rename...") {
-                    editingThreadID = thread.persistentModelID
+                    editingThreadID = presentation.threadID
                 }
             }
         }
@@ -215,7 +215,7 @@ struct SidebarThreadRow: View {
             .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
             .accessibilityHidden(true)
             .overlay {
-                AppHoverTooltipAnchor(text: sidebarThreadWorktreeTooltipText(for: thread))
+                AppHoverTooltipAnchor(text: presentation.worktreeTooltip)
                     .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
             }
     }
@@ -237,14 +237,14 @@ struct SidebarThreadRow: View {
             Color.clear
                 .frame(width: trailingControlSpacing)
 
-            if thread.scheduledTaskRun != nil {
+            if presentation.showsScheduledIndicator {
                 scheduledIndicator
 
                 Color.clear
                     .frame(width: Self.provenanceIndicatorSpacing)
             }
 
-            if thread.useWorktree {
+            if presentation.showsWorktreeIndicator {
                 worktreeIndicator
 
                 Color.clear

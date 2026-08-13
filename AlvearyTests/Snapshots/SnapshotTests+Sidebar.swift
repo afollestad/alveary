@@ -81,7 +81,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -98,7 +98,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -117,7 +117,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -136,7 +136,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -155,7 +155,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -175,7 +175,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .busy,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -192,7 +192,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .waitingForUser,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -209,7 +209,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -226,7 +226,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -246,7 +246,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -269,7 +269,7 @@ extension SnapshotTests {
         // the uniform-across-selection behavior.
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: true,
                 editingThreadID: .constant(nil),
@@ -291,7 +291,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: true,
                 editingThreadID: .constant(nil),
@@ -310,7 +310,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -327,7 +327,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -344,7 +344,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: true,
                 editingThreadID: .constant(nil),
@@ -364,14 +364,14 @@ extension SnapshotTests {
 
         let stack = VStack(spacing: 0) {
             SidebarThreadRow(
-                thread: plainThread,
+                presentation: SidebarThreadRowPresentation(thread: plainThread),
                 status: .unread,
                 isSelected: false,
                 editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             SidebarThreadRow(
-                thread: chipThread,
+                presentation: SidebarThreadRowPresentation(thread: chipThread),
                 status: .unread,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -392,109 +392,16 @@ extension SnapshotTests {
         let thread = AgentThread(name: "New thread")
         let stack = VStack(spacing: 0) {
             SidebarProjectRow(project: project, isExpanded: false, isSelected: false, onToggleExpanded: {}, onActivate: {}, onCreateThread: {})
-            SidebarThreadRow(thread: thread, status: .unread, isSelected: false, editingThreadID: .constant(nil), onCommitRename: { _ in })
-                .padding(.leading, 14)
+            SidebarThreadRow(
+                presentation: SidebarThreadRowPresentation(thread: thread),
+                status: .unread,
+                isSelected: false,
+                editingThreadID: .constant(nil),
+                onCommitRename: { _ in }
+            )
+            .padding(.leading, 14)
         }
 
         assertMacSnapshot(stack, size: CGSize(width: 320, height: 64), named: "project_thread_rows_share_height")
-    }
-
-    func testSidebarViewPopulated() async throws {
-        let sidebar = try await makeSidebarSnapshotFixture()
-
-        let appState = AppState()
-        appState.selectedSidebarItem = .thread(sidebar.activeThread)
-
-        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
-            size: CGSize(width: 320, height: 720),
-            named: "sidebar_populated"
-        ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-        }
-    }
-
-    func testSidebarViewProjectSelected() async throws {
-        let sidebar = try await makeSidebarSnapshotFixture()
-
-        let appState = AppState()
-        appState.selectedSidebarItem = .project(sidebar.project)
-
-        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
-            size: CGSize(width: 320, height: 720),
-            named: "sidebar_project_selected"
-        ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.project.path])
-        }
-    }
-
-    func testSidebarViewPinnedThread() async throws {
-        let sidebar = try await makeSidebarSnapshotFixture(includePinnedThread: true)
-
-        let appState = AppState()
-        appState.selectedSidebarItem = .project(sidebar.project)
-
-        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
-            size: CGSize(width: 320, height: 720),
-            named: "sidebar_pinned_thread"
-        ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.project.path])
-        }
-    }
-
-    func testSidebarViewSelectedPinnedThread() async throws {
-        let sidebar = try await makeSidebarSnapshotFixture(includePinnedThread: true)
-        let pinnedThread = try XCTUnwrap(sidebar.pinnedThread)
-
-        let appState = AppState()
-        appState.selectedSidebarItem = .thread(pinnedThread)
-
-        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
-            size: CGSize(width: 320, height: 720),
-            named: "sidebar_selected_pinned_thread"
-        ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-        }
-    }
-
-    func testSidebarViewMixedPinnedProjectAndThread() async throws {
-        let sidebar = try await makeMixedPinnedSidebarSnapshotFixture()
-
-        let appState = AppState()
-        appState.selectedSidebarItem = .project(sidebar.pinnedProject)
-
-        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
-            size: CGSize(width: 320, height: 720),
-            named: "sidebar_mixed_pinned_project_and_thread"
-        ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.pinnedProject.path])
-        }
-    }
-
-    func testSidebarViewExpandedProjectWithoutThreads() async throws {
-        let sidebar = try await makeSidebarSnapshotFixture()
-
-        let appState = AppState()
-        appState.selectedSidebarItem = .project(sidebar.emptyProject)
-
-        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
-            size: CGSize(width: 320, height: 720),
-            named: "sidebar_project_no_threads"
-        ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState, initialExpandedProjects: [sidebar.emptyProject.path])
-        }
-    }
-
-    func testSidebarViewSkillsSelected() async throws {
-        let sidebar = try await makeSidebarSnapshotFixture()
-
-        let appState = AppState()
-        appState.selectedSidebarItem = .skills
-
-        await assertMacModelSnapshot(modelContainer: sidebar.fixture.container,
-            size: CGSize(width: 320, height: 720),
-            named: "sidebar_skills_selected"
-        ) {
-            SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
-        }
     }
 }

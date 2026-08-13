@@ -42,32 +42,39 @@ extension SidebarView {
                 "Archive thread?",
                 isPresented: sidebarPresentationBinding(for: $pendingArchiveThread),
                 presenting: pendingArchiveThread
-            ) { thread in
+            ) { pending in
                 Button("Archive") {
                     pendingArchiveThread = nil
+                    guard let thread = uiModelContext.resolveThread(id: pending.threadID) else {
+                        return
+                    }
                     Task { await archive(thread) }
                 }
 
                 Button("Cancel", role: .cancel) {
                     pendingArchiveThread = nil
                 }
-            } message: { thread in
-                Text(archiveConfirmationMessage(for: thread))
+            } message: { pending in
+                Text(archiveConfirmationMessage(title: pending.title))
             }
             .confirmationDialog(
                 "Delete thread?",
                 isPresented: sidebarPresentationBinding(for: $pendingDeleteThread),
                 presenting: pendingDeleteThread
-            ) { thread in
+            ) { pending in
                 Button("Delete", role: .destructive) {
+                    pendingDeleteThread = nil
+                    guard let thread = uiModelContext.resolveThread(id: pending.threadID) else {
+                        return
+                    }
                     Task { await confirmDeleteThread(thread) }
                 }
 
                 Button("Cancel", role: .cancel) {
                     pendingDeleteThread = nil
                 }
-            } message: { thread in
-                Text(deleteConfirmationMessage(for: thread))
+            } message: { pending in
+                Text(deleteConfirmationMessage(for: pending))
             }
     }
 
@@ -77,16 +84,20 @@ extension SidebarView {
                 "Remove project?",
                 isPresented: sidebarPresentationBinding(for: $pendingDeleteProject),
                 presenting: pendingDeleteProject
-            ) { project in
+            ) { pending in
                 Button("Remove Project", role: .destructive) {
+                    pendingDeleteProject = nil
+                    guard let project = uiModelContext.resolveProject(path: pending.projectPath) else {
+                        return
+                    }
                     Task { await confirmDeleteProject(project) }
                 }
 
                 Button("Cancel", role: .cancel) {
                     pendingDeleteProject = nil
                 }
-            } message: { project in
-                Text(sidebarRemoveProjectConfirmationMessage(projectName: project.name))
+            } message: { pending in
+                Text(sidebarRemoveProjectConfirmationMessage(projectName: pending.name))
             }
             .confirmationDialog(
                 "Grant folder access?",

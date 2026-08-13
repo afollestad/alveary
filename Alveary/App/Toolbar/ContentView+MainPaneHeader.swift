@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 enum MainPaneToolbarLayout {
@@ -28,8 +29,11 @@ struct MainPaneHeaderPresentation: Equatable {
     let title: MainPaneHeaderTitle
     let showsNewConversationButton: Bool
 
-    init(selection: SidebarItem?) {
-        switch selection {
+    /// Resolves the selection before reading any of its properties. The title and the `+` button's
+    /// gate are both persisted reads off a selection token, and a token can outlive its row — see
+    /// `SidebarItem.resolved(in:)`. A gone row falls back to the no-selection header.
+    init(selection: SidebarItem?, modelContext: ModelContext) {
+        switch selection?.resolved(in: modelContext) {
         case .skills:
             title = .plain("Skills")
             showsNewConversationButton = false

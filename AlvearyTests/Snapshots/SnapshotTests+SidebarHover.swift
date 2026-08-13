@@ -39,7 +39,7 @@ extension SnapshotTests {
             .background(sidebarHoverBackground(isSelected: false, isHovered: true))
 
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -51,7 +51,7 @@ extension SnapshotTests {
             .background(sidebarHoverBackground(isSelected: false, isHovered: true))
 
             SidebarThreadRow(
-                thread: selectedThread,
+                presentation: SidebarThreadRowPresentation(thread: selectedThread),
                 status: .stopped,
                 isSelected: true,
                 editingThreadID: .constant(nil),

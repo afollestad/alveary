@@ -4,7 +4,7 @@ extension SidebarView {
     func requestArchive(_ thread: AgentThread) {
         do {
             try viewModel.requireNoScheduledTaskAttachment(thread)
-            pendingArchiveThread = thread
+            pendingArchiveThread = SidebarPendingThreadCleanup(thread: thread)
         } catch {
             viewModel.presentSidebarError(error)
         }
@@ -13,18 +13,18 @@ extension SidebarView {
     func requestDelete(_ thread: AgentThread) {
         do {
             try viewModel.requireNoScheduledTaskAttachment(thread)
-            pendingDeleteThread = thread
+            pendingDeleteThread = SidebarPendingThreadCleanup(thread: thread)
         } catch {
             viewModel.presentSidebarError(error)
         }
     }
 
-    func archiveConfirmationMessage(for thread: AgentThread) -> String {
-        "This archives \"\(thread.displayName())\". "
+    func archiveConfirmationMessage(title: String) -> String {
+        "This archives \"\(title)\". "
             + "You can find archived threads under Archived in the sidebar."
     }
 
-    func deleteConfirmationMessage(for thread: AgentThread) -> String {
-        threadDeleteConfirmationMessage(for: thread)
+    func deleteConfirmationMessage(for pending: SidebarPendingThreadCleanup) -> String {
+        threadDeleteConfirmationMessage(title: pending.title, isTask: pending.isTask)
     }
 }

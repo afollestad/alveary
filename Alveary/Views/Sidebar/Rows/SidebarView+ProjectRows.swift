@@ -136,7 +136,7 @@ extension SidebarView {
         }
 
         Button("Remove Project...", role: .destructive) {
-            pendingDeleteProject = project
+            pendingDeleteProject = SidebarPendingProjectRemoval(project: project)
         }
     }
 

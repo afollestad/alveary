@@ -4,7 +4,9 @@ These instructions cover `Alveary/Views/Sidebar/Rows/` — project rows, thread 
 
 > **READ FIRST:** Focus and keyboard rules are centralized in **Focus And Keyboard Coordination** in `Alveary/Views/AGENTS.md`. The bullets below stack on top of that parent contract — they are not a replacement for it.
 
-**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `SidebarDisclosureCaret`, `SidebarDisclosureCaretToggle`, `SidebarSectionHeaderDisclosure`, and `sidebarThreadCleanupButtonVisibility` each carry theirs.
+**Keep a rule here only when the code that would violate it is not the code that documents it.** Mechanism whose only reader is its own file belongs in a doc comment: `SidebarDisclosureCaret`, `SidebarDisclosureCaretToggle`, `SidebarSectionHeaderDisclosure`, `sidebarThreadCleanupButtonVisibility`, and `SidebarThreadRowPresentation` each carry theirs.
+
+- **`SidebarThreadRow` never stores an `AgentThread`.** `SidebarView.sidebarThreadRow(_:)` builds a `SidebarThreadRowPresentation` from the render snapshot and passes that down, covering the row *and* its lazily-evaluated context menu; the row's own `@State` re-renders outlive the row's model. Row actions still take the live model, because they run from a click.
 
 - `SidebarProjectRow`'s leading icon `Button` is load-bearing for click-to-expand:
     - **Action:** toggles expansion, never project activation. `onToggleExpanded` stays the sole action; activation lives on the sibling content affordance plus the row's transparent background tap target, so dead space inside selected-row chrome still opens the project.

@@ -1,11 +1,9 @@
 import Foundation
 import SwiftData
 
-func threadDeleteConfirmationMessage(for thread: AgentThread) -> String {
-    threadDeleteConfirmationMessage(title: thread.displayName(), isTask: thread.effectiveMode == .task)
-}
-
-/// Value-typed twin so surfaces holding presentation items — not live rows — share this copy.
+/// Shared by the sidebar and Archived dialogs. Value-typed on purpose: both arm their confirmation
+/// from a snapshot rather than a live row, so a delete cannot pull the copy's inputs out from under
+/// a `message:` closure that re-evaluates on every host body pass.
 func threadDeleteConfirmationMessage(title: String, isTask: Bool) -> String {
     if isTask {
         return "This permanently deletes \"\(title)\" and removes its Alveary-owned workspace or worktree. "
@@ -178,8 +176,6 @@ extension SidebarView {
     }
 
     func confirmDeleteThread(_ thread: AgentThread) async {
-        pendingDeleteThread = nil
-
         let routing = beginThreadRemovalRouting(
             thread,
             replacementItem: selectionAfterDeletingThread(thread),
@@ -213,8 +209,6 @@ extension SidebarView {
     }
 
     func confirmDeleteProject(_ project: Project) async {
-        pendingDeleteProject = nil
-
         let projectPath = project.path
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection

@@ -8,7 +8,10 @@ extension ContentView {
     var rootToolbarContent: some ToolbarContent {
         ToolbarItem(id: MainWindowToolbarItemID.header, placement: .navigation) {
             MainPaneToolbarHeader(
-                presentation: MainPaneHeaderPresentation(selection: appState.selectedSidebarItem),
+                presentation: MainPaneHeaderPresentation(
+                    selection: appState.selectedSidebarItem,
+                    modelContext: uiModelContext
+                ),
                 onNewConversation: headerNewConversationAction
             )
             .padding(.leading, MainPaneToolbarLayout.leadingPadding)

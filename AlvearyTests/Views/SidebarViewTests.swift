@@ -133,7 +133,7 @@ final class SidebarViewTests: XCTestCase {
         let appState = AppState()
         let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
 
-        let message = view.archiveConfirmationMessage(for: thread)
+        let message = view.archiveConfirmationMessage(title: thread.displayName())
 
         XCTAssertEqual(
             message,
@@ -150,7 +150,7 @@ final class SidebarViewTests: XCTestCase {
         let appState = AppState()
         let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
 
-        let message = view.deleteConfirmationMessage(for: thread)
+        let message = view.deleteConfirmationMessage(for: SidebarPendingThreadCleanup(thread: thread))
 
         XCTAssertEqual(
             message,

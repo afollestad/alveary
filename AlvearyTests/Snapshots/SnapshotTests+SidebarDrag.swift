@@ -180,7 +180,7 @@ private struct SidebarDraggedPinnedThreadSnapshot: View {
             SidebarSectionHeaderRow(title: "Pinned")
 
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .waitingForUser,
                 isSelected: true,
                 layout: .topLevel,
@@ -449,7 +449,7 @@ private func threadRow(
     snapshotBoundaryRole: SidebarSnapshotBoundaryRole? = nil
 ) -> some View {
     SidebarThreadRow(
-        thread: thread,
+        presentation: SidebarThreadRowPresentation(thread: thread),
         status: status,
         isSelected: isSelected,
         editingThreadID: .constant(nil),
@@ -468,7 +468,7 @@ private func topLevelThreadRow(
     topSpacing: CGFloat = 0
 ) -> some View {
     SidebarThreadRow(
-        thread: thread,
+        presentation: SidebarThreadRowPresentation(thread: thread),
         status: status,
         isSelected: false,
         layout: .topLevel,

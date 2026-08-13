@@ -57,9 +57,9 @@ struct SidebarView: View {
     @State var expandedProjects: Set<String> = []
     @State var collapsedSections: Set<SidebarCollapsibleSection> = []
     @State var editingThreadID: PersistentIdentifier?
-    @State var pendingArchiveThread: AgentThread?
-    @State var pendingDeleteThread: AgentThread?
-    @State var pendingDeleteProject: Project?
+    @State var pendingArchiveThread: SidebarPendingThreadCleanup?
+    @State var pendingDeleteThread: SidebarPendingThreadCleanup?
+    @State var pendingDeleteProject: SidebarPendingProjectRemoval?
     @State var pendingTaskProjectAccess: SidebarTaskProjectAccessRequest?
     @State var sidebarDragInteractionState = SidebarDragInteractionState.idle
     @State var sidebarDragPointerRelay = SidebarDragPointerRelay()
@@ -296,9 +296,13 @@ struct SidebarView: View {
         let cleanupAction = viewModel.defaultThreadCleanupAction
         let cleanupDisabledReason = viewModel.scheduledTaskAttachmentReason(for: thread)
         let leadingPadding: CGFloat = layout == .topLevel ? SidebarSectionHeaderRow.contentLeadingPadding : 14
+        // Snapshot here, where the render snapshot guarantees a live row. Neither the row nor the
+        // lazily-evaluated context menu may read the model itself; `SidebarThreadRowPresentation`
+        // documents why.
+        let presentation = SidebarThreadRowPresentation(thread: thread)
 
         return SidebarThreadRow(
-            thread: thread,
+            presentation: presentation,
             status: viewModel.threadStatus(for: thread, attention: attention),
             isSelected: isSelected,
             layout: layout,
@@ -336,20 +340,26 @@ struct SidebarView: View {
             action: { activateThread(thread) }
         )
         .contextMenu {
-            sidebarThreadContextMenu(for: thread)
+            sidebarThreadContextMenu(
+                for: thread,
+                presentation: presentation,
+                scheduledTaskAttachmentReason: cleanupDisabledReason
+            )
         }
     }
 
     @ViewBuilder
-    func sidebarThreadContextMenu(for thread: AgentThread) -> some View {
-        let scheduledTaskAttachmentReason = viewModel.scheduledTaskAttachmentReason(for: thread)
-
+    func sidebarThreadContextMenu(
+        for thread: AgentThread,
+        presentation: SidebarThreadRowPresentation,
+        scheduledTaskAttachmentReason: String?
+    ) -> some View {
         ForEach(
             sidebarThreadContextMenuItems(
-                isPinned: thread.isPinned,
+                isPinned: presentation.isPinned,
                 canRename: editingThreadID == nil,
-                allowsPinning: thread.effectiveMode == .task || thread.project?.isPinned != true,
-                allowsForking: thread.effectiveMode == .project
+                allowsPinning: presentation.allowsPinning,
+                allowsForking: presentation.allowsForking
             ),
             id: \.self
         ) { item in

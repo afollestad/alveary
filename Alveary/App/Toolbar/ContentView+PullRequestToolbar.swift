@@ -7,7 +7,7 @@ extension ContentView {
     /// The sidebar selection a link would belong to: a non-draft thread or a
     /// project. Nil for every other selection, which hides the toolbar button.
     var selectedPullRequestLinkOwner: PullRequestLinkOwner? {
-        switch appState.selectedSidebarItem {
+        switch appState.selectedSidebarItem?.resolved(in: uiModelContext) {
         case .thread(let thread) where !thread.isDraft:
             return .thread(thread.persistentModelID)
         case .project(let project):
@@ -17,14 +17,17 @@ extension ContentView {
         }
     }
 
-    /// The selected owner's links, read straight off the model so the toolbar
-    /// and popover both follow linking and unlinking. A project aggregates its
-    /// own links with its child threads' (each row carrying its true owner).
-    /// These are observation-tracked relationship reads, not fetches, so they
-    /// are safe as render-time sources — see the fetch-backed-gate rule in
-    /// `Alveary/App/AGENTS.md`.
+    /// The selected owner's links, read off the model so the toolbar and popover both follow
+    /// linking and unlinking. A project aggregates its own links with its child threads' (each row
+    /// carrying its true owner).
+    ///
+    /// The reads themselves are observation-tracked relationship reads rather than fetches, so
+    /// they stay valid render-time sources — see the fetch-backed-gate rule in
+    /// `Alveary/App/AGENTS.md`. Observation tracking covers staleness but not deletion, so the
+    /// token is resolved first; the tracked read then happens on the resolved instance and still
+    /// republishes on every link change.
     var selectedPullRequestLinks: [OwnedPullRequestLink] {
-        switch appState.selectedSidebarItem {
+        switch appState.selectedSidebarItem?.resolved(in: uiModelContext) {
         case .thread(let thread) where !thread.isDraft:
             let owner = PullRequestLinkOwner.thread(thread.persistentModelID)
             return thread.linkedPullRequests.map {

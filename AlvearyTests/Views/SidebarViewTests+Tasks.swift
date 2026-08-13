@@ -52,7 +52,7 @@ extension SidebarViewTests {
         let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
 
         XCTAssertEqual(
-            view.archiveConfirmationMessage(for: task),
+            view.archiveConfirmationMessage(title: task.displayName()),
             "This archives \"Nightly audit\". You can find archived threads under Archived in the sidebar."
         )
     }
@@ -61,7 +61,7 @@ extension SidebarViewTests {
         let task = makeSidebarTask(name: "Nightly audit", modifiedAt: Date())
 
         XCTAssertEqual(
-            threadDeleteConfirmationMessage(for: task),
+            threadDeleteConfirmationMessage(title: task.displayName(), isTask: task.effectiveMode == .task),
             "This permanently deletes \"Nightly audit\" and removes its Alveary-owned workspace or worktree. "
                 + "Granted folders are never deleted."
         )
@@ -220,11 +220,14 @@ extension SidebarViewTests {
         let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
 
         XCTAssertEqual(
-            view.archiveConfirmationMessage(for: task),
+            view.archiveConfirmationMessage(title: task.displayName()),
             "This archives \"Fallback scheduled task\". "
                 + "You can find archived threads under Archived in the sidebar."
         )
-        XCTAssertTrue(threadDeleteConfirmationMessage(for: task).contains("removes its worktree and branch if present"))
+        XCTAssertTrue(
+            threadDeleteConfirmationMessage(title: task.displayName(), isTask: task.effectiveMode == .task)
+                .contains("removes its worktree and branch if present")
+        )
         XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task, logicalOrder: emptySidebarDragLogicalOrder))
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedThread(task.persistentModelID))
         XCTAssertTrue(sidebarItem(.thread(task), belongsToProjectPath: project.path) { _ in project.path })

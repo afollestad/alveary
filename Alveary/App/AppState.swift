@@ -332,6 +332,25 @@ enum SidebarItem: Hashable {
         }
     }
 
+    /// The same selection with its model re-resolved against the store, or `nil` once the backing
+    /// row is gone.
+    ///
+    /// A selection is a token, not proof of liveness: nothing re-fetches it, so a delete that this
+    /// window did not route away from leaves it pointing at a removed row, and the first persisted
+    /// read traps inside SwiftData. Every render-time reader of a token's *properties* goes through
+    /// this first and treats `nil` as "no selection". Identity-only reads (`persistentModelID`) do
+    /// not need it.
+    func resolved(in modelContext: ModelContext) -> SidebarItem? {
+        switch self {
+        case .project(let project):
+            return modelContext.resolveProject(id: project.persistentModelID).map(SidebarItem.project)
+        case .thread(let thread):
+            return modelContext.resolveThread(id: thread.persistentModelID).map(SidebarItem.thread)
+        case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings:
+            return self
+        }
+    }
+
     func hash(into hasher: inout Hasher) {
         switch self {
         case .skills:
@@ -346,8 +365,12 @@ enum SidebarItem: Hashable {
             hasher.combine("archived")
         case .settings:
             hasher.combine("settings")
+        // Both cases hash identity, never a persisted property: SwiftUI invokes `Hashable` on its
+        // own schedule, including on a selection whose row a delete already removed, and a
+        // persisted read there traps. `Project.path` is `@Attribute(.unique)`, so keying on the
+        // identifier instead is the same equivalence for any saved row.
         case .project(let project):
-            hasher.combine(project.path)
+            hasher.combine(project.persistentModelID)
         case .thread(let thread):
             hasher.combine(thread.persistentModelID)
         }
@@ -359,7 +382,7 @@ enum SidebarItem: Hashable {
             (.pullRequests, .pullRequests), (.archived, .archived), (.settings, .settings):
             return true
         case (.project(let left), .project(let right)):
-            return left.path == right.path
+            return left.persistentModelID == right.persistentModelID
         case (.thread(let left), .thread(let right)):
             return left.persistentModelID == right.persistentModelID
         default:

@@ -129,7 +129,7 @@ private struct SidebarDragContainerBorderSnapshot: View {
             SidebarSectionHeaderRow(title: "Pinned")
 
             SidebarThreadRow(
-                thread: draggedTask,
+                presentation: SidebarThreadRowPresentation(thread: draggedTask),
                 status: .waitingForUser,
                 isSelected: false,
                 layout: .topLevel,

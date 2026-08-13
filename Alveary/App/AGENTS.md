@@ -21,7 +21,9 @@ These instructions cover `Alveary/App/` — the entry point, `AppDelegate`, `App
 
 ## Render-Time SwiftData Discipline
 
-- **Treat `AppState.selectedSidebarItem` thread references as selection tokens**, not proof the backing row is readable. Re-resolve with `ModelContext.resolveThread(id:)` and fetch live conversations before reading thread relationships for toolbar actions, notification routing, diff actions, or launch-selection persistence.
+- **Treat `AppState.selectedSidebarItem` model references as selection tokens**, not proof the backing row is readable. Nothing re-fetches a token, so a delete this window did not route away from leaves it pointing at a removed row and the first persisted read traps.
+    - **Render-time property reads go through `SidebarItem.resolved(in:)`** — the toolbar header and the pull-request toolbar are the worked examples — and treat `nil` as "no selection". Identity-only reads (`persistentModelID`) need no gate, which is why `SidebarItem`'s own `Hashable` conformance keys on it.
+    - **Action paths re-resolve with `ModelContext.resolveThread(id:)`** and fetch live conversations before reading thread relationships, for toolbar actions, notification routing, diff actions, or launch-selection persistence.
 - **Do not gate render-time UI state in `ContentView` body on fetch-backed resolution.** Plain `ModelContext.fetch` reads are not observation-tracked, so a body-computed boolean derived from them latches until an unrelated tracked mutation re-renders. Gate on observation-tracked state and defer fetch-backed resolution to the action handlers — Diff Viewer action buttons are the worked example: `Commit` enables for selected threads or projects, and the footer's Create PR / View PR gates read `selectedPullRequestLinks` plus `canCommitDiffChanges`, with handlers re-resolving the backing rows.
 
 ## Launch, Restore, And Cleanup

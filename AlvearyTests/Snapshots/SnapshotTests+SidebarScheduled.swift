@@ -10,7 +10,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -30,7 +30,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -50,7 +50,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -69,7 +69,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
@@ -89,7 +89,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarThreadRow(
-                thread: thread,
+                presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
                 editingThreadID: .constant(nil),
