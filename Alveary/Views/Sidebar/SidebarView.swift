@@ -146,6 +146,7 @@ struct SidebarView: View {
                                     thread,
                                     layout: .topLevel,
                                     topSpacing: topSpacing,
+                                    attention: context.decisionAttention,
                                     dragConfiguration: pinnedItemDragConfiguration(
                                         for: thread,
                                         logicalOrder: context.dragLogicalOrder
@@ -287,6 +288,7 @@ struct SidebarView: View {
         _ thread: AgentThread,
         layout: SidebarThreadRowLayout,
         topSpacing: CGFloat,
+        attention: ConversationDecisionAttention,
         dragConfiguration: SidebarRowDragConfiguration? = nil,
         opacity: Double = 1
     ) -> some View {
@@ -297,7 +299,7 @@ struct SidebarView: View {
 
         return SidebarThreadRow(
             thread: thread,
-            status: viewModel.threadStatus(for: thread, attention: decisionAttention),
+            status: viewModel.threadStatus(for: thread, attention: attention),
             isSelected: isSelected,
             layout: layout,
             editingThreadID: $editingThreadID,

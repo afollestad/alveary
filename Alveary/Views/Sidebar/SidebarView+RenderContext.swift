@@ -12,6 +12,17 @@ struct SidebarRenderContext {
     let dragLogicalOrder: SidebarDragLogicalOrder
     let hasArchivedThreads: Bool
     let showsPullRequests: Bool
+    /// Waiting-dot sources the runtime cannot report, built once per body.
+    ///
+    /// Every set behind it is cached observable state on a coordinator, so this costs a few
+    /// reference copies rather than a fetch. It is here rather than read per row because the read
+    /// has to land inside `SidebarView.body`'s observation scope: every `sidebarThreadRow` call
+    /// site sits in a `ForEach` content closure, which registers on that element instead, and
+    /// nothing else repaints the row when a proposal resolves. That happens outside the provider
+    /// turn, so no `.agentStatusChanged` bumps `statusVersion`, and both proposal coordinators
+    /// clear through their own `ModelContext`, so the sidebar's `@Query` never sees it either.
+    /// `ThreadDetailView+DecisionAttention.swift` hoists into `body` against the same hazard.
+    let decisionAttention: ConversationDecisionAttention
 
     var pinnedItems: [SidebarPinnedItem] { snapshot.pinnedItems }
     var orderedProjects: [Project] { snapshot.orderedProjects }
@@ -34,6 +45,7 @@ extension SidebarView {
             projects: queriedProjects,
             unarchivedThreads: queriedUnarchivedThreads
         )
+        let settings = viewModel.settingsService.current
         return SidebarRenderContext(
             snapshot: snapshot,
             threadOrderAnimation: threadOrderAnimation(
@@ -51,22 +63,13 @@ extension SidebarView {
                 owningProjectIDByPinnedThreadID: owningProjectIDByPinnedThreadID(in: snapshot)
             ),
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty,
-            showsPullRequests: viewModel.settingsService.current.pullRequestsEnabled
-        )
-    }
-
-    /// Waiting-dot sources the runtime cannot report, read fresh per row.
-    ///
-    /// Not a `SidebarRenderContext` field because `sidebarThreadRow` does not take the context.
-    /// That is safe here in a way a fetch would not be: every set is cached observable state on
-    /// the coordinators, so this copies references rather than touching SwiftData — which is what
-    /// the **Render Snapshot** rule is actually guarding.
-    var decisionAttention: ConversationDecisionAttention {
-        ConversationDecisionAttention(
-            approvals: unresolvedApprovalRegistry,
-            scheduledProposals: scheduledTaskProposalQueueCoordinator,
-            reviewProposals: pullRequestReviewProposalCoordinator,
-            settings: viewModel.settingsService.current
+            showsPullRequests: settings.pullRequestsEnabled,
+            decisionAttention: ConversationDecisionAttention(
+                approvals: unresolvedApprovalRegistry,
+                scheduledProposals: scheduledTaskProposalQueueCoordinator,
+                reviewProposals: pullRequestReviewProposalCoordinator,
+                settings: settings
+            )
         )
     }
 
