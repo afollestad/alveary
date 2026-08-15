@@ -27,6 +27,11 @@ enum DemoDataSeeder {
         if try SidebarOrderNormalization.normalize(in: context) {
             try context.save()
         }
+        // Seed the builtin section rows so the demo sidebar matches a real store's layout;
+        // `launchedAt` keeps their `createdAt` tiebreaks deterministic per launch.
+        if try SidebarSectionNormalization.normalize(in: context, now: { DemoData.launchedAt }) {
+            try context.save()
+        }
     }
 
     // MARK: Projects

@@ -48,6 +48,9 @@ struct TaskThreadSeed {
     /// nil mints the usual private one. Whatever the caller supplies, it also owns: a failed
     /// insert rolls back without removing it, because a borrowed checkout belongs to someone else.
     let workspace: TaskWorkspaceDescriptor?
+    /// `SidebarSection.id` of the custom section the new thread starts in; the caller has
+    /// already validated it exists, and a vanished row fails the insert rather than half-applying.
+    let sectionID: String?
 
     init(
         provider: String,
@@ -58,7 +61,8 @@ struct TaskThreadSeed {
         name: String? = nil,
         pinned: Bool = false,
         grantedRoots: [String] = [],
-        workspace: TaskWorkspaceDescriptor? = nil
+        workspace: TaskWorkspaceDescriptor? = nil,
+        sectionID: String? = nil
     ) {
         self.provider = provider
         self.permissionMode = permissionMode
@@ -69,6 +73,7 @@ struct TaskThreadSeed {
         self.pinned = pinned
         self.grantedRoots = grantedRoots
         self.workspace = workspace
+        self.sectionID = sectionID
     }
 }
 
@@ -220,6 +225,7 @@ final class ThreadLifecycleService {
             if seed.pinned {
                 try SidebarPinOrdering.pin(thread, in: modelContext)
             }
+            thread.customSection = try resolvedSeedSection(id: seed.sectionID)
             try saveThreadCreation(modelContext)
         } catch {
             modelContext.rollback()
@@ -408,6 +414,19 @@ final class ThreadLifecycleService {
     func uniqueConversationIDs(_ conversationIDs: [String]) -> [String] {
         var seen = Set<String>()
         return conversationIDs.filter { seen.insert($0).inserted }
+    }
+
+    /// Membership commits atomically with the thread; a section that vanished since the caller
+    /// validated it fails the whole insert rather than half-applying.
+    private func resolvedSeedSection(id: String?) throws -> SidebarSection? {
+        guard let id else {
+            return nil
+        }
+        guard let section = modelContext.resolveSidebarSection(id: id),
+              section.kind == .custom else {
+            throw SidebarSectionServiceError.sectionMissing
+        }
+        return section
     }
 
     /// The caller already canonicalized these paths, so they are rehydrated rather than resolved

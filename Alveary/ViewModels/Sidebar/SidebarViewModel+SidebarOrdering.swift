@@ -56,6 +56,13 @@ extension SidebarViewModel {
         if target.section == .tasks {
             return try commitSidebarDropToTasks(dragItem: dragItem)
         }
+        if case .customSection(let sectionID) = target.section {
+            return try commitSidebarDropToCustomSection(dragItem: dragItem, sectionID: sectionID)
+        }
+        if target.section == .sectionList {
+            // Resolved by the drag layer, which knows the rendered order; this arm only commits.
+            return false
+        }
         guard sidebarDropRequestIsValid(dragItem: dragItem, target: target) else {
             return false
         }

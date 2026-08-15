@@ -135,8 +135,7 @@ extension SidebarDragInteractionTests {
         let sourceItem = SidebarDragItem.project(project.persistentModelID)
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(project.persistentModelID)],
-            projectsHeaderIsSticky: true
+            regularProjects: [.project(project.persistentModelID)]
         )
 
         let pinnedEnd = sidebarDropCandidateForLocation(
@@ -181,6 +180,5 @@ private func hiddenPullRequestsGeometry() -> [SidebarDragGeometryRole: [CGRect]]
 /// `SidebarView` makes the `Projects` header sticky exactly while `Pinned` is empty.
 private let hiddenPinnedLogicalOrder = SidebarDragLogicalOrder(
     pinnedItems: [],
-    regularProjects: [],
-    projectsHeaderIsSticky: true
+    regularProjects: []
 )

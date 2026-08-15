@@ -25,8 +25,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [targetItem],
-            regularProjects: [.project(project.persistentModelID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(project.persistentModelID)]
         )
 
         let pinnedCandidate = sidebarDropCandidateForLocation(
@@ -63,8 +62,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [],
-            projectsHeaderIsSticky: true
+            regularProjects: []
         )
 
         let candidate = sidebarDropCandidateForLocation(
@@ -93,8 +91,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [],
-            projectsHeaderIsSticky: true
+            regularProjects: []
         )
 
         // A project thread has no Tasks membership to choose; the only candidate anywhere near
@@ -122,8 +119,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(project.persistentModelID)],
-            projectsHeaderIsSticky: true
+            regularProjects: [.project(project.persistentModelID)]
         )
 
         // `.into` reparents a Task and grants folder access; a project thread already lives in
@@ -133,7 +129,6 @@ extension SidebarDragInteractionTests {
                 dragging: sourceItem,
                 geometry: geometry,
                 viewport: CGRect(x: 0, y: 0, width: 200, height: 300),
-                stickyOcclusionMaxY: nil,
                 logicalOrder: order
             ).isEmpty
         )

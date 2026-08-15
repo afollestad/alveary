@@ -32,6 +32,16 @@ extension ModelContext {
         )
     }
 
+    func resolveSidebarSection(id: String) -> SidebarSection? {
+        resolve(
+            FetchDescriptor<SidebarSection>(
+                predicate: #Predicate { section in
+                    section.id == id
+                }
+            )
+        )
+    }
+
     func resolveConversation(id: PersistentIdentifier) -> Conversation? {
         resolve(
             FetchDescriptor<Conversation>(

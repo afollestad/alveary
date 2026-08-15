@@ -34,6 +34,10 @@ struct SidebarThreadRow: View {
     let cleanupAction: ThreadCleanupAction
     let cleanupDisabledReason: String?
     let suppressHoverAffordances: Bool
+    /// False while any other inline field owns the sidebar, so the VoiceOver rename action
+    /// carries the same gate the context menu does — `editingThreadID` alone cannot see a
+    /// section rename or the pending new-section row.
+    let canBeginRename: Bool
     let dragConfiguration: SidebarRowDragConfiguration?
     let onCommitRename: (String) -> Void
     let onConfirmCleanup: () -> Void
@@ -65,6 +69,7 @@ struct SidebarThreadRow: View {
         cleanupAction: ThreadCleanupAction = .archive,
         cleanupDisabledReason: String? = nil,
         suppressHoverAffordances: Bool = false,
+        canBeginRename: Bool = true,
         dragConfiguration: SidebarRowDragConfiguration? = nil,
         initialRowHover: Bool = false,
         initialCleanupButtonHover: Bool = false,
@@ -80,6 +85,7 @@ struct SidebarThreadRow: View {
         self.cleanupAction = cleanupAction
         self.cleanupDisabledReason = cleanupDisabledReason
         self.suppressHoverAffordances = suppressHoverAffordances
+        self.canBeginRename = canBeginRename
         self.dragConfiguration = dragConfiguration
         self.onCommitRename = onCommitRename
         self.onConfirmCleanup = onConfirmCleanup
@@ -146,12 +152,11 @@ struct SidebarThreadRow: View {
             }
         }
         .accessibilityActions {
-            // Gate the VoiceOver "Rename..." rotor action on `editingThreadID == nil`,
-            // matching the context-menu button's gate (see `SidebarView.swift`). Without
-            // this, VoiceOver users could bypass the guard and hit the SwiftUI unmount/
-            // mount race that leaves the target row stuck in editing state without an
-            // input field.
-            if editingThreadID == nil, !suppressHoverAffordances {
+            // Gate the VoiceOver "Rename..." rotor action on `canBeginRename`, matching the
+            // context-menu button's gate (see `SidebarView.swift`). Without this, VoiceOver
+            // users could bypass the guard and hit the SwiftUI unmount/mount race that leaves
+            // the target row stuck in editing state without an input field.
+            if canBeginRename, !suppressHoverAffordances {
                 Button("Rename...") {
                     editingThreadID = presentation.threadID
                 }

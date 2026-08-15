@@ -35,11 +35,13 @@ final class ThreadHostToolServiceTests: XCTestCase {
             names.sorted(),
             [
                 "archive_thread",
+                "create_section",
                 "create_thread",
                 "link_pr",
                 "list_linked_prs",
                 "list_projects",
                 "list_threads",
+                "move_thread_to_section",
                 "pin_thread",
                 "unlink_pr",
                 "unpin_thread"
@@ -47,6 +49,9 @@ final class ThreadHostToolServiceTests: XCTestCase {
         )
         for name in names {
             XCTAssertFalse(name.contains("delete"), name)
+            // Section removal stays a user action in the sidebar, for the same reason deletion does.
+            XCTAssertFalse(name.contains("remove"), name)
+            XCTAssertFalse(name.contains("rename"), name)
         }
         XCTAssertTrue(ThreadHostToolCatalog.instructionsFragment.contains("never claim a thread was deleted"))
     }
@@ -292,6 +297,7 @@ final class ThreadHostToolFixture {
         service = ThreadHostToolService(
             modelContext: sidebar.context,
             lifecycleService: sidebar.viewModel.threadLifecycle,
+            sectionService: sidebar.viewModel.sectionService,
             linkService: PullRequestLinkService(
                 modelContext: sidebar.context,
                 service: pullRequestsService,
@@ -375,6 +381,10 @@ final class ThreadHostToolFixture {
             return ["url": .string("https://github.com/octo/alpha/pull/7")]
         case ThreadHostToolCatalog.pinThreadToolName, ThreadHostToolCatalog.unpinThreadToolName:
             return ["thread_id": .string("some-thread")]
+        case ThreadHostToolCatalog.createSectionToolName:
+            return ["name": .string("Research")]
+        case ThreadHostToolCatalog.moveThreadToSectionToolName:
+            return ["thread_id": .string("some-thread"), "section": .string("Tasks")]
         default:
             return [:]
         }

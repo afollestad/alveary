@@ -12,6 +12,8 @@ enum ThreadHostToolCatalog {
     static let listPullRequestsToolName = "list_linked_prs"
     static let pinThreadToolName = "pin_thread"
     static let unpinThreadToolName = "unpin_thread"
+    static let createSectionToolName = "create_section"
+    static let moveThreadToSectionToolName = "move_thread_to_section"
 
     /// What thread management advertises on the shared `alveary_host` server.
     static var featureCatalog: HostToolFeatureCatalog {
@@ -36,7 +38,11 @@ enum ThreadHostToolCatalog {
     without a url and it resolves the thread's only linked pull request or lists the candidates, so do not ask the user \
     which to remove. list_linked_prs answers only "what is this thread linked to"; it knows nothing the user did not link \
     by hand, so never answer "list my pull requests" or "what needs my review" with it — list_involved_prs searches GitHub \
-    for those. Report each tool's returned `status` rather than describing the change in your own terms.
+    for those. Sidebar sections only group threads in the sidebar: create_section adds one at the bottom, and \
+    move_thread_to_section changes where a task thread appears, never what it can reach. create_thread's section must \
+    already exist, so call create_section first; neither tool creates a section as a side effect. No tool removes or \
+    renames a section — only the user can, from the sidebar — so never claim one was removed. Report each tool's returned \
+    `status` rather than describing the change in your own terms.
     """
 
     /// Tools whose error results carry a `status` field, matching their output schema.
@@ -46,7 +52,9 @@ enum ThreadHostToolCatalog {
         linkPullRequestToolName,
         unlinkPullRequestToolName,
         pinThreadToolName,
-        unpinThreadToolName
+        unpinThreadToolName,
+        createSectionToolName,
+        moveThreadToSectionToolName
     ]
 
     static let tools: [AgentCLIKit.AgentHostToolDefinition] = [
@@ -58,7 +66,9 @@ enum ThreadHostToolCatalog {
         unlinkPullRequestTool,
         listPullRequestsTool,
         pinThreadTool,
-        unpinThreadTool
+        unpinThreadTool,
+        createSectionTool,
+        moveThreadToSectionTool
     ]
 }
 
@@ -117,6 +127,7 @@ private extension ThreadHostToolCatalog {
                             "permission_mode": HostToolSchema.stringSchema,
                             "is_pinned": HostToolSchema.booleanSchema,
                             "is_current": HostToolSchema.booleanSchema,
+                            "section": HostToolSchema.stringSchema,
                             "modified_at": HostToolSchema.dateTimeSchema
                         ],
                         required: [
@@ -166,7 +177,8 @@ private extension ThreadHostToolCatalog {
                 "effort": HostToolSchema.nonEmptyStringSchema,
                 "permission_mode": HostToolSchema.enumSchema(AppSettings.supportedPermissionModes),
                 "initial_prompt": HostToolSchema.nonEmptyStringSchema,
-                "pinned": HostToolSchema.booleanSchema
+                "pinned": HostToolSchema.booleanSchema,
+                "section": HostToolSchema.nonEmptyStringSchema
             ],
             required: []
         ),
@@ -183,6 +195,7 @@ private extension ThreadHostToolCatalog {
                 "effort": HostToolSchema.stringSchema,
                 "permission_mode": HostToolSchema.stringSchema,
                 "is_pinned": HostToolSchema.booleanSchema,
+                "section": HostToolSchema.stringSchema,
                 "initial_prompt_dispatched": HostToolSchema.booleanSchema,
                 "message": HostToolSchema.stringSchema
             ],
@@ -312,6 +325,61 @@ private extension ThreadHostToolCatalog {
             required: ["thread_id"]
         ),
         outputSchema: pinOutputSchema(["unpinned", "already_unpinned", "error"]),
+        annotations: HostToolSchema.reversibleMutationAnnotations
+    )
+
+    static let createSectionTool = AgentCLIKit.AgentHostToolDefinition(
+        name: createSectionToolName,
+        title: "Create an Alveary sidebar section",
+        description: """
+        Add a named section to Alveary's sidebar, appended below the existing ones, for grouping task threads. Applies \
+        immediately and changes only how the sidebar is arranged. Creating a section whose name already exists — \
+        including a built-in Pinned, Projects, or Tasks — reports already_exists and changes nothing. No tool removes or \
+        renames a section; only the user can, from the sidebar.
+        """,
+        inputSchema: HostToolSchema.strictObject(
+            properties: ["name": HostToolSchema.nonEmptyStringSchema],
+            required: ["name"]
+        ),
+        outputSchema: HostToolSchema.strictObject(
+            properties: [
+                "status": HostToolSchema.enumSchema(["created", "already_exists", "error"]),
+                "section": HostToolSchema.stringSchema,
+                "message": HostToolSchema.stringSchema
+            ],
+            required: ["status", "message"]
+        ),
+        annotations: HostToolSchema.reversibleMutationAnnotations
+    )
+
+    static let moveThreadToSectionTool = AgentCLIKit.AgentHostToolDefinition(
+        name: moveThreadToSectionToolName,
+        title: "Move an Alveary thread to a sidebar section",
+        description: """
+        Move a task thread into a sidebar section. Applies immediately and changes only where the thread appears, never \
+        what it is doing or which folders it can reach. Call list_threads first and pass one of its exact IDs; its \
+        section field also tells you whether the move is needed. section takes a custom section's name, or Tasks to move \
+        a thread back out of one. The section must already exist — call create_section first. Only task threads live in \
+        sections; a thread inside a Project stays with its Project. A thread already there reports already_in_section. \
+        Moving a pinned thread unpins it, because a pinned thread renders above the sections.
+        """,
+        inputSchema: HostToolSchema.strictObject(
+            properties: [
+                "thread_id": HostToolSchema.nonEmptyStringSchema,
+                "section": HostToolSchema.nonEmptyStringSchema
+            ],
+            required: ["thread_id", "section"]
+        ),
+        outputSchema: HostToolSchema.strictObject(
+            properties: [
+                "status": HostToolSchema.enumSchema(["moved", "already_in_section", "error"]),
+                "thread_id": HostToolSchema.stringSchema,
+                "name": HostToolSchema.stringSchema,
+                "section": HostToolSchema.stringSchema,
+                "message": HostToolSchema.stringSchema
+            ],
+            required: ["status", "message"]
+        ),
         annotations: HostToolSchema.reversibleMutationAnnotations
     )
 

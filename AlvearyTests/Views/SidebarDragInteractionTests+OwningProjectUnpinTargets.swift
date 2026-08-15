@@ -27,7 +27,6 @@ extension SidebarDragInteractionTests {
         let order = SidebarDragLogicalOrder(
             pinnedItems: [.pinnedThread(sourceID)],
             regularProjects: [.project(ownerID), .project(otherID)],
-            projectsHeaderIsSticky: false,
             owningProjectIDByPinnedThreadID: [sourceID: ownerID]
         )
 
@@ -35,7 +34,6 @@ extension SidebarDragInteractionTests {
             dragging: .pinnedThread(sourceID),
             geometry: geometry,
             viewport: CGRect(x: 0, y: 0, width: 200, height: 300),
-            stickyOcclusionMaxY: nil,
             logicalOrder: order
         )
 
@@ -66,7 +64,6 @@ extension SidebarDragInteractionTests {
         let order = SidebarDragLogicalOrder(
             pinnedItems: [.pinnedThread(targetID), sourceItem],
             regularProjects: [.project(ownerID)],
-            projectsHeaderIsSticky: false,
             owningProjectIDByPinnedThreadID: [sourceID: ownerID]
         )
 
@@ -118,11 +115,9 @@ extension SidebarDragInteractionTests {
                 dragging: .pinnedTask(taskID),
                 geometry: geometry,
                 viewport: CGRect(x: 0, y: 0, width: 200, height: 300),
-                stickyOcclusionMaxY: nil,
                 logicalOrder: SidebarDragLogicalOrder(
                     pinnedItems: [.pinnedTask(taskID)],
                     regularProjects: [.project(ownerID), .project(otherID)],
-                    projectsHeaderIsSticky: false,
                     unpinnableTaskIDs: unpinnable ? [taskID] : [],
                     projectIDByTaskID: [taskID: ownerID]
                 )

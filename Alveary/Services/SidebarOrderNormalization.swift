@@ -22,6 +22,7 @@ enum SidebarOrderNormalization {
         let threads = try allThreads(in: modelContext).filter { !excludingThreadIDs.contains($0.persistentModelID) }
         var didChange = clearInvalidProjectOrders(projects)
         didChange = clearInvalidPinnedThreadOrders(threads) || didChange
+        didChange = clearInvalidCustomSectionMemberships(threads) || didChange
         didChange = renumberRegularProjects(projects) || didChange
         didChange = renumberPinnedItems(projects: projects, threads: threads) || didChange
         return didChange
@@ -173,6 +174,21 @@ enum SidebarOrderNormalization {
                 }
             } else if thread.pinnedSortOrder != nil {
                 thread.pinnedSortOrder = nil
+                didChange = true
+            }
+        }
+        return didChange
+    }
+
+    /// Custom-section membership is an overlay on the `Tasks` population, so a thread that is
+    /// project-placed or Project-mode cannot carry it; archived threads keep theirs so a restore
+    /// returns them to their section. Deliberately no seeding here — inserting rows would change
+    /// what existing lifecycle call sites commit.
+    private static func clearInvalidCustomSectionMemberships(_ threads: [AgentThread]) -> Bool {
+        var didChange = false
+        for thread in threads where thread.customSection != nil {
+            if thread.project != nil || thread.effectiveMode == .project {
+                thread.customSection = nil
                 didChange = true
             }
         }

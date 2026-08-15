@@ -18,6 +18,9 @@ struct SidebarSectionHeaderRow: View {
     static let inlineHeaderTotalTopPadding = SidebarRowMetrics.pinnedThreadBoundarySpacing
         + inlineHeaderTopPaddingCorrection
 
+    /// Matches `appSelectableRow`'s click gate, so a release still reads as a click after the
+    /// small pointer drift a real click carries.
+    private static let toggleClickSlop: CGFloat = 10
     private static let actionIconSize: CGFloat = 11
     private static let inlineDividerYOffset: CGFloat = 1.5
     // Keep the trailing action column fixed while pulling title ink left of the row content inset.
@@ -26,6 +29,8 @@ struct SidebarSectionHeaderRow: View {
 
     @State private var isHoveringAction = false
     @State private var isHoveringRow = false
+    @State private var editText = ""
+    @FocusState private var isFieldFocused: Bool
 
     let title: String
     let actionSystemImage: String?
@@ -33,17 +38,19 @@ struct SidebarSectionHeaderRow: View {
     let actionHelp: String?
     let onAction: (() -> Void)?
     let showsTopDivider: Bool
-    let isListSectionHeader: Bool
     let disclosure: SidebarSectionHeaderDisclosure?
     let suppressHoverAffordances: Bool
+    /// Non-nil while this header is being renamed in place; the title swaps for a text field and
+    /// the row stops toggling so a click inside the field cannot collapse the section.
+    let editing: SidebarSectionHeaderEditing?
 
     init(
         title: String,
         showsTopDivider: Bool = false,
-        isListSectionHeader: Bool = false,
         disclosure: SidebarSectionHeaderDisclosure? = nil,
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
+        editing: SidebarSectionHeaderEditing? = nil,
         onAddProject: (() -> Void)? = nil
     ) {
         self.title = title
@@ -52,9 +59,9 @@ struct SidebarSectionHeaderRow: View {
         actionHelp = onAddProject == nil ? nil : "Add Project... (\(KeyboardShortcut.addProject.displayString))"
         onAction = onAddProject
         self.showsTopDivider = showsTopDivider
-        self.isListSectionHeader = isListSectionHeader
         self.disclosure = disclosure
         self.suppressHoverAffordances = suppressHoverAffordances
+        self.editing = editing
         _isHoveringRow = State(initialValue: initialRowHover)
     }
 
@@ -75,39 +82,24 @@ struct SidebarSectionHeaderRow: View {
         self.actionHelp = actionHelp
         self.onAction = onAction
         self.showsTopDivider = showsTopDivider
-        isListSectionHeader = false
         self.disclosure = disclosure
         self.suppressHoverAffordances = suppressHoverAffordances
+        editing = nil
         _isHoveringRow = State(initialValue: initialRowHover)
     }
 
     /// Pulls a row-mounted header back to the leading inset a `List` section header gets for free.
     private var leadingCorrection: CGFloat {
-        isListSectionHeader ? 0 : SidebarProjectListMetrics.plainRowLeadingCorrection
+        SidebarProjectListMetrics.plainRowLeadingCorrection
     }
 
     private var dividerLeadingInset: CGFloat {
         Self.contentLeadingPadding + Self.titleLeadingOpticalOffset + leadingCorrection
     }
 
-    private var dividerYOffset: CGFloat {
-        isListSectionHeader ? SidebarProjectListMetrics.listHeaderDividerYOffset : Self.inlineDividerYOffset
-    }
-
     private var headerTopPadding: CGFloat {
         SidebarRowMetrics.pinnedThreadBoundarySpacing
-            + headerTopPaddingCorrection
-    }
-
-    private var headerTopPaddingCorrection: CGFloat {
-        if isListSectionHeader {
-            return SidebarProjectListMetrics.listHeaderTopPaddingCorrection
-        }
-        return showsTopDivider ? Self.inlineHeaderTopPaddingCorrection : 0
-    }
-
-    private var trailingCorrection: CGFloat {
-        isListSectionHeader ? SidebarProjectListMetrics.listSectionHeaderTrailingCorrection : 0
+            + (showsTopDivider ? Self.inlineHeaderTopPaddingCorrection : 0)
     }
 
     var body: some View {
@@ -126,30 +118,72 @@ struct SidebarSectionHeaderRow: View {
         // shape, not a backing rectangle: `Text` hit-tests its own frame, so a background layer
         // never saw a click that landed on the title.
         .contentShape(Rectangle())
-        .onTapGesture(perform: toggleFromRow)
+        .gesture(rowToggleGesture)
         .onHover { isHovering in
             withAnimation(SidebarDisclosureCaretMetrics.toggleAnimation) {
                 isHoveringRow = isHovering
             }
         }
+        // Seeded on appear as well as on change: a row that mounts already editing — SwiftUI
+        // rebuilding this header mid-rename because the section list changed around it — gets no
+        // `onChange`, and an unseeded field would silently blank the name being edited.
+        .onAppear(perform: seedRenameFieldIfEditing)
+        .onChange(of: editing?.isEditing ?? false) { _, isEditing in
+            if isEditing {
+                seedRenameFieldIfEditing()
+            }
+        }
+        .onChange(of: isFieldFocused) { _, focused in
+            if !focused, editing?.isEditing == true {
+                editing?.onCommit(editText)
+            }
+        }
         .padding(.top, headerTopPadding)
         .padding(.bottom, 0)
-        .padding(.trailing, trailingCorrection)
         .overlay(alignment: .top) {
             if showsTopDivider {
                 Divider()
                     .opacity(0.5)
                     .padding(.leading, dividerLeadingInset)
-                    .padding(.trailing, Self.trailingPadding + trailingCorrection)
+                    .padding(.trailing, Self.trailingPadding)
                     .padding(.top, SidebarRowMetrics.pinnedThreadBoundarySpacing / 2)
-                    .offset(y: dividerYOffset)
+                    .offset(y: Self.inlineDividerYOffset)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
         }
     }
 
+    @ViewBuilder
     private var titleCluster: some View {
+        if let editing, editing.isEditing {
+            renameField(editing)
+        } else {
+            collapsibleTitleCluster
+        }
+    }
+
+    private func seedRenameFieldIfEditing() {
+        guard editing?.isEditing == true else {
+            return
+        }
+        editText = title
+        isFieldFocused = true
+    }
+
+    private func renameField(_ editing: SidebarSectionHeaderEditing) -> some View {
+        TextField("Section name", text: $editText)
+            .textFieldStyle(.plain)
+            .font(.system(.subheadline, weight: .semibold))
+            .focused($isFieldFocused)
+            .onSubmit { editing.onCommit(editText) }
+            .onExitCommand(perform: editing.onCancel)
+            .lineLimit(1)
+            .sidebarInlineSectionNameFieldChrome()
+            .offset(x: Self.titleLeadingOpticalOffset)
+    }
+
+    private var collapsibleTitleCluster: some View {
         HStack(spacing: SidebarDisclosureCaretMetrics.spacing) {
             Text(title)
                 .font(.system(.subheadline, weight: .semibold))
@@ -204,6 +238,32 @@ struct SidebarSectionHeaderRow: View {
         }
     }
 
+    /// A zero-distance drag rather than `onTapGesture`, and it is load-bearing for the header's
+    /// *drag* as much as for its click.
+    ///
+    /// `NSHostingView.mouseDown(with:)` only swallows the event when some SwiftUI gesture claims it
+    /// there and then. A `TapGesture` and `sidebarDragSource`'s 3pt drag can both still fail, so
+    /// the mouse-down reached `super` and walked up to `-[NSTableView mouseDown:]`, which runs its
+    /// own `trackEventsMatchingMask:` loop and dequeues every later drag and mouse-up without
+    /// re-dispatching them — the section drag got one update, no end, and the sidebar stayed wedged
+    /// in a drag that could never finish. A zero-distance drag recognizes on mouse-down, which is
+    /// what keeps the event stream in SwiftUI; `SidebarDragMonitorView.performEscapeWatchTick` is
+    /// the backstop for anything that still loses the mouse-up.
+    ///
+    /// It also fixes the click: `onTapGesture` on macOS stops firing once a click is held past its
+    /// short-click threshold, the same reason `appSelectableRow` uses this shape. The translation
+    /// gate keeps a completed row drag from toggling on release.
+    private var rowToggleGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onEnded { value in
+                guard abs(value.translation.width) < Self.toggleClickSlop,
+                      abs(value.translation.height) < Self.toggleClickSlop else {
+                    return
+                }
+                toggleFromRow()
+            }
+    }
+
     /// The whole header row toggles its section. The caret and the trailing action button are
     /// children with gestures of their own, so hit testing reaches them first and each keeps taking
     /// its own clicks. A header without a disclosure has nothing to toggle and absorbs the tap.
@@ -234,4 +294,12 @@ struct SidebarSectionHeaderRow: View {
 struct SidebarSectionHeaderDisclosure {
     let isExpanded: Bool
     let onToggle: () -> Void
+}
+
+/// Inline-rename state for a custom section's header. Only custom sections pass one; built-in
+/// names are fixed.
+struct SidebarSectionHeaderEditing {
+    let isEditing: Bool
+    let onCommit: (String) -> Void
+    let onCancel: () -> Void
 }

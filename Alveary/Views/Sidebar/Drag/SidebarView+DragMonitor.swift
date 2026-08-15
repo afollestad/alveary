@@ -16,6 +16,9 @@ struct SidebarDragMonitor: NSViewRepresentable {
     let onAutoscroll: @MainActor () -> Void
     let onMouseUp: @MainActor (CGPoint) -> Void
     let onEscape: @MainActor () -> Void
+    /// The pointer came up without the monitor seeing the event. Distinct from `onEscape`, which
+    /// still waits for a mouse-up that this case has already missed.
+    let onPointerLost: @MainActor () -> Void
     let onWindowInvalidated: @MainActor () -> Void
 
     func makeNSView(context: Context) -> SidebarDragMonitorView {
@@ -37,6 +40,7 @@ struct SidebarDragMonitor: NSViewRepresentable {
         view.onAutoscroll = onAutoscroll
         view.onMouseUp = onMouseUp
         view.onEscape = onEscape
+        view.onPointerLost = onPointerLost
         view.onWindowInvalidated = onWindowInvalidated
         view.updateInteractionState(interactionState)
     }
@@ -48,6 +52,7 @@ final class SidebarDragMonitorView: NSView {
     var onAutoscroll: (() -> Void)?
     var onMouseUp: ((CGPoint) -> Void)?
     var onEscape: (() -> Void)?
+    var onPointerLost: (() -> Void)?
     var onWindowInvalidated: (() -> Void)?
 
     private(set) var interactionState = SidebarDragInteractionState.idle
@@ -56,6 +61,8 @@ final class SidebarDragMonitorView: NSView {
     private var autoscrollTimer: Timer?
     /// Internal so the escape-watch companion can own its lifecycle.
     var escapeWatchTimer: Timer?
+    /// Consecutive watch ticks that saw the pointer up; internal for the same reason.
+    var pointerReleasedTicks = 0
     private var autoscrollSessionID: UUID?
     private var pointerLocation: CGPoint?
     private weak var monitoredScrollView: NSScrollView?

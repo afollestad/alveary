@@ -7,17 +7,33 @@ import SwiftUI
 /// too late for callers that need to act on mouse-down (selecting the clicked
 /// row before the menu opens) or that want something other than a menu (opening
 /// a popover). Apply it as an overlay on the control that should respond.
+///
+/// The click point comes through in the target view's own coordinates, for callers
+/// that answer differently by region. A caller that does want a menu returns one
+/// from `menuProvider` — returning `nil` declines the click — and this view pops it
+/// itself, because SwiftUI cannot open a `contextMenu` from an event monitor.
 struct SecondaryClickTarget: NSViewRepresentable {
-    let onSecondaryClick: () -> Void
+    let onSecondaryClick: (CGPoint) -> Void
+    var menuProvider: ((CGPoint) -> NSMenu?)?
+
+    init(
+        menuProvider: ((CGPoint) -> NSMenu?)? = nil,
+        onSecondaryClick: @escaping (CGPoint) -> Void = { _ in }
+    ) {
+        self.menuProvider = menuProvider
+        self.onSecondaryClick = onSecondaryClick
+    }
 
     func makeNSView(context: Context) -> SecondaryClickTargetView {
         let view = SecondaryClickTargetView()
         view.onSecondaryClick = onSecondaryClick
+        view.menuProvider = menuProvider
         return view
     }
 
     func updateNSView(_ nsView: SecondaryClickTargetView, context: Context) {
         nsView.onSecondaryClick = onSecondaryClick
+        nsView.menuProvider = menuProvider
     }
 
     static func dismantleNSView(_ nsView: SecondaryClickTargetView, coordinator: ()) {
@@ -27,8 +43,14 @@ struct SecondaryClickTarget: NSViewRepresentable {
 
 @MainActor
 final class SecondaryClickTargetView: NSView {
-    var onSecondaryClick: (() -> Void)?
+    var onSecondaryClick: ((CGPoint) -> Void)?
+    var menuProvider: ((CGPoint) -> NSMenu?)?
     private var eventMonitor: Any?
+
+    /// Reported points share SwiftUI's top-left origin, so a caller can compare them against
+    /// geometry it measured in a SwiftUI coordinate space. An unflipped view would hand back a
+    /// vertically mirrored y and silently invert every region test built on it.
+    override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -88,17 +110,28 @@ final class SecondaryClickTargetView: NSView {
         let isContextClick = event.type == .rightMouseDown
             || event.type == .leftMouseDown && event.modifierFlags.contains(.control)
         guard isContextClick,
-              containsEvent(event) else {
+              let point = pointInBounds(for: event) else {
             return
         }
-        onSecondaryClick?()
+        onSecondaryClick?(point)
+        guard let menu = menuProvider?(point) else {
+            return
+        }
+        // Deferred a turn: popping a menu runs a nested event loop, and doing that while AppKit is
+        // still dispatching this `rightMouseDown` leaves the click's own handling half-finished.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.window != nil else {
+                return
+            }
+            menu.popUp(positioning: nil, at: point, in: self)
+        }
     }
 
-    private func containsEvent(_ event: NSEvent) -> Bool {
+    private func pointInBounds(for event: NSEvent) -> CGPoint? {
         guard event.window === window else {
-            return false
+            return nil
         }
         let point = convert(event.locationInWindow, from: nil)
-        return bounds.contains(point)
+        return bounds.contains(point) ? point : nil
     }
 }

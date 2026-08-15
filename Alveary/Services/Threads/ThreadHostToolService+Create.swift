@@ -92,9 +92,20 @@ private extension ThreadHostToolService {
                 effort: request.effort,
                 permissionMode: request.permissionMode,
                 isPinned: thread.isPinned,
+                sectionName: createdSectionName(for: thread),
                 dispatchedInitialPrompt: request.initialPrompt != nil
             )
         )
+    }
+
+    /// Read from the inserted row rather than the request, so the reported section is the
+    /// membership the thread actually got — a Project thread reports none at all, and a thread
+    /// created pinned reports the section it returns to on unpin.
+    func createdSectionName(for thread: AgentThread) -> String? {
+        guard thread.project == nil, thread.effectiveMode == .task else {
+            return nil
+        }
+        return thread.customSection?.name ?? SidebarSectionKind.tasks.builtinDisplayName
     }
 
     func insertThread(_ request: ThreadHostToolCreateRequest) throws -> AgentThread {
@@ -115,7 +126,7 @@ private extension ThreadHostToolService {
                     pinned: request.pinned
                 )
             )
-        case .task(let grantedRoots):
+        case .task(let grantedRoots, let sectionID):
             return try lifecycleService.insertTaskThread(
                 seed: TaskThreadSeed(
                     provider: request.provider,
@@ -125,7 +136,10 @@ private extension ThreadHostToolService {
                     isDraft: false,
                     name: request.name,
                     pinned: request.pinned,
-                    grantedRoots: grantedRoots
+                    grantedRoots: grantedRoots,
+                    // Re-resolved from the ID inside the creating save; only the string crossed
+                    // the defaults resolver's `await`, never a `SidebarSection` row.
+                    sectionID: sectionID
                 )
             )
         }
@@ -229,8 +243,11 @@ private extension ThreadHostToolService {
         switch requested {
         case .project(let path):
             return .project(path: path)
-        case .task(let grantedRoots):
-            return .task(grantedRoots: try canonicalGrantedRoots(grantedRoots))
+        case .task(let grantedRoots, let sectionName):
+            return .task(
+                grantedRoots: try canonicalGrantedRoots(grantedRoots),
+                sectionID: try resolvedSectionID(named: sectionName)
+            )
         case .inherit(let grantedRoots):
             switch placement.mode {
             case .task:
@@ -244,6 +261,27 @@ private extension ThreadHostToolService {
                 }
                 return .project(path: projectPath)
             }
+        }
+    }
+
+    /// The section a `create_thread` request named, as a `SidebarSection.id`.
+    ///
+    /// `Tasks` resolves to nil — a Task with no membership already renders there — and every other
+    /// built-in is refused, because a thread cannot live in `Pinned` or `Projects`. An unknown name
+    /// is refused rather than created: composing `create_section` first keeps a typo from silently
+    /// minting a section the user never asked for.
+    func resolvedSectionID(named sectionName: String?) throws -> String? {
+        guard let sectionName else {
+            return nil
+        }
+        let match = try sectionMatch(named: sectionName)
+        switch match.id {
+        case .tasks:
+            return nil
+        case .custom(let sectionID):
+            return sectionID
+        case .pinned, .projects:
+            throw ThreadHostToolServiceError.sectionNotCustom(name: match.name)
         }
     }
 
@@ -288,13 +326,16 @@ private struct ThreadHostToolCreatedThread {
     let effort: String
     let permissionMode: String
     let isPinned: Bool
+    /// The section the created thread renders in, resolved at insert time. Nil for a Project
+    /// thread, which renders under its Project rather than in any section.
+    let sectionName: String?
     let dispatchedInitialPrompt: Bool
 
     var message: String {
         var message = "Created the thread \"\(name)\" \(workspaceSummary) (id: \(threadID)) using \(provider), " +
             "model \(model ?? AppSettings.defaultModelValue), effort \(effort), permissions \(permissionMode)"
         message += isPinned ? ", pinned." : "."
-        if case .task(let grantedRoots) = workspace, !grantedRoots.isEmpty {
+        if case .task(let grantedRoots, _) = workspace, !grantedRoots.isEmpty {
             message += " It can also reach \(grantedRoots.joined(separator: ", "))."
         }
         if dispatchedInitialPrompt {
@@ -320,8 +361,11 @@ private struct ThreadHostToolCreatedThread {
         switch workspace {
         case .project(let path):
             content["project_path"] = .string(path)
-        case .task(let grantedRoots):
+        case .task(let grantedRoots, _):
             content["granted_roots"] = .array(grantedRoots.map(AgentCLIKit.JSONValue.string))
+        }
+        if let sectionName {
+            content["section"] = .string(sectionName)
         }
         return AgentCLIKit.AgentHostToolResult(text: message, structuredContent: .object(content))
     }

@@ -330,7 +330,8 @@ func sidebarProjectPathToExpand(
 @MainActor
 func sidebarSectionToExpand(
     for item: SidebarItem?,
-    resolveThread: (PersistentIdentifier) -> AgentThread?
+    resolveThread: (PersistentIdentifier) -> AgentThread?,
+    resolveCustomSectionID: (AgentThread) -> String? = { $0.customSection?.id }
 ) -> SidebarCollapsibleSection? {
     switch item {
     case .project(let project):
@@ -341,7 +342,14 @@ func sidebarSectionToExpand(
         }
         guard let project = resolvedThread.project else {
             // A projectless Task heads its own section; a pinned one renders above it instead.
-            return resolvedThread.effectiveMode == .task && !resolvedThread.isPinned ? .tasks : nil
+            guard resolvedThread.effectiveMode == .task, !resolvedThread.isPinned else {
+                return nil
+            }
+            // A member renders under its custom section rather than `Tasks`.
+            guard let sectionID = resolveCustomSectionID(resolvedThread) else {
+                return .tasks
+            }
+            return .custom(sectionID)
         }
         // A pinned project's children render inside it under `Pinned`, and a standalone pinned
         // thread renders there too — neither is hidden by a collapsed `Projects`.

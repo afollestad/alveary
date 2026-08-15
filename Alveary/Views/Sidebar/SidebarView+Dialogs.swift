@@ -30,8 +30,10 @@ extension SidebarView {
     /// presentation modifiers to a group here, and split again if a group outgrows one screen.
     func sidebarPresentationDialogs<Content: View>(_ content: Content) -> some View {
         sidebarScheduledTaskAttachmentAlert(
-            sidebarProjectDialogs(
-                sidebarThreadLifecycleDialogs(content)
+            sidebarSectionDialogs(
+                sidebarProjectDialogs(
+                    sidebarThreadLifecycleDialogs(content)
+                )
             )
         )
     }
@@ -116,6 +118,26 @@ extension SidebarView {
             }
     }
 
+    private func sidebarSectionDialogs<Content: View>(_ content: Content) -> some View {
+        content
+            .confirmationDialog(
+                "Remove section?",
+                isPresented: sidebarPresentationBinding(for: $pendingRemoveSection),
+                presenting: pendingRemoveSection
+            ) { pending in
+                Button("Remove Section", role: .destructive) {
+                    pendingRemoveSection = nil
+                    removeSection(id: pending.id)
+                }
+
+                Button("Cancel", role: .cancel) {
+                    pendingRemoveSection = nil
+                }
+            } message: { pending in
+                Text(sidebarRemoveSectionConfirmationMessage(sectionName: pending.name))
+            }
+    }
+
     private func sidebarScheduledTaskAttachmentAlert<Content: View>(_ content: Content) -> some View {
         // The view model is held as a plain `let`, so bind it locally to reach its alert state
         // through the same optional-to-`Bool` bridge the `@State`-backed dialogs use.
@@ -133,6 +155,10 @@ extension SidebarView {
                 Text(viewModel.scheduledTaskAttachmentAlert ?? "")
             }
     }
+}
+
+func sidebarRemoveSectionConfirmationMessage(sectionName: String) -> String {
+    "Remove \(sectionName) from the sidebar? Its threads move to Tasks and are not deleted."
 }
 
 func sidebarRemoveProjectConfirmationMessage(projectName: String) -> String {

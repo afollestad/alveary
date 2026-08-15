@@ -4,26 +4,49 @@ import SwiftData
 /// Drop validation and the pin/order application that `commitSidebarDrop` runs once a
 /// target is chosen.
 extension SidebarViewModel {
-    /// A Tasks-section drop is an unpin, not a reorder: the Tasks list is activity-sorted,
-    /// so the drop delegates to `setThreadPinned`, which owns the scheduled-attachment guard.
+    /// A Tasks-section drop is a membership change, not a reorder: `Tasks` is where a Task rests
+    /// when it belongs to no project and no custom section, so the drop has to clear *both* —
+    /// plus the pin — and `SidebarSectionService.moveThread` does all of it in one save while
+    /// owning the scheduled-attachment guard.
+    ///
+    /// The arms used to compose `setThreadPinned` with a project-only detach, which left a Task
+    /// whose sole membership was a custom section untouched: its drop resolved a target, committed
+    /// nothing, and the row stayed where it was.
     func commitSidebarDropToTasks(dragItem: SidebarDragItem) throws -> Bool {
+        let threadID: PersistentIdentifier
         switch dragItem {
         case .pinnedTask(let id):
+            // The pinned row has to be the one the user actually dragged; a child absorbed by a
+            // pinned project publishes no standalone pin for this drop to release.
             guard let thread = modelContext.resolveThread(id: id),
                   thread.effectiveMode == .task,
                   isVisiblePinnedSidebarThread(thread) else {
                 return false
             }
-            try setThreadPinned(thread, isPinned: false)
-            // A pinned Task can still belong to a project; unpinning alone would drop it straight
-            // back into that project rather than into `Tasks`, which is where it was dropped.
-            _ = try detachTaskFromProject(id)
-            return true
+            threadID = id
         case .unpinnedTask(let id):
-            return try detachTaskFromProject(id)
-        case .project, .pinnedThread, .projectThread:
+            threadID = id
+        case .project, .pinnedThread, .projectThread, .section:
             return false
         }
+        return try moveThreadToSection(threadID: threadID, target: .tasks) == .moved
+    }
+
+    /// A custom-section drop is a membership change, not a reorder — the section is
+    /// activity-sorted like `Tasks`, and shares that drop's commit for the same reason.
+    func commitSidebarDropToCustomSection(dragItem: SidebarDragItem, sectionID: String) throws -> Bool {
+        let threadID: PersistentIdentifier
+        switch dragItem {
+        case .pinnedTask(let id), .unpinnedTask(let id):
+            threadID = id
+        case .project, .pinnedThread, .projectThread, .section:
+            return false
+        }
+        let outcome = try moveThreadToSection(
+            threadID: threadID,
+            target: .custom(sectionID: sectionID)
+        )
+        return outcome == .moved
     }
 
     /// An `.into` drop on the dragged thread's own project is an unpin, not a reparent: the thread
@@ -41,7 +64,7 @@ extension SidebarViewModel {
             (mode, threadID) = (.project, id)
         case .pinnedTask(let id):
             (mode, threadID) = (.task, id)
-        case .project, .unpinnedTask, .projectThread:
+        case .project, .unpinnedTask, .projectThread, .section:
             return false
         }
         guard let thread = modelContext.resolveThread(id: threadID),
@@ -70,7 +93,7 @@ extension SidebarViewModel {
                modelContext.resolveThread(id: id)?.project?.isPinned == true {
                 return false
             }
-        case .project, .pinnedThread, .pinnedTask:
+        case .project, .pinnedThread, .pinnedTask, .section:
             break
         }
 
@@ -107,6 +130,9 @@ extension SidebarViewModel {
                 return false
             }
             return thread.effectiveMode == .project && !thread.isPinned && !thread.isDraft && thread.archivedAt == nil
+        case .section:
+            // Section order is validated by `SidebarSectionService`, which owns the rows.
+            return false
         }
     }
 
@@ -129,7 +155,7 @@ extension SidebarViewModel {
                 return false
             }
             return thread.effectiveMode == .task && isVisiblePinnedSidebarThread(thread)
-        case .unpinnedTask, .projectThread:
+        case .unpinnedTask, .projectThread, .section:
             return false
         }
     }
@@ -207,6 +233,9 @@ extension SidebarViewModel {
                 let thread = try resolveUnpinnedProjectThreadForOrdering(id)
                 thread.isPinned = true
                 thread.pinnedSortOrder = index
+            case .section:
+                // Sections never enter the pinned order; `sidebarOrder` rejects them upstream.
+                throw SidebarViewModelError.threadMissing
             }
         }
     }

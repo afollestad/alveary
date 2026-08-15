@@ -89,8 +89,7 @@ extension SnapshotTests {
                     .pinnedThread(firstThread.persistentModelID),
                     .pinnedThread(secondThread.persistentModelID)
                 ],
-                regularProjects: [sourceItem, .project(sidebar.project.persistentModelID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [sourceItem, .project(sidebar.project.persistentModelID)]
             )
         )
 

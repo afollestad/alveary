@@ -28,7 +28,9 @@ extension SidebarView {
                 topSpacing: index == 0 ? 0 : SidebarRowMetrics.interThreadRowSpacing,
                 attention: context.decisionAttention,
                 dragConfiguration: unpinnedTaskDragConfiguration(for: task, logicalOrder: context.dragLogicalOrder),
-                opacity: activeSidebarDragItem == .unpinnedTask(task.persistentModelID) ? 0.48 : 1
+                opacity: activeSidebarDragItem == .unpinnedTask(task.persistentModelID)
+                    ? 0.48
+                    : sectionGroupOpacity(.tasks)
             )
             .sidebarDragGeometry(.tasksTerminal, isEnabled: index == tasks.count - 1)
         }
@@ -76,7 +78,10 @@ extension SidebarView {
             section: dropSection,
             isExpanded: expandedProjects.contains(project.path),
             isSelected: isProjectSelected(project),
-            isDragged: activeSidebarDragItem == .project(project.persistentModelID),
+            // A row fades for its own drag or its whole section's; the section fade reaches
+            // children and placeholders through the same `configuration.opacity` the row uses.
+            isDragged: activeSidebarDragItem == .project(project.persistentModelID)
+                || sectionGroupOpacityForDropSection(dropSection) < 1,
             activeThreads: activeProjectThreads,
             showsNoThreadsPlaceholder: showsNoThreadsPlaceholder
         )

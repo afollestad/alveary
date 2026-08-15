@@ -39,10 +39,14 @@ func sidebarPinnedSectionCandidates(
        ) {
         candidates.append(sectionStart)
     }
-    if let projectsHeaderFrame,
+    if let followingHeaderFrame = sidebarSectionFollowingPinnedHeaderFrame(
+           geometry: geometry,
+           logicalOrder: logicalOrder,
+           projectsHeaderFrame: projectsHeaderFrame
+       ),
        let sectionEnd = sidebarPinnedSectionEndCandidate(
            geometry: geometry,
-           projectsHeaderFrame: projectsHeaderFrame,
+           followingHeaderFrame: followingHeaderFrame,
            viewport: viewport,
            logicalOrder: logicalOrder
        ) {
@@ -51,30 +55,53 @@ func sidebarPinnedSectionCandidates(
     return candidates
 }
 
+/// The header of whichever section follows `Pinned` in the rendered order — the edge the `Pinned`
+/// end boundary sits on.
+///
+/// This was the `Projects` header back when section order was fixed. Sections reorder now, so the
+/// neighbour is resolved from the live order, falling back to the `Projects` header for a render
+/// pass that has no section order yet. `Pinned` sitting last has no follower and therefore no end
+/// boundary; an empty `Pinned` there renders nothing at all, and the context-menu Pin still works.
+func sidebarSectionFollowingPinnedHeaderFrame(
+    geometry: [SidebarDragGeometryRole: [CGRect]],
+    logicalOrder: SidebarDragLogicalOrder,
+    projectsHeaderFrame: CGRect?
+) -> CGRect? {
+    guard let pinnedIndex = logicalOrder.sectionOrder.firstIndex(of: .pinned) else {
+        return projectsHeaderFrame
+    }
+    for sectionID in logicalOrder.sectionOrder[(pinnedIndex + 1)...] {
+        if let frame = geometry[.sectionHeader(sectionID)]?.sidebarUnion {
+            return frame
+        }
+    }
+    return nil
+}
+
 /// The `Pinned` section's end target, which doubles as the only way to create the very first pin.
 ///
-/// While `Pinned` has items this is an ordinary insertion boundary at the `Projects` header's top
-/// edge, sharing that line with the last pinned item's `.after`. While `Pinned` is empty there is
-/// no `Pinned` header to aim at, and the top-level rows above `Projects` publish no geometry at
-/// all, so the target additionally claims the last top-level row's lower half — otherwise a drop
-/// anywhere in that region finds no candidate and silently no-ops.
+/// While `Pinned` has items this is an ordinary insertion boundary at the following section
+/// header's top edge, sharing that line with the last pinned item's `.after`. While `Pinned` is
+/// empty there is no `Pinned` header to aim at, and the top-level rows above publish no geometry
+/// at all, so the target additionally claims the last top-level row's lower half — otherwise a
+/// drop anywhere in that region finds no candidate and silently no-ops.
 func sidebarPinnedSectionEndCandidate(
     geometry: [SidebarDragGeometryRole: [CGRect]],
-    projectsHeaderFrame: CGRect,
+    followingHeaderFrame: CGRect,
     viewport: CGRect,
     logicalOrder: SidebarDragLogicalOrder
 ) -> SidebarDropCandidate? {
     let pinnedIsEmpty = logicalOrder.pinnedItems.isEmpty
     return sidebarSectionCandidate(
         target: SidebarDropTarget(section: .pinned, item: nil, placement: .end),
-        indicatorY: projectsHeaderFrame.minY,
+        indicatorY: followingHeaderFrame.minY,
         hitFrame: pinnedIsEmpty
             ? sidebarHiddenPinnedHitFrame(
-                projectsHeaderFrame: projectsHeaderFrame,
+                followingHeaderFrame: followingHeaderFrame,
                 geometry: geometry,
                 viewport: viewport
             )
-            : projectsHeaderFrame.sidebarUpperHalf,
+            : followingHeaderFrame.sidebarUpperHalf,
         viewport: viewport,
         priority: -1,
         // Only the hidden target spans a region without competing boundaries; once `Pinned` has
@@ -134,7 +161,7 @@ func sidebarPinnedSectionIsContainerTarget(
     switch item {
     case .unpinnedTask, .projectThread:
         break
-    case .project, .pinnedThread, .pinnedTask:
+    case .project, .pinnedThread, .pinnedTask, .section:
         return false
     }
     guard !logicalOrder.pinnedItems.isEmpty else {
@@ -146,13 +173,13 @@ func sidebarPinnedSectionIsContainerTarget(
 /// Claims the last top-level row's lower half — the same half-row every other insertion boundary
 /// takes — so the hidden target covers where a pinned row would actually appear.
 private func sidebarHiddenPinnedHitFrame(
-    projectsHeaderFrame: CGRect,
+    followingHeaderFrame: CGRect,
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect
 ) -> CGRect {
-    let upperHalf = projectsHeaderFrame.sidebarUpperHalf
+    let upperHalf = followingHeaderFrame.sidebarUpperHalf
     guard let topLevelTerminal = geometry[.topLevelTerminal]?.sidebarUnion,
-          sidebarLineIsVisible(topLevelTerminal.midY, viewport: viewport, stickyOcclusionMaxY: nil),
+          sidebarLineIsVisible(topLevelTerminal.midY, viewport: viewport),
           // Keeps the constructed rect from inverting if a transient preference map places the row
           // below the header it precedes. Coalescing rejects that map too, one pass later.
           topLevelTerminal.midY < upperHalf.maxY else {

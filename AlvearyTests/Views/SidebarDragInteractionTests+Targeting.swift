@@ -15,8 +15,7 @@ extension SidebarDragInteractionTests {
             location: CGPoint(x: 100, y: 80),
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [],
-                regularProjects: [item],
-                projectsHeaderIsSticky: true
+                regularProjects: [item]
             )
         )
 
@@ -52,8 +51,7 @@ extension SidebarDragInteractionTests {
         let item = SidebarDragItem.project(project.persistentModelID)
         let logicalOrder = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [item],
-            projectsHeaderIsSticky: true
+            regularProjects: [item]
         )
         let firstCandidate = SidebarDropCandidate(
             target: SidebarDropTarget(section: .pinned, placement: .end),
@@ -107,8 +105,7 @@ extension SidebarDragInteractionTests {
         ], uniquingKeysWith: { _, rhs in rhs })
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(firstID), .project(secondID), .project(sourceID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(firstID), .project(secondID), .project(sourceID)]
         )
 
         let gapCandidates = sidebarDropCandidates(
@@ -149,8 +146,7 @@ extension SidebarDragInteractionTests {
         ], uniquingKeysWith: { _, rhs in rhs })
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(expandedID), .project(secondID), .project(sourceID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(expandedID), .project(secondID), .project(sourceID)]
         )
 
         let gapCandidates = sidebarDropCandidates(
@@ -189,8 +185,7 @@ extension SidebarDragInteractionTests {
         ], uniquingKeysWith: { _, rhs in rhs })
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(firstID), .project(secondID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(firstID), .project(secondID)]
         )
 
         let draggingFirst = sidebarDropCandidateForLocation(
@@ -237,8 +232,7 @@ extension SidebarDragInteractionTests {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [],
-                regularProjects: [.project(targetID), .project(sourceID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [.project(targetID), .project(sourceID)]
             )
         )
 
@@ -266,8 +260,7 @@ extension SidebarDragInteractionTests {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(targetID)],
-                regularProjects: [.project(sourceID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [.project(sourceID)]
             )
         )
 
@@ -295,8 +288,7 @@ extension SidebarDragInteractionTests {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(targetID)],
-                regularProjects: [.project(sourceID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [.project(sourceID)]
             )
         )
 
@@ -316,8 +308,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(sourceID)],
-            projectsHeaderIsSticky: true
+            regularProjects: [.project(sourceID)]
         )
 
         let candidate = sidebarDropCandidateForLocation(
@@ -353,8 +344,7 @@ extension SidebarDragInteractionTests {
         ], uniquingKeysWith: { _, rhs in rhs })
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(targetID), .project(offscreen.persistentModelID), .project(sourceID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(targetID), .project(offscreen.persistentModelID), .project(sourceID)]
         )
         let acquired = sidebarDropCandidateForLocation(
             at: CGPoint(x: 100, y: 66),
@@ -398,8 +388,7 @@ extension SidebarDragInteractionTests {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [],
-                regularProjects: [.project(targetID), .project(sourceID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [.project(targetID), .project(sourceID)]
             )
         )
 
@@ -419,8 +408,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(targetID), .project(sourceID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(targetID), .project(sourceID)]
         )
 
         let topInside = sidebarDropCandidateForLocation(
@@ -473,8 +461,7 @@ extension SidebarDragInteractionTests {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(projectID), .pinnedThread(targetThreadID), .pinnedThread(sourceThreadID)],
-                regularProjects: [],
-                projectsHeaderIsSticky: false
+                regularProjects: []
             )
         )
 

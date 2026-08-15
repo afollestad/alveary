@@ -19,7 +19,8 @@ struct ThreadHostToolRequestParser {
             "effort",
             "permission_mode",
             "initial_prompt",
-            "pinned"
+            "pinned",
+            "section"
         ])
         let fields = ThreadHostToolCreateFields(
             mode: try object.optionalNonEmptyString("mode"),
@@ -31,7 +32,8 @@ struct ThreadHostToolRequestParser {
             effort: try object.optionalNonEmptyString("effort"),
             permissionMode: try object.optionalNonEmptyString("permission_mode"),
             initialPrompt: try object.optionalNonEmptyString("initial_prompt"),
-            pinned: try object.optionalBool("pinned")
+            pinned: try object.optionalBool("pinned"),
+            section: try object.optionalNonEmptyString("section")
         )
         return ThreadHostToolParsedCreateRequest(
             workspace: try workspace(for: fields, in: object.path),
@@ -48,6 +50,26 @@ struct ThreadHostToolRequestParser {
 
     func parseArchive(arguments: [String: AgentCLIKit.JSONValue]) throws -> String {
         try parseThreadIdentifier(arguments: arguments)
+    }
+
+    /// `create_section`. The name alone; whether one already exists is host state.
+    func parseCreateSection(arguments: [String: AgentCLIKit.JSONValue]) throws -> String {
+        let object = StrictHostToolObject(arguments, path: "arguments")
+        try object.requireOnly(["name"])
+        return try object.requiredNonEmptyString("name")
+    }
+
+    /// `move_thread_to_section`. Both required: this tool never guesses which thread or which
+    /// section, unlike `unlink_pr`, whose omitted url has exactly one sensible resolution.
+    func parseMoveThreadToSection(
+        arguments: [String: AgentCLIKit.JSONValue]
+    ) throws -> ThreadHostToolSectionMoveRequest {
+        let object = StrictHostToolObject(arguments, path: "arguments")
+        try object.requireOnly(["thread_id", "section"])
+        return ThreadHostToolSectionMoveRequest(
+            threadID: try object.requiredNonEmptyString("thread_id"),
+            sectionName: try object.requiredNonEmptyString("section")
+        )
     }
 
     /// The shape every tool that names one thread and nothing else takes — archive, pin, unpin.
@@ -110,6 +132,7 @@ private struct ThreadHostToolCreateFields {
     let permissionMode: String?
     let initialPrompt: String?
     let pinned: Bool?
+    let section: String?
 }
 
 private extension ThreadHostToolRequestParser {
@@ -122,6 +145,15 @@ private extension ThreadHostToolRequestParser {
         for fields: ThreadHostToolCreateFields,
         in path: String
     ) throws -> ThreadHostToolRequestedWorkspace {
+        if let section = fields.section {
+            guard fields.mode != "project" else {
+                throw invalid("\(path).section applies only to a task thread; a project thread renders under its Project.")
+            }
+            guard fields.projectPath == nil else {
+                throw invalid("\(path).section and \(path).project_path cannot both be set — a thread renders in one place.")
+            }
+            return .task(grantedRoots: fields.grantedRoots ?? [], sectionName: section)
+        }
         switch fields.mode {
         case "project", nil:
             guard let projectPath = fields.projectPath else {
@@ -198,6 +230,7 @@ private extension ThreadHostToolRequestParser {
             "model": fields.model,
             "effort": fields.effort,
             "permission_mode": fields.permissionMode,
+            "section": fields.section,
             "initial_prompt": fields.initialPrompt
         ]
         for (key, value) in optionalStrings {

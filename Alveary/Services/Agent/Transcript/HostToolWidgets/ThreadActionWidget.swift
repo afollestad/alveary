@@ -12,6 +12,8 @@ struct ThreadActionWidgetContent: Equatable {
         case pin
         case unpin
         case archive
+        case createSection
+        case moveSection
     }
 
     enum Status: Equatable {
@@ -76,7 +78,13 @@ enum ThreadActionWidgetParsing {
 private extension ThreadActionWidgetParsing {
     /// The `status` values `ThreadHostToolService` reports for a call that changed nothing.
     /// `create_thread` has no such status: it either creates a thread or fails.
-    static let unchangedStatuses: Set<String> = ["already_pinned", "already_unpinned", "already_archived"]
+    static let unchangedStatuses: Set<String> = [
+        "already_pinned",
+        "already_unpinned",
+        "already_archived",
+        "already_exists",
+        "already_in_section"
+    ]
 
     struct Receipt {
         let status: String?

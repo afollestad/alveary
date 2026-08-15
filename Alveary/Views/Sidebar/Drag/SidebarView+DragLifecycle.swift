@@ -94,6 +94,21 @@ extension SidebarView {
         clearSidebarDragState()
     }
 
+    private func commitSectionReorder(session: SidebarDragSession, candidate: SidebarDropCandidate) {
+        guard let request = sidebarSectionReorderAnchor(
+            dragging: session.item,
+            target: candidate.target,
+            sections: session.logicalOrder.sections
+        ) else {
+            return
+        }
+        do {
+            try viewModel.moveSection(id: request.sectionID, before: request.beforeSectionID)
+        } catch {
+            viewModel.presentSidebarError(error)
+        }
+    }
+
     /// Routes the frozen drop once drag state is cleared: `.into` access grants go to the async
     /// confirmation flow; everything else — reorders, pins, and the owning-project unpin — rides
     /// the synchronous commit.
@@ -108,6 +123,12 @@ extension SidebarView {
             logicalOrder: session.logicalOrder
         ) {
             requestTaskProjectAccessDrop(threadID: access.threadID, projectID: access.projectID)
+            return
+        }
+        // A section reorder resolves against the order captured at drag start, which the view
+        // model has no view of, so it is committed here rather than through `commitSidebarDrop`.
+        if case .section = session.item {
+            commitSectionReorder(session: session, candidate: candidate)
             return
         }
         let selectedThreadBelongsToDraggedProject: Bool

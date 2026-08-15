@@ -29,12 +29,11 @@ extension SidebarDragInteractionTests {
             y: 40,
             width: 200,
             height: SidebarRowMetrics.topLevelAndThreadContentHeight
-                + SidebarRowMetrics.pinnedThreadBoundarySpacing
-                + SidebarProjectListMetrics.listHeaderTopPaddingCorrection
+                + SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
         )
         let measuredHeaderFrame = sidebarDragGeometryFrame(
             visualHeaderFrame,
-            excludingTopInset: SidebarProjectListMetrics.listHeaderDragTopInsetExclusion
+            excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
         )
         let geometry: [SidebarDragGeometryRole: [CGRect]] = [
             .viewport: [CGRect(x: 0, y: 0, width: 200, height: 200)],
@@ -42,43 +41,17 @@ extension SidebarDragInteractionTests {
         ]
 
         let candidate = sidebarDropCandidateForLocation(
-            at: CGPoint(x: 100, y: visualHeaderFrame.minY - 2),
+            at: CGPoint(x: 100, y: measuredHeaderFrame.minY - 2),
             dragging: sourceItem,
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [],
-                regularProjects: [sourceItem],
-                projectsHeaderIsSticky: true
+                regularProjects: [sourceItem]
             )
         )
 
         XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .pinned, placement: .end))
-        XCTAssertEqual(candidate?.indicatorY, visualHeaderFrame.minY)
-    }
-
-    func testHiddenPinnedBoundaryUsesVisibleTopOfNewlyStickyProjectsHeader() throws {
-        let fixture = try SidebarTestFixture()
-        let source = try fixture.insertProject(name: "Source", path: "/tmp/source")
-        let sourceItem = SidebarDragItem.project(source.persistentModelID)
-        let viewport = CGRect(x: 0, y: 0, width: 200, height: 200)
-        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
-            .viewport: [viewport],
-            .projectsHeader: [CGRect(x: 0, y: -3.5, width: 200, height: 39.5)]
-        ]
-
-        let candidate = sidebarDropCandidateForLocation(
-            at: CGPoint(x: 100, y: 2),
-            dragging: sourceItem,
-            geometry: geometry,
-            logicalOrder: SidebarDragLogicalOrder(
-                pinnedItems: [],
-                regularProjects: [sourceItem],
-                projectsHeaderIsSticky: true
-            )
-        )
-
-        XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .pinned, placement: .end))
-        XCTAssertEqual(candidate?.indicatorY, viewport.minY)
+        XCTAssertEqual(candidate?.indicatorY, measuredHeaderFrame.minY)
     }
 
     func testInlineProjectsHeaderDoesNotClampOffscreenBoundaryToViewport() throws {
@@ -97,50 +70,11 @@ extension SidebarDragInteractionTests {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(pinned.persistentModelID)],
-                regularProjects: [sourceItem],
-                projectsHeaderIsSticky: false
+                regularProjects: [sourceItem]
             )
         )
 
         XCTAssertNil(candidate)
-    }
-
-    func testUnplacedListSectionHeaderCopyDoesNotStretchTheProjectsHeader() throws {
-        let fixture = try SidebarTestFixture()
-        let source = try fixture.insertProject(name: "Source", path: "/tmp/unplaced-source")
-        let sourceItem = SidebarDragItem.project(source.persistentModelID)
-        let placedHeaderFrame = CGRect(x: 0, y: 169, width: 200, height: 39.5)
-        // `List` publishes the section header twice; the copy it never places reports the content
-        // origin. Unioning them stretched the header from y=0 down to the section it heads.
-        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
-            .viewport: [CGRect(x: 0, y: 52, width: 200, height: 868)],
-            .topLevelTerminal: [CGRect(x: 0, y: 128, width: 200, height: 24)],
-            .projectsHeader: [placedHeaderFrame, CGRect(x: 0, y: 0, width: 200, height: 39.5)]
-        ]
-        let logicalOrder = SidebarDragLogicalOrder(
-            pinnedItems: [],
-            regularProjects: [sourceItem],
-            projectsHeaderIsSticky: true
-        )
-
-        XCTAssertEqual(
-            sidebarProjectsHeaderFrame(
-                geometry: geometry,
-                viewport: try XCTUnwrap(geometry[.viewport]?.sidebarUnion),
-                isSticky: true
-            ),
-            placedHeaderFrame
-        )
-        // The line stays on the `Projects` divider, and the region above it stays reachable,
-        // instead of collapsing onto the top-level rows at the top of the list.
-        let candidate = sidebarDropCandidateForLocation(
-            at: CGPoint(x: 100, y: 160),
-            dragging: sourceItem,
-            geometry: geometry,
-            logicalOrder: logicalOrder
-        )
-        XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .pinned, placement: .end))
-        XCTAssertEqual(candidate?.indicatorY, placedHeaderFrame.minY)
     }
 
     func testMonitorPointerConvertsIntoNamedViewportCoordinates() {
@@ -173,8 +107,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [targetItem, sourceItem],
-            projectsHeaderIsSticky: false
+            regularProjects: [targetItem, sourceItem]
         )
         let monitorLocation = CGPoint(x: 100, y: 72)
         let namedLocation = sidebarDragLocationInNamedSpace(

@@ -20,6 +20,9 @@ final class SidebarViewModel {
     /// (ordering refresh, selection routing, diagnostics presentation) and delegates the rest,
     /// so an app-scoped caller such as the host MCP runs exactly the same lifecycle.
     let threadLifecycle: ThreadLifecycleService
+    /// Custom-section lifecycle, split from the view model for the same reason as
+    /// `threadLifecycle`: the host MCP tools mutate sections with no window.
+    let sectionService: SidebarSectionService
     let saveDraftProjectMove: @MainActor (ModelContext) throws -> Void
     let saveDeletionCommit: @MainActor (ModelContext) throws -> Void
     let savePendingSidebarChanges: @MainActor (ModelContext) throws -> Void
@@ -59,6 +62,7 @@ final class SidebarViewModel {
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        saveSectionChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         afterPendingScheduledWorktreeCleanup: @escaping @MainActor () async -> Void = {},
         presentUnexpectedError: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         notificationManager: any NotificationManager,
@@ -86,6 +90,10 @@ final class SidebarViewModel {
             saveThreadCreation: saveThreadCreation,
             savePendingSidebarChanges: savePendingSidebarChanges,
             saveSidebarOrdering: saveSidebarOrdering
+        )
+        sectionService = SidebarSectionService(
+            modelContext: modelContext,
+            saveSectionChanges: saveSectionChanges
         )
         self.saveDraftProjectMove = saveDraftProjectMove
         self.saveDeletionCommit = saveDeletionCommit

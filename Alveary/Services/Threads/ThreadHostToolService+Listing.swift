@@ -92,6 +92,9 @@ private struct ThreadHostToolListing {
             "is_pinned": .bool(thread.isPinned),
             "is_current": .bool(isCurrent)
         ]
+        if let sectionName {
+            row["section"] = .string(sectionName)
+        }
         if let projectPath = thread.project?.path {
             row["project_path"] = .string(projectPath)
         }
@@ -111,10 +114,24 @@ private struct ThreadHostToolListing {
             "permissions \(thread.permissionMode)",
             thread.isPinned ? "pinned" : "unpinned"
         ]
+        if let sectionName {
+            parts.append("section \(sectionName)")
+        }
         if isCurrent {
             parts.append("this conversation's thread")
         }
         return "- \"\(thread.displayName())\" (\(parts.joined(separator: ", ")))"
+    }
+
+    /// The sidebar section this thread belongs to — where it renders, or returns to on unpin
+    /// when `is_pinned` says it currently sits under `Pinned`. Nil for a Project-placed thread,
+    /// which renders under its Project rather than in any section.
+    private var sectionName: String? {
+        guard thread.project == nil, thread.effectiveMode == .task else {
+            return nil
+        }
+        return thread.customSection?.name
+            ?? SidebarSectionKind.tasks.builtinDisplayName
     }
 
     private var workspaceSummary: String {

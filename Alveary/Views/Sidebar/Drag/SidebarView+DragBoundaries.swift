@@ -91,19 +91,15 @@ private func sidebarVisualDropBoundary(
     guard boundary.insertionIndex >= 0, boundary.insertionIndex <= items.count else {
         return .unavailable
     }
-    let projectsHeaderFrame = sidebarProjectsHeaderFrame(
-        geometry: geometry,
-        viewport: viewport,
-        isSticky: logicalOrder.projectsHeaderIsSticky
-    )
-    let stickyOcclusionMaxY: CGFloat? = boundary.section == .projects && logicalOrder.projectsHeaderIsSticky
-        ? projectsHeaderFrame?.maxY
-        : nil
     let context = SidebarVisualDropBoundaryContext(
         geometry: geometry,
         viewport: viewport,
-        projectsHeaderFrame: projectsHeaderFrame,
-        stickyOcclusionMaxY: stickyOcclusionMaxY
+        // The section that follows `Pinned`, not necessarily `Projects` — sections reorder.
+        followingPinnedHeaderFrame: sidebarSectionFollowingPinnedHeaderFrame(
+            geometry: geometry,
+            logicalOrder: logicalOrder,
+            projectsHeaderFrame: geometry[.projectsHeader]?.sidebarUnion
+        )
     )
     let endpointYs = [
         sidebarPreviousDropBoundaryEndpoint(
@@ -146,8 +142,7 @@ private func sidebarPreviousDropBoundaryEndpoint(
         return sidebarVisualDropBoundaryEndpoint(
             boundaryFrame: terminal,
             usesUpperHalf: false,
-            viewport: context.viewport,
-            stickyOcclusionMaxY: context.stickyOcclusionMaxY
+            viewport: context.viewport
         )
     }
 
@@ -165,8 +160,7 @@ private func sidebarPreviousDropBoundaryEndpoint(
     return sidebarVisualDropBoundaryEndpoint(
         boundaryFrame: startFrame,
         usesUpperHalf: false,
-        viewport: context.viewport,
-        stickyOcclusionMaxY: nil
+        viewport: context.viewport
     )
 }
 
@@ -188,19 +182,17 @@ private func sidebarNextDropBoundaryEndpoint(
         return sidebarVisualDropBoundaryEndpoint(
             boundaryFrame: header,
             usesUpperHalf: true,
-            viewport: context.viewport,
-            stickyOcclusionMaxY: context.stickyOcclusionMaxY
+            viewport: context.viewport
         )
     }
 
-    guard boundary.section == .pinned, let projectsHeaderFrame = context.projectsHeaderFrame else {
+    guard boundary.section == .pinned, let followingHeaderFrame = context.followingPinnedHeaderFrame else {
         return nil
     }
     return sidebarVisualDropBoundaryEndpoint(
-        boundaryFrame: projectsHeaderFrame,
+        boundaryFrame: followingHeaderFrame,
         usesUpperHalf: true,
-        viewport: context.viewport,
-        stickyOcclusionMaxY: nil
+        viewport: context.viewport
     )
 }
 
@@ -213,9 +205,11 @@ private func sidebarLogicalItems(
         logicalOrder.pinnedItems
     case .projects:
         logicalOrder.regularProjects
-    case .tasks:
-        // Tasks are activity-sorted; the section carries one end target with no per-item boundaries.
+    case .tasks, .customSection:
+        // Activity-sorted; each carries one membership target and no per-item boundaries.
         []
+    case .sectionList:
+        logicalOrder.sections
     }
 }
 
@@ -227,25 +221,25 @@ private func sidebarSectionStartFrame(
     case .pinned:
         geometry[.pinnedHeader]?.sidebarUnion
     case .projects:
-        // The unplaced `List` section-header copy would drag this endpoint to the content origin.
-        sidebarPlacedSectionHeaderFrame(geometry[.projectsHeader])
+        geometry[.projectsHeader]?.sidebarUnion
     case .tasks:
         geometry[.tasksHeader]?.sidebarUnion
+    case .customSection(let id):
+        geometry[.customSectionHeader(id)]?.sidebarUnion
+    case .sectionList:
+        // The section list starts at the first section's own header, which is already the
+        // `.before` boundary of that section; there is no separate container to anchor on.
+        nil
     }
 }
 
 private func sidebarVisualDropBoundaryEndpoint(
     boundaryFrame: CGRect,
     usesUpperHalf: Bool,
-    viewport: CGRect,
-    stickyOcclusionMaxY: CGFloat?
+    viewport: CGRect
 ) -> CGFloat? {
     let indicatorY = usesUpperHalf ? boundaryFrame.minY : boundaryFrame.maxY
-    return sidebarLineIsVisible(
-        indicatorY,
-        viewport: viewport,
-        stickyOcclusionMaxY: stickyOcclusionMaxY
-    ) ? indicatorY : nil
+    return sidebarLineIsVisible(indicatorY, viewport: viewport) ? indicatorY : nil
 }
 
 func sidebarItemBoundaryFrames(
@@ -268,21 +262,19 @@ func sidebarItemBoundaryFrames(
     case .unpinnedTask, .projectThread:
         // Sources only; neither appears in logical-order arrays or publishes geometry.
         return SidebarDragBoundaryFrames(header: nil, terminal: nil)
+    case .section(let sectionID):
+        // `Pinned` and `Projects` publish no terminal, so their `terminal` is nil and coalescing
+        // falls back to the neighbouring header's top edge — which is the boundary anyway.
+        return SidebarDragBoundaryFrames(
+            header: geometry[.sectionHeader(sectionID)]?.sidebarUnion,
+            terminal: SidebarDragGeometryRole.sectionTerminal(sectionID)
+                .flatMap { geometry[$0]?.sidebarUnion }
+        )
     }
 }
 
-func sidebarLineIsVisible(
-    _ lineY: CGFloat,
-    viewport: CGRect,
-    stickyOcclusionMaxY: CGFloat?
-) -> Bool {
-    guard lineY >= viewport.minY, lineY <= viewport.maxY else {
-        return false
-    }
-    if let stickyOcclusionMaxY, lineY <= stickyOcclusionMaxY + 0.5 {
-        return false
-    }
-    return true
+func sidebarLineIsVisible(_ lineY: CGFloat, viewport: CGRect) -> Bool {
+    lineY >= viewport.minY && lineY <= viewport.maxY
 }
 
 struct SidebarDragBoundaryFrames {
@@ -308,8 +300,7 @@ private enum SidebarVisualDropBoundaryResolution {
 private struct SidebarVisualDropBoundaryContext {
     let geometry: [SidebarDragGeometryRole: [CGRect]]
     let viewport: CGRect
-    let projectsHeaderFrame: CGRect?
-    let stickyOcclusionMaxY: CGFloat?
+    let followingPinnedHeaderFrame: CGRect?
 }
 
 private extension CGRect {

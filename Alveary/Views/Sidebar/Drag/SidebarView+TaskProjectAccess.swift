@@ -25,7 +25,7 @@ func sidebarTaskProjectAccessDrop(
             return nil
         }
         return SidebarTaskProjectAccessDrop(threadID: threadID, projectID: projectID)
-    case .project, .pinnedThread, .projectThread:
+    case .project, .pinnedThread, .projectThread, .section:
         return nil
     }
 }

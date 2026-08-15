@@ -85,7 +85,8 @@ struct SidebarDropCandidate: Equatable {
     var containerFrame: CGRect?
     /// Skips the indicator-proximity gate. The gate keeps an insertion line local to the row that
     /// owns it, so it only means something where neighbouring rows publish competing boundaries.
-    /// The empty-`Pinned` target spans a region where nothing else publishes at all.
+    /// Two targets span regions where nothing else publishes at all: the empty-`Pinned` target,
+    /// and the section list's append boundary reaching into the space below the last section.
     var ignoresIndicatorProximity = false
 
     var borderFrame: CGRect { containerFrame ?? hitFrame }
@@ -94,7 +95,6 @@ struct SidebarDropCandidate: Equatable {
 struct SidebarDragLogicalOrder: Equatable {
     let pinnedItems: [SidebarDragItem]
     let regularProjects: [SidebarDragItem]
-    let projectsHeaderIsSticky: Bool
     /// Pinned Task threads that may leave `Pinned` via the Tasks-section drop target;
     /// scheduled-attached Tasks are excluded, matching the disabled context-menu Unpin.
     var unpinnableTaskIDs: Set<PersistentIdentifier> = []
@@ -105,6 +105,16 @@ struct SidebarDragLogicalOrder: Equatable {
     /// dropping onto that project group. The drop is the drag mirror of context-menu Unpin, so
     /// scheduled-attached threads are excluded here just as their menu item is disabled.
     var owningProjectIDByPinnedThreadID: [PersistentIdentifier: PersistentIdentifier] = [:]
+    /// The custom section every member Task belongs to. Gates each section's membership
+    /// container, so a Task never sees the section it is already in.
+    var customSectionIDByTaskID: [PersistentIdentifier: String] = [:]
+    /// Every rendered section as a `.section` drag item, in the order the user sees. A hidden
+    /// empty `Pinned` is absent — it has no header to grab — and keeps its persisted slot,
+    /// which `SidebarSectionService.moveSection` preserves by anchoring on visible neighbours.
+    var sections: [SidebarDragItem] = []
+    /// Every section in persisted order, hidden `Pinned` included. Distinct from `sections`
+    /// because the hidden-`Pinned` drop target has to know which section follows that empty slot.
+    var sectionOrder: [SidebarSectionID] = []
 }
 
 struct SidebarDragFinalizationTransition {
@@ -168,71 +178,6 @@ func sidebarDragFinalizationTransition(
     return SidebarDragFinalizationTransition(session: session, nextState: .idle)
 }
 
-enum SidebarDragGeometryRole: Hashable {
-    case projectHeader(SidebarDropSection, PersistentIdentifier)
-    case projectTerminal(SidebarDropSection, PersistentIdentifier)
-    case pinnedThread(PersistentIdentifier)
-    case pinnedTask(PersistentIdentifier)
-    case pinnedHeader
-    case projectsHeader
-    /// Last visible top-level row, so the empty-`Pinned` target can reach the region where a
-    /// pinned row would appear rather than clinging to the `Projects` header's top edge.
-    case topLevelTerminal
-    case tasksHeader
-    /// Last visible Tasks row (or the empty placeholder), so the section's border can hug content.
-    case tasksTerminal
-    case viewport
-}
-
-struct SidebarDragGeometryPreferenceKey: PreferenceKey {
-    static let defaultValue: [SidebarDragGeometryRole: [CGRect]] = [:]
-
-    static func reduce(
-        value: inout [SidebarDragGeometryRole: [CGRect]],
-        nextValue: () -> [SidebarDragGeometryRole: [CGRect]]
-    ) {
-        for (role, frames) in nextValue() {
-            value[role, default: []].append(contentsOf: frames)
-        }
-    }
-}
-
-extension View {
-    /// Disabling suppresses preference emission without changing view structure, preserving identity during animations.
-    func sidebarDragGeometry(
-        _ role: SidebarDragGeometryRole,
-        isEnabled: Bool = true,
-        excludingTopInset topInset: CGFloat = 0
-    ) -> some View {
-        background {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: SidebarDragGeometryPreferenceKey.self,
-                    value: isEnabled
-                        ? [role: [sidebarDragGeometryFrame(
-                            proxy.frame(in: .named(SidebarDragCoordinateSpace.name)),
-                            excludingTopInset: topInset
-                        )]]
-                        : [:]
-                )
-            }
-        }
-    }
-}
-
-func sidebarDragGeometryFrame(
-    _ frame: CGRect,
-    excludingTopInset topInset: CGFloat
-) -> CGRect {
-    let excludedTopInset = min(max(topInset, 0), frame.height)
-    return CGRect(
-        x: frame.minX,
-        y: frame.minY + excludedTopInset,
-        width: frame.width,
-        height: frame.height - excludedTopInset
-    )
-}
-
 extension SidebarView {
     static let sidebarDragCoordinateSpaceName = SidebarDragCoordinateSpace.name
 
@@ -269,6 +214,7 @@ extension SidebarView {
                     onAutoscroll: handleSidebarMonitorAutoscroll,
                     onMouseUp: handleSidebarMonitorMouseUp,
                     onEscape: cancelSidebarDragFromEscape,
+                    onPointerLost: cancelSidebarDragForTeardown,
                     onWindowInvalidated: cancelSidebarDragForTeardown
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)

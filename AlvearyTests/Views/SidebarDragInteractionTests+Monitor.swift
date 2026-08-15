@@ -88,9 +88,50 @@ extension SidebarDragInteractionTests {
             location: CGPoint(x: 100, y: 100),
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [],
-                regularProjects: [],
-                projectsHeaderIsSticky: true
+                regularProjects: []
             )
+        )
+    }
+
+    // MARK: - Lost-pointer watchdog
+
+    /// The drag that motivated this watch never received a mouse-up at all: `-[NSTableView
+    /// mouseDown:]` ran its own tracking loop and dequeued every later mouse event, leaving the
+    /// sidebar stuck mid-drag with every row's tap suppressed.
+    func testWatchGivesUpOnlyAfterTheSecondTickWithoutTheButtonDown() {
+        XCTAssertEqual(
+            sidebarDragWatchAction(isEscapePressed: false, isPointerDown: true, pointerReleasedTicks: 0),
+            .keepWatching
+        )
+        XCTAssertEqual(
+            sidebarDragWatchAction(isEscapePressed: false, isPointerDown: false, pointerReleasedTicks: 0),
+            .countPointerRelease
+        )
+        XCTAssertEqual(
+            sidebarDragWatchAction(isEscapePressed: false, isPointerDown: false, pointerReleasedTicks: 1),
+            .abandon
+        )
+    }
+
+    /// A released button resets the count only while it is down again, so a real mouse-up that the
+    /// monitor *did* see still finalizes through its own path rather than racing this one.
+    func testWatchResetsItsCountWhenTheButtonGoesBackDown() {
+        XCTAssertEqual(
+            sidebarDragWatchAction(isEscapePressed: false, isPointerDown: true, pointerReleasedTicks: 1),
+            .keepWatching
+        )
+    }
+
+    /// Escape outranks the pointer check: it keeps the session waiting for the real mouse-up, which
+    /// `.abandon` would drop outright.
+    func testWatchPrefersEscapeOverAbandoning() {
+        XCTAssertEqual(
+            sidebarDragWatchAction(isEscapePressed: true, isPointerDown: false, pointerReleasedTicks: 5),
+            .escape
+        )
+        XCTAssertEqual(
+            sidebarDragWatchAction(isEscapePressed: true, isPointerDown: true, pointerReleasedTicks: 0),
+            .escape
         )
     }
 

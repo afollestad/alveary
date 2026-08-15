@@ -70,6 +70,7 @@ private extension DataComponent {
         return try ModelContainer(
             for: Project.self,
             AgentThread.self,
+            SidebarSection.self,
             Conversation.self,
             ConversationEventRecord.self,
             ScheduledTask.self,

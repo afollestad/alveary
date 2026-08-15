@@ -5,21 +5,9 @@ import SwiftUI
 enum SidebarProjectListMetrics {
     static let subsequentProjectTopSpacing: CGFloat = 4
 
-    // Native list-section headers add more pre-header space than inline section rows.
-    static let listHeaderDividerYOffset: CGFloat = -6
-    static let listHeaderTopPaddingCorrection: CGFloat = 3.5
-    // The Projects header's top edge is the empty-Pinned drop boundary, so keep its divider inset measurable.
-    static let listHeaderDragTopInsetExclusion: CGFloat = 0
-
-    // SwiftUI `List` section headers omit the real project row's trailing action column inset.
-    @MainActor static var listSectionHeaderTrailingCorrection: CGFloat {
-        SidebarSectionHeaderRow.actionButtonCenterTrailingInset
-    }
-
-    // They also inset 2pt less at the leading edge than a plain row does. Everything row-mounted
-    // that lines up with one pulls back by that much: the headers themselves, their placeholders,
-    // and the top-level rows' icon column. `Projects` heads a `Section` only while `Pinned` is
-    // empty, so without this the same header moves between layouts.
+    /// A SwiftUI `List` section header insets 2pt less at the leading edge than a plain row does.
+    /// Every section header is an ordinary row now, but the top-level rows' icon column and the
+    /// section placeholders still line up with that same ink, so they all pull back together.
     static let plainRowLeadingCorrection: CGFloat = -2
 }
 
@@ -54,9 +42,18 @@ struct SidebarView: View {
     // Archived screen owns the real fetch; this only decides whether to render the row.
     @Query(archivedThreadProbeDescriptor)
     var queriedArchivedThreadProbe: [AgentThread]
+    // Section rows drive both order and membership, so the render pass has to observe them.
+    // Sorting happens in `SidebarRenderSnapshot`, which applies the same tiebreaks normalization
+    // does; an empty result renders the built-in fallback layout.
+    @Query var queriedSidebarSections: [SidebarSection]
     @State var expandedProjects: Set<String> = []
     @State var collapsedSections: Set<SidebarCollapsibleSection> = []
     @State var editingThreadID: PersistentIdentifier?
+    /// `SidebarSection.id` of the custom section header currently being renamed in place.
+    @State var editingSectionID: String?
+    /// Whether the pending new-section row is mounted at the bottom of the list.
+    @State var isCreatingSection = false
+    @State var pendingRemoveSection: SidebarPendingSectionRemoval?
     @State var pendingArchiveThread: SidebarPendingThreadCleanup?
     @State var pendingDeleteThread: SidebarPendingThreadCleanup?
     @State var pendingDeleteProject: SidebarPendingProjectRemoval?
@@ -80,13 +77,25 @@ struct SidebarView: View {
         appState: AppState,
         voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
         initialExpandedProjects: Set<String> = [],
-        initialCollapsedSections: Set<SidebarCollapsibleSection> = []
+        initialCollapsedSections: Set<SidebarCollapsibleSection> = [],
+        initialEditingSectionID: String? = nil,
+        initialIsCreatingSection: Bool = false
     ) {
         self.viewModel = viewModel
         self.appState = appState
         self.voiceInputLifecycleController = voiceInputLifecycleController
         _expandedProjects = State(initialValue: initialExpandedProjects)
         _collapsedSections = State(initialValue: initialCollapsedSections)
+        _editingSectionID = State(initialValue: initialEditingSectionID)
+        _isCreatingSection = State(initialValue: initialIsCreatingSection)
+    }
+
+    /// True while any inline text field owns the sidebar: a thread rename, a section rename, or
+    /// the pending new-section row. Every guard that used to read `editingThreadID == nil` reads
+    /// this instead, so a section edit suppresses drags, key presses, and rename entry points
+    /// exactly as a thread rename does.
+    var isSidebarInlineEditingActive: Bool {
+        editingThreadID != nil || editingSectionID != nil || isCreatingSection
     }
 
     /// Ordered projects for action paths that run outside a render pass.
@@ -99,9 +108,6 @@ struct SidebarView: View {
         let statusVersion = viewModel.statusVersion
         let threadOrderVersion = viewModel.threadOrderVersion
         let context = makeRenderContext()
-        let pinnedItems = context.pinnedItems
-        let regularProjects = context.regularProjects
-        let activeTaskThreads = context.activeTaskThreads
         let threadOrderAnimation = context.threadOrderAnimation
         // Project-nested Tasks and Project-mode children are sources too, so their items must
         // survive unrelated set churn.
@@ -115,11 +121,9 @@ struct SidebarView: View {
                         .filter { $0.effectiveMode == .project }
                         .map { SidebarDragItem.projectThread($0.persistentModelID) }
                 }
+                // A section removed mid-drag — by this window or another — cancels its own drag.
+                + context.dragLogicalOrder.sections
         )
-        let projectsHeaderIsListSectionHeader = pinnedItems.isEmpty
-        let showsProjectsSectionBody = isSectionExpanded(.projects)
-        let showsTasksSectionBody = isSectionExpanded(.tasks)
-
         let listContent = VStack(spacing: 0) {
             if let sidebarError = viewModel.sidebarError {
                 InlineBanner(message: sidebarError, severity: .error, autoDismissAfter: nil, onDismiss: viewModel.dismissSidebarError)
@@ -128,90 +132,16 @@ struct SidebarView: View {
             }
 
             List {
+                // One flat section: every visual section is an ordinary row group, so the
+                // persisted section order alone decides what renders where.
                 Section {
                     topLevelRows(context: context)
 
-                    if !pinnedItems.isEmpty {
-                        pinnedHeader
-
-                        ForEach(pinnedItems) { item in
-                            let topSpacing: CGFloat = item.id == pinnedItems.first?.id
-                                ? 0
-                                : SidebarRowMetrics.interThreadRowSpacing
-                            switch item.kind {
-                            case .project(let project):
-                                projectRow(project, topSpacing: topSpacing, dropSection: .pinned, context: context)
-                            case .thread(let thread):
-                                sidebarThreadRow(
-                                    thread,
-                                    layout: .topLevel,
-                                    topSpacing: topSpacing,
-                                    attention: context.decisionAttention,
-                                    dragConfiguration: pinnedItemDragConfiguration(
-                                        for: thread,
-                                        logicalOrder: context.dragLogicalOrder
-                                    ),
-                                    opacity: activeSidebarDragItem == item.dragItem ? 0.48 : 1
-                                )
-                                .sidebarDragGeometry(pinnedItemDragGeometryRole(for: thread))
-                            }
-                        }
-                        .transaction { transaction in
-                            if threadOrderAnimation == nil {
-                                transaction.disablesAnimations = true
-                                transaction.animation = nil
-                            }
-                        }
-
-                        projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
-                        if showsProjectsSectionBody {
-                            projectRows(
-                                regularProjects,
-                                showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
-                                dropSection: .projects,
-                                context: context
-                            )
-                        }
-
-                        tasksHeader
-                        if showsTasksSectionBody {
-                            taskRows(
-                                activeTaskThreads,
-                                placeholderLabel: sidebarTasksPlaceholderLabel(
-                                    activeTaskThreads: activeTaskThreads,
-                                    hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
-                                ),
-                                context: context
-                            )
-                        }
+                    ForEach(context.sectionDescriptors) { descriptor in
+                        sectionGroup(descriptor, context: context)
                     }
-                }
 
-                if pinnedItems.isEmpty {
-                    Section {
-                        if showsProjectsSectionBody {
-                            projectRows(
-                                context.orderedProjects,
-                                showsNoProjectsPlaceholder: context.orderedProjects.isEmpty,
-                                dropSection: .projects,
-                                context: context
-                            )
-                        }
-
-                        tasksHeader
-                        if showsTasksSectionBody {
-                            taskRows(
-                                activeTaskThreads,
-                                placeholderLabel: sidebarTasksPlaceholderLabel(
-                                    activeTaskThreads: activeTaskThreads,
-                                    hasAnyActiveTaskThreads: context.snapshot.hasAnyActiveTaskThreads
-                                ),
-                                context: context
-                            )
-                        }
-                    } header: {
-                        projectsHeader(isListSectionHeader: projectsHeaderIsListSectionHeader)
-                    }
+                    pendingNewSectionRow
                 }
             }
             .listStyle(.sidebar)
@@ -225,6 +155,7 @@ struct SidebarView: View {
                 }
             }
             .overlay { sidebarDragOverlay }
+            .overlay { sidebarEmptyAreaMenuTarget }
             .focusable()
             .focused($isKeyboardFocused)
             .focusEffectDisabled()
@@ -249,8 +180,8 @@ struct SidebarView: View {
         .onChange(of: visibleDragItems) { _, visibleItems in
             cancelSidebarDragIfSourceIsMissing(visibleItems: visibleItems)
         }
-        .onChange(of: editingThreadID) { _, editingThreadID in
-            if editingThreadID != nil {
+        .onChange(of: isSidebarInlineEditingActive) { _, isEditing in
+            if isEditing {
                 cancelSidebarDragForTeardown()
             }
         }
@@ -310,20 +241,12 @@ struct SidebarView: View {
             cleanupAction: cleanupAction,
             cleanupDisabledReason: cleanupDisabledReason,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
+            canBeginRename: !isSidebarInlineEditingActive,
             dragConfiguration: dragConfiguration,
             onCommitRename: { newName in
                 renameThread(thread, to: newName)
             },
-            onConfirmCleanup: {
-                Task {
-                    switch cleanupAction {
-                    case .archive:
-                        await archive(thread)
-                    case .delete:
-                        await confirmDeleteThread(thread)
-                    }
-                }
-            }
+            onConfirmCleanup: { confirmThreadCleanup(thread, action: cleanupAction) }
         )
         .padding(.leading, leadingPadding)
         .padding(.top, topSpacing)
@@ -348,6 +271,17 @@ struct SidebarView: View {
         }
     }
 
+    private func confirmThreadCleanup(_ thread: AgentThread, action: ThreadCleanupAction) {
+        Task {
+            switch action {
+            case .archive:
+                await archive(thread)
+            case .delete:
+                await confirmDeleteThread(thread)
+            }
+        }
+    }
+
     @ViewBuilder
     func sidebarThreadContextMenu(
         for thread: AgentThread,
@@ -357,7 +291,7 @@ struct SidebarView: View {
         ForEach(
             sidebarThreadContextMenuItems(
                 isPinned: presentation.isPinned,
-                canRename: editingThreadID == nil,
+                canRename: !isSidebarInlineEditingActive,
                 allowsPinning: presentation.allowsPinning,
                 allowsForking: presentation.allowsForking
             ),

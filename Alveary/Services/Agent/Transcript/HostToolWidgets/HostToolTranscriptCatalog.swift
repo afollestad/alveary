@@ -171,7 +171,12 @@ private extension HostToolTranscriptCatalog {
             threadActionDescriptor(hostToolName: ThreadHostToolCatalog.createThreadToolName, action: .create),
             threadActionDescriptor(hostToolName: ThreadHostToolCatalog.pinThreadToolName, action: .pin),
             threadActionDescriptor(hostToolName: ThreadHostToolCatalog.unpinThreadToolName, action: .unpin),
-            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.archiveThreadToolName, action: .archive)
+            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.archiveThreadToolName, action: .archive),
+            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.createSectionToolName, action: .createSection),
+            threadActionDescriptor(
+                hostToolName: ThreadHostToolCatalog.moveThreadToSectionToolName,
+                action: .moveSection
+            )
         ]
     }
 

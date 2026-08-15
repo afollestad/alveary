@@ -265,6 +265,20 @@ private extension HostToolWidgetSummary {
                 unchanged: "Thread was already archived",
                 failed: "Could not archive the thread"
             )
+        case .createSection:
+            ThreadPhrases(
+                running: "Adding sidebar section",
+                applied: "Sidebar section added",
+                unchanged: "Sidebar section already exists",
+                failed: "Could not add the sidebar section"
+            )
+        case .moveSection:
+            ThreadPhrases(
+                running: "Moving thread",
+                applied: "Thread moved",
+                unchanged: "Thread already in that section",
+                failed: "Could not move the thread"
+            )
         }
     }
 

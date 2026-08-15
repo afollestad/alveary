@@ -97,7 +97,8 @@ struct SidebarTestFixture {
             projects: try context.fetch(FetchDescriptor<Project>()),
             unarchivedThreads: try context.fetch(
                 FetchDescriptor<AgentThread>(predicate: #Predicate { $0.archivedAt == nil })
-            )
+            ),
+            sections: try context.fetch(FetchDescriptor<SidebarSection>())
         )
     }
 

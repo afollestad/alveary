@@ -6,11 +6,13 @@ extension SidebarView {
 
     func navigableItems(context: SidebarRenderContext) -> [SidebarItem] {
         buildNavigableItems(
+            sections: context.sectionDescriptors,
             pinnedItems: context.pinnedItems,
             projects: context.regularProjects,
             expandedProjects: expandedProjects,
             activeThreads: context.activeThreads(for:),
             activeTasks: context.activeTaskThreads,
+            customSectionThreads: context.threads(inCustomSection:),
             collapsedSections: collapsedSections,
             hasArchivedThreads: context.hasArchivedThreads,
             showsPullRequests: context.showsPullRequests
@@ -42,7 +44,7 @@ extension SidebarView {
         // collisions — `handleRenameKey()` guards against re-entering edit mode, but
         // the other cases still mutate `selectedSidebarItem`, leaving the TextField
         // stranded on a different row.
-        if shouldSuppressSidebarKeyPressWhileRenaming(editingThreadID: editingThreadID) {
+        if shouldSuppressSidebarKeyPressWhileEditing(isInlineEditingActive: isSidebarInlineEditingActive) {
             return .ignored
         }
 
@@ -168,12 +170,12 @@ func shouldNavigateDownOnRightArrow(
     }
 }
 
-// While inline thread rename is active (the sidebar's `editingThreadID` matches a
-// visible row), the TextField must own the keyboard so typing/arrow/Delete don't
+// While any inline field is active — a thread rename, a section rename, or the pending
+// new-section row — that TextField must own the keyboard so typing/arrow/Delete don't
 // leak into sidebar navigation. Split out so tests can lock in the invariant
 // without needing to instantiate `SidebarView`.
-func shouldSuppressSidebarKeyPressWhileRenaming(editingThreadID: PersistentIdentifier?) -> Bool {
-    editingThreadID != nil
+func shouldSuppressSidebarKeyPressWhileEditing(isInlineEditingActive: Bool) -> Bool {
+    isInlineEditingActive
 }
 
 enum SidebarThreadCleanupConfirmation {
@@ -210,12 +212,16 @@ func renameThreadID(
     return thread.persistentModelID
 }
 
+/// Traversal follows the rendered section order, so a reordered sidebar arrows in the order the
+/// user sees. Section headers are never navigable, and a collapsed section contributes nothing.
 func buildNavigableItems(
+    sections: [SidebarSectionDescriptor] = SidebarSectionDescriptor.builtinFallback,
     pinnedItems: [SidebarPinnedItem] = [],
     projects: [Project],
     expandedProjects: Set<String>,
     activeThreads: (Project) -> [AgentThread],
     activeTasks: [AgentThread] = [],
+    customSectionThreads: (String) -> [AgentThread] = { _ in [] },
     collapsedSections: Set<SidebarCollapsibleSection> = [],
     hasArchivedThreads: Bool = false,
     showsPullRequests: Bool = true
@@ -224,29 +230,32 @@ func buildNavigableItems(
         showsPullRequests: showsPullRequests,
         hasArchivedThreads: hasArchivedThreads
     )
-    // `Pinned` has no collapse of its own, so its rows always traverse.
-    for pinnedItem in pinnedItems {
-        items.append(pinnedItem.sidebarItem)
-        if case .project(let project) = pinnedItem.kind,
-           expandedProjects.contains(project.path) {
-            for thread in activeThreads(project) {
-                items.append(.thread(thread))
-            }
+    for section in sections {
+        if let collapseKey = SidebarCollapsibleSection(sectionID: section.id),
+           collapsedSections.contains(collapseKey) {
+            continue
         }
-    }
-    if !collapsedSections.contains(.projects) {
-        for project in projects {
-            items.append(.project(project))
-            if expandedProjects.contains(project.path) {
-                for thread in activeThreads(project) {
-                    items.append(.thread(thread))
+        switch section.id {
+        case .pinned:
+            // `Pinned` has no collapse of its own, so its rows always traverse.
+            for pinnedItem in pinnedItems {
+                items.append(pinnedItem.sidebarItem)
+                if case .project(let project) = pinnedItem.kind,
+                   expandedProjects.contains(project.path) {
+                    items.append(contentsOf: activeThreads(project).map(SidebarItem.thread))
                 }
             }
-        }
-    }
-    if !collapsedSections.contains(.tasks) {
-        for task in activeTasks {
-            items.append(.thread(task))
+        case .projects:
+            for project in projects {
+                items.append(.project(project))
+                if expandedProjects.contains(project.path) {
+                    items.append(contentsOf: activeThreads(project).map(SidebarItem.thread))
+                }
+            }
+        case .tasks:
+            items.append(contentsOf: activeTasks.map(SidebarItem.thread))
+        case .custom(let sectionID):
+            items.append(contentsOf: customSectionThreads(sectionID).map(SidebarItem.thread))
         }
     }
     return items

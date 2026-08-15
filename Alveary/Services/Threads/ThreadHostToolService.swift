@@ -8,6 +8,9 @@ import SwiftData
 final class ThreadHostToolService {
     let modelContext: ModelContext
     let lifecycleService: ThreadLifecycleService
+    /// Shared with `SidebarViewModel`, so a section the user just made is immediately nameable
+    /// here and a tool-made one appears in the sidebar without a refresh.
+    let sectionService: SidebarSectionService
     let linkService: PullRequestLinkService
     /// Must be the same instance the pull request tools write, or `link_pr` silently degrades
     /// back to a fetch per link; required in the initializer so a construction site must choose.
@@ -23,6 +26,7 @@ final class ThreadHostToolService {
     init(
         modelContext: ModelContext,
         lifecycleService: ThreadLifecycleService,
+        sectionService: SidebarSectionService,
         linkService: PullRequestLinkService,
         summaryHandoff: PullRequestSummaryHandoff,
         settingsService: SettingsService,
@@ -33,6 +37,7 @@ final class ThreadHostToolService {
     ) {
         self.modelContext = modelContext
         self.lifecycleService = lifecycleService
+        self.sectionService = sectionService
         self.linkService = linkService
         self.summaryHandoff = summaryHandoff
         self.settingsService = settingsService
@@ -92,6 +97,10 @@ final class ThreadHostToolService {
             return try await setThreadPinned(context: context, arguments: call.arguments, isPinned: true)
         case ThreadHostToolCatalog.unpinThreadToolName:
             return try await setThreadPinned(context: context, arguments: call.arguments, isPinned: false)
+        case ThreadHostToolCatalog.createSectionToolName:
+            return try createSection(context: context, arguments: call.arguments)
+        case ThreadHostToolCatalog.moveThreadToSectionToolName:
+            return try moveThreadToSection(context: context, arguments: call.arguments)
         default:
             throw ThreadHostToolServiceError.unsupportedTool
         }
@@ -107,6 +116,16 @@ final class ThreadHostToolService {
 
     func parseThreadIdentifier(arguments: [String: AgentCLIKit.JSONValue]) throws -> String {
         try requestParser.parseThreadIdentifier(arguments: arguments)
+    }
+
+    func parseCreateSection(arguments: [String: AgentCLIKit.JSONValue]) throws -> String {
+        try requestParser.parseCreateSection(arguments: arguments)
+    }
+
+    func parseMoveThreadToSection(
+        arguments: [String: AgentCLIKit.JSONValue]
+    ) throws -> ThreadHostToolSectionMoveRequest {
+        try requestParser.parseMoveThreadToSection(arguments: arguments)
     }
 
     func parsePullRequestLink(
@@ -210,6 +229,10 @@ final class ThreadHostToolService {
             message = serviceError.localizedDescription
         case let sidebarError as SidebarViewModelError:
             message = sidebarError.localizedDescription
+        case let sectionError as SidebarSectionServiceError:
+            // Its refusals already name the valid values, so passing them through beats
+            // collapsing "only task threads live in sections" into a persistence failure.
+            message = sectionError.localizedDescription
         case let pullRequestError as PullRequestsServiceError:
             // A GitHub reachability failure is the model's to report, not Alveary's to swallow as
             // a generic persistence problem.

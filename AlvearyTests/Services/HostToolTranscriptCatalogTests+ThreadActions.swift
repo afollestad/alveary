@@ -285,6 +285,10 @@ extension HostToolTranscriptCatalogTests {
             ThreadHostToolCatalog.unpinThreadToolName
         case .archive:
             ThreadHostToolCatalog.archiveThreadToolName
+        case .createSection:
+            ThreadHostToolCatalog.createSectionToolName
+        case .moveSection:
+            ThreadHostToolCatalog.moveThreadToSectionToolName
         }
     }
 

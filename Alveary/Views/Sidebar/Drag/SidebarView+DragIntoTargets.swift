@@ -18,7 +18,6 @@ func sidebarProjectIntoDropCandidates(
     dragging item: SidebarDragItem,
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect,
-    stickyOcclusionMaxY: CGFloat?,
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
     guard let includesProject = sidebarIntoTargetProjectFilter(dragging: item, logicalOrder: logicalOrder) else {
@@ -41,7 +40,7 @@ func sidebarProjectIntoDropCandidates(
         SidebarIntoTargetSection(
             section: .projects,
             items: logicalOrder.regularProjects,
-            occlusionMaxY: stickyOcclusionMaxY,
+            occlusionMaxY: nil,
             reservesBoundaryHalfRows: false
         )
     ]
@@ -70,7 +69,7 @@ private func sidebarIntoTargetProjectFilter(
     logicalOrder: SidebarDragLogicalOrder
 ) -> ((PersistentIdentifier) -> Bool)? {
     switch item {
-    case .project, .projectThread:
+    case .project, .projectThread, .section:
         return nil
     case .pinnedThread(let threadID):
         guard let owningProjectID = logicalOrder.owningProjectIDByPinnedThreadID[threadID] else {
@@ -178,10 +177,17 @@ private func sidebarUnoccludedContainerFrame(_ frame: CGRect, occlusionMaxY: CGF
 
 /// A Task nested under a pinned project cannot hold a standalone pin — the project absorbs its
 /// children, so normalization would clear the pin in the same commit.
+///
+/// A `.section` is refused outright rather than falling through the `guard`'s `true`: sections do
+/// not pin, and admitting one here would publish every `Pinned` insertion boundary to a section
+/// drag.
 func sidebarSourceCanHoldStandalonePin(
     _ item: SidebarDragItem,
     logicalOrder: SidebarDragLogicalOrder
 ) -> Bool {
+    if case .section = item {
+        return false
+    }
     guard case .unpinnedTask(let threadID) = item,
           let ownProjectID = logicalOrder.projectIDByTaskID[threadID] else {
         return true

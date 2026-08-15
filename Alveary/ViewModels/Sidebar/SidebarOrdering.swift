@@ -8,12 +8,20 @@ enum SidebarDragItem: Hashable {
     /// An unpinned Project-mode thread nested under its project. Draggable only to pin: its sole
     /// target is `Pinned`, because a project's child list has no manual order to reorder against.
     case projectThread(PersistentIdentifier)
+    /// A whole sidebar section, dragged by its header to reorder against its siblings. Its only
+    /// targets are the boundaries between sections; it is never a drop target itself.
+    case section(SidebarSectionID)
 }
 
 enum SidebarDropSection: Hashable {
     case pinned
     case projects
     case tasks
+    /// A custom section, keyed by `SidebarSection.id`. Like `tasks` it is a membership target
+    /// rather than an ordered one: its threads are activity-sorted, so a drop appends.
+    case customSection(String)
+    /// The ordered list of sections itself — the domain a `.section` drag reorders within.
+    case sectionList
 }
 
 enum SidebarDropPlacement: Hashable {
@@ -117,8 +125,11 @@ func sidebarOrder(
             return nil
         }
         nextOrder.regularProjects.insert(draggedItem, at: min(insertionIndex, nextOrder.regularProjects.count))
-    case .tasks:
-        // Tasks are activity-sorted, never manually ordered; a Tasks drop is an unpin, not a reorder.
+    case .tasks, .customSection:
+        // Both are activity-sorted, never manually ordered; such a drop changes membership.
+        return nil
+    case .sectionList:
+        // Section order lives in its own persisted namespace, not in this project/pin order.
         return nil
     }
 
@@ -132,6 +143,16 @@ extension SidebarDragItem {
             false
         case .pinnedThread, .pinnedTask, .unpinnedTask, .projectThread:
             true
+        case .section:
+            false
         }
+    }
+
+    /// The section this item reorders, or nil for every row-shaped source.
+    var sectionID: SidebarSectionID? {
+        guard case .section(let id) = self else {
+            return nil
+        }
+        return id
     }
 }

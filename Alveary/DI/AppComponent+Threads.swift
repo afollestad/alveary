@@ -8,6 +8,7 @@ extension AppComponent {
             ThreadHostToolService(
                 modelContext: modelContainer.mainContext,
                 lifecycleService: threadLifecycleService,
+                sectionService: sidebarSectionService,
                 linkService: pullRequestLinkService,
                 summaryHandoff: pullRequestSummaryHandoff,
                 settingsService: settingsService,
@@ -40,6 +41,14 @@ extension AppComponent {
                     try await self.scheduledTaskSchedulerCoordinator.stopAndWait(runID: runID)
                 }
             )
+        }
+    }
+
+    /// App-scoped custom-section lifecycle for the same window-less callers; `SidebarViewModel`
+    /// builds its own over the same `mainContext`, and the service holds no state.
+    var sidebarSectionService: SidebarSectionService {
+        return shared {
+            SidebarSectionService(modelContext: modelContainer.mainContext)
         }
     }
 

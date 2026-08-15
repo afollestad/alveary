@@ -5,7 +5,9 @@ import Foundation
 /// else — which is why grants belong to this case alone.
 enum ThreadHostToolCreateWorkspace: Equatable {
     case project(path: String)
-    case task(grantedRoots: [String])
+    /// `sectionID` is a resolved `SidebarSection.id`; nil means the `Tasks` section, which is
+    /// where a Task with no membership already renders.
+    case task(grantedRoots: [String], sectionID: String? = nil)
 
     var kind: AgentThreadMode {
         switch self {
@@ -23,8 +25,17 @@ enum ThreadHostToolCreateWorkspace: Equatable {
 /// resolves to.
 enum ThreadHostToolRequestedWorkspace: Equatable {
     case project(path: String)
-    case task(grantedRoots: [String])
+    /// `sectionName` is the name the request asked for, unresolved — whether a section by that
+    /// name exists is host state, so `ThreadHostToolService+Create.swift` decides.
+    case task(grantedRoots: [String], sectionName: String? = nil)
     case inherit(grantedRoots: [String])
+}
+
+/// A `move_thread_to_section` request. Both fields are required — the tool never guesses which
+/// thread or which section, because either guess would silently move the wrong row.
+struct ThreadHostToolSectionMoveRequest: Equatable {
+    let threadID: String
+    let sectionName: String
 }
 
 /// Where the calling conversation's own thread lives, as plain values. Snapshotted before the
@@ -122,6 +133,8 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
     case cannotArchiveOwnThread
     case threadCannotBeArchived(reason: String)
     case threadAbsorbedByPinnedProject(projectName: String)
+    case sectionUnknown(name: String, existing: [String])
+    case sectionNotCustom(name: String)
     case invalidPullRequestURL(String)
     case ambiguousPullRequestUnlink(threadName: String, linked: [String])
     case pullRequestUnavailable(String)
@@ -169,6 +182,12 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
         case .threadAbsorbedByPinnedProject(let projectName):
             "That thread cannot be pinned on its own because the pinned project \(projectName) already carries it. " +
                 "Unpin the project first if the thread should be pinned separately."
+        case .sectionUnknown(let name, let existing):
+            "\(name) is not a sidebar section. Existing sections: \(existing.joined(separator: ", ")). " +
+                "Call create_section first if it should exist."
+        case .sectionNotCustom(let name):
+            "\(name) is a built-in sidebar section, so threads cannot be moved into it. " +
+                "Use Tasks to move a thread out of a custom section."
         case .invalidPullRequestURL(let url):
             "\(url) is not a GitHub pull request. Pass a URL like https://github.com/owner/repo/pull/123, " +
                 "or the owner/repo#123 shorthand."

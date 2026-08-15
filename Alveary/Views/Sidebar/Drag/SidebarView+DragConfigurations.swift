@@ -6,7 +6,7 @@ extension SidebarView {
         for project: Project,
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil else {
+        guard !isSidebarInlineEditingActive else {
             return nil
         }
 
@@ -34,6 +34,29 @@ extension SidebarView {
         }
     }
 
+    /// Section headers are drag sources for reordering the sections themselves. Built-ins drag
+    /// too — the whole point is that `Pinned`, `Projects`, and `Tasks` are reorderable — and a
+    /// hidden empty `Pinned` simply has no header to grab.
+    func sectionDragConfiguration(
+        for sectionID: SidebarSectionID,
+        logicalOrder: SidebarDragLogicalOrder
+    ) -> SidebarRowDragConfiguration? {
+        guard !isSidebarInlineEditingActive else {
+            return nil
+        }
+
+        let item = SidebarDragItem.section(sectionID)
+        return SidebarRowDragConfiguration(
+            isEnabled: sidebarDragSourceIsEnabled(item),
+            onChanged: { location in
+                updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
+            },
+            onEnded: { location in
+                finishSidebarDragGesture(item: item, location: location)
+            }
+        )
+    }
+
     func pinnedItemDragGeometryRole(for thread: AgentThread) -> SidebarDragGeometryRole {
         switch thread.effectiveMode {
         case .project:
@@ -47,7 +70,7 @@ extension SidebarView {
         for thread: AgentThread,
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil,
+        guard !isSidebarInlineEditingActive,
               thread.effectiveMode == .project,
               thread.isPinned,
               !thread.isDraft,
@@ -72,7 +95,7 @@ extension SidebarView {
         for thread: AgentThread,
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil,
+        guard !isSidebarInlineEditingActive,
               thread.effectiveMode == .task,
               thread.isPinned,
               !thread.isDraft,
@@ -110,7 +133,7 @@ extension SidebarView {
         for thread: AgentThread,
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil,
+        guard !isSidebarInlineEditingActive,
               thread.effectiveMode == .project,
               !thread.isPinned,
               !thread.isDraft,
@@ -137,7 +160,7 @@ extension SidebarView {
         for thread: AgentThread,
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
-        guard editingThreadID == nil,
+        guard !isSidebarInlineEditingActive,
               thread.effectiveMode == .task,
               !thread.isPinned,
               !thread.isDraft,

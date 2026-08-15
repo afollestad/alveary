@@ -77,6 +77,5 @@ extension SidebarViewTests {
 /// assertions care about the configuration's existence, not the sidebar's order.
 private let emptySidebarDragLogicalOrder = SidebarDragLogicalOrder(
     pinnedItems: [],
-    regularProjects: [],
-    projectsHeaderIsSticky: false
+    regularProjects: []
 )

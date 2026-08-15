@@ -27,8 +27,8 @@ func sidebarDropCandidateForLocation(
             return false
         }
         // Containers accept a drop anywhere inside them, so the indicator-proximity gate that
-        // keeps insertion lines local would reject their taller frames. The empty-`Pinned` target
-        // opts out for the same reason: it owns a region no other candidate publishes in.
+        // keeps insertion lines local would reject their taller frames. The boundaries that opt
+        // out do so for the same reason: each owns a region no other candidate publishes in.
         return candidate.kind == .container
             || candidate.ignoresIndicatorProximity
             || abs(candidate.indicatorY - location.y) <= SidebarDropTargetingMetrics.maximumIndicatorDistance
@@ -78,14 +78,7 @@ func sidebarDropCandidates(
     viewport: CGRect,
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
-    let projectsHeaderFrame = sidebarProjectsHeaderFrame(
-        geometry: geometry,
-        viewport: viewport,
-        isSticky: logicalOrder.projectsHeaderIsSticky
-    )
-    let stickyOcclusionMaxY: CGFloat? = logicalOrder.projectsHeaderIsSticky
-        ? projectsHeaderFrame?.maxY
-        : nil
+    let projectsHeaderFrame = geometry[.projectsHeader]?.sidebarUnion
     var candidates = sidebarSectionDropCandidates(
         dragging: item,
         geometry: geometry,
@@ -98,7 +91,6 @@ func sidebarDropCandidates(
         dragging: item,
         geometry: geometry,
         viewport: viewport,
-        stickyOcclusionMaxY: stickyOcclusionMaxY,
         logicalOrder: logicalOrder
     )
 
@@ -114,7 +106,6 @@ private func sidebarItemDropCandidates(
     dragging item: SidebarDragItem,
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect,
-    stickyOcclusionMaxY: CGFloat?,
     logicalOrder: SidebarDragLogicalOrder
 ) -> [SidebarDropCandidate] {
     switch item {
@@ -123,14 +114,20 @@ private func sidebarItemDropCandidates(
             section: .pinned,
             items: logicalOrder.pinnedItems,
             geometry: geometry,
-            viewport: viewport,
-            stickyOcclusionMaxY: nil
+            viewport: viewport
         ) + sidebarProjectDropCandidates(
             section: .projects,
             items: logicalOrder.regularProjects,
             geometry: geometry,
+            viewport: viewport
+        )
+    case .section:
+        // A section reorders only against its siblings; every row-domain target is meaningless.
+        return sidebarSectionReorderCandidates(
+            dragging: item,
+            geometry: geometry,
             viewport: viewport,
-            stickyOcclusionMaxY: stickyOcclusionMaxY
+            logicalOrder: logicalOrder
         )
     case .pinnedThread, .pinnedTask, .unpinnedTask, .projectThread:
         return sidebarPinnedBoundaryCandidatesIfPinnable(
@@ -142,7 +139,6 @@ private func sidebarItemDropCandidates(
             dragging: item,
             geometry: geometry,
             viewport: viewport,
-            stickyOcclusionMaxY: stickyOcclusionMaxY,
             logicalOrder: logicalOrder
         )
     }
@@ -170,6 +166,12 @@ private func sidebarSectionDropCandidates(
     ) {
         candidates.append(tasksCandidate)
     }
+    candidates += sidebarCustomSectionDropCandidates(
+        dragging: item,
+        geometry: geometry,
+        viewport: viewport,
+        logicalOrder: logicalOrder
+    )
 
     guard let projectsHeaderFrame else {
         return candidates
@@ -187,51 +189,22 @@ private func sidebarSectionDropCandidates(
     return candidates
 }
 
-/// The `Projects` header's real frame, chosen rather than unioned.
-///
-/// A `List` section header publishes its geometry twice: once where the list places it, and once
-/// from a copy the list keeps but never places, which reports the content origin. Unioning the two
-/// stretches the header from the top of the list down to the section it heads, so its upper half
-/// lands on the top-level rows and the hidden-`Pinned` line snaps to the top of the list — the
-/// intermittent "drag to pin does nothing" failure, since the unplaced copy comes and goes.
-///
-/// The placed frame is the lowest one: `Skills`/`MCP`/`Scheduled` always render above `Projects`,
-/// so the real header can never sit at the content origin. Only this role needs the treatment;
-/// `Pinned` and `Tasks` head their sections with ordinary rows, which are published once.
-func sidebarPlacedSectionHeaderFrame(_ frames: [CGRect]?) -> CGRect? {
-    frames?.max { $0.minY < $1.minY }
-}
-
-func sidebarProjectsHeaderFrame(
-    geometry: [SidebarDragGeometryRole: [CGRect]],
-    viewport: CGRect,
-    isSticky: Bool
-) -> CGRect? {
-    guard let frame = sidebarPlacedSectionHeaderFrame(geometry[.projectsHeader]) else {
-        return nil
-    }
-    guard isSticky else {
-        return frame
-    }
-    // A native List header can keep a layout origin above the viewport while its sticky presentation remains visible.
-    let visibleFrame = frame.intersection(viewport)
-    return visibleFrame.isNull || visibleFrame.isEmpty ? nil : visibleFrame
-}
-
 private func sidebarTasksSectionDropCandidate(
     dragging item: SidebarDragItem,
     geometry: [SidebarDragGeometryRole: [CGRect]],
     viewport: CGRect,
     logicalOrder: SidebarDragLogicalOrder
 ) -> SidebarDropCandidate? {
-    // A pinned Task drops here to unpin; a project-nested Task drops here to leave the project.
+    // A pinned Task drops here to unpin; a Task that lives in a project or a custom section
+    // drops here to leave it. A Task already resting in `Tasks` has nowhere to arrive from.
     let accepts: Bool
     switch item {
     case .pinnedTask(let threadID):
         accepts = logicalOrder.unpinnableTaskIDs.contains(threadID)
     case .unpinnedTask(let threadID):
         accepts = logicalOrder.projectIDByTaskID[threadID] != nil
-    case .project, .pinnedThread, .projectThread:
+            || logicalOrder.customSectionIDByTaskID[threadID] != nil
+    case .project, .pinnedThread, .projectThread, .section:
         accepts = false
     }
     guard accepts, let tasksHeaderFrame = geometry[.tasksHeader]?.sidebarUnion else {
@@ -279,7 +252,7 @@ func sidebarSectionCandidate(
     // A container is anchored to its visible extent, so scrolling its midpoint out of view must
     // not drop the target while part of it is still under the pointer. A boundary is a single
     // line, so it stays subject to the ordinary visibility check.
-    guard kind == .container || sidebarLineIsVisible(indicatorY, viewport: viewport, stickyOcclusionMaxY: nil) else {
+    guard kind == .container || sidebarLineIsVisible(indicatorY, viewport: viewport) else {
         return nil
     }
     return SidebarDropCandidate(
@@ -297,8 +270,7 @@ private func sidebarProjectDropCandidates(
     section: SidebarDropSection,
     items: [SidebarDragItem],
     geometry: [SidebarDragGeometryRole: [CGRect]],
-    viewport: CGRect,
-    stickyOcclusionMaxY: CGFloat?
+    viewport: CGRect
 ) -> [SidebarDropCandidate] {
     let projectEntries = items.compactMap { item -> SidebarDragProjectEntry? in
         guard case .project(let projectID) = item else {
@@ -310,8 +282,7 @@ private func sidebarProjectDropCandidates(
         section: section,
         logicalItems: items,
         geometry: geometry,
-        viewport: viewport,
-        stickyOcclusionMaxY: stickyOcclusionMaxY
+        viewport: viewport
     )
 
     return projectEntries.enumerated().flatMap { index, entry in
@@ -333,10 +304,10 @@ private func sidebarProjectDropCandidates(
     let header = context.geometry[.projectHeader(context.section, entry.projectID)]?.sidebarUnion
     let terminal = context.geometry[.projectTerminal(context.section, entry.projectID)]?.sidebarUnion
     let headerIsVisible = header.map {
-        sidebarLineIsVisible($0.minY, viewport: context.viewport, stickyOcclusionMaxY: context.stickyOcclusionMaxY)
+        sidebarLineIsVisible($0.minY, viewport: context.viewport)
     } ?? false
     let terminalIsVisible = terminal.map {
-        sidebarLineIsVisible($0.maxY, viewport: context.viewport, stickyOcclusionMaxY: context.stickyOcclusionMaxY)
+        sidebarLineIsVisible($0.maxY, viewport: context.viewport)
     } ?? false
     var candidates: [SidebarDropCandidate] = []
 
@@ -381,10 +352,10 @@ func sidebarPinnedItemDropCandidates(
     for item in items {
         let frames = sidebarItemBoundaryFrames(for: item, section: .pinned, geometry: geometry)
         let headerIsVisible = frames.header.map {
-            sidebarLineIsVisible($0.minY, viewport: viewport, stickyOcclusionMaxY: nil)
+            sidebarLineIsVisible($0.minY, viewport: viewport)
         } ?? false
         let terminalIsVisible = frames.terminal.map {
-            sidebarLineIsVisible($0.maxY, viewport: viewport, stickyOcclusionMaxY: nil)
+            sidebarLineIsVisible($0.maxY, viewport: viewport)
         } ?? false
         if let header = frames.header, headerIsVisible {
             let hitFrame = sidebarBoundaryHitFrame(
@@ -434,7 +405,6 @@ private struct SidebarProjectCandidateContext {
     let logicalItems: [SidebarDragItem]
     let geometry: [SidebarDragGeometryRole: [CGRect]]
     let viewport: CGRect
-    let stickyOcclusionMaxY: CGFloat?
 }
 
 enum SidebarDropTargetingMetrics {

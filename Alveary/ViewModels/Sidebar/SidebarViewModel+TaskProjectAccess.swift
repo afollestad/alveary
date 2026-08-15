@@ -116,6 +116,9 @@ extension SidebarViewModel {
             // take effect at all. Pinning afterwards still promotes it back out.
             thread.isPinned = false
             thread.pinnedSortOrder = nil
+            // Project placement supersedes custom-section membership; normalization would clear
+            // it anyway, but doing it here keeps the invariant visible at the mutation.
+            thread.customSection = nil
             thread.modifiedAt = Date()
             _ = try normalizeSidebarOrderingForLifecycle()
             try savePendingSidebarChanges(modelContext)

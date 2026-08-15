@@ -1,18 +1,61 @@
 import SwiftUI
 
 extension SidebarView {
-    func projectsHeader(isListSectionHeader: Bool) -> some View {
+    /// One section's header, chosen by identity. Built-ins keep their own trailing affordances;
+    /// a custom section has none, so its header is title and caret alone.
+    @ViewBuilder
+    func sectionHeader(for descriptor: SidebarSectionDescriptor, context: SidebarRenderContext) -> some View {
+        let header = Group {
+            switch descriptor.id {
+            case .pinned:
+                pinnedHeader
+            case .projects:
+                projectsHeader
+            case .tasks:
+                tasksHeader
+            case .custom(let sectionID):
+                customSectionHeader(sectionID: sectionID, name: descriptor.name)
+            }
+        }
+        header
+            .sidebarDragSource(
+                sectionDragConfiguration(for: descriptor.id, logicalOrder: context.dragLogicalOrder)
+            )
+            // Headers carry no selection fill, so a plain opacity is the whole fade.
+            .opacity(sectionGroupOpacity(descriptor.id))
+    }
+
+    /// The fade a row inherits while its whole section is the drag source. Rows apply it through
+    /// their own opacity parameter — never an outer `.opacity` — so the selection fill that
+    /// `listRowBackground` hoists out of the row fades with the content.
+    func sectionGroupOpacity(_ sectionID: SidebarSectionID) -> Double {
+        activeSidebarDragItem == .section(sectionID) ? 0.48 : 1
+    }
+
+    /// The collapse-agnostic fade for a project group row, keyed by the drop section it renders
+    /// in — the two ordered sections are also the two draggable ones that contain project rows.
+    func sectionGroupOpacityForDropSection(_ dropSection: SidebarDropSection) -> Double {
+        switch dropSection {
+        case .pinned:
+            sectionGroupOpacity(.pinned)
+        case .projects:
+            sectionGroupOpacity(.projects)
+        case .tasks, .customSection, .sectionList:
+            1
+        }
+    }
+
+    var projectsHeader: some View {
         SidebarSectionHeaderRow(
             title: "Projects",
-            showsTopDivider: isListSectionHeader,
-            isListSectionHeader: isListSectionHeader,
+            showsTopDivider: true,
             disclosure: sectionDisclosure(.projects),
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
             onAddProject: { appState.openNewProjectFlow() }
         )
         .sidebarDragGeometry(
             .projectsHeader,
-            excludingTopInset: SidebarProjectListMetrics.listHeaderDragTopInsetExclusion
+            excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
         )
     }
 
@@ -40,6 +83,68 @@ extension SidebarView {
             .tasksHeader,
             excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
         )
+    }
+
+    func customSectionHeader(sectionID: String, name: String) -> some View {
+        SidebarSectionHeaderRow(
+            title: name,
+            showsTopDivider: true,
+            disclosure: sectionDisclosure(.custom(sectionID)),
+            suppressHoverAffordances: isSidebarDragInteractionInFlight,
+            editing: SidebarSectionHeaderEditing(
+                isEditing: editingSectionID == sectionID,
+                onCommit: { submitted in
+                    commitSectionRename(sectionID: sectionID, currentName: name, submitted: submitted)
+                },
+                onCancel: { cancelSectionRename() }
+            )
+        )
+        .sidebarDragGeometry(
+            .customSectionHeader(sectionID),
+            excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
+        )
+        .contextMenu {
+            customSectionContextMenu(sectionID: sectionID, name: name)
+        }
+    }
+
+    @ViewBuilder
+    private func customSectionContextMenu(sectionID: String, name: String) -> some View {
+        ForEach(
+            sidebarSectionContextMenuItems(isInlineEditingActive: isSidebarInlineEditingActive),
+            id: \.self
+        ) { item in
+            switch item {
+            case .rename:
+                Button("Rename...") { editingSectionID = sectionID }
+            case .remove:
+                Button("Remove Section...", role: .destructive) {
+                    pendingRemoveSection = SidebarPendingSectionRemoval(id: sectionID, name: name)
+                }
+            }
+        }
+    }
+
+    func commitSectionRename(sectionID: String, currentName: String, submitted: String) {
+        editingSectionID = nil
+        guard let newName = sidebarSectionRenameCommitValue(
+            initialValue: currentName,
+            submittedValue: submitted
+        ) else {
+            claimSidebarFocus()
+            return
+        }
+        do {
+            try viewModel.renameSection(id: sectionID, to: newName)
+        } catch {
+            viewModel.presentSidebarError(error)
+        }
+        claimSidebarFocus()
+    }
+
+    func cancelSectionRename() {
+        editingSectionID = nil
+        claimSidebarFocus()
     }
 
     func isSectionExpanded(_ section: SidebarCollapsibleSection) -> Bool {
@@ -71,6 +176,8 @@ extension SidebarView {
 enum SidebarCollapsibleSection: Hashable {
     case projects
     case tasks
+    /// A custom section, keyed by `SidebarSection.id` so collapse state survives a rename.
+    case custom(String)
 
     /// The section a completed drop landed in, or nil when the drop cannot be hidden by a collapse.
     init?(dropSection: SidebarDropSection) {
@@ -79,6 +186,23 @@ enum SidebarCollapsibleSection: Hashable {
             self = .projects
         case .tasks:
             self = .tasks
+        case .customSection(let id):
+            self = .custom(id)
+        case .pinned, .sectionList:
+            // `Pinned` never collapses, and a section reorder lands no row inside a section.
+            return nil
+        }
+    }
+
+    /// The collapse key for a rendered section, or nil for one that never collapses.
+    init?(sectionID: SidebarSectionID) {
+        switch sectionID {
+        case .projects:
+            self = .projects
+        case .tasks:
+            self = .tasks
+        case .custom(let id):
+            self = .custom(id)
         case .pinned:
             return nil
         }

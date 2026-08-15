@@ -350,7 +350,7 @@ private struct PrimaryToolbarPullRequestSlot: View {
                 // Secondary click always opens the popover, even when a left
                 // click would open the pane, so another link can be added.
                 .overlay {
-                    SecondaryClickTarget(onSecondaryClick: onSecondaryAction)
+                    SecondaryClickTarget(onSecondaryClick: { _ in onSecondaryAction() })
                 }
                 // An AppKit popover, not SwiftUI's: only a popover whose window
                 // we own can become `NSApp.keyWindow`, which is what lets the

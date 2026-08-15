@@ -40,6 +40,12 @@ final class AgentThread {
     /// Absent from `init`, so a fork re-seeds from its own first scanned message.
     var pullRequestScanWatermark: Date?
     var project: Project?
+    /// Custom sidebar section membership; the inverse of `SidebarSection.threads`. A placement
+    /// overlay meaningful only on projectless task-mode threads — the `Tasks` population:
+    /// setting `project` or detaching to `Tasks` clears it, while pinning leaves it so an unpin
+    /// returns the row to its section. Optional and absent from `init` so pre-field stores
+    /// migrate as unsectioned and a forked thread starts in `Tasks`.
+    var customSection: SidebarSection?
     var scheduledTaskRun: ScheduledTaskRun?
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.targetThread)
     var targetedScheduledTasks: [ScheduledTask] = []

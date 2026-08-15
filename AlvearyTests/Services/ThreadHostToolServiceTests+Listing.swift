@@ -82,7 +82,8 @@ extension ThreadHostToolServiceTests {
 
         XCTAssertTrue(
             result.text.contains(
-                "- \"Triage\" (id: triage-main, task, codex, model gpt-5, effort medium, permissions default, pinned)"
+                "- \"Triage\" (id: triage-main, task, codex, model gpt-5, effort medium, permissions default, " +
+                    "pinned, section Tasks)"
             ),
             result.text
         )

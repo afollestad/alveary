@@ -1,4 +1,5 @@
 import SwiftData
+import SwiftUI
 import XCTest
 
 @testable import Alveary
@@ -19,8 +20,7 @@ final class SidebarDragInteractionTests: XCTestCase {
         let sessionID = UUID()
         let logicalOrder = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [item],
-            projectsHeaderIsSticky: true
+            regularProjects: [item]
         )
         var state = sidebarDragStateAfterPointerChange(
             .idle,
@@ -78,8 +78,7 @@ final class SidebarDragInteractionTests: XCTestCase {
             location: CGPoint(x: 100, y: 80),
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [],
-                regularProjects: [item],
-                projectsHeaderIsSticky: true
+                regularProjects: [item]
             )
         )
         let firstTransition = sidebarDragFinalizationTransition(
@@ -95,6 +94,20 @@ final class SidebarDragInteractionTests: XCTestCase {
         XCTAssertEqual(firstTransition.nextState, .idle)
         XCTAssertNil(duplicateTransition.session)
         XCTAssertEqual(duplicateTransition.nextState, .idle)
+    }
+
+    /// Enablement flips with drag state — every other source disables while a drag is active —
+    /// so the source must gate its gesture by value, never by structure. A conditional branch
+    /// here changes the row's identity on each flip, and `List` answered every drop's animated
+    /// flip-back by remove-inserting all the section headers, sliding them up and back down.
+    func testDragSourceKeepsViewStructureWhateverItsConfiguration() {
+        let enabled = Color.clear.sidebarDragSource(
+            SidebarRowDragConfiguration(isEnabled: true, onChanged: { _ in }, onEnded: { _ in })
+        )
+        let typeName = String(describing: type(of: enabled))
+
+        XCTAssertFalse(typeName.contains("ConditionalContent"), typeName)
+        XCTAssertTrue(typeName.contains("SidebarDragSourceModifier"), typeName)
     }
 
     func testProjectDragDoesNotExposeBoundaryBetweenConsecutivePinnedThreads() throws {
@@ -113,8 +126,7 @@ final class SidebarDragInteractionTests: XCTestCase {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.pinnedThread(firstThreadID), .pinnedThread(secondThreadID)],
-                regularProjects: [.project(source.persistentModelID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [.project(source.persistentModelID)]
             )
         )
 
@@ -139,8 +151,7 @@ final class SidebarDragInteractionTests: XCTestCase {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(projectID), .pinnedThread(threadID)],
-                regularProjects: [.project(source.persistentModelID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [.project(source.persistentModelID)]
             )
         )
 
@@ -157,8 +168,7 @@ final class SidebarDragInteractionTests: XCTestCase {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(source.persistentModelID)],
-            projectsHeaderIsSticky: true
+            regularProjects: [.project(source.persistentModelID)]
         )
 
         let pinnedEnd = sidebarDropCandidateForLocation(
@@ -176,32 +186,6 @@ final class SidebarDragInteractionTests: XCTestCase {
 
         XCTAssertEqual(pinnedEnd?.target, SidebarDropTarget(section: .pinned, placement: .end))
         XCTAssertEqual(regularStart?.target, SidebarDropTarget(section: .projects, placement: .before))
-    }
-
-    func testStickyProjectsHeaderTakesPriorityOverOccludedRegularRow() throws {
-        let fixture = try SidebarTestFixture()
-        let source = try fixture.insertProject(name: "Source", path: "/tmp/source")
-        let target = try fixture.insertProject(name: "Target", path: "/tmp/target")
-        let targetID = target.persistentModelID
-        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
-            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 200)],
-            .projectsHeader: [CGRect(x: 0, y: 0, width: 200, height: 24)],
-            .projectHeader(.projects, targetID): [CGRect(x: 0, y: 8, width: 200, height: 24)],
-            .projectTerminal(.projects, targetID): [CGRect(x: 0, y: 8, width: 200, height: 24)]
-        ]
-
-        let candidate = sidebarDropCandidateForLocation(
-            at: CGPoint(x: 100, y: 18),
-            dragging: .project(source.persistentModelID),
-            geometry: geometry,
-            logicalOrder: SidebarDragLogicalOrder(
-                pinnedItems: [],
-                regularProjects: [.project(targetID), .project(source.persistentModelID)],
-                projectsHeaderIsSticky: true
-            )
-        )
-
-        XCTAssertEqual(candidate?.target, SidebarDropTarget(section: .projects, placement: .before))
     }
 
     func testLastVisibleProjectIsNotTreatedAsLogicalSectionEnd() throws {
@@ -225,8 +209,7 @@ final class SidebarDragInteractionTests: XCTestCase {
                     .project(visibleID),
                     .project(offscreen.persistentModelID),
                     .project(source.persistentModelID)
-                ],
-                projectsHeaderIsSticky: false
+                ]
             )
         )
 
@@ -250,8 +233,7 @@ final class SidebarDragInteractionTests: XCTestCase {
         ], uniquingKeysWith: { _, rhs in rhs })
         let order = SidebarDragLogicalOrder(
             pinnedItems: [.project(expandedID), .pinnedThread(trailingID)],
-            regularProjects: [.project(source.persistentModelID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(source.persistentModelID)]
         )
 
         let nearHeader = sidebarDropCandidateForLocation(
@@ -298,8 +280,7 @@ final class SidebarDragInteractionTests: XCTestCase {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(expandedID)],
-                regularProjects: [.project(source.persistentModelID)],
-                projectsHeaderIsSticky: false
+                regularProjects: [.project(source.persistentModelID)]
             )
         )
 
@@ -322,8 +303,7 @@ final class SidebarDragInteractionTests: XCTestCase {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(targetID), .pinnedThread(sourceThreadID)],
-                regularProjects: [],
-                projectsHeaderIsSticky: false
+                regularProjects: []
             )
         )
 
@@ -346,8 +326,7 @@ final class SidebarDragInteractionTests: XCTestCase {
             geometry: geometry,
             logicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: [.project(targetID), .pinnedThread(sourceThreadID)],
-                regularProjects: [],
-                projectsHeaderIsSticky: false
+                regularProjects: []
             )
         )
 

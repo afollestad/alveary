@@ -20,8 +20,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(projectID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(projectID)]
         )
 
         let insideGroup = sidebarDropCandidateForLocation(
@@ -60,8 +59,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [projectItem],
-            regularProjects: [],
-            projectsHeaderIsSticky: false
+            regularProjects: []
         )
 
         // 8pt into a 24pt header row: inside the boundary's half-row, so it must still pin.
@@ -107,8 +105,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [.project(projectID)],
-            regularProjects: [],
-            projectsHeaderIsSticky: false
+            regularProjects: []
         )
 
         let candidate = sidebarDropCandidateForLocation(
@@ -142,7 +139,6 @@ extension SidebarDragInteractionTests {
         let order = SidebarDragLogicalOrder(
             pinnedItems: [.project(ownProject.persistentModelID), .project(projectID)],
             regularProjects: [],
-            projectsHeaderIsSticky: false,
             projectIDByTaskID: [sourceID: ownProject.persistentModelID]
         )
 
@@ -175,8 +171,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(projectID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(projectID)]
         )
 
         let candidate = sidebarDropCandidateForLocation(
@@ -205,8 +200,7 @@ extension SidebarDragInteractionTests {
         ]
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(projectID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(projectID)]
         )
 
         // A project reorders only; a pinned thread without an owning-project entry (no backing
@@ -219,37 +213,10 @@ extension SidebarDragInteractionTests {
                 dragging: sourceItem,
                 geometry: geometry,
                 viewport: CGRect(x: 0, y: 0, width: 200, height: 300),
-                stickyOcclusionMaxY: nil,
                 logicalOrder: order
             )
             XCTAssertTrue(candidates.isEmpty)
         }
-    }
-
-    func testStickyProjectsHeaderOcclusionTrimsIntoTargets() throws {
-        let fixture = try SidebarTestFixture()
-        let sourceTask = try fixture.insertProject(name: "Source", path: "/tmp/into-sticky-source")
-        let project = try fixture.insertProject(name: "Occluded", path: "/tmp/into-sticky")
-        let projectID = project.persistentModelID
-        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
-            .viewport: [CGRect(x: 0, y: 0, width: 200, height: 300)],
-            .projectHeader(.projects, projectID): [CGRect(x: 0, y: 30, width: 200, height: 24)],
-            .projectTerminal(.projects, projectID): [CGRect(x: 0, y: 30, width: 200, height: 24)]
-        ]
-
-        let occluded = sidebarProjectIntoDropCandidates(
-            dragging: .unpinnedTask(sourceTask.persistentModelID),
-            geometry: geometry,
-            viewport: CGRect(x: 0, y: 0, width: 200, height: 300),
-            stickyOcclusionMaxY: 80,
-            logicalOrder: SidebarDragLogicalOrder(
-                pinnedItems: [],
-                regularProjects: [.project(projectID)],
-                projectsHeaderIsSticky: true
-            )
-        )
-
-        XCTAssertTrue(occluded.isEmpty, "unexpected candidates: \(occluded.map(\.hitFrame))")
     }
 
     func testAccessDropRoutingRecognizesOnlyTaskSourcesOntoProjects() throws {
@@ -261,8 +228,7 @@ extension SidebarDragInteractionTests {
         let intoTarget = SidebarDropTarget(section: .projects, item: .project(projectID), placement: .into)
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
-            regularProjects: [.project(projectID)],
-            projectsHeaderIsSticky: false
+            regularProjects: [.project(projectID)]
         )
 
         XCTAssertEqual(
@@ -286,7 +252,6 @@ extension SidebarDragInteractionTests {
         let owningOrder = SidebarDragLogicalOrder(
             pinnedItems: [],
             regularProjects: [.project(projectID)],
-            projectsHeaderIsSticky: false,
             projectIDByTaskID: [taskID: projectID]
         )
         XCTAssertNil(sidebarTaskProjectAccessDrop(item: .pinnedTask(taskID), target: intoTarget, logicalOrder: owningOrder))
@@ -399,7 +364,6 @@ extension SidebarDragInteractionTests {
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
             regularProjects: [],
-            projectsHeaderIsSticky: false,
             projectIDByTaskID: [nested.persistentModelID: loose.persistentModelID]
         )
 
@@ -440,7 +404,6 @@ extension SidebarDragInteractionTests {
         let order = SidebarDragLogicalOrder(
             pinnedItems: [],
             regularProjects: [.project(homeID), .project(otherID)],
-            projectsHeaderIsSticky: false,
             projectIDByTaskID: [task.persistentModelID: homeID]
         )
 
@@ -448,7 +411,6 @@ extension SidebarDragInteractionTests {
             dragging: .unpinnedTask(task.persistentModelID),
             geometry: geometry,
             viewport: CGRect(x: 0, y: 0, width: 200, height: 300),
-            stickyOcclusionMaxY: nil,
             logicalOrder: order
         )
 
@@ -475,7 +437,6 @@ extension SidebarDragInteractionTests {
         let order = SidebarDragLogicalOrder(
             pinnedItems: [.project(parentID)],
             regularProjects: [],
-            projectsHeaderIsSticky: false,
             projectIDByTaskID: [task.persistentModelID: parentID]
         )
 
