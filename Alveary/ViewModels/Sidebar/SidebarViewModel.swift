@@ -269,7 +269,14 @@ final class SidebarViewModel {
 
     }
 
-    private func cleanupThread(_ snapshot: ThreadCleanupSnapshot, skipGitWhenProjectMissing: Bool = false, waitForRuntime: Bool = true) async throws {
+    /// `nonisolated` so the stat probe and worktree teardown run off the main actor; the
+    /// scheduled-cleanup and Task-workspace branches hop back only where
+    /// `cleanupTaskWorkspace` needs `modelContext`.
+    private nonisolated func cleanupThread(
+        _ snapshot: ThreadCleanupSnapshot,
+        skipGitWhenProjectMissing: Bool = false,
+        waitForRuntime: Bool = true
+    ) async throws {
         if waitForRuntime {
             try await awaitConversationTeardowns(snapshot.conversationIDs)
         }

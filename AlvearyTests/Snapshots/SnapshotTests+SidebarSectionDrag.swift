@@ -55,7 +55,6 @@ private struct SidebarCustomSectionDragBorderSnapshot: View {
                 status: .stopped,
                 isSelected: false,
                 layout: .topLevel,
-                editingThreadID: .constant(nil),
                 suppressHoverAffordances: true,
                 onCommitRename: { _ in }
             )
@@ -96,7 +95,6 @@ private struct SidebarSectionReorderLineSnapshot: View {
                 status: .stopped,
                 isSelected: false,
                 layout: .topLevel,
-                editingThreadID: .constant(nil),
                 suppressHoverAffordances: true,
                 onCommitRename: { _ in }
             )

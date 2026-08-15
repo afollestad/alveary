@@ -215,7 +215,7 @@ private extension ContentView {
     var rootWindowView: some View {
         rootWindowChrome(
             NavigationSplitView(columnVisibility: $splitVisibility) {
-                SidebarView(
+                SidebarFocusBridge(
                     viewModel: sidebarViewModel,
                     appState: appState,
                     voiceInputLifecycleController: voiceInputLifecycleController

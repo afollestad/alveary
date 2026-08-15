@@ -14,6 +14,7 @@ These instructions apply to files under `Alveary/ViewModels/Sidebar/`. `Archived
   - Remove conversation attachment directories only after runtime teardown has been attempted, including teardown-failure paths.
   - Before a targeted mutation that may call `ModelContext.rollback()`, synchronously save pre-existing shared-context changes — a target failure must not discard unrelated pending work.
 - Project and Task drafts are independent mode-keyed identities; materializing or deleting one mode must not clear the other's cached draft, creation task, or pending Project destination.
+- **Run owned-workspace removal and identity probes off the main actor** — through the `nonisolated` cleanup half in `SidebarViewModel+TaskWorkspaceCleanup.swift`, never a direct main-actor `taskWorkspaceOwnershipService` removal call: a workspace can hold a full checkout, and the recursive delete beachballs the app. The fence-bound pending-scheduled path is the documented exception.
 
 ### Scheduled Attachments
 

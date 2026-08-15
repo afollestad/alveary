@@ -30,7 +30,7 @@ final class DeletedModelRenderSafetyTests: XCTestCase {
             useWorktree: true
         )
         let presentation = SidebarThreadRowPresentation(thread: thread)
-        let expectedTooltip = sidebarThreadWorktreeTooltipText(for: thread)
+        let expectedWorktreePath = thread.worktreePath
 
         fixture.context.delete(thread)
         try fixture.context.save()
@@ -38,8 +38,12 @@ final class DeletedModelRenderSafetyTests: XCTestCase {
         XCTAssertEqual(presentation.displayName, "Thread")
         XCTAssertTrue(presentation.showsWorktreeIndicator)
         XCTAssertFalse(presentation.showsScheduledIndicator)
-        XCTAssertEqual(presentation.worktreeTooltip, expectedTooltip)
-        XCTAssertNotEqual(presentation.worktreeTooltip, "Worktree path not created yet")
+        // The tooltip derives from the stored value alone, so it stays readable after the delete.
+        XCTAssertEqual(presentation.worktreePath, expectedWorktreePath)
+        XCTAssertNotEqual(
+            sidebarThreadWorktreeTooltipText(worktreePath: presentation.worktreePath),
+            "Worktree path not created yet"
+        )
         XCTAssertFalse(presentation.isPinned)
     }
 

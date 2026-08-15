@@ -77,7 +77,7 @@ private struct SidebarDragSelectedProjectBorderSnapshot: View {
         List {
             SidebarSectionHeaderRow(title: "Projects", onAddProject: {})
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: true,
                 suppressHoverAffordances: true,
@@ -133,7 +133,6 @@ private struct SidebarDragContainerBorderSnapshot: View {
                 status: .waitingForUser,
                 isSelected: false,
                 layout: .topLevel,
-                editingThreadID: .constant(nil),
                 suppressHoverAffordances: true,
                 onCommitRename: { _ in }
             )
@@ -142,7 +141,7 @@ private struct SidebarDragContainerBorderSnapshot: View {
 
             SidebarSectionHeaderRow(title: "Projects", showsTopDivider: true, onAddProject: {})
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: false,
                 suppressHoverAffordances: true,

@@ -183,7 +183,6 @@ private struct SidebarDraggedPinnedThreadSnapshot: View {
                 status: .waitingForUser,
                 isSelected: true,
                 layout: .topLevel,
-                editingThreadID: .constant(nil),
                 suppressHoverAffordances: true,
                 onCommitRename: { _ in }
             )
@@ -401,7 +400,7 @@ private func projectRow(
     snapshotBoundaryRole: SidebarSnapshotBoundaryRole? = nil
 ) -> some View {
     SidebarProjectRow(
-        project: project,
+        projectName: project.name,
         isExpanded: isExpanded,
         isSelected: isSelected,
         suppressHoverAffordances: suppressHoverAffordances,
@@ -451,7 +450,6 @@ private func threadRow(
         presentation: SidebarThreadRowPresentation(thread: thread),
         status: status,
         isSelected: isSelected,
-        editingThreadID: .constant(nil),
         suppressHoverAffordances: suppressHoverAffordances,
         onCommitRename: { _ in }
     )
@@ -471,7 +469,6 @@ private func topLevelThreadRow(
         status: status,
         isSelected: false,
         layout: .topLevel,
-        editingThreadID: .constant(nil),
         suppressHoverAffordances: true,
         onCommitRename: { _ in }
     )

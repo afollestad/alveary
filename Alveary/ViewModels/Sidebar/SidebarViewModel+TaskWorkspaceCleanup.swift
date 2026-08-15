@@ -1,5 +1,11 @@
 import Foundation
 
+/// Task-workspace teardown after a delete commits. The owned-workspace half runs `nonisolated` —
+/// off the main actor — because a workspace can hold a full checkout and `FileManager`'s
+/// recursive delete blocks for its duration; as main-actor code it beachballed the whole app.
+/// Only the scheduled-cleanup branches stay on the main actor: they read and mutate the run's
+/// SwiftData state through `modelContext`, and their durable-fence ordering is
+/// `SidebarViewModel+PendingScheduledWorktreeCleanup.swift`'s contract.
 extension SidebarViewModel {
     func cleanupTaskWorkspace(_ snapshot: ThreadCleanupSnapshot) async throws {
         if let pendingCleanup = snapshot.pendingScheduledWorktreeCleanup {
@@ -24,7 +30,7 @@ extension SidebarViewModel {
 
         switch workspace.ownershipStrategy {
         case .privateOwned:
-            try taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
+            try await removePrivateOwnedTaskWorkspace(workspace)
         case .projectLocal:
             break
         case .projectWorktreeOwned:
@@ -34,7 +40,11 @@ extension SidebarViewModel {
 }
 
 private extension SidebarViewModel {
-    func cleanupOwnedTaskWorktree(
+    nonisolated func removePrivateOwnedTaskWorkspace(_ workspace: TaskWorkspaceDescriptor) async throws {
+        try taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
+    }
+
+    nonisolated func cleanupOwnedTaskWorktree(
         _ workspace: TaskWorkspaceDescriptor,
         snapshot: ThreadCleanupSnapshot
     ) async throws {
@@ -90,7 +100,7 @@ private extension SidebarViewModel {
         )
     }
 
-    func currentSourceProjectIdentity(
+    nonisolated func currentSourceProjectIdentity(
         for workspace: TaskWorkspaceDescriptor,
         sourceProjectPath: String
     ) -> TaskWorkspaceFileSystemIdentity? {
@@ -105,11 +115,11 @@ private extension SidebarViewModel {
         return currentIdentity == expectedIdentity ? expectedIdentity : nil
     }
 
-    func currentDirectoryIdentity(at path: String) -> TaskWorkspaceFileSystemIdentity? {
+    nonisolated func currentDirectoryIdentity(at path: String) -> TaskWorkspaceFileSystemIdentity? {
         try? taskWorkspaceOwnershipService.directoryIdentity(at: path)
     }
 
-    func registeredTaskWorktree(
+    nonisolated func registeredTaskWorktree(
         _ workspace: TaskWorkspaceDescriptor,
         sourceProjectPath: String
     ) async throws -> WorktreeInfo? {
@@ -127,7 +137,7 @@ private extension SidebarViewModel {
         }
     }
 
-    func removeRegisteredTaskWorktree(
+    nonisolated func removeRegisteredTaskWorktree(
         _ workspace: TaskWorkspaceDescriptor,
         branch: String?,
         sourceProjectPath: String,
@@ -154,7 +164,7 @@ private extension SidebarViewModel {
         try taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
     }
 
-    func finalizeOwnedTaskWorkspace(
+    nonisolated func finalizeOwnedTaskWorkspace(
         _ workspace: TaskWorkspaceDescriptor,
         originalError: Error,
         failure: (Error) -> TaskWorkspaceCleanupError,

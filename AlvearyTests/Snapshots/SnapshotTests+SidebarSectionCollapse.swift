@@ -15,7 +15,7 @@ extension SnapshotTests {
                 onAddProject: {}
             )
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: false,
                 onToggleExpanded: {},

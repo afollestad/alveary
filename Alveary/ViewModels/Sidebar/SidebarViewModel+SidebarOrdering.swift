@@ -118,7 +118,7 @@ extension SidebarViewModel {
 
     func currentPinnedItemCount() throws -> Int {
         let projects = try allProjects()
-        let threads = try allThreads()
+        let threads = try orderingThreads()
         return sidebarPinnedItems(projects: projects, threads: threads).count
     }
 
@@ -152,8 +152,8 @@ extension SidebarViewModel {
         try SidebarOrderNormalization.allProjects(in: modelContext)
     }
 
-    func allThreads() throws -> [AgentThread] {
-        try SidebarOrderNormalization.allThreads(in: modelContext)
+    func orderingThreads() throws -> [AgentThread] {
+        try SidebarOrderNormalization.orderingThreads(in: modelContext)
     }
 }
 
@@ -164,7 +164,7 @@ private extension SidebarViewModel {
 
     func sidebarDragOrder() throws -> SidebarDragOrder {
         let projects = try allProjects()
-        let threads = try allThreads()
+        let threads = try orderingThreads()
         return SidebarDragOrder(
             pinnedItems: SidebarPinnedItemOrdering
                 .sorted(sidebarPinnedItems(projects: projects, threads: threads))

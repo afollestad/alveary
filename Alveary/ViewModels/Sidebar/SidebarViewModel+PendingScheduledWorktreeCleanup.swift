@@ -15,6 +15,12 @@ extension SidebarViewModel {
         )
     }
 
+    /// Runs synchronously inside `commitThreadDeletion`, filesystem removal included, and must
+    /// stay there: the Task row is the cleanup's retry owner, so its removal has to be proven
+    /// complete before the commit deletes the row — deferring it past the commit could leave
+    /// retry-only provenance on a threadless run (see **Scheduled Attachments** in
+    /// `Alveary/ViewModels/Sidebar/AGENTS.md`). Ordinary threads pass no pending cleanup and
+    /// return before any filesystem work.
     func clearCompletedPendingWorktreeCleanupBeforeThreadDeletion(
         _ snapshot: ThreadCleanupSnapshot
     ) throws {

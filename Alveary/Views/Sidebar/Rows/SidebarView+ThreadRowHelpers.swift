@@ -104,12 +104,13 @@ func sidebarThreadRenameCommitValue(initialValue: String, submittedValue: String
     return trimmedSubmitted
 }
 
-func sidebarThreadWorktreeTooltipText(for thread: AgentThread) -> String {
-    if let path = thread.worktreePath,
-       !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        let canonicalPath = CanonicalPath.normalize(path.trimmingCharacters(in: .whitespacesAndNewlines))
-        return CanonicalPath.abbreviateHomeDirectory(canonicalPath)
+/// Resolves the display path on demand from `SidebarThreadRowPresentation.worktreePath`.
+/// `CanonicalPath.normalize` stats every path component, so call this from the indicator that
+/// shows the tooltip, never while building presentations — that put a filesystem syscall per
+/// worktree-backed row into every sidebar body pass.
+func sidebarThreadWorktreeTooltipText(worktreePath: String?) -> String {
+    guard let worktreePath else {
+        return "Worktree path not created yet"
     }
-
-    return "Worktree path not created yet"
+    return CanonicalPath.abbreviateHomeDirectory(CanonicalPath.normalize(worktreePath))
 }

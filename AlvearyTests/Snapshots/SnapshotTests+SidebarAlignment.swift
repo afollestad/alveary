@@ -9,7 +9,7 @@ extension SnapshotTests {
         let stack = VStack(spacing: 0) {
             SidebarSectionHeaderRow(title: "Projects", onAddProject: {})
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: true,
                 onToggleExpanded: {},

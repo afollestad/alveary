@@ -16,8 +16,11 @@ struct SidebarThreadRowPresentation: Equatable {
     let displayName: String
     let showsScheduledIndicator: Bool
     let showsWorktreeIndicator: Bool
-    /// Precomputed rather than derived on demand, because the hover tooltip reads `worktreePath`.
-    let worktreeTooltip: String
+    /// Raw persisted worktree path, trimmed; `nil` when the thread has none yet. Stored raw so the
+    /// hover tooltip still never reads the model, but deliberately not canonicalized here:
+    /// `sidebarThreadWorktreeTooltipText(worktreePath:)` stats every path component, a cost the
+    /// parent must not pay while building every visible row's presentation each body pass.
+    let worktreePath: String?
     let isPinned: Bool
     let allowsPinning: Bool
     let allowsForking: Bool
@@ -28,7 +31,8 @@ struct SidebarThreadRowPresentation: Equatable {
         displayName = thread.displayName()
         showsScheduledIndicator = thread.scheduledTaskRun != nil
         showsWorktreeIndicator = thread.useWorktree
-        worktreeTooltip = sidebarThreadWorktreeTooltipText(for: thread)
+        let trimmedWorktreePath = thread.worktreePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        worktreePath = trimmedWorktreePath.flatMap { $0.isEmpty ? nil : $0 }
         isPinned = thread.isPinned
         allowsPinning = mode == .task || thread.project?.isPinned != true
         allowsForking = mode == .project

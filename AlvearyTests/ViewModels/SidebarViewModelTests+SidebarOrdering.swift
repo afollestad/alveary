@@ -266,6 +266,27 @@ extension SidebarViewModelTests {
         XCTAssertEqual(last.pinnedSortOrder, 1)
     }
 
+    /// `SidebarOrderNormalization.orderingThreads` narrows its fetch to unarchived rows plus any
+    /// thread still carrying an order or membership. An archived thread's stale `pinnedSortOrder`
+    /// is exactly the population that narrowing could silently drop — this pins that it still
+    /// reaches the clearing pass.
+    func testNormalizationClearsStalePinnedOrderOnArchivedThread() throws {
+        let fixture = try SidebarTestFixture()
+        let archived = AgentThread(
+            name: "Archived",
+            isPinned: true,
+            pinnedSortOrder: 3,
+            archivedAt: Date()
+        )
+        fixture.context.insert(archived)
+        try fixture.context.save()
+
+        XCTAssertTrue(try SidebarOrderNormalization.normalize(in: fixture.context))
+        try fixture.context.save()
+
+        XCTAssertNil(archived.pinnedSortOrder)
+    }
+
     func testProjectDeletionRenumbersRegularSurvivors() throws {
         let fixture = try SidebarTestFixture()
         let first = Project(path: "/tmp/first", name: "First", sidebarSortOrder: 0)

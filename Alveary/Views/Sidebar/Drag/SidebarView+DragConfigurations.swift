@@ -12,7 +12,9 @@ extension SidebarView {
 
         let item = SidebarDragItem.project(project.persistentModelID)
         return SidebarRowDragConfiguration(
+            item: item,
             isEnabled: sidebarDragSourceIsEnabled(item),
+            logicalOrder: logicalOrder,
             onChanged: { location in
                 updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
@@ -47,7 +49,9 @@ extension SidebarView {
 
         let item = SidebarDragItem.section(sectionID)
         return SidebarRowDragConfiguration(
+            item: item,
             isEnabled: sidebarDragSourceIsEnabled(item),
+            logicalOrder: logicalOrder,
             onChanged: { location in
                 updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
@@ -81,7 +85,9 @@ extension SidebarView {
 
         let item = SidebarDragItem.pinnedThread(thread.persistentModelID)
         return SidebarRowDragConfiguration(
+            item: item,
             isEnabled: sidebarDragSourceIsEnabled(item),
+            logicalOrder: logicalOrder,
             onChanged: { location in
                 updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
@@ -105,7 +111,9 @@ extension SidebarView {
 
         let item = SidebarDragItem.pinnedTask(thread.persistentModelID)
         return SidebarRowDragConfiguration(
+            item: item,
             isEnabled: sidebarDragSourceIsEnabled(item),
+            logicalOrder: logicalOrder,
             onChanged: { location in
                 updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
@@ -146,7 +154,9 @@ extension SidebarView {
 
         let item = SidebarDragItem.projectThread(thread.persistentModelID)
         return SidebarRowDragConfiguration(
+            item: item,
             isEnabled: sidebarDragSourceIsEnabled(item),
+            logicalOrder: logicalOrder,
             onChanged: { location in
                 updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },
@@ -170,7 +180,9 @@ extension SidebarView {
 
         let item = SidebarDragItem.unpinnedTask(thread.persistentModelID)
         return SidebarRowDragConfiguration(
+            item: item,
             isEnabled: sidebarDragSourceIsEnabled(item),
+            logicalOrder: logicalOrder,
             onChanged: { location in
                 updateSidebarDrag(item: item, location: location, logicalOrder: logicalOrder)
             },

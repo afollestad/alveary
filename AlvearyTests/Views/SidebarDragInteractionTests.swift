@@ -102,7 +102,13 @@ final class SidebarDragInteractionTests: XCTestCase {
     /// flip-back by remove-inserting all the section headers, sliding them up and back down.
     func testDragSourceKeepsViewStructureWhateverItsConfiguration() {
         let enabled = Color.clear.sidebarDragSource(
-            SidebarRowDragConfiguration(isEnabled: true, onChanged: { _ in }, onEnded: { _ in })
+            SidebarRowDragConfiguration(
+                item: .section(.tasks),
+                isEnabled: true,
+                logicalOrder: SidebarDragLogicalOrder(pinnedItems: [], regularProjects: []),
+                onChanged: { _ in },
+                onEnded: { _ in }
+            )
         )
         let typeName = String(describing: type(of: enabled))
 

@@ -9,7 +9,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: false,
                 initialRowHover: true,
@@ -27,7 +27,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: true,
                 isSelected: false,
                 initialRowHover: true,
@@ -45,7 +45,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: true,
                 onToggleExpanded: {},
@@ -63,7 +63,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: true,
                 isSelected: true,
                 onToggleExpanded: {},
@@ -84,7 +84,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -101,7 +100,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 initialRowHover: true,
                 onCommitRename: { _ in }
@@ -120,7 +118,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .delete,
                 initialRowHover: true,
                 onCommitRename: { _ in }
@@ -139,7 +136,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .delete,
                 initialCleanupConfirmationArmed: true,
                 onCommitRename: { _ in }
@@ -158,7 +154,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .delete,
                 initialCleanupConfirmationArmed: true,
                 onCommitRename: { _ in }
@@ -178,7 +173,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .busy,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -195,7 +189,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .waitingForUser,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -212,7 +205,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -229,7 +221,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -249,7 +240,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -272,7 +262,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: true,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14)
@@ -294,7 +283,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: true,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14)
@@ -313,7 +301,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -330,7 +317,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -347,7 +333,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: true,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14)
@@ -367,14 +352,12 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: plainThread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             SidebarThreadRow(
                 presentation: SidebarThreadRowPresentation(thread: chipThread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
         }
@@ -391,12 +374,18 @@ extension SnapshotTests {
         let project = Project(path: "/tmp/alveary", name: "Alveary")
         let thread = AgentThread(name: "New thread")
         let stack = VStack(spacing: 0) {
-            SidebarProjectRow(project: project, isExpanded: false, isSelected: false, onToggleExpanded: {}, onActivate: {}, onCreateThread: {})
+            SidebarProjectRow(
+                projectName: project.name,
+                isExpanded: false,
+                isSelected: false,
+                onToggleExpanded: {},
+                onActivate: {},
+                onCreateThread: {}
+            )
             SidebarThreadRow(
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .unread,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14)

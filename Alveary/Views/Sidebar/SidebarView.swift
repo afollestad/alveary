@@ -19,9 +19,11 @@ private let archivedThreadProbeDescriptor: FetchDescriptor<AgentThread> = {
     return descriptor
 }()
 
-struct SidebarView: View {
+struct SidebarView: View, Equatable {
     let viewModel: SidebarViewModel
-    @Bindable var appState: AppState
+    // A plain `let`, not `@Bindable`: nothing here needs an `appState` binding, and `==` may
+    // only read Sendable stored values — a wrapper's projected read is main-actor computed.
+    let appState: AppState
     let voiceInputLifecycleController: VoiceInputLifecycleController?
 
     @Environment(\.modelContext) var uiModelContext
@@ -61,11 +63,30 @@ struct SidebarView: View {
     @State var sidebarDragInteractionState = SidebarDragInteractionState.idle
     @State var sidebarDragPointerRelay = SidebarDragPointerRelay()
     @State var sidebarDropCandidate: SidebarDropCandidate?
-    @State var sidebarDragGeometryFrames: [SidebarDragGeometryRole: [CGRect]] = [:]
-    @State var sidebarDragGeometryRefreshRevision: UInt64 = 0
+    @State var sidebarDragGeometry = SidebarDragGeometryStore()
+    /// The list's own bounds in the drag coordinate space, mirrored out of `sidebarDragGeometry`
+    /// because `sidebarDragOverlay` reads it from `body` and the store deliberately publishes
+    /// nothing. Unlike the row frames beside it in the store, this changes only when the list
+    /// resizes, so observing it costs one rebuild per resize rather than one per layout pass.
+    @State var sidebarDragViewportFrame: CGRect?
     @State var sidebarDragGeometryMissToken: UUID?
     @FocusState var isKeyboardFocused: Bool
-    @FocusedValue(\.chatComposerFocus) var chatComposerFocus
+    /// Handed in by `SidebarFocusBridge`, which owns the `@FocusedValue` declaration — declaring
+    /// one here re-ran this whole body once per animation frame; the bridge's doc comment owns
+    /// the mechanism. Do not add a `@FocusedValue` back to this view.
+    let composerFocusRelay: SidebarComposerFocusRelay
+
+    /// All four stored inputs are window-lifetime references, so identity is the whole
+    /// comparison; every `@State`, `@FocusState`, and environment wrapper is SwiftUI-owned
+    /// storage that survives a skipped body. `SidebarFocusBridge` relies on this through
+    /// `.equatable()` — its parent re-runs once per animation frame of any presentation, and
+    /// without the skip the sidebar rebuilt its whole snapshot on each of those frames.
+    nonisolated static func == (lhs: SidebarView, rhs: SidebarView) -> Bool {
+        lhs.viewModel === rhs.viewModel
+            && lhs.appState === rhs.appState
+            && lhs.voiceInputLifecycleController === rhs.voiceInputLifecycleController
+            && lhs.composerFocusRelay === rhs.composerFocusRelay
+    }
 
     /// `initialExpandedProjects` seeds expansion for previews and snapshots, which mount the
     /// sidebar without the interactions that expand a group. Selecting a project deliberately
@@ -76,6 +97,7 @@ struct SidebarView: View {
         viewModel: SidebarViewModel,
         appState: AppState,
         voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
+        composerFocusRelay: SidebarComposerFocusRelay = SidebarComposerFocusRelay(),
         initialExpandedProjects: Set<String> = [],
         initialCollapsedSections: Set<SidebarCollapsibleSection> = [],
         initialEditingSectionID: String? = nil,
@@ -84,6 +106,7 @@ struct SidebarView: View {
         self.viewModel = viewModel
         self.appState = appState
         self.voiceInputLifecycleController = voiceInputLifecycleController
+        self.composerFocusRelay = composerFocusRelay
         _expandedProjects = State(initialValue: initialExpandedProjects)
         _collapsedSections = State(initialValue: initialCollapsedSections)
         _editingSectionID = State(initialValue: initialEditingSectionID)
@@ -237,7 +260,8 @@ struct SidebarView: View {
             status: viewModel.threadStatus(for: thread, attention: attention),
             isSelected: isSelected,
             layout: layout,
-            editingThreadID: $editingThreadID,
+            editingThreadID: editingThreadID,
+            onEditingThreadIDChange: { editingThreadID = $0 },
             cleanupAction: cleanupAction,
             cleanupDisabledReason: cleanupDisabledReason,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
@@ -354,7 +378,7 @@ struct SidebarView: View {
     // consumes the stale token.
     func claimSidebarFocus() {
         appState.pendingComposerFocusToken = nil
-        chatComposerFocus?.release()
+        composerFocusRelay.handle?.release()
         isKeyboardFocused = true
     }
 }

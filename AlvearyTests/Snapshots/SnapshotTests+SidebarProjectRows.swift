@@ -9,7 +9,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: true,
                 initialRowHover: true,

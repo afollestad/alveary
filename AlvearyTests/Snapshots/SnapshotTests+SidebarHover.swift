@@ -9,7 +9,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: false,
                 initialRowHover: true,
@@ -28,7 +28,7 @@ extension SnapshotTests {
         let selectedThread = AgentThread(name: "Selected thread")
         let stack = VStack(spacing: SidebarRowMetrics.interThreadRowSpacing) {
             SidebarProjectRow(
-                project: project,
+                projectName: project.name,
                 isExpanded: false,
                 isSelected: false,
                 initialRowHover: true,
@@ -42,7 +42,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 initialRowHover: true,
                 onCommitRename: { _ in }
@@ -54,7 +53,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: selectedThread),
                 status: .stopped,
                 isSelected: true,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 initialRowHover: true,
                 onCommitRename: { _ in }

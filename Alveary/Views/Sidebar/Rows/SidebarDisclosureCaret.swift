@@ -120,7 +120,9 @@ struct SidebarDisclosureCaret: View {
 /// owns the toggle.
 struct SidebarDisclosureCaretToggle {
     let label: String
-    let action: () -> Void
+    // `@MainActor` because `SidebarSectionHeaderDisclosure.onToggle` — typed that way for its
+    // owner's nonisolated `==` — is handed here directly.
+    let action: @MainActor () -> Void
 }
 
 /// A collapsed row always shows its caret: it is the only sign that the row hides content, and

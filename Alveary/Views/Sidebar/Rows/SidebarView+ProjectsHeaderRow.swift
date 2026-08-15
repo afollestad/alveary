@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SidebarSectionHeaderRow: View {
+struct SidebarSectionHeaderRow: View, Equatable {
     static let contentLeadingPadding: CGFloat = 8
     /// Leading padding that lands a plain row's ink under a header's title ink. It carries the
     /// plain-row correction because every consumer is a row rather than a `List` section header.
@@ -36,7 +36,8 @@ struct SidebarSectionHeaderRow: View {
     let actionSystemImage: String?
     let actionAccessibilityLabel: String?
     let actionHelp: String?
-    let onAction: (() -> Void)?
+    // `@MainActor` so the nonisolated `==` may probe this optional's presence.
+    let onAction: (@MainActor () -> Void)?
     let showsTopDivider: Bool
     let disclosure: SidebarSectionHeaderDisclosure?
     let suppressHoverAffordances: Bool
@@ -51,7 +52,7 @@ struct SidebarSectionHeaderRow: View {
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
         editing: SidebarSectionHeaderEditing? = nil,
-        onAddProject: (() -> Void)? = nil
+        onAddProject: (@MainActor () -> Void)? = nil
     ) {
         self.title = title
         actionSystemImage = onAddProject == nil ? nil : "folder.badge.plus"
@@ -74,7 +75,7 @@ struct SidebarSectionHeaderRow: View {
         disclosure: SidebarSectionHeaderDisclosure? = nil,
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
-        onAction: @escaping () -> Void
+        onAction: @escaping @MainActor () -> Void
     ) {
         self.title = title
         self.actionSystemImage = actionSystemImage
@@ -86,6 +87,22 @@ struct SidebarSectionHeaderRow: View {
         self.suppressHoverAffordances = suppressHoverAffordances
         editing = nil
         _isHoveringRow = State(initialValue: initialRowHover)
+    }
+
+    /// `onAction` is excluded beyond its presence — presence decides whether the trailing action
+    /// button renders at all; the closure itself captures the sidebar's `@State`-backed action
+    /// paths, which a kept copy reads live. `disclosure` and `editing` compare their own value
+    /// halves and exclude their closures for the same reason.
+    nonisolated static func == (lhs: SidebarSectionHeaderRow, rhs: SidebarSectionHeaderRow) -> Bool {
+        lhs.title == rhs.title
+            && lhs.actionSystemImage == rhs.actionSystemImage
+            && lhs.actionAccessibilityLabel == rhs.actionAccessibilityLabel
+            && lhs.actionHelp == rhs.actionHelp
+            && (lhs.onAction == nil) == (rhs.onAction == nil)
+            && lhs.showsTopDivider == rhs.showsTopDivider
+            && lhs.disclosure == rhs.disclosure
+            && lhs.suppressHoverAffordances == rhs.suppressHoverAffordances
+            && lhs.editing == rhs.editing
     }
 
     /// Pulls a row-mounted header back to the leading inset a `List` section header gets for free.
@@ -291,15 +308,29 @@ struct SidebarSectionHeaderRow: View {
 
 /// The collapse affordance a section header shows. Absent on `Pinned`, which heads a group the user
 /// does not choose to hide.
-struct SidebarSectionHeaderDisclosure {
+struct SidebarSectionHeaderDisclosure: Equatable {
     let isExpanded: Bool
-    let onToggle: () -> Void
+    // `@MainActor` keeps the struct `Sendable` for the header row's nonisolated `==`.
+    let onToggle: @MainActor () -> Void
+
+    /// `onToggle` is excluded: it captures the section's stable identity plus the sidebar's
+    /// `@State` collapse storage, which a kept copy reads live.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isExpanded == rhs.isExpanded
+    }
 }
 
 /// Inline-rename state for a custom section's header. Only custom sections pass one; built-in
 /// names are fixed.
-struct SidebarSectionHeaderEditing {
+struct SidebarSectionHeaderEditing: Equatable {
     let isEditing: Bool
-    let onCommit: (String) -> Void
-    let onCancel: () -> Void
+    // `@MainActor` keeps the struct `Sendable` for the header row's nonisolated `==`.
+    let onCommit: @MainActor (String) -> Void
+    let onCancel: @MainActor () -> Void
+
+    /// The closures are excluded: both capture the section's stable identity plus the sidebar's
+    /// `@State`-backed rename paths, which a kept copy reads live.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isEditing == rhs.isEditing
+    }
 }

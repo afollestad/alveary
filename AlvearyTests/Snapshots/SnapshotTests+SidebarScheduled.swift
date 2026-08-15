@@ -13,7 +13,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -33,7 +32,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -53,7 +51,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 initialRowHover: true,
                 onCommitRename: { _ in }
@@ -72,7 +69,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 cleanupDisabledReason: "This thread is attached to the scheduled task \"Scheduled review\".",
                 initialRowHover: true,
@@ -92,7 +88,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 cleanupDisabledReason: "This thread is attached to the scheduled task \"Scheduled review\".",
                 initialRowHover: true,

@@ -424,31 +424,39 @@ final class SidebarViewTests: XCTestCase {
     }
 
     func testWorktreeTooltipTextUsesCanonicalWorktreePath() {
-        let path = " \(NSHomeDirectory())/Documents/../Documents/worktrees/refactor-chat-input/ "
+        // The presentation trims before storing, so the helper receives a trimmed path.
+        let path = "\(NSHomeDirectory())/Documents/../Documents/worktrees/refactor-chat-input/"
         let thread = AgentThread(name: "Thread", useWorktree: true)
-        thread.worktreePath = path
+        thread.worktreePath = " \(path) "
 
         XCTAssertEqual(
-            sidebarThreadWorktreeTooltipText(for: thread),
+            sidebarThreadWorktreeTooltipText(worktreePath: SidebarThreadRowPresentation(thread: thread).worktreePath),
             "~/Documents/worktrees/refactor-chat-input"
         )
     }
 
     func testWorktreeTooltipTextDoesNotDecodeLiteralPercentEncoding() {
         let path = "\(NSHomeDirectory())/Documents/worktrees/refactor%20chat-input"
-        let thread = AgentThread(name: "Thread", useWorktree: true)
-        thread.worktreePath = path
 
         XCTAssertEqual(
-            sidebarThreadWorktreeTooltipText(for: thread),
+            sidebarThreadWorktreeTooltipText(worktreePath: path),
             "~/Documents/worktrees/refactor%20chat-input"
         )
     }
 
     func testWorktreeTooltipTextUsesPendingFallbackBeforePathExists() {
         let thread = AgentThread(name: "Thread", useWorktree: true)
+        let presentation = SidebarThreadRowPresentation(thread: thread)
 
-        XCTAssertEqual(sidebarThreadWorktreeTooltipText(for: thread), "Worktree path not created yet")
+        XCTAssertNil(presentation.worktreePath)
+        XCTAssertEqual(sidebarThreadWorktreeTooltipText(worktreePath: nil), "Worktree path not created yet")
+    }
+
+    func testPresentationStoresNilForBlankWorktreePath() {
+        let thread = AgentThread(name: "Thread", useWorktree: true)
+        thread.worktreePath = "   "
+
+        XCTAssertNil(SidebarThreadRowPresentation(thread: thread).worktreePath)
     }
 
     private func makeThread(name: String, project: Project, isPinned: Bool = false) -> AgentThread {

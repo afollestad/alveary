@@ -99,7 +99,7 @@ extension SidebarView {
         context: SidebarRenderContext
     ) -> some View {
         SidebarProjectRow(
-            project: configuration.project,
+            projectName: configuration.project.name,
             isExpanded: configuration.isExpanded,
             isSelected: configuration.isSelected,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,

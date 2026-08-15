@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SidebarProjectRow: View {
+struct SidebarProjectRow: View, Equatable {
     static let horizontalPadding: CGFloat = 6
     static let leadingIconWidth: CGFloat = 16
     static let leadingIconFontSize: CGFloat = 11
@@ -11,7 +11,11 @@ struct SidebarProjectRow: View {
     static let trailingActionCenterTrailingInset = horizontalPadding + trailingActionButtonSize / 2 - trailingActionHorizontalOffset
     static let projectNameLeadingInset: CGFloat = horizontalPadding + leadingIconWidth + leadingSpacing
 
-    let project: Project
+    /// The name alone, never the `Project` model: this row re-renders from its own hover `@State`
+    /// while `List` animates a removed row out — the same window where `SidebarThreadRow`'s
+    /// persisted-property read used to trap (see `SidebarThreadRowPresentation`) — and a
+    /// nonisolated `==` may not read a live model either.
+    let projectName: String
     let isExpanded: Bool
     let isSelected: Bool
     let suppressHoverAffordances: Bool
@@ -24,7 +28,7 @@ struct SidebarProjectRow: View {
     @State private var isHoveringCreateThread = false
 
     init(
-        project: Project,
+        projectName: String,
         isExpanded: Bool,
         isSelected: Bool,
         suppressHoverAffordances: Bool = false,
@@ -34,7 +38,7 @@ struct SidebarProjectRow: View {
         onActivate: @escaping () -> Void,
         onCreateThread: @escaping () -> Void
     ) {
-        self.project = project
+        self.projectName = projectName
         self.isExpanded = isExpanded
         self.isSelected = isSelected
         self.suppressHoverAffordances = suppressHoverAffordances
@@ -43,6 +47,18 @@ struct SidebarProjectRow: View {
         self.onActivate = onActivate
         self.onCreateThread = onCreateThread
         _isHovering = State(initialValue: initialRowHover)
+    }
+
+    /// The three closures are excluded: each captures the live project — context-unique for the
+    /// row's stable `ForEach` identity — plus the sidebar's `@State`-backed action paths, so a
+    /// captured copy cannot serve staler than a fresh one. `dragConfiguration` compares its own
+    /// non-closure fields, `logicalOrder` included.
+    nonisolated static func == (lhs: SidebarProjectRow, rhs: SidebarProjectRow) -> Bool {
+        lhs.projectName == rhs.projectName
+            && lhs.isExpanded == rhs.isExpanded
+            && lhs.isSelected == rhs.isSelected
+            && lhs.suppressHoverAffordances == rhs.suppressHoverAffordances
+            && lhs.dragConfiguration == rhs.dragConfiguration
     }
 
     var body: some View {
@@ -90,7 +106,7 @@ struct SidebarProjectRow: View {
     private var activationArea: some View {
         Button(action: onActivate) {
             HStack(spacing: SidebarDisclosureCaretMetrics.spacing) {
-                Text(project.name)
+                Text(projectName)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(projectForegroundColor)
                     .lineLimit(1)
@@ -111,7 +127,7 @@ struct SidebarProjectRow: View {
         }
         .buttonStyle(.plain)
         .sidebarDragSource(dragConfiguration)
-        .accessibilityLabel(project.name)
+        .accessibilityLabel(projectName)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: Text("New Thread")) {
             onCreateThread()
@@ -155,6 +171,6 @@ struct SidebarProjectRow: View {
     }
 
     private var toggleAccessibilityLabel: String {
-        isExpanded ? "Collapse \(project.name)" : "Expand \(project.name)"
+        isExpanded ? "Collapse \(projectName)" : "Expand \(projectName)"
     }
 }

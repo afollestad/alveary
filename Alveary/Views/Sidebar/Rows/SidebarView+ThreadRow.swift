@@ -7,7 +7,7 @@ enum SidebarThreadRowLayout {
     case topLevel
 }
 
-struct SidebarThreadRow: View {
+struct SidebarThreadRow: View, Equatable {
     private static let statusIndicatorSize: CGFloat = 8
     static let cleanupButtonSize: CGFloat = 24
     private static let cleanupConfirmationWidth: CGFloat = 72
@@ -30,7 +30,11 @@ struct SidebarThreadRow: View {
     let status: ThreadStatus
     let isSelected: Bool
     let layout: SidebarThreadRowLayout
-    @Binding var editingThreadID: PersistentIdentifier?
+    /// A plain value plus `onEditingThreadIDChange` instead of a `@Binding`, so `==` can compare
+    /// it — see **Render Cost** in `Alveary/Views/AGENTS.md` for why a binding must not be
+    /// compared there. Nothing in the row needs an actual `Binding`, so none is rebuilt.
+    let editingThreadID: PersistentIdentifier?
+    let onEditingThreadIDChange: @MainActor (PersistentIdentifier?) -> Void
     let cleanupAction: ThreadCleanupAction
     let cleanupDisabledReason: String?
     let suppressHoverAffordances: Bool
@@ -65,7 +69,8 @@ struct SidebarThreadRow: View {
         status: ThreadStatus,
         isSelected: Bool,
         layout: SidebarThreadRowLayout = .project,
-        editingThreadID: Binding<PersistentIdentifier?>,
+        editingThreadID: PersistentIdentifier? = nil,
+        onEditingThreadIDChange: @escaping @MainActor (PersistentIdentifier?) -> Void = { _ in },
         cleanupAction: ThreadCleanupAction = .archive,
         cleanupDisabledReason: String? = nil,
         suppressHoverAffordances: Bool = false,
@@ -81,7 +86,8 @@ struct SidebarThreadRow: View {
         self.status = status
         self.isSelected = isSelected
         self.layout = layout
-        _editingThreadID = editingThreadID
+        self.editingThreadID = editingThreadID
+        self.onEditingThreadIDChange = onEditingThreadIDChange
         self.cleanupAction = cleanupAction
         self.cleanupDisabledReason = cleanupDisabledReason
         self.suppressHoverAffordances = suppressHoverAffordances
@@ -98,6 +104,25 @@ struct SidebarThreadRow: View {
     var isEditing: Bool { editingThreadID == presentation.threadID }
 
     var displayName: String { presentation.displayName }
+
+    /// The three closures are excluded: `onCommitRename` and `onConfirmCleanup` capture the live
+    /// thread — context-unique for the `threadID` that `presentation` compares — plus the
+    /// sidebar's `@State`-backed action paths, and `onEditingThreadIDChange` writes the `@State`
+    /// storage behind the compared `editingThreadID`. None can serve staler than a fresh copy.
+    /// `dragConfiguration` compares its own non-closure fields, `logicalOrder` included, so a
+    /// skipped body cannot keep a gesture whose captured order the list no longer renders.
+    nonisolated static func == (lhs: SidebarThreadRow, rhs: SidebarThreadRow) -> Bool {
+        lhs.presentation == rhs.presentation
+            && lhs.status == rhs.status
+            && lhs.isSelected == rhs.isSelected
+            && lhs.layout == rhs.layout
+            && lhs.editingThreadID == rhs.editingThreadID
+            && lhs.cleanupAction == rhs.cleanupAction
+            && lhs.cleanupDisabledReason == rhs.cleanupDisabledReason
+            && lhs.suppressHoverAffordances == rhs.suppressHoverAffordances
+            && lhs.canBeginRename == rhs.canBeginRename
+            && lhs.dragConfiguration == rhs.dragConfiguration
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -158,7 +183,7 @@ struct SidebarThreadRow: View {
             // the target row stuck in editing state without an input field.
             if canBeginRename, !suppressHoverAffordances {
                 Button("Rename...") {
-                    editingThreadID = presentation.threadID
+                    onEditingThreadIDChange(presentation.threadID)
                 }
             }
         }
@@ -220,7 +245,7 @@ struct SidebarThreadRow: View {
             .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
             .accessibilityHidden(true)
             .overlay {
-                AppHoverTooltipAnchor(text: presentation.worktreeTooltip)
+                AppHoverTooltipAnchor(text: sidebarThreadWorktreeTooltipText(worktreePath: presentation.worktreePath))
                     .frame(width: Self.provenanceIndicatorSize, height: Self.provenanceIndicatorSize)
             }
     }
@@ -360,10 +385,10 @@ extension SidebarThreadRow {
         ) {
             onCommitRename(committedName)
         }
-        editingThreadID = nil
+        onEditingThreadIDChange(nil)
     }
 
     func cancelRename() {
-        editingThreadID = nil
+        onEditingThreadIDChange(nil)
     }
 }

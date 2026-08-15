@@ -60,8 +60,17 @@ fi
 #   report entirely. This file only pays it because it now sorts first among the menu-building
 #   AppKit sources — the bill previously landed on `AppKitReviewProposalWidgetView` and passed
 #   under the threshold there — so the reading is a property of file order, not of this code.
+#
+#   Alveary/Views/Components/SecondaryClickTarget.swift — the same `NSMenu` bill in a second
+#   frontend batch, landing on `handleMouseDown`'s `menu.popUp(positioning:at:in:)`. Measured
+#   3395ms on CI while the identical tree passes a 3000ms budget locally on CI's pinned Xcode;
+#   dropping a four-line probe whose whole body is one literal `NSMenu` plus one all-literal
+#   `NSMenuItem` ahead of it moved the entire bill onto the probe (1491ms) and took
+#   `handleMouseDown` off the report. There is nothing to shorten — the call takes three
+#   arguments, none of them a compound expression.
 typecheck_budget_exempt_prefixes="AlvearyTests/App/AppDelegateTests
-Alveary/Views/Chat/Blocks/AppKit/Widgets/AppKitReviewProposalCommentChrome.swift"
+Alveary/Views/Chat/Blocks/AppKit/Widgets/AppKitReviewProposalCommentChrome.swift
+Alveary/Views/Components/SecondaryClickTarget.swift"
 
 typecheck_budget_report_offenders() {
   local log_path=$1

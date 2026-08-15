@@ -57,10 +57,28 @@ struct SidebarDragSession: Equatable {
     }
 }
 
-struct SidebarRowDragConfiguration {
+/// A row's drag gesture wiring plus the values `==` needs to prove that wiring current.
+///
+/// The closures are excluded from equality: each captures exactly the `item` and `logicalOrder`
+/// compared here plus the view's `@State`-backed drag entry points, so a closure can never be
+/// staler than the values beside it. Comparing `logicalOrder` is load-bearing for the `Equatable`
+/// rows that hold a configuration — a row whose body is skipped keeps its installed gesture, and
+/// without this comparison that gesture would seed a drag session with an order the list no
+/// longer renders.
+struct SidebarRowDragConfiguration: Equatable {
+    let item: SidebarDragItem
     let isEnabled: Bool
-    let onChanged: (CGPoint) -> Void
-    let onEnded: (CGPoint) -> Void
+    let logicalOrder: SidebarDragLogicalOrder
+    // `@MainActor` keeps the whole struct `Sendable`, which the rows' nonisolated `==` needs
+    // just to read this property — gestures already deliver on the main actor.
+    let onChanged: @MainActor (CGPoint) -> Void
+    let onEnded: @MainActor (CGPoint) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.item == rhs.item
+            && lhs.isEnabled == rhs.isEnabled
+            && lhs.logicalOrder == rhs.logicalOrder
+    }
 }
 
 /// Lines mean ordered insertion; borders mean containers. `Pinned` is manually ordered, so its
@@ -220,7 +238,7 @@ extension SidebarView {
                 .frame(width: proxy.size.width, height: proxy.size.height)
 
                 if let sidebarDropCandidate,
-                   let viewport = sidebarDragGeometryFrames[.viewport]?.sidebarUnion {
+                   let viewport = sidebarDragViewportFrame {
                     switch sidebarDropCandidate.kind {
                     case .boundary:
                         Rectangle()
@@ -284,7 +302,7 @@ extension SidebarView {
             sidebarDragInteractionState = nextState
             guard case .active(let session) = nextState,
                   let monitorLocation = sidebarDragPointerRelay.pendingMonitorLocation,
-                  let viewport = sidebarDragGeometryFrames[.viewport]?.sidebarUnion else {
+                  let viewport = sidebarDragViewportFrame else {
                 sidebarDragPointerRelay.pendingMonitorLocation = nil
                 sidebarDropCandidate = nil
                 return
@@ -348,7 +366,7 @@ extension SidebarView {
             return
         }
         session.freezeDropCandidate(sidebarDropCandidate)
-        sidebarDragGeometryRefreshRevision &+= 1
+        sidebarDragGeometry.bumpRefreshRevision()
         sidebarDragGeometryMissToken = nil
     }
 }

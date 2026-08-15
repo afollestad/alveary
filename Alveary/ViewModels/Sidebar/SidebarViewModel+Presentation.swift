@@ -9,7 +9,10 @@ extension SidebarViewModel {
         pendingDraftProjectPaths[.project]
     }
 
-    func directoryExists(at path: String) -> Bool {
+    /// `nonisolated` so the off-main cleanup path (`cleanupThread` and the owned-worktree helpers
+    /// in `SidebarViewModel+TaskWorkspaceCleanup.swift`) can stat without hopping back to the
+    /// main actor; a synchronous main-actor caller still runs it inline on its own executor.
+    nonisolated func directoryExists(at path: String) -> Bool {
         var isDirectory = ObjCBool(false)
         let exists = FileManager.default.fileExists(
             atPath: path,

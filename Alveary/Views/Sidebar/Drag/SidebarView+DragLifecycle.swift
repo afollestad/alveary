@@ -6,7 +6,7 @@ extension SidebarView {
         case .idle:
             sidebarDragPointerRelay.pendingMonitorLocation = location
         case .active(let session):
-            guard let viewport = sidebarDragGeometryFrames[.viewport]?.sidebarUnion else {
+            guard let viewport = sidebarDragViewportFrame else {
                 return
             }
             let namedLocation = sidebarDragLocationInNamedSpace(
@@ -28,7 +28,7 @@ extension SidebarView {
     func handleSidebarMonitorMouseUp(_ location: CGPoint) {
         switch sidebarDragInteractionState {
         case .active(let session):
-            guard let viewport = sidebarDragGeometryFrames[.viewport]?.sidebarUnion else {
+            guard let viewport = sidebarDragViewportFrame else {
                 clearSidebarDragState()
                 return
             }

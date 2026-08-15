@@ -19,7 +19,7 @@ enum SidebarOrderNormalization {
         excludingThreadIDs: Set<PersistentIdentifier> = []
     ) throws -> Bool {
         let projects = try allProjects(in: modelContext).filter { !excludingProjectIDs.contains($0.persistentModelID) }
-        let threads = try allThreads(in: modelContext).filter { !excludingThreadIDs.contains($0.persistentModelID) }
+        let threads = try orderingThreads(in: modelContext).filter { !excludingThreadIDs.contains($0.persistentModelID) }
         var didChange = clearInvalidProjectOrders(projects)
         didChange = clearInvalidPinnedThreadOrders(threads) || didChange
         didChange = clearInvalidCustomSectionMemberships(threads) || didChange
@@ -32,8 +32,15 @@ enum SidebarOrderNormalization {
         try modelContext.fetch(FetchDescriptor<Project>())
     }
 
-    static func allThreads(in modelContext: ModelContext) throws -> [AgentThread] {
-        try modelContext.fetch(FetchDescriptor<AgentThread>())
+    /// Every thread sidebar ordering can read or rewrite: the unarchived population that pinned
+    /// items and activity fallbacks are built from, plus any thread still carrying a
+    /// `pinnedSortOrder` or a custom-section membership — archived included, so a stale order or
+    /// membership is cleared wherever it hides. An unfiltered fetch here instead made every
+    /// delete's synchronous commit scale with archived history.
+    static func orderingThreads(in modelContext: ModelContext) throws -> [AgentThread] {
+        try modelContext.fetch(FetchDescriptor<AgentThread>(predicate: #Predicate { thread in
+            thread.archivedAt == nil || thread.pinnedSortOrder != nil || thread.customSection != nil
+        }))
     }
 
     static func regularProjects(from projects: [Project]) -> [Project] {
@@ -43,12 +50,26 @@ enum SidebarOrderNormalization {
     }
 
     static func sidebarPinnedItems(projects: [Project], threads: [AgentThread]) -> [SidebarPinnedItem] {
+        // One pass over the threads, and only when some pinned project still needs the legacy
+        // activity fallback — matching `SidebarRenderSnapshot`, which skips the date once a manual
+        // `pinnedSortOrder` exists because the comparator discards it. The per-project filter this
+        // replaces walked every thread per pinned project, with a `project` fault per element.
+        let needsActivityFallback = projects.contains { $0.isPinned && $0.pinnedSortOrder == nil }
+        var latestActivityByProjectPath: [String: Date] = [:]
+        if needsActivityFallback {
+            for thread in threads where thread.archivedAt == nil && !thread.isDraft {
+                guard let path = thread.project?.path, let modifiedAt = thread.modifiedAt else {
+                    continue
+                }
+                latestActivityByProjectPath[path] = max(latestActivityByProjectPath[path] ?? modifiedAt, modifiedAt)
+            }
+        }
         let projectItems = projects
             .filter(\.isPinned)
             .map { project in
                 SidebarPinnedItem(
                     project: project,
-                    activityDate: latestUnarchivedThreadModifiedAt(for: project, threads: threads)
+                    activityDate: project.pinnedSortOrder == nil ? latestActivityByProjectPath[project.path] : nil
                 )
             }
         let threadItems = threads
@@ -226,11 +247,4 @@ enum SidebarOrderNormalization {
         }
     }
 
-    private static func latestUnarchivedThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
-        // Mode-agnostic, matching `SidebarRenderSnapshot`: any thread in the project is a child.
-        threads
-            .filter { $0.archivedAt == nil && !$0.isDraft && $0.project?.path == project.path }
-            .compactMap(\.modifiedAt)
-            .max()
-    }
 }

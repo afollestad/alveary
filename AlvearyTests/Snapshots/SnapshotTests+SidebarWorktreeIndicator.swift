@@ -16,7 +16,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -37,7 +36,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14),
@@ -58,7 +56,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 initialRowHover: true,
                 onCommitRename: { _ in }
@@ -81,7 +78,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: true,
-                editingThreadID: .constant(nil),
                 onCommitRename: { _ in }
             )
             .padding(.leading, 14)
@@ -103,7 +99,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .archive,
                 initialRowHover: true,
                 onCommitRename: { _ in }
@@ -126,7 +121,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: true,
-                editingThreadID: .constant(nil),
                 cleanupAction: .delete,
                 initialRowHover: true,
                 onCommitRename: { _ in }
@@ -150,7 +144,6 @@ extension SnapshotTests {
                 presentation: SidebarThreadRowPresentation(thread: thread),
                 status: .stopped,
                 isSelected: false,
-                editingThreadID: .constant(nil),
                 cleanupAction: .delete,
                 initialCleanupConfirmationArmed: true,
                 onCommitRename: { _ in }

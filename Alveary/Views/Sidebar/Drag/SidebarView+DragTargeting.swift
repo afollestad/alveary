@@ -36,7 +36,7 @@ extension SidebarView {
         let candidate = sidebarDropCandidateForLocation(
             at: location,
             dragging: item,
-            geometry: sidebarDragGeometryFrames,
+            geometry: sidebarDragGeometry.frames,
             logicalOrder: session.logicalOrder,
             retainingTarget: sidebarDropCandidate?.target
         )
@@ -59,13 +59,27 @@ extension SidebarView {
         }
     }
 
+    /// Absorbs one `SidebarDragGeometryPreferenceKey` publication.
+    ///
+    /// Every mounted row, header, and terminal republishes its frame on each layout pass, so this
+    /// runs on every frame of a row-removal animation, every scroll tick, and every resize step.
+    /// Nothing here may write observed state unconditionally: the frames land in a store `body`
+    /// does not observe, and both `@State` writes are equality-guarded. Rows sliding past each
+    /// other therefore costs zero rebuilds — only a resize (viewport) or a real targeting change
+    /// (candidate) reaches SwiftUI.
     func scheduleSidebarDragGeometryRefresh(with frames: [SidebarDragGeometryRole: [CGRect]]) {
-        sidebarDragGeometryFrames = frames
-        sidebarDragGeometryRefreshRevision &+= 1
-        let scheduledRevision = sidebarDragGeometryRefreshRevision
+        sidebarDragGeometry.frames = frames
+        let scheduledRevision = sidebarDragGeometry.bumpRefreshRevision()
+
+        let viewportFrame = frames[.viewport]?.sidebarUnion
+        if viewportFrame != sidebarDragViewportFrame {
+            sidebarDragViewportFrame = viewportFrame
+        }
 
         guard case .active(let session) = sidebarDragInteractionState else {
-            sidebarDropCandidate = nil
+            if sidebarDropCandidate != nil {
+                sidebarDropCandidate = nil
+            }
             return
         }
         let sessionID = session.id
@@ -76,7 +90,7 @@ extension SidebarView {
         DispatchQueue.main.async {
             guard sidebarDragGeometryRefreshIsCurrent(
                 scheduledRevision: scheduledRevision,
-                currentRevision: sidebarDragGeometryRefreshRevision,
+                currentRevision: sidebarDragGeometry.refreshRevision,
                 sessionID: sessionID,
                 state: sidebarDragInteractionState
             ) else {
@@ -118,4 +132,31 @@ func sidebarDragGeometryRefreshIsCurrent(
         return false
     }
     return currentSession.id == sessionID
+}
+
+/// Published sidebar drag geometry, deliberately held where `SidebarView.body` cannot observe it.
+///
+/// These frames churn on every layout pass — each frame of a row-removal animation, each scroll
+/// tick, each resize step. As `@State` they invalidated `SidebarView` that often, and because
+/// `body` rebuilds `SidebarRenderSnapshot` and every row from scratch, one thread delete cost a
+/// double-digit number of full rebuilds and made the removal animation visibly stutter. A `@State`
+/// holding a reference whose identity never changes publishes nothing when its contents mutate,
+/// and every reader here runs from an event handler — drag targeting, the monitor, the empty-area
+/// menu — never from `body`.
+///
+/// The one geometry `body` does read is the list viewport, mirrored into
+/// `SidebarView.sidebarDragViewportFrame`; keep new `body` reads on that same path rather than
+/// reaching in here, or the stutter returns.
+final class SidebarDragGeometryStore {
+    var frames: [SidebarDragGeometryRole: [CGRect]] = [:]
+    private(set) var refreshRevision: UInt64 = 0
+
+    /// Stamps this publication and returns its revision, which a coalesced resolution compares
+    /// against `refreshRevision` to tell whether a newer map has landed since it was scheduled.
+    /// Discarding the result is how a caller invalidates every resolution already in flight.
+    @discardableResult
+    func bumpRefreshRevision() -> UInt64 {
+        refreshRevision &+= 1
+        return refreshRevision
+    }
 }

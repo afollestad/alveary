@@ -15,7 +15,7 @@ extension SidebarView {
     private func sidebarEmptyAreaMenu(at point: CGPoint) -> NSMenu? {
         guard !isSidebarDragInteractionInFlight,
               !isSidebarInlineEditingActive,
-              sidebarEmptyAreaContainsPoint(point, geometry: sidebarDragGeometryFrames) else {
+              sidebarEmptyAreaContainsPoint(point, geometry: sidebarDragGeometry.frames) else {
             return nil
         }
         let menu = NSMenu()
