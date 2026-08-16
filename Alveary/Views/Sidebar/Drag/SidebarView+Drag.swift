@@ -256,29 +256,50 @@ extension SidebarView {
                             .accessibilityHidden(true)
                             .transition(.opacity)
                     case .container:
-                        let rect = sidebarDragBorderLocalRect(
+                        sidebarSectionContainerBorder(
                             frame: sidebarDropCandidate.borderFrame,
                             viewport: viewport,
                             overlaySize: proxy.size
                         )
-                        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                            .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                                    .strokeBorder(
-                                        Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
-                                        lineWidth: SidebarDragBorderMetrics.lineWidth
-                                    )
-                            }
-                            .frame(width: rect.width, height: rect.height)
-                            .offset(x: rect.minX, y: rect.minY)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-                            .transition(.opacity)
+                        .transition(.opacity)
                     }
+                }
+
+                // No transition: the menu this accompanies pops instantly, and a fade would
+                // trail it. The two are exclusive anyway — a drag in flight declines the menu.
+                if let highlight = sidebarSectionSecondaryClickHighlight,
+                   let viewport = sidebarDragViewportFrame {
+                    sidebarSectionContainerBorder(
+                        frame: highlight.frame,
+                        viewport: viewport,
+                        overlaySize: proxy.size
+                    )
                 }
             }
         }
+    }
+
+    /// The whole-section outline, shared by a drop container and by the section whose
+    /// secondary-click menu is open, so the two are the same pixels by construction.
+    private func sidebarSectionContainerBorder(
+        frame: CGRect,
+        viewport: CGRect,
+        overlaySize: CGSize
+    ) -> some View {
+        let rect = sidebarDragBorderLocalRect(frame: frame, viewport: viewport, overlaySize: overlaySize)
+        return RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+            .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+                    .strokeBorder(
+                        Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
+                        lineWidth: SidebarDragBorderMetrics.lineWidth
+                    )
+            }
+            .frame(width: rect.width, height: rect.height)
+            .offset(x: rect.minX, y: rect.minY)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     func updateSidebarDrag(

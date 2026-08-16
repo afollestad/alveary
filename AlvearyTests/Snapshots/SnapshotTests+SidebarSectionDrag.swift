@@ -68,7 +68,15 @@ private struct SidebarCustomSectionDragBorderSnapshot: View {
                 .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
         }
         .listStyle(.sidebar)
-        .overlay { sidebarSnapshotDragBorder(frame: sectionFrame) }
+        .overlay {
+            GeometryReader { proxy in
+                sidebarSnapshotSectionContainerBorder(
+                    frame: sectionFrame,
+                    viewport: CGRect(origin: .zero, size: proxy.size),
+                    overlaySize: proxy.size
+                )
+            }
+        }
     }
 }
 
@@ -114,25 +122,25 @@ private struct SidebarSectionReorderLineSnapshot: View {
     }
 }
 
+/// The whole-section outline production draws from `sidebarSectionContainerBorder`, shared here by
+/// the drop-container baselines and the secondary-click highlight one.
 @MainActor
-private func sidebarSnapshotDragBorder(frame: CGRect) -> some View {
-    GeometryReader { proxy in
-        let rect = sidebarDragBorderLocalRect(
-            frame: frame,
-            viewport: CGRect(origin: .zero, size: proxy.size),
-            overlaySize: proxy.size
-        )
-        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-            .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .strokeBorder(
-                        Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
-                        lineWidth: SidebarDragBorderMetrics.lineWidth
-                    )
-            }
-            .frame(width: rect.width, height: rect.height)
-            .offset(x: rect.minX, y: rect.minY)
-            .allowsHitTesting(false)
-    }
+func sidebarSnapshotSectionContainerBorder(
+    frame: CGRect,
+    viewport: CGRect,
+    overlaySize: CGSize
+) -> some View {
+    let rect = sidebarDragBorderLocalRect(frame: frame, viewport: viewport, overlaySize: overlaySize)
+    return RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+        .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+                .strokeBorder(
+                    Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
+                    lineWidth: SidebarDragBorderMetrics.lineWidth
+                )
+        }
+        .frame(width: rect.width, height: rect.height)
+        .offset(x: rect.minX, y: rect.minY)
+        .allowsHitTesting(false)
 }

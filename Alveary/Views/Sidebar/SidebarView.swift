@@ -70,6 +70,13 @@ struct SidebarView: View, Equatable {
     /// resizes, so observing it costs one rebuild per resize rather than one per layout pass.
     @State var sidebarDragViewportFrame: CGRect?
     @State var sidebarDragGeometryMissToken: UUID?
+    /// The custom section whose secondary-click menu is open, with the frame its outline borders.
+    ///
+    /// The frame is captured when the menu opens rather than read from `sidebarDragGeometry` per
+    /// body, which must never be observed from `body` at all. It cannot go stale in between:
+    /// popping an `NSMenu` runs a nested event loop, so the list neither scrolls nor relayouts
+    /// until the menu closes and this clears.
+    @State var sidebarSectionSecondaryClickHighlight: SidebarSectionHighlight?
     @FocusState var isKeyboardFocused: Bool
     /// Handed in by `SidebarFocusBridge`, which owns the `@FocusedValue` declaration — declaring
     /// one here re-ran this whole body once per animation frame; the bridge's doc comment owns
@@ -178,7 +185,7 @@ struct SidebarView: View, Equatable {
                 }
             }
             .overlay { sidebarDragOverlay }
-            .overlay { sidebarEmptyAreaMenuTarget }
+            .overlay { sidebarSecondaryClickMenuTarget(context: context) }
             .focusable()
             .focused($isKeyboardFocused)
             .focusEffectDisabled()

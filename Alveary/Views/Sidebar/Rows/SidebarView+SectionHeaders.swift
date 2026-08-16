@@ -103,26 +103,37 @@ extension SidebarView {
             .customSectionHeader(sectionID),
             excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
         )
-        .contextMenu {
-            customSectionContextMenu(sectionID: sectionID, name: name)
-        }
-    }
-
-    @ViewBuilder
-    private func customSectionContextMenu(sectionID: String, name: String) -> some View {
-        ForEach(
-            sidebarSectionContextMenuItems(isInlineEditingActive: isSidebarInlineEditingActive),
-            id: \.self
-        ) { item in
-            switch item {
-            case .rename:
-                Button("Rename...") { editingSectionID = sectionID }
-            case .remove:
-                Button("Remove Section...", role: .destructive) {
-                    pendingRemoveSection = SidebarPendingSectionRemoval(id: sectionID, name: name)
+        // The pointer path is an `NSMenu` popped from the list overlay's `SecondaryClickTarget`,
+        // so these rotor actions are the only way VoiceOver reaches the same two commands.
+        // `Alveary/Views/Sidebar/SidebarView+SecondaryClickMenus.swift` owns why a `contextMenu`
+        // cannot serve this header.
+        .accessibilityActions {
+            ForEach(
+                sidebarSectionContextMenuItems(isInlineEditingActive: isSidebarInlineEditingActive),
+                id: \.self
+            ) { item in
+                switch item {
+                case .rename:
+                    Button("Rename...") { beginSectionRename(sectionID: sectionID) }
+                case .remove:
+                    Button("Remove Section...", role: .destructive) {
+                        requestSectionRemoval(sectionID: sectionID, name: name)
+                    }
                 }
             }
         }
+    }
+
+    /// Swaps the header's title for its rename field. Shared by the header's `NSMenu` and its
+    /// VoiceOver rotor action, so both enter the edit through one path.
+    func beginSectionRename(sectionID: String) {
+        editingSectionID = sectionID
+    }
+
+    /// Arms the removal confirmation. Removal is never immediate — `removeSection(id:)` runs only
+    /// after the dialog, because it relocates every member thread.
+    func requestSectionRemoval(sectionID: String, name: String) {
+        pendingRemoveSection = SidebarPendingSectionRemoval(id: sectionID, name: name)
     }
 
     func commitSectionRename(sectionID: String, currentName: String, submitted: String) {

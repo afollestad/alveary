@@ -85,6 +85,17 @@ extension SnapshotTests {
         }
     }
 
+    /// Right-clicking a collapsed section's header outlines that header alone — the divider above
+    /// it stays outside, which the SwiftUI `contextMenu` this replaced could not manage. The
+    /// expanded shape is already locked by `sidebar_drag_custom_section_border`.
+    func testSidebarCollapsedSectionSecondaryClickHighlightsTheHeaderAlone() {
+        assertMacSnapshot(
+            SidebarCollapsedSectionHighlightSnapshot(),
+            size: CGSize(width: 320, height: 200),
+            named: "sidebar_section_secondary_click_highlight"
+        )
+    }
+
     /// A section moved above `Pinned` renders there, proving the layout follows persisted order
     /// rather than statement order.
     func testSidebarViewCustomSectionOrderedFirst() async throws {
@@ -99,6 +110,63 @@ extension SnapshotTests {
             named: "sidebar_custom_section_ordered_first"
         ) {
             SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
+        }
+    }
+}
+
+/// A collapsed custom section outlined as its open secondary-click menu leaves it: the header's
+/// title row plus the container outset, and none of the divider's spacing above it.
+///
+/// The frame is measured through the real publisher rather than hardcoded — the header emits
+/// `.customSectionHeader` exactly as production does, and `sidebarSectionContainerFrame` composes
+/// it with no content frames, which is what a collapsed section leaves behind.
+private struct SidebarCollapsedSectionHighlightSnapshot: View {
+    private static let sectionID = "research"
+
+    @State private var geometry: [SidebarDragGeometryRole: [CGRect]] = [:]
+
+    var body: some View {
+        List {
+            SidebarSectionHeaderRow(title: "Projects", showsTopDivider: true, onAddProject: {})
+
+            Text("No projects yet")
+                .foregroundStyle(.secondary)
+                .padding(.leading, SidebarSectionHeaderRow.titleInkLeadingPadding)
+
+            SidebarSectionHeaderRow(
+                title: "Research",
+                showsTopDivider: true,
+                disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {})
+            )
+            .sidebarDragGeometry(
+                .customSectionHeader(Self.sectionID),
+                excludingTopInset: SidebarSectionHeaderRow.inlineHeaderTotalTopPadding
+            )
+        }
+        .listStyle(.sidebar)
+        .coordinateSpace(name: SidebarDragCoordinateSpace.name)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: SidebarDragGeometryPreferenceKey.self,
+                    value: [.viewport: [proxy.frame(in: .named(SidebarDragCoordinateSpace.name))]]
+                )
+            }
+        }
+        .overlay {
+            if let headerFrame = geometry[.customSectionHeader(Self.sectionID)]?.sidebarUnion,
+               let viewport = geometry[.viewport]?.sidebarUnion {
+                GeometryReader { proxy in
+                    sidebarSnapshotSectionContainerBorder(
+                        frame: sidebarSectionContainerFrame(headerFrame: headerFrame, contentFrames: []),
+                        viewport: viewport,
+                        overlaySize: proxy.size
+                    )
+                }
+            }
+        }
+        .onPreferenceChange(SidebarDragGeometryPreferenceKey.self) { frames in
+            geometry = frames
         }
     }
 }
