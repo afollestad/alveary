@@ -52,6 +52,10 @@ final class ArchivedThreadsViewModel {
     @ObservationIgnored
     private var sectionsCache: ArchivedSectionsCache?
 
+    /// Where the list was scrolled to, so leaving the screen and coming back lands there; see
+    /// ``ScrollOffsetStore`` for why it cannot live on the screen.
+    @ObservationIgnored let listScrollOffset = ScrollOffsetStore()
+
     var errorMessage: String? {
         operationErrorMessage ?? loadErrorMessage
     }

@@ -63,6 +63,7 @@ struct ArchivedScreen: View {
                         )
                     )
                 }
+                .restoresScrollOffset(viewModel.listScrollOffset)
             }
         }
         .task {

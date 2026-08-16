@@ -19,6 +19,10 @@ final class ScheduledTasksViewModel {
     @ObservationIgnored var threadObservationTask: Task<Void, Never>?
     @ObservationIgnored var proposalObservationTask: Task<Void, Never>?
 
+    /// Where the grid was scrolled to, so leaving the screen and coming back lands there; see
+    /// ``ScrollOffsetStore`` for why it cannot live on the screen.
+    @ObservationIgnored let listScrollOffset = ScrollOffsetStore()
+
     private(set) var tasks: [ScheduledTaskRowPresentation] = []
     private(set) var projects: [ScheduledTaskProjectOption] = []
     private(set) var existingThreadTargets: [ScheduledTaskThreadOption] = []

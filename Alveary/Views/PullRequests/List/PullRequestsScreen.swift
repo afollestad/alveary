@@ -121,6 +121,7 @@ struct PullRequestsScreen: View {
                 .onKeyPress(.downArrow) {
                     moveSelection(forward: true, scrollProxy: scrollProxy)
                 }
+                .restoresScrollOffset(viewModel.listScrollOffset, token: viewModel.selectedFilter)
                 // The fixed filters can be changed at any scroll depth; each result set starts at the top.
                 .id(viewModel.selectedFilter.id)
             }

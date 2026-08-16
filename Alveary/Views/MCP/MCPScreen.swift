@@ -121,9 +121,11 @@ struct MCPScreen: View {
                     )
                 )
             }
+            // Remembers the offset across the screen's unmount, and applies the
+            // `.scrollPosition(_:)` the reset below drives.
+            .restoresScrollOffset(viewModel.listScrollOffset, position: $scrollPosition)
             // Resets to the top on a new query. Keying the scroll view by the query
             // instead would rebuild this whole subtree on every keystroke.
-            .scrollPosition($scrollPosition)
             .onChange(of: viewModel.searchQuery) { _, _ in
                 scrollPosition.scrollTo(edge: .top)
             }

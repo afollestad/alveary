@@ -105,6 +105,7 @@ struct ScheduledTasksScreen: View {
                         )
                     )
                 }
+                .restoresScrollOffset(viewModel.listScrollOffset, token: viewModel.selectedFilter)
                 // The fixed filters can be changed at any scroll depth; each result set starts at the top.
                 .id(viewModel.selectedFilter.id)
                 // Outside the `.id` above, so the modifier's own seed state survives a chip

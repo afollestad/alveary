@@ -70,6 +70,10 @@ final class SkillsViewModel {
     @ObservationIgnored
     private var listCache: SkillsListCache?
 
+    /// Where the grid was scrolled to, so leaving the screen and coming back lands there; see
+    /// ``ScrollOffsetStore`` for why it cannot live on the screen.
+    @ObservationIgnored let listScrollOffset = ScrollOffsetStore()
+
     var filteredInstalled: [Skill] {
         shapedList.installed
     }

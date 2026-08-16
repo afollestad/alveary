@@ -114,6 +114,10 @@ struct MCPPaneSession: Equatable {
 final class MCPViewModel {
     private let mcpService: any MCPService
 
+    /// Where the grid was scrolled to, so leaving the screen and coming back lands there; see
+    /// ``ScrollOffsetStore`` for why it cannot live on the screen.
+    @ObservationIgnored let listScrollOffset = ScrollOffsetStore()
+
     private(set) var servers: [MCPServer] = []
     private(set) var recommended: [RecommendedMCPServer] = []
     private(set) var availableAgents: [MCPAgentAvailability] = []

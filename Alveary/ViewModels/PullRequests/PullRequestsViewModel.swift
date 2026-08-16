@@ -60,6 +60,11 @@ final class PullRequestsViewModel {
 
     @ObservationIgnored var hasLoadedListCache = false
 
+    /// Where the list was scrolled to, so leaving the screen and coming back lands there. Held
+    /// here because this view model is injected once per window and outlives the screen, which
+    /// `MiddlePane` tears down on every sidebar selection change.
+    @ObservationIgnored let listScrollOffset = ScrollOffsetStore()
+
     // Contextual-pane session state; lifecycle in the Pane Sessions extension below.
     private(set) var activePaneTarget: PullRequestPaneTarget?
     /// The surface that opened `activePaneTarget`; the root filters on it so a
