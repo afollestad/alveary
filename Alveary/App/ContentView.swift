@@ -7,7 +7,6 @@ struct ContentView: View {
     @Bindable var appState: AppState
     @Environment(\.modelContext) var uiModelContext
     @Environment(\.openWindow) private var openWindow
-    @FocusedValue(\.newConversationAction) var newConversationAction
 
     let settingsService: SettingsService
     private let gitHubCLI: GitHubCLIService

@@ -9,11 +9,14 @@ import SwiftUI
 /// plumbing a new `CommandRequest` case through `ContentView+Commands.swift`.
 ///
 /// Like `DiffViewerCommand`, equality deliberately excludes the closure and
-/// compares the publishing thread's identity instead. `ContentView` reads this
-/// focused value for the toolbar `+` button; a bare-closure value can never
-/// compare equal, so every `ThreadDetailView` body evaluation would invalidate
-/// `ContentView`, which re-renders `ThreadDetailView`, which republishes —
-/// a frame-rate render loop across the whole window.
+/// compares the publishing thread's identity instead. `MainPaneToolbarHeaderItem`
+/// reads this focused value for the toolbar `+` button; a bare-closure value
+/// can never compare equal, so every `ThreadDetailView` body evaluation would
+/// invalidate the reader, re-rendering `ThreadDetailView`, which republishes —
+/// a frame-rate render loop. The reader is that small wrapper rather than
+/// `ContentView` because declaring a `@FocusedValue` re-runs the declaring
+/// view once per frame of any presentation animation regardless of equality —
+/// see **Focus And Keyboard Coordination** in `Alveary/Views/AGENTS.md`.
 struct NewConversationAction: Equatable {
     let threadID: PersistentIdentifier
     let perform: @MainActor () -> Void

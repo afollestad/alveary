@@ -7,12 +7,12 @@ extension ContentView {
     @ToolbarContentBuilder
     var rootToolbarContent: some ToolbarContent {
         ToolbarItem(id: MainWindowToolbarItemID.header, placement: .navigation) {
-            MainPaneToolbarHeader(
+            MainPaneToolbarHeaderItem(
                 presentation: MainPaneHeaderPresentation(
                     selection: appState.selectedSidebarItem,
                     modelContext: uiModelContext
                 ),
-                onNewConversation: headerNewConversationAction
+                voiceInputLifecycleController: voiceInputLifecycleController
             )
             .padding(.leading, MainPaneToolbarLayout.leadingPadding)
         }

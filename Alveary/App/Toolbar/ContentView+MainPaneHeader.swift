@@ -65,6 +65,41 @@ struct MainPaneHeaderPresentation: Equatable {
     }
 }
 
+/// The toolbar item `ContentView` mounts: it owns the `newConversationAction` focused-value read
+/// and hands `MainPaneToolbarHeader` a plain closure.
+///
+/// Declared here, not on `ContentView`: focused-value re-resolution re-runs every declaring view
+/// once per frame of any presentation or removal animation, and on the root that re-evaluated the
+/// whole window scaffold each frame. This wrapper's body is one header construction — see
+/// **Focus And Keyboard Coordination** in `Alveary/Views/AGENTS.md`. The header itself stays a
+/// pure `onNewConversation:` consumer so snapshot tests can pin both button states directly.
+struct MainPaneToolbarHeaderItem: View {
+    let presentation: MainPaneHeaderPresentation
+    let voiceInputLifecycleController: VoiceInputLifecycleController
+
+    @FocusedValue(\.newConversationAction) private var newConversationAction
+
+    var body: some View {
+        MainPaneToolbarHeader(
+            presentation: presentation,
+            onNewConversation: onNewConversation
+        )
+    }
+
+    private var onNewConversation: (() -> Void)? {
+        guard let newConversationAction else {
+            return nil
+        }
+
+        return {
+            performAppNavigationIfModelPreparationModalAbsent(
+                lifecycleController: voiceInputLifecycleController,
+                operation: { newConversationAction() }
+            )
+        }
+    }
+}
+
 struct MainPaneToolbarHeader: View {
     private static let titleMaxWidth: CGFloat = 360
 
@@ -113,20 +148,5 @@ struct MainPaneToolbarHeader: View {
         .clipped()
         .accessibilityLabel(presentation.title.accessibilityLabel)
         .accessibilityAddTraits(.isHeader)
-    }
-}
-
-extension ContentView {
-    var headerNewConversationAction: (() -> Void)? {
-        guard let newConversationAction else {
-            return nil
-        }
-
-        return {
-            performAppNavigationIfModelPreparationModalAbsent(
-                lifecycleController: voiceInputLifecycleController,
-                operation: { newConversationAction() }
-            )
-        }
     }
 }
