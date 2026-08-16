@@ -2,22 +2,25 @@ import SwiftUI
 
 /// `Equatable` so a selection change repaints the two rows whose highlight moved rather
 /// than every visible row. `onSelect` is deliberately excluded: it is a fresh closure on
-/// every pass, and what it captures is a function of `summary`.
+/// every pass, and what it captures is a function of `model`.
+///
+/// Every string the row draws arrives precomputed on `PullRequestRowModel` — including the age
+/// and the accessibility label, which this view used to rebuild on each pass. `referenceDate` is
+/// consequently *not* an input here: the age it produces is, so the minute tick only invalidates
+/// rows whose displayed age actually moved.
 struct PullRequestRow: View, Equatable {
-    let summary: PullRequestSummary
-    let showsRepository: Bool
+    let model: PullRequestRowModel
     let isSelected: Bool
-    let referenceDate: Date
     let avatarLoader: GitHubAvatarLoader
     let onSelect: () -> Void
+
+    private var summary: PullRequestSummary { model.summary }
 
     // `nonisolated` because `View` puts the row on the main actor while `Equatable` is not;
     // every property compared is an immutable `Sendable` one, so the read is safe anywhere.
     nonisolated static func == (lhs: PullRequestRow, rhs: PullRequestRow) -> Bool {
-        lhs.summary == rhs.summary
-            && lhs.showsRepository == rhs.showsRepository
+        lhs.model == rhs.model
             && lhs.isSelected == rhs.isSelected
-            && lhs.referenceDate == rhs.referenceDate
             && lhs.avatarLoader === rhs.avatarLoader
     }
 
@@ -50,10 +53,11 @@ struct PullRequestRow: View, Equatable {
         .appSelectableRow(
             isSelected: isSelected,
             identity: summary.id,
+            showsListRowBackground: false,
             action: onSelect
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel(model.accessibilityLabel)
     }
 
     private var attributionLine: some View {
@@ -68,7 +72,7 @@ struct PullRequestRow: View, Equatable {
                     .lineLimit(1)
             }
 
-            if showsRepository {
+            if model.showsRepository {
                 Text(summary.repositoryNameWithOwner)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -84,7 +88,7 @@ struct PullRequestRow: View, Equatable {
 
     private var trailingCluster: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            Text(compactRelativeAge(from: summary.updatedAt, relativeTo: referenceDate))
+            Text(model.ageText)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
 
@@ -103,22 +107,6 @@ struct PullRequestRow: View, Equatable {
         }
         .font(.subheadline.weight(.medium))
         .monospacedDigit()
-    }
-
-    private var accessibilityLabel: String {
-        let age = compactRelativeAge(from: summary.updatedAt, relativeTo: referenceDate)
-        var parts = [
-            summary.status.accessibilityName,
-            AppMarkdownInlineLabel.plainText(from: summary.title, detectingFileMentions: false),
-            "by \(summary.authorLogin)"
-        ]
-        if showsRepository {
-            parts.append("in \(summary.repositoryNameWithOwner)")
-        }
-        parts.append("branch \(summary.headRefName)")
-        parts.append("updated \(age) ago")
-        parts.append("\(summary.additions) added, \(summary.deletions) deleted")
-        return parts.joined(separator: ", ")
     }
 }
 
@@ -156,6 +144,13 @@ enum PullRequestStatusGlyph {
         }
     }
 
+    /// Primer's merged purple, resolved from the asset catalog once rather than per row — the
+    /// system `.purple` reads neon against dark backgrounds. A named color stays dynamic, so the
+    /// cached value still resolves per appearance at draw time.
+    private static let mergedNSColor = NSColor(named: "PullRequestMergedColor") ?? .systemPurple
+
+    private static let mergedColor = Color(nsColor: mergedNSColor)
+
     /// GitHub's own status tinting; the accessibility name carries the state for
     /// anyone who cannot rely on color. Merged uses Primer's merged purple from the
     /// asset catalog — the system `.purple` reads neon against dark backgrounds.
@@ -168,7 +163,7 @@ enum PullRequestStatusGlyph {
         case .draft:
             return .secondaryLabelColor
         case .merged:
-            return NSColor(named: "PullRequestMergedColor") ?? .systemPurple
+            return mergedNSColor
         case .closed:
             return .systemRed
         }
@@ -181,7 +176,7 @@ enum PullRequestStatusGlyph {
         case .draft:
             return .secondary
         case .merged:
-            return Color("PullRequestMergedColor")
+            return mergedColor
         case .closed:
             return .red
         }

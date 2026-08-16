@@ -93,6 +93,10 @@ private struct SelectableRowModifier: ViewModifier {
     let showsHoverBackground: Bool
     let suppressesPressFeedback: Bool
     let suppressesAction: Bool
+    /// False for rows that draw their own card. `listRowBackground` only renders inside a `List`,
+    /// so outside one the fill is a view value built per row and then discarded — pure cost on
+    /// every `LazyVStack` materialization during a scroll.
+    let showsListRowBackground: Bool
     let action: () -> Void
 
     // Using a single `DragGesture(minimumDistance: 0)` for both press tracking and the
@@ -117,7 +121,7 @@ private struct SelectableRowModifier: ViewModifier {
                     action()
                 }
             }
-            .listRowBackground(selectionRowBackground)
+            .listRowBackground(showsListRowBackground ? selectionRowBackground : nil)
             .onDisappear {
                 resetTransientState()
             }
@@ -264,6 +268,12 @@ extension View {
     /// Combines `contentShape`, tap gesture with press feedback, accessibility
     /// selection traits, and `appSelectionRowBackground` into a single modifier
     /// so every selectable list row behaves consistently.
+    ///
+    /// - Parameter showsListRowBackground: Pass `false` from a row that draws its own card. The
+    ///   selection fill is published through `listRowBackground`, which renders only inside a
+    ///   `List`, so a `ScrollView`-hosted row otherwise builds it once per materialization and
+    ///   throws it away. Such rows reach press, hover, and pending-selection through
+    ///   `AppSelectableRowState` instead, which this modifier still publishes either way.
     func appSelectableRow(
         isSelected: Bool,
         identity: AnyHashable? = nil,
@@ -275,6 +285,7 @@ extension View {
         showsHoverBackground: Bool = false,
         suppressesPressFeedback: Bool = false,
         suppressesAction: Bool = false,
+        showsListRowBackground: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         modifier(SelectableRowModifier(
@@ -288,6 +299,7 @@ extension View {
             showsHoverBackground: showsHoverBackground,
             suppressesPressFeedback: suppressesPressFeedback,
             suppressesAction: suppressesAction,
+            showsListRowBackground: showsListRowBackground,
             action: action
         ))
     }

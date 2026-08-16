@@ -252,10 +252,15 @@ final class PullRequestsViewModel {
 
     /// Re-derives `items` from the loaded buckets. `items` keeps a private setter because this is
     /// the only way it may change — every write goes through `bucketStates` first.
+    ///
+    /// Also the one seam where avatars are prefetched, since it is the only place the row set can
+    /// change: warming here means the first flick through a freshly loaded list draws avatars
+    /// rather than letter placeholders, and rows already holding a cached URL are skipped.
     func rebuildItems() {
         items = PullRequestListMerge.merge(
             PullRequestInvolvementBucket.allCases.compactMap { bucketStates[$0]?.summaries }
         )
+        avatarLoader.prefetch(items.compactMap(\.authorAvatarURL))
     }
 
     /// Narrows every bucket's GitHub search to one status, persisting it as the next launch's

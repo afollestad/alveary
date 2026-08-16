@@ -81,9 +81,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             PullRequestsSectionedList(
-                sections: fixture.viewModel.visibleSections(for: .reviewing),
-                showsRepository: true,
-                referenceDate: fixture.viewModel.referenceDate,
+                items: fixture.viewModel.visibleListItems(for: .reviewing),
                 avatarLoader: fixture.viewModel.avatarLoader,
                 activeDetailID: nil,
                 onSelect: { _ in }

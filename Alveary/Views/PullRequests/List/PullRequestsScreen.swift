@@ -57,10 +57,8 @@ struct PullRequestsScreen: View {
         // Resolved once per body pass rather than inside the scroll content: that closure
         // re-runs on every geometry change, so the filter/sort/bucket pipeline used to run
         // again for each frame of the right pane's slide-in.
-        let sections = viewModel.visibleSections(for: viewModel.selectedFilter)
+        let items = viewModel.visibleListItems(for: viewModel.selectedFilter)
         let activeDetailID = viewModel.activeDetailIdentifier
-        let showsRepository = viewModel.showsRepositoryInRows
-        let referenceDate = viewModel.referenceDate
         let avatarLoader = viewModel.avatarLoader
         let canLoadMore = viewModel.canLoadMore(for: viewModel.selectedFilter)
         let isLoadingMore = viewModel.isLoadingMore
@@ -68,7 +66,7 @@ struct PullRequestsScreen: View {
             ScrollViewReader { scrollProxy in
                 ScrollView {
                     ZStack(alignment: .topLeading) {
-                        if sections.isEmpty {
+                        if items.isEmpty {
                             PullRequestsEmptyState(
                                 filter: viewModel.selectedFilter,
                                 hasActiveNarrowing: viewModel.hasActiveNarrowing
@@ -79,11 +77,9 @@ struct PullRequestsScreen: View {
                         VStack(alignment: .leading, spacing: 24) {
                             banners
 
-                            if !sections.isEmpty {
+                            if !items.isEmpty {
                                 PullRequestsSectionedList(
-                                    sections: sections,
-                                    showsRepository: showsRepository,
-                                    referenceDate: referenceDate,
+                                    items: items,
                                     avatarLoader: avatarLoader,
                                     activeDetailID: activeDetailID,
                                     onSelect: { summary in

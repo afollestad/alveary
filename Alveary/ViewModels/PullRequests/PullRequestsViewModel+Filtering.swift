@@ -154,6 +154,36 @@ extension PullRequestsViewModel {
         return sections
     }
 
+    /// The rendered column for the current tab: `visibleSections(for:)` flattened into one lazy
+    /// stack of headings and rows, each row carrying its own precomputed strings.
+    ///
+    /// Memoized on top of the sections rather than beside them, keyed on the two display inputs
+    /// the strings depend on. Both are read before the cache is consulted so `@Observable` still
+    /// registers them; a minute tick therefore rewrites ages without touching the shaped rows.
+    func visibleListItems(for tab: PullRequestsFilter) -> [PullRequestListItem] {
+        // Populates this tab's entry first, so the column below attaches to the sections it was
+        // built from.
+        let sections = visibleSections(for: tab)
+        let referenceDate = referenceDate
+        let showsRepository = showsRepositoryInRows
+        if let cached = visibleListCaches[tab]?.items,
+           cached.referenceDate == referenceDate,
+           cached.showsRepository == showsRepository {
+            return cached.items
+        }
+        let items = PullRequestListItem.flatten(
+            sections,
+            showsRepository: showsRepository,
+            referenceDate: referenceDate
+        )
+        visibleListCaches[tab]?.items = PullRequestListItemsCache(
+            referenceDate: referenceDate,
+            showsRepository: showsRepository,
+            items: items
+        )
+        return items
+    }
+
     private func buildSections(
         tab: PullRequestsFilter,
         rows: [PullRequestSummary]
@@ -257,11 +287,23 @@ extension PullRequestsViewModel {
 }
 
 /// The shaped list for one set of inputs. Sections fill in on first use, so a screen that
-/// only walks rows never pays for the bucketing.
+/// only walks rows never pays for the bucketing, and the rendered column fills in after them.
 struct VisibleListCache {
     let key: VisibleRowsCacheKey
     let rows: [PullRequestSummary]
     var sections: [PullRequestListSection]?
+    var items: PullRequestListItemsCache?
+}
+
+/// The flattened lazy column plus the two display inputs it was derived from.
+///
+/// Stamped rather than folded into `VisibleRowsCacheKey` on purpose: `referenceDate` moves every
+/// minute and `showsRepositoryInRows` on any repository-filter change, and keying the *rows* on
+/// either would redo the filter and sort pipeline for a change that only rewrites strings.
+struct PullRequestListItemsCache {
+    let referenceDate: Date
+    let showsRepository: Bool
+    let items: [PullRequestListItem]
 }
 
 /// Every input `visibleRows(for:)` reads. `items` compares by shared buffer while the list

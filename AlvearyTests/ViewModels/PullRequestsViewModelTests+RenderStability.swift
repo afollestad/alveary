@@ -72,10 +72,12 @@ extension PullRequestsViewModelTests {
             onSelect: @escaping () -> Void = {}
         ) -> PullRequestRow {
             PullRequestRow(
-                summary: makePullRequestSummary(number: 1),
-                showsRepository: true,
+                model: PullRequestRowModel(
+                    summary: makePullRequestSummary(number: 1),
+                    showsRepository: true,
+                    referenceDate: referenceDate
+                ),
                 isSelected: isSelected,
-                referenceDate: referenceDate,
                 avatarLoader: loader,
                 onSelect: onSelect
             )
@@ -83,7 +85,31 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(makeRow(onSelect: {}), makeRow(onSelect: { _ = loader }))
         XCTAssertNotEqual(makeRow(), makeRow(isSelected: true))
-        XCTAssertNotEqual(makeRow(), makeRow(referenceDate: date.addingTimeInterval(60)))
+        // A day on, so the rendered age moves; see the same-age case below.
+        XCTAssertNotEqual(makeRow(), makeRow(referenceDate: date.addingTimeInterval(86_400)))
+    }
+
+    /// `referenceDate` reaches the row only as the age string it produces, so the minute tick
+    /// invalidates the rows whose age actually moved rather than every visible row.
+    func testPullRequestRowStaysEqualWhenAReferenceDateTickLeavesTheAgeUnchanged() {
+        let loader = GitHubAvatarLoader()
+        let updatedAt = Date(timeIntervalSince1970: 1_000)
+        // Both land in the same whole-hour bucket, so `compactRelativeAge` returns the same text.
+        func makeRow(referenceDate: Date) -> PullRequestRow {
+            PullRequestRow(
+                model: PullRequestRowModel(
+                    summary: makePullRequestSummary(number: 1, updatedAt: updatedAt),
+                    showsRepository: true,
+                    referenceDate: referenceDate
+                ),
+                isSelected: false,
+                avatarLoader: loader,
+                onSelect: {}
+            )
+        }
+
+        let base = updatedAt.addingTimeInterval(3_600)
+        XCTAssertEqual(makeRow(referenceDate: base), makeRow(referenceDate: base.addingTimeInterval(60)))
     }
 
     /// The sectioned list skips rebuilding its rows during the right pane's slide-in, so
@@ -94,15 +120,14 @@ extension PullRequestsViewModelTests {
         let sections = [
             PullRequestListSection(id: "all", title: nil, rows: [makePullRequestSummary(number: 1)])
         ]
+        let items = PullRequestListItem.flatten(sections, showsRepository: true, referenceDate: date)
         func makeList(
-            sections: [PullRequestListSection] = sections,
+            items: [PullRequestListItem] = items,
             activeDetailID: PullRequestIdentifier? = nil,
             onSelect: @escaping (PullRequestSummary) -> Void = { _ in }
         ) -> PullRequestsSectionedList {
             PullRequestsSectionedList(
-                sections: sections,
-                showsRepository: true,
-                referenceDate: date,
+                items: items,
                 avatarLoader: loader,
                 activeDetailID: activeDetailID,
                 onSelect: onSelect
@@ -111,7 +136,33 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(makeList(), makeList(onSelect: { _ = $0 }))
         XCTAssertNotEqual(makeList(), makeList(activeDetailID: sections[0].rows[0].id))
-        XCTAssertNotEqual(makeList(), makeList(sections: []))
+        XCTAssertNotEqual(makeList(), makeList(items: []))
+    }
+
+    /// An untitled section contributes rows only; a titled one leads with its heading. Keyboard
+    /// order and the rendered column must stay the same walk of `visibleSections(for:)`.
+    func testFlattenEmitsHeadingsOnlyForTitledSections() {
+        let date = Date(timeIntervalSince1970: 1_000)
+        let items = PullRequestListItem.flatten(
+            [
+                PullRequestListSection(id: "flat", title: nil, rows: [makePullRequestSummary(number: 1)]),
+                PullRequestListSection(id: "titled", title: "Pending review", rows: [makePullRequestSummary(number: 2)])
+            ],
+            showsRepository: true,
+            referenceDate: date
+        )
+
+        XCTAssertEqual(items.count, 3)
+        guard case .row = items[0] else {
+            return XCTFail("An untitled section must contribute rows only")
+        }
+        guard case .header(_, let title) = items[1] else {
+            return XCTFail("A titled section must lead with its heading")
+        }
+        XCTAssertEqual(title, "Pending review")
+        guard case .row = items[2] else {
+            return XCTFail("The heading must be followed by its row")
+        }
     }
 
     // MARK: - Pane render boundary
@@ -336,6 +387,61 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.visibleSections(for: .authored), authoredSections)
         XCTAssertEqual(allSections.flatMap(\.rows).map(\.title), ["Alpha", "Beta"])
         XCTAssertEqual(authoredSections.flatMap(\.rows).map(\.title), ["Alpha"])
+    }
+
+    /// The rendered column memoizes on top of the sections, so a repeat read costs nothing.
+    func testVisibleListItemsCacheFillsAndIsServedAgain() async {
+        let service = StubPullRequestsService()
+        service.listResult = .success(
+            PullRequestListResult(summaries: [makePullRequestSummary(number: 1)], warnings: [])
+        )
+        let viewModel = makePullRequestsViewModel(service: service)
+        await viewModel.refresh()
+        viewModel.visibleListCaches = [:]
+
+        let items = viewModel.visibleListItems(for: .all)
+        XCTAssertEqual(viewModel.visibleListCaches[.all]?.items?.items, items)
+        XCTAssertEqual(viewModel.visibleListItems(for: .all), items)
+    }
+
+    /// The minute tick must rewrite ages without redoing the filter, sort, and bucket pipeline —
+    /// which is why `referenceDate` is stamped on the column rather than folded into the row key.
+    /// Counted through the stub's call count rather than wall-clock, like the transcript's
+    /// measurement guard.
+    func testAReferenceDateTickRefillsTheColumnWithoutReshapingTheRows() async {
+        var currentDate = Date(timeIntervalSince1970: 1_000)
+        let service = StubPullRequestsService()
+        service.listResult = .success(
+            PullRequestListResult(
+                summaries: [makePullRequestSummary(number: 1, updatedAt: currentDate)],
+                warnings: []
+            )
+        )
+        let viewModel = makePullRequestsViewModel(service: service, now: { currentDate })
+        await viewModel.refresh()
+
+        _ = viewModel.visibleListItems(for: .all)
+        let shapedRows = viewModel.visibleListCaches[.all]?.rows
+        let key = viewModel.visibleListCaches[.all]?.key
+
+        // Far enough that the rendered age moves from "now" to "1h".
+        currentDate = currentDate.addingTimeInterval(3_600)
+        viewModel.touchReferenceDate()
+        let refreshed = viewModel.visibleListItems(for: .all)
+
+        // The shaped rows are the identical array — the memo key never went stale — while the
+        // column was rebuilt against the new clock.
+        XCTAssertEqual(viewModel.visibleListCaches[.all]?.key, key)
+        XCTAssertEqual(viewModel.visibleListCaches[.all]?.rows, shapedRows)
+        XCTAssertEqual(viewModel.visibleListCaches[.all]?.items?.referenceDate, currentDate)
+        // The All tab is sectioned, so the column opens with a heading rather than a row.
+        let ages = refreshed.compactMap { item -> String? in
+            guard case .row(let model) = item else {
+                return nil
+            }
+            return model.ageText
+        }
+        XCTAssertEqual(ages, ["1h"])
     }
 
     /// A shared input changing has to invalidate every tab's entry, not just the visible one.

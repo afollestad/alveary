@@ -48,6 +48,88 @@ struct PullRequestListSection: Identifiable, Equatable {
     let rows: [PullRequestSummary]
 }
 
+/// One row's rendered text, derived once per `(summary, showsRepository, referenceDate)` instead
+/// of on every `body` pass.
+///
+/// `PullRequestRow` used to build all of this inline, which cost each visible row two
+/// `compactRelativeAge` calls, two segment-cache probes for the same title (render plus
+/// accessibility label), and a seven-part `joined` — eagerly, because `.accessibilityLabel(_:)`
+/// takes a `String`. Baking `ageText` in also narrows the minute tick: `referenceDate` is no
+/// longer a row input, so a tick now invalidates only the rows whose *displayed* age actually
+/// changed rather than every visible row.
+struct PullRequestRowModel: Identifiable, Equatable {
+    let summary: PullRequestSummary
+    /// Carried per row rather than passed alongside, so it lands in `==` with everything else the
+    /// row draws.
+    let showsRepository: Bool
+    let ageText: String
+    let accessibilityLabel: String
+
+    var id: PullRequestIdentifier { summary.id }
+
+    init(summary: PullRequestSummary, showsRepository: Bool, referenceDate: Date) {
+        self.summary = summary
+        self.showsRepository = showsRepository
+        let age = compactRelativeAge(from: summary.updatedAt, relativeTo: referenceDate)
+        ageText = age
+        var parts = [
+            summary.status.accessibilityName,
+            AppMarkdownInlineLabel.plainText(from: summary.title, detectingFileMentions: false),
+            "by \(summary.authorLogin)"
+        ]
+        if showsRepository {
+            parts.append("in \(summary.repositoryNameWithOwner)")
+        }
+        parts.append("branch \(summary.headRefName)")
+        parts.append("updated \(age) ago")
+        parts.append("\(summary.additions) added, \(summary.deletions) deleted")
+        accessibilityLabel = parts.joined(separator: ", ")
+    }
+}
+
+/// One entry in the list's single lazy column — headings and rows interleaved.
+///
+/// The screen renders one `LazyVStack` over these rather than a `LazyVStack` per section inside a
+/// non-lazy `VStack`: that outer stack had to size every section, including ones entirely below
+/// the fold, so laziness never spanned the whole scroll content.
+enum PullRequestListItem: Identifiable, Equatable {
+    case header(id: String, title: String)
+    case row(PullRequestRowModel)
+
+    var id: String {
+        switch self {
+        case .header(let id, _):
+            return "header:\(id)"
+        case .row(let model):
+            return "row:\(model.id.displayKey)"
+        }
+    }
+
+    /// Flattens shaped sections into that column. A section with no title contributes rows only —
+    /// the Authored tab stays flat and untitled.
+    static func flatten(
+        _ sections: [PullRequestListSection],
+        showsRepository: Bool,
+        referenceDate: Date
+    ) -> [PullRequestListItem] {
+        sections.flatMap { section -> [PullRequestListItem] in
+            let rows = section.rows.map { summary in
+                PullRequestListItem.row(
+                    PullRequestRowModel(
+                        summary: summary,
+                        showsRepository: showsRepository,
+                        referenceDate: referenceDate
+                    )
+                )
+            }
+            guard let title = section.title else {
+                return rows
+            }
+            return [.header(id: section.id, title: title)] + rows
+        }
+    }
+}
+
 /// Compact single-unit relative age: "now", "5m", "3h", "2d", "3w", "1mo", "2y".
 func compactRelativeAge(from date: Date, relativeTo now: Date) -> String {
     let seconds = max(0, now.timeIntervalSince(date))

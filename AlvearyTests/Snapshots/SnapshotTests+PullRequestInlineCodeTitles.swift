@@ -85,9 +85,11 @@ private enum PullRequestInlineCodeTitleSnapshots {
 
     static var sectionedList: some View {
         PullRequestsSectionedList(
-            sections: [PullRequestListSection(id: "inline-code", title: nil, rows: summaries)],
-            showsRepository: true,
-            referenceDate: referenceDate,
+            items: PullRequestListItem.flatten(
+                [PullRequestListSection(id: "inline-code", title: nil, rows: summaries)],
+                showsRepository: true,
+                referenceDate: referenceDate
+            ),
             avatarLoader: GitHubAvatarLoader(),
             activeDetailID: summaries[0].id,
             onSelect: { _ in }

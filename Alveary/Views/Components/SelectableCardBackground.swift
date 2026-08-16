@@ -70,7 +70,12 @@ extension View {
         focusID: String,
         action: @escaping () -> Void
     ) -> some View {
-        appSelectableRow(isSelected: isSelected, identity: focusID, action: action)
+        appSelectableRow(
+            isSelected: isSelected,
+            identity: focusID,
+            showsListRowBackground: false,
+            action: action
+        )
             .focusable(interactions: .activate)
             .focused(focus, equals: focusID)
             .onKeyPress(.return) {

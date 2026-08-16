@@ -50,6 +50,7 @@ Rules for adopting `KeepAliveTabContainer`; the container's own doc comment cove
 
 - **Keep the `.accessibilityAction { action() }` beside the gesture.** The row's press and click both run through a `DragGesture`, which VoiceOver cannot activate on its own.
 - Pass a stable row `identity` when rows can be inserted, removed, or reordered, so transient press/pending state cannot leak into recycled `List` rows.
+- **A row outside a `List` passes `showsListRowBackground: false`.** `listRowBackground` renders only inside one, so a `ScrollView`-hosted row otherwise builds a selection fill per materialization and discards it — pure cost on every lazy-stack scroll. Such rows draw their own card and read press/hover from `AppSelectableRowState` instead; `appSelectableCard(...)` and `appOutlinedCard(...)` already pass it.
 - Keep the background insets at their 10pt defaults unless a surface must compensate for host chrome to hit a measured visual edge.
 - **Fade a row through `appSelectionRowBackground(opacity:)`, not an outer `.opacity`.** The fill is published via `listRowBackground`, which SwiftUI hoists out of the row's own render tree, so an outer `.opacity` dims the row's content while leaving a selected row's accent fill fully opaque. Pass the same value to both.
 
