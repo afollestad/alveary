@@ -23,12 +23,24 @@ enum PullRequestOverviewSectionMetrics {
 /// A titled Overview section. The heading is the app's subtle section style,
 /// matching the sidebar's `SidebarSectionHeaderRow` and the pull-request list's
 /// own headings.
-struct PullRequestOverviewSection<Content: View>: View {
+///
+/// The `accessory` slot carries a control on the heading's trailing edge; the
+/// Description section's Edit menu is the one user, since the description has no
+/// author row of its own to ride. It lands on the pane's trailing glyph lane, so
+/// an interactive accessory owes `contextualPaneTrailingGlyphLane(controlWidth:)`
+/// at the call site — the slot cannot know the control's hit width.
+struct PullRequestOverviewSection<Content: View, Accessory: View>: View {
     private let title: String
     private let content: Content
+    private let accessory: Accessory
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(
+        _ title: String,
+        @ViewBuilder accessory: () -> Accessory,
+        @ViewBuilder content: () -> Content
+    ) {
         self.title = title
+        self.accessory = accessory()
         self.content = content()
     }
 
@@ -38,9 +50,22 @@ struct PullRequestOverviewSection<Content: View>: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.tertiary)
                 .accessibilityAddTraits(.isHeader)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // The accessory overlays the heading rather than sharing a stack with
+                // it, because a control's hit target is taller than the heading text
+                // and would otherwise pad the row — leaving a section's spacing to
+                // depend on whether the viewer happens to have an accessory at all.
+                // It draws nothing until hover, so the overhang costs nothing.
+                .overlay(alignment: .trailing) { accessory }
 
             content
         }
+    }
+}
+
+extension PullRequestOverviewSection where Accessory == EmptyView {
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.init(title, accessory: { EmptyView() }, content: content)
     }
 }
 
@@ -49,6 +74,12 @@ struct PullRequestOverviewSection<Content: View>: View {
 /// row text back on the heading's leading edge — and, just as importantly, to
 /// leave each row's trailing edge on the content column where the glyph lane
 /// expects it. Content that is not a row (an error banner) stays outside this.
+///
+/// The bottom pulls back by `rowVerticalInset` for the same reason: the last
+/// row's padding would otherwise stack onto `sectionSpacing`, so a section
+/// following rows sat ~6pt lower than one following the header, which carries no
+/// such inset. Only the bottom — pulling the top back too would tighten the
+/// heading onto its first row, and the gaps *within* a section are correct.
 struct PullRequestOverviewSectionRows<Content: View>: View {
     private let content: Content
 
@@ -61,6 +92,7 @@ struct PullRequestOverviewSectionRows<Content: View>: View {
             content
         }
         .padding(.horizontal, -PullRequestOverviewSectionMetrics.rowHorizontalInset)
+        .padding(.bottom, -PullRequestOverviewSectionMetrics.rowVerticalInset)
     }
 }
 

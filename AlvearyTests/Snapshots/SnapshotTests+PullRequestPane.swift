@@ -38,10 +38,10 @@ extension SnapshotTests {
         }
     }
 
-    /// The header pads its trailing edge so the diff stats and the description's
-    /// Edit menu share the timeline cards' menu column, which also keeps the menu
-    /// out of the scroll indicator's grab region. Without `viewerCanUpdate` the
-    /// menu does not render at all, so the other Overview baselines never see it.
+    /// The description's Edit menu rides its section heading's accessory slot, on
+    /// the pane's trailing glyph lane rather than right-aligned with the heading
+    /// text, which also keeps it out of the scroll indicator's grab region. Without
+    /// `viewerCanUpdate` it does not render, so no other Overview baseline sees it.
     func testPullRequestPaneOverviewEditableDescription() async throws {
         var session = PullRequestPaneSnapshots.loadedSession
         session.detail?.viewerCanUpdate = true

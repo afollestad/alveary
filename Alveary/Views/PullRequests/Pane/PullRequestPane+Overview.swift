@@ -64,10 +64,10 @@ struct PullRequestPaneOverview: View, Equatable {
                 }
 
                 if let detail = session.detail {
-                    // The description follows the author/branch header directly —
-                    // no divider between them — with Reviewers and Checks below it.
-                    description(detail: detail)
-
+                    // The short metadata sections come first so review state stays
+                    // above the fold whatever the description's length, leaving the
+                    // description to run into the timeline it precedes.
+                    //
                     // Local column reads, so this lands in the detail's first
                     // frame rather than reflowing the pane a second time.
                     PullRequestPaneLinkedOwners(identifier: detail.id)
@@ -79,6 +79,8 @@ struct PullRequestPaneOverview: View, Equatable {
                     if !detail.checks.isEmpty {
                         PullRequestPaneChecks(checks: detail.checks)
                     }
+
+                    descriptionSection(detail: detail)
 
                     // The conversation timeline follows the overview content.
                     if PullRequestPaneActivitySection.hasContent(
@@ -146,8 +148,8 @@ struct PullRequestPaneOverview: View, Equatable {
         }
         // No trailing pad: the header sits on the pane's own content column with
         // the close and Open-on-GitHub glyphs above it, not on the timeline cards'
-        // inset menu column. See the trailing-column bullets in this folder's
-        // `AGENTS.md` for what the Edit menu accepts by leaving that column.
+        // inset menu column. Its diff stats are text, so they right-align on that
+        // column rather than taking the trailing glyph lane.
     }
 
     private func metaRow(summary: PullRequestSummary) -> some View {
@@ -168,22 +170,9 @@ struct PullRequestPaneOverview: View, Equatable {
                 .lineLimit(1)
                 .truncationMode(.middle)
 
+            // Holds the branch label off the trailing edge, so its middle
+            // truncation kicks in before the text reaches the content column.
             Spacer(minLength: 8)
-
-            // The description has no author row of its own, so its Edit menu
-            // rides the meta line. Edit only: a description cannot be deleted.
-            if session.detail?.viewerCanUpdate == true, !session.isEditingDescription {
-                PullRequestCommentActionsMenu(
-                    onEdit: { viewModel.openDescriptionEditor() },
-                    onDelete: nil
-                )
-                // Off-card, so this one sits on the pane's trailing column and needs
-                // the lane: its glyph centers in the hover circle rather than
-                // trailing-aligning, so it no longer reaches the axis on its own.
-                .contextualPaneTrailingGlyphLane(
-                    controlWidth: PullRequestCommentActionsMenu.hitTargetSize.width
-                )
-            }
         }
         .font(.subheadline)
         .foregroundStyle(.secondary)
@@ -227,6 +216,28 @@ struct PullRequestPaneOverview: View, Equatable {
                     )
                 }
             }
+        }
+    }
+
+    /// The pull request body, last of the Overview's sections so it runs into the
+    /// timeline beneath it. Its Edit menu rides the heading because the description
+    /// has no author row of its own — edit only, since GitHub cannot delete one.
+    private func descriptionSection(detail: PullRequestDetail) -> some View {
+        PullRequestOverviewSection("Description") {
+            if detail.viewerCanUpdate, !session.isEditingDescription {
+                PullRequestCommentActionsMenu(
+                    onEdit: { viewModel.openDescriptionEditor() },
+                    onDelete: nil
+                )
+                // Off-card, so this one sits on the pane's trailing column and needs
+                // the lane: its glyph centers in the hover circle rather than
+                // trailing-aligning, so it no longer reaches the axis on its own.
+                .contextualPaneTrailingGlyphLane(
+                    controlWidth: PullRequestCommentActionsMenu.hitTargetSize.width
+                )
+            }
+        } content: {
+            description(detail: detail)
         }
     }
 

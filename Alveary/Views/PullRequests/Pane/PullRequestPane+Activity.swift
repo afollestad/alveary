@@ -191,11 +191,12 @@ private struct PullRequestActivityEntryView: View {
                 PullRequestTimestampLabel(date: date, referenceDate: viewModel.referenceDate)
             }
         }
-        // Bare rows sit between padded cards; extra breathing room keeps the
-        // 16pt stack rhythm from reading cramped around them. No horizontal
-        // padding: the 16pt icon slot then spans the same column as the
-        // Reviewers avatars above.
-        .padding(.vertical, 6)
+        // A little breathing room against the padded cards these sit between,
+        // but not the stack's full rhythm: this pads *both* edges, so a run of
+        // status changes — close, reopen, close — otherwise drifted 28pt apart
+        // while carrying one line of text each. No horizontal padding: the 16pt
+        // icon slot then spans the same column as the Reviewers avatars above.
+        .padding(.vertical, 2)
     }
 
     /// SF symbols size by font and vary in width while octicons are fixed
