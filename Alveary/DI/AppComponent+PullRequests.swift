@@ -40,7 +40,8 @@ extension AppComponent {
                 modelContext: modelContainer.mainContext,
                 pullRequestsService: pullRequestsService,
                 settingsService: settingsService,
-                summaryHandoff: pullRequestSummaryHandoff
+                summaryHandoff: pullRequestSummaryHandoff,
+                reviewProposalPreviewCache: pullRequestReviewProposalPreviewCache
             )
         }
     }
@@ -85,5 +86,15 @@ extension AppComponent {
 
     var pullRequestsListCache: PullRequestsListCache {
         return shared { PullRequestsListCache(fileURL: storageProfile.pullRequestsListCacheFileURL) }
+    }
+
+    /// App-scoped because propose time writes it and the transcript's proposal coordinator reads it;
+    /// two instances would leave the card loading from a cache nothing ever filled.
+    var pullRequestReviewProposalPreviewCache: PullRequestReviewProposalPreviewCache {
+        return shared {
+            PullRequestReviewProposalPreviewCache(
+                fileURL: storageProfile.reviewProposalPreviewCacheFileURL
+            )
+        }
     }
 }

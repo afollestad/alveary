@@ -47,6 +47,7 @@ struct ContentViewDependencies {
     let gitHubAttachmentImageURLResolver: GitHubAttachmentImageURLResolver
     let gitHubAvatarLoader: GitHubAvatarLoader
     let pullRequestsListCache: PullRequestsListCache
+    let pullRequestReviewProposalPreviewCache: PullRequestReviewProposalPreviewCache
     let voiceInputService: any VoiceInputService
     let voiceInputLifecycleController: VoiceInputLifecycleController
     let modelContainer: ModelContainer
@@ -96,6 +97,7 @@ struct ContentViewDependencies {
             gitHubAttachmentImageURLResolver: component.gitHubAttachmentImageURLResolver,
             gitHubAvatarLoader: component.gitHubAvatarLoader,
             pullRequestsListCache: component.pullRequestsListCache,
+            pullRequestReviewProposalPreviewCache: component.pullRequestReviewProposalPreviewCache,
             voiceInputService: component.voiceInputService,
             voiceInputLifecycleController: component.voiceInputLifecycleController,
             modelContainer: component.modelContainer

@@ -190,6 +190,8 @@ final class PullRequestHostToolFixture {
     let project: Project
     let thread: AgentThread
     let conversation: Conversation
+    /// A cache file per fixture, so tests cannot read each other's seeded entries.
+    let previewCacheURL: URL
     let processToken = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE") ?? UUID()
     static let proposalID = "proposal-1"
     static let identifier = PullRequestIdentifier(nameWithOwner: "octo/alpha", number: 7)
@@ -230,15 +232,49 @@ final class PullRequestHostToolFixture {
         settingsService = settings
         let handoff = PullRequestSummaryHandoff(now: now)
         summaryHandoff = handoff
+        previewCacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ReviewProposalPreviewCacheTests", isDirectory: true)
+            .appendingPathComponent("\(UUID().uuidString).json")
+        try FileManager.default.createDirectory(
+            at: previewCacheURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         service = PullRequestHostToolService(
             modelContext: context,
             pullRequestsService: stub,
             settingsService: settings,
             summaryHandoff: handoff,
+            reviewProposalPreviewCache: PullRequestReviewProposalPreviewCache(fileURL: previewCacheURL),
             notificationCenter: notificationCenter,
             now: now,
             makeProposalID: { Self.proposalID }
         )
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: previewCacheURL)
+    }
+
+    /// Polls the seeded cache file, which propose time writes from its own detached task.
+    func waitForSeededPreviewEntry(
+        timeout: TimeInterval = 2
+    ) async throws -> PullRequestReviewProposalPreviewCache.Entry {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let data = try? Data(contentsOf: previewCacheURL),
+               let entries = try? decoder.decode(
+                   [String: PullRequestReviewProposalPreviewCache.Entry].self,
+                   from: data
+               ),
+               let entry = entries[Self.proposalID] {
+                return entry
+            }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail("propose time never seeded the preview cache")
+        throw CocoaError(.fileNoSuchFile)
     }
 
     func agentContext(

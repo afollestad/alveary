@@ -13,8 +13,9 @@ enum PullRequestReviewProposalPreviewState: Equatable {
 /// the pull request pane remains where the whole diff is read.
 struct PullRequestReviewProposalPreview: Equatable {
     /// A transcript card cannot scroll, so a review spanning many files shows its first few and
-    /// sends the rest to the pull request pane.
-    static let maximumFiles = 5
+    /// sends the rest to the pull request pane. Shared with propose time, which seeds the preview
+    /// cache and has to cap it identically or the card would re-flow when the refresh landed.
+    static let maximumFiles = ReviewProposalDiffNarrowing.maximumFiles
 
     /// Hunk-filtered copies of the files carrying comments — the proposal's staged ones and any
     /// pending draft the user already holds on GitHub.
@@ -35,41 +36,91 @@ struct PullRequestReviewProposalPreview: Equatable {
     }
 }
 
+/// A preview load's two results: what the card renders now, and what the cache keeps for next time.
+///
+/// The cached files are narrowed to the proposal's *own* staged comments rather than to everything
+/// the card drew. The viewer's GitHub-side draft threads are server state, and a cached paint that
+/// reproduced them would show a draft that may since have been submitted or discarded — so the
+/// entry stays "the hunks this proposal's comments sit on" whatever else the refresh folded in.
+struct PullRequestReviewProposalPreviewLoad {
+    let state: PullRequestReviewProposalPreviewState
+    /// Nil when the load failed, so a failure never overwrites a good entry.
+    let cacheEntry: PullRequestReviewProposalPreviewCache.Entry?
+}
+
 extension PullRequestReviewProposalCoordinator {
     /// Context lines kept around a commented hunk are the hunk's own — whole hunks only, so line
     /// numbers stay meaningful.
     func loadPreview(
         for presentation: PullRequestReviewProposalPresentation
-    ) async -> PullRequestReviewProposalPreviewState {
+    ) async -> PullRequestReviewProposalPreviewLoad {
         do {
             let detail = try await service.fetchDetail(presentation.identifier)
             let pendingThreads = detail.reviewThreads.filter { $0.isPending && $0.line != nil }
             let viewerIsAuthor = detail.viewerLogin.map { $0 == detail.authorLogin } ?? false
             guard !pendingThreads.isEmpty || !presentation.comments.isEmpty else {
                 // A summary-only review has no comments to show; the card renders its body alone.
-                return .loaded(
-                    PullRequestReviewProposalPreview(
+                return PullRequestReviewProposalPreviewLoad(
+                    state: .loaded(
+                        PullRequestReviewProposalPreview(
+                            files: [],
+                            annotations: DiffCommentAnnotations(),
+                            pendingCommentCount: 0,
+                            proposedCommentCount: 0,
+                            hiddenFileCount: 0,
+                            viewerIsAuthor: viewerIsAuthor
+                        )
+                    ),
+                    cacheEntry: Self.entry(
+                        for: presentation,
+                        detail: detail,
                         files: [],
-                        annotations: DiffCommentAnnotations(),
-                        pendingCommentCount: 0,
-                        proposedCommentCount: 0,
                         hiddenFileCount: 0,
-                        viewerIsAuthor: viewerIsAuthor
+                        fetchedAt: currentDate
                     )
                 )
             }
-            let diffText = try await service.fetchDiff(presentation.identifier)
-            let annotations = Self.annotations(
-                threads: pendingThreads,
-                staged: presentation.comments,
-                detail: detail
+            let parsed = DiffParser.parse(try await service.fetchDiff(presentation.identifier))
+            return commentedLoad(
+                for: presentation,
+                detail: detail,
+                pendingThreads: pendingThreads,
+                parsed: parsed,
+                viewerIsAuthor: viewerIsAuthor
             )
-            let files = Self.commentedFiles(
-                in: DiffParser.parse(diffText),
-                anchors: Array(annotations.threads.keys)
+        } catch {
+            return PullRequestReviewProposalPreviewLoad(
+                state: .failed(Self.previewMessage(for: error)),
+                cacheEntry: nil
             )
-            let shown = Array(files.prefix(PullRequestReviewProposalPreview.maximumFiles))
-            return .loaded(
+        }
+    }
+
+    /// Shapes a parsed diff into what the card draws and what the cache keeps.
+    ///
+    /// The two narrowings differ on purpose: the card shows every commented hunk, the entry only
+    /// the proposal's own — see `PullRequestReviewProposalPreviewLoad`.
+    private func commentedLoad(
+        for presentation: PullRequestReviewProposalPresentation,
+        detail: PullRequestDetail,
+        pendingThreads: [PullRequestReviewThread],
+        parsed: [DiffFile],
+        viewerIsAuthor: Bool
+    ) -> PullRequestReviewProposalPreviewLoad {
+        let annotations = Self.annotations(
+            threads: pendingThreads,
+            staged: presentation.comments,
+            detail: detail
+        )
+        let files = Self.commentedFiles(in: parsed, anchors: Array(annotations.threads.keys))
+        let shown = Array(files.prefix(PullRequestReviewProposalPreview.maximumFiles))
+        let stagedFiles = ReviewProposalDiffNarrowing.narrowed(
+            files: parsed,
+            linesByPath: ReviewProposalDiffNarrowing.linesByPath(for: presentation.comments)
+        )
+        let cachedFiles = Array(stagedFiles.prefix(PullRequestReviewProposalPreview.maximumFiles))
+        return PullRequestReviewProposalPreviewLoad(
+            state: .loaded(
                 PullRequestReviewProposalPreview(
                     files: shown,
                     annotations: annotations,
@@ -78,14 +129,48 @@ extension PullRequestReviewProposalCoordinator {
                     hiddenFileCount: files.count - shown.count,
                     viewerIsAuthor: viewerIsAuthor
                 )
+            ),
+            cacheEntry: Self.entry(
+                for: presentation,
+                detail: detail,
+                files: cachedFiles,
+                hiddenFileCount: stagedFiles.count - cachedFiles.count,
+                fetchedAt: currentDate
             )
-        } catch {
-            return .failed(Self.previewMessage(for: error))
-        }
+        )
     }
 }
 
 extension PullRequestReviewProposalCoordinator {
+    /// The card's preview rebuilt from cached hunks, with no network at all.
+    ///
+    /// The comments come from the live envelope rather than from the entry, and the hunks are
+    /// re-narrowed against them, so a comment staged or removed since the entry was written is
+    /// reflected on the first paint. `pendingCommentCount` is the envelope's snapshot because the
+    /// viewer's own GitHub-side draft threads are deliberately not cached; the refresh running
+    /// behind this paint is what folds the real ones in.
+    static func preview(
+        from entry: PullRequestReviewProposalPreviewCache.Entry,
+        presentation: PullRequestReviewProposalPresentation
+    ) -> PullRequestReviewProposalPreview {
+        var annotations = DiffCommentAnnotations()
+        annotations.allowsComposing = false
+        appendStagedComments(
+            presentation.comments,
+            to: &annotations,
+            viewerLogin: entry.viewerLogin,
+            viewerAvatarURL: entry.viewerAvatarURL
+        )
+        return PullRequestReviewProposalPreview(
+            files: commentedFiles(in: entry.files, anchors: Array(annotations.threads.keys)),
+            annotations: annotations,
+            pendingCommentCount: presentation.pendingCommentCount,
+            proposedCommentCount: presentation.comments.count,
+            hiddenFileCount: entry.hiddenFileCount,
+            viewerIsAuthor: entry.viewerIsAuthor
+        )
+    }
+
     /// The loaded preview with one staged comment pruned out, so removing a comment costs no
     /// network. Removal only ever subtracts, so the already-loaded preview can be narrowed in
     /// place — refetching would cost a `fetchDetail` plus `fetchDiff` round trip and a loading
@@ -236,33 +321,31 @@ private extension PullRequestReviewProposalCoordinator {
         in files: [DiffFile],
         anchors: [DiffCommentAnchor]
     ) -> [DiffFile] {
-        var anchorsByPath: [String: Set<Int>] = [:]
-        for anchor in anchors {
-            anchorsByPath[anchor.path, default: []].insert(anchor.line)
-        }
-        return files.compactMap { file in
-            guard let anchors = anchorsByPath[file.path] else {
-                return nil
+        ReviewProposalDiffNarrowing.narrowed(
+            files: files,
+            linesByPath: anchors.reduce(into: [String: Set<Int>]()) { result, anchor in
+                result[anchor.path, default: []].insert(anchor.line)
             }
-            let hunks = file.hunks.filter { hunk in
-                hunk.lines.contains { line in
-                    // A comment anchors on whichever side's number it was written against, so
-                    // either side matching keeps the hunk.
-                    line.newLineNumber.map(anchors.contains) == true
-                        || line.oldLineNumber.map(anchors.contains) == true
-                }
-            }
-            guard !hunks.isEmpty else {
-                return nil
-            }
-            return DiffFile(
-                oldPath: file.oldPath,
-                newPath: file.newPath,
-                isBinary: file.isBinary,
-                isRenamed: file.isRenamed,
-                hunks: hunks
-            )
-        }
+        )
+    }
+
+    /// What the cache keeps for a proposal, given the diff this load parsed.
+    static func entry(
+        for presentation: PullRequestReviewProposalPresentation,
+        detail: PullRequestDetail,
+        files: [DiffFile],
+        hiddenFileCount: Int,
+        fetchedAt: Date
+    ) -> PullRequestReviewProposalPreviewCache.Entry {
+        PullRequestReviewProposalPreviewCache.Entry(
+            identifier: presentation.identifier,
+            files: files,
+            hiddenFileCount: hiddenFileCount,
+            viewerLogin: detail.viewerLogin,
+            viewerAvatarURL: detail.viewerAvatarURL,
+            viewerIsAuthor: detail.viewerLogin.map { $0 == detail.authorLogin } ?? false,
+            fetchedAt: fetchedAt
+        )
     }
 
     /// Inert annotations: the card renders threads read-only, with no composer and no interaction,

@@ -5,6 +5,49 @@ import XCTest
 @testable import Alveary
 
 extension PullRequestHostToolServiceTests {
+    /// The diff this call already parsed to validate anchors is exactly what the transcript card
+    /// draws, so it is handed over rather than refetched behind a loading caption.
+    func testProposingSeedsTheCardsPreviewFromTheDiffItAlreadyParsed() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+        fixture.stubAlphaDiff()
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: PullRequestHostToolFixture.reviewProposalArguments(bodies: ["First"])
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        let entry = try await fixture.waitForSeededPreviewEntry()
+        XCTAssertEqual(entry.identifier, identifier)
+        XCTAssertEqual(entry.files.map(\.path), ["Sources/Alpha.swift"])
+        XCTAssertEqual(entry.viewerLogin, "viewer")
+        // Seeding must not cost a round trip beyond the two validation already made.
+        XCTAssertEqual(fixture.pullRequests.detailCallCount, 1)
+        XCTAssertEqual(fixture.pullRequests.diffCallCount, 1)
+    }
+
+    /// A summary-only review publishes no comments, so its card can say so without loading at all.
+    func testProposingASummaryOnlyReviewSeedsAnEmptyPreview() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+
+        let result = await fixture.handle(PullRequestHostToolCatalog.proposeReviewToolName)
+
+        XCTAssertFalse(result.isError, result.text)
+        let entry = try await fixture.waitForSeededPreviewEntry()
+        XCTAssertTrue(entry.files.isEmpty)
+        XCTAssertEqual(entry.hiddenFileCount, 0)
+        // No comments means no diff was fetched, and none was needed.
+        XCTAssertEqual(fixture.pullRequests.diffCallCount, 0)
+    }
+
     func testProposingAReviewSubmitsNothingAndOpensAConfirmation() async throws {
         let fixture = try PullRequestHostToolFixture()
         let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)

@@ -209,6 +209,10 @@ struct AppStorageProfile: @unchecked Sendable {
         appSupportDirectory.appendingPathComponent("PullRequestsListCache.json")
     }
 
+    var reviewProposalPreviewCacheFileURL: URL {
+        appSupportDirectory.appendingPathComponent("ReviewProposalPreviewCache.json")
+    }
+
     var contextWindowCacheFileURL: URL {
         applicationSupportBaseURL
             .appendingPathComponent("Alveary", isDirectory: true)

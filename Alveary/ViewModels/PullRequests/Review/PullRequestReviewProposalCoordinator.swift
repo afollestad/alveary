@@ -2,35 +2,6 @@ import Foundation
 import Observation
 import SwiftData
 
-/// What a review-proposal card renders and acts on, resolved from the stored envelope.
-struct PullRequestReviewProposalPresentation: Identifiable, Equatable {
-    let id: String
-    let sourceConversationID: String
-    let identifier: PullRequestIdentifier
-    let title: String
-    /// What the model asked for. The user may confirm a different verdict.
-    let proposedEvent: PullRequestReviewEvent
-    let body: String?
-    /// The review's staged inline comments, held in the envelope until the user confirms.
-    let comments: [PullRequestReviewProposalRecord.Comment]
-    /// The user's own already-pending draft comments on GitHub, distinct from `comments`.
-    let pendingCommentCount: Int
-    let createdAt: Date
-
-    var displayKey: String {
-        identifier.displayKey
-    }
-}
-
-/// Confirm-time failures of the proposal flow itself, beside the service's own errors.
-enum PullRequestReviewProposalSubmissionError: LocalizedError {
-    case missingNodeID
-
-    var errorDescription: String? {
-        "Alveary could not read the pull request's GitHub node ID to stage the review's comments. Try again."
-    }
-}
-
 /// Owns the pending review proposals a transcript can confirm, and performs the submission.
 ///
 /// Unlike `ScheduledTaskProposalQueueCoordinator`, confirming here awaits GitHub, so the card needs
@@ -42,7 +13,12 @@ final class PullRequestReviewProposalCoordinator {
     @ObservationIgnored private let pullRequestsService: any PullRequestsService
     @ObservationIgnored private let notificationCenter: NotificationCenter
     @ObservationIgnored private let now: () -> Date
+    /// Hunks a card can paint before any network runs, seeded at propose time. Optional because
+    /// tests build the coordinator without one, in which case every card loads as it always did.
+    @ObservationIgnored let previewCache: PullRequestReviewProposalPreviewCache?
     @ObservationIgnored private var observationTask: Task<Void, Never>?
+    @ObservationIgnored private var remoteChangeTask: Task<Void, Never>?
+    @ObservationIgnored var previewCacheTask: Task<Void, Never>?
     /// Handed to the transcript so a card's comment avatars come from the same cache the
     /// pull-request pane fills. Optional because tests build the coordinator without one.
     @ObservationIgnored let avatarLoader: GitHubAvatarLoader?
@@ -59,23 +35,36 @@ final class PullRequestReviewProposalCoordinator {
 
     private(set) var submittingProposalIDs: Set<String> = []
     private(set) var errorMessages: [String: String] = [:]
-    /// The diff-with-comments preview each card renders, loaded on demand.
-    private(set) var previews: [String: PullRequestReviewProposalPreviewState] = [:]
+    /// The diff-with-comments preview each card renders, painted from cache and refreshed behind.
+    ///
+    /// Internal rather than `private(set)` because `+PreviewCache.swift` owns every transition it
+    /// goes through; Swift cannot scope a setter to two files. Nothing outside this type's own
+    /// files may write it.
+    var previews: [String: PullRequestReviewProposalPreviewState] = [:]
     /// The verdict the card's picker holds. The user may submit something other than what the
     /// model proposed, so this lives here rather than in the AppKit row, which is rebuilt freely.
     private(set) var selectedEvents: [String: PullRequestReviewEvent] = [:]
-    @ObservationIgnored private var previewTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored var previewTasks: [String: Task<Void, Never>] = [:]
+    /// Proposals whose diff has been refreshed from GitHub this session.
+    ///
+    /// Separate from `previews` because a cache paint fills that dictionary without having talked
+    /// to GitHub; gating `ensurePreview` on `previews[id] == nil` would read a painted card as an
+    /// already-refreshed one and suppress the refresh forever. Whoever invalidates a preview clears
+    /// this too, or the reload it wants never runs.
+    @ObservationIgnored var refreshedProposalIDs: Set<String> = []
 
     init(
         modelContext: ModelContext,
         pullRequestsService: any PullRequestsService,
         avatarLoader: GitHubAvatarLoader? = nil,
+        previewCache: PullRequestReviewProposalPreviewCache? = nil,
         notificationCenter: NotificationCenter = .default,
         now: @escaping () -> Date = Date.init
     ) {
         self.modelContext = modelContext
         self.pullRequestsService = pullRequestsService
         self.avatarLoader = avatarLoader
+        self.previewCache = previewCache
         self.notificationCenter = notificationCenter
         self.now = now
         reload()
@@ -84,9 +73,24 @@ final class PullRequestReviewProposalCoordinator {
 
     deinit {
         observationTask?.cancel()
+        remoteChangeTask?.cancel()
+        previewCacheTask?.cancel()
         for task in previewTasks.values {
             task.cancel()
         }
+    }
+
+    /// The extensions in this file's companions cannot reach `now`, and a preview entry has to be
+    /// stamped where it is built. Mirrors the `service` accessor below.
+    var currentDate: Date {
+        now()
+    }
+
+    /// The lightweight signal for state only the card renders — picked verdict, preview,
+    /// submitting, errors. The lifecycle notification is deliberately not reused here: its
+    /// transcript observer also rebuilds chat items, which a picker click must not pay for.
+    func notifyChanged() {
+        notificationCenter.post(name: .reviewProposalCardStateChanged, object: self)
     }
 
     func presentation(forProposalID proposalID: String) -> PullRequestReviewProposalPresentation? {
@@ -123,10 +127,20 @@ final class PullRequestReviewProposalCoordinator {
         previews = previews.filter { liveIDs.contains($0.key) }
         errorMessages = errorMessages.filter { liveIDs.contains($0.key) }
         selectedEvents = selectedEvents.filter { liveIDs.contains($0.key) }
+        refreshedProposalIDs.formIntersection(liveIDs)
         for (proposalID, task) in previewTasks where !liveIDs.contains(proposalID) {
             task.cancel()
             previewTasks[proposalID] = nil
         }
+        // A resolved proposal's hunks would otherwise outlive it on disk.
+        if let previewCache {
+            Task {
+                await previewCache.prune(keepingProposalIDs: liveIDs)
+            }
+        }
+        // After the prune task is spawned, not before: the paint skips entries with no live
+        // presentation either way, but this ordering keeps a re-read from resurrecting one.
+        loadCachedPreviews()
     }
 
     /// Submits the review the user confirmed. `event` is what the card's verdict picker holds,
@@ -289,43 +303,10 @@ final class PullRequestReviewProposalCoordinator {
         // Unlike a removal, this cannot narrow the loaded preview in place: removal only subtracts,
         // while an addition may need a file or hunk the preview deliberately dropped. Invalidate
         // and let `ensurePreview` reload — the user is looking at the pane, so the reload is unseen.
-        previews[proposalID] = nil
-        previewTasks[proposalID]?.cancel()
-        previewTasks[proposalID] = nil
+        invalidatePreview(proposalID: proposalID)
         errorMessages[proposalID] = nil
         notifyChanged()
         return true
-    }
-
-    /// Loads the card's diff preview once per proposal. The card is confirmable without it, so a
-    /// failure is reported in place rather than blocking the decision.
-    func ensurePreview(proposalID: String) {
-        guard previews[proposalID] == nil,
-              previewTasks[proposalID] == nil,
-              let presentation = presentations[proposalID] else {
-            return
-        }
-        // The transcript calls this while resolving card state mid-render, so the observable
-        // `.loading` write waits for the task — an absent preview already renders as loading.
-        //
-        // Whoever cancels this task also clears its handle, and a cancelled run touches neither:
-        // `addStagedComment` cancels an in-flight load, so a task that cleared the slot on its way
-        // out would clobber the handle of the reload that replaced it.
-        previewTasks[proposalID] = Task { @MainActor [weak self] in
-            guard let self, !Task.isCancelled else {
-                return
-            }
-            previews[proposalID] = .loading
-            let state = await loadPreview(for: presentation)
-            guard !Task.isCancelled, presentations[proposalID] != nil else {
-                return
-            }
-            previewTasks[proposalID] = nil
-            previews[proposalID] = state
-            // The loaded diff changes the card's height and body; without the notification the
-            // transcript would keep rendering the loading state until something else invalidates.
-            notifyChanged()
-        }
     }
 
     func preview(forProposalID proposalID: String) -> PullRequestReviewProposalPreviewState? {
@@ -455,13 +436,6 @@ private extension PullRequestReviewProposalCoordinator {
         }
     }
 
-    /// The lightweight signal for state only the card renders — picked verdict, preview,
-    /// submitting, errors. The lifecycle notification is deliberately not reused here: its
-    /// transcript observer also rebuilds chat items, which a picker click must not pay for.
-    func notifyChanged() {
-        notificationCenter.post(name: .reviewProposalCardStateChanged, object: self)
-    }
-
     static func message(for error: Error) -> String {
         guard let serviceError = error as? PullRequestsServiceError else {
             return error.localizedDescription
@@ -477,6 +451,15 @@ private extension PullRequestReviewProposalCoordinator {
                     return
                 }
                 self?.reload()
+            }
+        }
+        let remoteChanges = notificationCenter.notifications(named: .pullRequestChangedOnGitHub)
+        remoteChangeTask = Task { @MainActor [weak self] in
+            for await notification in remoteChanges {
+                guard !Task.isCancelled else {
+                    return
+                }
+                self?.invalidatePreviews(for: notification)
             }
         }
     }

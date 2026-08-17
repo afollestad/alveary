@@ -26,7 +26,8 @@ extension PullRequestHostToolService {
             return replayedResult(receipt: receipt, fields: Self.echoFields(request))
         }
 
-        let detail = try await validatedDetail(for: request)
+        let target = try await validatedDetail(for: request)
+        let detail = target.detail
 
         if let existing = try existingProposal(on: source.conversation) {
             if let result = try resolvedAgainstExisting(
@@ -46,6 +47,11 @@ extension PullRequestHostToolService {
             requestID: requestID,
             providerID: context.providerId.rawValue
         )
+        // Seeded — and awaited — before the envelope is stored: `pendingResult` posts the
+        // lifecycle notification whose reload re-reads the cache, so the entry has to be on disk
+        // by then or the proposing session's own card misses it and loads over the network. A
+        // store that fails below leaves an orphan entry, which the next reload prunes.
+        await seedPreviewCache(record: record, target: target, at: identity.requestDate)
         return try pendingResult(
             source: source,
             identity: identity,
@@ -57,21 +63,77 @@ extension PullRequestHostToolService {
 }
 
 private extension PullRequestHostToolService {
+    /// The validated pull request, plus the diff the anchor check parsed.
+    ///
+    /// The diff is carried out rather than discarded because the transcript card needs exactly
+    /// these hunks, and refetching them there costs a second `gh pr diff` and a loading caption for
+    /// a diff this call held moments earlier.
+    struct ValidatedProposalTarget {
+        let detail: PullRequestDetail
+        /// Nil when the request staged no comments, so no diff was fetched.
+        let diffFiles: [DiffFile]?
+    }
+
     /// Fetches the pull request, applies the pane's own submission rules, and checks every staged
     /// comment's anchor against the live diff — all at propose time, so a proposal the user
     /// confirms cannot fail on a precondition the model could have seen.
     func validatedDetail(
         for request: PullRequestHostToolReviewProposalRequest
-    ) async throws -> PullRequestDetail {
+    ) async throws -> ValidatedProposalTarget {
         let detail = try await fetchDetail(request.identifier)
         try Self.validate(request, against: detail)
-        if !request.comments.isEmpty {
-            try Self.validateAnchors(
-                request.comments,
-                against: DiffParser.parse(try await fetchDiff(request.identifier))
-            )
+        guard !request.comments.isEmpty else {
+            return ValidatedProposalTarget(detail: detail, diffFiles: nil)
         }
-        return detail
+        let diffFiles = DiffParser.parse(try await fetchDiff(request.identifier))
+        try Self.validateAnchors(request.comments, against: diffFiles)
+        return ValidatedProposalTarget(detail: detail, diffFiles: diffFiles)
+    }
+
+    /// Hands the transcript card the hunks this call already parsed, so it paints its comments on
+    /// first appearance instead of refetching the same diff behind a loading caption.
+    ///
+    /// Narrowed through `ReviewProposalDiffNarrowing` because the card's own refresh narrows the
+    /// same way; a seeded entry that disagreed would make the card re-flow when the refresh landed.
+    /// Best-effort throughout — a cache that never fills only costs the card its usual load.
+    func seedPreviewCache(
+        record: PullRequestReviewProposalRecord,
+        target: ValidatedProposalTarget,
+        at date: Date
+    ) async {
+        guard let cache = reviewProposalPreviewCache,
+              let identifier = record.identifier else {
+            return
+        }
+        let files: [DiffFile]
+        let hiddenFileCount: Int
+        if let diffFiles = target.diffFiles {
+            let narrowed = ReviewProposalDiffNarrowing.narrowed(
+                files: diffFiles,
+                linesByPath: ReviewProposalDiffNarrowing.linesByPath(for: record.stagedComments)
+            )
+            files = Array(narrowed.prefix(ReviewProposalDiffNarrowing.maximumFiles))
+            hiddenFileCount = narrowed.count - files.count
+        } else {
+            // No staged comments. Seeding empty is only right when the user holds no draft of their
+            // own either, because those threads are server state this call never fetched — the card
+            // would paint "summary only" over comments the refresh is about to reveal.
+            guard target.detail.pendingCommentCount == 0 else {
+                return
+            }
+            files = []
+            hiddenFileCount = 0
+        }
+        let entry = PullRequestReviewProposalPreviewCache.Entry(
+            identifier: identifier,
+            files: files,
+            hiddenFileCount: hiddenFileCount,
+            viewerLogin: target.detail.viewerLogin,
+            viewerAvatarURL: target.detail.viewerAvatarURL,
+            viewerIsAuthor: target.detail.viewerLogin.map { $0 == target.detail.authorLogin } ?? false,
+            fetchedAt: date
+        )
+        await cache.save(entry, forProposalID: record.id)
     }
 
     /// The stored envelope: everything the card renders and the confirmed submission publishes,

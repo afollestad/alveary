@@ -31,3 +31,4 @@ App-scoped pull-request services that are neither the tool surface nor the clien
 ### Review Proposal Outcomes
 
 - `PullRequestReviewProposalOutcomeRecorder` writes the hidden marker that resolves a proposal card, mirroring scheduling's. `Alveary/Services/PullRequests/HostTools/AGENTS.md` owns proposing, `Alveary/ViewModels/PullRequests/Review/AGENTS.md` owns confirming and the clear-then-mark ordering this participates in.
+- `PullRequestReviewProposalPreviewCache` persists a proposal's narrowed hunks so its card paints without a round trip, on the paint-then-refresh terms `Alveary/Services/PullRequests/GitHub/AGENTS.md` states for `PullRequestsListCache`. It lives here rather than under `GitHub/` because propose time writes it, and `ReviewProposalDiffNarrowing` beside it is the one narrowing both that seed and the card's refresh run through.

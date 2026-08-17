@@ -351,6 +351,13 @@ private extension AppKitReviewProposalWidgetView {
         }
     }
 
+    /// Only failures the card itself produced. A refused call's reason is *not* here: the shell
+    /// already gives it the detail line, which `HostToolWidgetSummary.detail(for:)` hands the
+    /// message on `.failed`, and repeating it as a banner printed the same sentence twice.
+    ///
+    /// `AppKitScheduledTaskProposalWidgetView.bannerMessages` still appends its own, and must:
+    /// its detail line carries the schedule summary rather than the message, so the banner is the
+    /// only place a refusal reaches that card. Do not unify the two.
     func bannerMessages(_ configuration: Configuration) -> [String] {
         var messages: [String] = []
         if configuration.isInteractive, let errorMessage = configuration.errorMessage {
@@ -358,9 +365,6 @@ private extension AppKitReviewProposalWidgetView {
         }
         if case .failed(let message) = configuration.preview, configuration.isInteractive {
             messages.append("Could not load the review's comments: \(message)")
-        }
-        if configuration.content.status == .failed, let message = configuration.content.message {
-            messages.append(message)
         }
         return messages
     }

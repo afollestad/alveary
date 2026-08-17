@@ -1,4 +1,4 @@
-struct DiffFile: Sendable, Equatable {
+struct DiffFile: Sendable, Equatable, Codable {
     let oldPath: String?
     let newPath: String?
     let isBinary: Bool

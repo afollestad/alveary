@@ -15,6 +15,10 @@ final class PullRequestHostToolService {
     /// Required rather than defaulted so a construction site must choose the shared instance —
     /// a private one would compile and silently degrade every `link_pr` back to a fetch.
     let summaryHandoff: PullRequestSummaryHandoff
+    /// Seeded at propose time with the diff this service already parsed to validate anchors, so the
+    /// transcript card paints its comments without refetching it. Optional because most tests build
+    /// the service without one, and a miss only costs the card its usual load.
+    let reviewProposalPreviewCache: PullRequestReviewProposalPreviewCache?
     let notificationCenter: NotificationCenter
     private let requestParser: PullRequestHostToolRequestParser
     private let now: () -> Date
@@ -25,6 +29,7 @@ final class PullRequestHostToolService {
         pullRequestsService: any PullRequestsService,
         settingsService: any SettingsService,
         summaryHandoff: PullRequestSummaryHandoff,
+        reviewProposalPreviewCache: PullRequestReviewProposalPreviewCache? = nil,
         notificationCenter: NotificationCenter = .default,
         requestParser: PullRequestHostToolRequestParser = PullRequestHostToolRequestParser(),
         now: @escaping () -> Date = Date.init,
@@ -35,6 +40,7 @@ final class PullRequestHostToolService {
         self.pullRequestsService = pullRequestsService
         self.settingsService = settingsService
         self.summaryHandoff = summaryHandoff
+        self.reviewProposalPreviewCache = reviewProposalPreviewCache
         self.notificationCenter = notificationCenter
         self.requestParser = requestParser
         self.now = now

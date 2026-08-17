@@ -1,4 +1,4 @@
-struct DiffHunk: Sendable, Equatable {
+struct DiffHunk: Sendable, Equatable, Codable {
     let oldStart: Int
     let oldCount: Int
     let newStart: Int

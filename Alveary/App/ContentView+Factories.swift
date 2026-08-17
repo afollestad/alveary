@@ -199,7 +199,8 @@ extension ContentView {
         PullRequestReviewProposalCoordinator(
             modelContext: ModelContext(dependencies.modelContainer),
             pullRequestsService: dependencies.pullRequestsService,
-            avatarLoader: dependencies.gitHubAvatarLoader
+            avatarLoader: dependencies.gitHubAvatarLoader,
+            previewCache: dependencies.pullRequestReviewProposalPreviewCache
         )
     }
 
