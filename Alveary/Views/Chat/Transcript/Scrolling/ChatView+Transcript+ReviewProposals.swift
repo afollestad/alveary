@@ -14,7 +14,9 @@ extension ChatTranscriptView {
         guard let coordinator = pullRequestReviewProposalCoordinator else {
             return
         }
-        let conversationID = viewModel.conversation.id
+        // Identity snapshots off the view model, never `viewModel.conversation`: this runs in
+        // `ChatTranscriptView.body`, whose revision bumps can re-enter after a delete.
+        let conversationID = viewModel.conversationID
         configuration.reviewProposalAvatarLoader = coordinator.avatarLoader
         configuration.reviewProposalState = { proposalID in
             Self.reviewProposalState(
@@ -48,7 +50,7 @@ extension ChatTranscriptView {
         configuration.onRemoveReviewProposalComment = { proposalID, index in
             coordinator.removeStagedComment(proposalID: proposalID, at: index)
         }
-        let threadID = viewModel.conversation.thread?.persistentModelID
+        let threadID = viewModel.threadModelID
         configuration.onJumpToReviewProposalComment = { proposalID, anchor in
             Self.postJumpRequest(
                 proposalID: proposalID,

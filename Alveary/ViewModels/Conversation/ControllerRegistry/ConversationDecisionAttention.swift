@@ -29,6 +29,10 @@ struct ConversationDecisionAttention: Equatable {
     /// Both proposal sources are keyed by the conversation that opened them, which is also what
     /// makes a fork correct for free: it renders the same widget read-only and owns neither
     /// record, so it never claims the dot.
+    ///
+    /// Call only on a known-live row, during the pass that snapshots it into a
+    /// `ConversationStatusSnapshot` — this reads persisted properties and a thread relationship,
+    /// which trap on a deleted row. Render code consumes the snapshot, never this directly.
     func awaitsDecision(_ conversation: Conversation) -> Bool {
         let conversationID = conversation.id
         if unresolvedApprovalConversationIDs.contains(conversationID) ||

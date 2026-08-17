@@ -81,16 +81,23 @@ struct MiddlePane: View, Equatable {
         case .archived:
             ArchivedScreen(viewModel: archivedThreadsViewModel)
         case .project(let project):
-            // `.id` gives each project a fresh editor, so a revisited project would
-            // start empty and fill in a beat later; the cached config (an in-memory
-            // lookup, no I/O) lets it render populated on this frame instead.
-            ProjectSettingsView(
-                project: project,
-                appState: appState,
-                sidebarViewModel: sidebarViewModel,
-                initialConfig: ProjectConfigStore.shared.cached(forProjectPath: project.path) ?? .empty
-            )
-                .id(project.path)
+            // A selection is a token, not proof of liveness (`SidebarItem.resolved(in:)`'s
+            // contract): reading `path` off a deleted row traps inside SwiftData, so re-resolve
+            // first and render a gone row as no selection.
+            if case .project(let liveProject)? = SidebarItem.project(project).resolved(in: modelContext) {
+                // `.id` gives each project a fresh editor, so a revisited project would
+                // start empty and fill in a beat later; the cached config (an in-memory
+                // lookup, no I/O) lets it render populated on this frame instead.
+                ProjectSettingsView(
+                    project: liveProject,
+                    appState: appState,
+                    sidebarViewModel: sidebarViewModel,
+                    initialConfig: ProjectConfigStore.shared.cached(forProjectPath: liveProject.path) ?? .empty
+                )
+                    .id(liveProject.path)
+            } else {
+                noSelectionPane
+            }
         case .thread(let thread):
             ThreadDetailView(
                 thread: thread,
@@ -147,30 +154,37 @@ struct MiddlePane: View, Equatable {
                 appState.selectedSidebarItem = appState.previousSelection.flatMap(resolveSidebarBookmark(_:))
             }
         case nil:
-            if projects.isEmpty {
-                EmptyStateView(
-                    icon: "folder.badge.plus",
-                    heading: "Add your first project",
-                    subtext: "Open a project folder to start working with AI agents.",
-                    actions: [
-                        .init(
-                            title: "Add Project...",
-                            style: .primary,
-                            helpText: "Add Project... (\(KeyboardShortcut.addProject.displayString))"
-                        ) {
-                            appState.openNewProjectFlow()
-                        }
-                    ]
-                )
-            } else {
-                EmptyStateView(
-                    icon: "sidebar.left",
-                    heading: "Select a project or thread",
-                    subtext: "Choose something from the sidebar to continue.",
-                    actions: []
-                )
-                .offset(y: selectionEmptyStateVerticalOffset)
-            }
+            noSelectionPane
+        }
+    }
+
+    /// Also the fallback for a `.project` selection whose row a delete removed before the
+    /// selection routed away.
+    @ViewBuilder
+    private var noSelectionPane: some View {
+        if projects.isEmpty {
+            EmptyStateView(
+                icon: "folder.badge.plus",
+                heading: "Add your first project",
+                subtext: "Open a project folder to start working with AI agents.",
+                actions: [
+                    .init(
+                        title: "Add Project...",
+                        style: .primary,
+                        helpText: "Add Project... (\(KeyboardShortcut.addProject.displayString))"
+                    ) {
+                        appState.openNewProjectFlow()
+                    }
+                ]
+            )
+        } else {
+            EmptyStateView(
+                icon: "sidebar.left",
+                heading: "Select a project or thread",
+                subtext: "Choose something from the sidebar to continue.",
+                actions: []
+            )
+            .offset(y: selectionEmptyStateVerticalOffset)
         }
     }
 }

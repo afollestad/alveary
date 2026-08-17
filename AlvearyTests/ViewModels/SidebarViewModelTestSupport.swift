@@ -89,6 +89,21 @@ struct SidebarTestFixture {
         )
     }
 
+    /// The production status path: snapshot the thread's conversations as values while live,
+    /// then fold through `SidebarViewModel.threadStatus` exactly as `SidebarView.body` does.
+    func threadStatus(
+        for thread: AgentThread,
+        attention: ConversationDecisionAttention = .none
+    ) -> ThreadStatus {
+        viewModel.threadStatus(
+            threadID: thread.persistentModelID,
+            isArchived: thread.archivedAt != nil,
+            conversationStatuses: thread.conversations.map {
+                ConversationStatusSnapshot(conversation: $0, attention: attention)
+            }
+        )
+    }
+
     /// The production sidebar render path: one project query plus one unarchived-thread
     /// query, grouped exactly as `SidebarView.body` groups them.
     func renderSnapshot() throws -> SidebarRenderSnapshot {

@@ -12,17 +12,20 @@ struct SidebarRenderContext {
     let dragLogicalOrder: SidebarDragLogicalOrder
     let hasArchivedThreads: Bool
     let showsPullRequests: Bool
-    /// Waiting-dot sources the runtime cannot report, built once per body.
+    /// Per-thread status inputs, snapshotted as values once per body.
     ///
-    /// Every set behind it is cached observable state on a coordinator, so this costs a few
-    /// reference copies rather than a fetch. It is here rather than read per row because the read
-    /// has to land inside `SidebarView.body`'s observation scope: every `sidebarThreadRow` call
-    /// site sits in a `ForEach` content closure, which registers on that element instead, and
-    /// nothing else repaints the row when a proposal resolves. That happens outside the provider
-    /// turn, so no `.agentStatusChanged` bumps `statusVersion`, and both proposal coordinators
-    /// clear through their own `ModelContext`, so the sidebar's `@Query` never sees it either.
-    /// `ThreadDetailView+DecisionAttention.swift` hoists into `body` against the same hazard.
-    let decisionAttention: ConversationDecisionAttention
+    /// Two constraints meet here. The waiting-dot sets behind `ConversationDecisionAttention`
+    /// are cached observable coordinator state whose reads must land inside `SidebarView.body`'s
+    /// observation scope: every `sidebarThreadRow` call site sits in a `ForEach` content closure,
+    /// which registers on that element instead, and nothing else repaints the row when a proposal
+    /// resolves — that happens outside the provider turn, so no `.agentStatusChanged` bumps
+    /// `statusVersion`, and both proposal coordinators clear through their own `ModelContext`, so
+    /// the sidebar's `@Query` never sees it either. And the persisted per-conversation reads must
+    /// happen while this pass's liveness-filtered rows are known live — deferring them to a row
+    /// or fold that runs later can trap on a deleted row (`ConversationStatusSnapshot` owns the
+    /// mechanism). `ThreadDetailView` builds its tab presentations in `body` against the same
+    /// hazards.
+    let conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]]
 
     var pinnedItems: [SidebarPinnedItem] { snapshot.pinnedItems }
     var orderedProjects: [Project] { snapshot.orderedProjects }
@@ -41,17 +44,45 @@ struct SidebarRenderContext {
     func hasAnyActiveThreads(for project: Project) -> Bool {
         snapshot.hasAnyActiveThreads(for: project)
     }
+
+    /// `[]` for an unknown thread — the correct degradation for a row whose conversations died
+    /// mid-pass: the fold answers `.stopped` instead of reading anything.
+    func conversationStatuses(for threadID: PersistentIdentifier) -> [ConversationStatusSnapshot] {
+        conversationStatusesByThreadID[threadID] ?? []
+    }
 }
 
 extension SidebarView {
     func makeRenderContext() -> SidebarRenderContext {
+        // Drop dead rows before anything reads a persisted property. `@Query` arrays are not
+        // re-fetched per body evaluation, so a delete that committed this tick — through this
+        // context or merged in from another — leaves dead instances published until the query
+        // republishes, and a body re-run from any other observation (a selection write, a
+        // `statusVersion` bump) gets there first. The 0.2.2 (11) notification-click crash was
+        // this pass's pinned-thread walk reading such a row; `isLiveForRender` owns the check.
+        // Nothing below this filter may read from the raw query arrays.
         let snapshot = SidebarRenderSnapshot(
             viewModel: viewModel,
-            projects: queriedProjects,
-            unarchivedThreads: queriedUnarchivedThreads,
-            sections: queriedSidebarSections
+            projects: queriedProjects.filter(\.isLiveForRender),
+            unarchivedThreads: queriedUnarchivedThreads.filter(\.isLiveForRender),
+            sections: queriedSidebarSections.filter(\.isLiveForRender)
         )
         let settings = viewModel.settingsService.current
+        let decisionAttention = ConversationDecisionAttention(
+            approvals: unresolvedApprovalRegistry,
+            scheduledProposals: scheduledTaskProposalQueueCoordinator,
+            reviewProposals: pullRequestReviewProposalCoordinator,
+            settings: settings
+        )
+        var conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]] = [:]
+        for conversation in queriedStatusFoldConversations.filter(\.isLiveForRender) {
+            guard let thread = conversation.thread, thread.isLiveForRender else {
+                continue
+            }
+            conversationStatusesByThreadID[thread.persistentModelID, default: []].append(
+                ConversationStatusSnapshot(conversation: conversation, attention: decisionAttention)
+            )
+        }
         return SidebarRenderContext(
             snapshot: snapshot,
             threadOrderAnimation: threadOrderAnimation(
@@ -72,12 +103,7 @@ extension SidebarView {
             ),
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty,
             showsPullRequests: settings.pullRequestsEnabled,
-            decisionAttention: ConversationDecisionAttention(
-                approvals: unresolvedApprovalRegistry,
-                scheduledProposals: scheduledTaskProposalQueueCoordinator,
-                reviewProposals: pullRequestReviewProposalCoordinator,
-                settings: settings
-            )
+            conversationStatusesByThreadID: conversationStatusesByThreadID
         )
     }
 

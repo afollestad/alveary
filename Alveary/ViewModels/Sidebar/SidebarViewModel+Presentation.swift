@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 extension SidebarViewModel {
     var defaultThreadCleanupAction: ThreadCleanupAction {
@@ -21,16 +22,21 @@ extension SidebarViewModel {
         return exists && isDirectory.boolValue
     }
 
+    /// Value-typed by contract: callers snapshot `conversationStatuses` while the rows are live
+    /// (the sidebar's render pass, `ThreadDetailView.body`), so this can run from any later
+    /// render without touching a model that a delete may have removed.
     func threadStatus(
-        for thread: AgentThread,
-        attention: ConversationDecisionAttention
+        threadID: PersistentIdentifier,
+        isArchived: Bool,
+        conversationStatuses: [ConversationStatusSnapshot]
     ) -> ThreadStatus {
-        if activeForkSourceThreadIDs.contains(thread.persistentModelID), thread.archivedAt == nil {
+        if activeForkSourceThreadIDs.contains(threadID), !isArchived {
             return .busy
         }
-        return thread.displayStatus(
-            runtimeFor: { agentsManager.status(for: $0.id) },
-            awaitsUserDecisionFor: attention.awaitsDecision
+        return .folded(
+            isArchived: isArchived,
+            conversations: conversationStatuses,
+            runtimeFor: { agentsManager.status(for: $0) }
         )
     }
 

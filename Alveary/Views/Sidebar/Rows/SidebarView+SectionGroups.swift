@@ -39,7 +39,7 @@ extension SidebarView {
                         thread,
                         layout: .topLevel,
                         topSpacing: topSpacing,
-                        attention: context.decisionAttention,
+                        conversationStatuses: context.conversationStatuses(for: thread.persistentModelID),
                         dragConfiguration: pinnedItemDragConfiguration(
                             for: thread,
                             logicalOrder: context.dragLogicalOrder
@@ -122,7 +122,7 @@ extension SidebarView {
                 thread,
                 layout: .topLevel,
                 topSpacing: index == 0 ? 0 : SidebarRowMetrics.interThreadRowSpacing,
-                attention: context.decisionAttention,
+                conversationStatuses: context.conversationStatuses(for: thread.persistentModelID),
                 dragConfiguration: unpinnedTaskDragConfiguration(
                     for: thread,
                     logicalOrder: context.dragLogicalOrder

@@ -1,213 +1,151 @@
-import SwiftData
 import XCTest
 
 @testable import Alveary
 
-@MainActor
+/// `ThreadStatus.folded` is a pure fold over `ConversationStatusSnapshot` values — no `@Model`
+/// crosses its boundary, which is the deleted-row safety contract
+/// `DeletedModelRenderSafetyTests` locks in. These tests cover the precedence — archived, busy,
+/// waiting/decision, error, unread, stopped — in the single-snapshot (tab chip) and
+/// multi-snapshot (sidebar row) forms.
 final class ThreadStatusTests: XCTestCase {
-    func testConversationDisplayStatusBusyWinsOverUnread() throws {
-        let pair = try seedPair(isUnread: true)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .busy, awaitsUserDecision: false), .busy)
+    func testSingleConversationBusyWinsOverUnread() {
+        XCTAssertEqual(folded([.init(isUnread: true, runtime: .busy)]), .busy)
     }
 
-    func testConversationDisplayStatusWaitingForUserWinsOverUnread() throws {
-        let pair = try seedPair(isUnread: true)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .waitingForUser, awaitsUserDecision: false), .waitingForUser)
+    func testSingleConversationWaitingForUserWinsOverUnread() {
+        XCTAssertEqual(folded([.init(isUnread: true, runtime: .waitingForUser)]), .waitingForUser)
     }
 
-    func testConversationDisplayStatusErrorWinsOverUnread() throws {
-        let pair = try seedPair(isUnread: true)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .error, awaitsUserDecision: false), .error)
+    func testSingleConversationErrorWinsOverUnread() {
+        XCTAssertEqual(folded([.init(isUnread: true, runtime: .error)]), .error)
     }
 
-    func testConversationDisplayStatusUnreadWhenIdle() throws {
-        let pair = try seedPair(isUnread: true)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .idle, awaitsUserDecision: false), .unread)
+    func testSingleConversationUnreadWhenIdle() {
+        XCTAssertEqual(folded([.init(isUnread: true, runtime: .idle)]), .unread)
     }
 
-    func testConversationDisplayStatusStoppedWhenReadAndNeutral() throws {
-        let pair = try seedPair(isUnread: false)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .neutral, awaitsUserDecision: false), .stopped)
+    func testSingleConversationStoppedWhenReadAndNeutral() {
+        XCTAssertEqual(folded([.init(isUnread: false)]), .stopped)
     }
 
-    func testConversationDisplayStatusArchivedOverridesAll() throws {
-        let pair = try seedPair(isUnread: true, archived: true)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .busy, awaitsUserDecision: false), .archived)
+    func testSingleConversationArchivedOverridesAll() {
+        XCTAssertEqual(folded([.init(isUnread: true, runtime: .busy)], isArchived: true), .archived)
     }
 
     // MARK: - Pending decisions
 
     /// The green-to-blue upgrade: a queued scheduling proposal marks its conversation unread, and
     /// green already means "done".
-    func testConversationDisplayStatusPendingDecisionWinsOverUnread() throws {
-        let pair = try seedPair(isUnread: true)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .idle, awaitsUserDecision: true), .waitingForUser)
+    func testSingleConversationPendingDecisionWinsOverUnread() {
+        XCTAssertEqual(folded([.init(isUnread: true, runtime: .idle, awaitsDecision: true)]), .waitingForUser)
     }
 
-    func testConversationDisplayStatusPendingDecisionWinsOverError() throws {
-        let pair = try seedPair(isUnread: false)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .error, awaitsUserDecision: true), .waitingForUser)
+    func testSingleConversationPendingDecisionWinsOverError() {
+        XCTAssertEqual(folded([.init(runtime: .error, awaitsDecision: true)]), .waitingForUser)
     }
 
-    func testConversationDisplayStatusBusyWinsOverPendingDecision() throws {
-        let pair = try seedPair(isUnread: false)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .busy, awaitsUserDecision: true), .busy)
+    func testSingleConversationBusyWinsOverPendingDecision() {
+        XCTAssertEqual(folded([.init(runtime: .busy, awaitsDecision: true)]), .busy)
     }
 
-    func testConversationDisplayStatusArchivedOverridesPendingDecision() throws {
-        let pair = try seedPair(isUnread: false, archived: true)
-        XCTAssertEqual(pair.conversation.displayStatus(runtime: .neutral, awaitsUserDecision: true), .archived)
+    func testSingleConversationArchivedOverridesPendingDecision() {
+        XCTAssertEqual(folded([.init(awaitsDecision: true)], isArchived: true), .archived)
     }
 
-    func testThreadDisplayStatusWaitingOnPendingDecisionInAnyConversation() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: false, runtime: .neutral),
-                ConversationSpec(isUnread: false, runtime: .neutral, awaitsDecision: true)
-            ]
-        )
-
+    func testThreadWaitingOnPendingDecisionInAnyConversation() {
         XCTAssertEqual(
-            seeded.thread.displayStatus(
-                runtimeFor: seeded.runtimeLookup(for:),
-                awaitsUserDecisionFor: seeded.decisionLookup(for:)
-            ),
+            folded([
+                .init(),
+                .init(awaitsDecision: true)
+            ]),
             .waitingForUser
         )
     }
 
-    func testThreadDisplayStatusBusyPreferredOverPendingDecision() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: false, runtime: .neutral, awaitsDecision: true),
-                ConversationSpec(isUnread: false, runtime: .busy)
-            ]
-        )
-
+    func testThreadBusyPreferredOverPendingDecision() {
         XCTAssertEqual(
-            seeded.thread.displayStatus(
-                runtimeFor: seeded.runtimeLookup(for:),
-                awaitsUserDecisionFor: seeded.decisionLookup(for:)
-            ),
+            folded([
+                .init(awaitsDecision: true),
+                .init(runtime: .busy)
+            ]),
             .busy
         )
     }
 
-    func testThreadDisplayStatusPendingDecisionPreferredOverErrorAndUnread() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: true, runtime: .neutral),
-                ConversationSpec(isUnread: false, runtime: .error),
-                ConversationSpec(isUnread: false, runtime: .neutral, awaitsDecision: true)
-            ]
-        )
-
+    func testThreadPendingDecisionPreferredOverErrorAndUnread() {
         XCTAssertEqual(
-            seeded.thread.displayStatus(
-                runtimeFor: seeded.runtimeLookup(for:),
-                awaitsUserDecisionFor: seeded.decisionLookup(for:)
-            ),
+            folded([
+                .init(isUnread: true),
+                .init(runtime: .error),
+                .init(awaitsDecision: true)
+            ]),
             .waitingForUser
         )
     }
 
-    func testThreadDisplayStatusBusyOnAnyBusyConversation() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: true, runtime: .neutral),
-                ConversationSpec(isUnread: false, runtime: .busy),
-                ConversationSpec(isUnread: false, runtime: .neutral)
-            ]
+    func testThreadBusyOnAnyBusyConversation() {
+        XCTAssertEqual(
+            folded([
+                .init(isUnread: true),
+                .init(runtime: .busy),
+                .init()
+            ]),
+            .busy
         )
-
-        XCTAssertEqual(seeded.thread.displayStatus(
-            runtimeFor: seeded.runtimeLookup(for:),
-            awaitsUserDecisionFor: seeded.decisionLookup(for:)
-        ), .busy)
     }
 
-    func testThreadDisplayStatusErrorPreferredOverUnread() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: true, runtime: .neutral),
-                ConversationSpec(isUnread: false, runtime: .error)
-            ]
+    func testThreadErrorPreferredOverUnread() {
+        XCTAssertEqual(
+            folded([
+                .init(isUnread: true),
+                .init(runtime: .error)
+            ]),
+            .error
         )
-
-        XCTAssertEqual(seeded.thread.displayStatus(
-            runtimeFor: seeded.runtimeLookup(for:),
-            awaitsUserDecisionFor: seeded.decisionLookup(for:)
-        ), .error)
     }
 
-    func testThreadDisplayStatusWaitingForUserPreferredOverErrorAndUnread() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: true, runtime: .neutral),
-                ConversationSpec(isUnread: false, runtime: .error),
-                ConversationSpec(isUnread: false, runtime: .waitingForUser)
-            ]
+    func testThreadWaitingForUserPreferredOverErrorAndUnread() {
+        XCTAssertEqual(
+            folded([
+                .init(isUnread: true),
+                .init(runtime: .error),
+                .init(runtime: .waitingForUser)
+            ]),
+            .waitingForUser
         )
-
-        XCTAssertEqual(seeded.thread.displayStatus(
-            runtimeFor: seeded.runtimeLookup(for:),
-            awaitsUserDecisionFor: seeded.decisionLookup(for:)
-        ), .waitingForUser)
     }
 
-    func testThreadDisplayStatusBusyPreferredOverWaitingForUser() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: false, runtime: .waitingForUser),
-                ConversationSpec(isUnread: false, runtime: .busy)
-            ]
+    func testThreadBusyPreferredOverWaitingForUser() {
+        XCTAssertEqual(
+            folded([
+                .init(runtime: .waitingForUser),
+                .init(runtime: .busy)
+            ]),
+            .busy
         )
-
-        XCTAssertEqual(seeded.thread.displayStatus(
-            runtimeFor: seeded.runtimeLookup(for:),
-            awaitsUserDecisionFor: seeded.decisionLookup(for:)
-        ), .busy)
     }
 
-    func testThreadDisplayStatusUnreadWhenAnyConversationUnread() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: false),
-                ConversationSpec(isUnread: true),
-                ConversationSpec(isUnread: false)
-            ]
+    func testThreadUnreadWhenAnyConversationUnread() {
+        XCTAssertEqual(
+            folded([
+                .init(),
+                .init(isUnread: true),
+                .init()
+            ]),
+            .unread
         )
-
-        XCTAssertEqual(seeded.thread.displayStatus(
-            runtimeFor: seeded.runtimeLookup(for:),
-            awaitsUserDecisionFor: seeded.decisionLookup(for:)
-        ), .unread)
     }
 
-    func testThreadDisplayStatusStoppedWhenAllReadAndNeutral() throws {
-        let seeded = try seedThread(
-            conversations: [
-                ConversationSpec(isUnread: false),
-                ConversationSpec(isUnread: false)
-            ]
-        )
-
-        XCTAssertEqual(seeded.thread.displayStatus(
-            runtimeFor: seeded.runtimeLookup(for:),
-            awaitsUserDecisionFor: seeded.decisionLookup(for:)
-        ), .stopped)
+    func testThreadStoppedWhenAllReadAndNeutral() {
+        XCTAssertEqual(folded([.init(), .init()]), .stopped)
     }
 
-    func testThreadDisplayStatusArchivedOverridesUnread() throws {
-        let seeded = try seedThread(
-            conversations: [ConversationSpec(isUnread: true, runtime: .busy)],
-            archivedAt: Date()
-        )
+    func testThreadArchivedOverridesUnread() {
+        XCTAssertEqual(folded([.init(isUnread: true, runtime: .busy)], isArchived: true), .archived)
+    }
 
-        XCTAssertEqual(seeded.thread.displayStatus(
-            runtimeFor: seeded.runtimeLookup(for:),
-            awaitsUserDecisionFor: seeded.decisionLookup(for:)
-        ), .archived)
+    func testThreadStoppedWithNoConversations() {
+        XCTAssertEqual(folded([]), .stopped)
     }
 
     private struct ConversationSpec {
@@ -216,74 +154,19 @@ final class ThreadStatusTests: XCTestCase {
         var awaitsDecision = false
     }
 
-    private struct SeededPair {
-        let container: ModelContainer
-        let conversation: Conversation
-    }
-
-    private struct SeededThread {
-        let container: ModelContainer
-        let thread: AgentThread
-        let runtimeByConversationId: [String: ActivitySignal]
-        let decisionByConversationId: [String: Bool]
-
-        func runtimeLookup(for conversation: Conversation) -> ActivitySignal {
-            runtimeByConversationId[conversation.id] ?? .neutral
-        }
-
-        func decisionLookup(for conversation: Conversation) -> Bool {
-            decisionByConversationId[conversation.id] ?? false
-        }
-    }
-
-    private func makeContainer() throws -> ModelContainer {
-        try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            ScheduledTask.self,
-            ScheduledTaskRun.self,
-            ScheduledTaskProposal.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
-    }
-
-    private func seedPair(isUnread: Bool, archived: Bool = false) throws -> SeededPair {
-        let container = try makeContainer()
-        let context = ModelContext(container)
-        let thread = AgentThread(name: "Thread", hasCustomName: true, archivedAt: archived ? Date() : nil)
-        let conversation = Conversation(isUnread: isUnread, thread: thread)
-        context.insert(thread)
-        context.insert(conversation)
-        try context.save()
-        return SeededPair(container: container, conversation: conversation)
-    }
-
-    private func seedThread(conversations specs: [ConversationSpec], archivedAt: Date? = nil) throws -> SeededThread {
-        let container = try makeContainer()
-        let context = ModelContext(container)
-        let thread = AgentThread(name: "T", hasCustomName: true, archivedAt: archivedAt)
-        context.insert(thread)
-        var runtimeByConversationId: [String: ActivitySignal] = [:]
-        var decisionByConversationId: [String: Bool] = [:]
-        for (index, spec) in specs.enumerated() {
-            let conversation = Conversation(
-                isMain: index == 0,
-                displayOrder: index,
+    private func folded(_ specs: [ConversationSpec], isArchived: Bool = false) -> ThreadStatus {
+        var runtimeByConversationID: [String: ActivitySignal] = [:]
+        let snapshots = specs.enumerated().map { index, spec -> ConversationStatusSnapshot in
+            let conversationID = "conversation-\(index)"
+            runtimeByConversationID[conversationID] = spec.runtime
+            return ConversationStatusSnapshot(
+                conversationID: conversationID,
                 isUnread: spec.isUnread,
-                thread: thread
+                awaitsUserDecision: spec.awaitsDecision
             )
-            context.insert(conversation)
-            runtimeByConversationId[conversation.id] = spec.runtime
-            decisionByConversationId[conversation.id] = spec.awaitsDecision
         }
-        try context.save()
-        return SeededThread(
-            container: container,
-            thread: thread,
-            runtimeByConversationId: runtimeByConversationId,
-            decisionByConversationId: decisionByConversationId
-        )
+        return .folded(isArchived: isArchived, conversations: snapshots) {
+            runtimeByConversationID[$0] ?? .neutral
+        }
     }
 }

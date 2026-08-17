@@ -28,10 +28,8 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: linkConversation,
-                statusVersion: 0,
-                statusForConversation: { _ in .unread },
+                tabs: conversationTabs(thread.conversations, status: { _ in .unread }),
+                selectedConversationModelID: linkConversation.persistentModelID,
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },

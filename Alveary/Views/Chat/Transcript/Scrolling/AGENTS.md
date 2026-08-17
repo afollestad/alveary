@@ -38,6 +38,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 - **Render only the newest thought line.** `appKitTranscriptLiveThoughtSummaryText` returns the last renderable line of the accumulated thought, not a join of every line. Live thought text accumulates for a whole turn and providers separate reasoning sections with a blank line, so joining grows the row without bound and reads as one run-on sentence. A touching emphasis boundary (`****`) also counts as a section break, so a provider that emits no separator still renders its newest section. The completed-thought row shares the same helper and collapses the same way.
 - **Measure the bridge.** The AppKit surface reports the SwiftUI wrapper width so shared bubble-width caps stay aligned with the host layout.
 - **Bridge narrowly.** SwiftUI representables should only pass transcript data, state, and actions into the AppKit owner; scroll math stays in AppKit.
+- **Configuration builders read identity through `ConversationViewModel`'s init snapshots** (`conversationID`, `threadModelID`), never `viewModel.conversation` — revision bumps re-run `ChatTranscriptView.body` after a delete can commit, and a model read there traps.
 
 ## Following State
 

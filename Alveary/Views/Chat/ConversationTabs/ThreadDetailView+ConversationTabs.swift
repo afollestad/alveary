@@ -8,14 +8,11 @@ import SwiftUI
 private let tabsTrailingSentinelWidth: CGFloat = 12
 
 struct ThreadDetailConversationTabs: View {
-    let conversations: [Conversation]
-    let selectedConversation: Conversation
-    let statusVersion: Int
-    let statusForConversation: (Conversation) -> ThreadStatus
-    let onSelect: (Conversation) -> Void
-    let onCommitRename: (Conversation, String) -> Void
-    let onRemove: (Conversation) -> Void
-    var canRemove: (Conversation) -> Bool = { _ in true }
+    let tabs: [ConversationTabPresentation]
+    let selectedConversationModelID: PersistentIdentifier
+    let onSelect: (ConversationTabPresentation) -> Void
+    let onCommitRename: (ConversationTabPresentation, String) -> Void
+    let onRemove: (ConversationTabPresentation) -> Void
 
     @Binding var editingConversationID: PersistentIdentifier?
     @Environment(\.colorScheme) private var colorScheme
@@ -36,19 +33,17 @@ struct ThreadDetailConversationTabs: View {
                 // visually butted against the divider.
                 HStack(spacing: 0) {
                     HStack(spacing: 6) {
-                        ForEach(Array(conversations.enumerated()), id: \.element.persistentModelID) { index, conversation in
+                        ForEach(Array(tabs.enumerated()), id: \.element.id) { index, tab in
                             ConversationTabChip(
-                                conversation: conversation,
-                                status: statusForConversation(conversation),
-                                isSelected: selectedConversation.persistentModelID == conversation.persistentModelID,
+                                presentation: tab,
+                                isSelected: selectedConversationModelID == tab.conversationModelID,
                                 tabIndex: index,
-                                canRemove: canRemove(conversation),
                                 editingConversationID: $editingConversationID,
-                                onSelect: { onSelect(conversation) },
-                                onCommitRename: { onCommitRename(conversation, $0) },
-                                onClose: { onRemove(conversation) }
+                                onSelect: { onSelect(tab) },
+                                onCommitRename: { onCommitRename(tab, $0) },
+                                onClose: { onRemove(tab) }
                             )
-                            .id(conversation.persistentModelID)
+                            .id(tab.conversationModelID)
                         }
                     }
                     // Leading pane-edge inset lives *inside* the scrollable
@@ -86,33 +81,23 @@ struct ThreadDetailConversationTabs: View {
             // chips from jumping; for the last chip we target the trailing
             // sentinel so the 12pt trailing gap stays on-screen and the
             // chip keeps its breathing room before the divider.
-            .onChange(of: selectedConversation.persistentModelID, initial: true) { _, newID in
-                if conversations.last?.persistentModelID == newID {
+            .onChange(of: selectedConversationModelID, initial: true) { _, newID in
+                if tabs.last?.conversationModelID == newID {
                     proxy.scrollTo(ScrollTarget.trailingSentinel, anchor: .trailing)
                 } else {
                     proxy.scrollTo(newID)
                 }
             }
             // Appended conversations should scroll all the way to the end.
-            // Targeting the trailing sentinel (rather than
-            // `conversations.last?.id`) keeps its 12pt width on-screen and
-            // preserves the breathing gap before the divider.
-            .onChange(of: conversations.count) { oldCount, newCount in
+            // Targeting the trailing sentinel (rather than the last tab's
+            // id) keeps its 12pt width on-screen and preserves the
+            // breathing gap before the divider.
+            .onChange(of: tabs.count) { oldCount, newCount in
                 guard newCount > oldCount else {
                     return
                 }
                 proxy.scrollTo(ScrollTarget.trailingSentinel, anchor: .trailing)
             }
-        }
-        .background {
-            // Invisible dependency anchor for runtime-status refreshes. `statusForConversation`
-            // reads `agentsManager.status(for:)` synchronously, so the tab row needs a real
-            // input tied to `ThreadDetailView`'s `.agentStatusChanged` observer; otherwise the
-            // selected chip can stay stale until some unrelated render invalidates the header.
-            Color.clear
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
-                .id(statusVersion)
         }
         .padding(.trailing, PaneHeaderLayout.trailingInset)
         .padding(.vertical, 14)
@@ -127,11 +112,10 @@ struct ThreadDetailConversationTabs: View {
 /// outside the visual tab strip so an absent strip does not let the shortcut fall
 /// through to the system's Close Window command.
 struct ConversationCloseShortcutSink: View {
-    let conversations: [Conversation]
-    let selectedConversation: Conversation?
+    let tabs: [ConversationTabPresentation]
+    let selectedTab: ConversationTabPresentation?
     let isRenaming: Bool
-    var canRemove: (Conversation) -> Bool = { _ in true }
-    let onRemove: (Conversation) -> Void
+    let onRemove: (ConversationTabPresentation) -> Void
 
     var body: some View {
         Button("Close Conversation", action: handleShortcut)
@@ -140,28 +124,26 @@ struct ConversationCloseShortcutSink: View {
             .accessibilityHidden(true)
             .opacity(0)
             .allowsHitTesting(false)
-            .id(selectedConversation?.persistentModelID)
+            .id(selectedTab?.conversationModelID)
     }
 
     func handleShortcut() {
         // Keep the button enabled for no-op states so ⌘W is still consumed and
         // cannot reach the default Close Window command.
         guard !isRenaming,
-              conversations.count > 1,
-              let selectedConversation,
-              canRemove(selectedConversation) else {
+              tabs.count > 1,
+              let selectedTab,
+              selectedTab.canRemove else {
             return
         }
-        onRemove(selectedConversation)
+        onRemove(selectedTab)
     }
 }
 
 private struct ConversationTabChip: View {
-    let conversation: Conversation
-    let status: ThreadStatus
+    let presentation: ConversationTabPresentation
     let isSelected: Bool
     let tabIndex: Int
-    let canRemove: Bool
     @Binding var editingConversationID: PersistentIdentifier?
     let onSelect: () -> Void
     let onCommitRename: (String) -> Void
@@ -171,7 +153,7 @@ private struct ConversationTabChip: View {
     @FocusState private var isFieldFocused: Bool
 
     private var isEditing: Bool {
-        editingConversationID == conversation.persistentModelID
+        editingConversationID == presentation.conversationModelID
     }
 
     private var switchShortcut: KeyboardShortcut? {
@@ -200,7 +182,7 @@ private struct ConversationTabChip: View {
             // result suppresses the menu entirely on macOS.
             if editingConversationID == nil {
                 Button("Rename...") {
-                    editingConversationID = conversation.persistentModelID
+                    editingConversationID = presentation.conversationModelID
                 }
             }
         }
@@ -264,7 +246,7 @@ private extension ConversationTabChip {
                 .strokeBorder(Color.accentColor, lineWidth: 1)
         )
         .tabChipShell(
-            closeAccessibilityLabel: "Remove \(plainDisplayName)",
+            closeAccessibilityLabel: "Remove \(presentation.plainDisplayName)",
             onClose: onClose,
             showsCloseButton: false
         )
@@ -276,29 +258,25 @@ private extension ConversationTabChip {
         // tab is editing suppresses the rotor entry entirely (see the `if let`
         // inside `SelectableTabChip`'s `.accessibilityActions` builder).
         let renameAction: (() -> Void)? = editingConversationID == nil
-            ? { editingConversationID = conversation.persistentModelID }
+            ? { editingConversationID = presentation.conversationModelID }
             : nil
         return SelectableTabChip(
-            displayName: conversation.displayName(),
+            displayName: presentation.displayName,
             statusIndicator: statusIndicator,
             isSelected: isSelected,
-            selectAccessibilityLabel: plainDisplayName,
-            closeAccessibilityLabel: "Remove \(plainDisplayName)",
+            selectAccessibilityLabel: presentation.plainDisplayName,
+            closeAccessibilityLabel: "Remove \(presentation.plainDisplayName)",
             selectShortcut: switchShortcut,
             closeHelpText: "Close Conversation (\(KeyboardShortcut.closeConversation.displayString))",
             renameAccessibilityAction: renameAction,
-            showsCloseButton: canRemove,
+            showsCloseButton: presentation.canRemove,
             onSelect: onSelect,
             onClose: onClose
         )
     }
 
-    var plainDisplayName: String {
-        AppMarkdownInlineLabel.plainText(from: conversation.displayName())
-    }
-
     var statusIndicator: TabChipStatusIndicator {
-        switch status {
+        switch presentation.status {
         case .busy:
             return .spinner(.secondary)
         case .waitingForUser:
@@ -313,7 +291,7 @@ private extension ConversationTabChip {
     }
 
     func beginEditing() {
-        editText = conversation.customTitle ?? conversation.displayName()
+        editText = presentation.renameSeedText
         isFieldFocused = true
     }
 
@@ -369,7 +347,7 @@ private struct ConversationTabsScrollGeometry: Equatable {
     var scrolledDistance: CGFloat = 0
 }
 
-/// `ScrollViewProxy` targets. Chips use their `persistentModelID`; the trailing
+/// `ScrollViewProxy` targets. Chips use their `conversationModelID`; the trailing
 /// sentinel is a 12pt-wide view at the very end of the scrollable content that
 /// provides both the visible gap before the overlay divider at scroll-to-end and a
 /// scroll target whose trailing edge equals the content's absolute trailing edge.

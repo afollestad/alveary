@@ -38,7 +38,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
             conversations: [fixture.conversation],
             selectedConversation: fixture.conversation,
             isRenaming: false
-        ) { removedConversationIDs.append($0.persistentModelID) }
+        ) { removedConversationIDs.append($0.conversationModelID) }
         defer { host.close() }
 
         XCTAssertTrue(try host.performCommandW())
@@ -62,7 +62,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
             conversations: [fixture.conversation, sideConversation],
             selectedConversation: sideConversation,
             isRenaming: true
-        ) { removedConversationIDs.append($0.persistentModelID) }
+        ) { removedConversationIDs.append($0.conversationModelID) }
         defer { host.close() }
 
         XCTAssertTrue(try host.performCommandW())
@@ -86,7 +86,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
             conversations: [fixture.conversation, sideConversation],
             selectedConversation: sideConversation,
             isRenaming: false
-        ) { removedConversationIDs.append($0.persistentModelID) }
+        ) { removedConversationIDs.append($0.conversationModelID) }
         defer { host.close() }
 
         XCTAssertTrue(try host.performCommandW())
@@ -226,13 +226,27 @@ final class HostedConversationCloseShortcut {
         selectedConversation: Conversation?,
         isRenaming: Bool,
         canRemove: @escaping (Conversation) -> Bool = { _ in true },
-        onRemove: @escaping (Conversation) -> Void
+        onRemove: @escaping (ConversationTabPresentation) -> Void
     ) {
+        // Value snapshots like production; display fields are unused by the sink.
+        let tabs = conversations.map { conversation in
+            ConversationTabPresentation(
+                conversationModelID: conversation.persistentModelID,
+                conversationID: conversation.id,
+                displayName: conversation.displayName(),
+                plainDisplayName: conversation.displayName(),
+                renameSeedText: conversation.displayName(),
+                canRemove: canRemove(conversation),
+                status: .stopped
+            )
+        }
+        let selectedTab = selectedConversation.flatMap { selected in
+            tabs.first { $0.conversationModelID == selected.persistentModelID }
+        }
         let rootView = ConversationCloseShortcutSink(
-            conversations: conversations,
-            selectedConversation: selectedConversation,
+            tabs: tabs,
+            selectedTab: selectedTab,
             isRenaming: isRenaming,
-            canRemove: canRemove,
             onRemove: onRemove
         )
         .frame(width: 320, height: 180)

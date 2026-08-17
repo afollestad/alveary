@@ -33,7 +33,8 @@ struct ThreadDetailView: View {
     var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator?
     @State var conversationActionError: String?
     @State private var editingConversationID: PersistentIdentifier?
-    @State private var pendingDeleteConversation: Conversation?
+    // Internal (not `private`) so the tab-presentation companion can arm it.
+    @State var pendingDeleteConversation: ThreadDetailPendingConversationRemoval?
     @State private var statusVersion = 0
     @State var projectTrustPrompt: ProjectTrustPrompt?
     @State var isCheckingProjectTrust = false
@@ -52,6 +53,16 @@ struct ThreadDetailView: View {
         let selectedConversation = appState.selectedConversation(in: thread, conversations: conversations)
         let selectedConversationID = selectedConversation?.persistentModelID
         let conversationIDs = Set(conversations.map(\.id))
+        // Snapshot every chip input while this pass's resolver-fetched rows are known live.
+        // `statusVersion` must be read here: statuses come from the non-observable
+        // `agentsManager`, so the `.agentStatusChanged` bump below is what re-runs this body and
+        // rebuilds these values.
+        let tabPresentations = conversationTabPresentations(
+            conversations: conversations,
+            decisionAttention: decisionAttention,
+            statusVersion: statusVersion
+        )
+        let selectedTab = tabPresentations.first { $0.conversationModelID == selectedConversationID }
         let projectTrustContext = selectedConversation.flatMap(projectTrustContext(for:))
         let cachedProjectTrustStatus = projectTrustContext.flatMap(cachedProjectTrustStatus(for:))
         let visibleProjectTrustPrompt: ProjectTrustPrompt? = if let projectTrustContext {
@@ -83,23 +94,11 @@ struct ThreadDetailView: View {
 
                     if shouldShowConversationStrip(conversationCount: conversations.count) {
                         ThreadDetailConversationTabs(
-                            conversations: conversations,
-                            selectedConversation: conversation,
-                            statusVersion: statusVersion,
-                            statusForConversation: {
-                                $0.displayStatus(
-                                    runtime: agentsManager.status(for: $0.id),
-                                    awaitsUserDecision: decisionAttention.awaitsDecision($0)
-                                )
-                            },
-                            onSelect: { appState.selectConversation($0, in: thread) },
-                            onCommitRename: { renameConversation($0, to: $1) },
-                            onRemove: { conversation in
-                                guard conversations.count > 1,
-                                      ThreadDetailConversationDeletion.canRemove(conversation) else { return }
-                                pendingDeleteConversation = conversation
-                            },
-                            canRemove: ThreadDetailConversationDeletion.canRemove,
+                            tabs: tabPresentations,
+                            selectedConversationModelID: conversation.persistentModelID,
+                            onSelect: { selectConversationTab($0) },
+                            onCommitRename: { renameConversation(id: $0.conversationModelID, to: $1) },
+                            onRemove: { requestRemoveConversationTab($0, tabCount: tabPresentations.count) },
                             editingConversationID: $editingConversationID
                         )
                     }
@@ -184,18 +183,15 @@ struct ThreadDetailView: View {
                         }
                     ),
                     presenting: pendingDeleteConversation
-                ) { conversation in
+                ) { removal in
                     Button("Remove", role: .destructive) {
-                        // Snapshot both identifiers synchronously while the dialog still
-                        // owns a known-live model reference. Runtime teardown can outlive
-                        // tab removal, so the async path must not re-read from this model.
-                        let conversationID = conversation.persistentModelID
-                        let conversationIDString = conversation.id
+                        // Values captured when the removal was armed; the async path re-resolves
+                        // live rows itself, so nothing here reads a model.
                         pendingDeleteConversation = nil
                         Task {
                             await removeConversation(
-                                id: conversationID,
-                                conversationIDString: conversationIDString
+                                id: removal.conversationModelID,
+                                conversationIDString: removal.conversationID
                             )
                         }
                     }
@@ -203,8 +199,8 @@ struct ThreadDetailView: View {
                     Button("Cancel", role: .cancel) {
                         pendingDeleteConversation = nil
                     }
-                } message: { conversation in
-                    Text("This permanently deletes \(conversation.displayName()) and its saved messages.")
+                } message: { removal in
+                    Text("This permanently deletes \(removal.displayName) and its saved messages.")
                 }
 
             } else {
@@ -250,15 +246,10 @@ struct ThreadDetailView: View {
             // one conversation exists, but its ⌘W safety behavior must remain
             // mounted for every thread state.
             ConversationCloseShortcutSink(
-                conversations: conversations,
-                selectedConversation: selectedConversation,
+                tabs: tabPresentations,
+                selectedTab: selectedTab,
                 isRenaming: editingConversationID != nil,
-                canRemove: ThreadDetailConversationDeletion.canRemove,
-                onRemove: { conversation in
-                    guard conversations.count > 1,
-                          ThreadDetailConversationDeletion.canRemove(conversation) else { return }
-                    pendingDeleteConversation = conversation
-                }
+                onRemove: { requestRemoveConversationTab($0, tabCount: tabPresentations.count) }
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .agentStatusChanged)) { notification in
@@ -316,8 +307,8 @@ private extension ThreadDetailView {
     }
     #endif
 
-    func renameConversation(_ conversation: Conversation, to newName: String) {
-        guard let dbConversation = uiModelContext.resolveConversation(id: conversation.persistentModelID) else {
+    func renameConversation(id: PersistentIdentifier, to newName: String) {
+        guard let dbConversation = uiModelContext.resolveConversation(id: id) else {
             conversationActionError = "Couldn't rename conversation: it no longer exists"
             return
         }

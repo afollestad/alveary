@@ -1,12 +1,13 @@
 ## Conversation Tab Row
 
-Rules for `ThreadDetailView+ConversationTabs.swift`.
+Rules for `ThreadDetailView+ConversationTabs.swift` and the `ConversationTabPresentation` values it renders from.
 
 > **READ FIRST:** Focus and keyboard rules are centralized in `Alveary/Views/AGENTS.md`.
 
 ## Chips And Rename
 
 - Mount `ThreadDetailConversationTabs` only after initial setup and only for more than one resolved live conversation. The strip has no single-conversation label or creation control; additional conversations are created from the thread title toolbar action.
+- **Chips render from `ConversationTabPresentation` values and never store a `Conversation`** — the strip re-runs from its own `@State` after a delete can commit, and a model read there traps. `ThreadDetailView` builds the presentations per body pass (`Alveary/Views/Chat/ThreadDetail/ThreadDetailView+ConversationTabPresentations.swift`); actions hand back the presentation and handlers re-resolve by `conversationModelID`.
 - While mounted, the strip sits between the unconditional root toolbar hairline and its own bottom `.paneHeader` hairline.
 - Render tabs through `SelectableTabChip` in `Alveary/Views/Components/TabChips/`.
 - Keep chip fills `.standard` so inline-code color does not change on selection.
@@ -33,28 +34,28 @@ Rules for `ThreadDetailView+ConversationTabs.swift`.
   `ThreadDetailView`'s background.
     - Mount it independently of the visual tab strip and guard internally for inline rename or one-tab states.
     - Use `.background`, not a zero-sized HStack sibling.
-    - Set `.id(selectedConversation?.persistentModelID)` so the closure tracks current selection.
+    - Set `.id(selectedTab?.conversationModelID)` so the closure tracks current selection.
     - Use enabled no-op guards; disabled shortcut buttons let ⌘W fall through to Close Window.
     - Keep it out of `.commands` / `CommandGroup` because those surface in the menu bar and can lose to default close handling.
 
 ### Removal Safety
 
 - When closing the selected tab, select the visual neighbor first: next, then previous.
-- `onRemove` must re-check `conversations.count > 1` before presenting confirmation.
+- `onRemove` must re-check the tab count before presenting confirmation.
 - The original main conversation of a scheduled-run Task is durable provenance and is never removable. Hide its close affordance, consume Cmd-W as a no-op, and keep the commit-time guard for stale UI actions.
-- In the confirmation button, capture `persistentModelID` and the UUID-string `id` synchronously and pass both into `removeConversation(...)`.
+- Arm the confirmation with `ThreadDetailPendingConversationRemoval` values; the Remove button passes its stored identifiers into `removeConversation(...)` and never reads a model.
 - Do not re-resolve a `Conversation` only to read `.id`; `modelContext.model(for:)` can return a zombie. See `Alveary/Data/AGENTS.md`.
 
 ## Scroll Hooks
 
 - Wrap the multi-tab row in `ScrollViewReader`.
-- Tag each chip with `.id(conversation.persistentModelID)`.
+- Tag each chip with `.id(tab.conversationModelID)`.
 - The trailing sentinel is `Color.clear.frame(width: 12)` with `.id(ScrollTarget.trailingSentinel)`.
     - It reserves the visible 12pt gap before the overlay divider.
     - It is also the scroll target for the content's absolute trailing edge.
     - Put it in the outer `HStack(spacing: 0)`, after the inner chip HStack.
     - Do not add separate trailing padding; that doubles the end gap.
-- Scroll on selection with `onChange(of: selectedConversation.persistentModelID, initial: true)`.
+- Scroll on selection with `onChange(of: selectedConversationModelID, initial: true)`.
     - Last-chip selections target the sentinel with `anchor: .trailing`.
     - Mid-row selections use the chip ID with default anchor.
 - Scroll on count growth only (`newCount > oldCount`) and target the sentinel. This surfaces newly appended conversations without running on removal.

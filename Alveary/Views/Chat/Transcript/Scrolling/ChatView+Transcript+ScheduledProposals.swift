@@ -11,13 +11,15 @@ extension ChatTranscriptView {
         // Both surfaces resolve their state through closures, so scheduling notifications
         // re-render by bumping this revision rather than by changing any stored input.
         _ = scheduledProposalRevision
-        let originThreadID = viewModel.conversation.thread?.persistentModelID
+        // Identity snapshots off the view model, never `viewModel.conversation`: this runs in
+        // `ChatTranscriptView.body`, whose revision bumps can re-enter after a delete.
+        let originThreadID = viewModel.threadModelID
         // The list tool needs no proposal queue, so it is wired before that guard.
         configureAppKitScheduledTaskList(&configuration, originThreadID: originThreadID)
         guard let coordinator = scheduledTaskProposalQueueCoordinator else {
             return
         }
-        let conversationID = viewModel.conversation.id
+        let conversationID = viewModel.conversationID
         configuration.isResolvingScheduledProposal = coordinator.isResolving
         configuration.scheduledProposalErrorMessage = coordinator.errorMessage
         configuration.scheduledProposalPresentation = { proposalID in

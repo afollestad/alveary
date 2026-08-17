@@ -19,6 +19,15 @@ private let archivedThreadProbeDescriptor: FetchDescriptor<AgentThread> = {
     return descriptor
 }()
 
+/// Conversations feeding the sidebar's per-thread status fold: every conversation on an
+/// unarchived thread, drafts included to match `queriedUnarchivedThreads`. Kept one relationship
+/// hop deep per the `#Predicate` rules in `Alveary/Data/AGENTS.md`; internal (not `private`) so
+/// `DeletedModelRenderSafetyTests` can execute it and catch a translation failure in a test
+/// instead of on the render pass.
+let sidebarStatusFoldConversationsPredicate = #Predicate<Conversation> {
+    $0.thread?.archivedAt == nil
+}
+
 struct SidebarView: View, Equatable {
     let viewModel: SidebarViewModel
     // A plain `let`, not `@Bindable`: nothing here needs an `appState` binding, and `==` may
@@ -48,6 +57,12 @@ struct SidebarView: View, Equatable {
     // Sorting happens in `SidebarRenderSnapshot`, which applies the same tiebreaks normalization
     // does; an empty result renders the built-in fallback layout.
     @Query var queriedSidebarSections: [SidebarSection]
+    // Feeds the status fold as `ConversationStatusSnapshot`s grouped per body pass in
+    // `makeRenderContext()`, so no render path walks `thread.conversations` — that to-many can
+    // hold stale entries that trap after a conversation delete. Observation-backed like the
+    // thread query, so an `isUnread` flip repaints the row.
+    @Query(filter: sidebarStatusFoldConversationsPredicate)
+    var queriedStatusFoldConversations: [Conversation]
     @State var expandedProjects: Set<String> = []
     @State var collapsedSections: Set<SidebarCollapsibleSection> = []
     @State var editingThreadID: PersistentIdentifier?
@@ -249,7 +264,7 @@ struct SidebarView: View, Equatable {
         _ thread: AgentThread,
         layout: SidebarThreadRowLayout,
         topSpacing: CGFloat,
-        attention: ConversationDecisionAttention,
+        conversationStatuses: [ConversationStatusSnapshot],
         dragConfiguration: SidebarRowDragConfiguration? = nil,
         opacity: Double = 1
     ) -> some View {
@@ -257,14 +272,18 @@ struct SidebarView: View, Equatable {
         let cleanupAction = viewModel.defaultThreadCleanupAction
         let cleanupDisabledReason = viewModel.scheduledTaskAttachmentReason(for: thread)
         let leadingPadding: CGFloat = layout == .topLevel ? SidebarSectionHeaderRow.contentLeadingPadding : 14
-        // Snapshot here, where the render snapshot guarantees a live row. Neither the row nor the
-        // lazily-evaluated context menu may read the model itself; `SidebarThreadRowPresentation`
-        // documents why.
+        // Snapshot here, where the render context's liveness filter guarantees a live row.
+        // Neither the row nor the lazily-evaluated context menu may read the model itself;
+        // `SidebarThreadRowPresentation` documents why.
         let presentation = SidebarThreadRowPresentation(thread: thread)
 
         return SidebarThreadRow(
             presentation: presentation,
-            status: viewModel.threadStatus(for: thread, attention: attention),
+            status: viewModel.threadStatus(
+                threadID: thread.persistentModelID,
+                isArchived: thread.archivedAt != nil,
+                conversationStatuses: conversationStatuses
+            ),
             isSelected: isSelected,
             layout: layout,
             editingThreadID: editingThreadID,

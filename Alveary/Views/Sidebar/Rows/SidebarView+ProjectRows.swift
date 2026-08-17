@@ -26,7 +26,7 @@ extension SidebarView {
                 task,
                 layout: .topLevel,
                 topSpacing: index == 0 ? 0 : SidebarRowMetrics.interThreadRowSpacing,
-                attention: context.decisionAttention,
+                conversationStatuses: context.conversationStatuses(for: task.persistentModelID),
                 dragConfiguration: unpinnedTaskDragConfiguration(for: task, logicalOrder: context.dragLogicalOrder),
                 opacity: activeSidebarDragItem == .unpinnedTask(task.persistentModelID)
                     ? 0.48
@@ -173,7 +173,7 @@ extension SidebarView {
                 thread,
                 layout: .project,
                 topSpacing: threadTopSpacing,
-                attention: context.decisionAttention,
+                conversationStatuses: context.conversationStatuses(for: thread.persistentModelID),
                 // Task children can leave for `Tasks` or pin; Project-mode children drag only to
                 // pin. Either way `Pinned` is reached through its whole-section container.
                 dragConfiguration: projectChildDragConfiguration(

@@ -26,14 +26,15 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: mainConversation,
-                statusVersion: 0,
-                statusForConversation: { _ in .stopped },
+                tabs: conversationTabs(
+                    thread.conversations,
+                    status: { _ in .stopped },
+                    canRemove: { !$0.isMain }
+                ),
+                selectedConversationModelID: mainConversation.persistentModelID,
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
-                canRemove: { !$0.isMain },
                 editingConversationID: .constant(nil)
             ),
             size: CGSize(width: 640, height: 72),

@@ -7,6 +7,30 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
+    /// Builds chip presentations the way `ThreadDetailView.conversationTabPresentations` does,
+    /// with per-test `status` and optional `canRemove` overrides via the memberwise initializer.
+    func conversationTabs(
+        _ conversations: [Conversation],
+        status: (Conversation) -> ThreadStatus,
+        canRemove: ((Conversation) -> Bool)? = nil
+    ) -> [ConversationTabPresentation] {
+        conversations.map { conversation in
+            let tab = ConversationTabPresentation(conversation: conversation, status: status(conversation))
+            guard let canRemove else {
+                return tab
+            }
+            return ConversationTabPresentation(
+                conversationModelID: tab.conversationModelID,
+                conversationID: tab.conversationID,
+                displayName: tab.displayName,
+                plainDisplayName: tab.plainDisplayName,
+                renameSeedText: tab.renameSeedText,
+                canRemove: canRemove(conversation),
+                status: tab.status
+            )
+        }
+    }
+
     func testConversationTabsBusyStatusSpinnerVisible() {
         assertConversationTabsStatusSnapshot(status: .busy, named: "conversation_tabs_busy_spinner")
     }
@@ -39,10 +63,8 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: chipConversation,
-                statusVersion: 0,
-                statusForConversation: { _ in .unread },
+                tabs: conversationTabs(thread.conversations, status: { _ in .unread }),
+                selectedConversationModelID: chipConversation.persistentModelID,
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
@@ -74,10 +96,8 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: mentionConversation,
-                statusVersion: 0,
-                statusForConversation: { _ in .unread },
+                tabs: conversationTabs(thread.conversations, status: { _ in .unread }),
+                selectedConversationModelID: mentionConversation.persistentModelID,
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
@@ -124,12 +144,10 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: mainConversation,
-                statusVersion: 0,
-                statusForConversation: { conversation in
+                tabs: conversationTabs(thread.conversations) { conversation in
                     conversation.id == mainConversation.id ? status : .stopped
                 },
+                selectedConversationModelID: mainConversation.persistentModelID,
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
@@ -172,10 +190,8 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: conversations[0],
-                statusVersion: 0,
-                statusForConversation: { _ in .stopped },
+                tabs: conversationTabs(thread.conversations, status: { _ in .stopped }),
+                selectedConversationModelID: conversations[0].persistentModelID,
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },
@@ -207,10 +223,8 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             ThreadDetailConversationTabs(
-                conversations: thread.conversations,
-                selectedConversation: secondConversation,
-                statusVersion: 0,
-                statusForConversation: { _ in .stopped },
+                tabs: conversationTabs(thread.conversations, status: { _ in .stopped }),
+                selectedConversationModelID: secondConversation.persistentModelID,
                 onSelect: { _ in },
                 onCommitRename: { _, _ in },
                 onRemove: { _ in },

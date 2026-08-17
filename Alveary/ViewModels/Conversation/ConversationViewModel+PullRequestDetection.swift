@@ -116,7 +116,9 @@ extension ConversationViewModel {
             return [:]
         }
 
-        let visible = thread.unansweredPullRequestLinkPrompts(conversationID: conversation.id)
+        // `conversationID` snapshot, not `conversation.id`: this runs from the transcript
+        // bridge's render path, which can re-enter after a delete.
+        let visible = thread.unansweredPullRequestLinkPrompts(conversationID: conversationID)
         return Dictionary(grouping: visible, by: \.messageEventID)
     }
 

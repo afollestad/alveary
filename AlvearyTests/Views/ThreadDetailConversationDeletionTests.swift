@@ -65,13 +65,15 @@ final class ThreadDetailConversationDeletionTests: XCTestCase {
     func testScheduledTaskMainConversationCloseShortcutIsConsumedWithoutRemoval() throws {
         let fixture = try scheduledTaskFixture(status: .running)
         let conversations = try fixture.context.fetch(FetchDescriptor<Conversation>())
+        // The production presentation path: `canRemove` snapshots through
+        // `ThreadDetailConversationDeletion` at build time.
+        let tabs = conversations.map { ConversationTabPresentation(conversation: $0, status: .stopped) }
         var removedConversationIDs: [String] = []
         let sink = ConversationCloseShortcutSink(
-            conversations: conversations,
-            selectedConversation: fixture.conversation,
+            tabs: tabs,
+            selectedTab: tabs.first { $0.conversationModelID == fixture.conversation.persistentModelID },
             isRenaming: false,
-            canRemove: ThreadDetailConversationDeletion.canRemove,
-            onRemove: { removedConversationIDs.append($0.id) }
+            onRemove: { removedConversationIDs.append($0.conversationID) }
         )
 
         sink.handleShortcut()
@@ -88,7 +90,7 @@ final class ThreadDetailConversationDeletionTests: XCTestCase {
             selectedConversation: fixture.conversation,
             isRenaming: false,
             canRemove: ThreadDetailConversationDeletion.canRemove
-        ) { removedConversationIDs.append($0.persistentModelID) }
+        ) { removedConversationIDs.append($0.conversationModelID) }
         defer { host.close() }
 
         XCTAssertTrue(try host.performCommandW())

@@ -18,6 +18,14 @@ final class ConversationViewModel {
     let keepAwakeService: KeepAwakeService
     let modelContext: ModelContext
     let conversationModelID: PersistentIdentifier
+    /// `conversation.id`, captured at init for render-path reads: transcript configuration
+    /// builders run inside `ChatTranscriptView.body`, which re-runs from its own revision
+    /// `@State` after proposal notifications — including after a delete removed the row, where
+    /// reading `conversation.id` traps. The column is immutable, so this cannot go stale.
+    let conversationID: String
+    /// `conversation.thread?.persistentModelID`, captured at init for the same render-path
+    /// reads. `Conversation.thread` is never reassigned after insert, so this cannot go stale.
+    let threadModelID: PersistentIdentifier?
     let settingsService: SettingsService
     let worktreeManager: WorktreeManager
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
@@ -142,6 +150,8 @@ final class ConversationViewModel {
         self.keepAwakeService = keepAwakeService
         self.modelContext = modelContext
         self.conversationModelID = conversation.persistentModelID
+        self.conversationID = conversation.id
+        self.threadModelID = conversation.thread?.persistentModelID
         self.settingsService = settingsService
         self.worktreeManager = worktreeManager
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
