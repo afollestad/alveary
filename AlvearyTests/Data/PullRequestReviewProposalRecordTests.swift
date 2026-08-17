@@ -27,6 +27,28 @@ final class PullRequestReviewProposalRecordTests: XCTestCase {
         XCTAssertEqual(record.displayKey, "octo/alpha#7")
     }
 
+    /// A comment written before fingerprints existed still decodes and still confirms — it simply
+    /// cannot relocate, which is what `ReviewProposalAnchorResolution` falls back on.
+    func testAVersionTwoEnvelopeDecodesWithNoAnchorFingerprints() throws {
+        let conversation = try makeConversation()
+        conversation.pullRequestReviewProposalJSON = """
+        {"body":"Looks good.","comments":[{"body":"Guard this.","line":4,\
+        "path":"Sources/Alpha.swift","side":"RIGHT"}],\
+        "createdAt":"2024-01-01T00:00:00Z","deduplicationKey":"d1",\
+        "event":"approve","id":"p1","number":7,"payloadVersion":2,\
+        "pendingCommentCountSnapshot":1,"repositoryNameWithOwner":"octo/alpha",\
+        "sourceProcessToken":"t","sourceRequestID":"r","titleSnapshot":"Title"}
+        """
+
+        let record = try XCTUnwrap(conversation.pullRequestReviewProposal())
+
+        XCTAssertEqual(record.payloadVersion, 2)
+        let comment = try XCTUnwrap(record.stagedComments.first)
+        XCTAssertEqual(comment.line, 4)
+        XCTAssertNil(comment.anchorContent)
+        XCTAssertNil(comment.anchorContext)
+    }
+
     func testANewerEnvelopeVersionIsRefusedRatherThanPartiallyRead() throws {
         let conversation = try makeConversation()
         let newerVersion = PullRequestReviewProposalRecord.currentPayloadVersion + 1

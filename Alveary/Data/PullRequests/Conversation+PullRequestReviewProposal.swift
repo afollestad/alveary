@@ -7,10 +7,12 @@ import Foundation
 /// registered in every `ModelContainer` the app and its tests build. It cascades with the
 /// conversation for free. The transcript widget and the pull request pane both read and edit it.
 struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
-    /// Version 2 added `comments`. Decode accepts older versions — a v1 envelope simply carries
-    /// none — but the field's presence still demands the bump: a v2 envelope read as v1 would
-    /// confirm-submit less than the card showed, so an older build must refuse it outright.
-    static let currentPayloadVersion = 2
+    /// Version 2 added `comments`; version 3 added each comment's anchor fingerprint. Decode
+    /// accepts older versions — a v1 envelope simply carries no comments, a v2 one no fingerprints
+    /// — but each field's presence still demands the bump: an envelope read as an older version
+    /// would confirm-submit something other than what the card showed, so an older build must
+    /// refuse it outright.
+    static let currentPayloadVersion = 3
 
     /// One staged inline comment, published only when the user confirms. `side` stores the
     /// wire value (`RIGHT`/`LEFT`) so the envelope does not depend on an app enum's cases.
@@ -19,6 +21,36 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
         let line: Int
         let side: String
         let body: String
+        /// The anchored line's exact text as the diff read at propose time, and a symmetric window
+        /// of the lines around it.
+        ///
+        /// These exist so a comment whose line moved can be relocated instead of silently dropped:
+        /// `ReviewProposalAnchorResolution` matches the content against the current diff, using the
+        /// window to break ties. They live here rather than in
+        /// `PullRequestReviewProposalPreviewCache` because that cache is overwritten with freshly
+        /// parsed hunks on every successful refresh — by the time an anchor is noticed stale, it
+        /// already holds the *new* diff, and the staged-at content is gone.
+        ///
+        /// Both are nil in envelopes written before version 3, and in comments a person composed in
+        /// the pane rather than a tool call. A comment without them cannot relocate.
+        let anchorContent: String?
+        let anchorContext: [String]?
+
+        init(
+            path: String,
+            line: Int,
+            side: String,
+            body: String,
+            anchorContent: String? = nil,
+            anchorContext: [String]? = nil
+        ) {
+            self.path = path
+            self.line = line
+            self.side = side
+            self.body = body
+            self.anchorContent = anchorContent
+            self.anchorContext = anchorContext
+        }
     }
 
     let payloadVersion: Int

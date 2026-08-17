@@ -103,6 +103,31 @@ extension SnapshotTests {
         )
     }
 
+    /// A comment the diff can no longer place is listed under the preview rather than dropped, so
+    /// the card's count and what it draws agree.
+    func testReviewProposalWidgetStaleComment() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                ReviewProposalSnapshotFixture.widgetRow(
+                    preview: .loaded(
+                        ReviewProposalSnapshotFixture.loadedPreview(
+                            commentIsProposed: true,
+                            staleComments: [
+                                PullRequestReviewProposalPreview.StaleComment(
+                                    proposedIndex: 1,
+                                    path: "Sources/Removed.swift",
+                                    bodyMarkdown: "This branch is unreachable once the guard lands."
+                                )
+                            ]
+                        )
+                    )
+                )
+            },
+            size: CGSize(width: 700, height: 460),
+            named: "review_proposal_widget_stale_comment"
+        )
+    }
+
     func testReviewProposalWidgetSubmitting() {
         assertMacSnapshot(
             appKitRowSnapshot {
@@ -252,7 +277,8 @@ enum ReviewProposalSnapshotFixture {
         commentBody: String = "This retries forever when the server keeps answering 503.",
         commentIsBot: Bool = false,
         commentIsProposed: Bool = false,
-        commentLine: Int = 2
+        commentLine: Int = 2,
+        staleComments: [PullRequestReviewProposalPreview.StaleComment] = []
     ) -> PullRequestReviewProposalPreview {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = false
@@ -287,6 +313,7 @@ enum ReviewProposalSnapshotFixture {
             pendingCommentCount: commentIsProposed ? 0 : 2,
             proposedCommentCount: commentIsProposed ? 1 : 0,
             hiddenFileCount: 0,
+            staleComments: staleComments,
             viewerIsAuthor: viewerIsAuthor
         )
     }

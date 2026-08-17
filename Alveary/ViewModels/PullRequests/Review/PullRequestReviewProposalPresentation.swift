@@ -23,8 +23,22 @@ struct PullRequestReviewProposalPresentation: Identifiable, Equatable {
 /// Confirm-time failures of the proposal flow itself, beside the service's own errors.
 enum PullRequestReviewProposalSubmissionError: LocalizedError {
     case missingNodeID
+    /// Comments whose lines the pull request's current diff cannot place. Refused before anything
+    /// is created, so a stale anchor cannot strand a half-written draft on GitHub.
+    case staleAnchors(paths: [String])
 
     var errorDescription: String? {
-        "Alveary could not read the pull request's GitHub node ID to stage the review's comments. Try again."
+        switch self {
+        case .missingNodeID:
+            return "Alveary could not read the pull request's GitHub node ID to stage the review's comments. Try again."
+        case .staleAnchors(let paths):
+            let files = Set(paths).sorted().joined(separator: ", ")
+            return """
+                The pull request has changed since this review was written, and \(paths.count) \
+                comment\(paths.count == 1 ? "" : "s") no longer \(paths.count == 1 ? "matches" : "match") \
+                the diff (\(files)). Remove \(paths.count == 1 ? "it" : "them") from the card, or ask \
+                for a fresh review.
+                """
+        }
     }
 }

@@ -30,6 +30,30 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(fixture.pullRequests.diffCallCount, 1)
     }
 
+    /// Without a fingerprint a staged comment can never relocate, so it is captured from the very
+    /// diff this call already parsed to validate the anchor.
+    func testStagedCommentsKeepAFingerprintOfTheLineTheyWereWrittenAgainst() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+        fixture.stubAlphaDiff()
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: PullRequestHostToolFixture.reviewProposalArguments(bodies: ["First"])
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        let stored = try XCTUnwrap(try fixture.conversation.pullRequestReviewProposal())
+        XCTAssertEqual(stored.payloadVersion, 3)
+        let comment = try XCTUnwrap(stored.stagedComments.first)
+        XCTAssertEqual(comment.anchorContent, "line 1")
+        // The window is what separates two lines reading the same thing.
+        XCTAssertEqual(comment.anchorContext, ["line 2", "line 3", "line 4"])
+    }
+
     /// A summary-only review publishes no comments, so its card can say so without loading at all.
     func testProposingASummaryOnlyReviewSeedsAnEmptyPreview() async throws {
         let fixture = try PullRequestHostToolFixture()

@@ -1,32 +1,5 @@
 import AppKit
 
-/// Everything a review-proposal card needs from `PullRequestReviewProposalCoordinator`, resolved
-/// per render because confirmation state lives outside the provider turn.
-struct ReviewProposalWidgetState: Equatable {
-    let presentation: PullRequestReviewProposalPresentation?
-    let preview: PullRequestReviewProposalPreviewState?
-    let selectedEvent: PullRequestReviewEvent?
-    let canSubmit: Bool
-    let isSubmitting: Bool
-    let errorMessage: String?
-
-    init(
-        presentation: PullRequestReviewProposalPresentation? = nil,
-        preview: PullRequestReviewProposalPreviewState? = nil,
-        selectedEvent: PullRequestReviewEvent? = nil,
-        canSubmit: Bool = false,
-        isSubmitting: Bool = false,
-        errorMessage: String? = nil
-    ) {
-        self.presentation = presentation
-        self.preview = preview
-        self.selectedEvent = selectedEvent
-        self.canSubmit = canSubmit
-        self.isSubmitting = isSubmitting
-        self.errorMessage = errorMessage
-    }
-}
-
 /// Body for `propose_pr_review`: the verdict the user is about to submit, the pending comments it
 /// would publish shown on their diff lines, and the confirm/reject decision.
 ///
@@ -66,6 +39,7 @@ final class AppKitReviewProposalWidgetView: NSView {
     private let stack = NSStackView()
     private let verdictControl = AppKitTranscriptApprovalSplitControl()
     private let diffView = AppKitReviewProposalDiffView()
+    private let staleCommentsView = AppKitReviewProposalStaleCommentsView()
     private var configuration: Configuration?
 
     override init(frame frameRect: NSRect) {
@@ -107,6 +81,12 @@ final class AppKitReviewProposalWidgetView: NSView {
             }
             self?.onRemoveComment?(proposalID, index)
         }
+        staleCommentsView.onRemoveComment = { [weak self] index in
+            guard let proposalID = self?.configuration?.presentation?.id else {
+                return
+            }
+            self?.onRemoveComment?(proposalID, index)
+        }
     }
 
     @available(*, unavailable)
@@ -122,6 +102,9 @@ final class AppKitReviewProposalWidgetView: NSView {
     /// carries a flexible spacer, so measure its buttons instead.
     var naturalWidth: CGFloat {
         stack.arrangedSubviews.reduce(CGFloat.zero) { widest, row in
+            if let staleRow = row as? AppKitReviewProposalStaleCommentsView {
+                return max(widest, min(staleRow.naturalWidth, Self.maximumDiffWidth))
+            }
             if let diffRow = row as? AppKitReviewProposalDiffView {
                 // A diff line's natural width is its longest line, which would blow past the
                 // bubble cap; the shell clamps, and the rows truncate rather than widen the card.
@@ -239,6 +222,7 @@ private extension AppKitReviewProposalWidgetView {
             view.removeFromSuperview()
         }
         diffView.removeFromSuperview()
+        staleCommentsView.removeFromSuperview()
 
         // Resolved cards keep only what happened; the controls and the diff belong to a decision
         // that is no longer open.
@@ -249,8 +233,25 @@ private extension AppKitReviewProposalWidgetView {
 
         addPendingCommentSummary(configuration)
         addDiffPreview(configuration)
+        addStaleComments(configuration)
         addBanners(configuration)
         addActionRow(configuration)
+    }
+
+    /// Under the diff, because these are the comments it could not draw. Confirm refuses while any
+    /// remain, so the list is also the route to clearing them.
+    func addStaleComments(_ configuration: Configuration) {
+        guard case .loaded(let preview) = configuration.preview, !preview.staleComments.isEmpty else {
+            return
+        }
+        staleCommentsView.configure(
+            AppKitReviewProposalStaleCommentsView.Configuration(
+                comments: preview.staleComments,
+                allowsRemoval: !configuration.isSubmitting,
+                typography: configuration.typography
+            )
+        )
+        stack.addFullWidthArrangedSubview(staleCommentsView)
     }
 
     /// Extra clearance under everything above it. The diff preview is a slab of tinted rows, so at
@@ -320,7 +321,9 @@ private extension AppKitReviewProposalWidgetView {
     /// confirms. A submission in flight is already publishing what it was handed, so it withdraws
     /// even that.
     func addDiffPreview(_ configuration: Configuration) {
-        guard case .loaded(let preview) = configuration.preview, !preview.isEmpty else {
+        // `files`, not `isEmpty`: a review whose every comment went stale still has a list to show
+        // below, and mounting the diff view with nothing to draw would add only its spacing.
+        guard case .loaded(let preview) = configuration.preview, !preview.files.isEmpty else {
             return
         }
         // Before `configure`, which skips an unchanged preview and would leave the cards without it.

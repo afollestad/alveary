@@ -27,12 +27,22 @@ struct PullRequestReviewProposalPreview: Equatable {
     let proposedCommentCount: Int
     /// Files with comments the card did not render.
     let hiddenFileCount: Int
+    /// Staged comments the current diff cannot place, by their position in the envelope.
+    ///
+    /// These are reported rather than dropped. The narrowing that builds `files` walks lines asking
+    /// which carries a comment, so an anchor matching nothing disappears without a trace — leaving
+    /// the card promising a count it does not draw, and a confirm that fails partway through.
+    let staleComments: [StaleComment]
     /// GitHub refuses approve and request-changes on the viewer's own pull request, so the card's
     /// verdict picker disables them.
     let viewerIsAuthor: Bool
 
-    var isEmpty: Bool {
-        files.isEmpty
+    /// One unplaceable staged comment. Carries the path but no line, matching how the pane names an
+    /// outdated thread whose anchor GitHub no longer reports.
+    struct StaleComment: Equatable {
+        let proposedIndex: Int
+        let path: String
+        let bodyMarkdown: String
     }
 }
 
@@ -68,6 +78,7 @@ extension PullRequestReviewProposalCoordinator {
                             pendingCommentCount: 0,
                             proposedCommentCount: 0,
                             hiddenFileCount: 0,
+                            staleComments: [],
                             viewerIsAuthor: viewerIsAuthor
                         )
                     ),
@@ -107,16 +118,25 @@ extension PullRequestReviewProposalCoordinator {
         parsed: [DiffFile],
         viewerIsAuthor: Bool
     ) -> PullRequestReviewProposalPreviewLoad {
+        var stale: [PullRequestReviewProposalPreview.StaleComment] = []
         let annotations = Self.annotations(
             threads: pendingThreads,
             staged: presentation.comments,
-            detail: detail
+            detail: detail,
+            files: parsed,
+            stale: &stale
         )
         let files = Self.commentedFiles(in: parsed, anchors: Array(annotations.threads.keys))
         let shown = Array(files.prefix(PullRequestReviewProposalPreview.maximumFiles))
+        // Resolved lines, not stored ones: a relocated comment's hunk lives at its new line, and
+        // an entry narrowed by the old one would omit it — the next launch's cached paint would
+        // then claim the comment cannot be placed until the refresh corrected it.
         let stagedFiles = ReviewProposalDiffNarrowing.narrowed(
             files: parsed,
-            linesByPath: ReviewProposalDiffNarrowing.linesByPath(for: presentation.comments)
+            linesByPath: ReviewProposalAnchorResolution.resolvedLinesByPath(
+                presentation.comments,
+                against: parsed
+            )
         )
         let cachedFiles = Array(stagedFiles.prefix(PullRequestReviewProposalPreview.maximumFiles))
         return PullRequestReviewProposalPreviewLoad(
@@ -127,6 +147,7 @@ extension PullRequestReviewProposalCoordinator {
                     pendingCommentCount: pendingThreads.reduce(0) { $0 + $1.comments.count },
                     proposedCommentCount: presentation.comments.count,
                     hiddenFileCount: files.count - shown.count,
+                    staleComments: stale,
                     viewerIsAuthor: viewerIsAuthor
                 )
             ),
@@ -155,9 +176,10 @@ extension PullRequestReviewProposalCoordinator {
     ) -> PullRequestReviewProposalPreview {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = false
-        appendStagedComments(
+        let stale = appendStagedComments(
             presentation.comments,
             to: &annotations,
+            resolvedAgainst: entry.files,
             viewerLogin: entry.viewerLogin,
             viewerAvatarURL: entry.viewerAvatarURL
         )
@@ -167,6 +189,7 @@ extension PullRequestReviewProposalCoordinator {
             pendingCommentCount: presentation.pendingCommentCount,
             proposedCommentCount: presentation.comments.count,
             hiddenFileCount: entry.hiddenFileCount,
+            staleComments: stale,
             viewerIsAuthor: entry.viewerIsAuthor
         )
     }
@@ -213,7 +236,8 @@ extension PullRequestReviewProposalCoordinator {
             updated.comments = comments
             annotations.threads[anchor] = updated
         }
-        guard removed else {
+        let stale = staleComments(preview.staleComments, removingProposedCommentAt: index)
+        guard removed || stale.count != preview.staleComments.count else {
             return preview
         }
         return PullRequestReviewProposalPreview(
@@ -222,6 +246,7 @@ extension PullRequestReviewProposalCoordinator {
             pendingCommentCount: preview.pendingCommentCount,
             proposedCommentCount: max(preview.proposedCommentCount - 1, 0),
             hiddenFileCount: preview.hiddenFileCount,
+            staleComments: stale,
             viewerIsAuthor: preview.viewerIsAuthor
         )
     }
@@ -236,22 +261,43 @@ extension PullRequestReviewProposalCoordinator {
     /// that already carries a thread appends to it rather than opening a second card on the line.
     ///
     /// `proposedIndex` is the only identity a staged comment has, so it is what a Remove addresses;
-    /// every removal shifts the array, which is why a pruned preview renumbers what survives.
+    /// every removal shifts the array, which is why a pruned preview renumbers what survives. A
+    /// comment the diff cannot place keeps its index and is *returned* rather than annotated —
+    /// dropping it here is what let the card promise a count it did not draw.
+    ///
+    /// Resolution happens inside this function rather than at each call site precisely because
+    /// those sites must not drift: a comment relocated on the transcript card and left at its stale
+    /// line in the pane would be two different reviews.
+    @discardableResult
     static func appendStagedComments(
         _ staged: [PullRequestReviewProposalRecord.Comment],
         to annotations: inout DiffCommentAnnotations,
+        resolvedAgainst files: [DiffFile],
         viewerLogin: String?,
         viewerAvatarURL: URL?
-    ) {
+    ) -> [PullRequestReviewProposalPreview.StaleComment] {
+        var stale: [PullRequestReviewProposalPreview.StaleComment] = []
+        let lines = ReviewProposalAnchorResolution.resolvedLines(staged, against: files)
         for (index, comment) in staged.enumerated() {
+            let body = PullRequestMarkdown.sanitized(comment.body)
+            guard let line = lines[index] else {
+                stale.append(
+                    PullRequestReviewProposalPreview.StaleComment(
+                        proposedIndex: index,
+                        path: comment.path,
+                        bodyMarkdown: body
+                    )
+                )
+                continue
+            }
             let anchor = DiffCommentAnchor(
                 path: comment.path,
                 side: DiffCommentAnchor.Side(rawValue: comment.side) ?? .right,
-                line: comment.line
+                line: line
             )
             let lineComment = DiffLineComment(
                 author: viewerLogin ?? "You",
-                bodyMarkdown: PullRequestMarkdown.sanitized(comment.body),
+                bodyMarkdown: body,
                 isPending: false,
                 avatarURL: viewerAvatarURL,
                 proposedIndex: index
@@ -263,6 +309,7 @@ extension PullRequestReviewProposalCoordinator {
                 annotations.threads[anchor] = DiffLineCommentThread(comments: [lineComment])
             }
         }
+        return stale
     }
 
     /// The same staged comments as review threads, for the Overview timeline — which renders
@@ -316,6 +363,24 @@ extension PullRequestReviewProposalCoordinator {
 }
 
 private extension PullRequestReviewProposalCoordinator {
+    /// Stale comments hold envelope positions too, so a removal shifts them by the rule that shifts
+    /// every annotated one — and the removed comment may itself be stale, which is the only way to
+    /// clear one from the card.
+    static func staleComments(
+        _ comments: [PullRequestReviewProposalPreview.StaleComment],
+        removingProposedCommentAt index: Int
+    ) -> [PullRequestReviewProposalPreview.StaleComment] {
+        comments.filter { $0.proposedIndex != index }.map { comment in
+            PullRequestReviewProposalPreview.StaleComment(
+                proposedIndex: comment.proposedIndex > index
+                    ? comment.proposedIndex - 1
+                    : comment.proposedIndex,
+                path: comment.path,
+                bodyMarkdown: comment.bodyMarkdown
+            )
+        }
+    }
+
     /// Narrows to the files a comment sits on, and inside each to the hunks holding one.
     static func commentedFiles(
         in files: [DiffFile],
@@ -355,7 +420,9 @@ private extension PullRequestReviewProposalCoordinator {
     static func annotations(
         threads: [PullRequestReviewThread],
         staged: [PullRequestReviewProposalRecord.Comment],
-        detail: PullRequestDetail
+        detail: PullRequestDetail,
+        files: [DiffFile],
+        stale: inout [PullRequestReviewProposalPreview.StaleComment]
     ) -> DiffCommentAnnotations {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = false
@@ -386,9 +453,10 @@ private extension PullRequestReviewProposalCoordinator {
                 isPending: thread.isPending
             )
         }
-        appendStagedComments(
+        stale = appendStagedComments(
             staged,
             to: &annotations,
+            resolvedAgainst: files,
             viewerLogin: detail.viewerLogin,
             viewerAvatarURL: detail.viewerAvatarURL
         )

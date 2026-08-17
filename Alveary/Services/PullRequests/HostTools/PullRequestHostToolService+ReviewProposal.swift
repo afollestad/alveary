@@ -42,7 +42,7 @@ extension PullRequestHostToolService {
 
         let record = makeRecord(
             request: request,
-            detail: detail,
+            target: target,
             identity: identity,
             requestID: requestID,
             providerID: context.providerId.rawValue
@@ -138,14 +138,20 @@ private extension PullRequestHostToolService {
 
     /// The stored envelope: everything the card renders and the confirmed submission publishes,
     /// including the staged comments.
+    ///
+    /// `target` carries the diff `validatedDetail` already parsed, so each comment keeps a
+    /// fingerprint of the line it was written against; without one it can never relocate after a
+    /// later commit moves it.
     func makeRecord(
         request: PullRequestHostToolReviewProposalRequest,
-        detail: PullRequestDetail,
+        target: ValidatedProposalTarget,
         identity: PullRequestHostToolCallIdentity,
         requestID: String,
         providerID: String
     ) -> PullRequestReviewProposalRecord {
-        PullRequestReviewProposalRecord(
+        let detail = target.detail
+        let diffFiles = target.diffFiles ?? []
+        return PullRequestReviewProposalRecord(
             payloadVersion: PullRequestReviewProposalRecord.currentPayloadVersion,
             id: makeProposalID(),
             deduplicationKey: identity.deduplicationKey,
@@ -154,11 +160,19 @@ private extension PullRequestHostToolService {
             event: PullRequestHostToolRequestParser.reviewEventName(for: request.event),
             body: request.body,
             comments: request.comments.isEmpty ? nil : request.comments.map { comment in
-                PullRequestReviewProposalRecord.Comment(
+                let fingerprint = ReviewProposalAnchorResolution.fingerprint(
+                    path: comment.path,
+                    line: comment.line,
+                    side: comment.side == .left ? .left : .right,
+                    in: diffFiles
+                )
+                return PullRequestReviewProposalRecord.Comment(
                     path: comment.path,
                     line: comment.line,
                     side: comment.side.rawValue,
-                    body: comment.body
+                    body: comment.body,
+                    anchorContent: fingerprint?.content,
+                    anchorContext: fingerprint?.context
                 )
             },
             titleSnapshot: detail.title,

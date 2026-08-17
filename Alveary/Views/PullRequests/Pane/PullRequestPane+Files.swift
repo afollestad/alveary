@@ -167,9 +167,12 @@ struct PullRequestPaneFiles: View, Equatable {
         // covers only `session` and view-model identity, but an observed view-model read during
         // `body` invalidates regardless (see this type's `==` doc comment).
         if let proposal = viewModel.pendingReviewProposal(for: target) {
+            // Resolved against the same diff the tab draws, so a comment whose line moved lands
+            // where the transcript card puts it rather than silently matching no row here.
             PullRequestReviewProposalCoordinator.appendStagedComments(
                 proposal.comments,
                 to: &annotations,
+                resolvedAgainst: session.diffFiles ?? [],
                 viewerLogin: session.detail?.viewerLogin,
                 viewerAvatarURL: session.detail?.viewerAvatarURL
             )

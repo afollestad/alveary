@@ -24,6 +24,51 @@ final class ReviewProposalWidgetRowTests: XCTestCase {
         XCTAssertTrue(labels(in: host).contains("Could not prepare the review"))
     }
 
+    /// Asserted textually rather than left to the baseline: a prose line sitting at its wrap point
+    /// reflows on CI, and the count is the part that has to stay honest.
+    func testTheStaleCommentListNamesItsCountAndFile() {
+        let view = AppKitReviewProposalStaleCommentsView()
+        view.configure(
+            AppKitReviewProposalStaleCommentsView.Configuration(
+                comments: [
+                    PullRequestReviewProposalPreview.StaleComment(
+                        proposedIndex: 0,
+                        path: "Sources/Removed.swift",
+                        bodyMarkdown: "Unreachable."
+                    )
+                ],
+                allowsRemoval: true,
+                typography: TranscriptTypography()
+            )
+        )
+
+        let labels = labels(in: view)
+        XCTAssertTrue(labels.contains("1 comment no longer matches the diff and will not be published."))
+        XCTAssertTrue(labels.contains("Sources/Removed.swift"))
+        XCTAssertTrue(labels.contains("Outdated"))
+    }
+
+    func testTheStaleCommentListPluralizesItsCount() {
+        let view = AppKitReviewProposalStaleCommentsView()
+        view.configure(
+            AppKitReviewProposalStaleCommentsView.Configuration(
+                comments: (0..<2).map { index in
+                    PullRequestReviewProposalPreview.StaleComment(
+                        proposedIndex: index,
+                        path: "Sources/File\(index).swift",
+                        bodyMarkdown: "Body \(index)"
+                    )
+                },
+                allowsRemoval: true,
+                typography: TranscriptTypography()
+            )
+        )
+
+        XCTAssertTrue(
+            labels(in: view).contains("2 comments no longer match the diff and will not be published.")
+        )
+    }
+
     private func host(for entry: HostToolWidgetEntry) -> NSView {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = 640
