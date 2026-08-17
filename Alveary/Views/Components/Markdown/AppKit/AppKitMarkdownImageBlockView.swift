@@ -1,6 +1,14 @@
 @preconcurrency import AppKit
 import BlockInputKit
 
+/// One standalone markdown image block: placeholder chrome while loading, the
+/// bitmap once it arrives, and an unavailable label on failure.
+///
+/// The box wraps the bitmap rather than reserving a fixed aspect ratio, and it
+/// does so *before* the load by resolving the source's real dimensions through
+/// `AppMarkdownImageStore` — a local file answers from its header, and anything
+/// already loaded answers from the store. Sizing from the decoded `NSImage`
+/// instead would move the transcript under the reader on every load.
 @MainActor
 final class AppKitMarkdownImageBlockView: NSView {
     struct Configuration: Equatable {
@@ -10,20 +18,21 @@ final class AppKitMarkdownImageBlockView: NSView {
 
     static let defaultInitialWidth: CGFloat = 520
 
-    private static let loader = BlockInputDefaultImageLoader()
-    private static let diskCache = BlockInputDefaultImageDiskCache()
-    private static let maximumSourceBytes = 20 * 1024 * 1024
-    private static let maximumPixelDimension = 8_192
-
     private let contentView = AppKitFlippedDynamicColorView()
     private let imageView = NSImageView()
     private let statusLabel = NSTextField(labelWithString: "")
     /// Centered working indicator while the network load runs; mirrors the
     /// SwiftUI block view's spinner.
     private let loadingSpinner = AppKitStatusIndicatorSpinner()
+    private let imageStore: AppMarkdownImageStore
     private var configuration: Configuration?
-    private var loadedCacheKey: String?
-    private var loadTask: Task<Void, Never>?
+    private nonisolated(unsafe) var imageStateObserver: (any NSObjectProtocol)?
+    /// The display size this view last reported upward. A load whose dimensions
+    /// the header probe already predicted must not re-report, or every image
+    /// would still cost the transcript a height invalidation it does not need.
+    private var reportedDisplaySize: CGSize = .zero
+    /// Invoked only when a store update actually changes `displaySize`.
+    var onHeightInvalidated: (() -> Void)?
     var onOpen: ((BlockInputImage, URL?) -> Void)? {
         didSet {
             updateOpenState()
@@ -33,6 +42,7 @@ final class AppKitMarkdownImageBlockView: NSView {
         didSet {
             if abs(oldValue - maximumDisplayWidth) > 0.5 {
                 invalidateIntrinsicContentSize()
+                reportedDisplaySize = displaySize
                 needsLayout = true
             }
         }
@@ -40,11 +50,16 @@ final class AppKitMarkdownImageBlockView: NSView {
 
     init(
         configuration: Configuration,
-        onOpen: ((BlockInputImage, URL?) -> Void)? = nil
+        imageStore: AppMarkdownImageStore = .shared,
+        onOpen: ((BlockInputImage, URL?) -> Void)? = nil,
+        onHeightInvalidated: (() -> Void)? = nil
     ) {
+        self.imageStore = imageStore
         self.onOpen = onOpen
+        self.onHeightInvalidated = onHeightInvalidated
         super.init(frame: .zero)
         setup()
+        observeImageStateChanges()
         configure(configuration)
         updateOpenState()
     }
@@ -55,7 +70,9 @@ final class AppKitMarkdownImageBlockView: NSView {
     }
 
     deinit {
-        loadTask?.cancel()
+        if let imageStateObserver {
+            NotificationCenter.default.removeObserver(imageStateObserver)
+        }
     }
 
     override var isFlipped: Bool {
@@ -72,6 +89,7 @@ final class AppKitMarkdownImageBlockView: NSView {
         if abs(previousDisplaySize.width - displaySize.width) > 0.5 ||
             abs(previousDisplaySize.height - displaySize.height) > 0.5 {
             invalidateIntrinsicContentSize()
+            reportedDisplaySize = displaySize
         }
     }
 
@@ -124,12 +142,14 @@ final class AppKitMarkdownImageBlockView: NSView {
             : configuration.image.altText
         toolTip = accessibilityLabel
         setAccessibilityLabel(accessibilityLabel)
-        loadedCacheKey = nil
         imageView.image = nil
         showStatus("")
+        applyPlaceholderStyle()
+        imageStore.ensureLoad(for: configuration.image, baseURL: configuration.baseURL)
+        applyStoreState()
         invalidateIntrinsicContentSize()
+        reportedDisplaySize = displaySize
         needsLayout = true
-        startLoadIfPossible()
     }
 
     private func setup() {
@@ -155,6 +175,66 @@ final class AppKitMarkdownImageBlockView: NSView {
         applyPlaceholderStyle()
     }
 
+    /// The store owns loading for every markdown surface, so this view only
+    /// reacts to it. Filtering to its own source keeps an unrelated image's
+    /// load from touching this block.
+    private func observeImageStateChanges() {
+        imageStateObserver = NotificationCenter.default.addObserver(
+            forName: .appMarkdownImageStateDidChange,
+            object: imageStore,
+            queue: .main
+        ) { [weak self] notification in
+            guard let key = notification.userInfo?[AppMarkdownImageStore.storageKeyUserInfoKey] as? String else {
+                return
+            }
+            MainActor.assumeIsolated {
+                guard let self, let configuration = self.configuration else {
+                    return
+                }
+                let ownKey = self.imageStore.storageKey(
+                    forSource: configuration.image.source,
+                    baseURL: configuration.baseURL
+                )
+                guard ownKey == key else {
+                    return
+                }
+                self.applyStoreState()
+                self.reportDisplaySizeChangeIfNeeded()
+            }
+        }
+    }
+
+    private func applyStoreState() {
+        guard let configuration else {
+            return
+        }
+        if let image = imageStore.image(forSource: configuration.image.source, baseURL: configuration.baseURL) {
+            imageView.image = image
+            imageView.isHidden = false
+            statusLabel.isHidden = true
+            loadingSpinner.isHidden = true
+            contentView.setLayerFillColor(nil)
+            contentView.setLayerStrokeColor(nil)
+            return
+        }
+        imageView.image = nil
+        let hasFailed = imageStore.hasFailed(source: configuration.image.source, baseURL: configuration.baseURL)
+        showStatus(hasFailed ? "Image unavailable" : "")
+        applyPlaceholderStyle()
+    }
+
+    private func reportDisplaySizeChangeIfNeeded() {
+        let size = displaySize
+        guard abs(size.width - reportedDisplaySize.width) > 0.5 ||
+            abs(size.height - reportedDisplaySize.height) > 0.5 else {
+            return
+        }
+        reportedDisplaySize = size
+        invalidateIntrinsicContentSize()
+        needsLayout = true
+        onHeightInvalidated?()
+    }
+
     @discardableResult
     private func performOpen() -> Bool {
         guard let configuration,
@@ -163,82 +243,6 @@ final class AppKitMarkdownImageBlockView: NSView {
         }
         onOpen(configuration.image, configuration.baseURL)
         return true
-    }
-
-    private func startLoadIfPossible() {
-        loadTask?.cancel()
-        guard let configuration,
-              let resolvedURL = AppMarkdownImageSourceResolver.resolvedURL(
-                for: configuration.image.source,
-                baseURL: configuration.baseURL
-              ) else {
-            showStatus("Image unavailable")
-            return
-        }
-
-        let cacheKey = configuration.image.cacheKey(
-            resolvedURL: resolvedURL,
-            maximumPixelDimension: Self.maximumPixelDimension
-        )
-        guard loadedCacheKey != cacheKey else {
-            return
-        }
-
-        applyPlaceholderStyle()
-        let request = BlockInputImageLoadRequest(
-            image: configuration.image,
-            resolvedURL: resolvedURL,
-            cacheKey: cacheKey,
-            maxSourceBytes: Self.maximumSourceBytes,
-            maxPixelDimension: Self.maximumPixelDimension,
-            diskCache: Self.diskCache
-        )
-        loadTask = Task { [weak self] in
-            do {
-                let loaded = try await Self.loader.loadImage(request)
-                guard !Task.isCancelled else {
-                    return
-                }
-                await MainActor.run {
-                    self?.finishLoad(loaded, cacheKey: cacheKey)
-                }
-            } catch is CancellationError {
-                return
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-                await MainActor.run {
-                    self?.finishLoadFailure()
-                }
-            }
-        }
-    }
-
-    private func finishLoad(
-        _ loaded: BlockInputLoadedImage,
-        cacheKey: String
-    ) {
-        loadTask = nil
-        guard let image = NSImage(data: loaded.data) else {
-            finishLoadFailure()
-            return
-        }
-        loadedCacheKey = cacheKey
-        imageView.image = image
-        imageView.isHidden = false
-        statusLabel.isHidden = true
-        loadingSpinner.isHidden = true
-        contentView.setLayerFillColor(nil)
-        contentView.setLayerStrokeColor(nil)
-    }
-
-    private func finishLoadFailure() {
-        loadTask = nil
-        loadedCacheKey = nil
-        imageView.image = nil
-        showStatus("Image unavailable")
-        applyPlaceholderStyle()
     }
 
     private func showStatus(_ value: String) {
@@ -265,7 +269,11 @@ final class AppKitMarkdownImageBlockView: NSView {
         guard let configuration else {
             return CGSize(width: appMarkdownImageMinimumDisplayDimension, height: appMarkdownImageMinimumDisplayDimension)
         }
-        return appMarkdownImageDisplaySize(for: configuration.image, constrainedTo: constrainedWidth)
+        let naturalSize = imageStore.naturalSize(for: configuration.image, baseURL: configuration.baseURL)
+        return appMarkdownImageDisplaySize(
+            for: configuration.image.appMarkdownResolved(naturalSize: naturalSize),
+            constrainedTo: constrainedWidth
+        )
     }
 }
 

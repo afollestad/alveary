@@ -172,6 +172,72 @@ extension SnapshotTests {
         )
     }
 
+    /// Pins the fix for image blocks reserving a fixed 16:9 box: a wide banner
+    /// and a small icon each hug their own bitmap instead of stretching to the
+    /// bubble width with empty bars around them.
+    func testAppKitTranscriptMarkdownImageBlocksWrapTheirBitmaps() throws {
+        let banner = try Self.preloadedMarkdownImageSource(
+            named: "banner",
+            width: 320,
+            height: 80,
+            color: NSColor(calibratedRed: 0.20, green: 0.45, blue: 0.78, alpha: 1)
+        )
+        let icon = try Self.preloadedMarkdownImageSource(
+            named: "icon",
+            width: 56,
+            height: 56,
+            color: NSColor(calibratedRed: 0.85, green: 0.45, blue: 0.22, alpha: 1)
+        )
+
+        assertMacSnapshot(
+            TranscriptImageSnapshotHost {
+                let view = AppKitTranscriptTextBubbleRowView()
+                view.configure(
+                    .init(
+                        id: "assistant-markdown-images",
+                        role: .assistant,
+                        markdown: """
+                        Here is the banner:
+
+                        ![Banner](\(banner))
+
+                        And the small icon beside it:
+
+                        ![Icon](\(icon))
+                        """,
+                        bubbleMaxWidth: 460
+                    )
+                )
+                return view
+            },
+            size: CGSize(width: 560, height: 320),
+            named: "appkit_transcript_markdown_image_blocks"
+        )
+    }
+
+    /// Transcript rows hydrate their markdown against `AppMarkdownImageStore.shared`,
+    /// so a deterministic render seeds that store. The per-run temporary path keeps
+    /// the seeded entry from colliding with any other test's source.
+    private static func preloadedMarkdownImageSource(
+        named name: String,
+        width: Int,
+        height: Int,
+        color: NSColor
+    ) throws -> String {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AlvearySnapshotMarkdownImages", isDirectory: true)
+            .appendingPathComponent("\(name)-\(UUID().uuidString).png")
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try appMarkdownTestPNGData(width: width, height: height, color: color)
+        try data.write(to: fileURL)
+        let image = try XCTUnwrap(NSImage(data: data))
+        AppMarkdownImageStore.shared.preloadForTesting(source: fileURL.path, image: image)
+        return fileURL.path
+    }
+
     private static func makeSnapshotFileAttachment() -> LocalFileAttachment {
         LocalFileAttachment(
             id: "snapshot-file-attachment",

@@ -320,6 +320,29 @@ extension BlockInputImage {
     var appMarkdownAltFallback: String {
         altText.isEmpty ? source : altText
     }
+
+    /// Fills in missing dimensions from the image's real pixel size so display
+    /// sizing wraps the bitmap instead of falling back to
+    /// `appMarkdownImageDefaultAspectRatio`. Declared HTML dimensions win — an
+    /// author who sized an image meant it. Both renderers and the AppKit
+    /// measurer resolve through this, or a measured height stops matching a
+    /// drawn one.
+    func appMarkdownResolved(naturalSize: CGSize?) -> BlockInputImage {
+        guard let naturalSize,
+              naturalSize.width > 0,
+              naturalSize.height > 0,
+              width == nil,
+              height == nil else {
+            return self
+        }
+        return BlockInputImage(
+            source: source,
+            altText: altText,
+            width: Int(naturalSize.width.rounded()),
+            height: Int(naturalSize.height.rounded()),
+            sourceStyle: sourceStyle
+        )
+    }
 }
 
 extension String {

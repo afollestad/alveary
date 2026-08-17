@@ -64,7 +64,8 @@ enum TextBubblePreparedMeasurement {
             document: document,
             inlineCodeStyle: context.inlineCodeStyle,
             typography: configuration.typography,
-            colorScheme: markdownColorScheme(for: context.appearance)
+            colorScheme: markdownColorScheme(for: context.appearance),
+            imageBaseURL: configuration.markdownBaseURL
         )
         .measure(width: context.markdownWidth)
         textBubblePreparedLayoutCache.insert(

@@ -18,7 +18,22 @@ final class AppMarkdownImageStore {
         case failed(Date)
     }
 
+    /// Keyed by `storageKey(for:baseURL:)`, never by the raw source. Two
+    /// transcript rows under different base URLs can both say
+    /// `![x](images/diagram.png)`, and a raw-source key would hand each the
+    /// other's bitmap and the other's dimensions.
     private(set) var states: [String: ImageState] = [:]
+
+    /// Real pixel dimensions per key, so a display box can wrap the bitmap
+    /// before it is decoded. Deliberately not observation-tracked: the file
+    /// probe below fills it synchronously *during* a SwiftUI `body`, and an
+    /// observed mutation there would re-enter the render pass. A remote source
+    /// lands here only via a load, which flips observed `states` in the same
+    /// turn and drives the refresh instead.
+    @ObservationIgnored private var naturalSizes: [String: CGSize] = [:]
+    /// Keys whose file probe already ran, so a source that has no readable
+    /// header is not re-probed on every layout pass.
+    @ObservationIgnored private var probedFileKeys: Set<String> = []
 
     /// Consulted when a remote load fails: may mint an alternate URL for the
     /// same content (e.g. a signed GitHub attachment URL) to retry once, still
@@ -52,18 +67,64 @@ final class AppMarkdownImageStore {
         self.now = now
     }
 
-    func image(forSource source: String) -> NSImage? {
-        guard case let .loaded(image) = states[source] else {
+    func image(forSource source: String, baseURL: URL? = nil) -> NSImage? {
+        guard case let .loaded(image) = states[storageKey(forSource: source, baseURL: baseURL)] else {
             return nil
         }
         return image
     }
 
-    func hasFailed(source: String) -> Bool {
-        guard case .failed = states[source] else {
+    func hasFailed(source: String, baseURL: URL? = nil) -> Bool {
+        guard case .failed = states[storageKey(forSource: source, baseURL: baseURL)] else {
             return false
         }
         return true
+    }
+
+    /// Identity for one image's bytes: the resolved absolute URL, so a relative
+    /// source means different things under different base URLs. Falls back to
+    /// the raw source when nothing resolves, which is also what `ensureLoad`
+    /// records the permanent failure under.
+    func storageKey(forSource source: String, baseURL: URL?) -> String {
+        AppMarkdownImageSourceResolver.resolvedURL(for: source, baseURL: baseURL)?.absoluteString ?? source
+    }
+
+    /// Real pixel dimensions for a source, or `nil` when they cannot be known
+    /// yet. Renderers resolve through this before sizing so an image block
+    /// reserves the box the bitmap will actually occupy — reacting to a decoded
+    /// bitmap instead would shift the transcript on every load.
+    ///
+    /// A local source is answered on the spot: `CGImageSourceCopyPropertiesAtIndex`
+    /// reads header metadata without decoding, and the result is memoized, so
+    /// repeat layout passes cost a dictionary lookup. A remote source answers
+    /// `nil` until its load lands; callers fall back to
+    /// `appMarkdownImageDefaultAspectRatio` for that one render.
+    func naturalSize(for image: BlockInputImage, baseURL: URL?) -> CGSize? {
+        // Declared dimensions win in `appMarkdownResolved(naturalSize:)`, so
+        // probing the file for them would be wasted I/O.
+        guard image.width == nil || image.height == nil else {
+            return nil
+        }
+        let key = storageKey(forSource: image.source, baseURL: baseURL)
+        // Every path that stores a `.loaded` state also records here, so a
+        // loaded bitmap always answers from this map.
+        if let known = naturalSizes[key] {
+            return known
+        }
+        guard !probedFileKeys.contains(key),
+              let resolvedURL = AppMarkdownImageSourceResolver.resolvedURL(for: image.source, baseURL: baseURL),
+              resolvedURL.isFileURL else {
+            return nil
+        }
+        probedFileKeys.insert(key)
+        guard let probed = Self.probedNaturalSize(atFileURL: resolvedURL) else {
+            // A file the agent has not written yet reads as unprobeable. It is
+            // not re-probed per layout pass; `ensureLoad`'s retry records the
+            // size through `finishLoad` once the file exists.
+            return nil
+        }
+        naturalSizes[key] = probed
+        return probed
     }
 
     /// Seeds a locally known bitmap for a remote source — the file the app just
@@ -80,11 +141,14 @@ final class AppMarkdownImageStore {
               nsImage.size.height > 0 else {
             return
         }
-        loadTasks[source]?.cancel()
-        loadTasks[source] = nil
-        cancelAutomaticRetry(for: source)
-        states[source] = .loaded(nsImage)
-        postStateChange(for: source)
+        let stateKey = storageKey(forSource: source, baseURL: nil)
+        loadTasks[stateKey]?.cancel()
+        loadTasks[stateKey] = nil
+        cancelAutomaticRetry(for: stateKey)
+        let dimensions = Self.imageDimensions(from: data, fallbackImage: nsImage)
+        recordNaturalSize(dimensions, for: stateKey)
+        states[stateKey] = .loaded(nsImage)
+        postStateChange(for: stateKey)
 
         // Every consumer derives the same key (`default-v1|url|8192`) and the
         // default disk caches share one directory, so this single write also
@@ -96,29 +160,25 @@ final class AppMarkdownImageStore {
             resolvedURL: resolvedURL,
             maximumPixelDimension: Self.maximumPixelDimension
         )
-        let entry = BlockInputImageDiskCacheEntry(
-            data: data,
-            dimensions: Self.imageDimensions(from: data, fallbackImage: nsImage)
-        )
+        let entry = BlockInputImageDiskCacheEntry(data: data, dimensions: dimensions)
         try? await diskCache.storeImage(entry, forKey: key)
     }
 
-    /// Starts a load unless one already finished or is in flight. Keyed by the
-    /// raw source string; callers resolve relative sources before asking. A
-    /// failed source becomes loadable again after `failureRetryInterval` — a
-    /// remote image that 404s can start existing later (GitHub attachments stay
+    /// Starts a load unless one already finished or is in flight. A failed
+    /// source becomes loadable again after `failureRetryInterval` — a remote
+    /// image that 404s can start existing later (GitHub attachments stay
     /// session-gated until their embedding content is saved).
     func ensureLoad(for image: BlockInputImage, baseURL: URL?) {
-        let source = image.source
-        guard shouldAttemptLoad(of: source) else {
+        let key = storageKey(forSource: image.source, baseURL: baseURL)
+        guard shouldAttemptLoad(of: key) else {
             return
         }
-        guard let resolvedURL = AppMarkdownImageSourceResolver.resolvedURL(for: source, baseURL: baseURL) else {
+        guard let resolvedURL = AppMarkdownImageSourceResolver.resolvedURL(for: image.source, baseURL: baseURL) else {
             // Unresolvable sources are permanent failures; a retry cannot help.
-            states[source] = .failed(.distantFuture)
+            states[key] = .failed(.distantFuture)
             return
         }
-        states[source] = .loading
+        states[key] = .loading
         let request = BlockInputImageLoadRequest(
             image: image,
             resolvedURL: resolvedURL,
@@ -127,11 +187,11 @@ final class AppMarkdownImageStore {
             maxPixelDimension: Self.maximumPixelDimension,
             diskCache: diskCache
         )
-        loadTasks[source] = makeLoadTask(request: request, image: image, baseURL: baseURL)
+        loadTasks[key] = makeLoadTask(request: request, image: image, baseURL: baseURL, key: key)
     }
 
-    private func shouldAttemptLoad(of source: String) -> Bool {
-        switch states[source] {
+    private func shouldAttemptLoad(of key: String) -> Bool {
+        switch states[key] {
         case .loading, .loaded:
             return false
         case .failed(let failedAt):
@@ -144,7 +204,8 @@ final class AppMarkdownImageStore {
     private func makeLoadTask(
         request: BlockInputImageLoadRequest,
         image: BlockInputImage,
-        baseURL: URL?
+        baseURL: URL?,
+        key: String
     ) -> Task<Void, Never> {
         let source = image.source
         let loader = loader
@@ -155,7 +216,7 @@ final class AppMarkdownImageStore {
                     return
                 }
                 await MainActor.run {
-                    self?.finishLoad(loaded, source: source)
+                    self?.finishLoad(loaded, key: key)
                 }
             } catch is CancellationError {
                 return
@@ -165,7 +226,7 @@ final class AppMarkdownImageStore {
                 }
                 if let fallbackLoaded = await self?.loadThroughFallbackURL(request: request, source: source) {
                     await MainActor.run {
-                        self?.finishLoad(fallbackLoaded, source: source)
+                        self?.finishLoad(fallbackLoaded, key: key)
                     }
                     return
                 }
@@ -173,7 +234,7 @@ final class AppMarkdownImageStore {
                     return
                 }
                 await MainActor.run {
-                    self?.finishLoadFailure(source: source, image: image, baseURL: baseURL)
+                    self?.finishLoadFailure(key: key, image: image, baseURL: baseURL)
                 }
             }
         }
@@ -196,65 +257,84 @@ final class AppMarkdownImageStore {
     }
 
     /// Seeds a loaded bitmap so snapshot hosts and tests render deterministically.
-    func preloadForTesting(source: String, image: NSImage) {
-        states[source] = .loaded(image)
+    func preloadForTesting(source: String, image: NSImage, baseURL: URL? = nil) {
+        let key = storageKey(forSource: source, baseURL: baseURL)
+        naturalSizes[key] = image.size
+        states[key] = .loaded(image)
     }
 
-    /// Compact digest of this store's load states for every image source in the
+    /// Compact digest of what this store knows about every image source in the
     /// markdown. Measurement caches must include it in their keys: an inline
     /// image growing from alt text to a bitmap changes measured heights, and a
-    /// key without the digest would keep returning the pre-load measurement.
-    func loadStateFingerprint(forMarkdown markdown: String) -> String {
+    /// block image's box changes the moment its real dimensions resolve.
+    ///
+    /// Resolving the sizes here rather than reporting only load state is what
+    /// keeps the key honest — it has to already reflect the size the measurer
+    /// is about to compute, or the first measurement caches under a key that
+    /// the next pass no longer asks for.
+    func loadStateFingerprint(forMarkdown markdown: String, baseURL: URL? = nil) -> String {
         guard markdown.contains("![") || markdown.range(of: "<img", options: .caseInsensitive) != nil else {
             return ""
         }
         return AppMarkdownImageSyntaxParser.imageMatchesOutsideCode(in: markdown)
             .map { match in
-                switch states[match.image.source] {
+                let stateMark: String
+                switch states[storageKey(forSource: match.image.source, baseURL: baseURL)] {
                 case .none:
-                    return "n"
+                    stateMark = "n"
                 case .loading:
-                    return "p"
+                    stateMark = "p"
                 case .failed:
-                    return "f"
-                case .loaded(let image):
-                    return "l\(Int(image.size.width))x\(Int(image.size.height))"
+                    stateMark = "f"
+                case .loaded:
+                    stateMark = "l"
                 }
+                guard let size = naturalSize(for: match.image, baseURL: baseURL) else {
+                    return stateMark
+                }
+                return "\(stateMark)\(Int(size.width))x\(Int(size.height))"
             }
             .joined(separator: ",")
     }
 
-    private func finishLoad(_ loaded: BlockInputLoadedImage, source: String) {
-        loadTasks[source] = nil
+    private func finishLoad(_ loaded: BlockInputLoadedImage, key: String) {
+        loadTasks[key] = nil
         guard let nsImage = NSImage(data: loaded.data), nsImage.size.width > 0, nsImage.size.height > 0 else {
-            finishLoadFailure(source: source, image: nil, baseURL: nil)
+            finishLoadFailure(key: key, image: nil, baseURL: nil)
             return
         }
-        cancelAutomaticRetry(for: source)
-        states[source] = .loaded(nsImage)
-        postStateChange(for: source)
+        cancelAutomaticRetry(for: key)
+        // The loader already corrected these for EXIF orientation; `NSImage.size`
+        // reports points and would disagree with a DPI-tagged source.
+        recordNaturalSize(loaded.dimensions, for: key)
+        states[key] = .loaded(nsImage)
+        postStateChange(for: key)
     }
 
-    private func cancelAutomaticRetry(for source: String) {
-        retryContexts[source]?.task.cancel()
-        retryContexts[source] = nil
+    /// Records dimensions a load resolved, overriding an earlier probe miss.
+    private func recordNaturalSize(_ dimensions: BlockInputImageDimensions, for key: String) {
+        naturalSizes[key] = CGSize(width: dimensions.width, height: dimensions.height)
     }
 
-    private func finishLoadFailure(source: String, image: BlockInputImage?, baseURL: URL?) {
-        loadTasks[source] = nil
-        states[source] = .failed(now())
-        postStateChange(for: source)
+    private func cancelAutomaticRetry(for key: String) {
+        retryContexts[key]?.task.cancel()
+        retryContexts[key] = nil
+    }
+
+    private func finishLoadFailure(key: String, image: BlockInputImage?, baseURL: URL?) {
+        loadTasks[key] = nil
+        states[key] = .failed(now())
+        postStateChange(for: key)
         if let image {
-            scheduleAutomaticRetry(for: image, baseURL: baseURL)
+            scheduleAutomaticRetry(for: image, baseURL: baseURL, key: key)
         }
     }
 
     /// A visible failure block re-renders only when something else invalidates
     /// it, so `ensureLoad`'s retry window alone leaves a broken image broken on
     /// an untouched screen. A couple of self-driven retries heal it in place.
-    private func scheduleAutomaticRetry(for image: BlockInputImage, baseURL: URL?) {
-        let source = image.source
-        let attempts = retryContexts[source]?.attempts ?? 0
+    private func scheduleAutomaticRetry(for image: BlockInputImage, baseURL: URL?, key: String) {
+        let attempts = retryContexts[key]?.attempts ?? 0
         guard attempts < Self.maximumAutomaticRetries else {
             return
         }
@@ -263,23 +343,45 @@ final class AppMarkdownImageStore {
             guard !Task.isCancelled, let self else {
                 return
             }
-            guard case .failed = self.states[source] else {
+            guard case .failed = self.states[key] else {
                 return
             }
             self.ensureLoad(for: image, baseURL: baseURL)
         }
-        retryContexts[source] = FailedLoadRetryContext(attempts: attempts + 1, task: retryTask)
+        retryContexts[key] = FailedLoadRetryContext(attempts: attempts + 1, task: retryTask)
     }
 
     private static func imageDimensions(from data: Data, fallbackImage: NSImage) -> BlockInputImageDimensions {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = properties[kCGImagePropertyPixelWidth] as? Int,
-              let height = properties[kCGImagePropertyPixelHeight] as? Int else {
+              let dimensions = imageDimensions(fromProperties: properties) else {
             return BlockInputImageDimensions(
                 width: Int(fallbackImage.size.width.rounded()),
                 height: Int(fallbackImage.size.height.rounded())
             )
+        }
+        return dimensions
+    }
+
+    /// Header-only dimension read for a file source. `kCGImageSourceShouldCache`
+    /// keeps ImageIO from decoding the bitmap, which is what makes this cheap
+    /// enough to call from a layout pass.
+    private static func probedNaturalSize(atFileURL url: URL) -> CGSize? {
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, options),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, options) as? [CFString: Any],
+              let dimensions = imageDimensions(fromProperties: properties) else {
+            return nil
+        }
+        return CGSize(width: dimensions.width, height: dimensions.height)
+    }
+
+    /// Shared by the probe and the load path so a probed size and a loaded one
+    /// cannot disagree about orientation.
+    private static func imageDimensions(fromProperties properties: [CFString: Any]) -> BlockInputImageDimensions? {
+        guard let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int else {
+            return nil
         }
         let orientation = properties[kCGImagePropertyOrientation] as? Int
         if orientation == 5 || orientation == 6 || orientation == 7 || orientation == 8 {
@@ -289,12 +391,14 @@ final class AppMarkdownImageStore {
     }
 
     /// Non-observing (AppKit) consumers refresh through this notification;
-    /// SwiftUI views track `states` through Observation instead.
-    private func postStateChange(for source: String) {
+    /// SwiftUI views track `states` through Observation instead. The payload is
+    /// a `storageKey(forSource:baseURL:)`, so an observer must derive the same
+    /// key rather than compare against its raw markdown source.
+    private func postStateChange(for key: String) {
         NotificationCenter.default.post(
             name: .appMarkdownImageStateDidChange,
             object: self,
-            userInfo: [AppMarkdownImageStore.sourceUserInfoKey: source]
+            userInfo: [AppMarkdownImageStore.storageKeyUserInfoKey: key]
         )
     }
 }
@@ -304,7 +408,7 @@ extension Notification.Name {
 }
 
 extension AppMarkdownImageStore {
-    nonisolated static let sourceUserInfoKey = "source"
+    nonisolated static let storageKeyUserInfoKey = "storageKey"
 }
 
 /// Automatic-retry bookkeeping for one failed source: how many self-driven

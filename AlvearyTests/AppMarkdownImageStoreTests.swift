@@ -135,6 +135,107 @@ final class AppMarkdownImageStoreTests: XCTestCase {
         XCTAssertNotNil(store.image(forSource: source))
     }
 
+    /// Header-only probing is what lets a local image reserve its real box on
+    /// the first layout pass, before any load runs.
+    func testNaturalSizeProbesLocalFileWithoutLoading() throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let fileURL = try temporaryPNGURL(width: 120, height: 45)
+
+        let size = store.naturalSize(for: BlockInputImage(source: fileURL.path), baseURL: nil)
+
+        XCTAssertEqual(size, CGSize(width: 120, height: 45))
+        XCTAssertNil(store.image(forSource: fileURL.path))
+    }
+
+    func testNaturalSizeResolvesRelativeSourceAgainstBaseURL() throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let fileURL = try temporaryPNGURL(width: 64, height: 96)
+        let baseURL = fileURL.deletingLastPathComponent()
+
+        let size = store.naturalSize(for: BlockInputImage(source: fileURL.lastPathComponent), baseURL: baseURL)
+
+        XCTAssertEqual(size, CGSize(width: 64, height: 96))
+    }
+
+    /// Declared dimensions are the author's intent, so probing for them would be
+    /// wasted I/O; `appMarkdownResolved(naturalSize:)` ignores the answer anyway.
+    func testNaturalSizeSkipsProbeWhenBothDimensionsAreDeclared() throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let fileURL = try temporaryPNGURL(width: 120, height: 45)
+
+        let image = BlockInputImage(source: fileURL.path, altText: "", width: 30, height: 20, sourceStyle: .html)
+
+        XCTAssertNil(store.naturalSize(for: image, baseURL: nil))
+    }
+
+    func testNaturalSizeIsNilForRemoteSourceUntilItLoads() async throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let image = BlockInputImage(source: "https://example.com/p1.png")
+        XCTAssertNil(store.naturalSize(for: image, baseURL: nil))
+
+        store.ensureLoad(for: image, baseURL: nil)
+        try await waitForLoadedImage(of: image.source, in: store)
+
+        XCTAssertEqual(store.naturalSize(for: image, baseURL: nil), CGSize(width: 40, height: 20))
+    }
+
+    /// A path the agent has not written yet must not be re-probed on every
+    /// layout pass; the load path records the size once the file exists.
+    func testMissingFileIsProbedOnlyOnce() throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let directoryURL = try temporaryDirectoryURL()
+        let fileURL = directoryURL.appendingPathComponent("later.png")
+        let image = BlockInputImage(source: fileURL.path)
+        XCTAssertNil(store.naturalSize(for: image, baseURL: nil))
+
+        try appMarkdownTestPNGData(width: 30, height: 10).write(to: fileURL)
+
+        XCTAssertNil(store.naturalSize(for: image, baseURL: nil))
+    }
+
+    /// Prepared-measurement keys carry this digest, so it has to move the moment
+    /// a size resolves or the pre-resolution measurement sticks.
+    func testLoadStateFingerprintCarriesResolvedDimensions() throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let fileURL = try temporaryPNGURL(width: 120, height: 45)
+        let markdown = "![Local](\(fileURL.lastPathComponent))"
+        let baseURL = fileURL.deletingLastPathComponent()
+
+        let unresolved = store.loadStateFingerprint(forMarkdown: markdown, baseURL: nil)
+        let resolved = store.loadStateFingerprint(forMarkdown: markdown, baseURL: baseURL)
+
+        XCTAssertEqual(unresolved, "n")
+        XCTAssertEqual(resolved, "n120x45")
+    }
+
+    func testLoadStateFingerprintChangesWhenARemoteImageLoads() async throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let markdown = "![Remote](https://example.com/p1.png)"
+        let before = store.loadStateFingerprint(forMarkdown: markdown)
+
+        store.ensureLoad(for: BlockInputImage(source: "https://example.com/p1.png"), baseURL: nil)
+        try await waitForLoadedImage(of: "https://example.com/p1.png", in: store)
+
+        XCTAssertEqual(before, "n")
+        XCTAssertEqual(store.loadStateFingerprint(forMarkdown: markdown), "l40x20")
+    }
+
+    private func temporaryDirectoryURL() throws -> URL {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        return directoryURL
+    }
+
+    private func temporaryPNGURL(width: Int, height: Int) throws -> URL {
+        let fileURL = try temporaryDirectoryURL().appendingPathComponent("fixture.png")
+        try appMarkdownTestPNGData(width: width, height: height).write(to: fileURL)
+        return fileURL
+    }
+
     private func waitForLoadedImage(of source: String, in store: AppMarkdownImageStore) async throws {
         for _ in 0..<40 {
             if store.image(forSource: source) != nil {
@@ -284,6 +385,15 @@ private final class StubLoadCounter: @unchecked Sendable {
 
     func increment() {
         lock.withLock { count += 1 }
+    }
+}
+
+/// Loader that never resolves, so a test can assert the box an image reserves
+/// before its bitmap exists without any surface reaching the network.
+struct AppMarkdownPendingImageLoader: BlockInputImageLoading {
+    func loadImage(_ request: BlockInputImageLoadRequest) async throws -> BlockInputLoadedImage {
+        try await Task.sleep(nanoseconds: 60_000_000_000)
+        throw CancellationError()
     }
 }
 

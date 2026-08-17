@@ -24,9 +24,9 @@ struct AppMarkdownImageBlockView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let nsImage = store.image(forSource: block.image.source) {
+        if let nsImage = store.image(forSource: block.image.source, baseURL: baseURL) {
             loadedImage(nsImage)
-        } else if store.hasFailed(source: block.image.source) {
+        } else if store.hasFailed(source: block.image.source, baseURL: baseURL) {
             placeholder(text: "Image unavailable")
         } else {
             placeholder(text: nil)
@@ -35,7 +35,7 @@ struct AppMarkdownImageBlockView: View {
 
     private func loadedImage(_ nsImage: NSImage) -> some View {
         let displaySize = appMarkdownImageDisplaySize(
-            for: resolvedImage(naturalSize: nsImage.size),
+            for: resolvedImage,
             constrainedTo: .greatestFiniteMagnitude
         )
         return Button {
@@ -54,8 +54,10 @@ struct AppMarkdownImageBlockView: View {
     }
 
     private func placeholder(text: String?) -> some View {
+        // Sized from the same resolved dimensions as the loaded branch, so a
+        // local image's placeholder already occupies the box its bitmap will.
         let displaySize = appMarkdownImageDisplaySize(
-            for: block.image,
+            for: resolvedImage,
             constrainedTo: AppMarkdownImageBlockView.placeholderWidth
         )
         return RoundedRectangle(cornerRadius: 8)
@@ -76,17 +78,13 @@ struct AppMarkdownImageBlockView: View {
             .frame(width: displaySize.width, height: displaySize.height, alignment: .leading)
     }
 
-    /// Declared dimensions win; otherwise the natural size drives display sizing.
-    private func resolvedImage(naturalSize: CGSize) -> BlockInputImage {
-        guard block.image.width == nil, block.image.height == nil else {
-            return block.image
-        }
-        return BlockInputImage(
-            source: block.image.source,
-            altText: block.image.altText,
-            width: Int(naturalSize.width.rounded()),
-            height: Int(naturalSize.height.rounded()),
-            sourceStyle: block.image.sourceStyle
+    /// Declared dimensions win; otherwise the store's resolved pixel size drives
+    /// display sizing. Deliberately not `nsImage.size`, which reports points and
+    /// would size a DPI-tagged source differently from the AppKit renderer and
+    /// from an HTML `width`/`height` on the same image.
+    private var resolvedImage: BlockInputImage {
+        block.image.appMarkdownResolved(
+            naturalSize: store.naturalSize(for: block.image, baseURL: baseURL)
         )
     }
 

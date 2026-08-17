@@ -45,7 +45,9 @@ struct AppKitMarkdownBlockRenderer {
                 image: imageBlock.image,
                 baseURL: imageBaseURL
             ),
-            onOpen: onOpenImage
+            imageStore: imageStore,
+            onOpen: onOpenImage,
+            onHeightInvalidated: heightInvalidationHandler
         )
     }
 

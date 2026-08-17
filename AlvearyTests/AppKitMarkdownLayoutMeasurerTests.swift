@@ -118,6 +118,68 @@ final class AppKitMarkdownLayoutMeasurerTests: XCTestCase {
         XCTAssertEqual(cache.countForTesting, 1)
     }
 
+    /// The measurer resolves natural sizes through the same store the renderer
+    /// draws from; if the two ever disagree a row reserves one height and paints
+    /// another.
+    func testLocalImageHeightMatchesHydratedRenderer() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directoryURL)
+        }
+        try appMarkdownTestPNGData(width: 200, height: 400)
+            .write(to: directoryURL.appendingPathComponent("local.png"))
+
+        let store = AppMarkdownImageStore(loader: AppMarkdownPendingImageLoader(), diskCache: nil)
+        let document = AppMarkdownParser().documentPreservingSource(for: "![Local](local.png)")
+        let measured = AppKitMarkdownLayoutMeasurer(
+            document: document,
+            imageStore: store,
+            imageBaseURL: directoryURL
+        )
+        .measure(width: 320)
+
+        let view = AppKitMarkdownView(document: document, imageBaseURL: directoryURL, imageStore: store)
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 2_000)
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(measured.contentHeight, 400, accuracy: 0.5)
+        XCTAssertEqual(measured.contentHeight, view.intrinsicContentSize.height, accuracy: 0.5)
+    }
+
+    /// A remote source with nothing known yet must reserve the same default box
+    /// in both paths, or the correction on load lands on a mismatched height.
+    func testUnknownRemoteImageHeightMatchesHydratedRenderer() {
+        let store = AppMarkdownImageStore(loader: AppMarkdownPendingImageLoader(), diskCache: nil)
+        let document = AppMarkdownParser().documentPreservingSource(for: "![Remote](https://example.com/a.png)")
+
+        let measured = AppKitMarkdownLayoutMeasurer(document: document, imageStore: store).measure(width: 320)
+        let view = AppKitMarkdownView(document: document, imageStore: store)
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 2_000)
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(measured.contentHeight, 180, accuracy: 0.5)
+        XCTAssertEqual(measured.contentHeight, view.intrinsicContentSize.height, accuracy: 0.5)
+    }
+
+    func testLoadedRemoteImageHeightMatchesHydratedRenderer() throws {
+        let store = AppMarkdownImageStore(loader: AppMarkdownPendingImageLoader(), diskCache: nil)
+        let document = AppMarkdownParser().documentPreservingSource(for: "![Remote](https://example.com/a.png)")
+        store.preloadForTesting(
+            source: "https://example.com/a.png",
+            image: try XCTUnwrap(NSImage(data: appMarkdownTestPNGData(width: 800, height: 200)))
+        )
+
+        let measured = AppKitMarkdownLayoutMeasurer(document: document, imageStore: store).measure(width: 320)
+        let view = AppKitMarkdownView(document: document, imageStore: store)
+        view.frame = NSRect(x: 0, y: 0, width: 320, height: 2_000)
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertEqual(measured.contentHeight, 80, accuracy: 0.5)
+        XCTAssertEqual(measured.contentHeight, view.intrinsicContentSize.height, accuracy: 0.5)
+    }
+
     private func assertMarkdownMeasurementParity(
         _ markdown: String,
         width: CGFloat = 420,

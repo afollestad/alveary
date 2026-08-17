@@ -320,6 +320,8 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
 
     private let markdownView: AppKitMarkdownView
     private let document: AppMarkdownDocument
+    /// The measurer must share `markdownView`'s base or a local image measures 16:9 but draws its real box.
+    private let imageBaseURL: URL?
     private let typography: TranscriptTypography
     private var lastMeasuredHeight: CGFloat = -1
 
@@ -354,6 +356,7 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
             AppMarkdownParser().documentPreservingSource(for: markdown)
         }
         self.document = document
+        self.imageBaseURL = baseURL
         self.typography = typography
         markdownView = AppKitMarkdownView(
             document: document,
@@ -429,7 +432,8 @@ private final class AppKitTranscriptMarkdownToolContentView: AppKitDynamicColorV
         AppKitMarkdownLayoutMeasurer(
             document: document,
             inlineCodeStyle: .standard,
-            typography: typography.appKitMarkdownTypography
+            typography: typography.appKitMarkdownTypography,
+            imageBaseURL: imageBaseURL
         )
         .measure(width: max(width, 0))
         .contentHeight

@@ -12,7 +12,8 @@ extension AppKitTranscriptTextBubbleRowView {
             inlineCodeStyle: inlineCodeStyle(for: configuration.role),
             appearance: effectiveAppearance,
             inlineImageFingerprint: AppMarkdownImageStore.shared.loadStateFingerprint(
-                forMarkdown: configuration.markdown
+                forMarkdown: configuration.markdown,
+                baseURL: configuration.markdownBaseURL
             )
         )
     }

@@ -2,7 +2,7 @@
 import Foundation
 import SwiftUI
 
-private let rendererVersion = 2
+private let rendererVersion = 3
 private let tableMinimumColumnWidth: CGFloat = 120
 private let tableFallbackViewportWidth: CGFloat = 520
 private let tableCellHorizontalPadding: CGFloat = 10
@@ -21,22 +21,27 @@ struct AppKitMarkdownLayoutMeasurer {
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
     let typography: AppKitMarkdownTypography
     let colorScheme: ColorScheme
-    // Must match the renderer's store or attachment-swapped inline images measure
-    // a different height than they draw.
+    // Must match the renderer's store or inline attachment swaps and image
+    // blocks measure a different height than they draw.
     let imageStore: AppMarkdownImageStore
+    // Must match `AppKitMarkdownView.imageBaseURL`, or a relative image source
+    // resolves to a file here and to nothing in the renderer.
+    let imageBaseURL: URL?
 
     init(
         document: AppMarkdownDocument,
         inlineCodeStyle: AppMarkdownInlineCodeStyle = .standard,
         typography: AppKitMarkdownTypography = .default,
         colorScheme: ColorScheme = .light,
-        imageStore: AppMarkdownImageStore = .shared
+        imageStore: AppMarkdownImageStore = .shared,
+        imageBaseURL: URL? = nil
     ) {
         self.document = document
         self.inlineCodeStyle = inlineCodeStyle
         self.typography = typography
         self.colorScheme = colorScheme
         self.imageStore = imageStore
+        self.imageBaseURL = imageBaseURL
     }
 
     func measure(width: CGFloat) -> AppKitMarkdownLayoutMeasurement {

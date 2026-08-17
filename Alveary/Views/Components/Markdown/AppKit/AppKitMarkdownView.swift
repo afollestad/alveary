@@ -30,7 +30,11 @@ final class AppKitMarkdownView: NSView {
     private var inlineCodeStyle: AppMarkdownInlineCodeStyle
     private var typography: AppKitMarkdownTypography
     private var imageBaseURL: URL?
-    private var inlineImageSources: Set<String> = []
+    /// Store keys for this document's inline images. `nil` base URL mirrors what
+    /// `AppKitMarkdownAttributedStringBuilder` passes when it kicks those loads;
+    /// image blocks are excluded because they observe the store themselves and
+    /// swap the bitmap in place instead of forcing a full rebuild.
+    private var inlineImageKeys: Set<String> = []
     private nonisolated(unsafe) var inlineImageObserver: (any NSObjectProtocol)?
     private let imageStore: AppMarkdownImageStore
 
@@ -137,11 +141,11 @@ final class AppKitMarkdownView: NSView {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let source = notification.userInfo?[AppMarkdownImageStore.sourceUserInfoKey] as? String else {
+            guard let key = notification.userInfo?[AppMarkdownImageStore.storageKeyUserInfoKey] as? String else {
                 return
             }
             MainActor.assumeIsolated {
-                guard let self, self.inlineImageSources.contains(source) else {
+                guard let self, self.inlineImageKeys.contains(key) else {
                     return
                 }
                 self.rebuild()
@@ -150,7 +154,9 @@ final class AppKitMarkdownView: NSView {
     }
 
     private func rebuild() {
-        inlineImageSources = document.inlineImageSources
+        inlineImageKeys = Set(document.inlineImageSources.map { source in
+            imageStore.storageKey(forSource: source, baseURL: nil)
+        })
         stackView.arrangedSubviews.forEach { view in
             stackView.removeArrangedSubview(view)
             view.removeFromSuperview()
