@@ -49,6 +49,11 @@ final class AgentThread {
     var scheduledTaskRun: ScheduledTaskRun?
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.targetThread)
     var targetedScheduledTasks: [ScheduledTask] = []
+    /// Schedules reusing this thread as their rolling destination. Deliberately excluded from
+    /// `blockingScheduledTaskAttachment`: a reuse thread stays archivable and deletable, and the
+    /// schedule self-heals by creating a replacement.
+    @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.reusedThread)
+    var reusingScheduledTasks: [ScheduledTask] = []
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskRun.targetThread)
     var targetedScheduledTaskRuns: [ScheduledTaskRun] = []
     @Relationship(deleteRule: .cascade, inverse: \Conversation.thread) var conversations: [Conversation]

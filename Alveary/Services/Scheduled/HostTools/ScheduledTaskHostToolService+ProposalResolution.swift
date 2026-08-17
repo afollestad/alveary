@@ -71,7 +71,9 @@ extension ScheduledTaskHostToolService {
         let draft = ScheduledTaskProposalDefinitionDraft(
             title: title,
             prompt: prompt,
-            destination: .newThreadPerRun,
+            // An unrequested flavor takes the editor's default, so natural-language creates and
+            // hand-made ones land on the same behavior.
+            destination: placement?.requestedNewThreadFlavor?.destination ?? .reusedThread,
             recurrence: schedule.recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
             providerID: source.settings.providerID,
@@ -257,8 +259,16 @@ extension ScheduledTaskHostToolService {
         let definition = context.definition
         let placement = context.changes.placement
         // A placement that names a workspace is asking for a new-thread run; without one the
-        // definition keeps whatever destination it already had.
-        let destination: ScheduledTaskDestination = placement == nil ? context.storedDestination : .newThreadPerRun
+        // definition keeps whatever destination it already had. A workspace-only placement keeps
+        // the stored new-thread flavor too — switching workspaces is not switching flavors — and
+        // an `.existingThread` stored destination falls to per-run, the conservative flavor.
+        let destination: ScheduledTaskDestination
+        if let placement {
+            destination = placement.requestedNewThreadFlavor?.destination
+                ?? (context.storedDestination == .reusedThread ? .reusedThread : .newThreadPerRun)
+        } else {
+            destination = context.storedDestination
+        }
         let workspace = try resolvedWorkspace(
             requested: placement?.requestedWorkspace,
             inheritedKind: definition.workspaceKind,

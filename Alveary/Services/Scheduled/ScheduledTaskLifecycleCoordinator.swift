@@ -328,7 +328,7 @@ private extension ScheduledTaskLifecycleCoordinator {
     ) -> [ScheduledTaskRecoveryReadinessSnapshot] {
         var selectedTargetConversationIDs = Set<String>()
         return snapshots.sorted(by: ScheduledTaskRecoveryReadinessSnapshot.recoveryPrecedes).filter { snapshot in
-            guard let targetConversationID = snapshot.existingTargetConversationID else {
+            guard let targetConversationID = snapshot.gatedTargetConversationID else {
                 return true
             }
             return selectedTargetConversationIDs.insert(targetConversationID).inserted
@@ -420,11 +420,9 @@ private extension ScheduledTaskRecoveryReadinessSnapshot {
         return lhs.runID < rhs.runID
     }
 
-    var existingTargetConversationID: String? {
-        guard preflight.destination == .existingThread else {
-            return nil
-        }
-        return preflight.target?.conversationID
+    /// The conversation gating this run's recovery; recovery dedupes on it so two runs cannot resume into one thread.
+    var gatedTargetConversationID: String? {
+        preflight.gatedConversationID
     }
 
     @MainActor
@@ -454,13 +452,30 @@ private extension ScheduledTaskRecoveryReadinessSnapshot {
             projectRemoteName: run.projectRemoteNameSnapshot,
             grantedRoots: run.grantedRootsSnapshot,
             destination: destination,
-            target: run.recoveryTargetSnapshot
+            target: run.recoveryTargetSnapshot,
+            reusedTarget: run.recoveryReusedTarget
         )
         self.claimedWorkspaceIdentities = claimedWorkspaceIdentities
     }
 }
 
 private extension ScheduledTaskRun {
+    /// Conversation identity for a claimed `.reusedThread` run's recovery gating; nil once the
+    /// materialization self-heal detached the target, when recovery treats it as a creating run.
+    @MainActor
+    var recoveryReusedTarget: ScheduledTaskReusedTarget? {
+        guard decodedDestinationSnapshot == .reusedThread,
+              let conversationID = targetConversationIDSnapshot,
+              let targetThread else {
+            return nil
+        }
+        return ScheduledTaskReusedTarget(
+            conversationID: conversationID,
+            threadName: targetThreadNameSnapshot ?? targetThread.displayName(),
+            threadID: targetThread.persistentModelID
+        )
+    }
+
     @MainActor
     var recoveryTargetSnapshot: ScheduledTaskTargetSnapshot? {
         guard decodedDestinationSnapshot == .existingThread,

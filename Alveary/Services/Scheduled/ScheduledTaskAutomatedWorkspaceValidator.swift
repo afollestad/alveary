@@ -102,6 +102,34 @@ struct ScheduledTaskAutomatedWorkspaceValidator {
         }
         try validateGrantedRoots(workspace, run: run, workspaceIdentities: workspaceIdentities)
     }
+
+    /// Validates a `.reusedThread` run posting into the thread a prior run created.
+    ///
+    /// Its own entry point because a targeted reuse run prepared nothing — every
+    /// `preparedWorkspace*` column is nil, so `validate(thread:)`'s prepared-metadata equality
+    /// block can never hold — and because the run's claimed workspace is the definition's
+    /// configuration while the thread executes in the workspace its creating run materialized,
+    /// derived through the shared `ScheduledTaskReusedThreadWorkspace` so this check and the
+    /// materializer's root lock cannot drift.
+    func validateReusedTarget(thread: AgentThread, run: ScheduledTaskRun) throws {
+        guard run.targetThread?.persistentModelID == thread.persistentModelID,
+              let workspaceKind = run.workspaceKindSnapshot,
+              run.workspaceStrategySnapshot != nil,
+              let workspaceIdentities = run.workspaceIdentitySnapshot,
+              workspaceIdentities.matchesConfiguration(
+                  workspaceKind: workspaceKind,
+                  projectPath: run.projectPathSnapshot,
+                  grantedRootPaths: run.grantedRootsSnapshot
+              ) else {
+            throw ScheduledTurnWorkspaceValidationError.workspaceDoesNotMatchRun
+        }
+        guard let workspace = ScheduledTaskReusedThreadWorkspace.descriptor(thread: thread, run: run) else {
+            throw ScheduledTurnWorkspaceValidationError.missingWorkspace
+        }
+        // The per-kind validators own the ownership-marker checks, so nothing repeats here.
+        try validateWorkspaceKind(workspace, run: run, workspaceIdentities: workspaceIdentities)
+        try validateGrantedRoots(workspace, run: run, workspaceIdentities: workspaceIdentities)
+    }
 }
 
 private extension ScheduledTaskAutomatedWorkspaceValidator {

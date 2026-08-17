@@ -44,8 +44,21 @@ final class DefaultScheduledTaskRunMaterializer: ScheduledTaskRunMaterializing {
             }
             throw snapshotError
         }
-        if snapshot.destination == .existingThread {
+        switch snapshot.destination {
+        case .existingThread:
             return try materializeExistingTarget(runID: runID, snapshot: snapshot)
+        case .reusedThread:
+            if let materialization = try materializeReusedTarget(runID: runID, snapshot: snapshot) {
+                return materialization
+            }
+            // Self-heal: the claimed thread became unusable in the claim→materialize window.
+            // Detach it and mint a replacement below; the snapshot columns keep recording the
+            // claim's intent, so only the relationship changes.
+            if let run = modelContext.resolveScheduledTaskRun(id: runID) {
+                run.targetThread = nil
+            }
+        case .newThreadPerRun:
+            break
         }
         try persistTaskShellWithRetry(runID: runID, snapshot: snapshot)
 
@@ -155,6 +168,7 @@ extension DefaultScheduledTaskRunMaterializer {
         }
 
         let thread = makeTaskThread(run: run, snapshot: snapshot, preparedWorkspace: nil)
+        thread.customSection = resolvedRunSection(snapshot)
         let conversation = Conversation(
             provider: snapshot.providerID,
             isMain: true,
@@ -200,6 +214,18 @@ extension DefaultScheduledTaskRunMaterializer {
         applyPreparedWorkspaceMetadata(preparedWorkspace, run: run, thread: thread)
         try retainWorkspaceCleanupProvenanceIfNeeded(preparedWorkspace, run: run)
         run.clearPendingWorktreeCleanup()
+        // Link here — the save that promotes the final workspace descriptor — not in the shell
+        // insert, so only a thread with a real workspace ever becomes reusable and a failed
+        // preparation retries cleanly. Overwrite rather than fill-if-nil: after a self-heal the
+        // old link still points at the unusable thread, and a nil-only guard would strand the
+        // schedule minting fresh threads forever. Per-definition claims are single-flight, so
+        // the overwrite cannot race another run. Deliberately no `revision`/`modifiedAt` bump —
+        // this is an app-owned link, and a bump would invalidate this run's own revision check
+        // and any open editor session.
+        if snapshot.destination == .reusedThread,
+           run.scheduledTask?.decodedDestination == .reusedThread {
+            run.scheduledTask?.reusedThread = thread
+        }
         try saveChanges(modelContext)
 
         return ScheduledTaskRunMaterialization(
@@ -288,6 +314,25 @@ extension DefaultScheduledTaskRunMaterializer {
             project: snapshot.projectPath.flatMap(modelContext.resolveProject(path:)),
             scheduledTaskRun: run
         )
+    }
+
+    /// Seeds a created thread's sidebar section from the run snapshot, re-resolved inside the
+    /// creating save so the row handed to SwiftData is live in this context.
+    ///
+    /// Unlike `ThreadLifecycleService.resolvedSeedSection(id:)`, a vanished or non-custom section
+    /// degrades to `Tasks` rather than throwing: that call answers a user who just asked for the
+    /// section and can retry, while this one runs unattended hours later — failing the whole run
+    /// over a cosmetic placement would turn a removed section into a permanently broken schedule.
+    /// Project-backed runs get no membership; `SidebarRenderSnapshot.groupThreads` renders section
+    /// membership only for projectless task-mode threads.
+    func resolvedRunSection(_ snapshot: ScheduledTaskRunSnapshot) -> SidebarSection? {
+        guard snapshot.workspaceKind == .privateWorkspace,
+              let id = snapshot.threadSectionID,
+              let section = modelContext.resolveSidebarSection(id: id),
+              section.kind == .custom else {
+            return nil
+        }
+        return section
     }
 
     func makeScheduledTaskNote(

@@ -235,7 +235,8 @@ extension ScheduledTaskHostToolServiceTests {
 
         XCTAssertFalse(result.isError)
         let draft = try XCTUnwrap(try fixture.proposalDraft())
-        XCTAssertEqual(draft.destination, .newThreadPerRun)
+        // Creates without an explicit destination take the editor's reuse default.
+        XCTAssertEqual(draft.destination, .reusedThread)
         XCTAssertEqual(draft.projectPath, fixture.project?.path)
         // No placement was requested, so the result stays the plain confirmation sentence.
         XCTAssertFalse(result.text.contains("It will"), result.text)

@@ -8,6 +8,7 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
     case existingThreadRequired
     case existingThreadUnavailable
     case invalidPersistedDestination
+    case sectionNotFound
     case runNowRejected
 
     var errorDescription: String? {
@@ -26,6 +27,8 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
             "The selected thread is no longer available."
         case .invalidPersistedDestination:
             "This scheduled task has an invalid persisted destination."
+        case .sectionNotFound:
+            "The selected sidebar section no longer exists."
         case .runNowRejected:
             "This scheduled task could not be started. It may already be starting or the scheduler may be unavailable."
         }

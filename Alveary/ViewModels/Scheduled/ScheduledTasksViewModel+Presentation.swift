@@ -41,22 +41,16 @@ extension ScheduledTasksViewModel {
             targetThreadName = definition.targetThread?.displayName()
             workspaceSummary = "Existing thread · \(targetThreadName ?? "Unavailable thread")"
             providerID = existingThreadProviderID(for: definition)
-        case .some(.reusedThread), .some(.newThreadPerRun):
+        case .some(.reusedThread):
+            // The reuse thread is a venue the definition owns, so provider and settings still
+            // come from the definition — unlike an existing target, whose thread is authoritative.
+            targetThreadName = definition.reusedThread?.displayName()
+            providerID = definition.providerID
+            workspaceSummary = "New thread · \(workspaceDetail(for: definition))"
+        case .some(.newThreadPerRun):
             targetThreadName = nil
             providerID = definition.providerID
-            switch definition.workspaceKind {
-            case .privateWorkspace:
-                let grantCount = definition.grantedRoots.count
-                if grantCount == 0 {
-                    workspaceSummary = "New Task · Private workspace"
-                } else {
-                    let grantLabel = grantCount == 1 ? "folder grant" : "folder grants"
-                    workspaceSummary = "New Task · Private workspace + \(grantCount) \(grantLabel)"
-                }
-            case .project:
-                let strategy = definition.workspaceStrategy == .worktree ? "worktree" : "local"
-                workspaceSummary = "New thread · \(definition.project?.name ?? "Missing project") · \(strategy)"
-            }
+            workspaceSummary = "New thread each time · \(workspaceDetail(for: definition))"
         case nil:
             targetThreadName = nil
             providerID = definition.providerID
@@ -86,6 +80,23 @@ extension ScheduledTasksViewModel {
 }
 
 private extension ScheduledTasksViewModel {
+    /// The workspace half of a new-thread card summary, shared by both new-thread destinations
+    /// so their prefixes ("New thread" / "New thread each time") stay aligned with the picker.
+    func workspaceDetail(for definition: ScheduledTask) -> String {
+        switch definition.workspaceKind {
+        case .privateWorkspace:
+            let grantCount = definition.grantedRoots.count
+            guard grantCount > 0 else {
+                return "Private workspace"
+            }
+            let grantLabel = grantCount == 1 ? "folder grant" : "folder grants"
+            return "Private workspace + \(grantCount) \(grantLabel)"
+        case .project:
+            let strategy = definition.workspaceStrategy == .worktree ? "worktree" : "local"
+            return "\(definition.project?.name ?? "Missing project") · \(strategy)"
+        }
+    }
+
     func existingThreadProviderID(for definition: ScheduledTask) -> String {
         let mainConversations = definition.targetThread?.conversations.filter(\.isMain) ?? []
         guard mainConversations.count == 1 else { return definition.providerID }

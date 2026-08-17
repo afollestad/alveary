@@ -115,25 +115,49 @@ extension ScheduledTaskHostToolService {
             }
             let pinNote = targetThread.isPinned ? "" : ", which will be pinned when you confirm"
             return "It will post into the existing thread \"\(targetThread.displayName())\"\(pinNote)."
-        case .newThread(let workspace):
-            guard let workspace else {
-                return nil
-            }
-            var sentences: [String] = []
-            if let project {
-                sentences.append("It will run in the \"\(project.name)\" Project.")
-            } else if case .privateWorkspace = workspace {
-                sentences.append("It will run in a private workspace.")
-            }
-            if workspace.grantedRoots != nil {
-                sentences.append(grantedRoots.isEmpty
-                    ? "It will have no folder grants."
-                    : "It will have these folder grants: \(grantedRoots.joined(separator: ", ")).")
-            }
+        case let .newThread(flavor, workspace):
+            let sentences = flavorSentences(flavor) + workspaceSentences(
+                workspace,
+                project: project,
+                grantedRoots: grantedRoots
+            )
             return sentences.isEmpty ? nil : sentences.joined(separator: " ")
         case nil:
             return nil
         }
+    }
+
+    private static func flavorSentences(_ flavor: ScheduledTaskNewThreadFlavor?) -> [String] {
+        switch flavor {
+        case .reused:
+            ["It will create a thread on its first run and reuse it afterward."]
+        case .perRun:
+            ["It will create a fresh thread on every run."]
+        case nil:
+            []
+        }
+    }
+
+    private static func workspaceSentences(
+        _ workspace: ScheduledTaskProposalWorkspace?,
+        project: Project?,
+        grantedRoots: [String]
+    ) -> [String] {
+        guard let workspace else {
+            return []
+        }
+        var sentences: [String] = []
+        if let project {
+            sentences.append("It will run in the \"\(project.name)\" Project.")
+        } else if case .privateWorkspace = workspace {
+            sentences.append("It will run in a private workspace.")
+        }
+        if workspace.grantedRoots != nil {
+            sentences.append(grantedRoots.isEmpty
+                ? "It will have no folder grants."
+                : "It will have these folder grants: \(grantedRoots.joined(separator: ", ")).")
+        }
+        return sentences
     }
 }
 

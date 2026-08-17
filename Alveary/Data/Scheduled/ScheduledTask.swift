@@ -64,6 +64,24 @@ final class ScheduledTask {
     var modifiedAt: Date
     var project: Project?
     var targetThread: AgentThread?
+    /// The thread a `.reusedThread` schedule created on its first run and posts into thereafter.
+    ///
+    /// Deliberately NOT `targetThread`: that relationship's inverse feeds
+    /// `AgentThread.blockingScheduledTaskAttachment`, which refuses archive, delete, unpin, and
+    /// section moves — so a reuse thread stored there could never be archived, and the archive
+    /// self-heal this mode promises would be unreachable. A nil link means the next run mints a
+    /// fresh thread; thread deletion nullifies it. Service-owned: the materializer writes it, the
+    /// mutation service clears it, and no edit surface may set it directly. Optional and absent
+    /// from `init` so pre-field stores migrate.
+    var reusedThread: AgentThread?
+    /// Sidebar section the thread a run creates joins; `nil` is the built-in `Tasks` section.
+    ///
+    /// A relationship rather than a stored id so removing the section nullifies this in the same
+    /// save. A creation-time seed, not live membership — editing it never moves an
+    /// already-created thread, whose placement belongs to the user once it exists. Meaningful
+    /// only for a new-thread destination with no Project (`ScheduledTaskMutationService` clears
+    /// it otherwise). Optional and absent from `init` so pre-field stores migrate.
+    var threadSection: SidebarSection?
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskRun.scheduledTask) var runs: [ScheduledTaskRun]
 
     init(
@@ -137,6 +155,18 @@ extension ScheduledTask {
 
     var decodedDestination: ScheduledTaskDestination? {
         ScheduledTaskDestination(rawValue: destinationRawValue)
+    }
+
+    /// The already-existing thread the next run posts into: the user's pick for
+    /// `.existingThread`, the first run's own thread for `.reusedThread`, and `nil` for
+    /// `.newThreadPerRun`, for a reuse schedule that has not run yet or lost its thread, and for
+    /// an unknown destination.
+    var runTargetThread: AgentThread? {
+        switch decodedDestination {
+        case .existingThread: targetThread
+        case .reusedThread: reusedThread
+        case .newThreadPerRun, nil: nil
+        }
     }
 
     var state: ScheduledTaskState {

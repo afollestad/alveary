@@ -29,6 +29,10 @@ final class SidebarSection {
     /// over visible rows would miss.
     @Relationship(deleteRule: .nullify, inverse: \AgentThread.customSection)
     var threads: [AgentThread]
+    /// Schedules whose created threads land here; `.nullify` for the same reason as `threads`,
+    /// covering paused and completed definitions a visible-row sweep would miss.
+    @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.threadSection)
+    var scheduledTasks: [ScheduledTask] = []
 
     init(
         id: String = UUID().uuidString,
@@ -65,6 +69,12 @@ extension SidebarSection {
     var descriptor: SidebarSectionDescriptor {
         SidebarSectionDescriptor(id: sectionID, name: kind.builtinDisplayName ?? name)
     }
+}
+
+extension Notification.Name {
+    /// Sections changed — created, renamed, removed, or reordered. Posted by
+    /// `SidebarSectionService.publishSectionsChanged` after each successful mutating save.
+    static let sidebarSectionsChanged = Notification.Name("sidebarSectionsChanged")
 }
 
 enum SidebarSectionKind: String {

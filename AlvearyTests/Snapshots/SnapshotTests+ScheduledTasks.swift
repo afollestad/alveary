@@ -204,6 +204,7 @@ extension SnapshotTests {
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
                 threads: fixture.viewModel.existingThreadTargets,
+                sections: [],
                 draft: .constant(draft)
             )
             .padding(24),
@@ -221,11 +222,33 @@ extension SnapshotTests {
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
                 threads: fixture.viewModel.existingThreadTargets,
+                sections: [],
                 draft: .constant(draft)
             )
             .padding(24),
             size: CGSize(width: 760, height: 220),
             named: "scheduled_task_editor_existing_thread_empty"
+        )
+    }
+
+    func testScheduledTaskEditorNewThreadWorkspaceWithSections() throws {
+        let fixture = try ScheduledTasksSnapshotFixture()
+        var draft = fixture.viewModel.makeNewDraft()
+        draft.sectionID = "reports"
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: fixture.viewModel.existingThreadTargets,
+                sections: [
+                    ScheduledTaskSectionOption(id: "reports", name: "Reports"),
+                    ScheduledTaskSectionOption(id: "audits", name: "Audits")
+                ],
+                draft: .constant(draft)
+            )
+            .padding(24),
+            size: CGSize(width: 760, height: 380),
+            named: "scheduled_task_editor_new_thread_workspace_with_sections"
         )
     }
 
@@ -240,6 +263,7 @@ extension SnapshotTests {
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
                 threads: fixture.viewModel.existingThreadTargets,
+                sections: [],
                 draft: .constant(draft)
             )
             .padding(24),
@@ -259,6 +283,7 @@ extension SnapshotTests {
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
                 threads: threads,
+                sections: [],
                 draft: .constant(draft)
             )
             .padding(24),
@@ -280,6 +305,7 @@ extension SnapshotTests {
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
                 threads: threads,
+                sections: [],
                 draft: .constant(draft)
             )
             .padding(24),
@@ -304,6 +330,7 @@ extension SnapshotTests {
             ScheduledTaskEditorWorkspaceSection(
                 projects: fixture.viewModel.projects,
                 threads: threads,
+                sections: [],
                 draft: .constant(draft)
             )
             .padding(24),

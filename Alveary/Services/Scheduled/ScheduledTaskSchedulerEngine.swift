@@ -94,7 +94,8 @@ final class ScheduledTaskSchedulerEngine {
             expectedNextOccurrenceAt: definition.nextOccurrenceAt,
             expectedPendingOccurrenceAt: definition.pendingOccurrenceAt,
             expectedProjectConfiguration: projectConfigurationSnapshot(for: definition),
-            expectedTarget: targetSnapshot(for: definition)
+            expectedTarget: targetSnapshot(for: definition),
+            expectedReusedTarget: reusedTarget(for: definition)
         )
         let outcome = await validatePreflight(snapshot)
         try Task.checkCancellation()
@@ -165,6 +166,7 @@ private extension ScheduledTaskSchedulerEngine {
             expectedPendingOccurrenceAt: definition.pendingOccurrenceAt,
             expectedProjectConfiguration: projectConfigurationSnapshot(for: definition),
             expectedTarget: targetSnapshot(for: definition),
+            expectedReusedTarget: reusedTarget(for: definition),
             occurrenceAt: duePlan.occurrenceAt
         )
         return .requiresPreflight(snapshot, recheck)
@@ -185,6 +187,7 @@ private extension ScheduledTaskSchedulerEngine {
               currentDefinition.pendingOccurrenceAt == recheck.expectedPendingOccurrenceAt,
               projectConfigurationSnapshot(for: currentDefinition) == recheck.expectedProjectConfiguration,
               targetSnapshot(for: currentDefinition) == recheck.expectedTarget,
+              reusedTarget(for: currentDefinition) == recheck.expectedReusedTarget,
               let currentRecurrence = currentDefinition.recurrence,
               let currentDuePlan = try makeDuePlan(
                   definition: currentDefinition,
@@ -198,8 +201,8 @@ private extension ScheduledTaskSchedulerEngine {
         guard !hasActiveRun(currentDefinition) else {
             return try recordOverlap(duePlan: currentDuePlan, definition: currentDefinition)
         }
-        if let target = targetSnapshot(for: currentDefinition),
-           !targetIsAvailableForClaim(target) {
+        if let gatedConversationID = gatedConversationID(for: currentDefinition),
+           !targetIsAvailableForClaim(conversationID: gatedConversationID) {
             return try recordTargetWait(
                 duePlan: currentDuePlan,
                 definition: currentDefinition,
@@ -242,6 +245,7 @@ private extension ScheduledTaskSchedulerEngine {
               definition.pendingOccurrenceAt == recheck.expectedPendingOccurrenceAt,
               projectConfigurationSnapshot(for: definition) == recheck.expectedProjectConfiguration,
               targetSnapshot(for: definition) == recheck.expectedTarget,
+              reusedTarget(for: definition) == recheck.expectedReusedTarget,
               isCurrent(request, for: definition)
         else {
             return .changedDuringPreflight
@@ -249,8 +253,8 @@ private extension ScheduledTaskSchedulerEngine {
         guard !hasActiveRun(definition) else {
             return .activeRunExists
         }
-        if let target = targetSnapshot(for: definition),
-           !targetIsAvailableForClaim(target) {
+        if let gatedConversationID = gatedConversationID(for: definition),
+           !targetIsAvailableForClaim(conversationID: gatedConversationID) {
             return .waitingForTarget(pendingOccurrenceAt: request.occurrenceAt)
         }
 
@@ -347,7 +351,8 @@ private extension ScheduledTaskSchedulerEngine {
             triggeredAt: actionDate,
             triggerKind: .scheduled,
             workspaceIdentitySnapshot: workspaceIdentities,
-            targetSnapshot: targetSnapshot(for: definition)
+            targetSnapshot: targetSnapshot(for: definition),
+            reusedTarget: reusedTarget(for: definition)
         )
         applyConsumedOccurrences(duePlan, to: definition)
         modelContext.insert(run)
@@ -388,7 +393,8 @@ private extension ScheduledTaskSchedulerEngine {
             triggerKind: .scheduled,
             status: .skipped,
             workspaceIdentitySnapshot: workspaceIdentities,
-            targetSnapshot: targetSnapshot(for: definition)
+            targetSnapshot: targetSnapshot(for: definition),
+            reusedTarget: reusedTarget(for: definition)
         )
         run.finishedAt = actionDate
         applyConsumedOccurrences(duePlan, to: definition)
@@ -473,7 +479,8 @@ private extension ScheduledTaskSchedulerEngine {
             triggeredAt: request.triggeredAt,
             triggerKind: .runNow,
             workspaceIdentitySnapshot: workspaceIdentities,
-            targetSnapshot: targetSnapshot(for: definition)
+            targetSnapshot: targetSnapshot(for: definition),
+            reusedTarget: reusedTarget(for: definition)
         )
         try applyRunNowConsumption(request, to: definition)
         modelContext.insert(run)

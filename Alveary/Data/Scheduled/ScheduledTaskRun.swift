@@ -168,6 +168,10 @@ final class ScheduledTaskRun {
     var destinationRawValueSnapshot: String = ScheduledTaskDestination.newThreadPerRun.rawValue
     var targetConversationIDSnapshot: String?
     var targetThreadNameSnapshot: String?
+    /// `SidebarSection.id` frozen at claim time, so a run whose definition or section is edited
+    /// or deleted mid-flight still creates its thread where the claim promised. A stale id
+    /// degrades to `Tasks` at materialization rather than failing the run.
+    var threadSectionIDSnapshot: String?
     var timeZoneIdentifierSnapshot: String
     var providerIDSnapshot: String
     var modelSnapshot: String?
@@ -233,6 +237,7 @@ final class ScheduledTaskRun {
         destinationSnapshot: ScheduledTaskDestination,
         targetConversationIDSnapshot: String? = nil,
         targetThreadNameSnapshot: String? = nil,
+        threadSectionIDSnapshot: String? = nil,
         timeZoneIdentifierSnapshot: String,
         providerIDSnapshot: String,
         modelSnapshot: String? = nil,
@@ -287,6 +292,7 @@ final class ScheduledTaskRun {
         self.destinationRawValueSnapshot = destinationSnapshot.rawValue
         self.targetConversationIDSnapshot = targetConversationIDSnapshot
         self.targetThreadNameSnapshot = targetThreadNameSnapshot
+        self.threadSectionIDSnapshot = threadSectionIDSnapshot
         self.timeZoneIdentifierSnapshot = timeZoneIdentifierSnapshot
         self.providerIDSnapshot = providerIDSnapshot
         self.modelSnapshot = modelSnapshot
@@ -340,11 +346,20 @@ extension ScheduledTaskRun {
         status: ScheduledTaskRunStatus = .claimed,
         workspaceIdentitySnapshot: ScheduledTaskWorkspaceIdentitySnapshot? = nil,
         targetSnapshot: ScheduledTaskTargetSnapshot? = nil,
+        reusedTarget: ScheduledTaskReusedTarget? = nil,
         thread: AgentThread? = nil
     ) {
         guard let destination = definition.decodedDestination else {
             preconditionFailure("Cannot snapshot a scheduled task with an unknown destination")
         }
+        // A reused target contributes conversation identity only; unlike `targetSnapshot`, every
+        // agent and workspace setting below still reads from the definition, which created the
+        // thread and stays authoritative for it. The identity check keeps a link that was
+        // re-pointed between claim and snapshotting from silently targeting the wrong thread.
+        let reusedThread: AgentThread? =
+            reusedTarget != nil && definition.reusedThread?.persistentModelID == reusedTarget?.threadID
+                ? definition.reusedThread
+                : nil
         self.init(
             occurrenceID: occurrenceID,
             triggerID: triggerID,
@@ -357,8 +372,11 @@ extension ScheduledTaskRun {
             titleSnapshot: definition.title,
             promptSnapshot: definition.prompt,
             destinationSnapshot: destination,
-            targetConversationIDSnapshot: targetSnapshot?.conversationID,
-            targetThreadNameSnapshot: targetSnapshot?.threadName,
+            targetConversationIDSnapshot: targetSnapshot?.conversationID
+                ?? (reusedThread != nil ? reusedTarget?.conversationID : nil),
+            targetThreadNameSnapshot: targetSnapshot?.threadName
+                ?? (reusedThread != nil ? reusedTarget?.threadName : nil),
+            threadSectionIDSnapshot: definition.threadSection?.id,
             timeZoneIdentifierSnapshot: definition.timeZoneIdentifier,
             providerIDSnapshot: targetSnapshot?.providerID ?? definition.providerID,
             modelSnapshot: targetSnapshot == nil ? definition.model : targetSnapshot?.model,
@@ -375,7 +393,7 @@ extension ScheduledTaskRun {
             workspaceIdentitySnapshot: workspaceIdentitySnapshot,
             scheduledTask: definition,
             thread: thread,
-            targetThread: definition.targetThread
+            targetThread: definition.targetThread ?? reusedThread
         )
         projectPathSnapshot = targetSnapshot?.projectPath ?? definition.project?.path
         grantedRootsSnapshot = targetSnapshot?.grantedRoots ?? definition.grantedRoots

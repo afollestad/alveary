@@ -102,13 +102,20 @@ private extension SidebarSectionNormalization {
         return true
     }
 
-    /// Membership is meaningful only on custom sections; a thread pointing at a builtin row
-    /// renders nowhere different, so the stale reference clears.
+    /// Membership is meaningful only on custom sections; a thread — or a scheduled definition's
+    /// creation seed — pointing at a builtin row renders nowhere different, so the stale
+    /// reference clears. Clearing a definition here deliberately bumps neither `revision` nor
+    /// `modifiedAt`: this repairs an unrenderable pointer, and a bump would spuriously conflict
+    /// an open editor's `expectedRevision` check.
     static func clearBuiltinMemberships(_ sections: [SidebarSection]) -> Bool {
         var didChange = false
         for section in sections where section.kind != .custom {
             for thread in section.threads {
                 thread.customSection = nil
+                didChange = true
+            }
+            for definition in section.scheduledTasks {
+                definition.threadSection = nil
                 didChange = true
             }
         }

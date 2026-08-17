@@ -3,8 +3,9 @@ import SwiftData
 
 @MainActor
 final class ScheduledTaskMutationService {
-    private let modelContext: ModelContext
-    private let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
+    // Internal rather than private: the `+Validation` companion reads them.
+    let modelContext: ModelContext
+    let recurrenceCalculator: ScheduledTaskRecurrenceCalculator
     private let notificationCenter: NotificationCenter
     private let currentTimeZone: @MainActor () -> TimeZone
 
@@ -58,6 +59,11 @@ final class ScheduledTaskMutationService {
         // The model initializer normalizes paths. Restore the validated literal snapshot so a
         // post-validation symlink swap cannot rewrite the user's authorization boundary.
         definition.grantedRoots = edit.grantedRoots
+        // Only a projectless new-thread schedule places its created threads in a section; a
+        // Project-backed thread nests under the Project and an existing target keeps its own row.
+        definition.threadSection = edit.destination != .existingThread && edit.workspaceKind == .privateWorkspace
+            ? edit.threadSection
+            : nil
         let consumesProposal = proposal != nil
 
         let outcomeTarget = proposal.map(ScheduledTaskProposalOutcomeTarget.init(proposal:))
@@ -186,6 +192,8 @@ final class ScheduledTaskMutationService {
                 recurrence: edit.recurrence,
                 timeZoneIdentifier: timeZoneIdentifier
             )
+            // Computed before any assignment because it compares stored values.
+            let preservesReuseLink = self.preservesReuseLink(of: definition, applying: edit)
             let wasPaused = definition.state == .paused
             definition.title = edit.title.trimmingCharacters(in: .whitespacesAndNewlines)
             definition.prompt = edit.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -201,6 +209,10 @@ final class ScheduledTaskMutationService {
             definition.destination = edit.destination
             definition.project = edit.destination != .existingThread && edit.workspaceKind == .project ? edit.project : nil
             definition.targetThread = edit.destination == .existingThread ? edit.targetThread : nil
+            definition.reusedThread = preservesReuseLink ? definition.reusedThread : nil
+            definition.threadSection = edit.destination != .existingThread && edit.workspaceKind == .privateWorkspace
+                ? edit.threadSection
+                : nil
             definition.state = wasPaused ? .paused : (nextOccurrence == nil ? .completed : .active)
             definition.nextOccurrenceAt = nextOccurrence
             definition.pendingOccurrenceAt = nil
@@ -371,55 +383,6 @@ private extension ScheduledTaskMutationService {
             definitionID: definitionID,
             in: modelContext,
             at: timestamp
-        )
-    }
-
-    /// Pins an existing-thread target inside the caller's save.
-    ///
-    /// Both the Scheduled editor and the host tool may name an unpinned thread, and an unpinned
-    /// thread has no sidebar row of its own, so the schedule would otherwise post into a place
-    /// the user cannot open. Unpinning is then blocked while the schedule exists.
-    func pinTargetThreadIfNeeded(_ edit: ScheduledTaskDefinitionEdit) throws {
-        guard edit.destination == .existingThread, let targetThread = edit.targetThread else {
-            return
-        }
-        try SidebarPinOrdering.pin(targetThread, in: modelContext)
-    }
-
-    func validate(
-        _ edit: ScheduledTaskDefinitionEdit,
-        timeZoneIdentifier: String
-    ) throws {
-        switch edit.destination {
-        case .reusedThread, .newThreadPerRun:
-            if edit.workspaceKind == .project, edit.project == nil {
-                throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
-            }
-            guard edit.targetThread == nil else {
-                throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
-            }
-        case .existingThread:
-            guard let targetThread = edit.targetThread,
-                  targetThread.archivedAt == nil,
-                  !targetThread.isDraft,
-                  !targetThread.isForkBootstrapPending,
-                  !targetThread.hasPendingScheduledTaskWorktreeCleanup,
-                  targetThread.conversations.filter(\.isMain).count == 1 else {
-                throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
-            }
-        }
-        guard ScheduledTask.normalizedUniquePaths(edit.grantedRoots) == edit.grantedRoots else {
-            throw ScheduledTaskMutationError.workspaceRootsChanged
-        }
-        if edit.destination != .existingThread,
-           edit.workspaceKind == .project,
-           let projectPath = edit.project?.path,
-           CanonicalPath.normalize(projectPath) != projectPath {
-            throw ScheduledTaskMutationError.workspaceRootsChanged
-        }
-        try recurrenceCalculator.validate(
-            edit.recurrence,
-            timeZoneIdentifier: timeZoneIdentifier
         )
     }
 

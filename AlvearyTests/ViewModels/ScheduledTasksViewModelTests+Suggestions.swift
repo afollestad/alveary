@@ -109,7 +109,7 @@ extension ScheduledTasksViewModelTests {
         fixture.viewModel.requestCreate(from: suggestion)
 
         let draft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
-        XCTAssertEqual(draft.destination, .newThreadPerRun)
+        XCTAssertEqual(draft.destination, .reusedThread)
         XCTAssertEqual(draft.workspaceKind, .privateWorkspace)
         XCTAssertNil(draft.projectPath)
         XCTAssertTrue(draft.grantedRoots.isEmpty)

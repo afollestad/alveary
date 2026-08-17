@@ -50,6 +50,11 @@ struct ScheduledTaskDefinitionEdit {
     let grantedRoots: [String]
     let project: Project?
     let targetThread: AgentThread?
+    /// Resolved `SidebarSection` for the created thread's placement; the view model resolves the
+    /// draft's id so a vanished section fails the save loudly instead of silently landing in
+    /// `Tasks`. `nil` means `Tasks`. There is deliberately no reuse-thread field here — that
+    /// link is service-owned, never user-supplied.
+    let threadSection: SidebarSection?
 
     init(
         title: String,
@@ -65,7 +70,8 @@ struct ScheduledTaskDefinitionEdit {
         workspaceStrategy: ScheduledTaskWorkspaceStrategy,
         grantedRoots: [String],
         project: Project?,
-        targetThread: AgentThread? = nil
+        targetThread: AgentThread? = nil,
+        threadSection: SidebarSection? = nil
     ) {
         self.title = title
         self.prompt = prompt
@@ -81,6 +87,7 @@ struct ScheduledTaskDefinitionEdit {
         self.grantedRoots = grantedRoots
         self.project = project
         self.targetThread = targetThread
+        self.threadSection = threadSection
     }
 }
 
@@ -97,6 +104,7 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
     case runNowBlockedByTargetWait
     case scheduleIsCompleted
     case scheduleIsNotPaused
+    case sectionUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -124,6 +132,8 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
             "Completed one-time scheduled tasks cannot be paused."
         case .scheduleIsNotPaused:
             "Only a paused scheduled task can be resumed."
+        case .sectionUnavailable:
+            "The selected sidebar section no longer exists."
         }
     }
 }

@@ -51,9 +51,9 @@ struct ScheduledTaskRecoveryReadinessValidator: Sendable {
 
     @MainActor
     private func targetIsAvailable(for snapshot: ScheduledTaskRecoveryReadinessSnapshot) -> Bool {
-        guard let target = snapshot.preflight.target else {
+        guard let conversationID = snapshot.preflight.gatedConversationID else {
             return true
         }
-        return targetIsReady(target.conversationID)
+        return targetIsReady(conversationID)
     }
 }

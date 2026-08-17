@@ -19,6 +19,17 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
     let grantedRoots: [String]
     let destination: ScheduledTaskDestination
     let target: ScheduledTaskTargetSnapshot?
+    /// A `.reusedThread` schedule's healthy claimed thread, by its main conversation. Deliberately
+    /// not a `target`: `target != nil` means "read agent settings from the thread", which reuse
+    /// mode must never do — the definition created the thread and stays authoritative. This field
+    /// contributes only conversation identity, through `gatedConversationID`.
+    let reusedTarget: ScheduledTaskReusedTarget?
+
+    /// The conversation whose availability gates claiming — an existing target's or a reused
+    /// one's. `nil` when the run will create its own thread, which nothing can be busy in.
+    var gatedConversationID: String? {
+        target?.conversationID ?? reusedTarget?.conversationID
+    }
 
     init(
         definitionID: String,
@@ -37,7 +48,8 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
         projectRemoteName: String?,
         grantedRoots: [String],
         destination: ScheduledTaskDestination,
-        target: ScheduledTaskTargetSnapshot? = nil
+        target: ScheduledTaskTargetSnapshot? = nil,
+        reusedTarget: ScheduledTaskReusedTarget? = nil
     ) {
         self.definitionID = definitionID
         self.definitionRevision = definitionRevision
@@ -56,7 +68,16 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
         self.grantedRoots = grantedRoots
         self.destination = destination
         self.target = target
+        self.reusedTarget = reusedTarget
     }
+}
+
+/// Identity of the thread a `.reusedThread` schedule posts into, captured at claim time. Carries
+/// no agent settings — see `ScheduledTaskPreflightSnapshot.reusedTarget` for why.
+struct ScheduledTaskReusedTarget: Equatable, Sendable {
+    let conversationID: String
+    let threadName: String
+    let threadID: PersistentIdentifier
 }
 
 struct ScheduledTaskTargetSnapshot: Equatable, Sendable {
@@ -173,6 +194,7 @@ struct ScheduledTaskClaimRecheck {
     let expectedPendingOccurrenceAt: Date?
     let expectedProjectConfiguration: ScheduledProjectConfigSnapshot?
     let expectedTarget: ScheduledTaskTargetSnapshot?
+    let expectedReusedTarget: ScheduledTaskReusedTarget?
     let occurrenceAt: Date
 }
 
@@ -183,4 +205,5 @@ struct ScheduledTaskRunNowRecheck {
     let expectedPendingOccurrenceAt: Date?
     let expectedProjectConfiguration: ScheduledProjectConfigSnapshot?
     let expectedTarget: ScheduledTaskTargetSnapshot?
+    let expectedReusedTarget: ScheduledTaskReusedTarget?
 }

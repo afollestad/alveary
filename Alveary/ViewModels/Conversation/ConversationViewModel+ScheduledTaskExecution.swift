@@ -109,10 +109,15 @@ extension ConversationViewModel {
     }
 
     private func prepareRuntimeForAutomatedScheduledTurn() async throws -> String? {
+        // Membership in `targetedScheduledTaskRuns` is what proves the run posts into this
+        // pre-existing thread — `.existingThread` always, `.reusedThread` from its second run on
+        // — and a pre-existing thread is exactly the one whose live runtime needs the
+        // suspend-and-respawn below. The decode guard keeps an unknown destination failing
+        // closed rather than respawning for a run recovery will interrupt.
         guard !needsSetup,
               let runID = automatedScheduledExecutionRunID,
               dbThread()?.targetedScheduledTaskRuns.contains(where: {
-                  $0.id == runID && $0.decodedDestinationSnapshot == .existingThread
+                  $0.id == runID && $0.decodedDestinationSnapshot != nil
               }) == true else {
             return nil
         }
@@ -191,20 +196,43 @@ extension ConversationViewModel {
         }
         if let runID = automatedScheduledExecutionRunID,
            let run = thread.targetedScheduledTaskRuns.first(where: { $0.id == runID }),
-           run.decodedDestinationSnapshot == .existingThread {
-            guard run.targetThread?.persistentModelID == thread.persistentModelID,
-                  run.targetConversationIDSnapshot == conversation.id,
-                  run.providerIDSnapshot == (dbConversation()?.provider ?? settingsService.current.defaultProvider),
-                  run.modelSnapshot == thread.model,
-                  run.effortSnapshot == thread.effort,
-                  run.permissionModeSnapshot == thread.permissionMode,
-                  run.planModeEnabledSnapshot == (thread.planModeEnabled ?? false),
-                  run.speedModeSnapshot == thread.normalizedSpeedMode.rawValue else {
+           run.targetThread != nil {
+            switch run.decodedDestinationSnapshot {
+            case .existingThread:
+                guard run.targetThread?.persistentModelID == thread.persistentModelID,
+                      run.targetConversationIDSnapshot == conversation.id,
+                      run.providerIDSnapshot == (dbConversation()?.provider ?? settingsService.current.defaultProvider),
+                      run.modelSnapshot == thread.model,
+                      run.effortSnapshot == thread.effort,
+                      run.permissionModeSnapshot == thread.permissionMode,
+                      run.planModeEnabledSnapshot == (thread.planModeEnabled ?? false),
+                      run.speedModeSnapshot == thread.normalizedSpeedMode.rawValue else {
+                    throw AgentError.spawnFailed("The scheduled task target changed before execution")
+                }
+                try ScheduledTaskAutomatedWorkspaceValidator(
+                    workspaceOwnershipService: taskWorkspaceOwnershipService
+                ).validateExistingTarget(thread: thread, run: run)
+            case .reusedThread:
+                // Model, effort, and permission hold because materialization re-asserted the
+                // snapshot onto the thread. Plan and speed mode are deliberately excluded: the
+                // definition models neither, so the reuse snapshot carries nil for both and
+                // comparing them against the thread would always fail.
+                guard run.targetThread?.persistentModelID == thread.persistentModelID,
+                      run.targetConversationIDSnapshot == conversation.id,
+                      run.providerIDSnapshot == (dbConversation()?.provider ?? settingsService.current.defaultProvider),
+                      run.modelSnapshot == thread.model,
+                      run.effortSnapshot == thread.effort,
+                      run.permissionModeSnapshot == thread.permissionMode else {
+                    throw AgentError.spawnFailed("The scheduled task target changed before execution")
+                }
+                try ScheduledTaskAutomatedWorkspaceValidator(
+                    workspaceOwnershipService: taskWorkspaceOwnershipService
+                ).validateReusedTarget(thread: thread, run: run)
+            case .newThreadPerRun, nil:
+                // A per-run run never targets a thread; fail closed rather than validating a
+                // shape the destination cannot produce.
                 throw AgentError.spawnFailed("The scheduled task target changed before execution")
             }
-            try ScheduledTaskAutomatedWorkspaceValidator(
-                workspaceOwnershipService: taskWorkspaceOwnershipService
-            ).validateExistingTarget(thread: thread, run: run)
             return
         }
         try ScheduledTaskAutomatedWorkspaceValidator(

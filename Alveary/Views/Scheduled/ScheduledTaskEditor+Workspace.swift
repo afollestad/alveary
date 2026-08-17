@@ -4,6 +4,7 @@ import SwiftUI
 struct ScheduledTaskEditorWorkspaceSection: View {
     let projects: [ScheduledTaskProjectOption]
     let threads: [ScheduledTaskThreadOption]
+    let sections: [ScheduledTaskSectionOption]
     @Binding var draft: ScheduledTaskEditorDraft
 
     var body: some View {
@@ -14,7 +15,8 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                         accessibilityLabel: "Runs in",
                         selection: $draft.destination,
                         options: [
-                            .init(value: .newThreadPerRun, label: "New thread"),
+                            .init(value: .reusedThread, label: "New thread"),
+                            .init(value: .newThreadPerRun, label: "New thread each time"),
                             .init(value: .existingThread, label: "Existing thread")
                         ]
                     )
@@ -32,6 +34,24 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                                 .init(value: Optional($0.path), label: $0.name)
                             }
                         )
+                    }
+                }
+
+                // Gated on the kind, not `projectPath == nil`: a legacy `.project` row whose
+                // Project vanished must hide this alongside Run location rather than offer a
+                // section its `.project`-mode thread could never render in. Hidden entirely
+                // without custom sections — a picker whose only option is `Tasks` is no choice.
+                if draft.workspaceKind == .privateWorkspace, !sections.isEmpty {
+                    SettingsFormRow {
+                        SettingsResponsiveControlRow("Section", horizontalControlSizing: .selectedContent) {
+                            ScheduledTaskMenuPicker(
+                                accessibilityLabel: "Sidebar section",
+                                selection: $draft.sectionID,
+                                options: [.init(value: String?.none, label: "Tasks")] + sections.map {
+                                    .init(value: Optional($0.id), label: $0.name)
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -83,6 +103,12 @@ struct ScheduledTaskEditorWorkspaceSection: View {
             set: { path in
                 draft.projectPath = path
                 draft.workspaceKind = path == nil ? .privateWorkspace : .project
+                // A Project placement makes the created thread `.project` mode, which nests
+                // under the Project and never renders in a section; clearing here keeps a
+                // now-hidden pick from round-tripping invisibly.
+                if path != nil {
+                    draft.sectionID = nil
+                }
             }
         )
     }

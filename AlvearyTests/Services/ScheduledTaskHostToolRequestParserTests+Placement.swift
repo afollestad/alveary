@@ -37,7 +37,7 @@ extension ScheduledTaskHostToolRequestParserTests {
         }
         XCTAssertEqual(
             placement,
-            .newThread(workspace: .project(path: "/tmp/alveary", grantedRoots: ["/tmp/notes"]))
+            .newThread(flavor: nil, workspace: .project(path: "/tmp/alveary", grantedRoots: ["/tmp/notes"]))
         )
     }
 
@@ -86,7 +86,7 @@ extension ScheduledTaskHostToolRequestParserTests {
         assertInvalid(
             placementArguments(["destination": .string("somewhere_else")]),
             parser: parser,
-            containing: "must be new_thread or existing_thread"
+            containing: "must be reused_thread, new_thread, or existing_thread"
         )
     }
 

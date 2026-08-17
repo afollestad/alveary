@@ -6,6 +6,7 @@ struct ScheduledTaskRunSnapshot {
     let prompt: String
     let destination: ScheduledTaskDestination
     let targetConversationID: String?
+    let threadSectionID: String?
     let occurrenceAt: Date
     let timeZone: TimeZone
     let providerID: String
@@ -75,6 +76,7 @@ extension DefaultScheduledTaskRunMaterializer {
             prompt: run.promptSnapshot,
             destination: destination,
             targetConversationID: run.targetConversationIDSnapshot,
+            threadSectionID: run.threadSectionIDSnapshot,
             occurrenceAt: run.occurrenceAt,
             timeZone: timeZone,
             providerID: run.providerIDSnapshot,

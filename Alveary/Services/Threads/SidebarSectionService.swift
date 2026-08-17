@@ -17,17 +17,28 @@ final class SidebarSectionService {
     private let saveSectionChanges: @MainActor (ModelContext) throws -> Void
     private let now: () -> Date
     private let makeID: () -> String
+    private let notificationCenter: NotificationCenter
 
     init(
         modelContext: ModelContext,
         saveSectionChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         now: @escaping () -> Date = Date.init,
-        makeID: @escaping () -> String = { UUID().uuidString }
+        makeID: @escaping () -> String = { UUID().uuidString },
+        notificationCenter: NotificationCenter = .default
     ) {
         self.modelContext = modelContext
         self.saveSectionChanges = saveSectionChanges
         self.now = now
         self.makeID = makeID
+        self.notificationCenter = notificationCenter
+    }
+
+    /// Posted after every successful mutating save. The sidebar sees section changes through its
+    /// own `@Query`, but window-less observers — the Scheduled editor's Section options — have no
+    /// query and would otherwise never learn about a section created mid-session, including by
+    /// the `create_section` host tool.
+    func publishSectionsChanged() {
+        notificationCenter.post(name: .sidebarSectionsChanged, object: self)
     }
 
     enum CreateOutcome: Equatable {
@@ -100,6 +111,7 @@ final class SidebarSectionService {
             )
             modelContext.insert(section)
             try saveSectionChanges(modelContext)
+            publishSectionsChanged()
             return .created(section.descriptor)
         } catch {
             modelContext.rollback()
@@ -119,6 +131,7 @@ final class SidebarSectionService {
             }
             section.name = validatedName
             try saveSectionChanges(modelContext)
+            publishSectionsChanged()
             return section.descriptor
         } catch {
             modelContext.rollback()
@@ -138,6 +151,7 @@ final class SidebarSectionService {
             modelContext.delete(section)
             try normalizeSections()
             try saveSectionChanges(modelContext)
+            publishSectionsChanged()
             return memberCount
         } catch {
             modelContext.rollback()
@@ -178,6 +192,7 @@ final class SidebarSectionService {
                 return false
             }
             try saveSectionChanges(modelContext)
+            publishSectionsChanged()
             return true
         } catch {
             modelContext.rollback()

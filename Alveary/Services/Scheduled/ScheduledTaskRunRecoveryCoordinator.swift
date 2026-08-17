@@ -274,6 +274,15 @@ private extension ScheduledTaskRunRecoveryCoordinator {
         if isProjectThread && !isWorktree {
             thread.taskGrantedRoots = workspace?.grantedRoots ?? []
         }
+        // Same fail-open seeding as the materializer's `resolvedRunSection`: a crash-recovered
+        // shell still lands in the section the claim promised, and a vanished or non-custom
+        // section degrades to `Tasks` rather than blocking recovery.
+        if !isProjectThread,
+           let sectionID = run.threadSectionIDSnapshot,
+           let section = modelContext.resolveSidebarSection(id: sectionID),
+           section.kind == .custom {
+            thread.customSection = section
+        }
         let conversation = Conversation(
             provider: run.providerIDSnapshot,
             isMain: true,

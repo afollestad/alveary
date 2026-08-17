@@ -2,24 +2,24 @@ import Foundation
 
 extension ScheduledTaskSchedulerEngine {
     func validatePreflight(_ snapshot: ScheduledTaskPreflightSnapshot) async -> ScheduledTaskPreflightOutcome {
-        if let target = snapshot.target,
-           !targetIsAvailableForClaim(target) {
+        if let gatedConversationID = snapshot.gatedConversationID,
+           !targetIsAvailableForClaim(conversationID: gatedConversationID) {
             return .targetBusy
         }
         let outcome = await preflightValidator(snapshot)
         if case .ready = outcome,
-           let target = snapshot.target,
-           !targetIsAvailableForClaim(target) {
+           let gatedConversationID = snapshot.gatedConversationID,
+           !targetIsAvailableForClaim(conversationID: gatedConversationID) {
             return .targetBusy
         }
         return outcome
     }
 
-    func targetIsAvailableForClaim(_ target: ScheduledTaskTargetSnapshot) -> Bool {
-        guard targetIsReady(target.conversationID) else {
+    func targetIsAvailableForClaim(conversationID: String) -> Bool {
+        guard targetIsReady(conversationID) else {
             return false
         }
-        guard let conversation = modelContext.resolveConversation(conversationID: target.conversationID),
+        guard let conversation = modelContext.resolveConversation(conversationID: conversationID),
               conversation.isMain,
               let thread = conversation.thread else {
             return true

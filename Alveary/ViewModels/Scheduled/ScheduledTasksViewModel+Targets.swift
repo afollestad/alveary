@@ -33,6 +33,17 @@ extension ScheduledTasksViewModel {
                 self?.reload()
             }
         }
+
+        // Sections have no other route into an open editor: the sidebar reads them through its
+        // own `@Query`, so a section created mid-session — including by the windowless
+        // `create_section` host tool — reaches the Section picker only through this.
+        let sectionNotifications = notificationCenter.notifications(named: .sidebarSectionsChanged)
+        sectionObservationTask = Task { @MainActor [weak self] in
+            for await _ in sectionNotifications {
+                guard !Task.isCancelled else { return }
+                self?.reload()
+            }
+        }
     }
 
     func makeDefinitionEdit(
@@ -41,6 +52,7 @@ extension ScheduledTasksViewModel {
     ) throws -> ScheduledTaskDefinitionEdit {
         let text = try validatedText(in: draft)
         let destination = try resolvedDestination(in: draft)
+        let threadSection = try resolvedThreadSection(in: draft)
         let options = modelOptions(for: draft.providerID)
         let storedModel = AgentModelOptionSelection.storedModelValue(
             in: options,
@@ -67,8 +79,25 @@ extension ScheduledTasksViewModel {
                 ? draft.grantedRoots
                 : ScheduledTask.normalizedUniquePaths(draft.grantedRoots),
             project: destination.project,
-            targetThread: destination.thread
+            targetThread: destination.thread,
+            threadSection: threadSection
         )
+    }
+
+    /// Resolves the draft's section id against live rows, failing the save loudly — matching
+    /// `projectNotFound` — instead of silently landing future threads in `Tasks`. `nil` when the
+    /// destination or workspace cannot carry a section, so a hidden stale pick never round-trips.
+    private func resolvedThreadSection(in draft: ScheduledTaskEditorDraft) throws -> SidebarSection? {
+        guard draft.destination != .existingThread,
+              draft.workspaceKind == .privateWorkspace,
+              let sectionID = draft.sectionID else {
+            return nil
+        }
+        guard let section = modelContext.resolveSidebarSection(id: sectionID),
+              section.kind == .custom else {
+            throw ScheduledTasksViewModelError.sectionNotFound
+        }
+        return section
     }
 
     func resolveProject(path: String) -> Project? {
@@ -76,6 +105,19 @@ extension ScheduledTasksViewModel {
             project.path == path
         })
         return try? modelContext.fetch(descriptor).first
+    }
+
+    /// Custom sections in persisted sidebar order, for the editor's Section picker; `Tasks` is
+    /// the picker's literal nil option, and `Pinned`/`Projects` are excluded because pinning and
+    /// a Project placement are what put a thread in either. Deliberately the pure read path
+    /// rather than `SidebarSectionService.orderedSections()`, whose builtin seeding *saves* —
+    /// `reload()` also runs from `saveDefinition`'s failure path right after a `rollback()`, and
+    /// a read that commits unrelated pending work there would resurrect what the rollback undid.
+    func makeSectionOptions() throws -> [ScheduledTaskSectionOption] {
+        SidebarSectionNormalization
+            .orderedSections(try SidebarSectionNormalization.allSections(in: modelContext))
+            .filter { $0.kind == .custom }
+            .map { ScheduledTaskSectionOption(id: $0.id, name: $0.name) }
     }
 
     func makeExistingThreadOptions() throws -> [ScheduledTaskThreadOption] {

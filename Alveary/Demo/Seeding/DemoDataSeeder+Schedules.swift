@@ -134,7 +134,9 @@ extension DemoDataSeeder {
                     Regenerate the marketing screenshots whenever a UI change lands, and tell me which \
                     ones actually changed so I do not re-upload the whole set.
                     """,
-                destination: .newThreadPerRun,
+                // The reuse destination with no linked thread yet: the first run mints and links
+                // one, so a fresh demo store legitimately renders "New thread" with no target.
+                destination: .reusedThread,
                 state: .active,
                 recurrence: .interval(minutes: 240, anchor: DemoData.hoursAgo(2)),
                 timeZoneIdentifier: timeZoneIdentifier,

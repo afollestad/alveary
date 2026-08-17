@@ -18,6 +18,7 @@ final class ScheduledTasksViewModel {
     @ObservationIgnored var changeObservationTask: Task<Void, Never>?
     @ObservationIgnored var threadObservationTask: Task<Void, Never>?
     @ObservationIgnored var proposalObservationTask: Task<Void, Never>?
+    @ObservationIgnored var sectionObservationTask: Task<Void, Never>?
 
     /// Where the grid was scrolled to, so leaving the screen and coming back lands there; see
     /// ``ScrollOffsetStore`` for why it cannot live on the screen.
@@ -26,6 +27,7 @@ final class ScheduledTasksViewModel {
     private(set) var tasks: [ScheduledTaskRowPresentation] = []
     private(set) var projects: [ScheduledTaskProjectOption] = []
     private(set) var existingThreadTargets: [ScheduledTaskThreadOption] = []
+    private(set) var sectionOptions: [ScheduledTaskSectionOption] = []
     var providerStatuses: [String: AgentCLIKit.AgentProviderStatus] = [:]
     var providerOrdering: [String] = []
     var isLoadingProviders = false
@@ -81,6 +83,7 @@ final class ScheduledTasksViewModel {
         changeObservationTask?.cancel()
         threadObservationTask?.cancel()
         proposalObservationTask?.cancel()
+        sectionObservationTask?.cancel()
     }
 
     func load() async {
@@ -104,6 +107,7 @@ final class ScheduledTasksViewModel {
             )
             projects = fetchedProjects.map { ScheduledTaskProjectOption(path: $0.path, name: $0.name) }
             existingThreadTargets = try makeExistingThreadOptions()
+            sectionOptions = try makeSectionOptions()
         } catch {
             errorMessage = error.localizedDescription
         }

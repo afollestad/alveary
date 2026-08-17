@@ -60,6 +60,7 @@ struct ScheduledTaskEditorContent: View {
                     ScheduledTaskEditorWorkspaceSection(
                         projects: viewModel.projects,
                         threads: viewModel.existingThreadTargets,
+                        sections: viewModel.sectionOptions,
                         draft: $draft
                     )
                     if draft.destination != .existingThread {
@@ -109,6 +110,13 @@ struct ScheduledTaskEditorContent: View {
                 return
             }
             draft.targetConversationID = nil
+        }
+        .onChange(of: viewModel.sectionOptions) { _, options in
+            guard let sectionID = draft.sectionID,
+                  !options.contains(where: { $0.id == sectionID }) else {
+                return
+            }
+            draft.sectionID = nil
         }
         .onChange(of: viewModel.isLoadingProviders) { wasLoading, isLoading in
             guard surface == .modal, wasLoading, !isLoading else { return }

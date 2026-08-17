@@ -38,6 +38,33 @@ final class SidebarSectionServiceTests: XCTestCase {
         XCTAssertEqual(sections.map(\.sortOrder), [0, 1, 2])
     }
 
+    func testEnsureBuiltinSectionsClearsADefinitionSeedPointingAtABuiltinRowWithoutARevisionBump() throws {
+        let fixture = try SidebarTestFixture()
+        let service = SidebarSectionService(modelContext: fixture.context)
+        let builtin = SidebarSection(kind: .tasks, name: "Tasks", sortOrder: 0)
+        let definition = ScheduledTask(
+            title: "Sectioned schedule",
+            prompt: "Do the work.",
+            destination: .reusedThread,
+            recurrence: .daily(hour: 8, minute: 0),
+            timeZoneIdentifier: "Etc/UTC",
+            providerID: "codex"
+        )
+        let modifiedAt = definition.modifiedAt
+        fixture.context.insert(builtin)
+        fixture.context.insert(definition)
+        definition.threadSection = builtin
+        try fixture.context.save()
+
+        XCTAssertTrue(try service.ensureBuiltinSections())
+
+        XCTAssertNil(definition.threadSection)
+        // A repair of an unrenderable pointer is not a definition mutation; a bump would
+        // spuriously conflict an open editor's `expectedRevision` check.
+        XCTAssertEqual(definition.revision, 1)
+        XCTAssertEqual(definition.modifiedAt, modifiedAt)
+    }
+
     // MARK: Creation and naming
 
     func testCreateSectionAppendsAtTheBottom() throws {

@@ -31,6 +31,16 @@ struct ScheduledTaskPickerOption: Identifiable, Equatable {
     var id: String { value }
 }
 
+/// A custom sidebar section the created thread may join. Deliberately not
+/// `SidebarSectionDescriptor`: its `SidebarSectionID` would make `.pinned`/`.projects`
+/// representable in the draft, and those two must be unofferable by type, not by a filter
+/// someone can forget — pinning and a Project placement are what put a thread in either.
+/// `Tasks` is the picker's literal nil option rather than a row here.
+struct ScheduledTaskSectionOption: Identifiable, Equatable {
+    let id: String
+    let name: String
+}
+
 struct ScheduledTaskRowPresentation: Identifiable, Equatable {
     let id: String
     let revision: Int
@@ -73,8 +83,10 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     let expectedRevision: Int?
     var title: String
     var prompt: String
-    var destination: ScheduledTaskDestination = .newThreadPerRun
+    var destination: ScheduledTaskDestination = .reusedThread
     var targetConversationID: String?
+    /// `SidebarSection.id` of the section a created thread joins; `nil` is `Tasks`.
+    var sectionID: String?
     var recurrenceKind: ScheduledTaskRecurrence.Kind
     var onceOccurrenceAt: Date
     var intervalAnchorAt: Date

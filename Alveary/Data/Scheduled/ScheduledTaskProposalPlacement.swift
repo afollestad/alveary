@@ -6,17 +6,43 @@ import Foundation
 /// an edit keeps the definition's own. Only what the model actually asked for is represented
 /// here, so inheritance stays the default everywhere.
 enum ScheduledTaskProposalPlacement: Equatable, Sendable {
-    case newThread(workspace: ScheduledTaskProposalWorkspace?)
+    /// A new-thread run. `flavor` is nil when the request named only a workspace — asking to
+    /// switch workspaces, not flavors — so an edit keeps whichever new-thread flavor the
+    /// definition already had and a create takes the editor's default.
+    case newThread(flavor: ScheduledTaskNewThreadFlavor?, workspace: ScheduledTaskProposalWorkspace?)
     /// Posts into an existing thread, named by its main conversation's id — the same identity
     /// `ScheduledTask.targetThread` resolves from and `list_threads` hands out.
     case existingThread(targetConversationID: String)
 
     var requestedWorkspace: ScheduledTaskProposalWorkspace? {
         switch self {
-        case .newThread(let workspace):
+        case .newThread(_, let workspace):
             workspace
         case .existingThread:
             nil
+        }
+    }
+
+    var requestedNewThreadFlavor: ScheduledTaskNewThreadFlavor? {
+        switch self {
+        case .newThread(let flavor, _):
+            flavor
+        case .existingThread:
+            nil
+        }
+    }
+}
+
+/// Which new-thread behavior a placement asked for, mirroring the editor's two new-thread rows.
+enum ScheduledTaskNewThreadFlavor: Equatable, Sendable {
+    /// One rolling thread, created on the first run and reused after — the editor's default.
+    case reused
+    case perRun
+
+    var destination: ScheduledTaskDestination {
+        switch self {
+        case .reused: .reusedThread
+        case .perRun: .newThreadPerRun
         }
     }
 }

@@ -29,6 +29,12 @@ These instructions cover `Alveary/Services/Scheduled/` — claiming a due occurr
 - **Age automatic claim recovery from the scheduled occurrence**, and Run-now recovery from its explicit trigger time instead.
 - **Precompute claimed-run recovery readiness from Sendable immutable snapshots** through the full provider, workspace, and worktree preflight. Recovery's synchronous mutation pass may consume only the resulting safe run IDs.
 
+### Reused-Thread Runs
+
+- **Route a `.reusedThread` run by its relationships, never its destination or snapshot columns**: `run.targetThread != nil` means it posts into the prior run's thread, `run.thread != nil` means it created one, and the to-one `run.thread` may only ever belong to the creating run.
+- **Reuse self-heals at claim *and* materialization instead of blocking.** An unhealthy linked thread makes the claim fall back to creating, and a thread lost in the claim→materialize window clears `run.targetThread` and mints a replacement — overwriting the definition's stale link without a revision bump.
+- **A targeted reuse run derives its workspace from the thread** (`ScheduledTaskReusedThreadWorkspace`), never from `preparedWorkspace*` columns it never wrote, and **re-asserts the definition's model, effort, and permission mode onto the thread** in the occurrence-note save, because automated spawns supply no overrides and read the thread's stored fields.
+
 ### Workspace Materialization
 
 - **Retain a failed private-workspace cleanup's descriptor and prepared marker on the Task shell** so permanent deletion can retry, and clear that provenance only once cleanup succeeds. `Alveary/Data/Scheduled/AGENTS.md` owns which columns make up the retention set.

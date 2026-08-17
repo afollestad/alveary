@@ -29,8 +29,9 @@ extension ScheduledTasksViewModel {
             expectedRevision: nil,
             title: "",
             prompt: "",
-            destination: .newThreadPerRun,
+            destination: .reusedThread,
             targetConversationID: nil,
+            sectionID: nil,
             recurrenceKind: .daily,
             onceOccurrenceAt: suggestedOccurrence,
             intervalAnchorAt: startOfMinute(actionDate),
@@ -83,6 +84,9 @@ extension ScheduledTasksViewModel {
             prompt: definition.prompt,
             destination: destination,
             targetConversationID: definition.targetThread?.conversations.first(where: \.isMain)?.id,
+            // Nullify already degraded a removed section, so the picker shows `Tasks` with no
+            // fallback logic here.
+            sectionID: definition.threadSection?.id,
             recurrenceKind: recurrence?.kind ?? .once,
             onceOccurrenceAt: recurrenceFields?.onceOccurrenceAt ?? fallbackDate,
             intervalAnchorAt: recurrenceFields?.intervalAnchorAt ?? fallbackIntervalAnchor,
@@ -125,6 +129,10 @@ extension ScheduledTasksViewModel {
             prompt: definitionDraft.prompt,
             destination: definitionDraft.destination,
             targetConversationID: definitionDraft.targetConversationID,
+            // The proposal payload carries no section field, and absence must mean *preserve*:
+            // confirming an unrelated "make it weekly" edit proposal must not silently reset the
+            // schedule's section, so an edit target seeds from the live definition.
+            sectionID: definitionID.flatMap { modelContext.resolveScheduledTask(id: $0)?.threadSection?.id },
             recurrenceKind: recurrence.kind,
             onceOccurrenceAt: recurrenceFields.onceOccurrenceAt,
             intervalAnchorAt: recurrenceFields.intervalAnchorAt,

@@ -87,8 +87,10 @@ private extension ScheduledTaskHostToolCatalog {
         revision. Ask \
         for clarification instead of guessing materially ambiguous instructions, recurrence, or target. Edit changes may replace \
         title, prompt, the complete schedule, or where the task runs. Omit destination and workspace to inherit this conversation's; \
-        send destination existing_thread with a target_thread_id from list_threads to post results into an existing thread, or a \
-        workspace with a project_path from list_projects to run in a different Project. granted_roots replaces the folder grants \
+        send destination reused_thread to create one thread on the first run and post every later run into it (the default for new \
+        tasks), new_thread for a fresh thread on every run, or existing_thread with a target_thread_id from list_threads to post \
+        results into an existing thread. A workspace with a project_path from list_projects runs in a different Project. \
+        granted_roots replaces the folder grants \
         the task would otherwise inherit; entries must be absolute paths to existing folders, may combine with a project_path, and \
         every grant is shown to the user for confirmation. Provider, model, effort, permissions, and run location are bound by \
         Alveary and are intentionally not accepted. After it returns, report the `status` \
@@ -134,7 +136,7 @@ private extension ScheduledTaskHostToolCatalog {
     ])
 
     static let placementProperties: [String: AgentCLIKit.JSONValue] = [
-        "destination": HostToolSchema.enumSchema(["new_thread", "existing_thread"]),
+        "destination": HostToolSchema.enumSchema(["reused_thread", "new_thread", "existing_thread"]),
         "target_thread_id": HostToolSchema.nonEmptyStringSchema,
         "workspace": workspaceSchema
     ]

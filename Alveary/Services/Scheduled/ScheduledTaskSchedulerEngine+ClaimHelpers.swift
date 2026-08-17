@@ -28,8 +28,40 @@ extension ScheduledTaskSchedulerEngine {
             projectRemoteName: definition.project?.remoteName,
             grantedRoots: target?.grantedRoots ?? definition.grantedRoots,
             destination: destination,
-            target: target
+            target: target,
+            reusedTarget: reusedTarget(for: definition)
         )
+    }
+
+    /// The healthy thread a `.reusedThread` schedule should post into, or nil when the next run
+    /// must mint a fresh one. Deliberately does not require a pin, and returns nil rather than
+    /// throwing for an archived, drafted, forked, or cleanup-pending thread: the schedule
+    /// self-heals by creating a replacement instead of blocking. Deletion needs no arm —
+    /// `.nullify` already cleared the link. Not `isEligibleScheduledTaskTarget`, which refuses
+    /// unpinned threads under a pinned project; that rule exists so a promised pin cannot no-op,
+    /// and reuse threads are never pinned.
+    func reusedTarget(for definition: ScheduledTask) -> ScheduledTaskReusedTarget? {
+        guard definition.decodedDestination == .reusedThread,
+              let thread = definition.reusedThread,
+              thread.archivedAt == nil,
+              !thread.isDraft,
+              !thread.isForkBootstrapPending,
+              !thread.hasPendingScheduledTaskWorktreeCleanup,
+              thread.primaryWorkingDirectory != nil,
+              let conversation = thread.soleMainConversation else {
+            return nil
+        }
+        return ScheduledTaskReusedTarget(
+            conversationID: conversation.id,
+            threadName: thread.name,
+            threadID: thread.persistentModelID
+        )
+    }
+
+    /// The conversation whose availability gates claiming for this definition, mirroring
+    /// `ScheduledTaskPreflightSnapshot.gatedConversationID` for the synchronous rechecks.
+    func gatedConversationID(for definition: ScheduledTask) -> String? {
+        targetSnapshot(for: definition)?.conversationID ?? reusedTarget(for: definition)?.conversationID
     }
 
     func targetSnapshot(for definition: ScheduledTask) -> ScheduledTaskTargetSnapshot? {

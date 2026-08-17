@@ -111,8 +111,7 @@ final class ScheduledTaskSchedulerCoordinator {
             guard nextIsDue || pendingIsDue || needsDefinitionValidation else {
                 return nil
             }
-            if definition.decodedDestination == .existingThread,
-               let targetID = definition.targetThread?.persistentModelID {
+            if let targetID = definition.runTargetThread?.persistentModelID {
                 guard selectedTargetIDs.insert(targetID).inserted else {
                     return nil
                 }

@@ -23,23 +23,29 @@ extension ScheduledTaskHostToolRequestParser {
                 throw invalid("\(object.path).target_thread_id is required for an existing-thread destination.")
             }
             return .existingThread(targetConversationID: targetThreadID)
-        case "new_thread":
+        case "reused_thread", "new_thread":
             guard targetThreadID == nil else {
                 throw invalid("\(object.path).target_thread_id only applies to an existing-thread destination.")
             }
-            return .newThread(workspace: try workspaceValues.map { try parseWorkspace($0, in: object.path) })
+            // `new_thread` keeps meaning a fresh thread per run — models and stored payloads
+            // already use it — so the reuse flavor takes its own wire value.
+            return .newThread(
+                flavor: destination == "reused_thread" ? .reused : .perRun,
+                workspace: try workspaceValues.map { try parseWorkspace($0, in: object.path) }
+            )
         case .some:
-            throw invalid("\(object.path).destination must be new_thread or existing_thread.")
+            throw invalid("\(object.path).destination must be reused_thread, new_thread, or existing_thread.")
         case nil:
             guard targetThreadID == nil else {
                 throw invalid("\(object.path).target_thread_id requires destination existing_thread.")
             }
-            // A workspace only means anything for a new-thread run, so naming one says which
-            // destination is meant; an edit that names a workspace is asking to switch to it.
+            // A workspace only means anything for a new-thread run, so naming one says a
+            // new-thread destination is meant; an edit that names a workspace is asking to
+            // switch workspaces, not flavors, so the flavor stays unrequested.
             guard let workspaceValues else {
                 return nil
             }
-            return .newThread(workspace: try parseWorkspace(workspaceValues, in: object.path))
+            return .newThread(flavor: nil, workspace: try parseWorkspace(workspaceValues, in: object.path))
         }
     }
 }
@@ -104,8 +110,18 @@ extension ScheduledTaskHostToolRequestParser {
                 "destination": .string("existing_thread"),
                 "target_thread_id": .string(targetConversationID)
             ])
-        case .newThread(let workspace):
-            var object: [String: AgentCLIKit.JSONValue] = ["destination": .string("new_thread")]
+        case let .newThread(flavor, workspace):
+            var object: [String: AgentCLIKit.JSONValue] = [:]
+            switch flavor {
+            case .reused:
+                object["destination"] = .string("reused_thread")
+            case .perRun:
+                object["destination"] = .string("new_thread")
+            case nil:
+                // A workspace-only request canonicalizes without a destination so it cannot
+                // collapse into — or be replayed as — an explicit-flavor request.
+                break
+            }
             guard let workspace else {
                 return .object(object)
             }
