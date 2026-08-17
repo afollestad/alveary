@@ -78,6 +78,15 @@ struct PullRequestPaneFiles: View, Equatable {
             .contextualPaneHorizontalInsets()
             .padding(.top, 8)
         }
+        let content = stagedCommentContent
+        if !content.staleComments.isEmpty {
+            PullRequestPaneStaleComments(
+                comments: content.staleComments,
+                onRemove: { index in
+                    viewModel.removeProposedComment(at: index, target: target)
+                }
+            )
+        }
         if files.isEmpty {
             EmptyStateView(
                 icon: "doc.text",
@@ -98,7 +107,7 @@ struct PullRequestPaneFiles: View, Equatable {
                 onToggleFileCollapse: { fileID in
                     viewModel.toggleDiffFileCollapse(fileID)
                 },
-                commentAnnotations: commentAnnotations,
+                commentAnnotations: content.annotations,
                 commentInteraction: commentInteraction,
                 // Match Overview's and Activity's top content inset.
                 contentTopInset: ContextualPaneLayout.contentInsets().top,
@@ -130,12 +139,23 @@ struct PullRequestPaneFiles: View, Equatable {
         }
     }
 
+    /// What the Changes tab renders of the review's comments: the drawable threads, and the staged
+    /// comments the diff cannot place.
+    private struct StagedCommentContent {
+        let annotations: DiffCommentAnnotations
+        let staleComments: [PullRequestReviewProposalPreview.StaleComment]
+    }
+
     /// Review threads keyed by anchor. The viewer's own unsubmitted comments are
     /// ordinary threads here — GitHub keeps them in `reviewThreads` badged
     /// `PENDING`, so nothing local is merged in *except* an attached review
     /// proposal's staged comments, which exist only in Alveary's envelope and
     /// render badged "Proposed".
-    private var commentAnnotations: DiffCommentAnnotations {
+    ///
+    /// The stale list rides along rather than being dropped: a staged comment that resolves
+    /// nowhere emits no row, and swallowing it here left the comment with no delete affordance on
+    /// this tab at all — the row is the only place its three-dot menu lives.
+    private var stagedCommentContent: StagedCommentContent {
         var annotations = DiffCommentAnnotations()
         annotations.allowsComposing = true
         if let detail = session.detail {
@@ -166,10 +186,11 @@ struct PullRequestPaneFiles: View, Equatable {
         // Reading the proposal here is what re-renders this tab when the envelope changes: `==`
         // covers only `session` and view-model identity, but an observed view-model read during
         // `body` invalidates regardless (see this type's `==` doc comment).
+        var staleComments: [PullRequestReviewProposalPreview.StaleComment] = []
         if let proposal = viewModel.pendingReviewProposal(for: target) {
             // Resolved against the same diff the tab draws, so a comment whose line moved lands
             // where the transcript card puts it rather than silently matching no row here.
-            PullRequestReviewProposalCoordinator.appendStagedComments(
+            staleComments = PullRequestReviewProposalCoordinator.appendStagedComments(
                 proposal.comments,
                 to: &annotations,
                 resolvedAgainst: session.diffFiles ?? [],
@@ -182,7 +203,7 @@ struct PullRequestPaneFiles: View, Equatable {
         let isInlineEdit = session.composerRemoteCommentID != nil
             || session.composerPendingCommentNodeID != nil
         annotations.composerAnchor = isInlineEdit ? nil : session.composerAnchor
-        return annotations
+        return StagedCommentContent(annotations: annotations, staleComments: staleComments)
     }
 
     /// A pending comment is addressed by node id, so its menu waits on that

@@ -205,6 +205,38 @@ extension SnapshotTests {
         )
     }
 
+    /// A staged comment the diff cannot place lists above the files with the Outdated pill and its
+    /// delete menu, instead of silently emitting no row — which left it undeletable from this tab.
+    func testPullRequestPaneFilesStaleProposedComment() throws {
+        let viewModel = try PullRequestPaneSnapshots.viewModelWithPendingProposal(
+            comments: [
+                PullRequestReviewProposalRecord.Comment(
+                    path: "File0.swift",
+                    line: 2,
+                    side: "RIGHT",
+                    body: "Prefer `guard let` over the force unwrap here."
+                ),
+                PullRequestReviewProposalRecord.Comment(
+                    // No file by this name exists in the generated diff, so resolution
+                    // reports it stale rather than drawing it.
+                    path: "Removed.swift",
+                    line: 40,
+                    side: "RIGHT",
+                    body: "This branch is unreachable once the guard lands."
+                )
+            ]
+        )
+        assertMacSnapshot(
+            PullRequestPaneFiles(
+                session: PullRequestPaneSnapshots.loadedSession,
+                viewModel: viewModel,
+                target: PullRequestPaneSnapshots.target
+            ),
+            size: CGSize(width: 460, height: 560),
+            named: "pull_request_pane_files_stale_proposed_comment"
+        )
+    }
+
     /// Dark mode is where the card's surface continuity against the code shows, as it is for the
     /// Pending baseline above.
     func testPullRequestPaneFilesProposedCommentDark() throws {

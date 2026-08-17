@@ -61,7 +61,21 @@ enum PullRequestPaneSnapshots {
     /// An inert view model whose coordinator holds one pending review proposal for this fixture's
     /// pull request, so the Changes tab renders its staged comment badged "Proposed". Built over
     /// an in-memory store because the coordinator reads the envelope off a `Conversation`.
-    static func viewModelWithPendingProposal() throws -> PullRequestsViewModel {
+    ///
+    /// `comments` defaults to the one staged comment the existing baselines render; the stale
+    /// baseline passes an extra comment anchored off the diff.
+    static func viewModelWithPendingProposal(
+        comments: [PullRequestReviewProposalRecord.Comment] = [
+            PullRequestReviewProposalRecord.Comment(
+                // The generated diff's own second added line, so the card sits mid-hunk
+                // with code above and below it.
+                path: "File0.swift",
+                line: 2,
+                side: "RIGHT",
+                body: "Prefer `guard let` over the force unwrap here."
+            )
+        ]
+    ) throws -> PullRequestsViewModel {
         let container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
@@ -86,16 +100,7 @@ enum PullRequestPaneSnapshots {
                 number: identifier.number,
                 event: "comment",
                 body: "A couple of notes.",
-                comments: [
-                    PullRequestReviewProposalRecord.Comment(
-                        // The generated diff's own second added line, so the card sits mid-hunk
-                        // with code above and below it.
-                        path: "File0.swift",
-                        line: 2,
-                        side: "RIGHT",
-                        body: "Prefer `guard let` over the force unwrap here."
-                    )
-                ],
+                comments: comments,
                 titleSnapshot: "Add pull request browsing to the sidebar",
                 pendingCommentCountSnapshot: 0,
                 sourceProviderID: "codex",

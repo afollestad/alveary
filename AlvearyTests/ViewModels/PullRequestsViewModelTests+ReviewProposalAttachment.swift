@@ -23,6 +23,46 @@ extension PullRequestsViewModelTests {
         XCTAssertNil(fixture.session?.pendingCommentScrollTarget)
     }
 
+    /// Asserted textually rather than left to the baseline — a prose line at its wrap point
+    /// reflows on CI — and pinned to the transcript card's exact wording, because the two surfaces
+    /// report the same fact about the same envelope.
+    func testThePaneStaleCaptionMatchesTheTranscriptCards() {
+        XCTAssertEqual(
+            PullRequestPaneStaleComments.caption(for: 1),
+            "1 comment no longer matches the diff and will not be published."
+        )
+        XCTAssertEqual(
+            PullRequestPaneStaleComments.caption(for: 2),
+            "2 comments no longer match the diff and will not be published."
+        )
+    }
+
+    /// The Changes tab's whole delete path, exactly as `PullRequestPane+Files` wires it: resolve
+    /// the staged comment against the session's diff, render it, and remove by the rendered
+    /// `proposedIndex`.
+    func testAStagedCommentRendersInThePaneAndDeletesFromIt() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+
+        var annotations = DiffCommentAnnotations()
+        let proposal = try XCTUnwrap(fixture.viewModel.pendingReviewProposal(for: fixture.target))
+        let stale = PullRequestReviewProposalCoordinator.appendStagedComments(
+            proposal.comments,
+            to: &annotations,
+            resolvedAgainst: fixture.session?.diffFiles ?? [],
+            viewerLogin: nil,
+            viewerAvatarURL: nil
+        )
+        XCTAssertTrue(stale.isEmpty, "the staged comment should resolve against the pane's diff")
+        let anchor = DiffCommentAnchor(path: "File0.swift", side: .right, line: 1)
+        let thread = try XCTUnwrap(annotations.threads[anchor], "the staged comment should render")
+        let proposedIndex = try XCTUnwrap(thread.comments.first?.proposedIndex)
+
+        fixture.viewModel.removeProposedComment(at: proposedIndex, target: fixture.target)
+
+        XCTAssertEqual(fixture.viewModel.pendingReviewProposal(for: fixture.target)?.comments, [])
+    }
+
     func testAJumpArmsAScrollToTheClickedComment() async throws {
         let fixture = try ReviewProposalAttachmentFixture()
         await fixture.openPane()
