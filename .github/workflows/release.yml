@@ -11,9 +11,45 @@ permissions:
   copilot-requests: write
 
 jobs:
-  release:
-    name: Build, notarize, and release
+  # Detection is its own job so the build job's concurrency group can read its
+  # mode. Workflow-level concurrency cannot see `needs`, and only canary runs
+  # may cancel each other.
+  detect:
+    name: Detect release mode
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.version.outputs.mode }}
+      version: ${{ steps.version.outputs.version }}
+      build: ${{ steps.version.outputs.build }}
+      tag: ${{ steps.version.outputs.tag }}
+      artifact_name: ${{ steps.version.outputs.artifact_name }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect release version
+        id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          IS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' }}
+        run: scripts/ci/detect-release-version.py
+
+  build:
+    # Named for what every mode does. Notarizing and publishing are conditional,
+    # so naming the job after them mislabels the canary runs that now dominate.
+    name: Build and package
+    needs: detect
     runs-on: macos-26
+    # Canary runs share one group so a newer push supersedes an unfinished
+    # build. Release and dry run runs key on the unique run id instead, so they
+    # can neither cancel nor queue behind anything.
+    concurrency:
+      group: release-${{ needs.detect.outputs.mode == 'canary' && format('canary-{0}', github.ref) || github.run_id }}
+      cancel-in-progress: ${{ needs.detect.outputs.mode == 'canary' }}
     env:
       APP_NAME: Alveary
       SCHEME: Alveary
@@ -33,33 +69,19 @@ jobs:
             echo "KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db"
           } >> "$GITHUB_ENV"
 
-      - name: Detect release version
-        id: version
-        env:
-          BEFORE_SHA: ${{ github.event.before }}
-          IS_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' }}
-        run: scripts/ci/detect-release-version.py
-
-      - name: Stop when no release build requested
-        if: steps.version.outputs.should_build != 'true'
-        run: echo "No release build requested."
-
       - name: Ensure tag does not already exist
-        if: steps.version.outputs.should_release == 'true'
+        if: needs.detect.outputs.mode == 'release'
         env:
-          TAG_NAME: ${{ steps.version.outputs.tag }}
+          TAG_NAME: ${{ needs.detect.outputs.tag }}
         run: scripts/ci/ensure-release-tag-available.sh
 
       - name: Install build tools
-        if: steps.version.outputs.should_build == 'true'
         run: scripts/ci/install-release-tools.sh
 
       - name: Generate Xcode project
-        if: steps.version.outputs.should_build == 'true'
         run: xcodegen generate
 
       - name: Import signing certificate
-        if: steps.version.outputs.should_build == 'true'
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -67,82 +89,95 @@ jobs:
         run: scripts/ci/import-signing-certificate.sh
 
       - name: Archive app
-        if: steps.version.outputs.should_build == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: scripts/ci/archive-release-app.sh
 
       - name: Export Developer ID app
-        if: steps.version.outputs.should_build == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: scripts/ci/export-developer-id-app.sh
 
       - name: Verify exported app metadata
-        if: steps.version.outputs.should_build == 'true'
         env:
-          VERSION: ${{ steps.version.outputs.version }}
-          BUILD: ${{ steps.version.outputs.build }}
+          VERSION: ${{ needs.detect.outputs.version }}
+          BUILD: ${{ needs.detect.outputs.build }}
         run: scripts/ci/verify-exported-app.sh
 
       - name: Notarize and staple app
-        if: steps.version.outputs.should_build == 'true'
+        if: needs.detect.outputs.mode != 'canary'
         env:
           APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
         run: scripts/ci/notarize-and-staple-app.sh
 
+      - name: Ensure canary uploads verbatim
+        if: needs.detect.outputs.mode == 'canary'
+        run: scripts/ci/ensure-canary-uploads-verbatim.sh
+
+      # Canaries skip the ZIP entirely: they upload the bundle so `gh run
+      # download` writes a runnable app rather than an archive inside an archive.
       - name: Create release ZIP
-        if: steps.version.outputs.should_build == 'true'
+        if: needs.detect.outputs.mode != 'canary'
         id: package
         run: scripts/ci/create-release-zip.sh
 
-      - name: Upload dry run artifact
-        if: steps.version.outputs.should_build == 'true' && steps.version.outputs.should_release != 'true'
+      - name: Upload canary app
+        if: needs.detect.outputs.mode == 'canary'
         uses: actions/upload-artifact@v4
         with:
-          name: Alveary-dry-run-${{ steps.version.outputs.version }}-${{ steps.version.outputs.build }}
+          name: ${{ needs.detect.outputs.artifact_name }}
+          path: ${{ env.EXPORT_PATH }}/${{ env.APP_NAME }}.app
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload dry run artifact
+        if: needs.detect.outputs.mode == 'dry-run'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.artifact_name }}
           path: ${{ steps.package.outputs.zip_path }}
           if-no-files-found: error
+          retention-days: 14
 
       - name: Resolve previous release tag
-        if: steps.version.outputs.should_release == 'true'
+        if: needs.detect.outputs.mode == 'release'
         id: previous_tag
         env:
-          TAG_NAME: ${{ steps.version.outputs.tag }}
+          TAG_NAME: ${{ needs.detect.outputs.tag }}
         run: scripts/ci/resolve-previous-release.py
 
       - name: Set up Node.js
-        if: steps.version.outputs.should_release == 'true'
+        if: needs.detect.outputs.mode == 'release'
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
       - name: Install Copilot CLI
-        if: steps.version.outputs.should_release == 'true'
+        if: needs.detect.outputs.mode == 'release'
         run: npm install --global @github/copilot
 
       - name: Build release notes with Copilot
-        if: steps.version.outputs.should_release == 'true'
+        if: needs.detect.outputs.mode == 'release'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PREVIOUS_TAG: ${{ steps.previous_tag.outputs.tag }}
           RELEASE_NOTES_BASE: ${{ steps.previous_tag.outputs.notes_base }}
-          TAG_NAME: ${{ steps.version.outputs.tag }}
+          TAG_NAME: ${{ needs.detect.outputs.tag }}
         run: scripts/ci/generate-release-notes.sh
 
       - name: Create and push tag
-        if: steps.version.outputs.should_release == 'true'
+        if: needs.detect.outputs.mode == 'release'
         env:
-          TAG_NAME: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
+          TAG_NAME: ${{ needs.detect.outputs.tag }}
+          VERSION: ${{ needs.detect.outputs.version }}
         run: scripts/ci/create-release-tag.sh
 
       - name: Create GitHub Release
-        if: steps.version.outputs.should_release == 'true'
+        if: needs.detect.outputs.mode == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ steps.version.outputs.tag }}
+          TAG_NAME: ${{ needs.detect.outputs.tag }}
           ZIP_PATH: ${{ steps.package.outputs.zip_path }}
         run: scripts/ci/create-github-release.sh

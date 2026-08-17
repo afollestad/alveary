@@ -72,26 +72,48 @@ if not is_dry_run and version_changed and has_release_tag:
     raise SystemExit(f"error: release tag {tag} already exists")
 
 should_release = not is_dry_run and can_publish_current_version
-should_build = should_release or is_dry_run
-if should_build and not SEMVER_PATTERN.fullmatch(version):
+# Every run builds. A push that cannot publish still produces a canary artifact
+# so any commit on main can be downloaded and run, and it skips notarization
+# because a notarytool round trip on every merge costs more than Gatekeeper
+# acceptance is worth for a build that is never shipped.
+mode = "dry-run" if is_dry_run else "release" if should_release else "canary"
+# No mode skips the build anymore, so version validation is unconditional: a
+# malformed value fails the push that introduced it rather than waiting for the
+# bump that first tried to publish it.
+if not SEMVER_PATTERN.fullmatch(version):
     raise SystemExit(f"error: version must be X.Y.Z, got {version!r}")
-if should_build and not build.isdigit():
+if not build.isdigit():
     raise SystemExit(f"error: build number must be an integer, got {build!r}")
 if should_release and version_changed and previous_build and previous_build.isdigit() and int(build) <= int(previous_build):
     raise SystemExit(
         f"error: build number must increase from {previous_build} to a larger integer, got {build}"
     )
 
+# Releases publish their ZIP as a release asset and upload no artifact. Canaries
+# upload the bundle itself, and `actions/upload-artifact` roots the archive at
+# the uploaded files' common ancestor, dropping the enclosing `.app` directory —
+# so the artifact name is what re-wraps `Contents/` into a runnable bundle on
+# download, and must be exactly the bundle name. That leaves the run as the only
+# thing identifying a canary, which is why dry runs still carry version and
+# commit: they upload a ZIP, whose name is free to describe it.
+short_sha = os.environ.get("GITHUB_SHA", "")[:7]
+if mode == "release":
+    artifact_name = ""
+elif mode == "canary":
+    artifact_name = "Alveary.app"
+else:
+    artifact_name = f"Alveary-{mode}-{version}-{build}-{short_sha}"
+
 with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-    print(f"should_build={'true' if should_build else 'false'}", file=output)
-    print(f"should_release={'true' if should_release else 'false'}", file=output)
+    print(f"mode={mode}", file=output)
     print(f"version={version}", file=output)
     print(f"build={build}", file=output)
     print(f"tag={tag}", file=output)
+    print(f"artifact_name={artifact_name}", file=output)
 
-if is_dry_run:
+if mode == "dry-run":
     print(f"Preparing dry run for v{version} (build {build})")
-elif should_release:
+elif mode == "release":
     print(f"Preparing release v{version} (build {build})")
 else:
-    print("No release build requested.")
+    print(f"Preparing canary build for v{version} (build {build})")
