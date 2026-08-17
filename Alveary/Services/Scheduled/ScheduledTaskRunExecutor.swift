@@ -193,16 +193,8 @@ private extension DefaultScheduledTaskRunExecutor {
         guard let destination = run.decodedDestinationSnapshot else {
             throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
         }
-        switch destination {
-        case .newThread:
-            guard conversation.thread?.scheduledTaskRun?.persistentModelID == runID else {
-                throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
-            }
-        case .existingThread:
-            guard run.targetThread?.persistentModelID == conversation.thread?.persistentModelID,
-                  run.targetConversationIDSnapshot == conversation.id else {
-                throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
-            }
+        guard conversationBelongsToRun(run, conversation: conversation, destination: destination) else {
+            throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
         }
         return (run, conversation)
     }

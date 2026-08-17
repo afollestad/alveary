@@ -112,6 +112,7 @@ extension ScheduledTaskHostToolServiceTests {
         let edit = ScheduledTaskDefinitionEdit(
             title: draft.title,
             prompt: draft.prompt,
+            destination: .newThreadPerRun,
             recurrence: draft.recurrence,
             timeZoneIdentifier: draft.timeZoneIdentifier,
             providerID: draft.providerID,
@@ -162,6 +163,7 @@ extension ScheduledTaskHostToolServiceTests {
         let edit = ScheduledTaskDefinitionEdit(
             title: draft.title,
             prompt: draft.prompt,
+            destination: .newThreadPerRun,
             recurrence: draft.recurrence,
             timeZoneIdentifier: draft.timeZoneIdentifier,
             providerID: draft.providerID,

@@ -176,6 +176,7 @@ final class DataComponentTests: XCTestCase {
         ScheduledTask(
             title: "Daily review",
             prompt: "Review changes.",
+            destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
             providerID: "codex",

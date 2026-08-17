@@ -62,7 +62,7 @@ struct ScheduledTaskEditorContent: View {
                         threads: viewModel.existingThreadTargets,
                         draft: $draft
                     )
-                    if draft.destination == .newThread {
+                    if draft.destination != .existingThread {
                         ScheduledTaskEditorAgentSection(viewModel: viewModel, draft: $draft)
                     }
                 }

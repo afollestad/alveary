@@ -119,7 +119,7 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
     init(
         title: String,
         prompt: String,
-        destination: ScheduledTaskDestination = .newThread,
+        destination: ScheduledTaskDestination,
         targetConversationID: String? = nil,
         recurrence: ScheduledTaskRecurrence,
         timeZoneIdentifier: String,
@@ -169,7 +169,8 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         title = try container.decode(String.self, forKey: .title)
         prompt = try container.decode(String.self, forKey: .prompt)
-        destination = try container.decodeIfPresent(ScheduledTaskDestination.self, forKey: .destination) ?? .newThread
+        // Pre-field payloads predate the reuse mode, so absence means the per-run behavior.
+        destination = try container.decodeIfPresent(ScheduledTaskDestination.self, forKey: .destination) ?? .newThreadPerRun
         targetConversationID = try container.decodeIfPresent(String.self, forKey: .targetConversationID)
         recurrence = try container.decode(ScheduledTaskRecurrence.self, forKey: .recurrence)
         timeZoneIdentifier = try container.decode(String.self, forKey: .timeZoneIdentifier)
@@ -282,7 +283,7 @@ extension ScheduledTaskProposal {
         let draft = definitionDraft
         let hasValidDraftWorkspace = draft.map { draft in
             switch draft.destination {
-            case .newThread:
+            case .reusedThread, .newThreadPerRun:
                 guard draft.targetConversationID == nil else { return false }
                 switch draft.workspaceKind {
                 case .privateWorkspace:

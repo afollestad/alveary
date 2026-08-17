@@ -222,6 +222,7 @@ final class ScheduledTaskProposalQueueFixture {
             id: id,
             title: "Original",
             prompt: "Original prompt",
+            destination: .newThreadPerRun,
             revision: revision,
             state: state,
             recurrence: .daily(hour: 8, minute: 0),
@@ -313,6 +314,7 @@ final class ScheduledTaskProposalQueueFixture {
         ScheduledTaskProposalDefinitionDraft(
             title: title,
             prompt: prompt,
+            destination: .newThreadPerRun,
             recurrence: recurrence,
             timeZoneIdentifier: currentTimeZone.identifier,
             providerID: "codex",

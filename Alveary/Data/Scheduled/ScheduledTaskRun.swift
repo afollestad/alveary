@@ -165,7 +165,7 @@ final class ScheduledTaskRun {
     var statusRawValue: String
     var titleSnapshot: String
     var promptSnapshot: String
-    var destinationRawValueSnapshot: String = ScheduledTaskDestination.newThread.rawValue
+    var destinationRawValueSnapshot: String = ScheduledTaskDestination.newThreadPerRun.rawValue
     var targetConversationIDSnapshot: String?
     var targetThreadNameSnapshot: String?
     var timeZoneIdentifierSnapshot: String
@@ -206,6 +206,15 @@ final class ScheduledTaskRun {
     var requiresFinalizationRecovery: Bool = false
     var scheduledTask: ScheduledTask?
     @Relationship(deleteRule: .nullify, inverse: \AgentThread.scheduledTaskRun) var thread: AgentThread?
+    /// The pre-existing thread this run posts into — the user's pick for `.existingThread`, or the
+    /// prior run's created thread for `.reusedThread`.
+    ///
+    /// For `.reusedThread` runs, routing keys on the relationships, never on the destination or
+    /// `targetConversationIDSnapshot`: `targetThread != nil` ⟺ posts into a pre-existing thread,
+    /// `thread != nil` ⟺ created its own. The snapshot column records intent at claim time and is
+    /// never rewritten, but the materialization self-heal clears this relationship and creates a
+    /// replacement when the claimed thread became unusable — so only the relationships describe
+    /// what actually happened.
     var targetThread: AgentThread?
 
     // swiftlint:disable:next function_body_length
@@ -221,7 +230,7 @@ final class ScheduledTaskRun {
         status: ScheduledTaskRunStatus = .claimed,
         titleSnapshot: String,
         promptSnapshot: String,
-        destinationSnapshot: ScheduledTaskDestination = .newThread,
+        destinationSnapshot: ScheduledTaskDestination,
         targetConversationIDSnapshot: String? = nil,
         targetThreadNameSnapshot: String? = nil,
         timeZoneIdentifierSnapshot: String,
@@ -392,6 +401,27 @@ extension ScheduledTaskRun {
 
     var decodedDestinationSnapshot: ScheduledTaskDestination? {
         ScheduledTaskDestination(rawValue: destinationRawValueSnapshot)
+    }
+
+    /// The thread this run actually posted into, honoring reuse mode's materialization self-heal;
+    /// see `targetThread`'s doc comment for why the relationships are authoritative.
+    var effectiveScheduledThread: AgentThread? {
+        thread ?? targetThread
+    }
+
+    /// The target thread's main conversation matching the claim snapshot — the conversation a
+    /// targeted run presents into. `nil` when the run has no target, or when the target thread no
+    /// longer carries the snapshotted main conversation.
+    var snapshotTargetMainConversation: Conversation? {
+        guard let targetConversationID = targetConversationIDSnapshot,
+              let targetThread else {
+            return nil
+        }
+        return targetThread.conversations.first {
+            $0.isMain &&
+                $0.id == targetConversationID &&
+                $0.thread?.persistentModelID == targetThread.persistentModelID
+        }
     }
 
     var status: ScheduledTaskRunStatus {

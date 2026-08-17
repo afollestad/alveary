@@ -15,6 +15,7 @@ final class ScheduledTaskModelTests: XCTestCase {
             id: "schedule-1",
             title: "Review changes",
             prompt: "Review the latest changes.",
+            destination: .newThreadPerRun,
             revision: 3,
             recurrence: .weekly(weekday: 2, hour: 9, minute: 30),
             timeZoneIdentifier: "America/Chicago",
@@ -291,8 +292,7 @@ final class ScheduledTaskModelTests: XCTestCase {
                 projectRoot: ScheduledTaskRootIdentitySnapshot(
                     path: CanonicalPath.normalize("/tmp/reopen-project"),
                     identity: TaskWorkspaceFileSystemIdentity(systemNumber: 4, fileNumber: 5)
-                ),
-                grantedRoots: []
+                ), grantedRoots: []
             )
             let run = ScheduledTaskRun(
                 snapshotting: task,
@@ -405,13 +405,13 @@ final class ScheduledTaskModelTests: XCTestCase {
     private func makeTask(
         id: String = UUID().uuidString,
         recurrence: ScheduledTaskRecurrence = .daily(hour: 9, minute: 0),
-        project: Project? = nil,
-        grantedRoots: [String] = []
+        project: Project? = nil, grantedRoots: [String] = []
     ) -> ScheduledTask {
         ScheduledTask(
             id: id,
             title: "Scheduled definition",
             prompt: "Perform the scheduled work.",
+            destination: .newThreadPerRun,
             recurrence: recurrence,
             timeZoneIdentifier: "America/Chicago",
             providerID: "codex",
@@ -424,8 +424,7 @@ final class ScheduledTaskModelTests: XCTestCase {
     private func makeRun(
         task: ScheduledTask? = nil,
         thread: AgentThread? = nil,
-        occurrenceID: String = UUID().uuidString,
-        triggerID: String = UUID().uuidString,
+        occurrenceID: String = UUID().uuidString, triggerID: String = UUID().uuidString,
         occurrenceAt: Date = Date(timeIntervalSince1970: 1_800_000_000)
     ) -> ScheduledTaskRun {
         ScheduledTaskRun(
@@ -437,6 +436,7 @@ final class ScheduledTaskModelTests: XCTestCase {
             triggerKind: .scheduled,
             titleSnapshot: task?.title ?? "Scheduled definition",
             promptSnapshot: task?.prompt ?? "Perform the scheduled work.",
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: task?.timeZoneIdentifier ?? "America/Chicago",
             providerIDSnapshot: task?.providerID ?? "codex",
             effortSnapshot: task?.effort ?? "medium",

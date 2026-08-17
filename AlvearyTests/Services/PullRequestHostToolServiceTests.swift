@@ -451,7 +451,7 @@ final class PullRequestHostToolFixture {
             status: .running,
             titleSnapshot: "Automated run",
             promptSnapshot: "Continue work.",
-            destinationSnapshot: .newThread,
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "Etc/UTC",
             providerIDSnapshot: "codex",
             effortSnapshot: "high",

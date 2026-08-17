@@ -168,10 +168,12 @@ extension ScheduledTaskSchedulerCoordinator {
 
     func conversationIDsToReconcile(for run: ScheduledTaskRun) -> [String] {
         switch run.decodedDestinationSnapshot {
-        case .newThread:
+        case .newThreadPerRun:
             return run.thread?.conversations.map(\.id) ?? []
         case .existingThread:
             return run.targetThread?.conversations.map(\.id) ?? []
+        case .reusedThread:
+            return run.effectiveScheduledThread?.conversations.map(\.id) ?? []
         case nil:
             var seenConversationIDs = Set<String>()
             let relationshipConversationIDs = (run.thread?.conversations.map(\.id) ?? []) +
@@ -182,18 +184,14 @@ extension ScheduledTaskSchedulerCoordinator {
 
     func presentationConversation(for run: ScheduledTaskRun) -> Conversation? {
         switch run.decodedDestinationSnapshot {
-        case .newThread:
+        case .newThreadPerRun:
             return run.thread?.conversations.first(where: \.isMain)
         case .existingThread:
-            guard let targetConversationID = run.targetConversationIDSnapshot,
-                  let targetThread = run.targetThread else {
-                return nil
-            }
-            return targetThread.conversations.first {
-                $0.isMain &&
-                    $0.id == targetConversationID &&
-                    $0.thread?.persistentModelID == targetThread.persistentModelID
-            }
+            return run.snapshotTargetMainConversation
+        case .reusedThread:
+            // A targeted reuse run never has `thread`, and a creating one never has a target.
+            return run.snapshotTargetMainConversation
+                ?? run.thread?.conversations.first(where: \.isMain)
         case nil:
             return nil
         }

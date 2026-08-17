@@ -408,6 +408,7 @@ private func makeSidebarScheduledRun(status: ScheduledTaskRunStatus) -> Schedule
         status: status,
         titleSnapshot: "Scheduled task",
         promptSnapshot: "Run scheduled work.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
         providerIDSnapshot: "codex",
         effortSnapshot: "high",

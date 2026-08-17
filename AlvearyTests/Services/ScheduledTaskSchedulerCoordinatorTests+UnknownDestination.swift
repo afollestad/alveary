@@ -59,6 +59,7 @@ private extension ScheduledTaskSchedulerCoordinatorTests {
             status: .running,
             titleSnapshot: "Unknown destination",
             promptSnapshot: "Run work",
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
             providerIDSnapshot: "codex",
             effortSnapshot: "medium",

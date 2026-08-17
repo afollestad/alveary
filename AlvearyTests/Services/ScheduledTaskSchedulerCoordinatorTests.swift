@@ -260,6 +260,7 @@ struct ScheduledTaskCoordinatorFixture {
             id: id,
             title: "Task \(id)",
             prompt: "Perform \(id).",
+            destination: .newThreadPerRun,
             recurrence: .once(actionDate),
             timeZoneIdentifier: "UTC",
             providerID: "codex",

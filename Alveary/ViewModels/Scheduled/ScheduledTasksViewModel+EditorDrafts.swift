@@ -29,7 +29,7 @@ extension ScheduledTasksViewModel {
             expectedRevision: nil,
             title: "",
             prompt: "",
-            destination: .newThread,
+            destination: .newThreadPerRun,
             targetConversationID: nil,
             recurrenceKind: .daily,
             onceOccurrenceAt: suggestedOccurrence,

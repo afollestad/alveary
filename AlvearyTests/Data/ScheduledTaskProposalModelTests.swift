@@ -136,6 +136,7 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
             definitionDraft: ScheduledTaskProposalDefinitionDraft(
                 title: "Invalid workspace",
                 prompt: "Run checks.",
+                destination: .newThreadPerRun,
                 recurrence: .daily(hour: 8, minute: 0),
                 timeZoneIdentifier: "UTC",
                 providerID: "codex",
@@ -251,6 +252,7 @@ private extension ScheduledTaskProposalModelTests {
         ScheduledTaskProposalDefinitionDraft(
             title: "Review changes",
             prompt: "Review the latest changes.",
+            destination: .newThreadPerRun,
             recurrence: .weekdays(hour: 9, minute: 30),
             timeZoneIdentifier: "America/Chicago",
             providerID: "codex",

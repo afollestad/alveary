@@ -36,7 +36,7 @@ struct ScheduledTaskPreflightSnapshot: Equatable, Sendable {
         projectBaseRef: String?,
         projectRemoteName: String?,
         grantedRoots: [String],
-        destination: ScheduledTaskDestination = .newThread,
+        destination: ScheduledTaskDestination,
         target: ScheduledTaskTargetSnapshot? = nil
     ) {
         self.definitionID = definitionID

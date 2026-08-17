@@ -7,8 +7,17 @@ enum ScheduledTaskState: String, Codable, CaseIterable, Sendable {
     case completed
 }
 
+/// Where a schedule's runs post.
+///
+/// Case names describe the mechanism; the editor labels differ deliberately — `.reusedThread`
+/// is "New thread" and `.newThreadPerRun` is "New thread each time", because the user-facing
+/// distinction is "one thread" versus "one per run".
 enum ScheduledTaskDestination: String, Codable, CaseIterable, Sendable {
-    case newThread
+    /// Creates its thread on the first run, then posts every later run into that same thread.
+    case reusedThread
+    /// A fresh thread per run. The raw value predates the reuse mode and every stored row
+    /// carrying it means exactly this, so the raw value is frozen despite the case rename.
+    case newThreadPerRun = "newThread"
     case existingThread
 }
 
@@ -27,7 +36,7 @@ final class ScheduledTask {
     @Attribute(.unique) var id: String
     var title: String
     var prompt: String
-    var destinationRawValue: String = ScheduledTaskDestination.newThread.rawValue
+    var destinationRawValue: String = ScheduledTaskDestination.newThreadPerRun.rawValue
     var revision: Int
     var stateRawValue: String
     var recurrenceKindRawValue: String
@@ -61,7 +70,7 @@ final class ScheduledTask {
         id: String = UUID().uuidString,
         title: String,
         prompt: String,
-        destination: ScheduledTaskDestination = .newThread,
+        destination: ScheduledTaskDestination,
         revision: Int = 1,
         state: ScheduledTaskState = .active,
         recurrence: ScheduledTaskRecurrence,
@@ -122,7 +131,7 @@ final class ScheduledTask {
 
 extension ScheduledTask {
     var destination: ScheduledTaskDestination {
-        get { ScheduledTaskDestination(rawValue: destinationRawValue) ?? .newThread }
+        get { ScheduledTaskDestination(rawValue: destinationRawValue) ?? .newThreadPerRun }
         set { destinationRawValue = newValue.rawValue }
     }
 

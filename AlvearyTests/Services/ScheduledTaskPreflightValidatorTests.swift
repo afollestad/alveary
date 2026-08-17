@@ -247,7 +247,8 @@ private extension ScheduledTaskPreflightValidatorTests {
             projectPath: projectPath,
             projectBaseRef: "main",
             projectRemoteName: "upstream",
-            grantedRoots: grantedRoots
+            grantedRoots: grantedRoots,
+        destination: .newThreadPerRun,
         )
     }
 

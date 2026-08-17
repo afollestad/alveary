@@ -110,6 +110,7 @@ private struct LocalTimeZoneRebaserFixture {
             id: id,
             title: id,
             prompt: "Run",
+            destination: .newThreadPerRun,
             recurrence: recurrence,
             timeZoneIdentifier: timeZoneIdentifier,
             providerID: "codex",

@@ -413,6 +413,7 @@ struct ScheduledTaskSchedulerFixture {
         let definition = ScheduledTask(
             title: "Scheduled work",
             prompt: "Perform the work.",
+            destination: .newThreadPerRun,
             state: state,
             recurrence: recurrence,
             timeZoneIdentifier: "UTC",

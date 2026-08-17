@@ -73,7 +73,7 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     let expectedRevision: Int?
     var title: String
     var prompt: String
-    var destination: ScheduledTaskDestination = .newThread
+    var destination: ScheduledTaskDestination = .newThreadPerRun
     var targetConversationID: String?
     var recurrenceKind: ScheduledTaskRecurrence.Kind
     var onceOccurrenceAt: Date

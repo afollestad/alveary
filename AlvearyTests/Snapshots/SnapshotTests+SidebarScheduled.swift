@@ -125,6 +125,7 @@ private func scheduledSidebarThread(worktreePath: String? = nil, useWorktree: Bo
         status: .success,
         titleSnapshot: "Scheduled review",
         promptSnapshot: "Review the workspace.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
         providerIDSnapshot: "codex",
         effortSnapshot: "high",

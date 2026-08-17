@@ -173,8 +173,7 @@ extension ScheduledTaskRunExecutorTests {
 @MainActor
 private extension ScheduledTaskRunExecutorTests {
     func makeScheduledMaterialization(
-        run: ScheduledTaskRun,
-        scheduledFixture: ScheduledConversationViewModelFixture
+        run: ScheduledTaskRun, scheduledFixture: ScheduledConversationViewModelFixture
     ) throws -> ScheduledTaskRunMaterialization {
         let fixture = scheduledFixture.fixture
         return ScheduledTaskRunMaterialization(
@@ -195,6 +194,7 @@ private extension ScheduledTaskRunExecutorTests {
             id: run.definitionID,
             title: run.titleSnapshot,
             prompt: run.promptSnapshot,
+            destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: run.timeZoneIdentifierSnapshot,
             providerID: run.providerIDSnapshot,

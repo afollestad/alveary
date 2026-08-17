@@ -24,6 +24,7 @@ extension ScheduledTaskMutationServiceTests {
             edit: ScheduledTaskDefinitionEdit(
                 title: "  Morning status  ",
                 prompt: "  Summarize changes  ",
+                destination: .newThreadPerRun,
                 recurrence: .interval(minutes: 5, anchor: Date(timeIntervalSince1970: 0)),
                 timeZoneIdentifier: "UTC",
                 providerID: "codex",
@@ -56,6 +57,7 @@ extension ScheduledTaskMutationServiceTests {
                 edit: ScheduledTaskDefinitionEdit(
                     title: "Project task",
                     prompt: "Run checks",
+                    destination: .newThreadPerRun,
                     recurrence: .daily(hour: 8, minute: 0),
                     timeZoneIdentifier: "UTC",
                     providerID: "codex",
@@ -81,6 +83,7 @@ extension ScheduledTaskMutationServiceTests {
                 edit: ScheduledTaskDefinitionEdit(
                     title: "Grant task",
                     prompt: "Run checks",
+                    destination: .newThreadPerRun,
                     recurrence: .daily(hour: 8, minute: 0),
                     timeZoneIdentifier: "UTC",
                     providerID: "codex",
@@ -116,6 +119,7 @@ extension ScheduledTaskMutationServiceTests {
                 edit: ScheduledTaskDefinitionEdit(
                     title: "Project task",
                     prompt: "Run checks",
+                    destination: .newThreadPerRun,
                     recurrence: .daily(hour: 8, minute: 0),
                     timeZoneIdentifier: "UTC",
                     providerID: "codex",

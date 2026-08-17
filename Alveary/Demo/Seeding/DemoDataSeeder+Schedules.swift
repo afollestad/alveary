@@ -28,6 +28,7 @@ extension DemoDataSeeder {
             id: DemoData.reviewFanOutTaskID,
             title: "Review PRs and propose reviews",
             prompt: DemoData.reviewFanOutPrompt,
+            destination: .newThreadPerRun,
             state: .active,
             recurrence: .weekdays(hour: 9, minute: 0),
             timeZoneIdentifier: timeZoneIdentifier,
@@ -59,6 +60,7 @@ extension DemoDataSeeder {
                 Compile a customer-facing changelog from everything merged since the last release. \
                 Group by theme, skip internal refactors, and link each entry to its pull request.
                 """,
+            destination: .newThreadPerRun,
             state: .paused,
             recurrence: .monthly(day: 1, hour: 8, minute: 0),
             timeZoneIdentifier: timeZoneIdentifier,
@@ -80,6 +82,7 @@ extension DemoDataSeeder {
                 Check every package for outdated or vulnerable versions. If anything has a known \
                 advisory, open a thread with the upgrade path and the blast radius.
                 """,
+            destination: .newThreadPerRun,
             state: .active,
             recurrence: .daily(hour: 2, minute: 30),
             timeZoneIdentifier: timeZoneIdentifier,
@@ -101,6 +104,7 @@ extension DemoDataSeeder {
                 Draft release notes from the pull requests merged this week. Lead with what users \
                 can see, and keep each entry to one sentence.
                 """,
+            destination: .newThreadPerRun,
             state: .paused,
             // Calendar weekdays: 1 is Sunday, so 7 is Saturday.
             recurrence: .weekly(weekday: 7, hour: 15, minute: 30),
@@ -130,6 +134,7 @@ extension DemoDataSeeder {
                     Regenerate the marketing screenshots whenever a UI change lands, and tell me which \
                     ones actually changed so I do not re-upload the whole set.
                     """,
+                destination: .newThreadPerRun,
                 state: .active,
                 recurrence: .interval(minutes: 240, anchor: DemoData.hoursAgo(2)),
                 timeZoneIdentifier: timeZoneIdentifier,
@@ -146,6 +151,7 @@ extension DemoDataSeeder {
                 id: "demo-task-launch-checklist",
                 title: "Prepare launch checklist",
                 prompt: "Assemble the v1.0 launch checklist and flag anything still unowned.",
+                destination: .newThreadPerRun,
                 state: .completed,
                 recurrence: .once(DemoData.daysAgo(3)),
                 timeZoneIdentifier: timeZoneIdentifier,
@@ -202,6 +208,7 @@ extension DemoDataSeeder {
             status: .success,
             titleSnapshot: definition.title,
             promptSnapshot: definition.prompt,
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: definition.timeZoneIdentifier,
             providerIDSnapshot: definition.providerID,
             effortSnapshot: definition.effort,

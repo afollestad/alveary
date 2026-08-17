@@ -449,6 +449,7 @@ final class ScheduledTasksViewModelFixture {
             id: id,
             title: title,
             prompt: "Do the work.",
+            destination: .newThreadPerRun,
             revision: revision,
             state: state,
             recurrence: recurrence,
@@ -478,6 +479,7 @@ final class ScheduledTasksViewModelFixture {
         ScheduledTaskDefinitionEdit(
             title: draft.title,
             prompt: draft.prompt,
+            destination: .newThreadPerRun,
             recurrence: draft.recurrence,
             timeZoneIdentifier: draft.timeZoneIdentifier,
             providerID: draft.providerID,

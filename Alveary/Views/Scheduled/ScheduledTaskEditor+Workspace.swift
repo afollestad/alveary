@@ -14,7 +14,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                         accessibilityLabel: "Runs in",
                         selection: $draft.destination,
                         options: [
-                            .init(value: .newThread, label: "New thread"),
+                            .init(value: .newThreadPerRun, label: "New thread"),
                             .init(value: .existingThread, label: "Existing thread")
                         ]
                     )
@@ -22,7 +22,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
             }
 
             switch draft.destination {
-            case .newThread:
+            case .reusedThread, .newThreadPerRun:
                 SettingsFormRow {
                     SettingsResponsiveControlRow("Project", horizontalControlSizing: .selectedContent) {
                         ScheduledTaskMenuPicker(

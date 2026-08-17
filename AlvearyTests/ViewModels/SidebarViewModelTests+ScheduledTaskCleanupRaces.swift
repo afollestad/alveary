@@ -252,6 +252,7 @@ private func makeCleanupRaceRun() -> ScheduledTaskRun {
         status: .failure,
         titleSnapshot: "Scheduled task",
         promptSnapshot: "Run scheduled work.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
         providerIDSnapshot: "codex",
         effortSnapshot: "high",

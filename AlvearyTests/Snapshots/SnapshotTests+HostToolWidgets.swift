@@ -289,6 +289,7 @@ private final class ScheduledTaskProposalSnapshotFixture {
         definitionDraft: ScheduledTaskProposalDefinitionDraft(
             title: "Review open pull requests",
             prompt: "Summarize open pull requests, identify risks, and recommend the next review.",
+            destination: .newThreadPerRun,
             recurrence: .weekdays(hour: 9, minute: 0),
             timeZoneIdentifier: "America/Chicago",
             providerID: "codex",

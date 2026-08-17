@@ -101,7 +101,13 @@ extension DefaultScheduledTaskRunMaterializer {
               run.status == .claimed else {
             throw ScheduledTaskRunMaterializationError.runChangedDuringPreparation
         }
-        guard run.decodedDestinationSnapshot == .newThread else {
+        // Only a run that owns its thread may fabricate a visible failure shell; a targeted run
+        // must never invent a thread. (`invalidDestination` errors cannot reach the shell branch
+        // anyway — their decode is nil.)
+        guard let destination = run.decodedDestinationSnapshot,
+              destination != .existingThread,
+              run.targetThread == nil,
+              run.targetConversationIDSnapshot == nil else {
             return
         }
         let fallbackTimeZone = TimeZone(identifier: run.timeZoneIdentifierSnapshot)
@@ -109,7 +115,7 @@ extension DefaultScheduledTaskRunMaterializer {
             ?? .current
         let snapshot = makeSnapshot(
             run,
-            destination: .newThread,
+            destination: destination,
             timeZone: fallbackTimeZone,
             workspaceKind: run.workspaceKindSnapshot ?? .privateWorkspace,
             workspaceStrategy: run.workspaceStrategySnapshot ?? .localCheckout

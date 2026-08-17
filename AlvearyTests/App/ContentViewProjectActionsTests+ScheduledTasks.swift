@@ -136,6 +136,7 @@ private func makeProjectActionsScheduledRun(workspaceKind: ScheduledTaskWorkspac
         status: .success,
         titleSnapshot: "Scheduled task",
         promptSnapshot: "Run scheduled work.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "UTC",
         providerIDSnapshot: "codex",
         effortSnapshot: "high",

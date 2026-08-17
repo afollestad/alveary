@@ -137,6 +137,7 @@ final class ThreadDetailConversationDeletionTests: XCTestCase {
             status: status,
             titleSnapshot: "Scheduled task",
             promptSnapshot: "Run scheduled work.",
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "UTC",
             providerIDSnapshot: "codex",
             effortSnapshot: "high",

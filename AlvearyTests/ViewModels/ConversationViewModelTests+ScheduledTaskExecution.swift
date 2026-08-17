@@ -455,6 +455,7 @@ struct ScheduledConversationViewModelFixture {
             status: .preparing,
             titleSnapshot: "Scheduled task",
             promptSnapshot: "Run it.",
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "America/Chicago",
             providerIDSnapshot: "claude",
             effortSnapshot: "high",

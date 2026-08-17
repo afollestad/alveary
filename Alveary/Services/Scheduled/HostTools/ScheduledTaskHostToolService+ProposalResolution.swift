@@ -52,22 +52,12 @@ extension ScheduledTaskHostToolService {
         // An existing-thread schedule posts into a thread that owns its own workspace, so the
         // source thread's is never consulted — it may not even be resolvable.
         if case .existingThread(let targetConversationID) = placement {
-            let target = try resolveTargetThread(conversationID: targetConversationID)
-            return ScheduledTaskHostToolProposalResolution(
-                definitionDraft: existingThreadDraft(
-                    title: title,
-                    prompt: prompt,
-                    recurrence: schedule.recurrence,
-                    targetConversationID: target.conversationID,
-                    settings: source.settings
-                ),
-                project: nil,
-                placementSummary: Self.placementSummary(
-                    for: placement,
-                    targetThread: target.thread,
-                    project: nil,
-                    grantedRoots: []
-                )
+            return try existingThreadCreateResolution(
+                title: title,
+                prompt: prompt,
+                schedule: schedule,
+                targetConversationID: targetConversationID,
+                settings: source.settings
             )
         }
 
@@ -81,6 +71,7 @@ extension ScheduledTaskHostToolService {
         let draft = ScheduledTaskProposalDefinitionDraft(
             title: title,
             prompt: prompt,
+            destination: .newThreadPerRun,
             recurrence: schedule.recurrence,
             timeZoneIdentifier: currentTimeZone().identifier,
             providerID: source.settings.providerID,
@@ -100,6 +91,32 @@ extension ScheduledTaskHostToolService {
                 targetThread: nil,
                 project: workspace.project,
                 grantedRoots: workspace.grantedRoots
+            )
+        )
+    }
+
+    private func existingThreadCreateResolution(
+        title: String,
+        prompt: String,
+        schedule: ScheduledTaskProposalSchedule,
+        targetConversationID: String,
+        settings: ScheduledTaskProposalAgentSettings
+    ) throws -> ScheduledTaskHostToolProposalResolution {
+        let target = try resolveTargetThread(conversationID: targetConversationID)
+        return ScheduledTaskHostToolProposalResolution(
+            definitionDraft: existingThreadDraft(
+                title: title,
+                prompt: prompt,
+                recurrence: schedule.recurrence,
+                targetConversationID: target.conversationID,
+                settings: settings
+            ),
+            project: nil,
+            placementSummary: Self.placementSummary(
+                for: .existingThread(targetConversationID: targetConversationID),
+                targetThread: target.thread,
+                project: nil,
+                grantedRoots: []
             )
         )
     }
@@ -241,7 +258,7 @@ extension ScheduledTaskHostToolService {
         let placement = context.changes.placement
         // A placement that names a workspace is asking for a new-thread run; without one the
         // definition keeps whatever destination it already had.
-        let destination: ScheduledTaskDestination = placement == nil ? context.storedDestination : .newThread
+        let destination: ScheduledTaskDestination = placement == nil ? context.storedDestination : .newThreadPerRun
         let workspace = try resolvedWorkspace(
             requested: placement?.requestedWorkspace,
             inheritedKind: definition.workspaceKind,
@@ -301,7 +318,7 @@ extension ScheduledTaskHostToolService {
         of definition: ScheduledTask,
         for destination: ScheduledTaskDestination
     ) throws -> Project? {
-        guard destination == .newThread, definition.workspaceKind == .project else {
+        guard destination != .existingThread, definition.workspaceKind == .project else {
             return nil
         }
         guard let project = definition.project else {

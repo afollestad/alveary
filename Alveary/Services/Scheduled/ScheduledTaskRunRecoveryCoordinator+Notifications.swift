@@ -4,10 +4,12 @@ import SwiftData
 extension ScheduledTaskRunRecoveryCoordinator {
     func reconciliationConversationIDs(for run: ScheduledTaskRun) -> [String] {
         switch run.decodedDestinationSnapshot {
-        case .newThread:
+        case .newThreadPerRun:
             return run.thread?.conversations.map(\.id) ?? []
         case .existingThread:
             return run.targetThread?.conversations.map(\.id) ?? []
+        case .reusedThread:
+            return run.effectiveScheduledThread?.conversations.map(\.id) ?? []
         case nil:
             var seenConversationIDs = Set<String>()
             let relationshipConversationIDs = (run.thread?.conversations.map(\.id) ?? []) +
@@ -19,17 +21,13 @@ extension ScheduledTaskRunRecoveryCoordinator {
     func presentationConversation(for run: ScheduledTaskRun) -> Conversation? {
         switch run.decodedDestinationSnapshot {
         case .existingThread:
-            guard let targetConversationID = run.targetConversationIDSnapshot,
-                  let targetThread = run.targetThread else {
-                return nil
-            }
-            return targetThread.conversations.first {
-                $0.isMain &&
-                    $0.id == targetConversationID &&
-                    $0.thread?.persistentModelID == targetThread.persistentModelID
-            }
-        case .newThread:
+            return run.snapshotTargetMainConversation
+        case .newThreadPerRun:
             return run.thread?.conversations.first(where: \.isMain)
+        case .reusedThread:
+            // A targeted reuse run never has `thread`, and a creating one never has a target.
+            return run.snapshotTargetMainConversation
+                ?? run.thread?.conversations.first(where: \.isMain)
         case nil:
             return nil
         }
@@ -105,13 +103,11 @@ extension ScheduledTaskRunRecoveryCoordinator {
             }
             return $0.id < $1.id
         }
-        switch run.decodedDestinationSnapshot {
-        case .newThread:
-            return orderedRecords
-        case .existingThread:
-            // Materialization inserts the note before executor activation. `startedAt` is the
-            // durable boundary proving that later interactions belong to the scheduled turn,
-            // rather than to manual work that raced with preparation.
+        // A run that created its thread owns the whole transcript; a targeted run owns only what
+        // follows its occurrence note. Materialization inserts the note before executor
+        // activation, and `startedAt` is the durable boundary proving that later interactions
+        // belong to the scheduled turn, rather than to manual work that raced with preparation.
+        func recordsAfterOccurrenceNote() -> [ConversationEventRecord] {
             guard run.startedAt != nil else {
                 return []
             }
@@ -120,6 +116,14 @@ extension ScheduledTaskRunRecoveryCoordinator {
                 return []
             }
             return Array(orderedRecords.dropFirst(noteIndex + 1))
+        }
+        switch run.decodedDestinationSnapshot {
+        case .newThreadPerRun:
+            return orderedRecords
+        case .existingThread:
+            return recordsAfterOccurrenceNote()
+        case .reusedThread:
+            return run.targetThread == nil ? orderedRecords : recordsAfterOccurrenceNote()
         case nil:
             return []
         }

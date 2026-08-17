@@ -125,6 +125,7 @@ func insertScheduledTaskThread(
         status: status,
         titleSnapshot: "Scheduled task",
         promptSnapshot: "Run scheduled work.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
         providerIDSnapshot: "codex",
         effortSnapshot: "high",

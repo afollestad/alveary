@@ -41,7 +41,7 @@ extension ScheduledTasksViewModel {
             targetThreadName = definition.targetThread?.displayName()
             workspaceSummary = "Existing thread · \(targetThreadName ?? "Unavailable thread")"
             providerID = existingThreadProviderID(for: definition)
-        case .some(.newThread):
+        case .some(.reusedThread), .some(.newThreadPerRun):
             targetThreadName = nil
             providerID = definition.providerID
             switch definition.workspaceKind {

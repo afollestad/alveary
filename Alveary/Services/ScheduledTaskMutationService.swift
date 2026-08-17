@@ -49,7 +49,7 @@ final class ScheduledTaskMutationService {
             workspaceKind: edit.destination == .existingThread ? .privateWorkspace : edit.workspaceKind,
             workspaceStrategy: edit.workspaceStrategy,
             grantedRoots: edit.grantedRoots,
-            project: edit.destination == .newThread && edit.workspaceKind == .project ? edit.project : nil,
+            project: edit.destination != .existingThread && edit.workspaceKind == .project ? edit.project : nil,
             nextOccurrenceAt: nextOccurrence,
             createdAt: actionDate,
             modifiedAt: actionDate,
@@ -132,7 +132,7 @@ final class ScheduledTaskMutationService {
             guard let destination = definition.decodedDestination else {
                 throw ScheduledTaskMutationError.invalidDestination
             }
-            if destination == .newThread,
+            if destination != .existingThread,
                definition.workspaceKind == .project,
                definition.project == nil {
                 throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
@@ -199,7 +199,7 @@ final class ScheduledTaskMutationService {
             definition.workspaceStrategy = edit.workspaceStrategy
             definition.grantedRoots = edit.grantedRoots
             definition.destination = edit.destination
-            definition.project = edit.destination == .newThread && edit.workspaceKind == .project ? edit.project : nil
+            definition.project = edit.destination != .existingThread && edit.workspaceKind == .project ? edit.project : nil
             definition.targetThread = edit.destination == .existingThread ? edit.targetThread : nil
             definition.state = wasPaused ? .paused : (nextOccurrence == nil ? .completed : .active)
             definition.nextOccurrenceAt = nextOccurrence
@@ -391,7 +391,7 @@ private extension ScheduledTaskMutationService {
         timeZoneIdentifier: String
     ) throws {
         switch edit.destination {
-        case .newThread:
+        case .reusedThread, .newThreadPerRun:
             if edit.workspaceKind == .project, edit.project == nil {
                 throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
             }
@@ -411,7 +411,7 @@ private extension ScheduledTaskMutationService {
         guard ScheduledTask.normalizedUniquePaths(edit.grantedRoots) == edit.grantedRoots else {
             throw ScheduledTaskMutationError.workspaceRootsChanged
         }
-        if edit.destination == .newThread,
+        if edit.destination != .existingThread,
            edit.workspaceKind == .project,
            let projectPath = edit.project?.path,
            CanonicalPath.normalize(projectPath) != projectPath {

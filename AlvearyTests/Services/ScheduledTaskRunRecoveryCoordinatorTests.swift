@@ -486,15 +486,13 @@ private func makeScheduledTaskRun(
         status: status,
         titleSnapshot: "Scheduled task",
         promptSnapshot: "Run scheduled work.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
         providerIDSnapshot: "claude",
         effortSnapshot: "medium",
         permissionModeSnapshot: "default",
         workspaceKindSnapshot: .privateWorkspace,
         workspaceStrategySnapshot: .worktree,
-        workspaceIdentitySnapshot: ScheduledTaskWorkspaceIdentitySnapshot(
-            projectRoot: nil,
-            grantedRoots: []
-        )
+        workspaceIdentitySnapshot: ScheduledTaskWorkspaceIdentitySnapshot(projectRoot: nil, grantedRoots: [])
     )
 }

@@ -73,6 +73,7 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
             edit: ScheduledTaskDefinitionEdit(
                 title: "Updated",
                 prompt: "Updated prompt",
+                destination: .newThreadPerRun,
                 recurrence: .interval(minutes: 10, anchor: Date(timeIntervalSince1970: 0)),
                 timeZoneIdentifier: "UTC",
                 providerID: "claude",
@@ -114,6 +115,7 @@ final class ScheduledTaskMutationServiceTests: XCTestCase {
             edit: ScheduledTaskDefinitionEdit(
                 title: definition.title,
                 prompt: definition.prompt,
+                destination: .newThreadPerRun,
                 recurrence: .daily(hour: 9, minute: 30),
                 timeZoneIdentifier: "UTC",
                 providerID: "codex",
@@ -425,6 +427,7 @@ struct ScheduledTaskMutationFixture {
             id: id,
             title: "Original",
             prompt: "Original prompt",
+            destination: .newThreadPerRun,
             revision: revision,
             state: state,
             recurrence: recurrence,
@@ -454,6 +457,7 @@ struct ScheduledTaskMutationFixture {
             status: status,
             titleSnapshot: definition.title,
             promptSnapshot: definition.prompt,
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: definition.timeZoneIdentifier,
             providerIDSnapshot: definition.providerID,
             effortSnapshot: definition.effort,

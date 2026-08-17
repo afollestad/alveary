@@ -79,9 +79,9 @@ extension ScheduledTasksViewModelTests {
         var newThreadDraft = try XCTUnwrap(fixture.viewModel.makeEditDraft(definitionID: definition.id))
         XCTAssertEqual(newThreadDraft.workspaceKind, .privateWorkspace)
         XCTAssertNil(newThreadDraft.projectPath)
-        newThreadDraft.destination = .newThread
+        newThreadDraft.destination = .newThreadPerRun
         XCTAssertTrue(fixture.viewModel.save(newThreadDraft))
-        XCTAssertEqual(definition.destination, .newThread)
+        XCTAssertEqual(definition.destination, .newThreadPerRun)
         XCTAssertEqual(definition.workspaceKind, .privateWorkspace)
         XCTAssertNil(definition.project)
     }
@@ -145,6 +145,7 @@ extension ScheduledTasksViewModelTests {
             status: .failure,
             titleSnapshot: "Pending cleanup target",
             promptSnapshot: "Run scheduled work.",
+            destinationSnapshot: .newThreadPerRun,
             timeZoneIdentifierSnapshot: "America/Chicago",
             providerIDSnapshot: "codex",
             effortSnapshot: "high",

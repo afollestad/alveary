@@ -442,6 +442,7 @@ private func makeActiveScheduledRun(projectPath: String, thread: AgentThread) ->
         status: .preparing,
         titleSnapshot: "Scheduled task",
         promptSnapshot: "Run scheduled work.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
         providerIDSnapshot: "codex",
         effortSnapshot: "high",

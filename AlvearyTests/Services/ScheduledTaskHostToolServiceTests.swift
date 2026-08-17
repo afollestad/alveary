@@ -336,6 +336,7 @@ final class ScheduledTaskHostToolFixture {
             id: id,
             title: title,
             prompt: prompt,
+            destination: .newThreadPerRun,
             revision: revision,
             recurrence: recurrence,
             timeZoneIdentifier: "Etc/UTC",

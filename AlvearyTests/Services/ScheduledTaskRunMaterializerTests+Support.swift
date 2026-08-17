@@ -66,7 +66,7 @@ struct ScheduledTaskRunMaterializerFixture {
         projectBaseRef: String? = nil,
         projectRemoteName: String? = nil,
         grantedRoots: [String] = [],
-        destination: ScheduledTaskDestination = .newThread,
+        destination: ScheduledTaskDestination = .newThreadPerRun,
         targetThread: AgentThread? = nil,
         targetConversationID: String? = nil
     ) throws -> ScheduledTaskRun {

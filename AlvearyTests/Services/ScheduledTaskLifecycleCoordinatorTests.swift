@@ -400,7 +400,8 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
                 projectPath: nil,
                 projectBaseRef: nil,
                 projectRemoteName: nil,
-                grantedRoots: workspaceIdentities.grantedRoots.map(\.path)
+                grantedRoots: workspaceIdentities.grantedRoots.map(\.path),
+            destination: .newThreadPerRun,
             ),
             claimedWorkspaceIdentities: workspaceIdentities
         )
@@ -430,6 +431,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
             id: "claiming",
             title: "Claiming",
             prompt: "Run",
+            destination: .newThreadPerRun,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
             providerID: "codex",
@@ -440,6 +442,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
             id: "paused",
             title: "Paused",
             prompt: "Run",
+            destination: .newThreadPerRun,
             state: .paused,
             recurrence: .daily(hour: 9, minute: 0),
             timeZoneIdentifier: "UTC",
@@ -450,6 +453,7 @@ private extension ScheduledTaskLifecycleCoordinatorTests {
             id: "completed",
             title: "Completed",
             prompt: "Run",
+            destination: .newThreadPerRun,
             state: .completed,
             recurrence: .once(actionDate),
             timeZoneIdentifier: "UTC",

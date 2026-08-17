@@ -287,6 +287,7 @@ private func makePendingCleanupRun(
         status: .failure,
         titleSnapshot: "Pending cleanup target",
         promptSnapshot: "Run scheduled work.",
+        destinationSnapshot: .newThreadPerRun,
         timeZoneIdentifierSnapshot: "America/Chicago",
         providerIDSnapshot: "codex",
         effortSnapshot: "high",

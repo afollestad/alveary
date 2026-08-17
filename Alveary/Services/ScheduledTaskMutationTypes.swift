@@ -54,7 +54,7 @@ struct ScheduledTaskDefinitionEdit {
     init(
         title: String,
         prompt: String,
-        destination: ScheduledTaskDestination = .newThread,
+        destination: ScheduledTaskDestination,
         recurrence: ScheduledTaskRecurrence,
         timeZoneIdentifier: String,
         providerID: String,
