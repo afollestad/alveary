@@ -30,6 +30,52 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(fixture.pullRequests.diffCallCount, 1)
     }
 
+    /// The "Comment" verdict's name collides with inline comments, and the model narrates this
+    /// message to the user — a summary-only proposal once got echoed as "a comment-only review is
+    /// staged", read as a staged comment that did not exist.
+    func testASummaryOnlyProposalSaysNoInlineCommentsAreStaged() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: [
+                "url": .string(PullRequestHostToolFixture.url),
+                "event": .string("comment"),
+                "body": .string("No actionable findings.")
+            ]
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertTrue(result.text.contains("no inline comments are staged"), result.text)
+        XCTAssertFalse(result.text.contains("leave a review comment"), result.text)
+    }
+
+    /// A bodyless approve publishes neither comments nor a summary, so the message may claim
+    /// neither.
+    func testABodylessApproveClaimsNoSummary() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: [
+                "url": .string(PullRequestHostToolFixture.url),
+                "event": .string("approve")
+            ]
+        )
+
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertTrue(result.text.contains("no inline comments staged"), result.text)
+        XCTAssertFalse(result.text.contains("review summary"), result.text)
+    }
+
     /// Without a fingerprint a staged comment can never relocate, so it is captured from the very
     /// diff this call already parsed to validate the anchor.
     func testStagedCommentsKeepAFingerprintOfTheLineTheyWereWrittenAgainst() async throws {

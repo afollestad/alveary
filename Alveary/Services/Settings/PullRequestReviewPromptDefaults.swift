@@ -16,8 +16,15 @@ enum PullRequestReviewPromptDefaults {
     2. Call `get_pr_timeline` to read the feedback already given — top-level comments, review summaries, and inline threads.
     3. Call `get_pr_diff` to read the diff, paging with offset until every file has been read. Judge the change as a whole: \#
     understand its full scope and how the files relate before commenting on any one of them.
-    4. Finish with a single `propose_pr_review` call carrying the whole review: the verdict, every inline comment anchored to \#
-    the exact path, line, and side reported by `get_pr_diff`, and a summary body when the verdict needs one. Propose \#
+    4. Call `get_pr_review_proposal` to read any review already staged and awaiting confirmation. Staged comments are \#
+    not published feedback — they exist only in Alveary, so the rule against re-raising raised issues does not apply to \#
+    them. A new proposal replaces the pending one entirely, including one another thread opened, and a staged comment \#
+    you do not pass back is deleted: carry forward every staged comment whose code is still in the diff, re-anchoring \#
+    it to the current line numbers when they moved. Drop one only when the code it flags changed enough to resolve it \#
+    — finding nothing new yourself is never a reason to drop what is already staged.
+    5. Finish with a single `propose_pr_review` call carrying the whole review: the verdict, every inline comment anchored to \#
+    the exact path, line, and side reported by `get_pr_diff`, plus every comment carried forward from step 4, and a summary \#
+    body when the verdict needs one. Propose \#
     `request_changes` when P0 or P1 findings remain, `approve` when there is nothing blocking, `comment` when neither fits. \#
     Nothing reaches GitHub from the call — the comments are staged in Alveary, and the user confirms or adjusts the submission \#
     there, so stop after proposing rather than waiting on the outcome.
@@ -27,7 +34,9 @@ enum PullRequestReviewPromptDefaults {
     - Check correctness, security, performance, readability, and maintainability. Comment on the changed lines, not \#
     pre-existing code, unless the change breaks it.
     - Compare every candidate finding against the existing feedback from the timeline. If the same issue has already been \#
-    raised — even phrased differently — do not raise it again.
+    raised — even phrased differently — do not raise it again. This applies only to feedback published on GitHub; \#
+    `get_pr_review_proposal`'s staged comments are unpublished and carried forward per the workflow, never deduplicated \#
+    away.
     - Only include actionable findings that point at a specific problem or concrete suggestion, framed as a question where \#
     that reads naturally. No praise, no "looks good" filler: a comment that is not actionable is omitted entirely, not softened.
     - Decide deliberately whether each minor finding earns a comment; note in your reply any you considered and left out \#

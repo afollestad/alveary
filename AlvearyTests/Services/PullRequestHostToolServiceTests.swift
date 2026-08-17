@@ -381,6 +381,34 @@ final class PullRequestHostToolFixture {
         return ["url": .string(url), "event": .string(event), "comments": .array(comments)]
     }
 
+    /// A second conversation on the same thread, standing in for the thread an agentic review
+    /// spawns — a proposal belongs to the conversation that opened it, so cross-conversation
+    /// behaviour needs two.
+    func makeSecondConversation(id: String = "other-conversation") throws -> Conversation {
+        let conversation = Conversation(id: id, provider: "codex", thread: thread)
+        thread.conversations.append(conversation)
+        modelContext.insert(conversation)
+        try modelContext.save()
+        return conversation
+    }
+
+    /// Opens a real proposal through the tool, so the envelope under test is the one propose time
+    /// actually writes rather than a hand-built stand-in.
+    func stageProposal(
+        bodies: [String],
+        url: String = PullRequestHostToolFixture.url
+    ) async throws {
+        let identifier = try XCTUnwrap(PullRequestURLParser.identifier(from: url))
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        pullRequests.detailResult = .success(detail)
+        stubAlphaDiff()
+        var arguments = PullRequestHostToolFixture.reviewProposalArguments(bodies: bodies)
+        arguments["url"] = .string(url)
+        let result = await handle(PullRequestHostToolCatalog.proposeReviewToolName, arguments: arguments)
+        XCTAssertFalse(result.isError, result.text)
+    }
+
     /// A diff whose `Sources/Alpha.swift` carries new-side lines 1 through `lineCount`, matching
     /// `reviewProposalArguments`' anchors.
     func stubAlphaDiff(lineCount: Int = 5) {

@@ -341,16 +341,14 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         .help(action.title)
     }
 
-    /// A written review outranks the stored pick. With staged comments waiting, the default
-    /// action is finishing that review — starting a second agentic thread would be the wrong
-    /// door, and a review's proposal would supersede the comments on screen. The caret still
-    /// reaches both agentic options, so this changes the default rather than removing them; it
-    /// mirrors `effectiveEvent` and `effectiveStateAction`, which retire stale picks the same way.
+    /// `PullRequestReviewFooterAction.leadingKind` owns the rule; this supplies the pull request's
+    /// half of it.
     private var effectiveReviewKind: PullRequestReviewFooterAction.Kind {
-        guard viewModel.pendingReviewProposal(for: target)?.comments.isEmpty == false else {
-            return selectedReviewKind
-        }
-        return .submitReview
+        PullRequestReviewFooterAction.leadingKind(
+            selected: selectedReviewKind,
+            hasPicked: hasPickedReviewKind,
+            hasStagedComments: viewModel.pendingReviewProposal(for: target)?.comments.isEmpty == false
+        )
     }
 
     private func runReviewAction(_ kind: PullRequestReviewFooterAction.Kind) {

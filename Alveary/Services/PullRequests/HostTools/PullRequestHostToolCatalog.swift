@@ -25,6 +25,9 @@ enum PullRequestHostToolCatalog {
     static let markReadyToolName = "mark_pr_ready"
     static let markDraftToolName = "mark_pr_draft"
     static let proposeReviewToolName = "propose_pr_review"
+    /// Named for what it reads — the proposal — rather than `get_pr_staged_comments`, which reads
+    /// like a sibling of `get_pr_diff`'s pending threads and would pull the wrong asks toward it.
+    static let reviewProposalToolName = "get_pr_review_proposal"
 
     /// What pull request access advertises on the shared `alveary_host` server.
     static var featureCatalog: HostToolFeatureCatalog {
@@ -65,7 +68,11 @@ enum PullRequestHostToolCatalog {
     a confirmation card where the user can change the verdict and must confirm, so never claim a review or comment was \
     posted, approved, submitted, or rejected; say it awaits the user and report the returned status. Choose the verdict \
     yourself from what you reviewed and call the tool; asking which one to propose is what the card is for, and their \
-    answer never comes back to you, so a repeated request is one to propose again rather than a card to wait on. link_pr \
+    answer never comes back to you, so a repeated request is one to propose again rather than a card to wait on. Because \
+    a new proposal replaces the pending one for that pull request — including one opened by a different thread — call \
+    get_pr_review_proposal before proposing and carry its staged comments forward alongside your new ones: they are \
+    unpublished, so they are never "already given" feedback to deduplicate away, and a proposal that omits one deletes \
+    it. link_pr \
     and unlink_pr (separate tools) attach a pull request to an Alveary thread.
     """
 
@@ -107,7 +114,8 @@ enum PullRequestHostToolCatalog {
         reopenTool,
         markReadyTool,
         markDraftTool,
-        proposeReviewTool
+        proposeReviewTool,
+        reviewProposalTool
     ]
 }
 

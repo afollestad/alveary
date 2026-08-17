@@ -27,6 +27,45 @@ final class PullRequestReviewFooterActionTests: XCTestCase {
         XCTAssertEqual(feedback.icon, .system("brain"))
     }
 
+    /// Staged comments make finishing the review the likely intent, so it leads by default.
+    func testAPendingReviewWithStagedCommentsLeadsWithSubmit() {
+        XCTAssertEqual(
+            PullRequestReviewFooterAction.leadingKind(
+                selected: .agenticReview,
+                hasPicked: false,
+                hasStagedComments: true
+            ),
+            .submitReview
+        )
+    }
+
+    /// The regression this fixes: the caret stored a pick and the very next render replaced it, so
+    /// neither agentic option could be selected or run while a proposal was pending.
+    func testAnExplicitPickOutranksTheStagedComments() {
+        for kind in PullRequestReviewFooterAction.Kind.allCases {
+            XCTAssertEqual(
+                PullRequestReviewFooterAction.leadingKind(
+                    selected: kind,
+                    hasPicked: true,
+                    hasStagedComments: true
+                ),
+                kind,
+                "\(kind) could not be selected while a proposal was pending"
+            )
+        }
+    }
+
+    func testWithNothingStagedTheStoredPickLeads() {
+        XCTAssertEqual(
+            PullRequestReviewFooterAction.leadingKind(
+                selected: .addressFeedback,
+                hasPicked: false,
+                hasStagedComments: false
+            ),
+            .addressFeedback
+        )
+    }
+
     func testAStoredKindRoundTripsThroughItsRawValue() {
         XCTAssertEqual(
             PullRequestReviewFooterAction.kind(fromStored: "addressFeedback", default: .submitReview),

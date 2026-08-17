@@ -111,6 +111,8 @@ final class PullRequestHostToolService {
             return try await pullRequestReviewInstructions(context: context, arguments: call.arguments)
         case PullRequestHostToolCatalog.addressFeedbackInstructionsToolName:
             return try await pullRequestAddressFeedbackInstructions(context: context, arguments: call.arguments)
+        case PullRequestHostToolCatalog.reviewProposalToolName:
+            return try await pullRequestReviewProposal(context: context, arguments: call.arguments)
         default:
             return nil
         }

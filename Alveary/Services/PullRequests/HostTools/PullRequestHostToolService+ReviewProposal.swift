@@ -39,6 +39,14 @@ extension PullRequestHostToolService {
                 return result
             }
         }
+        // A proposal for this pull request opened by *another* conversation — an agentic review
+        // runs in its own thread, so its propose would otherwise stand beside the card the user is
+        // already looking at, and the pane would arbitrate between them by `createdAt`.
+        try supersedeProposalsElsewhere(
+            for: request.identifier,
+            excluding: source.conversation,
+            at: identity.requestDate
+        )
 
         let record = makeRecord(
             request: request,
@@ -281,6 +289,34 @@ private extension PullRequestHostToolService {
         }
     }
 
+    /// Resolves every other conversation's pending proposal for this pull request, so one pull
+    /// request has one live confirmation. `resolvedAgainstExisting` already enforces that within a
+    /// conversation; this extends it across them, because a thread's envelope is invisible to any
+    /// other thread's `propose_pr_review`.
+    ///
+    /// The model is expected to have read `get_pr_review_proposal` and carried forward whatever it
+    /// meant to keep — that tool exists so this supersede cannot silently discard the user's staged
+    /// comments — and each superseded card resolves in its own transcript rather than being
+    /// orphaned.
+    func supersedeProposalsElsewhere(
+        for identifier: PullRequestIdentifier,
+        excluding conversation: Conversation,
+        at requestDate: Date
+    ) throws {
+        guard let conversations = try? modelContext.fetch(
+            PullRequestReviewProposalLookup.proposalHoldingConversations
+        ) else {
+            return
+        }
+        let others = conversations.filter { $0.id != conversation.id }
+        for owner in PullRequestReviewProposalLookup.proposals(in: others, for: identifier) {
+            guard let source = modelContext.resolveConversation(conversationID: owner.conversationID) else {
+                continue
+            }
+            try supersede(owner.record, on: source, at: requestDate)
+        }
+    }
+
     func existingProposal(on conversation: Conversation) throws -> PullRequestReviewProposalRecord? {
         do {
             return try conversation.pullRequestReviewProposal()
@@ -376,6 +412,14 @@ private extension PullRequestHostToolService {
             "\(verdictPhrase(record.event))"
         if !record.stagedComments.isEmpty {
             message += " with \(record.stagedComments.count) inline comment(s), staged in Alveary"
+        } else if record.body != nil {
+            // Said outright, because the model echoes this message to the user and the "Comment"
+            // verdict's name collides with "inline comment" — without this clause a summary-only
+            // proposal gets narrated as though a comment were staged.
+            message += ", publishing the review summary only — no inline comments are staged"
+        } else {
+            // A bodyless approve has no summary to publish, so claiming one would be its own lie.
+            message += " with no inline comments staged"
         }
         if pendingCommentCount > 0 {
             message += ", also publishing \(pendingCommentCount) already-pending draft comment(s)"
@@ -392,7 +436,9 @@ private extension PullRequestHostToolService {
         case "request_changes":
             "request changes"
         default:
-            "leave a review comment"
+            // GitHub's verdict is named "Comment", which collides with inline comments; naming it
+            // as a review kind keeps "leave a review comment" from implying one was staged.
+            "submit a \"Comment\" review"
         }
     }
 }

@@ -107,18 +107,19 @@ final class PullRequestReviewProposalCoordinator {
 
     func reload() {
         var loaded: [String: PullRequestReviewProposalPresentation] = [:]
-        let descriptor = FetchDescriptor<Conversation>(
-            predicate: #Predicate { $0.pullRequestReviewProposalJSON != nil }
-        )
-        guard let conversations = try? modelContext.fetch(descriptor) else {
+        guard let conversations = try? modelContext.fetch(
+            PullRequestReviewProposalLookup.proposalHoldingConversations
+        ) else {
             return
         }
-        for conversation in conversations {
-            guard let record = try? conversation.pullRequestReviewProposal(),
-                  let presentation = Self.presentation(for: record, conversationID: conversation.id) else {
+        for owner in PullRequestReviewProposalLookup.proposals(in: conversations) {
+            guard let presentation = Self.presentation(
+                for: owner.record,
+                conversationID: owner.conversationID
+            ) else {
                 continue
             }
-            loaded[record.id] = presentation
+            loaded[owner.record.id] = presentation
         }
         presentations = loaded
         // Drop preview and error state for proposals that are gone, so a confirmed card cannot
