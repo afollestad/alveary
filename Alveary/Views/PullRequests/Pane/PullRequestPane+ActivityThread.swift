@@ -144,12 +144,16 @@ struct PullRequestReviewThreadView: View {
 
                 // A staged comment is removed, never edited — remove and re-add is the path —
                 // and removal reaches nothing but Alveary's own envelope, so it takes no
-                // confirmation, exactly as deleting an unpublished pending comment does.
+                // confirmation, exactly as deleting an unpublished pending comment does. The
+                // menu hides while the proposal submits, like every surface offering this
+                // removal: the coordinator refuses it mid-submit.
                 if let proposedIndex = comment.proposedIndex {
-                    PullRequestCommentActionsMenu(
-                        onEdit: nil,
-                        onDelete: { viewModel.removeProposedComment(at: proposedIndex) }
-                    )
+                    if !viewModel.isSubmittingPendingProposal() {
+                        PullRequestCommentActionsMenu(
+                            onEdit: nil,
+                            onDelete: { viewModel.removeProposedComment(at: proposedIndex) }
+                        )
+                    }
                 } else if isActionable(comment), !isEditing {
                     PullRequestCommentActionsMenu(
                         onEdit: comment.viewerCanUpdate ? { viewModel.openThreadCommentEditor(comment) } : nil,

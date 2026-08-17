@@ -23,6 +23,58 @@ extension PullRequestsViewModelTests {
         XCTAssertNil(fixture.session?.pendingCommentScrollTarget)
     }
 
+    /// The coordinator refuses a removal silently, and the pane rendered none of its
+    /// `errorMessages` — so a dropped delete looked like a dead control. A refusal now lands in
+    /// the same banner the pane's remote comment actions report through.
+    func testARefusedRemovalReportsThroughTheComposerBanner() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+
+        // Out of range is the deterministic refusal: the envelope holds one staged comment.
+        fixture.viewModel.removeProposedComment(at: 99, target: fixture.target)
+
+        XCTAssertEqual(
+            fixture.session?.composerError,
+            "Alveary could not remove this comment from the review."
+        )
+        // The envelope is untouched.
+        XCTAssertEqual(fixture.viewModel.pendingReviewProposal(for: fixture.target)?.comments.count, 1)
+    }
+
+    /// While a submit is in flight the coordinator refuses removals, so every pane surface hides
+    /// the menu the way the transcript card already withdraws its own — and a click that lands in
+    /// the closing window reports instead of vanishing.
+    func testTheRemoveControlHidesWhileTheProposalSubmits() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        XCTAssertFalse(fixture.viewModel.isSubmittingPendingProposal(for: fixture.target))
+        let gate = PullRequestsServiceGate()
+        fixture.service.detailGate = gate
+        let confirmTask = Task {
+            await fixture.coordinator.confirm(
+                proposalID: ReviewProposalAttachmentFixture.proposalID,
+                event: .comment
+            )
+        }
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline,
+              !fixture.viewModel.isSubmittingPendingProposal(for: fixture.target) {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+
+        XCTAssertTrue(fixture.viewModel.isSubmittingPendingProposal(for: fixture.target))
+        // A click that still lands mid-flight reports rather than silently dropping.
+        fixture.viewModel.removeProposedComment(at: 0, target: fixture.target)
+        XCTAssertEqual(
+            fixture.session?.composerError,
+            "Alveary could not remove this comment from the review."
+        )
+
+        gate.open()
+        _ = await confirmTask.value
+        XCTAssertFalse(fixture.viewModel.isSubmittingPendingProposal(for: fixture.target))
+    }
+
     /// Asserted textually rather than left to the baseline — a prose line at its wrap point
     /// reflows on CI — and pinned to the transcript card's exact wording, because the two surfaces
     /// report the same fact about the same envelope.

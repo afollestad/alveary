@@ -82,6 +82,7 @@ struct PullRequestPaneFiles: View, Equatable {
         if !content.staleComments.isEmpty {
             PullRequestPaneStaleComments(
                 comments: content.staleComments,
+                allowsRemoval: !viewModel.isSubmittingPendingProposal(for: target),
                 onRemove: { index in
                     viewModel.removeProposedComment(at: index, target: target)
                 }
@@ -288,9 +289,15 @@ struct PullRequestPaneFiles: View, Equatable {
                 }
                 viewModel.deletePendingComment(nodeID: nodeID)
             },
-            onRemoveProposedComment: viewModel.pendingReviewProposal(for: target) == nil ? nil : { index in
-                viewModel.removeProposedComment(at: index, target: target)
-            },
+            // Nil while submitting, which hides the proposed comments' whole three-dot menu —
+            // their only row. The card's `allowsRemoval` withdraws its control the same way; a
+            // menu left mounted would offer a Delete the coordinator refuses mid-submit.
+            onRemoveProposedComment: viewModel.pendingReviewProposal(for: target) == nil
+                || viewModel.isSubmittingPendingProposal(for: target)
+                ? nil
+                : { index in
+                    viewModel.removeProposedComment(at: index, target: target)
+                },
             onAttachFiles: viewModel.supportsAttachmentUploads ? { files in
                 guard let draft = viewModel.composerDraft else {
                     return

@@ -160,6 +160,18 @@ extension PullRequestsViewModel {
         return true
     }
 
+    /// Whether the pane's pending proposal is mid-submit. Every pane surface offering a staged
+    /// comment's Remove hides the control on this, matching the transcript card's `allowsRemoval`:
+    /// the coordinator refuses the removal during a submit anyway — what is being published is
+    /// already fixed — and a menu whose one action would be dropped reads as a dead control.
+    func isSubmittingPendingProposal(for target: PullRequestPaneTarget? = nil) -> Bool {
+        guard let target = target ?? activePaneTarget,
+              let proposal = pendingReviewProposal(for: target) else {
+            return false
+        }
+        return reviewProposalCoordinator?.isSubmitting(proposalID: proposal.id) == true
+    }
+
     /// Drops one staged comment from the review, by its position in the stored envelope.
     ///
     /// Local by construction — a staged comment exists nowhere on GitHub — so this rewrites the
@@ -171,7 +183,16 @@ extension PullRequestsViewModel {
               let proposal = pendingReviewProposal(for: target) else {
             return
         }
-        reviewProposalCoordinator?.removeStagedComment(proposalID: proposal.id, at: index)
+        // The coordinator refuses silently — mid-submit, a stale index, a persistence failure —
+        // and the pane renders none of its `errorMessages`, so a dropped removal used to look like
+        // a dead control. Failures land where the pane's remote comment actions report theirs.
+        guard reviewProposalCoordinator?.removeStagedComment(proposalID: proposal.id, at: index) == true else {
+            mutateSession(target) { session in
+                session.composerError = reviewProposalCoordinator?.errorMessage(forProposalID: proposal.id)
+                    ?? "Alveary could not remove this comment from the review."
+            }
+            return
+        }
     }
 
     /// Brings the anchor's file into the rendered window and expands it, because a comment row is

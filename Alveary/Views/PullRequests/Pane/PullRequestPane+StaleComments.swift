@@ -13,6 +13,9 @@ import SwiftUI
 /// read as the comment simply being gone.
 struct PullRequestPaneStaleComments: View {
     let comments: [PullRequestReviewProposalPreview.StaleComment]
+    /// False while the proposal submits, hiding each row's menu — its only action is a removal
+    /// the coordinator refuses mid-submit. Mirrors the transcript list's `allowsRemoval`.
+    let allowsRemoval: Bool
     /// Drops one staged comment by its position in the stored envelope.
     let onRemove: (Int) -> Void
 
@@ -48,10 +51,12 @@ struct PullRequestPaneStaleComments: View {
                     .lineLimit(1)
                 PullRequestCommentBadge("Outdated", color: .orange)
                 Spacer(minLength: 0)
-                PullRequestCommentActionsMenu(
-                    onEdit: nil,
-                    onDelete: { onRemove(comment.proposedIndex) }
-                )
+                if allowsRemoval {
+                    PullRequestCommentActionsMenu(
+                        onEdit: nil,
+                        onDelete: { onRemove(comment.proposedIndex) }
+                    )
+                }
             }
             AppMarkdownText(markdown: comment.bodyMarkdown)
         }
