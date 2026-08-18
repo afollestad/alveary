@@ -6,6 +6,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
     let threads: [ScheduledTaskThreadOption]
     let sections: [ScheduledTaskSectionOption]
     @Binding var draft: ScheduledTaskEditorDraft
+    let onOpenReusedThread: (String) -> Void
 
     var body: some View {
         SettingsFormSection("Workspace") {
@@ -15,11 +16,32 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                         accessibilityLabel: "Runs in",
                         selection: $draft.destination,
                         options: [
-                            .init(value: .reusedThread, label: "New thread"),
+                            .init(value: .reusedThread, label: "Same thread each time"),
                             .init(value: .newThreadPerRun, label: "New thread each time"),
                             .init(value: .existingThread, label: "Existing thread")
                         ]
                     )
+                }
+            }
+
+            // Once a run has minted the reuse thread, "Same thread each time" names a thread that
+            // already exists, so the row says which one. Above Project and Section deliberately:
+            // those rows now only describe the replacement a self-heal would create.
+            if draft.destination == .reusedThread, let reusedThread = draft.reusedThread {
+                SettingsFormRow {
+                    SettingsResponsiveControlRow(
+                        "Thread",
+                        // Names both self-heal triggers: this row is the only place the user can
+                        // see that a workspace or provider edit swaps the thread out from under
+                        // the schedule (`ScheduledTaskMutationService.preservesReuseLink`).
+                        helpText: """
+                            Every run posts here. Archiving or deleting it, or changing the \
+                            workspace or provider, makes the next run create a replacement.
+                            """,
+                        horizontalControlSizing: .selectedContent
+                    ) {
+                        ScheduledTaskReusedThreadLinkButton(link: reusedThread, onOpen: onOpenReusedThread)
+                    }
                 }
             }
 
@@ -181,5 +203,45 @@ struct ScheduledTaskEditorWorkspaceSection: View {
         draft.grantedRoots = ScheduledTask.normalizedUniquePaths(
             draft.grantedRoots + panel.urls.map(\.path)
         )
+    }
+}
+
+/// Names the thread a reuse schedule already created, and opens it.
+///
+/// Carries `ScheduledTaskMenuPicker`'s surface, padding, and height so it sits as a peer of the
+/// Project and Section rows rather than as a foreign link, but swaps the up/down chevron for an
+/// open glyph: `ScheduledTask.reusedThread` is service-owned, so this row reports the venue and
+/// no editor surface may retarget it.
+private struct ScheduledTaskReusedThreadLinkButton: View {
+    let link: ScheduledTaskReusedThreadLink
+    let onOpen: (String) -> Void
+
+    var body: some View {
+        Button {
+            onOpen(link.conversationID)
+        } label: {
+            HStack(spacing: 8) {
+                Text(link.name)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Image(systemName: "arrow.up.forward")
+                    .font(.system(size: AppInputStyle.menuChevronPointSize, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, AppInputStyle.menuHorizontalPadding)
+            .frame(
+                minHeight: SettingsScreenLayout.settingsControlSurfaceHeight,
+                maxHeight: SettingsScreenLayout.settingsControlSurfaceHeight
+            )
+            .background(
+                RoundedRectangle(cornerRadius: AppInputStyle.defaultCornerRadius, style: .continuous)
+                    .fill(AppInputStyle.menuBackgroundColor)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Open \(link.name)")
+        .accessibilityLabel("Open thread \(link.name)")
     }
 }

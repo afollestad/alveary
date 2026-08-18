@@ -24,6 +24,16 @@ struct ScheduledTaskThreadOption: Identifiable, Equatable {
     var id: String { conversationID }
 }
 
+/// The thread a `.reusedThread` schedule already created, named read-only by the editor.
+///
+/// Built only while `AgentThread.isHealthyReusedScheduledTaskTarget`, so it never names a thread
+/// the next claim would replace. Carries the sole main conversation's id — the same handle
+/// `ScheduledTaskThreadOption` uses — so the row can open the thread.
+struct ScheduledTaskReusedThreadLink: Equatable {
+    let conversationID: String
+    let name: String
+}
+
 struct ScheduledTaskPickerOption: Identifiable, Equatable {
     let value: String
     let label: String
@@ -52,7 +62,6 @@ struct ScheduledTaskRowPresentation: Identifiable, Equatable {
     let providerID: String
     let workspaceSummary: String
     let destination: ScheduledTaskDestination?
-    let targetThreadName: String?
     let isWaitingForTarget: Bool
     let nextOccurrenceAt: Date?
     let pauseReason: String?
@@ -84,6 +93,11 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     var title: String
     var prompt: String
     var destination: ScheduledTaskDestination = .reusedThread
+    /// The thread a `.reusedThread` schedule has already created, for the editor's read-only
+    /// link row. A `let`, because `ScheduledTask.reusedThread` is service-owned and no edit
+    /// surface may retarget it — and a snapshot like the rest of the draft, so a first run
+    /// completing behind an open editor shows up when the editor is next opened.
+    let reusedThread: ScheduledTaskReusedThreadLink?
     var targetConversationID: String?
     /// `SidebarSection.id` of the section a created thread joins; `nil` is `Tasks`.
     var sectionID: String?

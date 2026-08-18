@@ -27,6 +27,25 @@ extension AgentThread {
         }
     }
 
+    /// Whether a `.reusedThread` schedule's next run may post into this already-created thread.
+    ///
+    /// False rather than throwing for an archived, drafted, forked, or cleanup-pending thread:
+    /// that schedule self-heals by minting a replacement instead of blocking. Deliberately not
+    /// `isEligibleScheduledTaskTarget`, which refuses an unpinned thread under a pinned project —
+    /// that rule exists so a promised pin cannot no-op, and reuse threads are never pinned.
+    /// Deletion needs no arm here; `.nullify` has already cleared the link.
+    ///
+    /// Shared with the Scheduled card and editor so neither names a thread the next claim has
+    /// already decided to replace.
+    var isHealthyReusedScheduledTaskTarget: Bool {
+        archivedAt == nil
+            && !isDraft
+            && !isForkBootstrapPending
+            && !hasPendingScheduledTaskWorktreeCleanup
+            && primaryWorkingDirectory != nil
+            && soleMainConversation != nil
+    }
+
     /// The thread's single main conversation, whose id is how a schedule names its target.
     /// `nil` when the thread has forked into several, which no target may do.
     var soleMainConversation: Conversation? {

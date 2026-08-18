@@ -30,6 +30,7 @@ extension ScheduledTasksViewModel {
             title: "",
             prompt: "",
             destination: .reusedThread,
+            reusedThread: nil,
             targetConversationID: nil,
             sectionID: nil,
             recurrenceKind: .daily,
@@ -83,6 +84,7 @@ extension ScheduledTasksViewModel {
             title: definition.title,
             prompt: definition.prompt,
             destination: destination,
+            reusedThread: reusedThreadLink(for: definition),
             targetConversationID: definition.targetThread?.conversations.first(where: \.isMain)?.id,
             // Nullify already degraded a removed section, so the picker shows `Tasks` with no
             // fallback logic here.
@@ -128,6 +130,11 @@ extension ScheduledTasksViewModel {
             title: definitionDraft.title,
             prompt: definitionDraft.prompt,
             destination: definitionDraft.destination,
+            // The payload cannot carry a reuse link — it is service-owned — so an edit target
+            // reads it off the live definition and a create proposal has none yet.
+            reusedThread: definitionID
+                .flatMap { modelContext.resolveScheduledTask(id: $0) }
+                .flatMap(reusedThreadLink(for:)),
             targetConversationID: definitionDraft.targetConversationID,
             // The proposal payload carries no section field, and absence must mean *preserve*:
             // confirming an unrelated "make it weekly" edit proposal must not silently reset the

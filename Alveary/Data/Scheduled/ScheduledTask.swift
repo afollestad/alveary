@@ -10,8 +10,9 @@ enum ScheduledTaskState: String, Codable, CaseIterable, Sendable {
 /// Where a schedule's runs post.
 ///
 /// Case names describe the mechanism; the editor labels differ deliberately — `.reusedThread`
-/// is "New thread" and `.newThreadPerRun` is "New thread each time", because the user-facing
-/// distinction is "one thread" versus "one per run".
+/// is "Same thread each time" and `.newThreadPerRun` is "New thread each time", because the
+/// user-facing distinction is "one thread" versus "one per run". `.reusedThread` deliberately
+/// does not say "new": the label has to stay true after the first run has minted the thread.
 enum ScheduledTaskDestination: String, Codable, CaseIterable, Sendable {
     /// Creates its thread on the first run, then posts every later run into that same thread.
     case reusedThread

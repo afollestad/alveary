@@ -34,20 +34,12 @@ extension ScheduledTaskSchedulerEngine {
     }
 
     /// The healthy thread a `.reusedThread` schedule should post into, or nil when the next run
-    /// must mint a fresh one. Deliberately does not require a pin, and returns nil rather than
-    /// throwing for an archived, drafted, forked, or cleanup-pending thread: the schedule
-    /// self-heals by creating a replacement instead of blocking. Deletion needs no arm —
-    /// `.nullify` already cleared the link. Not `isEligibleScheduledTaskTarget`, which refuses
-    /// unpinned threads under a pinned project; that rule exists so a promised pin cannot no-op,
-    /// and reuse threads are never pinned.
+    /// must mint a fresh one. `AgentThread.isHealthyReusedScheduledTaskTarget` owns what healthy
+    /// means, because the Scheduled card and editor name that same thread.
     func reusedTarget(for definition: ScheduledTask) -> ScheduledTaskReusedTarget? {
         guard definition.decodedDestination == .reusedThread,
               let thread = definition.reusedThread,
-              thread.archivedAt == nil,
-              !thread.isDraft,
-              !thread.isForkBootstrapPending,
-              !thread.hasPendingScheduledTaskWorktreeCleanup,
-              thread.primaryWorkingDirectory != nil,
+              thread.isHealthyReusedScheduledTaskTarget,
               let conversation = thread.soleMainConversation else {
             return nil
         }

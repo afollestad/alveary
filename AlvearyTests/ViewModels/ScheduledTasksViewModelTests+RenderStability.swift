@@ -88,7 +88,6 @@ extension ScheduledTasksViewModelTests {
             providerID: "claude",
             workspaceSummary: "/tmp/project",
             destination: nil,
-            targetThreadName: nil,
             isWaitingForTarget: false,
             nextOccurrenceAt: Date(timeIntervalSince1970: 1_752_408_840),
             pauseReason: nil,

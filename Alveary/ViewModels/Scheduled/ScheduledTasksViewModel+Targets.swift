@@ -120,6 +120,32 @@ extension ScheduledTasksViewModel {
             .map { ScheduledTaskSectionOption(id: $0.id, name: $0.name) }
     }
 
+    /// The thread a `.reusedThread` schedule already posts into, or `nil` while the next run
+    /// still has to mint one. Gated on the same health `ScheduledTaskSchedulerEngine.reusedTarget`
+    /// claims through, so the card and editor cannot name a thread the schedule has already
+    /// decided to replace.
+    func reusedThreadLink(for definition: ScheduledTask) -> ScheduledTaskReusedThreadLink? {
+        guard definition.decodedDestination == .reusedThread,
+              let thread = definition.reusedThread,
+              thread.isHealthyReusedScheduledTaskTarget,
+              let conversationID = thread.soleMainConversation?.id else {
+            return nil
+        }
+        return ScheduledTaskReusedThreadLink(conversationID: conversationID, name: thread.displayName())
+    }
+
+    /// Selects the reuse thread the editor names. Sidebar selection is app-wide, so the request
+    /// travels as a notification the root owns — see `ContentView+ThreadOpenRequests.swift`.
+    func requestReusedThreadOpen(conversationID: String) {
+        notificationCenter.post(
+            name: .threadOpenRequested,
+            object: nil,
+            userInfo: [
+                ThreadOpenRequestNotificationKey.request: ThreadOpenRequest(conversationID: conversationID)
+            ]
+        )
+    }
+
     func makeExistingThreadOptions() throws -> [ScheduledTaskThreadOption] {
         let threads = SidebarPinnedItemOrdering.sorted(
             try modelContext.fetch(FetchDescriptor<AgentThread>())

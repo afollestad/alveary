@@ -135,7 +135,7 @@ extension DemoDataSeeder {
                     ones actually changed so I do not re-upload the whole set.
                     """,
                 // The reuse destination with no linked thread yet: the first run mints and links
-                // one, so a fresh demo store legitimately renders "New thread" with no target.
+                // one, so a fresh demo store legitimately names the workspace instead of a thread.
                 destination: .reusedThread,
                 state: .active,
                 recurrence: .interval(minutes: 240, anchor: DemoData.hoursAgo(2)),

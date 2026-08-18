@@ -61,7 +61,8 @@ struct ScheduledTaskEditorContent: View {
                         projects: viewModel.projects,
                         threads: viewModel.existingThreadTargets,
                         sections: viewModel.sectionOptions,
-                        draft: $draft
+                        draft: $draft,
+                        onOpenReusedThread: viewModel.requestReusedThreadOpen(conversationID:)
                     )
                     if draft.destination != .existingThread {
                         ScheduledTaskEditorAgentSection(viewModel: viewModel, draft: $draft)

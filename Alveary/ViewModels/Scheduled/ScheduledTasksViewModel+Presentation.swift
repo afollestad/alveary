@@ -33,26 +33,28 @@ extension ScheduledTasksViewModel {
 
     func makeRowPresentation(_ definition: ScheduledTask) -> ScheduledTaskRowPresentation {
         let workspaceSummary: String
-        let targetThreadName: String?
         let providerID: String
         let destination = definition.decodedDestination
         switch destination {
         case .some(.existingThread):
-            targetThreadName = definition.targetThread?.displayName()
-            workspaceSummary = "Existing thread · \(targetThreadName ?? "Unavailable thread")"
+            workspaceSummary = "Existing thread · \(definition.targetThread?.displayName() ?? "Unavailable thread")"
             providerID = existingThreadProviderID(for: definition)
         case .some(.reusedThread):
             // The reuse thread is a venue the definition owns, so provider and settings still
             // come from the definition — unlike an existing target, whose thread is authoritative.
-            targetThreadName = definition.reusedThread?.displayName()
             providerID = definition.providerID
-            workspaceSummary = "New thread · \(workspaceDetail(for: definition))"
+            // Once a run has minted the thread, later runs post into it and take their workspace
+            // from it (`ScheduledTaskReusedThreadWorkspace`), so naming it is truer than
+            // repeating definition columns those runs no longer read. Before the first run — and
+            // after a self-heal drops the link — the workspace is still what gets created.
+            workspaceSummary = """
+                Same thread each time · \
+                \(reusedThreadLink(for: definition)?.name ?? workspaceDetail(for: definition))
+                """
         case .some(.newThreadPerRun):
-            targetThreadName = nil
             providerID = definition.providerID
             workspaceSummary = "New thread each time · \(workspaceDetail(for: definition))"
         case nil:
-            targetThreadName = nil
             providerID = definition.providerID
             workspaceSummary = "Invalid destination"
         }
@@ -68,7 +70,6 @@ extension ScheduledTasksViewModel {
             providerID: providerID,
             workspaceSummary: workspaceSummary,
             destination: destination,
-            targetThreadName: targetThreadName,
             isWaitingForTarget: definition.targetWaitStartedAt != nil,
             nextOccurrenceAt: definition.nextOccurrenceAt,
             pauseReason: definition.pauseReason,
@@ -81,7 +82,8 @@ extension ScheduledTasksViewModel {
 
 private extension ScheduledTasksViewModel {
     /// The workspace half of a new-thread card summary, shared by both new-thread destinations
-    /// so their prefixes ("New thread" / "New thread each time") stay aligned with the picker.
+    /// so their prefixes ("Same thread each time" / "New thread each time") stay aligned with
+    /// the picker.
     func workspaceDetail(for definition: ScheduledTask) -> String {
         switch definition.workspaceKind {
         case .privateWorkspace:
