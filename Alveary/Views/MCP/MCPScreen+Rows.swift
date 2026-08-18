@@ -65,12 +65,7 @@ struct MCPServerRow: View, Equatable {
             Spacer()
 
             AppOverflowMenu(name: "Server actions") {
-                AppOverflowMenuRow(
-                    title: "Remove",
-                    systemImage: "trash",
-                    role: .destructive,
-                    action: onRemove
-                )
+                actionRows
             }
         }
         .padding(14)
@@ -84,9 +79,26 @@ struct MCPServerRow: View, Equatable {
             focusID: editFocusID,
             action: onEdit
         )
+        // Outside `appSelectableCard(...)`: the right-click needs the full-card
+        // `contentShape` that modifier installs.
+        .contextMenu {
+            actionRows
+        }
         // `.contain` keeps the actions menu reachable; collapsing the row would hide it.
         .accessibilityElement(children: .contain)
         .accessibilityLabel(server.name)
+    }
+
+    /// The row's secondary actions, filling both its three-dot menu and its right-click
+    /// menu so the two cannot offer different rows. The row face itself opens the edit
+    /// pane, so Edit has no row here.
+    private var actionRows: some View {
+        AppOverflowMenuRow(
+            title: "Remove",
+            systemImage: "trash",
+            role: .destructive,
+            action: onRemove
+        )
     }
 }
 

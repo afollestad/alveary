@@ -50,6 +50,13 @@ struct SkillCard: View, Equatable {
             focusID: cardFocusID,
             action: onOpen
         )
+        // Outside `appSelectableCard(...)`: the right-click needs the full-card
+        // `contentShape` that modifier installs. An uninstalled card contributes no rows,
+        // and an empty builder suppresses the menu entirely on macOS, so the right-click
+        // stays inert exactly where the three-dot glyph is absent.
+        .contextMenu {
+            actionRows
+        }
         // `.contain` rather than `PullRequestRow`'s `.ignore`: this card holds its own
         // controls, and collapsing it into one element would hide them from VoiceOver.
         .accessibilityElement(children: .contain)
@@ -62,12 +69,7 @@ struct SkillCard: View, Equatable {
     private var trailingControls: some View {
         if skill.isInstalled {
             AppOverflowMenu(name: "Skill actions") {
-                AppOverflowMenuRow(
-                    title: "Uninstall",
-                    systemImage: "trash",
-                    role: .destructive,
-                    action: onPrimaryAction
-                )
+                actionRows
             }
         } else {
             Button(action: onPrimaryAction) {
@@ -80,6 +82,21 @@ struct SkillCard: View, Equatable {
             .fixedSize()
             .help("Install")
             .accessibilityLabel("Install \(skill.name)")
+        }
+    }
+
+    /// The card's secondary actions, filling both its three-dot menu and its right-click
+    /// menu so the two cannot offer different rows. Empty for an uninstalled skill, whose
+    /// only action is the visible Install button.
+    @ViewBuilder
+    private var actionRows: some View {
+        if skill.isInstalled {
+            AppOverflowMenuRow(
+                title: "Uninstall",
+                systemImage: "trash",
+                role: .destructive,
+                action: onPrimaryAction
+            )
         }
     }
 }

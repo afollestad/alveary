@@ -30,6 +30,17 @@ struct ScheduledTaskCard: View, Equatable {
     }
 
     var body: some View {
+        // Built once and mounted twice — behind the glyph and on the card's own
+        // secondary click — so the two menus cannot offer different rows.
+        let actions = ScheduledTaskActionRows(
+            task: task,
+            isRunNowPending: isRunNowPending,
+            onPause: onPause,
+            onResume: onResume,
+            onRunNow: onRunNow,
+            onDelete: onDelete
+        )
+
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(task.title)
@@ -47,14 +58,9 @@ struct ScheduledTaskCard: View, Equatable {
 
                 Spacer(minLength: 8)
 
-                ScheduledTaskActionsMenu(
-                    task: task,
-                    isRunNowPending: isRunNowPending,
-                    onPause: onPause,
-                    onResume: onResume,
-                    onRunNow: onRunNow,
-                    onDelete: onDelete
-                )
+                AppOverflowMenu(name: "Scheduled task actions") {
+                    actions
+                }
             }
 
             ScheduledTaskCardMetaLine(task: task, providerName: providerName)
@@ -113,6 +119,11 @@ struct ScheduledTaskCard: View, Equatable {
             focusID: cardFocusID,
             action: onOpen
         )
+        // Outside `appSelectableCard(...)`: the right-click needs the full-card
+        // `contentShape` that modifier installs.
+        .contextMenu {
+            actions
+        }
         // `.contain` rather than `.ignore`: the card holds its own actions menu, and
         // collapsing it into one element would hide it from VoiceOver.
         .accessibilityElement(children: .contain)
@@ -204,9 +215,10 @@ private struct ScheduledTaskStateBadge: View {
     }
 }
 
-/// Every action the card offers. The card face itself opens the editor pane, so Edit has
-/// no row here — a menu row duplicating the card's own click target is noise.
-private struct ScheduledTaskActionsMenu: View {
+/// Every action the card offers, as bare rows so one list can fill both the card's
+/// three-dot menu and its right-click menu. The card face itself opens the editor pane, so
+/// Edit has no row here — a menu row duplicating the card's own click target is noise.
+private struct ScheduledTaskActionRows: View {
     let task: ScheduledTaskRowPresentation
     let isRunNowPending: Bool
     let onPause: () -> Void
@@ -215,29 +227,27 @@ private struct ScheduledTaskActionsMenu: View {
     let onDelete: () -> Void
 
     var body: some View {
-        AppOverflowMenu(name: "Scheduled task actions") {
-            AppOverflowMenuRow(
-                title: runNowTitle,
-                systemImage: "play.fill",
-                action: onRunNow
-            )
-            .disabled(!task.canRunNow || isRunNowPending)
+        AppOverflowMenuRow(
+            title: runNowTitle,
+            systemImage: "play.fill",
+            action: onRunNow
+        )
+        .disabled(!task.canRunNow || isRunNowPending)
 
-            if task.canPause {
-                AppOverflowMenuRow(title: "Pause", systemImage: "pause.circle", action: onPause)
-            } else if task.canResume {
-                AppOverflowMenuRow(title: "Resume", systemImage: "play.circle", action: onResume)
-            }
-
-            Divider()
-
-            AppOverflowMenuRow(
-                title: "Delete",
-                systemImage: "trash",
-                role: .destructive,
-                action: onDelete
-            )
+        if task.canPause {
+            AppOverflowMenuRow(title: "Pause", systemImage: "pause.circle", action: onPause)
+        } else if task.canResume {
+            AppOverflowMenuRow(title: "Resume", systemImage: "play.circle", action: onResume)
         }
+
+        Divider()
+
+        AppOverflowMenuRow(
+            title: "Delete",
+            systemImage: "trash",
+            role: .destructive,
+            action: onDelete
+        )
     }
 
     /// The buttons this menu replaced explained an unavailable Run now through `.help(...)`
