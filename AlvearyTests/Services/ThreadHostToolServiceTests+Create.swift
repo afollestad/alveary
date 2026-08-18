@@ -168,6 +168,8 @@ extension ThreadHostToolServiceTests {
 
     func testCreateThreadMakesAProjectlessTaskThread() async throws {
         let fixture = try ThreadHostToolFixture()
+        // A plain-task caller, so the spawn inherits no project nesting or section.
+        try fixture.makeSourceThreadATask()
 
         let result = await fixture.create(arguments: [
             "mode": .string("task"),
@@ -195,6 +197,7 @@ extension ThreadHostToolServiceTests {
     /// folder while granting another.
     func testCreateThreadGrantsFoldersToATaskThreadCanonically() async throws {
         let fixture = try ThreadHostToolFixture()
+        try fixture.makeSourceThreadATask()
         let folder = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
         let link = FileManager.default.temporaryDirectory
@@ -220,6 +223,7 @@ extension ThreadHostToolServiceTests {
     /// Two spellings of one folder are one grant; the parser only sees literal duplicates.
     func testCreateThreadCollapsesGrantsThatResolveToTheSameFolder() async throws {
         let fixture = try ThreadHostToolFixture()
+        try fixture.makeSourceThreadATask()
         let folder = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
         let canonical = CanonicalPath.normalize(folder.path)

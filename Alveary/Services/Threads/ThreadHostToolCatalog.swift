@@ -28,9 +28,10 @@ enum ThreadHostToolCatalog {
     These tools manage Alveary's own threads — the workspaces in its sidebar — not files, branches, or anything in the \
     user's project. Use them only when the user explicitly asks to list, create, or archive an Alveary thread; wanting a \
     task done is not a request for a new thread. Call list_projects for a Project path, and list_threads for a real thread \
-    ID. Leaving create_thread's placement unset puts the new thread wherever this conversation's thread already works, so \
-    name a Project or a private workspace only when the user asks for one. create_thread applies immediately, and an \
-    initial prompt starts running in the background right away — its work does not appear in this conversation. \
+    ID. Leaving create_thread's placement unset puts the new thread wherever this conversation's thread already works and \
+    shows it beside this thread in the sidebar, so name a Project, a private workspace, or a section only when the user \
+    asks for one. create_thread applies immediately, and an initial prompt starts running in the background right away — \
+    its work does not appear in this conversation. \
     archive_thread also applies immediately, stops whatever that thread is doing, and is reversible only by the user from \
     Alveary's Archived screen. No tool here deletes or restores a thread, so never claim a thread was deleted or offer to \
     restore one. A conversation cannot archive its own thread. link_pr and unlink_pr change only Alveary's local record \
@@ -159,12 +160,14 @@ private extension ThreadHostToolCatalog {
         for a thread that works in that Project, or mode "task" for one that works in its own private empty workspace. \
         Naming neither puts it where this conversation's thread already works, which is usually what the user means. \
         granted_roots gives a task thread access to folders outside its workspace — absolute paths to folders that already \
-        exist, and not accepted for a Project thread. An omitted provider, model, or effort inherits this conversation's \
-        thread's settings, so there is no need to pass them to match it. Everything else falls back to the user's Alveary \
-        defaults: name (otherwise Alveary names the thread from its first turn), permission_mode, and pinned. An \
-        initial_prompt starts that thread working in the background immediately, and its output goes \
-        there rather than here, so do not wait for a result or describe what it found. Report the returned thread_id and \
-        settings rather than restating what you requested.
+        exist, and not accepted for a Project thread. An omitted section keeps a task thread beside this conversation's \
+        thread in the sidebar — nested under the same project, with that folder granted, or in the same section; pass \
+        section to place it elsewhere, "Tasks" meaning the plain Tasks list. An omitted provider, model, or effort \
+        inherits this conversation's thread's settings, so there is no need to pass them to match it. Everything else \
+        falls back to the user's Alveary defaults: name (otherwise Alveary names the thread from its first turn), \
+        permission_mode, and pinned. An initial_prompt starts that thread working in the background immediately, and its \
+        output goes there rather than here, so do not wait for a result or describe what it found. Report the returned \
+        thread_id and settings rather than restating what you requested.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: [

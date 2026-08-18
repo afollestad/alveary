@@ -5,9 +5,10 @@ import Foundation
 /// else — which is why grants belong to this case alone.
 enum ThreadHostToolCreateWorkspace: Equatable {
     case project(path: String)
-    /// `sectionID` is a resolved `SidebarSection.id`; nil means the `Tasks` section, which is
-    /// where a Task with no membership already renders.
-    case task(grantedRoots: [String], sectionID: String? = nil)
+    /// `placement` is already resolved against host state; a `.project` placement is sidebar
+    /// nesting only, and its folder grant — the request's own roots plus the nested project's
+    /// folder — rides in `grantedRoots`.
+    case task(grantedRoots: [String], placement: TaskThreadSidebarPlacement = .tasks)
 
     var kind: AgentThreadMode {
         switch self {
@@ -38,17 +39,23 @@ struct ThreadHostToolSectionMoveRequest: Equatable {
     let sectionName: String
 }
 
-/// Where the calling conversation's own thread lives, as plain values. Snapshotted before the
-/// defaults resolver's `await`, because an inherited placement must not read a SwiftData model
-/// across that suspension.
+/// Where the calling conversation's own thread lives and renders, as plain values. Snapshotted
+/// before the defaults resolver's `await`, because an inherited placement must not read a
+/// SwiftData model across that suspension.
 struct ThreadHostToolSourcePlacement: Equatable {
     let mode: AgentThreadMode
+    /// The caller's Project for a project-mode thread, or its sidebar-nesting project for a Task —
+    /// either way the project a task-mode spawn naming no `section` nests under.
     let projectPath: String?
+    /// The caller's custom-section membership as a `SidebarSection.id` — what a task-mode spawn
+    /// naming no `section` inherits. Mutually exclusive with `projectPath` on a Task.
+    let sectionID: String?
 
     /// A Task's `project` is sidebar placement, not a workspace, so the mode decides alone.
     init(thread: AgentThread) {
         mode = thread.effectiveMode
         projectPath = thread.project?.path
+        sectionID = thread.customSection?.id
     }
 }
 

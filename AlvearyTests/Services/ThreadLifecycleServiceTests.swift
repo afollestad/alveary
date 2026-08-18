@@ -183,6 +183,56 @@ final class ThreadLifecycleServiceTests: XCTestCase {
         XCTAssertEqual(thread.taskWorkspaceDescriptor?.grantedRoots, [canonical])
     }
 
+    /// A `.project` placement is sidebar nesting only: the thread renders under the project while
+    /// keeping its own private workspace and `.task` mode.
+    func testInsertTaskThreadNestsUnderItsSeedProjectPlacement() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Alveary", path: "/tmp/alveary-project")
+
+        let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
+            seed: makeTaskSeed(placement: .project(path: project.path))
+        )
+
+        XCTAssertEqual(thread.project?.path, project.path)
+        XCTAssertEqual(thread.effectiveMode, .task)
+        XCTAssertNil(thread.customSection)
+        XCTAssertEqual(thread.taskWorkspaceDescriptor?.ownershipStrategy, .privateOwned)
+    }
+
+    func testInsertTaskThreadSkipsThePinAPinnedNestingProjectWouldAbsorb() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Alveary", path: "/tmp/alveary-project")
+        project.isPinned = true
+        try fixture.context.save()
+
+        let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
+            seed: makeTaskSeed(pinned: true, placement: .project(path: project.path))
+        )
+
+        // A pinned project absorbs its children, so the pin would be invisible and normalization
+        // would clear it in the same commit — the same skip `insertProjectThread` makes.
+        XCTAssertFalse(thread.isPinned)
+        XCTAssertNil(thread.pinnedSortOrder)
+        XCTAssertEqual(thread.project?.path, project.path)
+    }
+
+    func testInsertTaskThreadRejectsAVanishedPlacementProject() throws {
+        let fixture = try SidebarTestFixture()
+
+        XCTAssertThrowsError(
+            try fixture.viewModel.threadLifecycle.insertTaskThread(
+                seed: makeTaskSeed(placement: .project(path: "/tmp/missing-project"))
+            )
+        ) { error in
+            guard case .projectMissing = error as? SidebarViewModelError else {
+                return XCTFail("Expected projectMissing, got \(error)")
+            }
+        }
+
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<AgentThread>()).isEmpty)
+        XCTAssertTrue(try fixture.context.fetch(FetchDescriptor<Conversation>()).isEmpty)
+    }
+
     /// The private workspace is a directory on disk, so a failed save has to take it back down.
     func testInsertTaskThreadRemovesItsWorkspaceWhenTheSaveFails() throws {
         let fixture = try SidebarTestFixture(saveThreadCreation: { _ in throw ThreadLifecycleTestError.saveFailed })
@@ -203,7 +253,8 @@ final class ThreadLifecycleServiceTests: XCTestCase {
     private func makeTaskSeed(
         name: String? = nil,
         pinned: Bool = false,
-        grantedRoots: [String] = []
+        grantedRoots: [String] = [],
+        placement: TaskThreadSidebarPlacement = .tasks
     ) -> TaskThreadSeed {
         TaskThreadSeed(
             provider: "claude",
@@ -213,7 +264,8 @@ final class ThreadLifecycleServiceTests: XCTestCase {
             isDraft: false,
             name: name,
             pinned: pinned,
-            grantedRoots: grantedRoots
+            grantedRoots: grantedRoots,
+            placement: placement
         )
     }
 

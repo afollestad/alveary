@@ -32,6 +32,20 @@ struct ProjectThreadSeed {
     }
 }
 
+/// Where a new Task thread renders in the sidebar. One case at a time on purpose: a custom
+/// section and a project nesting are mutually exclusive placements, and an enum keeps a caller
+/// from asking for both. Either reference crosses the caller's suspensions as a plain value and
+/// is re-resolved inside the creating save.
+enum TaskThreadSidebarPlacement: Equatable {
+    /// The plain `Tasks` list — a Task with no membership already renders there.
+    case tasks
+    /// `SidebarSection.id` of the custom section the new thread starts in.
+    case section(id: String)
+    /// `Project.path` (its unique attribute) of the project the new thread nests under. Placement
+    /// only: the thread keeps its own private workspace and `.task` mode.
+    case project(path: String)
+}
+
 /// Settings a new Task thread starts with. A Task owns a private workspace instead of a Project,
 /// so `grantedRoots` is how it reaches anything outside that workspace; those paths must already
 /// be canonical absolute folders, validated by the caller the way provider and model are.
@@ -48,9 +62,10 @@ struct TaskThreadSeed {
     /// nil mints the usual private one. Whatever the caller supplies, it also owns: a failed
     /// insert rolls back without removing it, because a borrowed checkout belongs to someone else.
     let workspace: TaskWorkspaceDescriptor?
-    /// `SidebarSection.id` of the custom section the new thread starts in; the caller has
-    /// already validated it exists, and a vanished row fails the insert rather than half-applying.
-    let sectionID: String?
+    /// Sidebar placement the caller has already validated; a row that vanished since then fails
+    /// the insert rather than half-applying. A `.project` placement does not grant its folder —
+    /// the caller decides that through `grantedRoots`.
+    let placement: TaskThreadSidebarPlacement
 
     init(
         provider: String,
@@ -62,7 +77,7 @@ struct TaskThreadSeed {
         pinned: Bool = false,
         grantedRoots: [String] = [],
         workspace: TaskWorkspaceDescriptor? = nil,
-        sectionID: String? = nil
+        placement: TaskThreadSidebarPlacement = .tasks
     ) {
         self.provider = provider
         self.permissionMode = permissionMode
@@ -73,7 +88,7 @@ struct TaskThreadSeed {
         self.pinned = pinned
         self.grantedRoots = grantedRoots
         self.workspace = workspace
-        self.sectionID = sectionID
+        self.placement = placement
     }
 }
 
@@ -221,11 +236,7 @@ final class ThreadLifecycleService {
         modelContext.insert(thread)
         modelContext.insert(conversation)
         do {
-            // No pinned-project check: a Task has no project, so nothing can absorb its pin.
-            if seed.pinned {
-                try SidebarPinOrdering.pin(thread, in: modelContext)
-            }
-            thread.customSection = try resolvedSeedSection(id: seed.sectionID)
+            try applySeedPlacement(seed, to: thread)
             try saveThreadCreation(modelContext)
         } catch {
             modelContext.rollback()
@@ -416,17 +427,46 @@ final class ThreadLifecycleService {
         return conversationIDs.filter { seen.insert($0).inserted }
     }
 
+    /// Applies a Task seed's pin and sidebar placement, inside the creating save so membership
+    /// commits atomically with the thread.
+    private func applySeedPlacement(_ seed: TaskThreadSeed, to thread: AgentThread) throws {
+        let placementProject = try resolvedSeedProject(for: seed.placement)
+        // A pinned project already absorbs its children, so that pin would be invisible and
+        // normalization would clear it in the same commit; every other placement carries one.
+        if seed.pinned, placementProject?.isPinned != true {
+            try SidebarPinOrdering.pin(thread, in: modelContext)
+        }
+        switch seed.placement {
+        case .tasks:
+            break
+        case .section(let sectionID):
+            thread.customSection = try resolvedSeedSection(id: sectionID)
+        case .project:
+            thread.project = placementProject
+        }
+    }
+
     /// Membership commits atomically with the thread; a section that vanished since the caller
     /// validated it fails the whole insert rather than half-applying.
-    private func resolvedSeedSection(id: String?) throws -> SidebarSection? {
-        guard let id else {
-            return nil
-        }
+    private func resolvedSeedSection(id: String) throws -> SidebarSection {
         guard let section = modelContext.resolveSidebarSection(id: id),
               section.kind == .custom else {
             throw SidebarSectionServiceError.sectionMissing
         }
         return section
+    }
+
+    /// The `.project` placement's row, resolved before the pin decision because a pinned project
+    /// absorbs its children's pins. Vanishing since the caller validated it fails the whole
+    /// insert, mirroring `resolvedSeedSection`; nil just means a non-project placement.
+    private func resolvedSeedProject(for placement: TaskThreadSidebarPlacement) throws -> Project? {
+        guard case .project(let path) = placement else {
+            return nil
+        }
+        guard let project = modelContext.resolveProject(path: path) else {
+            throw SidebarViewModelError.projectMissing
+        }
+        return project
     }
 
     /// The caller already canonicalized these paths, so they are rehydrated rather than resolved

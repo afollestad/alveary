@@ -111,7 +111,7 @@ private extension ThreadHostToolService {
     func insertThread(_ request: ThreadHostToolCreateRequest) throws -> AgentThread {
         switch request.workspace {
         case .project(let path):
-            guard let project = resolveProject(path: path) else {
+            guard let project = modelContext.resolveProject(path: path) else {
                 throw ThreadHostToolServiceError.projectNotRegistered(path: path)
             }
             return try lifecycleService.insertProjectThread(
@@ -126,7 +126,7 @@ private extension ThreadHostToolService {
                     pinned: request.pinned
                 )
             )
-        case .task(let grantedRoots, let sectionID):
+        case .task(let grantedRoots, let placement):
             return try lifecycleService.insertTaskThread(
                 seed: TaskThreadSeed(
                     provider: request.provider,
@@ -137,9 +137,9 @@ private extension ThreadHostToolService {
                     name: request.name,
                     pinned: request.pinned,
                     grantedRoots: grantedRoots,
-                    // Re-resolved from the ID inside the creating save; only the string crossed
-                    // the defaults resolver's `await`, never a `SidebarSection` row.
-                    sectionID: sectionID
+                    // Re-resolved from plain values inside the creating save; only strings
+                    // crossed the defaults resolver's `await`, never a SwiftData row.
+                    placement: placement
                 )
             )
         }
@@ -195,13 +195,6 @@ private extension ThreadHostToolService {
         )
     }
 
-    func resolveProject(path: String) -> Project? {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == path
-        })
-        return try? modelContext.fetch(descriptor).first
-    }
-
     /// Assembles the validated request; `ThreadHostToolService+CreateSettings.swift` owns how each
     /// setting inherits, falls back, and validates.
     func validatedCreateRequest(
@@ -235,7 +228,8 @@ private extension ThreadHostToolService {
     /// A request that named no placement lands wherever the calling thread already works, which is
     /// what "create a thread" usually means and is trusted state rather than a guess at a dropped
     /// `project_path`. Grants cannot ride an inherited Project placement, so they are refused
-    /// rather than silently dropped.
+    /// rather than silently dropped. A task workspace additionally inherits the caller's sidebar
+    /// placement when the request names no `section`.
     func validatedWorkspace(
         _ requested: ThreadHostToolRequestedWorkspace,
         placement: ThreadHostToolSourcePlacement
@@ -244,14 +238,19 @@ private extension ThreadHostToolService {
         case .project(let path):
             return .project(path: path)
         case .task(let grantedRoots, let sectionName):
-            return .task(
-                grantedRoots: try canonicalGrantedRoots(grantedRoots),
-                sectionID: try resolvedSectionID(named: sectionName)
+            return try validatedTaskWorkspace(
+                grantedRoots: grantedRoots,
+                sectionName: sectionName,
+                placement: placement
             )
         case .inherit(let grantedRoots):
             switch placement.mode {
             case .task:
-                return .task(grantedRoots: try canonicalGrantedRoots(grantedRoots))
+                return try validatedTaskWorkspace(
+                    grantedRoots: grantedRoots,
+                    sectionName: nil,
+                    placement: placement
+                )
             case .project:
                 guard grantedRoots.isEmpty else {
                     throw ThreadHostToolServiceError.grantsRequireTaskThread
@@ -264,16 +263,68 @@ private extension ThreadHostToolService {
         }
     }
 
+    /// Settles a task workspace's sidebar placement and grants together, because they are
+    /// coupled: nesting under a project also grants that project's folder, mirroring the
+    /// sidebar's Task-to-Project drop. An explicit `section` is the override that opts a spawn
+    /// out of inheriting the caller's placement — `Tasks` for the plain list.
+    func validatedTaskWorkspace(
+        grantedRoots: [String],
+        sectionName: String?,
+        placement: ThreadHostToolSourcePlacement
+    ) throws -> ThreadHostToolCreateWorkspace {
+        let roots = try canonicalGrantedRoots(grantedRoots)
+        if let sectionName {
+            guard let sectionID = try resolvedSectionID(named: sectionName) else {
+                return .task(grantedRoots: roots)
+            }
+            return .task(grantedRoots: roots, placement: .section(id: sectionID))
+        }
+        switch inheritedTaskPlacement(placement) {
+        case .project(let path):
+            // The nested project's folder joins the grants; one that fails canonicalization
+            // drops the nesting instead, because an inherited default the request never named
+            // must not fail the create.
+            guard let projectRoot = try? canonicalGrantedRoots([path]).first else {
+                return .task(grantedRoots: roots)
+            }
+            let merged = roots.contains(projectRoot) ? roots : roots + [projectRoot]
+            return .task(grantedRoots: merged, placement: .project(path: path))
+        case .section(let sectionID):
+            return .task(grantedRoots: roots, placement: .section(id: sectionID))
+        case .tasks:
+            return .task(grantedRoots: roots)
+        }
+    }
+
+    /// The sidebar placement an omitted `section` inherits: the caller's own project nesting or
+    /// custom section, re-resolved against live rows because the snapshot predates the defaults
+    /// resolver's `await`. A row that vanished across it falls back to the plain `Tasks` list
+    /// rather than failing a create that never named it — unlike an explicitly named section or
+    /// project, which stays strict.
+    func inheritedTaskPlacement(_ placement: ThreadHostToolSourcePlacement) -> TaskThreadSidebarPlacement {
+        if let projectPath = placement.projectPath {
+            guard modelContext.resolveProject(path: projectPath) != nil else {
+                return .tasks
+            }
+            return .project(path: projectPath)
+        }
+        if let sectionID = placement.sectionID {
+            guard let section = modelContext.resolveSidebarSection(id: sectionID),
+                  section.kind == .custom else {
+                return .tasks
+            }
+            return .section(id: sectionID)
+        }
+        return .tasks
+    }
+
     /// The section a `create_thread` request named, as a `SidebarSection.id`.
     ///
     /// `Tasks` resolves to nil — a Task with no membership already renders there — and every other
     /// built-in is refused, because a thread cannot live in `Pinned` or `Projects`. An unknown name
     /// is refused rather than created: composing `create_section` first keeps a typo from silently
     /// minting a section the user never asked for.
-    func resolvedSectionID(named sectionName: String?) throws -> String? {
-        guard let sectionName else {
-            return nil
-        }
+    func resolvedSectionID(named sectionName: String) throws -> String? {
         let match = try sectionMatch(named: sectionName)
         switch match.id {
         case .tasks:
@@ -361,8 +412,11 @@ private struct ThreadHostToolCreatedThread {
         switch workspace {
         case .project(let path):
             content["project_path"] = .string(path)
-        case .task(let grantedRoots, _):
+        case .task(let grantedRoots, let placement):
             content["granted_roots"] = .array(grantedRoots.map(AgentCLIKit.JSONValue.string))
+            if case .project(let path) = placement {
+                content["project_path"] = .string(path)
+            }
         }
         if let sectionName {
             content["section"] = .string(sectionName)
@@ -374,6 +428,8 @@ private struct ThreadHostToolCreatedThread {
         switch workspace {
         case .project(let path):
             "in \(path)"
+        case .task(_, .project(let path)):
+            "in its own private workspace, shown under \(path)"
         case .task:
             "in its own private workspace"
         }
