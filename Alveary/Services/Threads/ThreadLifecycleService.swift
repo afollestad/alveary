@@ -251,7 +251,7 @@ final class ThreadLifecycleService {
 
     /// Moves a Task thread onto a workspace resolved after it was created, for a caller that had
     /// to answer before the real one existed — the pull request pane's address-feedback route
-    /// navigates first and only then checks out the branch.
+    /// answers on the click and settles its checkout behind that return.
     ///
     /// Deliberately does not touch `branch`, `worktreePath`, or `useWorktree`. Those are the
     /// Project-thread field family; a Task carries its checkout in the descriptor alone, and a

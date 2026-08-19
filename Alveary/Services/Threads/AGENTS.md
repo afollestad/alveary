@@ -7,7 +7,7 @@ App-scoped thread lifecycle plus the `alveary_host` thread tools. `Alveary/Servi
 - `ThreadLifecycleService` is the shared implementation of thread creation and archiving; `Alveary/ViewModels/Sidebar/AGENTS.md` owns the split with `SidebarViewModel` and the external-archive selection rule.
 - **`insertTaskThread` puts a directory on disk before it persists anything**, so a failed save removes that private workspace again; otherwise the orphan survives until the next launch's sweep. `TaskThreadSeed.grantedRoots` must already be canonical — the seed is rehydrated, never re-resolved, so a symlink swapped in since validation cannot change what was granted.
     - **The rollback removes only a workspace this call minted.** `TaskThreadSeed.workspace` may be a checkout another thread is still working in, so its owner cleans it up, not the insert.
-- **`replaceTaskWorkspace` is for a caller that had to answer before the real workspace existed** — the pull request pane navigates first and checks the branch out after. It swaps the descriptor, saves, then releases a replaced *private* workspace; it never touches `branch`, `worktreePath`, or `useWorktree`, and `Alveary/Services/PullRequests/AGENTS.md` owns why a Task's branch must stay nil.
+- **`replaceTaskWorkspace` is for a caller that had to answer before the real workspace existed** — the pull request pane answers on the click and settles the checkout behind that return. It swaps the descriptor, saves, then releases a replaced *private* workspace; it never touches `branch`, `worktreePath`, or `useWorktree`, and `Alveary/Services/PullRequests/AGENTS.md` owns why a Task's branch must stay nil.
 
 ### Host Tools
 

@@ -3,6 +3,26 @@ import Foundation
 // State changes to the pull request itself — close, reopen, and both draft
 // directions — driven by the review footer's state button.
 extension PullRequestsViewModel {
+    /// Applies a locally-known status to a list row, so closing or reopening a
+    /// pull request updates its glyph before the next list fetch confirms it.
+    ///
+    /// Writes through every bucket holding the row rather than `items`, which is derived. Lives
+    /// beside the state changes that call it; nothing else writes `items` outside a refresh.
+    func applyStatus(_ status: PullRequestStatus, toRow id: PullRequestIdentifier) {
+        var didChange = false
+        for (bucket, state) in bucketStates {
+            guard let index = state.summaries.firstIndex(where: { $0.id == id }) else {
+                continue
+            }
+            bucketStates[bucket]?.summaries[index].status = status
+            didChange = true
+        }
+        guard didChange else {
+            return
+        }
+        rebuildItems()
+    }
+
     /// Closes or reopens the active pane's pull request.
     func setPullRequestClosed(_ closed: Bool) {
         performStateChange(optimisticStatus: closed ? .closed : .open) { service, target in

@@ -11,13 +11,15 @@ extension SnapshotTests {
         title: String,
         emphasis: SplitActionButtonEmphasis,
         icon: ActionIcon? = nil,
-        expandsHorizontally: Bool = false
+        expandsHorizontally: Bool = false,
+        isBusy: Bool = false
     ) -> some View {
         SplitActionButton(
             title: title,
             icon: icon,
             emphasis: emphasis,
             expandsHorizontally: expandsHorizontally,
+            isBusy: isBusy,
             selectedOption: "first",
             options: ["first", "second"],
             optionTitle: { $0 },
@@ -72,6 +74,25 @@ extension SnapshotTests {
             row,
             size: CGSize(width: 460, height: 62),
             named: "split_action_button_expanded"
+        )
+    }
+
+    func testSplitActionButtonBusy() {
+        // Busy dims the whole pill exactly as `.disabled(true)` does — it means the same thing to
+        // whoever is looking at it — and swaps the glyph for the spinner in the glyph's own box, so
+        // neither the width nor the glyph's apparent size moves; the idle row above is what that
+        // pairing is compared against. Only the *primary half* stops taking clicks; the caret still
+        // opens its menu, which is what lets a working option be swapped for one that is not.
+        let stacked = VStack(alignment: .leading, spacing: 12) {
+            splitButton(title: "Agentic review", emphasis: .primary, icon: .system("brain"))
+            splitButton(title: "Agentic review", emphasis: .primary, icon: .system("brain"), isBusy: true)
+        }
+        .padding(16)
+
+        assertMacSnapshot(
+            stacked,
+            size: CGSize(width: 320, height: 110),
+            named: "split_action_button_busy"
         )
     }
 

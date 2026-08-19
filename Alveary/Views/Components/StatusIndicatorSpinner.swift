@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// Fixed-frame ring spinner for small status slots: 8pt status-dot slots in the
-/// sidebar and tab chips, and the 16pt primary-toolbar progress slot. Rotation is the only
-/// thing that changes per frame, so the spinner never relayouts mid-spin and its
-/// footprint stays identical to the status dot it replaces.
+/// sidebar and tab chips, the 16pt primary-toolbar progress slot, and the glyph box
+/// of an action button that is working. Rotation is the only thing that changes per
+/// frame, so the spinner never relayouts mid-spin and its footprint stays identical
+/// to the status dot it replaces.
 ///
 /// **The angle comes from the wall clock, never from `@State` seeded in `onAppear`.**
 /// The sidebar ring used to snap back partway instead of completing a revolution while a Task

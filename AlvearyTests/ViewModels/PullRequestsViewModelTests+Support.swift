@@ -15,6 +15,7 @@ func makePullRequestsViewModel(
     agenticThreadStarter: (
         @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )? = nil,
+    agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
     // A private bus by default, so a suite cannot be disturbed by anything posting on `.default`;
     // pass a shared one to wire a coordinator or host-tool service to this view model. The delay
@@ -36,6 +37,7 @@ func makePullRequestsViewModel(
         attachmentImageRepositoryRegistrar: attachmentImageRepositoryRegistrar,
         presentToast: presentToast,
         agenticThreadStarter: agenticThreadStarter,
+        agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,
         notificationCenter: notificationCenter,
         remoteRefreshDelay: remoteRefreshDelay,
@@ -44,16 +46,20 @@ func makePullRequestsViewModel(
     )
 }
 
-/// Builds the value a real starter answers with. `dispatch` defaults to already-succeeded work,
-/// so a test that only cares about the navigation half writes nothing extra.
+/// Builds the value a real starter answers with. `dispatch` defaults to already-succeeded work
+/// that linked cleanly, so a test that only cares about the spawn half writes nothing extra.
 @MainActor
 func makeAgenticThreadStart(
     conversationID: String,
+    linkFailure: String? = nil,
     dispatch: @escaping @Sendable () async throws -> Void = {}
 ) -> PullRequestAgenticThreadStart {
     PullRequestAgenticThreadStart(
         conversationID: conversationID,
-        dispatch: Task { try await dispatch() }
+        dispatch: Task {
+            try await dispatch()
+            return PullRequestAgenticDispatchOutcome(linkFailure: linkFailure)
+        }
     )
 }
 

@@ -36,6 +36,9 @@ final class PullRequestsViewModel {
     let agenticThreadStarter: (
         @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )?
+    /// Which agentic footer routes are running, app-scoped so a run survives the pane unmounting.
+    /// Mirrored onto each pane session rather than read from a `body` — see `workingAgenticKinds`.
+    let agenticThreadActivity: PullRequestAgenticThreadActivity
     /// Resolves the pane's attached review proposal and owns the envelope it renders from.
     /// This is not the `ModelContext` this view model deliberately does without — the
     /// coordinator holds its own private context; the view model still holds none. Optional
@@ -54,6 +57,7 @@ final class PullRequestsViewModel {
     /// set `searchQuery` and read the narrowed list in the same turn.
     @ObservationIgnored let searchDebounce: Duration
     @ObservationIgnored var remoteChangeObserver: (any NSObjectProtocol)?
+    @ObservationIgnored var agenticThreadActivityObserver: (any NSObjectProtocol)?
     /// Debounced detail refetches, keyed by the target whose session they refresh.
     @ObservationIgnored var remoteRefreshTasks: [PullRequestPaneTarget: Task<Void, Never>] = [:]
     @ObservationIgnored var remoteListRefreshTask: Task<Void, Never>?
@@ -187,6 +191,7 @@ final class PullRequestsViewModel {
         agenticThreadStarter: (
             @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
         )? = nil,
+        agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
         notificationCenter: NotificationCenter = .default,
         remoteRefreshDelay: Duration = .milliseconds(750),
@@ -205,6 +210,10 @@ final class PullRequestsViewModel {
         self.attachmentImageRepositoryRegistrar = attachmentImageRepositoryRegistrar
         self.presentToast = presentToast
         self.agenticThreadStarter = agenticThreadStarter
+        // Defaulted rather than optional: every read is a plain membership question, and an
+        // absent tracker would make the footer's busy state silently untrackable in previews.
+        self.agenticThreadActivity = agenticThreadActivity
+            ?? PullRequestAgenticThreadActivity(notificationCenter: notificationCenter)
         self.reviewProposalCoordinator = reviewProposalCoordinator
         self.now = now
         self.referenceDate = now()
@@ -214,12 +223,14 @@ final class PullRequestsViewModel {
             selectedRepositories = settings.pullRequestsRepositoryFilters
         }
         observeRemoteChanges()
+        observeAgenticThreadActivity()
     }
 
     deinit {
         MainActor.assumeIsolated {
             searchCommitTask?.cancel()
             endRemoteChangeObservation()
+            endAgenticThreadActivityObservation()
         }
     }
 
@@ -234,25 +245,6 @@ final class PullRequestsViewModel {
         Task {
             await loadIfNeeded(for: filter)
         }
-    }
-
-    /// Applies a locally-known status to a list row, so closing or reopening a
-    /// pull request updates its glyph before the next list fetch confirms it.
-    ///
-    /// Writes through every bucket holding the row rather than `items`, which is derived.
-    func applyStatus(_ status: PullRequestStatus, toRow id: PullRequestIdentifier) {
-        var didChange = false
-        for (bucket, state) in bucketStates {
-            guard let index = state.summaries.firstIndex(where: { $0.id == id }) else {
-                continue
-            }
-            bucketStates[bucket]?.summaries[index].status = status
-            didChange = true
-        }
-        guard didChange else {
-            return
-        }
-        rebuildItems()
     }
 
     /// Re-derives `items` from the loaded buckets. `items` keeps a private setter because this is
@@ -348,7 +340,10 @@ extension PullRequestsViewModel {
         // work whose `gh` subprocesses would otherwise run to completion unread.
         cancelPaneLoads(except: target)
         if paneSessions[target] == nil {
-            let session = PullRequestPaneSession(generation: UUID(), summary: summary)
+            var session = PullRequestPaneSession(generation: UUID(), summary: summary)
+            // A run started before this session existed — the pane was dismissed and reopened
+            // mid-run — has no transition left to announce, so seed from the tracker directly.
+            session.workingAgenticKinds = agenticThreadActivity.workingKinds(for: target.identifier)
             paneSessions[target] = session
             loadPaneContent(target: target, generation: session.generation)
         } else {

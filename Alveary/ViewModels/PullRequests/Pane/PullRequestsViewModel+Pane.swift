@@ -110,12 +110,18 @@ struct PullRequestPaneSession: Equatable {
     /// A failed close or reopen; rendered as a banner in the review footer, where
     /// the action lives.
     var stateChangeError: String?
-    /// Set while an agentic thread is being created; shows the footer's split button as busy so
-    /// the action cannot double-fire into two threads on one pull request. Shared by both kinds,
-    /// which is what also stops a review and an address-feedback run from starting together.
-    var isStartingAgenticThread = false
+    /// The agentic footer routes with a run in flight, mirrored out of the app-scoped
+    /// `PullRequestAgenticThreadActivity` so the footer's `==` can see it — reading the tracker
+    /// from `body` would leave the memoized footer stale. Per kind, so a running review does not
+    /// hold Address feedback hostage; the face wearing a listed kind shows the spinner and stops
+    /// taking clicks.
+    var workingAgenticKinds: Set<PullRequestAgenticThreadService.Kind> = []
     /// A failed agentic thread start; rendered beside `stateChangeError` in the footer.
     var agenticThreadError: String?
+    /// The repository an address-feedback run refused over, because no project holds it. A modal
+    /// rather than the banner: it is the one agentic failure the user can act on, and the action
+    /// is outside this pane.
+    var agenticThreadMissingProject: String?
     /// Non-nil token asks the freshly mounted composer editor to take first responder.
     var composerFocusToken: UUID?
     /// Awaiting user confirmation before permanently deleting a submitted comment.

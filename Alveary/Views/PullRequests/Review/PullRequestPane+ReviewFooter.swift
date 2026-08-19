@@ -325,9 +325,9 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             icon: action.icon,
             emphasis: .primary,
             expandsHorizontally: expandsHorizontally,
-            // Starting an agentic thread reaches the provider and GitHub, so the button says it
-            // is working rather than only refusing the next click.
-            isBusy: session.isStartingAgenticThread,
+            // Held for the whole run, not just the spawn: the thread this button started is the
+            // one working, and re-running the same route on top of it is what the dimming refuses.
+            isBusy: isWorking(action.kind),
             selectedOption: action.kind,
             options: PullRequestReviewFooterAction.all.map(\.kind),
             optionTitle: { PullRequestReviewFooterAction.action(for: $0).title },
@@ -338,7 +338,19 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 viewModel.selectReviewFooterAction(kind, for: authorship)
             }
         )
-        .help(action.title)
+        .help(isWorking(action.kind) ? "\(action.title) is running" : action.title)
+    }
+
+    /// Only the two agentic options can be running; Submit review opens a composer and returns.
+    private func isWorking(_ kind: PullRequestReviewFooterAction.Kind) -> Bool {
+        switch kind {
+        case .submitReview:
+            return false
+        case .agenticReview:
+            return session.workingAgenticKinds.contains(.review)
+        case .addressFeedback:
+            return session.workingAgenticKinds.contains(.addressFeedback)
+        }
     }
 
     /// `PullRequestReviewFooterAction.leadingKind` owns the rule; this supplies the pull request's

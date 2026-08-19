@@ -25,8 +25,24 @@ extension AppComponent {
                 worktreeManager: worktreeManager,
                 taskWorkspaceOwnershipService: taskWorkspaceOwnershipService,
                 providerDiscovery: cachedAgentProviderDiscoveryService,
+                currentBranch: { [gitService] path in
+                    try? await gitService.currentBranch(in: path)
+                },
                 startInitialPrompt: { conversation, prompt in
                     self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)
+                }
+            )
+        }
+    }
+
+    /// Which agentic pull-request routes are running. App-scoped alongside the service that starts
+    /// them: the detail pane unmounts whenever the user looks elsewhere, so a per-window or
+    /// per-session owner would forget a run the moment it stopped being watched.
+    var pullRequestAgenticThreadActivity: PullRequestAgenticThreadActivity {
+        return shared {
+            PullRequestAgenticThreadActivity(
+                currentSignal: { [agentsManager] conversationID in
+                    agentsManager.status(for: conversationID)
                 }
             )
         }

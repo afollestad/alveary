@@ -182,9 +182,11 @@ extension ContentView {
                     identifier: request.identifier,
                     url: request.url,
                     knownDetail: request.knownDetail,
+                    knownSummary: request.knownSummary,
                     preferredProjectID: request.preferredProjectID
                 )
             },
+            agenticThreadActivity: dependencies.pullRequestAgenticThreadActivity,
             reviewProposalCoordinator: reviewProposalCoordinator
         )
     }

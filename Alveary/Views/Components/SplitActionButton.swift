@@ -35,8 +35,12 @@ struct SplitActionButton<Option: Hashable>: View {
     var emphasis = SplitActionButtonEmphasis.primary
     /// Fills the available width, for the even-split pane footer rows.
     var expandsHorizontally = false
-    /// Swaps the leading glyph for a spinner and blocks the control while its action runs.
-    /// A greyed-out button alone reads as unavailable rather than working.
+    /// Swaps the leading glyph for a spinner, then dims the pill and blocks the primary click
+    /// while that work runs. Dimmed on purpose: this is not "hold on a second", it is "not until
+    /// that finishes", and a fully-lit button invites a click it will swallow.
+    ///
+    /// **The caret dims with the pill but stays clickable.** It is the only way to put a different
+    /// option on the face, so killing it would strand the user behind whichever one is running.
     var isBusy = false
     let selectedOption: Option
     let options: [Option]
@@ -63,13 +67,16 @@ struct SplitActionButton<Option: Hashable>: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!isInteractive)
+            .disabled(!isActionEnabled)
+            // Scoped to this half: the caret beside it is still clickable, so a blocked cursor
+            // across the whole pill would lie about the menu.
+            .blockedCursorOverlay(when: !isActionEnabled)
             // The spinner is decorative, so without this VoiceOver reads a busy button as
-            // nothing but dimmed — the "unavailable" meaning the fill deliberately avoids.
+            // nothing but dimmed, with no word for what the dimming means.
             .accessibilityValue(isBusy ? "Working" : "")
 
             Rectangle()
-                .fill(emphasis.foreground.opacity(isEnabled ? 0.16 : 0.08))
+                .fill(emphasis.foreground.opacity(isDimmed ? 0.08 : 0.16))
                 .frame(width: 1)
                 .padding(.vertical, 4)
 
@@ -82,7 +89,7 @@ struct SplitActionButton<Option: Hashable>: View {
                     selectedOption: selectedOption,
                     options: options,
                     optionTitle: optionTitle,
-                    isEnabled: isInteractive,
+                    isEnabled: isEnabled,
                     selectOption: selectOption
                 )
                 .frame(width: menuWidth, height: controlHeight)
@@ -91,7 +98,7 @@ struct SplitActionButton<Option: Hashable>: View {
         }
         .font(.body.weight(.semibold))
         .imageScale(.small)
-        .foregroundStyle(emphasis.foreground.opacity(isEnabled ? 1 : 0.78))
+        .foregroundStyle(emphasis.foreground.opacity(isDimmed ? 0.78 : 1))
         .frame(maxWidth: expandsHorizontally ? .infinity : nil)
         .frame(height: controlHeight)
         .background(
@@ -123,18 +130,23 @@ struct SplitActionButton<Option: Hashable>: View {
         }
     }
 
-    /// Busy blocks clicks and the caret menu but deliberately leaves the fill, border, and label
-    /// at their enabled opacities — a working button that greys out reads as unavailable.
-    private var isInteractive: Bool {
+    /// Busy blocks the primary click; only `.disabled(...)` blocks the caret with it.
+    private var isActionEnabled: Bool {
         isEnabled && !isBusy
     }
 
+    /// Disabled and busy paint the same, because they mean the same thing to the person looking at
+    /// it: this button is not going to do anything if you press it.
+    private var isDimmed: Bool {
+        !isEnabled || isBusy
+    }
+
     private var showsHoverOverlay: Bool {
-        isHovering && isInteractive
+        isHovering && isActionEnabled
     }
 
     private var backgroundColor: Color {
-        isEnabled ? emphasis.fill : emphasis.fill.opacity(0.38)
+        isDimmed ? emphasis.fill.opacity(0.38) : emphasis.fill
     }
 
     /// The secondary fill is translucent, so it needs the same hairline border
@@ -147,7 +159,7 @@ struct SplitActionButton<Option: Hashable>: View {
         guard emphasis == .secondary else {
             return 0
         }
-        return isEnabled ? 0.12 : 0.06
+        return isDimmed ? 0.06 : 0.12
     }
 
     private var horizontalPadding: CGFloat {

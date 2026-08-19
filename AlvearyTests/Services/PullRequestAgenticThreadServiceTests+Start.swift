@@ -31,10 +31,13 @@ extension PullRequestAgenticThreadServiceTests {
     }
 
     /// `existingDirectories` stands in for the filesystem the workspace ladder probes, so a rung
-    /// can be made to find or miss a checkout without one being on disk.
+    /// can be made to find or miss a checkout without one being on disk. `branchesByRoot` is the
+    /// same stand-in for git: it answers the probe that decides whether a borrow is actually on the
+    /// pull request's head branch, and an unlisted root reads as unreadable.
     func makeStartFixture(
         fixture: SidebarTestFixture? = nil,
-        existingDirectories: Set<String> = []
+        existingDirectories: Set<String> = [],
+        branchesByRoot: [String: String] = [:]
     ) throws -> StartFixture {
         let fixture = try fixture ?? SidebarTestFixture()
         let pullRequests = StubPullRequestsService()
@@ -52,6 +55,7 @@ extension PullRequestAgenticThreadServiceTests {
             // nil discovery takes the static fallback resolver, so no provider subprocess runs.
             providerDiscovery: nil,
             directoryExists: { existingDirectories.contains($0) },
+            currentBranch: { branchesByRoot[$0] },
             startInitialPrompt: { conversation, prompt in
                 let isLinked = conversation.thread?.linkedPullRequests.isEmpty == false
                 prompts.record(prompt: prompt, wasLinked: isLinked)
@@ -79,7 +83,7 @@ extension PullRequestAgenticThreadServiceTests {
         XCTAssertTrue(start.prompts.prompts.isEmpty, "The first prompt must not have been dispatched yet")
 
         gate.open()
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(start.prompts.prompts, [PullRequestAgenticThreadService.Kind.review.requestPrompt(url: start.url)])
     }
@@ -90,7 +94,7 @@ extension PullRequestAgenticThreadServiceTests {
         let start = try makeStartFixture()
 
         let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(start.prompts.wasLinkedAtDispatch, [true])
     }
@@ -106,7 +110,7 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: detail
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(start.pullRequests.detailCallCount, 0)
         let thread = start.fixture.context.resolveConversation(conversationID: started.conversationID)?.thread
@@ -126,12 +130,31 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: mismatched
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(start.pullRequests.detailCallCount, 1)
         let thread = start.fixture.context.resolveConversation(conversationID: started.conversationID)?.thread
         XCTAssertEqual(thread?.linkedPullRequests.first?.id, start.identifier)
         XCTAssertNotEqual(thread?.linkedPullRequests.first?.summary.title, "Wrong pull request")
+    }
+
+    /// A pane opened from a list row has a summary before it has a detail, and that is enough to
+    /// store the link — which is what makes linking reliable rather than merely attempted.
+    func testASuppliedSummarySparesTheLinkItsRoundTrip() async throws {
+        let start = try makeStartFixture()
+        let summary = makePullRequestSummary(number: start.identifier.number, status: .open)
+
+        let started = try await start.service.start(
+            kind: .review,
+            identifier: start.identifier,
+            url: start.url,
+            knownSummary: summary
+        )
+        _ = try await started.dispatch.value
+
+        XCTAssertEqual(start.pullRequests.detailCallCount, 0)
+        let thread = start.fixture.context.resolveConversation(conversationID: started.conversationID)?.thread
+        XCTAssertEqual(thread?.linkedPullRequests.first?.id, start.identifier)
     }
 
     /// A GitHub hiccup must not stop a review from starting — the link is best-effort and the
@@ -141,9 +164,37 @@ extension PullRequestAgenticThreadServiceTests {
         start.pullRequests.detailResult = .failure(.transport("offline"))
 
         let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(start.prompts.prompts.count, 1)
         XCTAssertEqual(start.prompts.wasLinkedAtDispatch, [false])
+    }
+
+    /// Reported rather than swallowed: the caller toasts it. It must not *throw*, because a throw
+    /// means the prompt never went out and would end a run that is in fact working.
+    func testAFailedLinkIsReportedInTheDispatchOutcome() async throws {
+        let start = try makeStartFixture()
+        start.pullRequests.detailResult = .failure(.transport("offline"))
+
+        let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
+        let outcome = try await started.dispatch.value
+
+        XCTAssertNotNil(outcome.linkFailure)
+        XCTAssertEqual(start.prompts.prompts.count, 1)
+    }
+
+    /// The ordinary path reports nothing, so the caller has no toast to show.
+    func testASuccessfulLinkReportsNoFailure() async throws {
+        let start = try makeStartFixture()
+
+        let started = try await start.service.start(
+            kind: .review,
+            identifier: start.identifier,
+            url: start.url,
+            knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
+        )
+        let outcome = try await started.dispatch.value
+
+        XCTAssertNil(outcome.linkFailure)
     }
 }

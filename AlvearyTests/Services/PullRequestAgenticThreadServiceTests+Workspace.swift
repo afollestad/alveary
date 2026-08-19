@@ -73,7 +73,7 @@ extension PullRequestAgenticThreadServiceTests {
         XCTAssertEqual(workspace?.primaryRoot, worktreePath)
         XCTAssertEqual(workspace?.ownershipStrategy, .projectLocal)
         XCTAssertEqual(workspace?.sourceProjectPath, projectPath)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
     }
 
     /// A linked thread that has moved on to another branch is not a checkout of this pull request,
@@ -86,7 +86,10 @@ extension PullRequestAgenticThreadServiceTests {
             in: fixture,
             projectPath: CanonicalPath.normalize(NSTemporaryDirectory() + "alveary-other-project"),
             worktreePath: worktreePath,
-            branch: "feat/something-else"
+            branch: "feat/something-else",
+            // Not borrowing is only observable when the ladder has somewhere else to go; without a
+            // project for the repository the start would refuse before reaching that question.
+            githubRepository: start.identifier.nameWithOwner
         )
         lender.linkedPullRequests = [linkedPullRequest(start.identifier)]
         try fixture.context.save()
@@ -99,7 +102,7 @@ extension PullRequestAgenticThreadServiceTests {
         )
 
         XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.ownershipStrategy, .privateOwned)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
     }
 
     /// A private workspace is a scratch directory, not a checkout — and it belongs to a thread
@@ -119,6 +122,13 @@ extension PullRequestAgenticThreadServiceTests {
         )
         fixture.context.insert(lender)
         lender.linkedPullRequests = [linkedPullRequest(start.identifier)]
+        // Refusing the borrow is only observable with a rung 3 to fall to.
+        let project = Project(
+            path: CanonicalPath.normalize(NSTemporaryDirectory() + "alveary-private-project"),
+            name: "alpha",
+            githubRepository: start.identifier.nameWithOwner
+        )
+        fixture.context.insert(project)
         try fixture.context.save()
 
         let started = try await start.service.start(
@@ -131,7 +141,7 @@ extension PullRequestAgenticThreadServiceTests {
         let workspace = workspace(ofThreadWith: started.conversationID, in: fixture)
         XCTAssertEqual(workspace?.ownershipStrategy, .privateOwned)
         XCTAssertNotEqual(workspace?.primaryRoot, privateRoot)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
     }
 
     /// A checkout the user deleted from disk is a stale row, not a workspace.
@@ -142,7 +152,8 @@ extension PullRequestAgenticThreadServiceTests {
             in: fixture,
             projectPath: CanonicalPath.normalize(NSTemporaryDirectory() + "alveary-gone-project"),
             worktreePath: CanonicalPath.normalize(NSTemporaryDirectory() + "alveary-gone-worktree"),
-            branch: "feat/change"
+            branch: "feat/change",
+            githubRepository: start.identifier.nameWithOwner
         )
         lender.linkedPullRequests = [linkedPullRequest(start.identifier)]
         try fixture.context.save()
@@ -155,7 +166,7 @@ extension PullRequestAgenticThreadServiceTests {
         )
 
         XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.ownershipStrategy, .privateOwned)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
     }
 
     // MARK: - Rung 2: a thread already on the head branch
@@ -183,7 +194,7 @@ extension PullRequestAgenticThreadServiceTests {
         let workspace = workspace(ofThreadWith: started.conversationID, in: fixture)
         XCTAssertEqual(workspace?.primaryRoot, worktreePath)
         XCTAssertEqual(workspace?.ownershipStrategy, .projectLocal)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
         let createCalls = await start.fixture.worktreeManager.createFromBranchCalls()
         XCTAssertTrue(createCalls.isEmpty)
     }
@@ -198,7 +209,10 @@ extension PullRequestAgenticThreadServiceTests {
             in: fixture,
             projectPath: CanonicalPath.normalize(NSTemporaryDirectory() + "alveary-deferred-project"),
             worktreePath: worktreePath,
-            branch: "feat/change"
+            branch: "feat/change",
+            // With no detail up front there is no branch to match, so the pre-flight sees no borrow
+            // and needs a project for the repository to let the start through at all.
+            githubRepository: start.identifier.nameWithOwner
         )
 
         let started = try await start.service.start(
@@ -209,7 +223,7 @@ extension PullRequestAgenticThreadServiceTests {
 
         // Un-borrowed in front of the return: with no detail there is no branch to match.
         XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.ownershipStrategy, .privateOwned)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         let workspace = workspace(ofThreadWith: started.conversationID, in: fixture)
         XCTAssertEqual(workspace?.primaryRoot, worktreePath)
@@ -235,7 +249,7 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.ownershipStrategy, .privateOwned)
         let createCalls = await start.fixture.worktreeManager.createFromBranchCalls()

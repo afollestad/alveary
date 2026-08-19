@@ -43,7 +43,7 @@ struct PullRequestPane: View, Equatable {
     }
 
     var body: some View {
-        commentScrollObserver(deleteCommentDialog(
+        commentScrollObserver(deleteCommentDialog(missingProjectAlert(
             VStack(spacing: 0) {
                 ContextualPaneHeader(
                     target.identifier.displayKey,
@@ -65,7 +65,42 @@ struct PullRequestPane: View, Equatable {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .pullRequestReferenceDateTick(viewModel)
-        ))
+        )))
+    }
+
+    /// The address-feedback route refuses outright when no project holds the pull request's
+    /// repository — it edits and pushes, so a thread with no checkout could not do the job. A modal
+    /// rather than the footer's banner because the fix is elsewhere in the app, and dismissing is
+    /// the only thing to do here. Lifted out of `body` like the dialog above, for the type-check
+    /// budget.
+    private func missingProjectAlert<Content: View>(_ content: Content) -> some View {
+        content.alert(
+            "Project not added",
+            isPresented: Binding(
+                get: { viewModel.paneSessions[target]?.agenticThreadMissingProject != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.clearAgenticThreadMissingProject()
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                viewModel.clearAgenticThreadMissingProject()
+            }
+        } message: {
+            Text(missingProjectMessage)
+        }
+    }
+
+    /// Rebuilt from the error rather than respelled here, so the sentence has one author.
+    private var missingProjectMessage: String {
+        guard let repository = viewModel.paneSessions[target]?.agenticThreadMissingProject else {
+            return ""
+        }
+        return PullRequestAgenticThreadService.StartError
+            .projectMissing(repository: repository)
+            .localizedDescription
     }
 
     /// Every ask to reveal a comment lands on the Changes tab, whether it came from a review

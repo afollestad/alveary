@@ -220,20 +220,38 @@ extension SnapshotTests {
         )
     }
 
-    func testPullRequestPaneReviewFooterAgenticReviewStarting() {
-        // Starting the review swaps the brain glyph for the shared spinner in the same box, so
-        // the pill neither greys out nor changes width while the thread is being created.
+    func testPullRequestPaneReviewFooterAgenticReviewWorking() {
+        // A running review swaps the brain glyph for the shared spinner in the same box — so the
+        // pill cannot change width — and dims, because the route is unavailable until that
+        // thread's first turn ends rather than merely busy for a moment.
         let fixture = PullRequestReviewFooterFixture(
             pendingCommentCount: 0,
             status: .open,
             selectedReviewAction: .agenticReview,
-            isStartingAgenticThread: true
+            workingAgenticKinds: [.review]
         )
 
         assertMacSnapshot(
             fixture.footer(initiallyExpanded: false),
             size: CGSize(width: 460, height: 100),
-            named: "pull_request_review_footer_agentic_starting"
+            named: "pull_request_review_footer_agentic_working"
+        )
+    }
+
+    func testPullRequestPaneReviewFooterAddressFeedbackIdleWhileReviewWorks() {
+        // The two routes are independent: a running review leaves Address feedback fully live on
+        // the face, which is what the caret exists to reach.
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            status: .open,
+            selectedReviewAction: .addressFeedback,
+            workingAgenticKinds: [.review]
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 100),
+            named: "pull_request_review_footer_other_route_idle"
         )
     }
 
@@ -357,7 +375,7 @@ struct PullRequestReviewFooterFixture {
         viewerCanUpdate: Bool = true,
         headRefExists: Bool = true,
         selectedReviewAction: PullRequestReviewFooterAction.Kind? = .submitReview,
-        isStartingAgenticThread: Bool = false
+        workingAgenticKinds: Set<PullRequestAgenticThreadService.Kind> = []
     ) {
         let service = StubPullRequestsService()
         // The footer seeds its split-button selection from settings at init, so the stored
@@ -391,9 +409,9 @@ struct PullRequestReviewFooterFixture {
                 )
             }
         }
-        if isStartingAgenticThread {
+        if !workingAgenticKinds.isEmpty {
             viewModel.mutateActiveSession { session in
-                session.isStartingAgenticThread = true
+                session.workingAgenticKinds = workingAgenticKinds
             }
         }
         guard let session = viewModel.activePaneSession else {

@@ -17,12 +17,25 @@ extension PullRequestAgenticThreadServiceTests {
         return id
     }
 
+    /// Addressing feedback refuses outright without a project for the repository, so every
+    /// `.addressFeedback` start here needs one before placement can be the thing under test.
+    private func seedProject(for start: StartFixture) throws {
+        let project = Project(
+            path: "/tmp/alveary-placement-project",
+            name: "alpha",
+            githubRepository: start.identifier.nameWithOwner
+        )
+        start.fixture.context.insert(project)
+        try start.fixture.context.save()
+    }
+
     private func startedThread(_ start: StartFixture, conversationID: String) -> AgentThread? {
         start.fixture.context.resolveConversation(conversationID: conversationID)?.thread
     }
 
     func testEachRouteLandsInItsOwnChosenSection() async throws {
         let start = try makeStartFixture()
+        try seedProject(for: start)
         let reviewSection = try createCustomSection(named: "Reviews", in: start.fixture)
         let feedbackSection = try createCustomSection(named: "Fixes", in: start.fixture)
         start.fixture.settingsService.update { settings in
@@ -36,8 +49,8 @@ extension PullRequestAgenticThreadServiceTests {
             identifier: start.identifier,
             url: start.url
         )
-        try await review.dispatch.value
-        try await feedback.dispatch.value
+        _ = try await review.dispatch.value
+        _ = try await feedback.dispatch.value
 
         XCTAssertEqual(startedThread(start, conversationID: review.conversationID)?.customSection?.id, reviewSection)
         XCTAssertEqual(startedThread(start, conversationID: feedback.conversationID)?.customSection?.id, feedbackSection)
@@ -52,7 +65,7 @@ extension PullRequestAgenticThreadServiceTests {
         start.fixture.settingsService.update { $0.pullRequestReviewSectionID = section }
 
         let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         let thread = startedThread(start, conversationID: started.conversationID)
         XCTAssertNil(thread?.project)
@@ -64,7 +77,7 @@ extension PullRequestAgenticThreadServiceTests {
         _ = try createCustomSection(named: "Reviews", in: start.fixture)
 
         let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertNil(startedThread(start, conversationID: started.conversationID)?.customSection)
     }
@@ -77,7 +90,7 @@ extension PullRequestAgenticThreadServiceTests {
         start.fixture.settingsService.update { $0.pullRequestReviewSectionID = "section-that-never-existed" }
 
         let started = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertFalse(started.conversationID.isEmpty)
         XCTAssertNil(startedThread(start, conversationID: started.conversationID)?.customSection)
@@ -87,6 +100,7 @@ extension PullRequestAgenticThreadServiceTests {
     /// is what puts a thread in `Pinned` or `Projects` — never this setting.
     func testABuiltinSectionIDDegradesToTasks() async throws {
         let start = try makeStartFixture()
+        try seedProject(for: start)
         // Builtin rows are seeded, not present by default; normalization is what mints them.
         try SidebarSectionNormalization.normalize(in: start.fixture.context)
         try start.fixture.context.save()
@@ -99,7 +113,7 @@ extension PullRequestAgenticThreadServiceTests {
             identifier: start.identifier,
             url: start.url
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertNil(startedThread(start, conversationID: started.conversationID)?.customSection)
     }

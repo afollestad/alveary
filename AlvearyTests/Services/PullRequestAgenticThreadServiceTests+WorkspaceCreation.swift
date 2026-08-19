@@ -5,7 +5,8 @@ import XCTest
 @testable import Alveary
 
 /// Rung 3 of the workspace ladder — checking the head branch out into a fresh worktree — plus the
-/// rung-4 degrade and the field the whole feature depends on staying nil.
+/// refusal that replaced the old rung-4 degrade, and the field the whole feature depends on
+/// staying nil.
 @MainActor
 extension PullRequestAgenticThreadServiceTests {
     /// Registration validates both directories against the real filesystem, so these have to be
@@ -40,6 +41,41 @@ extension PullRequestAgenticThreadServiceTests {
         return project
     }
 
+    /// A lender the *link* vouches for but `thread.branch` cannot — nil there is the ordinary case
+    /// for a Task thread, which is exactly why only git can settle whether the tree is usable.
+    @discardableResult
+    private func makeLinkedLender(
+        in fixture: SidebarTestFixture,
+        identifier: PullRequestIdentifier,
+        root: String,
+        sourceProjectPath: String,
+        githubRepository: String? = nil
+    ) throws -> AgentThread {
+        let project = Project(
+            path: sourceProjectPath,
+            name: "lender",
+            remoteName: "origin",
+            githubRepository: githubRepository
+        )
+        let thread = AgentThread(
+            name: "Lender",
+            branch: nil,
+            worktreePath: root,
+            useWorktree: true,
+            project: project
+        )
+        fixture.context.insert(project)
+        fixture.context.insert(thread)
+        thread.linkedPullRequests = [
+            LinkedPullRequest(
+                summary: makePullRequestSummary(number: identifier.number, repo: identifier.nameWithOwner),
+                linkedAt: Date(timeIntervalSince1970: 100)
+            )
+        ]
+        try fixture.context.save()
+        return thread
+    }
+
     private func workspace(ofThreadWith conversationID: String, in fixture: SidebarTestFixture) -> TaskWorkspaceDescriptor? {
         fixture.context.resolveConversation(conversationID: conversationID)?.thread?.taskWorkspaceDescriptor
     }
@@ -62,7 +98,7 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         let calls = await fixture.worktreeManager.createFromBranchCalls()
         XCTAssertEqual(calls.count, 1)
@@ -93,20 +129,60 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.primaryRoot, worktreePath)
     }
 
-    /// Rung 4. The agent can still read the feedback, reply, and resolve; the instructions have it
-    /// say it has no checkout rather than edit whatever it landed in.
-    func testAnUnknownRepositoryLeavesThePrivateWorkspaceInPlace() async throws {
+    /// There is no rung 4 any more. Addressing feedback edits and pushes, so a thread on a scratch
+    /// directory could not do the job — it would burn a turn discovering that. Refusing costs
+    /// nothing, because the pre-flight runs before anything is created.
+    func testAnUnknownRepositoryRefusesBeforeCreatingAThread() async throws {
         let fixture = try SidebarTestFixture()
         let start = try makeStartFixture(fixture: fixture)
         try makeProject(
             in: fixture,
             path: try makeTemporaryDirectory("unrelated"),
             githubRepository: "octo/unrelated"
+        )
+        let threadsBefore = try fixture.context.fetch(FetchDescriptor<AgentThread>()).count
+
+        do {
+            _ = try await start.service.start(
+                kind: .addressFeedback,
+                identifier: start.identifier,
+                url: start.url,
+                knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
+            )
+            XCTFail("Expected the start to refuse")
+        } catch {
+            XCTAssertEqual(
+                error as? PullRequestAgenticThreadService.StartError,
+                .projectMissing(repository: "octo/alpha")
+            )
+        }
+
+        XCTAssertEqual(try fixture.context.fetch(FetchDescriptor<AgentThread>()).count, threadsBefore)
+        let createCalls = await fixture.worktreeManager.createFromBranchCalls()
+        XCTAssertTrue(createCalls.isEmpty)
+    }
+
+    /// The refusal is about having nowhere to *cut* a checkout, so a lender that can supply one
+    /// answers the question before any project is consulted.
+    func testALenderMakesTheMissingProjectRefusalMoot() async throws {
+        let fixture = try SidebarTestFixture()
+        let lenderRoot = try makeTemporaryDirectory("lender")
+        let projectPath = try makeTemporaryDirectory("lender-project")
+        let start = try makeStartFixture(
+            fixture: fixture,
+            existingDirectories: [lenderRoot],
+            branchesByRoot: [lenderRoot: "feat/change"]
+        )
+        try makeLinkedLender(
+            in: fixture,
+            identifier: start.identifier,
+            root: lenderRoot,
+            sourceProjectPath: projectPath
         )
 
         let started = try await start.service.start(
@@ -115,9 +191,106 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
-        XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.ownershipStrategy, .privateOwned)
+        XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.primaryRoot, lenderRoot)
+    }
+
+    /// `isOnBranch` can only compare against `thread.branch`, which is nil for every Task thread —
+    /// so a linked lender is accepted on the strength of the link and only git can say whether it
+    /// is actually on the head branch.
+    func testALenderOnADifferentBranchIsAbandonedForAnOwnWorktree() async throws {
+        let fixture = try SidebarTestFixture()
+        let lenderRoot = try makeTemporaryDirectory("stale-lender")
+        let projectPath = try makeTemporaryDirectory("stale-project")
+        let worktreePath = try makeTemporaryDirectory("stale-worktree")
+        let start = try makeStartFixture(
+            fixture: fixture,
+            existingDirectories: [lenderRoot],
+            branchesByRoot: [lenderRoot: "main"]
+        )
+        try makeLinkedLender(
+            in: fixture,
+            identifier: start.identifier,
+            root: lenderRoot,
+            sourceProjectPath: projectPath,
+            githubRepository: start.identifier.nameWithOwner
+        )
+        await fixture.worktreeManager.setCreateFromBranchResult(
+            WorktreeInfo(path: worktreePath, branch: "feat/change")
+        )
+
+        let started = try await start.service.start(
+            kind: .addressFeedback,
+            identifier: start.identifier,
+            url: start.url,
+            knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
+        )
+        _ = try await started.dispatch.value
+
+        let workspace = workspace(ofThreadWith: started.conversationID, in: fixture)
+        XCTAssertEqual(workspace?.primaryRoot, worktreePath)
+        XCTAssertEqual(workspace?.ownershipStrategy, .projectWorktreeOwned)
+    }
+
+    /// A lender already on the head branch is the cheapest possible answer, so nothing is cut.
+    func testALenderOnTheHeadBranchIsKeptAndNoWorktreeIsCut() async throws {
+        let fixture = try SidebarTestFixture()
+        let lenderRoot = try makeTemporaryDirectory("good-lender")
+        let projectPath = try makeTemporaryDirectory("good-project")
+        let start = try makeStartFixture(
+            fixture: fixture,
+            existingDirectories: [lenderRoot],
+            branchesByRoot: [lenderRoot: "feat/change"]
+        )
+        try makeLinkedLender(
+            in: fixture,
+            identifier: start.identifier,
+            root: lenderRoot,
+            sourceProjectPath: projectPath,
+            githubRepository: start.identifier.nameWithOwner
+        )
+
+        let started = try await start.service.start(
+            kind: .addressFeedback,
+            identifier: start.identifier,
+            url: start.url,
+            knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
+        )
+        _ = try await started.dispatch.value
+
+        XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.primaryRoot, lenderRoot)
+        let createCalls = await fixture.worktreeManager.createFromBranchCalls()
+        XCTAssertTrue(createCalls.isEmpty)
+    }
+
+    /// Discarding a checkout on a failed probe trades a likely-correct tree for a certainly-worse
+    /// one, so an unreadable branch leaves the borrow alone.
+    func testAnUnreadableBranchKeepsTheBorrow() async throws {
+        let fixture = try SidebarTestFixture()
+        let lenderRoot = try makeTemporaryDirectory("opaque-lender")
+        let projectPath = try makeTemporaryDirectory("opaque-project")
+        let start = try makeStartFixture(
+            fixture: fixture,
+            existingDirectories: [lenderRoot]
+        )
+        try makeLinkedLender(
+            in: fixture,
+            identifier: start.identifier,
+            root: lenderRoot,
+            sourceProjectPath: projectPath,
+            githubRepository: start.identifier.nameWithOwner
+        )
+
+        let started = try await start.service.start(
+            kind: .addressFeedback,
+            identifier: start.identifier,
+            url: start.url,
+            knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
+        )
+        _ = try await started.dispatch.value
+
+        XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.primaryRoot, lenderRoot)
         let createCalls = await fixture.worktreeManager.createFromBranchCalls()
         XCTAssertTrue(createCalls.isEmpty)
     }
@@ -140,7 +313,7 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.ownershipStrategy, .privateOwned)
     }
@@ -169,7 +342,7 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: mismatched
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         // The deferred fetch answered with the real head branch, not the mismatched detail's.
         let calls = await fixture.worktreeManager.createFromBranchCalls()
@@ -195,7 +368,7 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         XCTAssertEqual(workspace(ofThreadWith: started.conversationID, in: fixture)?.ownershipStrategy, .privateOwned)
         let removeCalls = await fixture.worktreeManager.removeCalls()
@@ -228,7 +401,7 @@ extension PullRequestAgenticThreadServiceTests {
             url: start.url,
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         let thread = fixture.context.resolveConversation(conversationID: started.conversationID)?.thread
         XCTAssertEqual(thread?.taskWorkspaceDescriptor?.ownershipStrategy, .projectWorktreeOwned)
@@ -265,7 +438,7 @@ extension PullRequestAgenticThreadServiceTests {
             knownDetail: makePullRequestDetail(id: start.identifier, status: .open),
             preferredProjectID: preferred.persistentModelID
         )
-        try await started.dispatch.value
+        _ = try await started.dispatch.value
 
         let calls = await fixture.worktreeManager.createFromBranchCalls()
         XCTAssertEqual(calls.first?.projectPath, preferred.path)

@@ -47,6 +47,15 @@ enum ActionButtonLabelScale {
         }
     }
 
+    var busySpinnerDiameter: CGFloat {
+        switch self {
+        case .prominent:
+            return ActionButtonMetrics.busySpinnerDiameter
+        case .inline:
+            return ActionButtonMetrics.inlineBusySpinnerDiameter
+        }
+    }
+
     var iconLabelSpacing: CGFloat {
         switch self {
         case .prominent:
@@ -64,20 +73,24 @@ struct ActionButtonLabel: View {
     let title: String
     let icon: ActionIcon
     var scale = ActionButtonLabelScale.prominent
-    /// Swaps the glyph for a spinner in the glyph's own box, so a button that starts working
-    /// cannot change width mid-action.
+    /// Swaps the glyph for a spinner while the button works.
     var isBusy = false
     /// The label's own color. The `.secondary` working gray the status dots use would vanish
     /// inside a filled pill, which is the only place this spinner appears.
     var busyTint = Color.primary
 
+    /// The glyph keeps its place while working — invisible, still measured — and the ring is
+    /// centered over it. Swapping one for the other would size the row to whichever is showing,
+    /// so the title would step sideways by the difference every time a button started work.
     var body: some View {
         HStack(spacing: scale.iconLabelSpacing) {
-            if isBusy {
-                StatusIndicatorSpinner(color: busyTint, diameter: scale.octiconSize)
-            } else {
-                ActionIconImage(icon: icon, octiconSize: scale.octiconSize)
-            }
+            ActionIconImage(icon: icon, octiconSize: scale.octiconSize)
+                .opacity(isBusy ? 0 : 1)
+                .overlay {
+                    if isBusy {
+                        StatusIndicatorSpinner(color: busyTint, diameter: scale.busySpinnerDiameter)
+                    }
+                }
             Text(title)
         }
     }

@@ -44,6 +44,16 @@ enum ActionButtonMetrics {
     /// box would dwarf a caption label.
     static let inlineOcticonGlyphSize: CGFloat = 12
 
+    /// Ring diameter for the spinner that stands in for a glyph while a button works. Sized to the
+    /// glyph's *artwork*, not to its box, because the ring is drawn edge to edge and the artwork is
+    /// not: an octicon inks 15pt inside the 17pt box and an SF Symbol at `.small` scale inks 12pt,
+    /// so a ring at `octiconGlyphSize` stood 17pt tall beside the glyph it replaced.
+    static let busySpinnerDiameter: CGFloat = 13
+
+    /// The same ring for caption-sized inline buttons: `inlineOcticonGlyphSize` cut by the same
+    /// proportion, rounded to a whole point.
+    static let inlineBusySpinnerDiameter: CGFloat = 9
+
     static func horizontalPadding(for controlSize: ControlSize) -> CGFloat {
         switch controlSize {
         case .mini:
