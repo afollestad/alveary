@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 extension SidebarViewModelTests {
-    func testArchiveRejectsScheduleAttachedWhileWaitingForRunQuiescence() async throws {
+    func testArchiveConvertsAScheduleAttachedWhileWaitingForRunQuiescence() async throws {
         let gate = SidebarScheduledRunQuiescenceGate()
         let fixture = try SidebarTestFixture(
             stopAndWaitForScheduledTaskRun: { runID in
@@ -32,19 +32,17 @@ extension SidebarViewModelTests {
         try fixture.context.save()
         gate.release()
 
-        do {
-            try await archive.value
-            XCTFail("Expected the late schedule attachment to prevent archiving")
-        } catch {
-            XCTAssertEqual(
-                error.localizedDescription,
-                "This thread is attached to the scheduled task \"Late archive schedule\". Remove or retarget that schedule first."
-            )
-        }
-        XCTAssertNil(fixture.context.resolveThread(id: threadID)?.archivedAt)
+        try await archive.value
+
+        XCTAssertNotNil(fixture.context.resolveThread(id: threadID)?.archivedAt)
+        // The attachment landed after the last precheck, so only the durable commit's own detach
+        // can catch it.
+        let definition = try XCTUnwrap(try fixture.context.fetch(FetchDescriptor<ScheduledTask>()).first)
+        XCTAssertEqual(definition.decodedDestination, .reusedThread)
+        XCTAssertNil(definition.targetThread)
     }
 
-    func testDeleteRejectsScheduleAttachedWhileWaitingForRunQuiescence() async throws {
+    func testDeleteConvertsAScheduleAttachedWhileWaitingForRunQuiescence() async throws {
         let gate = SidebarScheduledRunQuiescenceGate()
         let fixture = try SidebarTestFixture(
             stopAndWaitForScheduledTaskRun: { runID in
@@ -70,16 +68,12 @@ extension SidebarViewModelTests {
         try fixture.context.save()
         gate.release()
 
-        do {
-            try await deletion.value
-            XCTFail("Expected the late schedule attachment to prevent deletion")
-        } catch {
-            XCTAssertEqual(
-                error.localizedDescription,
-                "This thread is attached to the scheduled task \"Late delete schedule\". Remove or retarget that schedule first."
-            )
-        }
-        XCTAssertNotNil(fixture.context.resolveThread(id: threadID))
+        try await deletion.value
+
+        XCTAssertNil(fixture.context.resolveThread(id: threadID))
+        let definition = try XCTUnwrap(try fixture.context.fetch(FetchDescriptor<ScheduledTask>()).first)
+        XCTAssertEqual(definition.decodedDestination, .reusedThread)
+        XCTAssertNil(definition.targetThread)
     }
 
     func testPendingWorktreeCleanupRejectsNewAttachmentWhileDeletionIsInFlight() async throws {
@@ -142,12 +136,9 @@ extension SidebarViewModelTests {
         )
         let targetID = target.persistentModelID
         let expectedReason =
-            "This thread has an active scheduled task run. Wait for it to finish before archiving, deleting, or unpinning this thread."
+            "This thread has an active scheduled task run. Wait for it to finish before archiving or deleting this thread."
 
-        XCTAssertEqual(fixture.viewModel.scheduledTaskAttachmentReason(for: target), expectedReason)
-        XCTAssertThrowsError(try fixture.viewModel.setThreadPinned(target, isPinned: false)) { error in
-            XCTAssertEqual(error.localizedDescription, expectedReason)
-        }
+        XCTAssertEqual(fixture.viewModel.activeScheduledTaskRunReason(for: target), expectedReason)
 
         do {
             try await fixture.viewModel.archiveThread(target)
@@ -164,8 +155,10 @@ extension SidebarViewModelTests {
         }
 
         let persistedTarget = try XCTUnwrap(fixture.context.resolveThread(id: targetID))
-        XCTAssertTrue(persistedTarget.isPinned)
         XCTAssertNil(persistedTarget.archivedAt)
+        // Sidebar placement is never a run's to hold, so unpinning stays available throughout.
+        XCTAssertNoThrow(try fixture.viewModel.setThreadPinned(persistedTarget, isPinned: false))
+        XCTAssertFalse(persistedTarget.isPinned)
     }
 
     func testTerminalTargetRunAllowsLifecycleActionsAfterFinalizationMarkerClears() throws {
@@ -178,8 +171,8 @@ extension SidebarViewModelTests {
 
         XCTAssertTrue(run.hasKnownTerminalStatus)
         XCTAssertFalse(target.hasBlockingScheduledTaskRunAttachment)
-        XCTAssertNil(fixture.viewModel.scheduledTaskAttachmentReason(for: target))
-        XCTAssertNoThrow(try fixture.viewModel.requireNoScheduledTaskAttachment(target))
+        XCTAssertNil(fixture.viewModel.activeScheduledTaskRunReason(for: target))
+        XCTAssertNoThrow(try fixture.viewModel.requireNoActiveScheduledTaskRun(target))
         XCTAssertNoThrow(try fixture.viewModel.setThreadPinned(target, isPinned: false))
         XCTAssertFalse(target.isPinned)
     }

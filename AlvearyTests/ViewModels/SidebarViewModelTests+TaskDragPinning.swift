@@ -130,7 +130,7 @@ extension SidebarViewModelTests {
         XCTAssertFalse(owner.isPinned)
     }
 
-    func testTasksSectionDropRejectsScheduledAttachedPinnedTask() throws {
+    func testTasksSectionDropUnpinsAScheduledAttachedPinnedTask() throws {
         let fixture = try SidebarTestFixture()
         let task = AgentThread(name: "Attached", isPinned: true, pinnedSortOrder: 0, mode: .task)
         let definition = ScheduledTask(
@@ -147,12 +147,14 @@ extension SidebarViewModelTests {
         fixture.context.insert(definition)
         try fixture.context.save()
 
-        XCTAssertThrowsError(try fixture.viewModel.commitSidebarDrop(
+        XCTAssertTrue(try fixture.viewModel.commitSidebarDrop(
             dragItem: .pinnedTask(task.persistentModelID),
             target: SidebarDropTarget(section: .tasks, placement: .end)
         ))
-        XCTAssertTrue(task.isPinned)
-        XCTAssertEqual(task.pinnedSortOrder, 0)
+        XCTAssertFalse(task.isPinned)
+        XCTAssertNil(task.pinnedSortOrder)
+        // Placement moved; what the schedule posts into did not.
+        XCTAssertEqual(definition.targetThread?.persistentModelID, task.persistentModelID)
     }
 
     func testUnpinnedTaskDropRejectsStaleSources() throws {

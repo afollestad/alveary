@@ -9,7 +9,7 @@ import XCTest
 /// the Project has to already be registered, and every grant must be an existing folder.
 @MainActor
 extension ScheduledTaskHostToolServiceTests {
-    func testCreateIntoAnExistingThreadBindsTheTargetAndDisclosesThePin() throws {
+    func testCreateIntoAnExistingThreadBindsTheTargetWithoutTouchingItsPlacement() throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let target = try fixture.insertTargetThread(name: "Release chat", conversationID: "release-main")
 
@@ -31,10 +31,10 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(draft.workspaceKind, .privateWorkspace)
         XCTAssertNil(draft.projectPath)
         XCTAssertTrue(draft.grantedRoots.isEmpty)
+        // Confirming names the thread and nothing else: it does not move the row.
         XCTAssertFalse(target.isPinned)
-        // The pin is a real consequence of confirming, so the tool result says so up front.
         XCTAssertTrue(result.text.contains("Release chat"), result.text)
-        XCTAssertTrue(result.text.contains("pinned when you confirm"), result.text)
+        XCTAssertFalse(result.text.lowercased().contains("pin"), result.text)
     }
 
     func testCreateRejectsAnUnknownOrIneligibleTargetThread() throws {

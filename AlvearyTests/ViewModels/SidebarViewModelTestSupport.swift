@@ -371,3 +371,27 @@ actor SidebarMockAgentsManager: AgentsManager {
         recordedSpawnCalls
     }
 }
+
+/// A real project folder on disk, for the deletion tests that assert Git cleanup *ran*.
+///
+/// `SidebarViewModel.deleteProject` passes `skipGitWhenProjectMissing: !projectDirectoryExists`,
+/// so a vanished project path silently skips worktree removal. Tests asserting a `remove` call
+/// must therefore put the folder there themselves: pointing at a fixed `/tmp` path instead made
+/// them pass only while some unrelated test had left that path behind, and fail in isolation.
+struct SidebarTestProjectDirectory {
+    let path: String
+
+    /// `name` is required rather than defaulted so a leftover folder names the test that made it.
+    init(name: String) throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alveary-project-\(name)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        // Canonical, because `SidebarViewModel` compares against persisted canonical paths and
+        // the system temporary directory is a symlink on macOS.
+        path = CanonicalPath.normalize(url.path)
+    }
+
+    func remove() {
+        try? FileManager.default.removeItem(atPath: path)
+    }
+}

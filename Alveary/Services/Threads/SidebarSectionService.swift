@@ -201,8 +201,8 @@ final class SidebarSectionService {
     }
 
     /// Moves a task thread's sidebar placement in ONE save, and is the sole commit behind both of
-    /// the drag's membership drops: unpin (scheduled-attachment guarded), detach from any project,
-    /// then set or clear membership. Unpinning is deliberate — reporting "moved" while the row
+    /// the drag's membership drops: unpin, detach from any project, then set or clear
+    /// membership. Unpinning is deliberate — reporting "moved" while the row
     /// visibly stays under `Pinned` would be the lie the absorbed-pin refusal exists to prevent.
     ///
     /// Placement is the only thing that changes: the Task keeps its workspace grants, so leaving a
@@ -235,7 +235,6 @@ final class SidebarSectionService {
                 }
                 return .alreadyThere
             }
-            try requireReleasablePin(thread)
             restorePlacement = applyPlacement(of: thread, membership: targetSection)
             try SidebarOrderNormalization.normalize(in: modelContext)
             try saveSectionChanges(modelContext)
@@ -244,18 +243,6 @@ final class SidebarSectionService {
             modelContext.rollback()
             restorePlacement?()
             throw error
-        }
-    }
-
-    private func requireReleasablePin(_ thread: AgentThread) throws {
-        guard thread.isPinned else {
-            return
-        }
-        if let definition = thread.blockingScheduledTaskAttachment {
-            throw SidebarViewModelError.scheduledTaskAttachment(definition.title)
-        }
-        if thread.hasBlockingScheduledTaskRunAttachment {
-            throw SidebarViewModelError.activeScheduledTaskRunAttachment
         }
     }
 

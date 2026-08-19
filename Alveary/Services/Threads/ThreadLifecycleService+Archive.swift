@@ -19,7 +19,7 @@ extension ThreadLifecycleService {
         onPersistenceCommit: @escaping @MainActor () -> Void = {}
     ) async throws -> [ProviderSessionActionDiagnostic] {
         var dbThread = try requireThread(id: threadID)
-        try requireNoScheduledTaskAttachment(dbThread)
+        try requireNoActiveScheduledTaskRun(dbThread)
         guard !dbThread.isDraft else {
             throw SidebarViewModelError.threadMissing
         }
@@ -28,17 +28,21 @@ extension ThreadLifecycleService {
         let providerSessionResolution = await providerSessionActionService.resolveSessions(matching: snapshot.providerSessionAction)
         try backfillProviderSessionBindings(from: providerSessionResolution.records)
         if let currentThread = modelContext.resolveThread(id: snapshot.threadID) {
-            try requireNoScheduledTaskAttachment(currentThread)
+            try requireNoActiveScheduledTaskRun(currentThread)
         }
         await beginConversationTeardowns(snapshot.conversationIDs)
         if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
-            // Attachment state can change while provider resolution and runtime teardown await.
-            // Recheck on the main actor immediately before the durable lifecycle mutation.
-            try requireNoScheduledTaskAttachment(dbThread)
+            // Run state can change while provider resolution and runtime teardown await. Recheck
+            // on the main actor immediately before the durable lifecycle mutation.
+            try requireNoActiveScheduledTaskRun(dbThread)
             if modelContext.hasChanges {
                 try modelContext.save()
             }
+            var detachedScheduledTaskIDs: [String] = []
             do {
+                // Same save as `archivedAt`, while the row still carries the workspace the
+                // surviving schedules inherit.
+                detachedScheduledTaskIDs = ScheduledTaskTargetDetachment.detachTargets(of: dbThread)
                 dbThread.isPinned = false
                 dbThread.pinnedSortOrder = nil
                 dbThread.archivedAt = Date()
@@ -50,6 +54,7 @@ extension ThreadLifecycleService {
                 modelContext.rollback()
                 throw error
             }
+            postScheduledTasksDetached(definitionIDs: detachedScheduledTaskIDs)
         }
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
         invalidateConversationControllers(snapshot.conversationIDs)

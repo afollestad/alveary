@@ -162,7 +162,7 @@ extension SidebarViewTests {
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedTask(task.persistentModelID))
     }
 
-    func testUnpinnableTaskIDsExcludeScheduleAttachedPinnedTasks() throws {
+    func testUnpinnableTaskIDsIncludeScheduleAttachedPinnedTasks() throws {
         let fixture = try SidebarTestFixture()
         let freeTask = makeSidebarTask(name: "Free", modifiedAt: Date(), isPinned: true)
         let attachedTask = makeSidebarTask(name: "Attached", modifiedAt: Date(), isPinned: true)
@@ -183,8 +183,9 @@ extension SidebarViewTests {
 
         XCTAssertEqual(
             view.unpinnableTaskIDs(in: try fixture.renderSnapshot()),
-            [freeTask.persistentModelID]
+            [freeTask.persistentModelID, attachedTask.persistentModelID]
         )
+        XCTAssertEqual(definition.targetThread?.persistentModelID, attachedTask.persistentModelID)
     }
 
     func testUnpinnedTaskUsesUnpinnedTaskDragSource() throws {

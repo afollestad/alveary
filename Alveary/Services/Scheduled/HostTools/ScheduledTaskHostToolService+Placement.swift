@@ -113,8 +113,7 @@ extension ScheduledTaskHostToolService {
             guard let targetThread else {
                 return nil
             }
-            let pinNote = targetThread.isPinned ? "" : ", which will be pinned when you confirm"
-            return "It will post into the existing thread \"\(targetThread.displayName())\"\(pinNote)."
+            return "It will post into the existing thread \"\(targetThread.displayName())\"."
         case let .newThread(flavor, workspace):
             let sentences = flavorSentences(flavor) + workspaceSentences(
                 workspace,

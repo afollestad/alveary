@@ -185,7 +185,7 @@ extension ScheduledTasksViewModel {
             }
             return ScheduledTaskThreadOption(
                 conversationID: item.conversation.id,
-                label: item.thread.isPinned ? label : "\(label) · Will be pinned"
+                label: label
             )
         }
     }

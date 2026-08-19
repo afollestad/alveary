@@ -1,17 +1,23 @@
 import Foundation
 
 extension SidebarViewModel {
-    func scheduledTaskAttachmentReason(for thread: AgentThread) -> String? {
-        scheduledTaskAttachmentError(for: thread)?.localizedDescription
-    }
-
     func requireNoScheduledTaskAttachment(_ thread: AgentThread) throws {
         try threadLifecycle.requireNoScheduledTaskAttachment(thread)
     }
 
-    func requireNoScheduledTaskAttachments(in project: Project) throws {
+    /// The archive/delete reason. A definition pointing at this thread no longer blocks its
+    /// lifecycle; only a run already posting into it does.
+    func activeScheduledTaskRunReason(for thread: AgentThread) -> String? {
+        threadLifecycle.activeScheduledTaskRunError(for: thread)?.localizedDescription
+    }
+
+    func requireNoActiveScheduledTaskRun(_ thread: AgentThread) throws {
+        try threadLifecycle.requireNoActiveScheduledTaskRun(thread)
+    }
+
+    func requireNoActiveScheduledTaskRuns(in project: Project) throws {
         for thread in liveThreads(forProjectPath: project.path) {
-            try requireNoScheduledTaskAttachment(thread)
+            try requireNoActiveScheduledTaskRun(thread)
         }
     }
 
@@ -22,9 +28,5 @@ extension SidebarViewModel {
         default:
             presentGeneralSidebarError(error)
         }
-    }
-
-    private func scheduledTaskAttachmentError(for thread: AgentThread) -> SidebarViewModelError? {
-        threadLifecycle.scheduledTaskAttachmentError(for: thread)
     }
 }

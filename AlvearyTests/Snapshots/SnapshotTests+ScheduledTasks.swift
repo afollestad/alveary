@@ -317,29 +317,6 @@ extension SnapshotTests {
         )
     }
 
-    func testScheduledTaskEditorUnpinnedExistingThread() throws {
-        let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
-        var draft = fixture.viewModel.makeNewDraft()
-        draft.destination = .existingThread
-        draft.targetConversationID = "unpinned-main"
-        let threads = [
-            ScheduledTaskThreadOption(conversationID: "unpinned-main", label: "Release chat · Will be pinned")
-        ]
-
-        assertMacSnapshot(
-            ScheduledTaskEditorWorkspaceSection(
-                projects: fixture.viewModel.projects,
-                threads: threads,
-                sections: [],
-                draft: .constant(draft),
-                onOpenReusedThread: { _ in }
-            )
-            .padding(24),
-            size: CGSize(width: 760, height: 220),
-            named: "scheduled_task_editor_existing_thread_requires_pin"
-        )
-    }
-
     func testScheduledTaskEditorLongPinnedThreadAtMinimumWidth() throws {
         let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
         var draft = fixture.viewModel.makeNewDraft()

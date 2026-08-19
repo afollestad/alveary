@@ -58,7 +58,7 @@ enum ScheduledTaskRunMaterializationError: LocalizedError {
         case .runChangedDuringPreparation:
             return "The scheduled task run changed while its workspace was being prepared."
         case .existingTargetUnavailable:
-            return "The pinned thread selected for this scheduled run is no longer available."
+            return "The thread selected for this scheduled run is no longer available."
         case .provenancePersistenceFailed(let error):
             return "The scheduled task could not save its Task history: \(error.localizedDescription)"
         case let .preparationAndCleanupFailed(preparation, cleanup):

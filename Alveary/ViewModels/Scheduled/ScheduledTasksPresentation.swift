@@ -17,8 +17,8 @@ struct ScheduledTaskProjectOption: Identifiable, Equatable {
 
 struct ScheduledTaskThreadOption: Identifiable, Equatable {
     let conversationID: String
-    /// Ends in `· Will be pinned` for an unpinned thread, because saving a schedule that targets
-    /// it pins it — and a scheduled attachment then blocks unpinning until the schedule is gone.
+    /// Carries no pin note: saving a schedule leaves its target's sidebar placement alone. Where
+    /// two eligible threads share a display name, `ScheduledTasksViewModel` disambiguates here.
     let label: String
 
     var id: String { conversationID }

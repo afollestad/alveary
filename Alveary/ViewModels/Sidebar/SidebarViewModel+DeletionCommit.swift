@@ -2,12 +2,17 @@ import Foundation
 
 extension SidebarViewModel {
     func commitThreadDeletion(_ snapshot: ThreadCleanupSnapshot) throws {
+        var detachedScheduledTaskIDs: [String] = []
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
-                try requireNoScheduledTaskAttachment(dbThread)
+                try requireNoActiveScheduledTaskRun(dbThread)
                 try clearCompletedPendingWorktreeCleanupBeforeThreadDeletion(snapshot)
                 try promoteScheduledWorktreeCleanupIfNeeded(snapshot)
+                // Before the delete, while the row still carries the workspace the surviving
+                // schedules inherit. `.nullify` alone would clear the link and leave the
+                // destination naming a thread that no longer exists.
+                detachedScheduledTaskIDs = ScheduledTaskTargetDetachment.detachTargets(of: dbThread)
                 modelContext.delete(dbThread)
                 _ = try normalizeSidebarOrderingForLifecycle(
                     excludingThreadIDs: [snapshot.threadID]
@@ -21,6 +26,10 @@ extension SidebarViewModel {
         invalidateDraftThreadIfNeeded(threadID: snapshot.threadID)
         refreshThreadOrder(animated: true)
         postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
+        NotificationCenter.default.postScheduledTasksDetached(
+            object: self,
+            definitionIDs: detachedScheduledTaskIDs
+        )
     }
 
     func commitProjectDeletion(
@@ -28,16 +37,29 @@ extension SidebarViewModel {
         at actionDate: Date = Date()
     ) throws {
         let threadIDs = Set(snapshot.threadSnapshots.map(\.threadID))
-        var affectedScheduledTaskIDs: [String] = []
+        var affectedScheduledTaskIDs = OrderedScheduledTaskIDs()
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
-                try requireNoScheduledTaskAttachments(in: dbProject)
+                try requireNoActiveScheduledTaskRuns(in: dbProject)
                 for threadSnapshot in snapshot.threadSnapshots {
                     try promoteScheduledWorktreeCleanupIfNeeded(threadSnapshot)
+                    // Only `threadSnapshots` cascade with the Project; `detachedTaskThreadIDs`
+                    // survive it, so schedules targeting those keep their thread.
+                    guard let dbThread = modelContext.resolveThread(id: threadSnapshot.threadID) else {
+                        continue
+                    }
+                    affectedScheduledTaskIDs.append(
+                        contentsOf: ScheduledTaskTargetDetachment.detachTargets(
+                            of: dbThread,
+                            continuation: .pauseForProjectDeletion(projectPath: snapshot.projectPath),
+                            at: actionDate
+                        )
+                    )
                 }
                 for scheduledTaskID in snapshot.scheduledTaskIDs {
-                    guard let scheduledTask = modelContext.resolveScheduledTask(id: scheduledTaskID) else {
+                    guard !affectedScheduledTaskIDs.contains(scheduledTaskID),
+                          let scheduledTask = modelContext.resolveScheduledTask(id: scheduledTaskID) else {
                         continue
                     }
                     scheduledTask.pauseForProjectDeletion(at: actionDate)
@@ -58,14 +80,33 @@ extension SidebarViewModel {
             throw error
         }
         invalidateDraftThreadIfNeeded(threadIDs: threadIDs)
-        guard !affectedScheduledTaskIDs.isEmpty else {
-            return
-        }
-        NotificationCenter.default.post(
-            name: .scheduledTasksChanged,
+        NotificationCenter.default.postScheduledTasksDetached(
             object: self,
-            userInfo: ["definitionIDs": affectedScheduledTaskIDs]
+            definitionIDs: affectedScheduledTaskIDs.ids
         )
+    }
+
+    /// Order-preserving dedupe for one project deletion's paused definitions. A legacy row can be
+    /// both `.existingThread` and Project-backed, and pausing it twice would bump its revision
+    /// twice and name it twice in the change notification.
+    private struct OrderedScheduledTaskIDs {
+        private(set) var ids: [String] = []
+        private var seen: Set<String> = []
+
+        func contains(_ id: String) -> Bool {
+            seen.contains(id)
+        }
+
+        mutating func append(_ id: String) {
+            guard seen.insert(id).inserted else {
+                return
+            }
+            ids.append(id)
+        }
+
+        mutating func append(contentsOf newIDs: [String]) {
+            newIDs.forEach { append($0) }
+        }
     }
 
     private func flushPendingModelChangesBeforeDeletion() throws {

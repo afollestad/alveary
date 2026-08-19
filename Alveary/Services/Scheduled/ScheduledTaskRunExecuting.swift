@@ -28,7 +28,7 @@ enum ScheduledTaskRunExecutionError: Error, Equatable, LocalizedError {
         case .alreadyExecuting:
             return "The scheduled task run is already executing."
         case .existingTargetBusy:
-            return "The pinned thread became busy before scheduled execution could start."
+            return "The target thread became busy before scheduled execution could start."
         }
     }
 }

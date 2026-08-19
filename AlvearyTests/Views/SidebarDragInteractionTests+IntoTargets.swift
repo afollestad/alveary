@@ -203,8 +203,8 @@ extension SidebarDragInteractionTests {
             regularProjects: [.project(projectID)]
         )
 
-        // A project reorders only; a pinned thread without an owning-project entry (no backing
-        // project, or scheduled-attached) has no unpin group either.
+        // A project reorders only; a pinned thread with no owning-project entry — because it has
+        // no backing project — has no unpin group either.
         for sourceItem in [
             SidebarDragItem.project(source.persistentModelID),
             .pinnedThread(source.persistentModelID)

@@ -21,6 +21,10 @@ These instructions apply to files under `Alveary/ViewModels/Sidebar/`. `Archived
 - A Task row with pending scheduled-worktree cleanup is the user-visible retry owner: complete that cleanup before committing permanent deletion; never leave retry-only provenance on a threadless run.
   Reject overlapping cleanup attempts for the same run while its durable branch-retirement fence may represent an in-flight deletion. Once branch ownership is durably retired, a later retry may clear that provenance only after identity-aware removal proves the persisted worktree and ownership sidecar absent; leave the unprovable branch behind.
 - Archiving or permanently deleting a Task linked to a scheduled run must quiesce that coordinator launch before the SwiftData commit: stop nonterminal runs, but only wait for already-terminal runs so runtime finalization and notification routing finish without mutating historical schedule state.
+- **A schedule targeting a thread never blocks that thread's lifecycle — only a live run does.** Archive, thread delete, and project delete take `requireNoActiveScheduledTaskRun`, then call `ScheduledTaskTargetDetachment.detachTargets(of:)` in their own save, while the row still carries the workspace survivors inherit.
+    - Publish through `postScheduledTasksDetached` only after that save commits.
+    - `scheduledTaskAttachmentError(for:)` survives for the two mutations that would silently retarget a live definition: the Task-to-Project drop (`validateTaskProjectAccess`) and main-conversation deletion (`ThreadDetailConversationDeletion`).
+    - Project deletion detaches only its cascade-deleted `threadSnapshots`; `detachedTaskThreadIDs` survive the delete, so schedules targeting those keep their thread.
 
 ### Ordering And Drag
 

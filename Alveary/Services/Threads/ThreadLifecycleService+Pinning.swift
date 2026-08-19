@@ -14,8 +14,8 @@ enum ThreadPinOutcome: Equatable {
 extension ThreadLifecycleService {
     /// Pins or unpins a thread and renumbers the sidebar order in the same save.
     ///
-    /// The scheduled-attachment guard applies to unpinning only: an attached thread's pin is what
-    /// keeps it visible while its schedule owns it.
+    /// Deliberately unguarded by scheduled attachments: a schedule does not own its target's
+    /// sidebar placement, so unpinning a thread a schedule posts into is an ordinary move.
     @discardableResult
     func setThreadPinned(threadID: PersistentIdentifier, isPinned: Bool) throws -> ThreadPinOutcome {
         guard let currentThread = modelContext.resolveThread(id: threadID),
@@ -41,9 +41,6 @@ extension ThreadLifecycleService {
                 throw SidebarViewModelError.threadMissing
             }
             let wasPinned = dbThread.isPinned
-            if !isPinned, wasPinned {
-                try requireNoScheduledTaskAttachment(dbThread)
-            }
             if isPinned, !wasPinned {
                 try SidebarPinOrdering.pin(dbThread, in: modelContext)
                 didChange = true

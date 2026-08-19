@@ -275,7 +275,10 @@ final class SidebarViewModelTests: XCTestCase {
 
     func testDeleteProjectDeletesModelsAndCleansChildThreadsAndRemainingWorktrees() async throws {
         let fixture = try SidebarTestFixture()
-        let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+        // Git cleanup is skipped outright when the project folder is gone, so this test owns it.
+        let projectDirectory = try SidebarTestProjectDirectory(name: "delete-project-cleanup")
+        defer { projectDirectory.remove() }
+        let project = Project(path: projectDirectory.path, name: "Alveary")
         let primaryThread = AgentThread(
             name: "Primary",
             branch: "alveary/live",
@@ -309,7 +312,7 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(destroyCalls, ["archived", "main", "side"])
         XCTAssertTrue(deleteBranchCalls.isEmpty)
         XCTAssertEqual(removeCalls, [
-            .init(projectPath: "/tmp/alveary-project", worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
+            .init(projectPath: projectDirectory.path, worktreePath: "/tmp/alveary-worktree", branch: "alveary/live")
         ])
         XCTAssertTrue(removeAllCalls.isEmpty)
         XCTAssertEqual(try fixture.context.fetchCount(FetchDescriptor<Project>()), 0)

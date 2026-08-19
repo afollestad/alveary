@@ -88,7 +88,7 @@ extension ScheduledTaskSchedulerEngine {
         }
         if destination == .existingThread,
            targetSnapshot(for: definition) == nil {
-            return "The pinned thread selected for this schedule is no longer available."
+            return "The thread selected for this schedule is no longer available."
         }
         do {
             try recurrenceCalculator.validate(

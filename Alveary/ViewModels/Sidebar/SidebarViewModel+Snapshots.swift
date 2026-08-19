@@ -76,7 +76,7 @@ enum SidebarViewModelError: LocalizedError {
         case .scheduledTaskAttachment(let taskTitle):
             return "This thread is attached to the scheduled task \"\(taskTitle)\". Remove or retarget that schedule first."
         case .activeScheduledTaskRunAttachment:
-            return "This thread has an active scheduled task run. Wait for it to finish before archiving, deleting, or unpinning this thread."
+            return "This thread has an active scheduled task run. Wait for it to finish before archiving or deleting this thread."
         case .threadForkUnavailable(let reason):
             return reason
         case .threadForkFailed(let error):
@@ -195,7 +195,7 @@ extension SidebarViewModel {
 
     func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
         let dbProject = try requireProject(project)
-        try requireNoScheduledTaskAttachments(in: dbProject)
+        try requireNoActiveScheduledTaskRuns(in: dbProject)
         let projectPath = dbProject.path
         let attachedThreads = liveThreads(forProjectPath: projectPath)
         let taskThreads = attachedThreads.filter {

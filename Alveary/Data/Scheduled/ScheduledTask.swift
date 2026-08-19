@@ -64,13 +64,17 @@ final class ScheduledTask {
     var createdAt: Date
     var modifiedAt: Date
     var project: Project?
+    /// The thread an `.existingThread` schedule was pointed at by the user.
+    ///
+    /// Owning this link never held the thread still: its sidebar placement stays the user's, and
+    /// archiving or deleting it converts this definition to `.reusedThread` rather than refusing
+    /// (`ScheduledTaskTargetDetachment`). Its inverse still fences the narrower mutations that
+    /// would silently retarget a live definition — see `AgentThread.targetedScheduledTasks`.
     var targetThread: AgentThread?
     /// The thread a `.reusedThread` schedule created on its first run and posts into thereafter.
     ///
-    /// Deliberately NOT `targetThread`: that relationship's inverse feeds
-    /// `AgentThread.blockingScheduledTaskAttachment`, which refuses archive, delete, unpin, and
-    /// section moves — so a reuse thread stored there could never be archived, and the archive
-    /// self-heal this mode promises would be unreachable. A nil link means the next run mints a
+    /// Deliberately NOT `targetThread`: this thread is the schedule's own, so it must stay outside
+    /// the relationship that fences retargeting mutations. A nil link means the next run mints a
     /// fresh thread; thread deletion nullifies it. Service-owned: the materializer writes it, the
     /// mutation service clears it, and no edit surface may set it directly. Optional and absent
     /// from `init` so pre-field stores migrate.

@@ -154,7 +154,9 @@ extension ThreadHostToolServiceTests {
 
         let threads = try array(try object(result.structuredContent)["threads"])
         XCTAssertTrue(try threads.contains { try object($0)["id"] == .string("absorbed-main") })
-        XCTAssertFalse(child.isEligibleScheduledTaskTarget)
+        // Listing and scheduling agree on a pinned project's child: it renders inside that
+        // project, so nothing about the absorbed pin makes it unreachable.
+        XCTAssertTrue(child.isEligibleScheduledTaskTarget)
     }
 
     func testReadToolsRejectArgumentsAndNameThemselves() async throws {

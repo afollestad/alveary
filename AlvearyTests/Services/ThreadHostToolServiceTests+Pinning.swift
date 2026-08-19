@@ -79,7 +79,7 @@ extension ThreadHostToolServiceTests {
         XCTAssertFalse(child.isPinned)
     }
 
-    func testUnpinningAScheduledAttachedThreadIsRefused() async throws {
+    func testUnpinningAScheduledAttachedThreadIsAllowed() async throws {
         let fixture = try ThreadHostToolFixture()
         let target = try fixture.insertThread(name: "Scheduled target", conversationID: "target-main")
         _ = await fixture.pinThread(threadID: "target-main")
@@ -98,9 +98,10 @@ extension ThreadHostToolServiceTests {
 
         let result = await fixture.unpinThread(threadID: "target-main")
 
-        XCTAssertTrue(result.isError)
-        XCTAssertTrue(result.text.contains("Nightly sweep"), result.text)
-        XCTAssertTrue(target.isPinned)
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertFalse(target.isPinned)
+        // Placement moved; the schedule still posts into the same thread.
+        XCTAssertEqual(definition.targetThread?.persistentModelID, target.persistentModelID)
     }
 
     func testPinToolsRejectUnknownArchivedAndDraftThreads() async throws {
@@ -149,9 +150,9 @@ extension ThreadHostToolServiceTests {
         XCTAssertTrue(target.isPinned)
     }
 
-    /// Unpinning keeps its attachment guard whoever calls it: a schedule's target has no sidebar
-    /// row of its own once unpinned, so the schedule would post where the user cannot look.
-    func testUnpinningFromAnAutomatedScheduledRunStillRefusesAScheduledTarget() async throws {
+    /// Unpinning is reversible by its opposite tool and moves nothing a run depends on, so an
+    /// automated run gets it even while that run is posting into the thread.
+    func testUnpinningFromAnAutomatedScheduledRunIsAllowedOnItsOwnTarget() async throws {
         let fixture = try ThreadHostToolFixture()
         let target = try fixture.insertThread(name: "Triage", conversationID: "triage-main")
         target.isPinned = true
@@ -161,12 +162,8 @@ extension ThreadHostToolServiceTests {
 
         let result = await fixture.unpinThread(threadID: "triage-main")
 
-        XCTAssertTrue(result.isError)
-        XCTAssertEqual(
-            result.text,
-            SidebarViewModelError.activeScheduledTaskRunAttachment.localizedDescription
-        )
-        XCTAssertTrue(target.isPinned)
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertFalse(target.isPinned)
     }
 }
 

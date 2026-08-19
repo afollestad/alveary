@@ -111,7 +111,8 @@ final class ThreadLifecycleService {
     let notificationManager: any NotificationManager
     private let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     private let invalidateConversationController: @MainActor (String) -> Void
-    private let stopAndWaitForScheduledTaskRun: ScheduledTaskRunQuiescence
+    // Internal rather than private: the `+ScheduledAttachments` companion awaits it.
+    let stopAndWaitForScheduledTaskRun: ScheduledTaskRunQuiescence
     private let saveThreadCreation: @MainActor (ModelContext) throws -> Void
     // Reached from `ThreadLifecycleService+Pinning.swift`.
     let savePendingSidebarChanges: @MainActor (ModelContext) throws -> Void
@@ -277,41 +278,6 @@ final class ThreadLifecycleService {
             throw SidebarViewModelError.threadMissing
         }
         return thread
-    }
-
-    func scheduledTaskAttachmentError(for thread: AgentThread) -> SidebarViewModelError? {
-        if let definition = thread.blockingScheduledTaskAttachment {
-            return .scheduledTaskAttachment(definition.title)
-        }
-        if thread.hasBlockingScheduledTaskRunAttachment {
-            return .activeScheduledTaskRunAttachment
-        }
-        return nil
-    }
-
-    func requireNoScheduledTaskAttachment(_ thread: AgentThread) throws {
-        if let error = scheduledTaskAttachmentError(for: thread) {
-            throw error
-        }
-    }
-
-    func quiesceScheduledTaskRunIfNeeded(for thread: AgentThread) async throws -> AgentThread {
-        let threadID = thread.persistentModelID
-        guard let run = thread.scheduledTaskRun else {
-            return thread
-        }
-        let runID = run.persistentModelID
-
-        try await stopAndWaitForScheduledTaskRun(runID)
-
-        guard let currentThread = modelContext.resolveThread(id: threadID) else {
-            throw SidebarViewModelError.threadMissing
-        }
-        if let currentRun = currentThread.scheduledTaskRun,
-           !currentRun.hasKnownTerminalStatus {
-            throw SidebarViewModelError.scheduledTaskRunStillActive
-        }
-        return currentThread
     }
 
     func makeThreadArchiveSnapshot(_ thread: AgentThread) throws -> ThreadArchiveSnapshot {

@@ -203,6 +203,28 @@ extension ScheduledTaskSchedulerEngineTests {
         XCTAssertNil(approval.toolApprovalStatus)
         XCTAssertEqual(resultRecord.toolOutput, "done")
     }
+
+    /// The pin used to be part of target validity, so an unpinned target silently paused its
+    /// schedule. Placement is the user's now, and a claim must not read it at all.
+    func testAnUnpinnedExistingTargetClaimsNormally() async throws {
+        let fixture = try ScheduledTaskSchedulerFixture()
+        let target = try insertExistingTarget(in: fixture, suffix: "unpinned")
+        try XCTUnwrap(target.definition.targetThread).isPinned = false
+        try fixture.context.save()
+
+        let result = try await fixture.makeEngine().claimDue(
+            definitionID: target.definition.id,
+            at: fixture.date(301)
+        )
+
+        guard case .claimed(let runID) = result else {
+            return XCTFail("Expected an unpinned target to claim, got \(result)")
+        }
+        let run = try XCTUnwrap(fixture.run(id: runID))
+        XCTAssertEqual(run.destinationSnapshot, .existingThread)
+        XCTAssertEqual(run.targetConversationIDSnapshot, target.conversation.id)
+        XCTAssertNil(target.definition.pauseReason)
+    }
 }
 
 @MainActor

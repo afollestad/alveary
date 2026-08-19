@@ -270,7 +270,7 @@ struct SidebarView: View, Equatable {
     ) -> some View {
         let isSelected = appState.selectedSidebarItem == .thread(thread)
         let cleanupAction = viewModel.defaultThreadCleanupAction
-        let cleanupDisabledReason = viewModel.scheduledTaskAttachmentReason(for: thread)
+        let cleanupDisabledReason = viewModel.activeScheduledTaskRunReason(for: thread)
         let leadingPadding: CGFloat = layout == .topLevel ? SidebarSectionHeaderRow.contentLeadingPadding : 14
         // Snapshot here, where the render context's liveness filter guarantees a live row.
         // Neither the row nor the lazily-evaluated context menu may read the model itself;
@@ -316,7 +316,7 @@ struct SidebarView: View, Equatable {
             sidebarThreadContextMenu(
                 for: thread,
                 presentation: presentation,
-                scheduledTaskAttachmentReason: cleanupDisabledReason
+                activeScheduledTaskRunReason: cleanupDisabledReason
             )
         }
     }
@@ -336,7 +336,7 @@ struct SidebarView: View, Equatable {
     func sidebarThreadContextMenu(
         for thread: AgentThread,
         presentation: SidebarThreadRowPresentation,
-        scheduledTaskAttachmentReason: String?
+        activeScheduledTaskRunReason: String?
     ) -> some View {
         ForEach(
             sidebarThreadContextMenuItems(
@@ -349,7 +349,7 @@ struct SidebarView: View, Equatable {
         ) { item in
             let disabledReason = sidebarThreadContextMenuDisabledReason(
                 for: item,
-                scheduledTaskAttachmentReason: scheduledTaskAttachmentReason
+                activeScheduledTaskRunReason: activeScheduledTaskRunReason
             )
             switch item {
             case .forkLocal:

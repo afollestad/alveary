@@ -39,7 +39,7 @@ extension ScheduledTaskSchedulerCoordinator {
     func runNowClaimErrorMessage(for result: ScheduledTaskClaimResult) -> String? {
         switch result {
         case .waitingForTarget:
-            "This scheduled task couldn't start because its pinned target thread is busy. Try again when the thread is idle."
+            "This scheduled task couldn't start because its target thread is busy. Try again when the thread is idle."
         case .activeRunExists:
             "This scheduled task already has a run in progress."
         case .changedDuringPreflight:

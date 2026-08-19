@@ -3,9 +3,10 @@ import Foundation
 extension AgentThread {
     /// Whether a scheduled task may post into this thread.
     ///
-    /// Being unpinned is not disqualifying — saving the schedule pins the target — except under a
-    /// pinned project, which absorbs its children so that `SidebarViewModel.setThreadPinned`
-    /// cannot pin one individually and the promised pin would silently do nothing.
+    /// Pinning is deliberately irrelevant: a schedule does not own its target's sidebar placement,
+    /// so an unpinned thread — including a child of a pinned project, which that project absorbs —
+    /// is offered like any other. Every eligible thread already renders somewhere the user can
+    /// open it, either in `Tasks`, in its own section, or under its project.
     ///
     /// Shared by the Scheduled editor's option list and the `alveary_host` thread listing so the
     /// model can only name a thread the editor would also offer.
@@ -16,12 +17,9 @@ extension AgentThread {
               !hasPendingScheduledTaskWorktreeCleanup else {
             return false
         }
-        if !isPinned, project?.isPinned == true {
-            return false
-        }
         switch effectiveMode {
         case .project:
-            return project != nil && project?.isPinned != true
+            return project != nil
         case .task:
             return true
         }
@@ -30,10 +28,8 @@ extension AgentThread {
     /// Whether a `.reusedThread` schedule's next run may post into this already-created thread.
     ///
     /// False rather than throwing for an archived, drafted, forked, or cleanup-pending thread:
-    /// that schedule self-heals by minting a replacement instead of blocking. Deliberately not
-    /// `isEligibleScheduledTaskTarget`, which refuses an unpinned thread under a pinned project —
-    /// that rule exists so a promised pin cannot no-op, and reuse threads are never pinned.
-    /// Deletion needs no arm here; `.nullify` has already cleared the link.
+    /// that schedule self-heals by minting a replacement instead of blocking. Deletion needs no
+    /// arm here; `.nullify` has already cleared the link.
     ///
     /// Shared with the Scheduled card and editor so neither names a thread the next claim has
     /// already decided to replace.

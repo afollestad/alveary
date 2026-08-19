@@ -289,12 +289,12 @@ final class SidebarSectionServiceTests: XCTestCase {
         }
     }
 
-    func testMoveThreadRefusesUnpinWhenScheduledAttachmentProtectsThePin() throws {
+    func testMoveThreadUnpinsAScheduledAttachedThreadLikeAnyOther() throws {
         let fixture = try SidebarTestFixture()
         let service = SidebarSectionService(modelContext: fixture.context)
         let sectionID = try createdCustomID(service.createSection(name: "Research"))
         let task = makeTask(name: "Guarded", isPinned: true, pinnedSortOrder: 0, in: fixture)
-        fixture.context.insert(ScheduledTask(
+        let definition = ScheduledTask(
             title: "Nightly sweep",
             prompt: "Continue in the task.",
             destination: .existingThread,
@@ -303,18 +303,19 @@ final class SidebarSectionServiceTests: XCTestCase {
             providerID: "codex",
             createdAt: Date(timeIntervalSince1970: 100),
             targetThread: task
-        ))
+        )
+        fixture.context.insert(definition)
         try fixture.context.save()
 
-        XCTAssertThrowsError(
-            try service.moveThread(threadID: task.persistentModelID, to: .custom(sectionID: sectionID))
-        ) { error in
-            guard case .scheduledTaskAttachment("Nightly sweep")? = error as? SidebarViewModelError else {
-                return XCTFail("Expected the scheduled-attachment refusal, got \(error)")
-            }
-        }
-        XCTAssertTrue(task.isPinned)
-        XCTAssertNil(task.customSection)
+        XCTAssertEqual(
+            try service.moveThread(threadID: task.persistentModelID, to: .custom(sectionID: sectionID)),
+            .moved
+        )
+
+        XCTAssertFalse(task.isPinned)
+        XCTAssertEqual(task.customSection?.id, sectionID)
+        // Section membership is placement; the schedule keeps posting into the same thread.
+        XCTAssertEqual(definition.targetThread?.persistentModelID, task.persistentModelID)
     }
 
     func testMoveThreadFailingSaveRollsBackEverything() throws {

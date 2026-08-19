@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 extension SidebarViewModelTests {
-    func testCompletedScheduleStillPreventsAttachedPinnedThreadLifecycleChanges() throws {
+    func testCompletedScheduleLeavesAttachedThreadPlacementAndDeletionAvailable() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/attached-project", name: "Attached Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
@@ -41,19 +41,19 @@ extension SidebarViewModelTests {
         fixture.context.insert(earlierDefinition)
         try fixture.context.save()
 
-        XCTAssertThrowsError(try fixture.viewModel.setThreadPinned(target, isPinned: false)) { error in
+        XCTAssertNoThrow(try fixture.viewModel.setThreadPinned(target, isPinned: false))
+        XCTAssertFalse(target.isPinned)
+        XCTAssertNoThrow(try fixture.viewModel.makeProjectDeletionSnapshot(project))
+        // The narrower guard survives, and still names the oldest attachment.
+        XCTAssertThrowsError(try fixture.viewModel.requireNoScheduledTaskAttachment(target)) { error in
             XCTAssertEqual(
                 error.localizedDescription,
                 "This thread is attached to the scheduled task \"Earlier completed schedule\". Remove or retarget that schedule first."
             )
         }
-        XCTAssertThrowsError(try fixture.viewModel.requireNoScheduledTaskAttachment(target))
-        XCTAssertThrowsError(try fixture.viewModel.makeProjectDeletionSnapshot(project))
-        XCTAssertTrue(target.isPinned)
-        XCTAssertNil(target.archivedAt)
     }
 
-    func testUnpinningPinnedProjectDoesNotIndirectlyUnpinAttachedThread() throws {
+    func testUnpinningPinnedProjectAlsoUnpinsAnAttachedChild() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/pinned-attached-project", name: "Pinned Project", isPinned: true)
         project.pinnedSortOrder = 4
@@ -74,12 +74,14 @@ extension SidebarViewModelTests {
         fixture.context.insert(definition)
         try fixture.context.save()
 
-        XCTAssertThrowsError(try fixture.viewModel.setProjectPinned(project, isPinned: false))
-        XCTAssertTrue(project.isPinned)
-        XCTAssertEqual(project.pinnedSortOrder, 4)
-        XCTAssertTrue(target.isPinned)
-        XCTAssertEqual(target.pinnedSortOrder, 5)
-        XCTAssertFalse(fixture.context.hasChanges)
+        XCTAssertNoThrow(try fixture.viewModel.setProjectPinned(project, isPinned: false))
+
+        XCTAssertFalse(project.isPinned)
+        // A schedule aimed at the child never held its pin, so the project's unpin carries it.
+        XCTAssertFalse(target.isPinned)
+        XCTAssertNil(target.pinnedSortOrder)
+        XCTAssertEqual(definition.decodedDestination, .existingThread)
+        XCTAssertEqual(definition.targetThread?.persistentModelID, target.persistentModelID)
     }
 
     func testActiveTargetRunUsesDistinctAttachmentReason() throws {
@@ -109,17 +111,17 @@ extension SidebarViewModelTests {
         try fixture.context.save()
 
         XCTAssertEqual(
-            fixture.viewModel.scheduledTaskAttachmentReason(for: target),
-            "This thread has an active scheduled task run. Wait for it to finish before archiving, deleting, or unpinning this thread."
+            fixture.viewModel.activeScheduledTaskRunReason(for: target),
+            "This thread has an active scheduled task run. Wait for it to finish before archiving or deleting this thread."
         )
-        XCTAssertThrowsError(try fixture.viewModel.requireNoScheduledTaskAttachment(target)) { error in
+        XCTAssertThrowsError(try fixture.viewModel.requireNoActiveScheduledTaskRun(target)) { error in
             guard case .activeScheduledTaskRunAttachment = error as? SidebarViewModelError else {
                 return XCTFail("Expected activeScheduledTaskRunAttachment, got \(error)")
             }
         }
     }
 
-    func testThreadDeletionCommitRejectsScheduleAttachedAfterSnapshot() throws {
+    func testThreadDeletionCommitConvertsAScheduleAttachedAfterSnapshot() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/late-delete-attachment", name: "Late attachment")
         let thread = AgentThread(name: "Pinned target", isPinned: true, project: project)
@@ -139,9 +141,16 @@ extension SidebarViewModelTests {
         )
         fixture.context.insert(definition)
         try fixture.context.save()
+        let changeRecorder = observeScheduledTaskChanges(from: fixture.viewModel)
+        defer { NotificationCenter.default.removeObserver(changeRecorder.observer) }
 
-        XCTAssertThrowsError(try fixture.viewModel.commitThreadDeletion(snapshot))
-        XCTAssertNotNil(fixture.context.resolveThread(id: thread.persistentModelID))
+        try fixture.viewModel.commitThreadDeletion(snapshot)
+
+        XCTAssertNil(fixture.context.resolveThread(id: thread.persistentModelID))
+        XCTAssertEqual(definition.decodedDestination, .reusedThread)
+        XCTAssertNil(definition.targetThread)
+        XCTAssertNil(definition.reusedThread)
+        XCTAssertEqual(changeRecorder.recorder.definitionIDs, [definition.id])
     }
 
     func testProjectDeletionPausesAndDetachesSchedulesWhilePreservingRunTask() throws {
@@ -175,6 +184,58 @@ extension SidebarViewModelTests {
         XCTAssertNotNil(fixture.context.resolveThread(id: graph.completedTaskThreadID))
         XCTAssertEqual(changeRecorder.recorder.count, 1)
         XCTAssertEqual(changeRecorder.recorder.definitionIDs, [graph.definition.id])
+    }
+
+    /// A schedule aimed at a Project-mode thread rides that thread's cascade: it converts to
+    /// reuse, and pauses for the same reason a Project-backed schedule does.
+    func testProjectDeletionConvertsAndPausesASchedulePointedAtACascadedThread() throws {
+        let fixture = try SidebarTestFixture()
+        let actionDate = Date(timeIntervalSince1970: 2_000)
+        let project = Project(path: "/tmp/cascade-detach", name: "Cascade detach")
+        let cascaded = AgentThread(name: "Cascaded thread", project: project)
+        cascaded.conversations = [Conversation(id: "cascade-main", provider: "codex", thread: cascaded)]
+        let survivingTask = AgentThread(name: "Detached task", mode: .task, project: project)
+        survivingTask.conversations = [Conversation(id: "surviving-main", provider: "codex", thread: survivingTask)]
+        let cascadedDefinition = ScheduledTask(
+            id: "cascaded-definition",
+            title: "Cascaded schedule",
+            prompt: "Continue in the project thread.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 9, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            targetThread: cascaded
+        )
+        let survivingDefinition = ScheduledTask(
+            id: "surviving-definition",
+            title: "Surviving schedule",
+            prompt: "Continue in the task.",
+            destination: .existingThread,
+            recurrence: .daily(hour: 10, minute: 0),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "codex",
+            targetThread: survivingTask
+        )
+        project.threads = [cascaded, survivingTask]
+        fixture.context.insert(project)
+        fixture.context.insert(cascadedDefinition)
+        fixture.context.insert(survivingDefinition)
+        try fixture.context.save()
+        let changeRecorder = observeScheduledTaskChanges(from: fixture.viewModel)
+        defer { NotificationCenter.default.removeObserver(changeRecorder.observer) }
+
+        let snapshot = try fixture.viewModel.makeProjectDeletionSnapshot(project)
+        try fixture.viewModel.commitProjectDeletion(snapshot, at: actionDate)
+
+        XCTAssertEqual(cascadedDefinition.decodedDestination, .reusedThread)
+        XCTAssertNil(cascadedDefinition.targetThread)
+        XCTAssertEqual(cascadedDefinition.state, .paused)
+        XCTAssertEqual(cascadedDefinition.pauseReason, ScheduledTask.projectDeletedPauseReason)
+        // The Task child is detached, not deleted, so its schedule keeps the thread it names.
+        XCTAssertEqual(survivingDefinition.decodedDestination, .existingThread)
+        XCTAssertEqual(survivingDefinition.targetThread?.persistentModelID, survivingTask.persistentModelID)
+        XCTAssertEqual(survivingDefinition.state, .active)
+        XCTAssertEqual(changeRecorder.recorder.definitionIDs, [cascadedDefinition.id])
     }
 
     func testProjectDeletionTreatsUnknownProjectBackedScheduledModeAsProject() throws {

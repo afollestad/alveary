@@ -6,8 +6,7 @@ import SwiftData
 extension SidebarViewModel {
     /// A Tasks-section drop is a membership change, not a reorder: `Tasks` is where a Task rests
     /// when it belongs to no project and no custom section, so the drop has to clear *both* —
-    /// plus the pin — and `SidebarSectionService.moveThread` does all of it in one save while
-    /// owning the scheduled-attachment guard.
+    /// plus the pin — and `SidebarSectionService.moveThread` does all of it in one save.
     ///
     /// The arms used to compose `setThreadPinned` with a project-only detach, which left a Task
     /// whose sole membership was a custom section untouched: its drop resolved a target, committed
@@ -50,9 +49,9 @@ extension SidebarViewModel {
     }
 
     /// An `.into` drop on the dragged thread's own project is an unpin, not a reparent: the thread
-    /// already belongs there, so the drop delegates to `setThreadPinned` — which owns the
-    /// scheduled-attachment guard — and leaves the project relationship untouched. Every other
-    /// `.into` drop is the async access-grant flow and returns `false` here.
+    /// already belongs there, so the drop delegates to `setThreadPinned` and leaves the project
+    /// relationship untouched. Every other `.into` drop is the async access-grant flow and
+    /// returns `false` here.
     func commitSidebarDropToOwningProject(dragItem: SidebarDragItem, target: SidebarDropTarget) throws -> Bool {
         guard case .project(let projectID) = target.item else {
             return false
@@ -255,7 +254,6 @@ extension SidebarViewModel {
     func clearUnarchivedChildPins(_ project: Project) throws {
         for child in try unarchivedThreadsForOrdering(projectPath: project.path)
         where child.isPinned || child.pinnedSortOrder != nil {
-            try requireNoScheduledTaskAttachment(child)
             child.isPinned = false
             child.pinnedSortOrder = nil
         }

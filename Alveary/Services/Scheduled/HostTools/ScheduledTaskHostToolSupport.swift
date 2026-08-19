@@ -229,8 +229,8 @@ enum ScheduledTaskHostToolServiceError: LocalizedError {
         case .targetThreadNotFound:
             "That thread no longer exists. Call list_threads again before proposing an existing-thread schedule."
         case .targetThreadIneligible:
-            "That thread cannot receive scheduled runs. Only some listed threads can — a thread nested under a pinned " +
-                "project cannot, because saving the schedule has to pin its target. Call list_threads and pick another one."
+            "That thread cannot receive scheduled runs. It may have been archived, forked, or left mid-cleanup since " +
+                "it was listed. Call list_threads and pick another one."
         case .definitionNotFound:
             "The scheduled task no longer exists. List scheduled tasks again before proposing a change."
         case let .revisionConflict(expected, actual):

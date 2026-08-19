@@ -100,7 +100,6 @@ extension DefaultScheduledTaskRunMaterializer {
         guard let run = modelContext.resolveScheduledTaskRun(id: runID),
               run.status == .preparing,
               let thread = run.targetThread,
-              thread.isPinned,
               thread.archivedAt == nil,
               !thread.isDraft,
               !thread.hasPendingScheduledTaskWorktreeCleanup,

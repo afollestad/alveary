@@ -320,8 +320,8 @@ private extension ThreadHostToolCatalog {
         description: """
         Remove an Alveary thread from the sidebar's Pinned section. Applies immediately and is undone with pin_thread. This \
         only moves where the thread appears — it does not archive the thread, stop its work, or delete anything. Call \
-        list_threads first and pass one of its exact IDs. A thread attached to a scheduled task cannot be unpinned. \
-        Unpinning a thread that is not pinned reports already_unpinned and changes nothing.
+        list_threads first and pass one of its exact IDs. Unpinning a thread that is not pinned reports \
+        already_unpinned and changes nothing.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: ["thread_id": HostToolSchema.nonEmptyStringSchema],

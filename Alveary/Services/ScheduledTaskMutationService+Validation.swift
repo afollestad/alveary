@@ -2,21 +2,12 @@ import Foundation
 import SwiftData
 
 /// Pre-save validation shared by `create` and `edit`, split from the mutation flows so each file
-/// stays under budget: destination-shape rules, grant-literal checks, and the target pin that
-/// must happen inside the definition's own save.
+/// stays under budget: destination-shape rules and grant-literal checks.
+///
+/// Deliberately does not pin an existing-thread target. A schedule does not own its target's
+/// sidebar placement — the user may unpin, re-section, archive, or delete that thread freely, and
+/// `ScheduledTaskTargetDetachment` converts the definition when the thread goes away.
 extension ScheduledTaskMutationService {
-    /// Pins an existing-thread target inside the caller's save.
-    ///
-    /// Both the Scheduled editor and the host tool may name an unpinned thread, and an unpinned
-    /// thread has no sidebar row of its own, so the schedule would otherwise post into a place
-    /// the user cannot open. Unpinning is then blocked while the schedule exists.
-    func pinTargetThreadIfNeeded(_ edit: ScheduledTaskDefinitionEdit) throws {
-        guard edit.destination == .existingThread, let targetThread = edit.targetThread else {
-            return
-        }
-        try SidebarPinOrdering.pin(targetThread, in: modelContext)
-    }
-
     /// Whether an edit keeps a `.reusedThread` schedule's created-thread link. The link survives
     /// only edits the existing thread can absorb: provider is fixed at conversation creation, and
     /// a workspace change must mint a fresh thread with the new configuration — the claim derives

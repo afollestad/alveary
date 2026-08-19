@@ -6,6 +6,10 @@ extension Notification.Name {
 
 enum ScheduledTasksChangeUserInfoKey {
     static let definitionID = "definitionID"
+    /// A batch changed by one lifecycle commit — thread archive, thread deletion, or project
+    /// deletion. Separate from `definitionID`, which names the single definition a mutation
+    /// targeted; no reader needs to tell the batch's members apart.
+    static let definitionIDs = "definitionIDs"
     static let schedulerClaimResolved = "schedulerClaimResolved"
     static let schedulerClaimErrorMessage = "schedulerClaimErrorMessage"
 }
@@ -31,6 +35,20 @@ extension NotificationCenter {
             name: .scheduledTasksChanged,
             object: object,
             userInfo: userInfo.isEmpty ? nil : userInfo
+        )
+    }
+
+    /// Publishes the definitions `ScheduledTaskTargetDetachment` converted during a lifecycle
+    /// commit. Call it only after that commit's save succeeds — a rolled-back archive must not
+    /// tell the Scheduled screen a schedule changed.
+    func postScheduledTasksDetached(object: Any? = nil, definitionIDs: [String]) {
+        guard !definitionIDs.isEmpty else {
+            return
+        }
+        post(
+            name: .scheduledTasksChanged,
+            object: object,
+            userInfo: [ScheduledTasksChangeUserInfoKey.definitionIDs: definitionIDs]
         )
     }
 }

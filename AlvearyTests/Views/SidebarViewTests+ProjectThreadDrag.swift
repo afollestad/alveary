@@ -44,7 +44,7 @@ extension SidebarViewTests {
         XCTAssertNil(view.projectChildDragConfiguration(for: absorbed, logicalOrder: emptySidebarDragLogicalOrder))
     }
 
-    func testOwningProjectMapCoversOnlyUnpinnablePinnedProjectThreads() throws {
+    func testOwningProjectMapCoversEveryPinnedProjectModeThread() throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Home", path: "/tmp/owning-map")
         let pinned = AgentThread(name: "Pinned", isPinned: true, pinnedSortOrder: 0, project: project)
@@ -64,11 +64,14 @@ extension SidebarViewTests {
         try fixture.context.save()
         let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
 
-        // Pinned Tasks route through `projectIDByTaskID`, and a scheduled-attached thread cannot
-        // unpin — its map entry is withheld the way its context-menu Unpin is disabled.
+        // Pinned Tasks route through `projectIDByTaskID`; a scheduled attachment withholds
+        // nothing, because a schedule never held its target's pin.
         XCTAssertEqual(
             view.owningProjectIDByPinnedThreadID(in: try fixture.renderSnapshot()),
-            [pinned.persistentModelID: project.persistentModelID]
+            [
+                pinned.persistentModelID: project.persistentModelID,
+                attached.persistentModelID: project.persistentModelID
+            ]
         )
     }
 }

@@ -32,15 +32,18 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
     }
 }
 
+/// Why a row's action is unavailable. Only Archive and Delete are gated: a schedule no longer
+/// owns the thread it posts into, so unpinning it is always allowed, and an in-flight run is the
+/// sole remaining reason to hold the thread still.
 func sidebarThreadContextMenuDisabledReason(
     for item: SidebarThreadContextMenuItem,
-    scheduledTaskAttachmentReason: String?
+    activeScheduledTaskRunReason: String?
 ) -> String? {
-    guard let scheduledTaskAttachmentReason else { return nil }
+    guard let activeScheduledTaskRunReason else { return nil }
     switch item {
-    case .unpin, .archive, .delete:
-        return scheduledTaskAttachmentReason
-    case .forkLocal, .forkWorktree, .divider, .pin, .rename:
+    case .archive, .delete:
+        return activeScheduledTaskRunReason
+    case .forkLocal, .forkWorktree, .divider, .pin, .unpin, .rename:
         return nil
     }
 }

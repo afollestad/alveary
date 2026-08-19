@@ -120,7 +120,7 @@ extension ThreadLifecycleServiceTests {
         await assertArchiveThrows(.threadMissing, fixture: fixture, threadID: missingThread.persistentModelID)
     }
 
-    func testArchiveThreadRejectsAScheduledTaskAttachment() async throws {
+    func testArchiveThreadConvertsAnAttachedScheduleToReuse() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(projectName: "Alveary", projectPath: "/tmp/alveary-project")
         let dbThread = try fixture.requireThread(thread)
@@ -136,13 +136,19 @@ extension ThreadLifecycleServiceTests {
         dbThread.targetedScheduledTasks = [definition]
         fixture.context.insert(definition)
         try fixture.context.save()
+        let revisionBeforeArchive = definition.revision
 
-        await assertArchiveThrows(
-            .scheduledTaskAttachment("Nightly sweep"),
-            fixture: fixture,
-            threadID: thread.persistentModelID
-        )
-        XCTAssertNil(try fixture.requireThread(thread).archivedAt)
+        _ = try await fixture.viewModel.threadLifecycle.archiveThread(threadID: thread.persistentModelID)
+
+        XCTAssertNotNil(try fixture.requireThread(thread).archivedAt)
+        XCTAssertEqual(definition.decodedDestination, .reusedThread)
+        XCTAssertNil(definition.targetThread)
+        XCTAssertNil(definition.reusedThread)
+        XCTAssertEqual(definition.state, .active)
+        XCTAssertEqual(definition.revision, revisionBeforeArchive + 1)
+        // A Project-mode target hands its Project and run location to the replacement thread.
+        XCTAssertEqual(definition.workspaceKind, .project)
+        XCTAssertEqual(definition.project?.path, "/tmp/alveary-project")
     }
 
     private func assertArchiveThrows(

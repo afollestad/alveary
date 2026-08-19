@@ -47,11 +47,14 @@ final class AgentThread {
     /// migrate as unsectioned and a forked thread starts in `Tasks`.
     var customSection: SidebarSection?
     var scheduledTaskRun: ScheduledTaskRun?
+    /// Schedules the user pointed at this thread. `.nullify` is not enough on its own: a lifecycle
+    /// commit converts each one to `.reusedThread` first, or the destination would survive naming
+    /// a thread that no longer exists (`ScheduledTaskTargetDetachment`).
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.targetThread)
     var targetedScheduledTasks: [ScheduledTask] = []
     /// Schedules reusing this thread as their rolling destination. Deliberately excluded from
-    /// `blockingScheduledTaskAttachment`: a reuse thread stays archivable and deletable, and the
-    /// schedule self-heals by creating a replacement.
+    /// `blockingScheduledTaskAttachment`: a reuse thread is the schedule's own, so no mutation
+    /// here can retarget a definition the user aimed somewhere else.
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTask.reusedThread)
     var reusingScheduledTasks: [ScheduledTask] = []
     @Relationship(deleteRule: .nullify, inverse: \ScheduledTaskRun.targetThread)
@@ -133,6 +136,11 @@ extension Notification.Name {
 }
 
 extension AgentThread {
+    /// The oldest schedule aimed at this thread, if any — the one whose title names the refusal.
+    ///
+    /// Deliberately *not* consulted by archive, delete, unpin, or a section move: a schedule does
+    /// not own its target's placement or existence, and those commits convert the definition
+    /// instead. It fences only the mutations that would silently retarget a live schedule.
     var blockingScheduledTaskAttachment: ScheduledTask? {
         targetedScheduledTasks.min {
             if $0.createdAt != $1.createdAt {

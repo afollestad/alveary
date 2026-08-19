@@ -99,7 +99,7 @@ extension SidebarViewModelTests {
         XCTAssertTrue(task.isPinned)
     }
 
-    func testScheduledAttachedPinnedTaskUnpinDropSurfacesTheAttachmentError() throws {
+    func testScheduledAttachedPinnedTaskUnpinDropUnpinsLikeAnyOther() throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Home", path: "/tmp/unpin-scheduled")
         let task = AgentThread(name: "Task", isPinned: true, pinnedSortOrder: 0, mode: .task, project: project)
@@ -116,12 +116,12 @@ extension SidebarViewModelTests {
         ))
         try fixture.context.save()
 
-        // Targeting hides the drop for scheduled-attached threads; `setThreadPinned`'s guard is
-        // the backstop when a stale drag lands anyway.
-        XCTAssertThrowsError(try fixture.viewModel.commitSidebarDrop(
+        // A schedule owns where it posts, never where the thread renders, so the drop applies.
+        XCTAssertTrue(try fixture.viewModel.commitSidebarDrop(
             dragItem: .pinnedTask(task.persistentModelID),
             target: SidebarDropTarget(section: .projects, item: .project(project.persistentModelID), placement: .into)
         ))
-        XCTAssertTrue(task.isPinned)
+        XCTAssertFalse(task.isPinned)
+        XCTAssertEqual(task.project?.persistentModelID, project.persistentModelID)
     }
 }

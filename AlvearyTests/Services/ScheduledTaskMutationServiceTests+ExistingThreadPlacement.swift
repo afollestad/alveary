@@ -4,11 +4,11 @@ import XCTest
 
 @testable import Alveary
 
-/// An existing-thread schedule posts into a thread the user has to be able to reach, so the
-/// mutation pins an unpinned target as part of its own save.
+/// A schedule does not own its target's sidebar placement: saving one leaves the thread's pin,
+/// section, and project exactly where the user put them.
 @MainActor
 extension ScheduledTaskMutationServiceTests {
-    func testCreatePinsAnUnpinnedExistingThreadTarget() throws {
+    func testCreateLeavesAnUnpinnedExistingThreadTargetUnpinned() throws {
         let fixture = try ScheduledTaskMutationFixture()
         let neighbor = AgentThread(name: "Already pinned", isPinned: true, mode: .task)
         neighbor.pinnedSortOrder = 0
@@ -19,11 +19,12 @@ extension ScheduledTaskMutationServiceTests {
         let definition = try fixture.service.create(edit: existingThreadEdit(targetThread: target))
 
         XCTAssertEqual(definition.targetThread?.persistentModelID, target.persistentModelID)
-        XCTAssertTrue(target.isPinned)
-        XCTAssertEqual(target.pinnedSortOrder, 1)
+        XCTAssertFalse(target.isPinned)
+        XCTAssertNil(target.pinnedSortOrder)
+        XCTAssertEqual(neighbor.pinnedSortOrder, 0)
     }
 
-    func testEditPinsAnUnpinnedExistingThreadTarget() throws {
+    func testEditLeavesAnUnpinnedExistingThreadTargetUnpinned() throws {
         let fixture = try ScheduledTaskMutationFixture()
         let definition = try fixture.insertDefinition(id: "retarget")
         let target = try insertUnpinnedTarget(fixture: fixture, name: "Release chat", conversationID: "release-main")
@@ -34,22 +35,8 @@ extension ScheduledTaskMutationServiceTests {
         )
 
         XCTAssertEqual(definition.targetThread?.persistentModelID, target.persistentModelID)
-        XCTAssertTrue(target.isPinned)
-        XCTAssertEqual(target.pinnedSortOrder, 0)
-    }
-
-    /// The append reads the highest assigned order rather than a count, so it stays collision-free
-    /// without the sidebar's dense renumbering pass.
-    func testPinningTwoTargetsAssignsDistinctOrders() throws {
-        let fixture = try ScheduledTaskMutationFixture()
-        let first = try insertUnpinnedTarget(fixture: fixture, name: "First", conversationID: "first-main")
-        let second = try insertUnpinnedTarget(fixture: fixture, name: "Second", conversationID: "second-main")
-
-        try fixture.service.create(edit: existingThreadEdit(targetThread: first))
-        try fixture.service.create(edit: existingThreadEdit(targetThread: second))
-
-        XCTAssertEqual(first.pinnedSortOrder, 0)
-        XCTAssertEqual(second.pinnedSortOrder, 1)
+        XCTAssertFalse(target.isPinned)
+        XCTAssertNil(target.pinnedSortOrder)
     }
 
     func testCreateLeavesAnAlreadyPinnedTargetInPlace() throws {
@@ -61,7 +48,24 @@ extension ScheduledTaskMutationServiceTests {
 
         try fixture.service.create(edit: existingThreadEdit(targetThread: target))
 
+        XCTAssertTrue(target.isPinned)
         XCTAssertEqual(target.pinnedSortOrder, 3)
+    }
+
+    /// Section membership is the other half of placement, and the one an auto-pin used to hide:
+    /// a pinned thread renders above every section.
+    func testCreateLeavesTheTargetsCustomSectionMembershipIntact() throws {
+        let fixture = try ScheduledTaskMutationFixture()
+        let section = SidebarSection(kind: .custom, name: "Chores", sortOrder: 3)
+        let target = try insertUnpinnedTarget(fixture: fixture, name: "Chore chat", conversationID: "chore-main")
+        target.customSection = section
+        fixture.context.insert(section)
+        try fixture.context.save()
+
+        try fixture.service.create(edit: existingThreadEdit(targetThread: target))
+
+        XCTAssertEqual(target.customSection?.id, section.id)
+        XCTAssertFalse(target.isPinned)
     }
 }
 

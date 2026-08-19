@@ -68,7 +68,6 @@ final class ScheduledTaskMutationService {
 
         let outcomeTarget = proposal.map(ScheduledTaskProposalOutcomeTarget.init(proposal:))
         do {
-            try pinTargetThreadIfNeeded(edit)
             modelContext.insert(definition)
             if let proposal {
                 modelContext.delete(proposal)
@@ -186,7 +185,6 @@ final class ScheduledTaskMutationService {
         ) { definition in
             let timeZoneIdentifier = self.currentTimeZone().identifier
             try self.validate(edit, timeZoneIdentifier: timeZoneIdentifier)
-            try self.pinTargetThreadIfNeeded(edit)
             let nextOccurrence = try self.recurrenceCalculator.nextOccurrence(
                 strictlyAfter: actionDate,
                 recurrence: edit.recurrence,

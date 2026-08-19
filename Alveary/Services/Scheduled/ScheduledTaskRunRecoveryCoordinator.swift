@@ -181,11 +181,11 @@ private extension ScheduledTaskRunRecoveryCoordinator {
         case .newThreadPerRun:
             targetIsValid = true
         case .existingThread:
-            targetIsValid = run.targetThread?.isPinned == true &&
+            targetIsValid = run.targetThread != nil &&
                 run.targetThread?.archivedAt == nil &&
                 presentationConversation(for: run) != nil
         case .reusedThread:
-            // No pin requirement; a run that created its own thread is always resumable.
+            // A run that created its own thread is always resumable.
             targetIsValid = run.targetThread == nil ||
                 (run.targetThread?.archivedAt == nil && presentationConversation(for: run) != nil)
         case nil:

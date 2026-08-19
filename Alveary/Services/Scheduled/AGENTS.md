@@ -31,6 +31,7 @@ These instructions cover `Alveary/Services/Scheduled/` — claiming a due occurr
 
 ### Reused-Thread Runs
 
+- **`.existingThread` converts into this mode rather than blocking.** Archiving or deleting the target rewrites the definition (`Alveary/Data/Scheduled/AGENTS.md`), so the paths below are the only ones a former existing-thread schedule can take afterwards.
 - **Route a `.reusedThread` run by its relationships, never its destination or snapshot columns**: `run.targetThread != nil` means it posts into the prior run's thread, `run.thread != nil` means it created one, and the to-one `run.thread` may only ever belong to the creating run.
 - **Reuse self-heals at claim *and* materialization instead of blocking.** An unhealthy linked thread makes the claim fall back to creating, and a thread lost in the claim→materialize window clears `run.targetThread` and mints a replacement — overwriting the definition's stale link without a revision bump.
 - **A targeted reuse run derives its workspace from the thread** (`ScheduledTaskReusedThreadWorkspace`), never from `preparedWorkspace*` columns it never wrote, and **re-asserts the definition's model, effort, and permission mode onto the thread** in the occurrence-note save, because automated spawns supply no overrides and read the thread's stored fields.

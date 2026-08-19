@@ -124,8 +124,8 @@ extension SidebarDragInteractionTests {
             ).map(\.target.item)
         }
 
-        // Same gate as the `Tasks` container: a scheduled-attached pinned Task cannot unpin, so
-        // its own project shows nothing — while other projects stay reparent targets either way.
+        // Same gate as the `Tasks` container: a pinned Task missing from `unpinnableTaskIDs`
+        // shows nothing on its own project — while other projects stay reparent targets either way.
         XCTAssertEqual(candidates(unpinnable: true), [.project(ownerID), .project(otherID)])
         XCTAssertEqual(candidates(unpinnable: false), [.project(otherID)])
     }

@@ -59,7 +59,6 @@ extension ScheduledTaskSchedulerEngine {
     func targetSnapshot(for definition: ScheduledTask) -> ScheduledTaskTargetSnapshot? {
         guard definition.decodedDestination == .existingThread,
               let thread = definition.targetThread,
-              thread.isPinned,
               thread.archivedAt == nil,
               !thread.isDraft,
               !thread.hasPendingScheduledTaskWorktreeCleanup else {

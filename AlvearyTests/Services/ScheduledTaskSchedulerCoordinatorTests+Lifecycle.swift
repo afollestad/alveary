@@ -87,7 +87,7 @@ extension ScheduledTaskSchedulerCoordinatorTests {
 
         XCTAssertEqual(
             claimErrors,
-            ["This scheduled task couldn't start because its pinned target thread is busy. Try again when the thread is idle."]
+            ["This scheduled task couldn't start because its target thread is busy. Try again when the thread is idle."]
         )
         XCTAssertTrue(try fixture.runs().isEmpty)
     }

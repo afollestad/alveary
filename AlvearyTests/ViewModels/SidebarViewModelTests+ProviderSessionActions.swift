@@ -311,7 +311,14 @@ extension SidebarViewModelTests {
                 resolvedRecords: deleteProjectProviderSessionRecords()
             )
         )
-        let project = try insertDeleteProjectProviderSessionFixture(into: fixture)
+        // The cleanup failure under test only happens once Git cleanup actually runs, which needs
+        // the project folder present.
+        let projectDirectory = try SidebarTestProjectDirectory(name: "delete-project-sessions")
+        defer { projectDirectory.remove() }
+        let project = try insertDeleteProjectProviderSessionFixture(
+            into: fixture,
+            projectPath: projectDirectory.path
+        )
         await fixture.worktreeManager.setRemoveError(.removeFailed)
 
         do {
@@ -330,8 +337,11 @@ extension SidebarViewModelTests {
 }
 
 @MainActor
-private func insertDeleteProjectProviderSessionFixture(into fixture: SidebarTestFixture) throws -> Project {
-    let project = Project(path: "/tmp/alveary-project", name: "Alveary")
+private func insertDeleteProjectProviderSessionFixture(
+    into fixture: SidebarTestFixture,
+    projectPath: String
+) throws -> Project {
+    let project = Project(path: projectPath, name: "Alveary")
     let primaryThread = AgentThread(
         name: "Primary",
         branch: "alveary/live",

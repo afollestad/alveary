@@ -113,15 +113,15 @@ struct SidebarDropCandidate: Equatable {
 struct SidebarDragLogicalOrder: Equatable {
     let pinnedItems: [SidebarDragItem]
     let regularProjects: [SidebarDragItem]
-    /// Pinned Task threads that may leave `Pinned` via the Tasks-section drop target;
-    /// scheduled-attached Tasks are excluded, matching the disabled context-menu Unpin.
+    /// Pinned Task threads that may leave `Pinned` via the Tasks-section drop target. A scheduled
+    /// attachment excludes nothing: a schedule owns where it posts, never where the row renders.
     var unpinnableTaskIDs: Set<PersistentIdentifier> = []
     /// The owning project for every Task thread placed in one, pinned or nested. Gates the
     /// `Tasks` pull-out target and scopes a Task's own project's `.into` target to the unpin drop.
     var projectIDByTaskID: [PersistentIdentifier: PersistentIdentifier] = [:]
     /// The owning project for every standalone pinned Project-mode thread that may unpin by
-    /// dropping onto that project group. The drop is the drag mirror of context-menu Unpin, so
-    /// scheduled-attached threads are excluded here just as their menu item is disabled.
+    /// dropping onto that project group. The drop is the drag mirror of context-menu Unpin, which
+    /// no scheduled attachment disables.
     var owningProjectIDByPinnedThreadID: [PersistentIdentifier: PersistentIdentifier] = [:]
     /// The custom section every member Task belongs to. Gates each section's membership
     /// container, so a Task never sees the section it is already in.

@@ -76,7 +76,7 @@ extension ThreadHostToolServiceTests {
         XCTAssertNil(draft.archivedAt)
     }
 
-    func testArchiveThreadRejectsAScheduledTaskAttachment() async throws {
+    func testArchiveThreadConvertsAnAttachedScheduleToReuse() async throws {
         let fixture = try ThreadHostToolFixture()
         let target = try fixture.insertThread(name: "Scheduled target", conversationID: "target-main")
         let definition = ScheduledTask(
@@ -94,9 +94,10 @@ extension ThreadHostToolServiceTests {
 
         let result = await fixture.archive(threadID: "target-main")
 
-        XCTAssertTrue(result.isError)
-        XCTAssertTrue(result.text.contains("Nightly sweep"), result.text)
-        XCTAssertNil(target.archivedAt)
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertNotNil(target.archivedAt)
+        XCTAssertEqual(definition.decodedDestination, .reusedThread)
+        XCTAssertNil(definition.targetThread)
     }
 
     /// The archive already committed, so reporting an error would tell the model to retry

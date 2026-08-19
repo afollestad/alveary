@@ -184,9 +184,9 @@ final class SidebarViewModel {
         onPersistenceCommit: @escaping @MainActor () -> Void = {}
     ) async throws {
         let requiredThread = try requireThread(thread)
-        try requireNoScheduledTaskAttachment(requiredThread)
+        try requireNoActiveScheduledTaskRun(requiredThread)
         let dbThread = try await quiesceScheduledTaskRunIfNeeded(for: requiredThread)
-        try requireNoScheduledTaskAttachment(dbThread)
+        try requireNoActiveScheduledTaskRun(dbThread)
         var snapshot = try makeThreadCleanupSnapshot(dbThread)
         if snapshot.pendingScheduledWorktreeCleanup != nil {
             do {
