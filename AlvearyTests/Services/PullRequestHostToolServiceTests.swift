@@ -156,14 +156,14 @@ final class PullRequestHostToolServiceTests: XCTestCase {
 
     func object(_ value: AgentCLIKit.JSONValue?) throws -> [String: AgentCLIKit.JSONValue] {
         guard case .object(let object)? = value else {
-            throw XCTSkip("expected a JSON object")
+            throw PullRequestHostToolFixtureError.unexpectedShape
         }
         return object
     }
 
     func array(_ value: AgentCLIKit.JSONValue?) throws -> [AgentCLIKit.JSONValue] {
         guard case .array(let array)? = value else {
-            throw XCTSkip("expected a JSON array")
+            throw PullRequestHostToolFixtureError.unexpectedShape
         }
         return array
     }
@@ -175,6 +175,14 @@ final class PullRequestHostToolServiceTests: XCTestCase {
         }
         return try result.text + HostToolDeduplication.canonicalJSON(structuredContent)
     }
+}
+
+/// A payload that is not the shape the assertion helpers expect fails the test. Throwing `XCTSkip`
+/// here instead reported a regressed tool payload as a skipped test, which reads as green across
+/// the ~67 call sites these two helpers back. The sibling host-tool suites already throw errors of
+/// their own for this.
+enum PullRequestHostToolFixtureError: Error {
+    case unexpectedShape
 }
 
 /// In-memory host state plus a stubbed GitHub, with a frozen clock, process token, and
