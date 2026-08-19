@@ -20,10 +20,11 @@ struct PullRequestAgenticThreadStart {
 /// prompt asks for the work the way the user would. The agent picks the workflow up from the
 /// `alveary_host` tools — an instructions tool first, and the matching writer last.
 ///
-/// The two kinds differ in three places and nowhere else: the thread's name, its first prompt,
-/// and whether it gets a checkout. Everything below — seed resolution, the degrade-never-refuse
-/// rules, answering as soon as the thread exists, link-then-dispatch ordering — is shared, which
-/// is why a second caller uses this service rather than copying it.
+/// The two kinds differ in four places and nowhere else: the thread's name, its first prompt,
+/// whether it gets a checkout, and which sidebar section it lands in. Everything below — seed
+/// resolution, the degrade-never-refuse rules, answering as soon as the thread exists,
+/// link-then-dispatch ordering — is shared, which is why a second caller uses this service
+/// rather than copying it.
 @MainActor
 final class PullRequestAgenticThreadService {
     /// Which half of a pull request's life the thread is for.
@@ -60,6 +61,17 @@ final class PullRequestAgenticThreadService {
                 "Review pull request: \(url.absoluteString)"
             case .addressFeedback:
                 "Address feedback on pull request: \(url.absoluteString)"
+            }
+        }
+
+        /// Each route has its own section setting — a review thread and a feedback thread are
+        /// different work — unlike the provider, model, and effort they share.
+        func sectionID(in settings: AppSettings) -> String? {
+            switch self {
+            case .review:
+                settings.pullRequestReviewSectionID
+            case .addressFeedback:
+                settings.pullRequestAddressFeedbackSectionID
             }
         }
     }
@@ -151,7 +163,12 @@ final class PullRequestAgenticThreadService {
             : nil
 
         let thread = try lifecycleService.insertTaskThread(
-            seed: Self.threadSeed(seed, name: threadName, workspace: borrowed)
+            seed: Self.threadSeed(
+                seed,
+                name: threadName,
+                workspace: borrowed,
+                placement: resolvedPlacement(for: kind, settings: settings)
+            )
         )
         guard let conversation = thread.soleMainConversation else {
             throw StartError.conversationMissing
@@ -210,7 +227,8 @@ final class PullRequestAgenticThreadService {
     private static func threadSeed(
         _ seed: SeedSettings,
         name: String,
-        workspace: TaskWorkspaceDescriptor?
+        workspace: TaskWorkspaceDescriptor?,
+        placement: TaskThreadSidebarPlacement
     ) -> TaskThreadSeed {
         TaskThreadSeed(
             provider: seed.provider,
@@ -220,8 +238,28 @@ final class PullRequestAgenticThreadService {
             isDraft: false,
             name: name,
             grantedRoots: [],
-            workspace: workspace
+            workspace: workspace,
+            placement: placement
         )
+    }
+
+    /// Resolved here rather than left to the seed because `insertTaskThread` *throws* on a
+    /// section that has gone — right for a user who just named one and can retry, wrong for a
+    /// footer button with nowhere to explain a refusal. `AppSettings` stores a bare id with no
+    /// relationship nullifying it, so a removed section — or an id naming a builtin row, which
+    /// `Pinned` and `Projects` must never accept — is the ordinary case rather than a corruption;
+    /// it degrades to `Tasks` like every other seed setting here.
+    ///
+    /// Never `.project`: a `.review` thread is project-less by design, and an `.addressFeedback`
+    /// thread carries its checkout in the workspace descriptor, so both stay projectless — which
+    /// is exactly what makes a custom section render for them.
+    private func resolvedPlacement(for kind: Kind, settings: AppSettings) -> TaskThreadSidebarPlacement {
+        guard let sectionID = kind.sectionID(in: settings),
+              let section = lifecycleService.modelContext.resolveSidebarSection(id: sectionID),
+              section.kind == .custom else {
+            return .tasks
+        }
+        return .section(id: section.id)
     }
 
     /// One fetch serving two readers: the link stores the detail's summary, and the checkout

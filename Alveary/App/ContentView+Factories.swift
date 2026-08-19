@@ -120,6 +120,15 @@ extension ContentView {
             },
             agentRegistry: dependencies.agentRegistry,
             globalAgentInstructionsService: dependencies.globalAgentInstructionsService,
+            // The pure read path, not `SidebarSectionService.orderedSections()`, whose builtin
+            // seeding saves — a settings screen read must not commit unrelated pending work in
+            // the shared `mainContext`.
+            sidebarSectionOptionsLoader: { [context = dependencies.modelContainer.mainContext] in
+                let sections = (try? SidebarSectionNormalization.allSections(in: context)) ?? []
+                return SidebarSectionNormalization.orderedSections(sections)
+                    .filter { $0.kind == .custom }
+                    .map { SettingsSidebarSectionOption(id: $0.id, name: $0.name) }
+            },
             soundPreviewer: soundPreviewer.play,
             launchAtStartupService: DefaultLaunchAtStartupService()
         )

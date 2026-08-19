@@ -19,6 +19,14 @@ enum SettingsScreenLayout {
     static let settingsSectionCornerRadius: CGFloat = 18
     static let settingsSectionSpacing: CGFloat = 28
     static let settingsSectionHeaderSpacing: CGFloat = 10
+    /// A `SettingsFormSubsectionHeader` separates its group with whitespace rather than a rule,
+    /// so the space above it has to read as a break on its own — and stay lopsided, because the
+    /// gap under it belongs to the row it introduces.
+    static let settingsSubsectionHeaderTopPadding: CGFloat = 26
+    /// The card's own top edge already separates a header that opens one, so it takes roughly a
+    /// row's inset instead. The full break above would read as a gap with nothing before it.
+    static let settingsSubsectionHeaderFirstTopPadding: CGFloat = 14
+    static let settingsSubsectionHeaderBottomPadding: CGFloat = 6
 }
 
 struct SettingsTextFieldRow: View {

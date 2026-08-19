@@ -15,6 +15,10 @@ final class SettingsViewModel {
     @ObservationIgnored let agentRegistry: AgentRegistry
     /// Built once so the AGENTS.md editor's draft and document store survive re-renders.
     @ObservationIgnored let instructionsEditor: GlobalInstructionsEditorModel
+    /// Custom sidebar sections for the Git tab's per-route `Sidebar section` pickers. A closure
+    /// rather than a `ModelContext` so this view model keeps no SwiftData reach; the default
+    /// answers empty, which is what lets snapshots and tests build one without a store.
+    @ObservationIgnored private let sidebarSectionOptionsLoader: @MainActor () -> [SettingsSidebarSectionOption]
     @ObservationIgnored private let codeFontFamilyLoader: @MainActor () -> [String]
     @ObservationIgnored private let soundPreviewer: @MainActor (String) -> Void
     @ObservationIgnored private let launchAtStartupService: any LaunchAtStartupService
@@ -27,6 +31,9 @@ final class SettingsViewModel {
     /// Set when macOS refuses a registration change, so the row can point at System Settings.
     private(set) var didFailToChangeLaunchAtStartup = false
     private var loadedCodeFontFamilyOptions: [String]?
+    /// Custom sections in persisted sidebar order; empty until the Git tab asks for them.
+    private(set) var sidebarSectionOptions: [SettingsSidebarSectionOption] = []
+    @ObservationIgnored private var sidebarSectionObservationTask: Task<Void, Never>?
 
     init(
         settingsService: any SettingsService,
@@ -34,6 +41,7 @@ final class SettingsViewModel {
         invalidateProviderDiscoveryCache: @escaping @Sendable () async -> Void = {},
         agentRegistry: AgentRegistry = DefaultAgentRegistry(),
         globalAgentInstructionsService: GlobalAgentInstructionsService? = nil,
+        sidebarSectionOptionsLoader: @escaping @MainActor () -> [SettingsSidebarSectionOption] = { [] },
         codeFontFamilyLoader: @escaping @MainActor () -> [String] = { NSFontManager.shared.availableFontFamilies },
         soundPreviewer: @escaping @MainActor (String) -> Void = { _ in },
         launchAtStartupService: any LaunchAtStartupService = InertLaunchAtStartupService()
@@ -47,10 +55,48 @@ final class SettingsViewModel {
                 ?? DefaultGlobalAgentInstructionsService(agentRegistry: agentRegistry),
             agentRegistry: agentRegistry
         )
+        self.sidebarSectionOptionsLoader = sidebarSectionOptionsLoader
         self.codeFontFamilyLoader = codeFontFamilyLoader
         self.soundPreviewer = soundPreviewer
         self.launchAtStartupService = launchAtStartupService
         launchAtStartupStatus = launchAtStartupService.status
+    }
+
+    deinit {
+        sidebarSectionObservationTask?.cancel()
+    }
+
+    /// Loads the section pickers' options and starts watching for changes. Sections have no other
+    /// route into an open Settings screen — the sidebar reads them through its own `@Query` — so a
+    /// section created from the sidebar's menu or the windowless `create_section` host tool while
+    /// this screen is up reaches the pickers only through `.sidebarSectionsChanged`.
+    ///
+    /// Unlike `refreshProviderStatusesIfNeeded()` this always reloads, because the tab is entered
+    /// repeatedly and the rows behind it move; only the observation is started once.
+    func refreshSidebarSectionOptions() {
+        applyLoadedSidebarSectionOptions()
+        guard sidebarSectionObservationTask == nil else {
+            return
+        }
+        let notifications = NotificationCenter.default.notifications(named: .sidebarSectionsChanged)
+        sidebarSectionObservationTask = Task { @MainActor [weak self] in
+            for await _ in notifications {
+                guard !Task.isCancelled else { return }
+                self?.applyLoadedSidebarSectionOptions()
+            }
+        }
+    }
+
+    /// Guarded because `.sidebarSectionsChanged` fires for every section mutation — a thread
+    /// dragged between sections, a reorder — and most leave this id/name list identical. An
+    /// `@Observable` write publishes whether or not the value changed, so an unguarded assignment
+    /// re-renders the whole settings screen for nothing.
+    private func applyLoadedSidebarSectionOptions() {
+        let loaded = sidebarSectionOptionsLoader()
+        guard loaded != sidebarSectionOptions else {
+            return
+        }
+        sidebarSectionOptions = loaded
     }
 
     var themeOptions: [String] {

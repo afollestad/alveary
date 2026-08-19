@@ -125,4 +125,55 @@ extension SettingsViewModel {
         return pullRequestReviewEffortOptions.first { $0.value == value }?.label
             ?? ChatComposerTextSupport.effortLabel(for: value)
     }
+
+    /// Per-route, unlike the agent pickers above: a review thread and a feedback thread are
+    /// different work and belong in different places. Both degrade on *read* — an id no longer
+    /// among the options shows `Tasks` while the stored value survives, so re-creating the
+    /// section restores the pick and no getter has to write. The `Selection` suffix the agent
+    /// pickers carry is dropped here only because that spelling exceeds the identifier limit.
+    var pullRequestAddressFeedbackSection: String? {
+        offerableSectionID(settingsService.current.pullRequestAddressFeedbackSectionID)
+    }
+
+    func setPullRequestAddressFeedbackSection(_ value: String?) {
+        settingsService.update { $0.pullRequestAddressFeedbackSectionID = value }
+    }
+
+    var pullRequestReviewSection: String? {
+        offerableSectionID(settingsService.current.pullRequestReviewSectionID)
+    }
+
+    func setPullRequestReviewSection(_ value: String?) {
+        settingsService.update { $0.pullRequestReviewSectionID = value }
+    }
+
+    /// Both pickers' option list: `Tasks` is the literal nil row, and only custom sections follow
+    /// it — pinning and a Project placement are what put a thread in `Pinned` or `Projects`.
+    var pullRequestSectionOptions: [String?] {
+        [nil] + sidebarSectionOptions.map { $0.id }
+    }
+
+    func pullRequestSectionLabel(for id: String?) -> String {
+        guard let id else {
+            return "Tasks"
+        }
+        return sidebarSectionOptions.first { $0.id == id }?.name ?? "Tasks"
+    }
+
+    private func offerableSectionID(_ id: String?) -> String? {
+        guard let id, sidebarSectionOptions.contains(where: { $0.id == id }) else {
+            return nil
+        }
+        return id
+    }
+}
+
+/// One custom sidebar section for the Git tab's pickers. Deliberately not
+/// `SidebarSectionDescriptor`, whose `SidebarSectionID` would make `.pinned` and `.projects`
+/// representable in a setting that must never offer them — unofferable by type, not by a filter
+/// someone can forget. `ScheduledTaskSectionOption` stays its own type for the same reason;
+/// neither may widen for the other.
+struct SettingsSidebarSectionOption: Equatable, Identifiable {
+    let id: String
+    let name: String
 }

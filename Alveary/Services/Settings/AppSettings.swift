@@ -91,6 +91,13 @@ struct AppSettings: Codable, Sendable, Equatable {
     var pullRequestReviewProvider: String?
     var pullRequestReviewModel: String?
     var pullRequestReviewEffort: String?
+    /// `SidebarSection.id` of the custom section each agentic route's spawned thread joins; nil
+    /// is the plain `Tasks` list. Per-route, unlike the agent trio above, because the two kinds
+    /// of work belong in different places. A bare id with no relationship behind it — unlike
+    /// `ScheduledTask.threadSection` nothing nullifies it when the section is removed, so every
+    /// reader degrades to `Tasks` rather than failing.
+    var pullRequestAddressFeedbackSectionID: String?
+    var pullRequestReviewSectionID: String?
     var gitCommitIncludeUnstagedChanges = true
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
@@ -286,14 +293,17 @@ struct AppSettings: Codable, Sendable, Equatable {
         normalizePullRequestReviewAgentDefaults()
     }
 
-    /// Blanks collapse to nil — "follow the Threads defaults" — and an unsupported provider
-    /// does too. Model and effort cannot be checked here: their valid values come from
-    /// provider discovery at runtime, so the spawn path coerces them instead.
+    /// Blanks collapse to nil — "follow the Threads defaults" for the agent trio, the plain
+    /// `Tasks` list for the two section ids — and an unsupported provider does too. Nothing else
+    /// can be checked here: a model or effort's valid values come from provider discovery and a
+    /// section's existence from SwiftData, so the spawn path coerces all four instead.
     private mutating func normalizePullRequestReviewAgentDefaults() {
         pullRequestReviewProvider = Self.normalizedOptionalSetting(pullRequestReviewProvider)
             .flatMap { Self.supportedProviderIDs.contains($0) ? $0 : nil }
         pullRequestReviewModel = Self.normalizedOptionalSetting(pullRequestReviewModel)
         pullRequestReviewEffort = Self.normalizedOptionalSetting(pullRequestReviewEffort)
+        pullRequestAddressFeedbackSectionID = Self.normalizedOptionalSetting(pullRequestAddressFeedbackSectionID)
+        pullRequestReviewSectionID = Self.normalizedOptionalSetting(pullRequestReviewSectionID)
     }
 
     private static func normalizedOptionalSetting(_ value: String?) -> String? {

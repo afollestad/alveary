@@ -62,6 +62,8 @@ struct GitSettingsTabView: View {
                 }
 
                 SettingsFormSection("Pull requests") {
+                    SettingsFormSubsectionHeader("General", isFirstInSection: true)
+
                     SettingsToggleRow(
                         "Enable pull request integration",
                         helpText: GitSettingsHelp.pullRequestsEnabled,
@@ -80,8 +82,11 @@ struct GitSettingsTabView: View {
                         helpText: GitSettingsHelp.pullRequestGenerationPrompt,
                         prompt: $pullRequestGenerationPrompt,
                         defaultPrompt: AppSettings.defaultPullRequestGenerationPrompt,
-                        placeholder: "Write the prompt used to generate pull request titles and descriptions."
+                        placeholder: "Write the prompt used to generate pull request titles and descriptions.",
+                        showsDivider: false
                     )
+
+                    SettingsFormSubsectionHeader("Address feedback")
 
                     SettingsPromptEditorRow(
                         "Address feedback instructions",
@@ -91,6 +96,18 @@ struct GitSettingsTabView: View {
                         placeholder: "Write the instructions the agent follows when addressing feedback on a pull request."
                     )
 
+                    sidebarSectionRow(
+                        accessibilityLabel: "Address feedback sidebar section",
+                        helpText: GitSettingsHelp.pullRequestAddressFeedbackSection,
+                        selection: Binding(
+                            get: { viewModel.pullRequestAddressFeedbackSection },
+                            set: { viewModel.setPullRequestAddressFeedbackSection($0) }
+                        ),
+                        showsDivider: false
+                    )
+
+                    SettingsFormSubsectionHeader("Agentic review")
+
                     SettingsPromptEditorRow(
                         "Agentic review instructions",
                         helpText: GitSettingsHelp.pullRequestReviewPrompt,
@@ -98,6 +115,18 @@ struct GitSettingsTabView: View {
                         defaultPrompt: AppSettings.defaultPullRequestReviewPrompt,
                         placeholder: "Write the instructions the agent follows when reviewing a pull request."
                     )
+
+                    sidebarSectionRow(
+                        accessibilityLabel: "Agentic review sidebar section",
+                        helpText: GitSettingsHelp.pullRequestReviewSection,
+                        selection: Binding(
+                            get: { viewModel.pullRequestReviewSection },
+                            set: { viewModel.setPullRequestReviewSection($0) }
+                        ),
+                        showsDivider: false
+                    )
+
+                    SettingsFormSubsectionHeader("Agent")
 
                     agenticAgentRows
                 }
@@ -118,6 +147,7 @@ struct GitSettingsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task {
+            viewModel.refreshSidebarSectionOptions()
             await refreshGitHubState()
             // The agent pickers below need the same provider catalog the Threads tab loads.
             await viewModel.refreshProviderStatusesIfNeeded()
@@ -126,6 +156,40 @@ struct GitSettingsTabView: View {
 }
 
 private extension GitSettingsTabView {
+    /// Where one agentic route's spawned thread lands in the sidebar. Both routes get their own,
+    /// unlike the agent pickers they share. The row stays visible with no custom sections rather
+    /// than disappearing, so the setting is discoverable before there is anything to pick — but
+    /// disabled, because `Tasks` alone is no choice. `SettingsMenuPicker` disables itself only on
+    /// an empty option list, and `Tasks` is always in this one.
+    ///
+    /// Both rows read "Sidebar section" on screen, where the sub-header above says which route
+    /// they belong to. VoiceOver announces the control alone, so the picker takes a
+    /// route-qualified name instead — two identically named controls in one card are
+    /// indistinguishable by ear.
+    @ViewBuilder
+    func sidebarSectionRow(
+        accessibilityLabel: String,
+        helpText: String,
+        selection: Binding<String?>,
+        showsDivider: Bool = true
+    ) -> some View {
+        SettingsFormRow(showsDivider: showsDivider) {
+            SettingsResponsiveControlRow(
+                "Sidebar section",
+                helpText: helpText,
+                horizontalControlSizing: .selectedContent
+            ) {
+                SettingsMenuPicker(
+                    accessibilityLabel,
+                    selection: selection,
+                    options: viewModel.pullRequestSectionOptions,
+                    isDisabled: viewModel.sidebarSectionOptions.isEmpty,
+                    label: { viewModel.pullRequestSectionLabel(for: $0) }
+                )
+            }
+        }
+    }
+
     /// Which agent runs either agentic route — reviewing or addressing feedback. Each
     /// picker's first row is "Default", meaning the Threads tab's own default; effort hides
     /// entirely when the model reports no options.
@@ -301,4 +365,10 @@ private enum GitSettingsHelp {
         + "It reads the feedback, changes the code where the feedback holds up, then replies and resolves the threads."
     static let pullRequestAgent =
         "Which agent runs \"Agentic review\" and \"Address feedback\". Default follows the Threads tab."
+    static let pullRequestAddressFeedbackSection =
+        "Sidebar section the thread \"Address feedback\" creates lands in. It seeds that new thread only — "
+        + "moving a thread afterwards is a drag in the sidebar."
+    static let pullRequestReviewSection =
+        "Sidebar section the thread \"Agentic review\" creates lands in. It seeds that new thread only — "
+        + "moving a thread afterwards is a drag in the sidebar."
 }

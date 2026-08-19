@@ -16,6 +16,9 @@ extension AppSettingsTests {
         XCTAssertNil(settings.pullRequestReviewProvider)
         XCTAssertNil(settings.pullRequestReviewModel)
         XCTAssertNil(settings.pullRequestReviewEffort)
+        // Nil here means the plain `Tasks` list, not "no placement".
+        XCTAssertNil(settings.pullRequestAddressFeedbackSectionID)
+        XCTAssertNil(settings.pullRequestReviewSectionID)
         XCTAssertEqual(settings.pullRequestOwnFooterActionKind, "addressFeedback")
         XCTAssertEqual(settings.pullRequestOthersFooterActionKind, "agenticReview")
     }
@@ -139,6 +142,37 @@ extension AppSettingsTests {
         // Model and effort are validated at spawn time against live provider discovery, so a
         // stored value survives normalization even when the provider does not.
         XCTAssertEqual(normalized.pullRequestReviewModel, "some-model")
+    }
+
+    func testTheTwoSectionPinsRoundTripSeparately() throws {
+        var settings = AppSettings()
+        settings.pullRequestAddressFeedbackSectionID = "feedback-section"
+        settings.pullRequestReviewSectionID = "review-section"
+
+        let encoded = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: encoded)
+
+        XCTAssertEqual(decoded.pullRequestAddressFeedbackSectionID, "feedback-section")
+        XCTAssertEqual(decoded.pullRequestReviewSectionID, "review-section")
+    }
+
+    func testNormalizationCollapsesBlankSectionPinsToTasks() {
+        var settings = AppSettings()
+        settings.pullRequestAddressFeedbackSectionID = "  "
+        settings.pullRequestReviewSectionID = "\n"
+
+        let normalized = settings.normalized()
+        XCTAssertNil(normalized.pullRequestAddressFeedbackSectionID)
+        XCTAssertNil(normalized.pullRequestReviewSectionID)
+    }
+
+    func testNormalizationKeepsASectionIDThatNamesNoLiveRow() {
+        var settings = AppSettings()
+        settings.pullRequestReviewSectionID = " missing-section "
+
+        // Section rows live in SwiftData, which this value type cannot reach; existence is the
+        // spawn path's check, so normalization only trims.
+        XCTAssertEqual(settings.normalized().pullRequestReviewSectionID, "missing-section")
     }
 
     func testNormalizationTrimsPinnedAgentValues() {
