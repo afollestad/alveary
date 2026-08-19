@@ -50,6 +50,29 @@ extension AppDelegateTests {
         appDelegate.applicationWillTerminate(terminateNotification)
     }
 
+    func testWakeRefreshRewarmsProviderDiscoveryAfterDroppingThePreSleepSnapshot() async throws {
+        // Invalidating alone would leave the first post-wake thread creation — an agentic review
+        // among them — paying the whole provider fan-out on its own click. Statements stay trivial
+        // and explicitly typed for the reason the suite's first test explains at length.
+        let fixture = try AppDelegateTestFixture()
+        let wakeRefreshDelay: Duration = .milliseconds(40)
+        let launchNotification: Notification = appDelegateDidFinishLaunchingNotification()
+        let terminateNotification: Notification = appDelegateWillTerminateNotification()
+        let appDelegate: AppDelegate = fixture.makeAppDelegate(wakeRefreshDelay: wakeRefreshDelay)
+
+        appDelegate.applicationDidFinishLaunching(launchNotification)
+        try await appDelegateWaitUntil("expected launch to warm provider discovery once") {
+            await fixture.providerDiscoveryProbe.providerStatusesInvocations() == 1
+        }
+
+        fixture.workspaceNotificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
+
+        try await appDelegateWaitUntil("expected the wake refresh to re-probe provider discovery") {
+            await fixture.providerDiscoveryProbe.providerStatusesInvocations() == 2
+        }
+        appDelegate.applicationWillTerminate(terminateNotification)
+    }
+
     func testStartupActivatesScheduledTasksAfterCleanupSessionRecoveryAndProviderRefresh() async throws {
         let fixture = try AppDelegateTestFixture()
         let recorder = AppDelegateShutdownOrderRecorder()

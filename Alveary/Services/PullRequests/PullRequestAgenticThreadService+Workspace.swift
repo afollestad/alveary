@@ -32,11 +32,17 @@ extension PullRequestAgenticThreadService {
     /// Rungs 1 and 2, first match only, from local state alone — the provisional borrow `start`
     /// seeds the thread with. `headRefName` is nil when the caller had no detail yet, which skips
     /// rung 2 rather than guessing at a branch.
+    ///
+    /// Rung by rung rather than `borrowableWorkspaces(...).first`: this runs on the click, in
+    /// front of `start`'s return, and rung 2 materializes every sidebar-visible thread. A linked
+    /// thread — the usual answer for a pull request the user is addressing feedback on — must not
+    /// pay for a fetch its own hit makes unnecessary.
     func borrowedWorkspace(
         identifier: PullRequestIdentifier,
         headRefName: String?
     ) -> TaskWorkspaceDescriptor? {
-        borrowableWorkspaces(identifier: identifier, headRefName: headRefName).first
+        linkedThreadWorkspaces(identifier: identifier, headRefName: headRefName).first
+            ?? branchThreadWorkspaces(headRefName: headRefName).first
     }
 
     /// Every rung-1 and rung-2 candidate, in ladder order, so the deferred half can keep asking

@@ -30,6 +30,11 @@ final class PullRequestsViewModel {
     /// App-level toast presentation, for failures a pane banner cannot carry because the pane may
     /// already be closed when one lands: attachment uploads and an agentic thread's deferred dispatch.
     let presentToast: @MainActor @Sendable (String) -> Void
+    /// Fills the shared provider-discovery cache when a pull request opens, so the footer's
+    /// agentic routes do not pay its subprocess fan-out on the click. Opening is the trigger
+    /// because the cache's TTL is a minute: launch warms it once, and every later click — read a
+    /// pull request, then act on it — would otherwise find it cold. Fire-and-forget.
+    let warmAgentProviderDiscovery: @MainActor () -> Void
     /// Spawns the footer's agentic thread — review or address-feedback — and answers as soon as
     /// it exists. A closure rather than the service so tests and previews stay light; nil means
     /// the footer's agentic options do nothing.
@@ -188,6 +193,7 @@ final class PullRequestsViewModel {
         attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
         attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
+        warmAgentProviderDiscovery: @escaping @MainActor () -> Void = {},
         agenticThreadStarter: (
             @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
         )? = nil,
@@ -209,6 +215,7 @@ final class PullRequestsViewModel {
         self.attachmentImageSeeder = attachmentImageSeeder
         self.attachmentImageRepositoryRegistrar = attachmentImageRepositoryRegistrar
         self.presentToast = presentToast
+        self.warmAgentProviderDiscovery = warmAgentProviderDiscovery
         self.agenticThreadStarter = agenticThreadStarter
         // Defaulted rather than optional: every read is a plain membership question, and an
         // absent tracker would make the footer's busy state silently untrackable in previews.
@@ -332,6 +339,9 @@ extension PullRequestsViewModel {
         // The pane's repository is a candidate context for signed attachment
         // image URLs; register before its markdown can render.
         attachmentImageRepositoryRegistrar?(target.identifier.nameWithOwner)
+        // Reading a pull request is the lead time the footer's agentic routes need: the probe runs
+        // while the user reads, so the click finds provider discovery already answered.
+        warmAgentProviderDiscovery()
         if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
             deactivatedPaneDismissals.remove(request)
             dismissPane(target, generation: request.generation, restoreFocus: false)
@@ -486,5 +496,4 @@ extension PullRequestsViewModel {
         refreshActivePaneSummaryStatus()
         return true
     }
-
 }

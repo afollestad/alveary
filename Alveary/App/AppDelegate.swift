@@ -272,6 +272,11 @@ private extension AppDelegate {
                 return
             }
             dependencies.reconcileScheduledTasks()
+            // Re-probed rather than left to the next thread creation, which would otherwise pay
+            // the whole fan-out on its click — the same reason launch warms it. Behind
+            // reconciliation on purpose: the probe spawns subprocesses per provider, and a
+            // scheduled deadline has to rearm on wake without waiting for them.
+            await providerDiscoveryCache.warm()
         }
     }
 

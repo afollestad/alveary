@@ -314,4 +314,43 @@ extension PullRequestsViewModelTests {
         await waitForPaneContent(viewModel, target: target)
         XCTAssertEqual(service.detailCallCount, 1)
     }
+
+    func testOpeningAPaneWarmsProviderDiscoverySoTheFooterDoesNotPayForItOnTheClick() {
+        let service = StubPullRequestsService()
+        let summary = makePullRequestSummary(number: 7)
+        let warms = PullRequestPaneWarmCounter()
+        let viewModel = makePullRequestsViewModel(
+            service: service,
+            warmAgentProviderDiscovery: { warms.count += 1 }
+        )
+
+        viewModel.requestDetails(summary)
+
+        XCTAssertEqual(warms.count, 1)
+    }
+
+    /// A reopen warms again on purpose: the cache's own TTL decides whether that costs a probe,
+    /// and a retained session is exactly the case where the last one has most likely aged out.
+    func testReopeningAPaneWarmsProviderDiscoveryAgain() {
+        let service = StubPullRequestsService()
+        let summary = makePullRequestSummary(number: 7)
+        let warms = PullRequestPaneWarmCounter()
+        let viewModel = makePullRequestsViewModel(
+            service: service,
+            warmAgentProviderDiscovery: { warms.count += 1 }
+        )
+
+        viewModel.requestDetails(summary)
+        viewModel.deactivatePane()
+        viewModel.requestDetails(summary)
+
+        XCTAssertEqual(warms.count, 2)
+    }
+}
+
+/// Counts the view model's fire-and-forget warm calls. A class so the `@MainActor` closure the
+/// view model stores can write to it without the test reaching for shared mutable state.
+@MainActor
+private final class PullRequestPaneWarmCounter {
+    var count = 0
 }

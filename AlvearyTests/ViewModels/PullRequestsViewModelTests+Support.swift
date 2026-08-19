@@ -12,6 +12,7 @@ func makePullRequestsViewModel(
     attachmentImageSeeder: (@MainActor (GitHubAttachmentUpload) async -> Void)? = nil,
     attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
     presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
+    warmAgentProviderDiscovery: @escaping @MainActor () -> Void = {},
     agenticThreadStarter: (
         @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )? = nil,
@@ -36,6 +37,7 @@ func makePullRequestsViewModel(
         attachmentImageSeeder: attachmentImageSeeder,
         attachmentImageRepositoryRegistrar: attachmentImageRepositoryRegistrar,
         presentToast: presentToast,
+        warmAgentProviderDiscovery: warmAgentProviderDiscovery,
         agenticThreadStarter: agenticThreadStarter,
         agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,

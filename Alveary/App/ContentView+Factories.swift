@@ -176,6 +176,9 @@ extension ContentView {
             presentToast: { message in
                 appState.presentUnexpectedError(message: message)
             },
+            warmAgentProviderDiscovery: { [cache = dependencies.providerDiscoveryCache] in
+                Task { await cache.warm() }
+            },
             agenticThreadStarter: { request in
                 try await dependencies.pullRequestAgenticThreadService.start(
                     kind: request.kind,

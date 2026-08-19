@@ -11,6 +11,10 @@ struct AppDelegateTestFixture {
     let appNotificationCenter = NotificationCenter()
     let shellRunner = MockShellRunner()
     let providerDetection = AppDelegateMockProviderDetectionService()
+    /// The base under `inertProviderDiscoveryCache`, stored so a test can count the probes the
+    /// cache actually let through — launch's warm, and the wake refresh's re-warm after it drops
+    /// the pre-sleep snapshot.
+    let providerDiscoveryProbe = RecordingProviderDiscoveryService(statuses: [:])
     let sessionManager = AppDelegateMockSessionManager()
     let agentsManager = AppDelegateMockAgentsManager()
     let modelContainer: ModelContainer
@@ -116,7 +120,7 @@ struct AppDelegateTestFixture {
 
     /// Inert: these are startup-order tests, so launch must not probe the machine.
     var inertProviderDiscoveryCache: CachingAgentProviderDiscoveryService {
-        CachingAgentProviderDiscoveryService(base: RecordingProviderDiscoveryService(statuses: [:]))
+        CachingAgentProviderDiscoveryService(base: providerDiscoveryProbe)
     }
 
     /// The real controller on a fake status bar: launch and terminate exercise its lifecycle
