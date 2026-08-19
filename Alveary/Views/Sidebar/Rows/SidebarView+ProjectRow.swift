@@ -18,6 +18,10 @@ struct SidebarProjectRow: View, Equatable {
     let projectName: String
     let isExpanded: Bool
     let isSelected: Bool
+    /// True only while this row is collapsed over a thread waiting on the user.
+    /// `sidebarWaitingAttention(...)` folds nothing for an expanded project, so the dot renders on
+    /// this flag alone rather than re-reading `isExpanded`.
+    let hidesWaitingThread: Bool
     let suppressHoverAffordances: Bool
     let dragConfiguration: SidebarRowDragConfiguration?
     let onToggleExpanded: () -> Void
@@ -31,6 +35,7 @@ struct SidebarProjectRow: View, Equatable {
         projectName: String,
         isExpanded: Bool,
         isSelected: Bool,
+        hidesWaitingThread: Bool = false,
         suppressHoverAffordances: Bool = false,
         dragConfiguration: SidebarRowDragConfiguration? = nil,
         initialRowHover: Bool = false,
@@ -41,6 +46,7 @@ struct SidebarProjectRow: View, Equatable {
         self.projectName = projectName
         self.isExpanded = isExpanded
         self.isSelected = isSelected
+        self.hidesWaitingThread = hidesWaitingThread
         self.suppressHoverAffordances = suppressHoverAffordances
         self.dragConfiguration = dragConfiguration
         self.onToggleExpanded = onToggleExpanded
@@ -57,6 +63,7 @@ struct SidebarProjectRow: View, Equatable {
         lhs.projectName == rhs.projectName
             && lhs.isExpanded == rhs.isExpanded
             && lhs.isSelected == rhs.isSelected
+            && lhs.hidesWaitingThread == rhs.hidesWaitingThread
             && lhs.suppressHoverAffordances == rhs.suppressHoverAffordances
             && lhs.dragConfiguration == rhs.dragConfiguration
     }
@@ -118,6 +125,10 @@ struct SidebarProjectRow: View, Equatable {
                     toggle: nil
                 )
 
+                if hidesWaitingThread {
+                    SidebarWaitingAttentionDot()
+                }
+
                 Spacer(minLength: 0)
             }
             .frame(height: SidebarRowMetrics.topLevelAndThreadContentHeight, alignment: .center)
@@ -127,7 +138,9 @@ struct SidebarProjectRow: View, Equatable {
         }
         .buttonStyle(.plain)
         .sidebarDragSource(dragConfiguration)
-        .accessibilityLabel(projectName)
+        .accessibilityLabel(
+            sidebarWaitingAttentionAccessibilityLabel(projectName, hidesWaitingThread: hidesWaitingThread)
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityAction(named: Text("New Thread")) {
             onCreateThread()

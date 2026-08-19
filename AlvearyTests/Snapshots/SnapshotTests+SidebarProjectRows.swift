@@ -22,4 +22,24 @@ extension SnapshotTests {
             named: "project_row_selected_hover_new_thread"
         )
     }
+
+    // A collapsed project row hides its children the same way a collapsed section does, so it
+    // carries the same waiting dot after its caret.
+    func testSidebarProjectRowCollapsedWaitingDot() {
+        let project = Project(path: "/tmp/alveary", name: "Alveary")
+
+        assertMacSnapshot(
+            SidebarProjectRow(
+                projectName: project.name,
+                isExpanded: false,
+                isSelected: false,
+                hidesWaitingThread: true,
+                onToggleExpanded: {},
+                onActivate: {},
+                onCreateThread: {}
+            ),
+            size: CGSize(width: 280, height: 52),
+            named: "project_row_collapsed_waiting_dot"
+        )
+    }
 }

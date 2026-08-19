@@ -44,11 +44,16 @@ struct SidebarSectionHeaderRow: View, Equatable {
     /// Non-nil while this header is being renamed in place; the title swaps for a text field and
     /// the row stops toggling so a click inside the field cannot collapse the section.
     let editing: SidebarSectionHeaderEditing?
+    /// True only while this header is collapsed over a thread waiting on the user.
+    /// `sidebarWaitingAttention(...)` folds nothing for an expanded section, so the dot renders on
+    /// this flag alone rather than re-reading `disclosure`.
+    let hidesWaitingThread: Bool
 
     init(
         title: String,
         showsTopDivider: Bool = false,
         disclosure: SidebarSectionHeaderDisclosure? = nil,
+        hidesWaitingThread: Bool = false,
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
         editing: SidebarSectionHeaderEditing? = nil,
@@ -61,6 +66,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         onAction = onAddProject
         self.showsTopDivider = showsTopDivider
         self.disclosure = disclosure
+        self.hidesWaitingThread = hidesWaitingThread
         self.suppressHoverAffordances = suppressHoverAffordances
         self.editing = editing
         _isHoveringRow = State(initialValue: initialRowHover)
@@ -73,6 +79,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         actionAccessibilityLabel: String,
         actionHelp: String,
         disclosure: SidebarSectionHeaderDisclosure? = nil,
+        hidesWaitingThread: Bool = false,
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
         onAction: @escaping @MainActor () -> Void
@@ -84,6 +91,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         self.onAction = onAction
         self.showsTopDivider = showsTopDivider
         self.disclosure = disclosure
+        self.hidesWaitingThread = hidesWaitingThread
         self.suppressHoverAffordances = suppressHoverAffordances
         editing = nil
         _isHoveringRow = State(initialValue: initialRowHover)
@@ -101,6 +109,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
             && (lhs.onAction == nil) == (rhs.onAction == nil)
             && lhs.showsTopDivider == rhs.showsTopDivider
             && lhs.disclosure == rhs.disclosure
+            && lhs.hidesWaitingThread == rhs.hidesWaitingThread
             && lhs.suppressHoverAffordances == rhs.suppressHoverAffordances
             && lhs.editing == rhs.editing
     }
@@ -205,6 +214,10 @@ struct SidebarSectionHeaderRow: View, Equatable {
             Text(title)
                 .font(.system(.subheadline, weight: .semibold))
                 .foregroundStyle(.tertiary)
+                // Single-line like every other sidebar row. Without this a long custom section
+                // name wraps to two lines and grows the header, and the trailing caret and
+                // waiting dot both shrink the width that wrapping is measured against.
+                .lineLimit(1)
 
             if let disclosure {
                 SidebarDisclosureCaret(
@@ -216,6 +229,10 @@ struct SidebarSectionHeaderRow: View, Equatable {
                         action: disclosure.onToggle
                     )
                 )
+            }
+
+            if hidesWaitingThread {
+                SidebarWaitingAttentionDot()
             }
         }
         // Offsetting the cluster rather than the title keeps the caret's gap measured from the
@@ -295,10 +312,8 @@ struct SidebarSectionHeaderRow: View, Equatable {
     }
 
     private var accessibilityLabel: String {
-        guard let disclosure else {
-            return title
-        }
-        return toggleLabel(isExpanded: disclosure.isExpanded)
+        let base = disclosure.map { toggleLabel(isExpanded: $0.isExpanded) } ?? title
+        return sidebarWaitingAttentionAccessibilityLabel(base, hidesWaitingThread: hidesWaitingThread)
     }
 
     private func toggleLabel(isExpanded: Bool) -> String {

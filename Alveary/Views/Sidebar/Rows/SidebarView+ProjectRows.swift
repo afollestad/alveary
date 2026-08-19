@@ -102,6 +102,7 @@ extension SidebarView {
             projectName: configuration.project.name,
             isExpanded: configuration.isExpanded,
             isSelected: configuration.isSelected,
+            hidesWaitingThread: context.projectHidesWaitingThread(path: configuration.project.path),
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
             dragConfiguration: projectDragConfiguration(
                 for: configuration.project,

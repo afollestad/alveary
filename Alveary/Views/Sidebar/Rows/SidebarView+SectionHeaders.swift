@@ -5,16 +5,21 @@ extension SidebarView {
     /// a custom section has none, so its header is title and caret alone.
     @ViewBuilder
     func sectionHeader(for descriptor: SidebarSectionDescriptor, context: SidebarRenderContext) -> some View {
+        let hidesWaitingThread = context.sectionHidesWaitingThread(descriptor.id)
         let header = Group {
             switch descriptor.id {
             case .pinned:
                 pinnedHeader
             case .projects:
-                projectsHeader
+                projectsHeader(hidesWaitingThread: hidesWaitingThread)
             case .tasks:
-                tasksHeader
+                tasksHeader(hidesWaitingThread: hidesWaitingThread)
             case .custom(let sectionID):
-                customSectionHeader(sectionID: sectionID, name: descriptor.name)
+                customSectionHeader(
+                    sectionID: sectionID,
+                    name: descriptor.name,
+                    hidesWaitingThread: hidesWaitingThread
+                )
             }
         }
         header
@@ -45,11 +50,12 @@ extension SidebarView {
         }
     }
 
-    var projectsHeader: some View {
+    func projectsHeader(hidesWaitingThread: Bool) -> some View {
         SidebarSectionHeaderRow(
             title: "Projects",
             showsTopDivider: true,
             disclosure: sectionDisclosure(.projects),
+            hidesWaitingThread: hidesWaitingThread,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
             onAddProject: { appState.openNewProjectFlow() }
         )
@@ -69,13 +75,14 @@ extension SidebarView {
             )
     }
 
-    var tasksHeader: some View {
+    func tasksHeader(hidesWaitingThread: Bool) -> some View {
         SidebarSectionHeaderRow(
             title: "Tasks", showsTopDivider: true,
             actionSystemImage: "plus",
             actionAccessibilityLabel: "New task",
             actionHelp: "New task",
             disclosure: sectionDisclosure(.tasks),
+            hidesWaitingThread: hidesWaitingThread,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
             onAction: { startNewTaskFlowFromSidebar(appState: appState) }
         )
@@ -85,11 +92,12 @@ extension SidebarView {
         )
     }
 
-    func customSectionHeader(sectionID: String, name: String) -> some View {
+    func customSectionHeader(sectionID: String, name: String, hidesWaitingThread: Bool) -> some View {
         SidebarSectionHeaderRow(
             title: name,
             showsTopDivider: true,
             disclosure: sectionDisclosure(.custom(sectionID)),
+            hidesWaitingThread: hidesWaitingThread,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
             editing: SidebarSectionHeaderEditing(
                 isEditing: editingSectionID == sectionID,

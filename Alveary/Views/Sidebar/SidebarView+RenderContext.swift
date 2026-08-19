@@ -26,6 +26,9 @@ struct SidebarRenderContext {
     /// mechanism). `ThreadDetailView` builds its tab presentations in `body` against the same
     /// hazards.
     let conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]]
+    /// Collapsed containers hiding a `.waitingForUser` thread, folded once per body beside the
+    /// statuses above — `SidebarWaitingAttention` owns why a row builder may not fold it instead.
+    let waitingAttention: SidebarWaitingAttention
 
     var pinnedItems: [SidebarPinnedItem] { snapshot.pinnedItems }
     var orderedProjects: [Project] { snapshot.orderedProjects }
@@ -49,6 +52,14 @@ struct SidebarRenderContext {
     /// mid-pass: the fold answers `.stopped` instead of reading anything.
     func conversationStatuses(for threadID: PersistentIdentifier) -> [ConversationStatusSnapshot] {
         conversationStatusesByThreadID[threadID] ?? []
+    }
+
+    func sectionHidesWaitingThread(_ sectionID: SidebarSectionID) -> Bool {
+        waitingAttention.hidesWaitingThread(inSection: sectionID)
+    }
+
+    func projectHidesWaitingThread(path: String) -> Bool {
+        waitingAttention.hidesWaitingThread(inProjectAt: path)
     }
 }
 
@@ -83,6 +94,12 @@ extension SidebarView {
                 ConversationStatusSnapshot(conversation: conversation, attention: decisionAttention)
             )
         }
+        // Bound to its own `let` rather than folded into the initializer below: that call already
+        // carries nine arguments, and each one solved together lands on `body`'s type-check budget.
+        let waitingAttention = makeWaitingAttention(
+            snapshot: snapshot,
+            conversationStatusesByThreadID: conversationStatusesByThreadID
+        )
         return SidebarRenderContext(
             snapshot: snapshot,
             threadOrderAnimation: threadOrderAnimation(
@@ -103,7 +120,30 @@ extension SidebarView {
             ),
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty,
             showsPullRequests: settings.pullRequestsEnabled,
-            conversationStatusesByThreadID: conversationStatusesByThreadID
+            conversationStatusesByThreadID: conversationStatusesByThreadID,
+            waitingAttention: waitingAttention
+        )
+    }
+
+    /// The collapsed containers hiding a `.waitingForUser` thread, folded against this pass's
+    /// statuses. Split out of `makeRenderContext()` so neither function's body outgrows the lint
+    /// limit; the placement contract itself lives on `sidebarWaitingAttention(...)`.
+    private func makeWaitingAttention(
+        snapshot: SidebarRenderSnapshot,
+        conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]]
+    ) -> SidebarWaitingAttention {
+        sidebarWaitingAttention(
+            snapshot: snapshot,
+            collapsedSections: collapsedSections,
+            expandedProjects: expandedProjects,
+            isWaitingForUser: { thread in
+                // Every thread the snapshot holds came from the unarchived query.
+                viewModel.threadStatus(
+                    threadID: thread.persistentModelID,
+                    isArchived: false,
+                    conversationStatuses: conversationStatusesByThreadID[thread.persistentModelID] ?? []
+                ) == .waitingForUser
+            }
         )
     }
 
