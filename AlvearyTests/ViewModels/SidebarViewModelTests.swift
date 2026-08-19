@@ -416,6 +416,22 @@ final class SidebarViewModelTests: XCTestCase {
         XCTAssertEqual(fixture.threadStatus(for: thread), .archived)
     }
 
+    /// End to end through the real fold: a provider that errors without ending its turn leaves the
+    /// runtime reporting `.busy`, and the persisted failure is what turns the row red anyway.
+    func testThreadStatusShowsErrorForDurablyFailedConversationWithStaleBusySignal() async throws {
+        let fixture = try SidebarTestFixture()
+        let thread = try fixture.insertThread(
+            projectName: "Alveary",
+            projectPath: "/tmp/alveary-durable-failure",
+            conversationIDs: ["failed"]
+        )
+        thread.conversations.first?.lastTurnFailedAt = Date()
+        try fixture.context.save()
+        await fixture.agentsManager.setStatus(.busy, for: "failed")
+
+        XCTAssertEqual(fixture.threadStatus(for: thread), .error)
+    }
+
     func testDefaultThreadCleanupActionReflectsSettingsService() throws {
         let fixture = try SidebarTestFixture()
 

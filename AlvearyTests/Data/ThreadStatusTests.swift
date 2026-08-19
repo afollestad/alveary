@@ -148,10 +148,53 @@ final class ThreadStatusTests: XCTestCase {
         XCTAssertEqual(folded([]), .stopped)
     }
 
+    // MARK: - Durable failures
+
+    /// The regression this exists for: a provider that errors without ending its turn leaves the
+    /// runtime reporting `.busy`, which used to short-circuit the fold and hide the failure.
+    func testDurableFailureBeatsItsOwnStaleBusySignal() {
+        XCTAssertEqual(folded([.init(runtime: .busy, lastTurnFailed: true)]), .error)
+    }
+
+    /// Only the failed conversation forfeits its `.busy`; a sibling doing real work still spins.
+    func testLiveBusyInASiblingConversationStillWins() {
+        XCTAssertEqual(
+            folded([
+                .init(lastTurnFailed: true),
+                .init(runtime: .busy)
+            ]),
+            .busy
+        )
+    }
+
+    /// The relaunch case: the in-memory signal is gone, the persisted failure is not.
+    func testDurableFailureShowsErrorWithNeutralRuntime() {
+        XCTAssertEqual(folded([.init(lastTurnFailed: true)]), .error)
+    }
+
+    func testWaitingForUserStillBeatsDurableFailure() {
+        XCTAssertEqual(
+            folded([
+                .init(lastTurnFailed: true),
+                .init(runtime: .waitingForUser)
+            ]),
+            .waitingForUser
+        )
+    }
+
+    func testDurableFailureBeatsUnread() {
+        XCTAssertEqual(folded([.init(isUnread: true, lastTurnFailed: true)]), .error)
+    }
+
+    func testArchivedOverridesDurableFailure() {
+        XCTAssertEqual(folded([.init(lastTurnFailed: true)], isArchived: true), .archived)
+    }
+
     private struct ConversationSpec {
         var isUnread = false
         var runtime: ActivitySignal = .neutral
         var awaitsDecision = false
+        var lastTurnFailed = false
     }
 
     private func folded(_ specs: [ConversationSpec], isArchived: Bool = false) -> ThreadStatus {
@@ -162,7 +205,8 @@ final class ThreadStatusTests: XCTestCase {
             return ConversationStatusSnapshot(
                 conversationID: conversationID,
                 isUnread: spec.isUnread,
-                awaitsUserDecision: spec.awaitsDecision
+                awaitsUserDecision: spec.awaitsDecision,
+                lastTurnFailed: spec.lastTurnFailed
             )
         }
         return .folded(isArchived: isArchived, conversations: snapshots) {

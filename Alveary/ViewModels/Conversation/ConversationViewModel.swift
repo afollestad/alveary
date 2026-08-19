@@ -171,7 +171,16 @@ final class ConversationViewModel {
            conversation.thread?.permissionMode != "plan" {
             self.state.lastNonPlanPermissionMode = conversation.thread?.permissionMode
         }
+        installTerminalBoundaryPersistence(on: self.state)
         cleanupUnreferencedImageAttachments()
+    }
+
+    /// `restoreStateAfterFailedInitialSetup` swaps in a fresh `ConversationState`, so installing
+    /// only from `init` would silently stop persisting turn outcomes after a rollback.
+    private func installTerminalBoundaryPersistence(on state: ConversationState) {
+        state.persistTerminalBoundary = { [weak self] boundary in
+            self?.recordDurableTurnOutcome(boundary)
+        }
     }
 
     var needsSetup: Bool {
@@ -414,7 +423,11 @@ final class ConversationViewModel {
                 state.registerViewMount()
             }
         }
+        if previousState !== state {
+            previousState.persistTerminalBoundary = nil
+        }
         self.state = state
+        installTerminalBoundaryPersistence(on: state)
         runtimeStore.bindConversationState(state, for: conversation.id)
     }
 

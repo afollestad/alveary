@@ -15,6 +15,7 @@ These are persistence contracts backed by SwiftData fields. Treat them as hard c
     - **`AgentSessionApprovalSelection` is not a grant**; it stores only the last approval-button pick, to preselect the next prompt.
     - **Keep both out of transcript persistence** — rendering still reads final button state from `ConversationEventRecord.toolApprovalStatus`.
     - **Rows are keyed by provider, conversation ID, and provider session ID**; remove them when that conversation's runtime session is replaced or destroyed.
+- **`Conversation.lastTurnFailedAt` is the durable half of `ThreadStatus.error`.** Written only from the terminal-boundary writer `ConversationViewModel` installs on `ConversationState`; cleared by `markVisibleTurnStarted()` and again before `sendReserved` dispatches. A new turn-start path that skips that clear leaves a stale failure outranking a live spinner.
 - **`Project.remoteName` and `Project.gitRemote` are a paired invariant**: persist and update together, and have Git, worktree, and GitHub flows read the stored `remoteName` instead of rediscovering a remote.
 - **Sidebar manual ordering uses optional dense order fields.**
     - `Project.sidebarSortOrder` is set only while `Project.isPinned == false`; pinned projects keep it `nil`.

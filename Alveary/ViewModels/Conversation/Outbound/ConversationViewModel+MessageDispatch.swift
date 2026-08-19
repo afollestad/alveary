@@ -35,6 +35,7 @@ extension ConversationViewModel {
         state.activeRuntimeActivityTurnId = nil
         state.pendingSyntheticAssistantDuplicateText = nil
         (state.lastTurnError, state.failedSessionHandoffMessage) = (nil, nil)
+        clearDurableTurnFailure()
         try await sendVisibleAgentMessage(
             transportMessage,
             initialGoal: initialGoal,
@@ -330,8 +331,7 @@ private extension ConversationViewModel {
         hasActivatedControllerLifecycle || (allowInactiveBeforeFirstActivation && !hasEverActivatedViewLifecycle)
     }
 
-    /// `.error` joins `.busy` as a cached value worth confirming: a since-exited runtime reports
-    /// `.idle` only once something reads it, so a stale `.error` would strand a queued message.
+    /// A since-exited runtime reports `.idle` only once read, so a cached `.error` earns the same confirming refresh as `.busy`.
     func runtimeStatusForQueueDrain() async -> ActivitySignal {
         let cachedStatus = agentsManager.status(for: conversation.id)
         guard cachedStatus == .busy || cachedStatus == .error,

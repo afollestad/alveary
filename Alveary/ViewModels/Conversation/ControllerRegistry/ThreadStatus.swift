@@ -23,6 +23,9 @@ struct ConversationStatusSnapshot: Equatable {
     /// From `ConversationDecisionAttention.awaitsDecision(_:)`, evaluated at snapshot time while
     /// the row is known live — see that function's contract.
     let awaitsUserDecision: Bool
+    /// `Conversation.lastTurnFailedAt != nil` — the durable half of `.error`, since the runtime's
+    /// own signal lives only in `DefaultAgentsManager.statusSnapshot`.
+    let lastTurnFailed: Bool
 }
 
 extension ConversationStatusSnapshot {
@@ -32,7 +35,8 @@ extension ConversationStatusSnapshot {
         self.init(
             conversationID: conversation.id,
             isUnread: conversation.isUnread,
-            awaitsUserDecision: attention.awaitsDecision(conversation)
+            awaitsUserDecision: attention.awaitsDecision(conversation),
+            lastTurnFailed: conversation.lastTurnFailedAt != nil
         )
     }
 }
@@ -47,6 +51,12 @@ extension ThreadStatus {
     /// wins and the dot appears once work settles, and it beats `.unread`: a pending scheduled
     /// proposal marks its conversation unread, and green already means "done".
     ///
+    /// `lastTurnFailed` is the durable half of `.error`, and it deliberately outranks that
+    /// conversation's own `.busy`. Nothing records it without a turn ending, and
+    /// `markVisibleTurnStarted()` clears it, so a flag that is still set proves no turn has begun
+    /// since — which makes a `.busy` alongside it a signal a dead process never released. A
+    /// *sibling* conversation that is genuinely working still spins the whole row.
+    ///
     /// `runtimeFor` stays a closure because runtime signals are in-memory coordinator state, not
     /// persisted rows; it is keyed by `Conversation.id` so no model crosses the fold's boundary.
     static func folded(
@@ -58,26 +68,43 @@ extension ThreadStatus {
             return .archived
         }
 
-        var hasError = false
-        var isWaitingForUser = false
-        var hasUnread = false
-
+        var fold = ThreadStatusFold()
         for conversation in conversations {
-            let signal = runtimeFor(conversation.conversationID)
-            if signal == .busy {
-                return .busy
-            }
-            if signal == .waitingForUser || conversation.awaitsUserDecision {
-                isWaitingForUser = true
-            }
-            if signal == .error {
-                hasError = true
-            }
-            if conversation.isUnread {
-                hasUnread = true
-            }
+            fold.add(conversation, signal: runtimeFor(conversation.conversationID))
         }
+        return fold.status
+    }
+}
 
+/// Accumulates the fold one snapshot at a time. Split out of `folded` so neither half carries the
+/// whole precedence ladder's branching; `status` is the ladder, `add` is the per-conversation read.
+private struct ThreadStatusFold {
+    private var hasLiveBusy = false
+    private var hasError = false
+    private var isWaitingForUser = false
+    private var hasUnread = false
+
+    mutating func add(_ conversation: ConversationStatusSnapshot, signal: ActivitySignal) {
+        if conversation.lastTurnFailed {
+            hasError = true
+        } else if signal == .busy {
+            hasLiveBusy = true
+        }
+        if signal == .waitingForUser || conversation.awaitsUserDecision {
+            isWaitingForUser = true
+        }
+        if signal == .error {
+            hasError = true
+        }
+        if conversation.isUnread {
+            hasUnread = true
+        }
+    }
+
+    var status: ThreadStatus {
+        if hasLiveBusy {
+            return .busy
+        }
         if isWaitingForUser {
             return .waitingForUser
         }

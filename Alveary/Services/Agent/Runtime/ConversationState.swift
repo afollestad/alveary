@@ -100,6 +100,12 @@ final class ConversationState {
     var lastTurnError: String?
     var lastTurnInterrupted = false
     var controllerTerminalFailureMessage: String?
+    /// Mirrors each recorded terminal boundary into durable storage. `recordControllerTerminalBoundary()`
+    /// is the one place a turn's ending is classified, and this type owns no `ModelContext`, so the
+    /// owning `ConversationViewModel` installs the writer rather than each of the ~28 `endTurn()`
+    /// call sites persisting its own outcome. Synchronous by contract: a failure followed
+    /// immediately by `markVisibleTurnStarted()` must not land after the clear.
+    @ObservationIgnored var persistTerminalBoundary: (@MainActor (ConversationTerminalBoundary) -> Void)?
     private(set) var lastControllerTerminalBoundary: ConversationTerminalBoundary?
     private(set) var hasDeferredControllerTerminalBoundary = false
     var stagedContext: String?
@@ -377,11 +383,13 @@ final class ConversationState {
         } else {
             result = .succeeded
         }
-        lastControllerTerminalBoundary = ConversationTerminalBoundary(
+        let boundary = ConversationTerminalBoundary(
             sequence: (lastControllerTerminalBoundary?.sequence ?? 0) &+ 1,
             wasVisible: currentTurnActivityVisibility == .visible,
             result: result
         )
+        lastControllerTerminalBoundary = boundary
+        persistTerminalBoundary?(boundary)
     }
 
     func markRetryableFailedMessage(

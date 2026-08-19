@@ -58,6 +58,9 @@ final class AgentThreadModeTests: XCTestCase {
             assertLegacyTaskWorkspaceDefaults(thread)
             XCTAssertEqual(thread.project?.path, CanonicalPath.normalize(projectPath))
             XCTAssertEqual(thread.conversations.map(\.id), [conversationID])
+            // `PreTaskModeSchema` is frozen without the column, so this is the lightweight-migration
+            // lock for `Conversation.lastTurnFailedAt`.
+            XCTAssertNil(thread.conversations.first?.lastTurnFailedAt)
             XCTAssertEqual(thread.conversations.first?.events.map(\.id), ["pre-task-mode-event"])
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTask>()), 0)
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskRun>()), 0)

@@ -19,6 +19,50 @@ extension ConversationViewModel {
         }
     }
 
+    /// Mirrors a controller turn's outcome onto the conversation so a failure outlives the app
+    /// session. Hidden turns are excluded — a failed commit-message generation must not paint the
+    /// thread red — and `wasVisible` is captured when the turn ended, so a later
+    /// `recordLocalVisibleTurnEndedIfNeeded()` cannot retroactively hide it.
+    func recordDurableTurnOutcome(_ boundary: ConversationTerminalBoundary) {
+        guard boundary.wasVisible else {
+            return
+        }
+        if case .failed = boundary.result {
+            applyDurableTurnFailure(Date())
+        } else {
+            applyDurableTurnFailure(nil)
+        }
+    }
+
+    /// Drops a recorded failure when a new attempt begins. `ThreadStatus.folded` leans on this:
+    /// a surviving flag is what proves a `.busy` signal belongs to a turn that never ended.
+    ///
+    /// Two callers, and the order matters. `markVisibleTurnStarted()` is the general owner, but
+    /// `sendReserved` clears again *before* dispatching, because the dispatch is what puts the
+    /// runtime in `.busy` and `markVisibleTurnStarted()` only runs once it returns — clearing
+    /// solely there can paint the row red for the frames in between. It sits with the
+    /// `lastTurnError` reset for the same reason: a new attempt drops the previous turn's fallout.
+    func clearDurableTurnFailure() {
+        applyDurableTurnFailure(nil)
+    }
+
+    /// Writes the flag and deliberately schedules no save of its own.
+    ///
+    /// This runs inside `recordControllerTerminalBoundary()`, and `scheduleSave()` mutates
+    /// `saveTask`, which `hasPendingPersistence` exposes to the controller registry's observation.
+    /// Scheduling from here re-enters the registry on the very boundary it is reconciling, and its
+    /// terminal flush then waits on a save that keeps rescheduling — the suite livelocks on the
+    /// terminal-save paths. The sidebar reads the property, not the file, and every caller that
+    /// records a boundary either schedules its own save or is followed by the registry's terminal
+    /// flush, which saves the context outright.
+    private func applyDurableTurnFailure(_ failedAt: Date?) {
+        guard let dbConversation = dbConversation(),
+              (dbConversation.lastTurnFailedAt != nil) != (failedAt != nil) else {
+            return
+        }
+        dbConversation.lastTurnFailedAt = failedAt
+    }
+
     func flushPendingSaveIfNeeded() async {
         // A finishing save can schedule a follow-up snapshot; approval resumes need the final cursor.
         while let saveTask {

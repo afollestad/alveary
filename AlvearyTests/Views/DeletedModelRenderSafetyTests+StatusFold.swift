@@ -34,7 +34,9 @@ extension DeletedModelRenderSafetyTests {
     // MARK: - Status fold
 
     /// The fold accepts no models, so it answers from snapshots taken while rows were live even
-    /// after the rows die — the compile-level lock on the sidebar status path.
+    /// after the rows die — the compile-level lock on the sidebar status path. `lastTurnFailedAt`
+    /// is seeded too, so the durable failure input stays inside that contract; the pending decision
+    /// still outranks it.
     func testThreadStatusFoldedAnswersFromValueSnapshotsAfterDelete() throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(
@@ -43,6 +45,7 @@ extension DeletedModelRenderSafetyTests {
             conversationIDs: ["unread", "deciding"]
         )
         thread.conversations.first { $0.id == "unread" }?.isUnread = true
+        thread.conversations.first { $0.id == "deciding" }?.lastTurnFailedAt = Date()
         try fixture.context.save()
 
         let attention = ConversationDecisionAttention(
