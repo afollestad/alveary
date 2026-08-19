@@ -56,9 +56,8 @@ struct PullRequestReviewThreadView: View {
                             scale: .inline
                         )
                     }
-                    .buttonStyle(.plain)
+                    .inlineActionButtonStyle(foregroundColor: PullRequestCommentRevealAction.tint)
                     .font(.caption)
-                    .foregroundStyle(PullRequestCommentRevealAction.tint)
                     .accessibilityHint("Shows this comment in the Changes tab")
                 }
             }

@@ -169,6 +169,53 @@ extension SnapshotTests {
             named: "review_proposal_widget_rejected"
         )
     }
+
+    /// "Show in PR" resting beside hovered, because hovering is the whole of this control's
+    /// feedback — it draws no shape, so a baseline of the resting state alone would pass unchanged
+    /// if the brightening were dropped. A whole card cannot show it: the fixture has no way to put
+    /// the pointer on one control, so the pair is rendered directly, the way the transcript's
+    /// approval controls are.
+    func testReviewProposalCommentJumpButtonHoverState() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                // Contrast is pinned so the baseline cannot flip with the runner's own
+                // Increase Contrast setting, which would erase the difference being captured.
+                let resting = AppKitReviewProposalCommentJumpButton()
+                resting.configure(fontSize: 11)
+                resting.increasesContrast = { false }
+
+                let hovered = AppKitReviewProposalCommentJumpButton()
+                hovered.configure(fontSize: 11)
+                hovered.increasesContrast = { false }
+                hovered.mouseEntered(with: Self.reviewProposalHoverEvent)
+
+                let stack = NSStackView(views: [resting, hovered])
+                stack.orientation = .horizontal
+                stack.alignment = .centerY
+                stack.spacing = 24
+                stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+                return stack
+            },
+            size: CGSize(width: 300, height: 52),
+            named: "review_proposal_comment_jump_button_hover"
+        )
+    }
+
+    /// `mouseEntered` reads nothing off the event, and `NSEvent.mouseEvent` rejects the tracking-area
+    /// types outright, so a `.mouseMoved` stand-in drives it.
+    private static var reviewProposalHoverEvent: NSEvent {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) ?? NSEvent()
+    }
 }
 
 /// Builds review-proposal cards without the coordinator, so a baseline never depends on GitHub.

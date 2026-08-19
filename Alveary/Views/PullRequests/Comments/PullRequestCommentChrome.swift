@@ -138,7 +138,9 @@ struct PullRequestCommentActionsMenu: View {
 /// because they do one thing.
 ///
 /// The transcript's copy is AppKit and rebuilds the button by hand, so the parts it
-/// cannot inherit live here. `AppAccentIcon` rather than a bare `Color.accentColor`:
+/// cannot inherit live here — and what it cannot express as a static it borrows instead:
+/// its hover drives `alphaValue` from `InlineActionButtonOpacity`, the same ramp the pane's
+/// button brightens through. `AppAccentIcon` rather than a bare `Color.accentColor`:
 /// this is a caption-sized glyph beside caption-sized text, the size at which the plain
 /// accent washes out in light mode.
 enum PullRequestCommentRevealAction {
@@ -208,6 +210,20 @@ struct PullRequestResolvedThreadHeader: View {
     let commentCount: Int
     @Binding var isExpanded: Bool
 
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @State private var isHovering = false
+
+    /// Hovering brightens the whole row rather than going through
+    /// `inlineActionButtonStyle(foregroundColor:)`, which paints one tint: this label carries
+    /// three at once — a secondary chevron, a green "Resolved", a secondary count — and a single
+    /// foreground colour would flatten them. The ramp is still the shared one, Increase Contrast
+    /// included, so this row and the Reply/Resolve pair below it lift by the same amount.
+    private var rowOpacity: Double {
+        isHovering
+            ? InlineActionButtonOpacity.active
+            : InlineActionButtonOpacity.resting(increasesContrast: colorSchemeContrast == .increased)
+    }
+
     var body: some View {
         Button {
             isExpanded.toggle()
@@ -228,9 +244,15 @@ struct PullRequestResolvedThreadHeader: View {
 
                 Spacer(minLength: 0)
             }
+            .opacity(rowOpacity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
         .accessibilityLabel("Resolved conversation, \(commentCount) comments")
         .accessibilityHint(isExpanded ? "Collapses the conversation" : "Expands the conversation")
     }
@@ -257,9 +279,8 @@ struct PullRequestThreadActionsFooter: View {
                         scale: .inline
                     )
                 }
-                .buttonStyle(.plain)
+                .inlineActionButtonStyle(foregroundColor: .accentColor)
                 .font(.caption)
-                .foregroundStyle(Color.accentColor)
                 .accessibilityLabel("Reply to thread")
             }
 
@@ -275,9 +296,8 @@ struct PullRequestThreadActionsFooter: View {
                         scale: .inline
                     )
                 }
-                .buttonStyle(.plain)
+                .inlineActionButtonStyle(foregroundColor: .secondary)
                 .font(.caption)
-                .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)

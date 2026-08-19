@@ -268,11 +268,27 @@ private extension AppKitReviewProposalCommentMenuButton {
 /// Opens this comment in the pull request pane's Changes tab, scrolled to the line it annotates.
 ///
 /// An accent icon-and-text button matching the pane's own "Show in Changes" — same
-/// `Octicon.fileDiff16`, same accent, same caption type — because the two are one affordance seen
-/// from two surfaces. Single press: it navigates rather than destroys.
+/// `Octicon.fileDiff16`, same accent, same caption type, and the same brightening on hover —
+/// because the two are one affordance seen from two surfaces. Single press: it navigates rather
+/// than destroys.
+///
+/// `alphaValue` is what carries the hover, because it is the one lever that reaches both halves at
+/// once: the label is a dynamic colour the field re-resolves itself, while the octicon's tint is
+/// baked into a bitmap. Set unanimated, like the hover circle on the menu button beside it, and
+/// re-derived when the system's accessibility display options change so Increase Contrast can drop
+/// the resting fade mid-session.
 @MainActor
 final class AppKitReviewProposalCommentJumpButton: AppKitHostToolWidgetBubbleView {
     var onJump: (() -> Void)?
+
+    /// Injected so tests can pin both contrast branches; production reads the live system setting.
+    var increasesContrast: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast } {
+        didSet {
+            refreshHoverAlpha()
+        }
+    }
+
+    private var accessibilityDisplayOptionsObserver: NSObjectProtocol?
 
     private let glyphView = NSImageView()
     private let titleField = NSTextField(labelWithString: PullRequestCommentRevealAction.transcriptTitle)
@@ -295,6 +311,20 @@ final class AppKitReviewProposalCommentJumpButton: AppKitHostToolWidgetBubbleVie
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    isolated deinit {
+        if let accessibilityDisplayOptionsObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(accessibilityDisplayOptionsObserver)
+        }
+    }
+
+    /// Internal so `ReviewProposalCommentControlsTests` can re-derive after injecting a contrast
+    /// value; every production caller is in this file.
+    func refreshHoverAlpha() {
+        alphaValue = isHovered
+            ? InlineActionButtonOpacity.active
+            : InlineActionButtonOpacity.resting(increasesContrast: increasesContrast())
     }
 
     /// Octicon artwork under-fills its canvas, which is why the pane's shared
@@ -352,6 +382,19 @@ private extension AppKitReviewProposalCommentJumpButton {
             // without this the artwork would overhang the author row.
             heightAnchor.constraint(greaterThanOrEqualTo: glyphView.heightAnchor)
         ])
+        refreshHoverAlpha()
+        onHoverChanged = { [weak self] _ in
+            self?.refreshHoverAlpha()
+        }
+        accessibilityDisplayOptionsObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshHoverAlpha()
+            }
+        }
         setAccessibilityLabel(PullRequestCommentRevealAction.transcriptName)
         toolTip = PullRequestCommentRevealAction.transcriptName
     }
