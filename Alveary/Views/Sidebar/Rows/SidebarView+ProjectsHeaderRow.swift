@@ -44,16 +44,16 @@ struct SidebarSectionHeaderRow: View, Equatable {
     /// Non-nil while this header is being renamed in place; the title swaps for a text field and
     /// the row stops toggling so a click inside the field cannot collapse the section.
     let editing: SidebarSectionHeaderEditing?
-    /// True only while this header is collapsed over a thread waiting on the user.
-    /// `sidebarWaitingAttention(...)` folds nothing for an expanded section, so the dot renders on
-    /// this flag alone rather than re-reading `disclosure`.
-    let hidesWaitingThread: Bool
+    /// Non-nil only while this header is collapsed over a thread worth surfacing.
+    /// `sidebarCollapsedActivity(...)` folds nothing for an expanded section, so the indicator
+    /// renders on this value alone rather than re-reading `disclosure`.
+    let hiddenActivity: SidebarHiddenActivity?
 
     init(
         title: String,
         showsTopDivider: Bool = false,
         disclosure: SidebarSectionHeaderDisclosure? = nil,
-        hidesWaitingThread: Bool = false,
+        hiddenActivity: SidebarHiddenActivity? = nil,
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
         editing: SidebarSectionHeaderEditing? = nil,
@@ -66,7 +66,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         onAction = onAddProject
         self.showsTopDivider = showsTopDivider
         self.disclosure = disclosure
-        self.hidesWaitingThread = hidesWaitingThread
+        self.hiddenActivity = hiddenActivity
         self.suppressHoverAffordances = suppressHoverAffordances
         self.editing = editing
         _isHoveringRow = State(initialValue: initialRowHover)
@@ -79,7 +79,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         actionAccessibilityLabel: String,
         actionHelp: String,
         disclosure: SidebarSectionHeaderDisclosure? = nil,
-        hidesWaitingThread: Bool = false,
+        hiddenActivity: SidebarHiddenActivity? = nil,
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
         onAction: @escaping @MainActor () -> Void
@@ -91,7 +91,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         self.onAction = onAction
         self.showsTopDivider = showsTopDivider
         self.disclosure = disclosure
-        self.hidesWaitingThread = hidesWaitingThread
+        self.hiddenActivity = hiddenActivity
         self.suppressHoverAffordances = suppressHoverAffordances
         editing = nil
         _isHoveringRow = State(initialValue: initialRowHover)
@@ -109,7 +109,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
             && (lhs.onAction == nil) == (rhs.onAction == nil)
             && lhs.showsTopDivider == rhs.showsTopDivider
             && lhs.disclosure == rhs.disclosure
-            && lhs.hidesWaitingThread == rhs.hidesWaitingThread
+            && lhs.hiddenActivity == rhs.hiddenActivity
             && lhs.suppressHoverAffordances == rhs.suppressHoverAffordances
             && lhs.editing == rhs.editing
     }
@@ -231,8 +231,8 @@ struct SidebarSectionHeaderRow: View, Equatable {
                 )
             }
 
-            if hidesWaitingThread {
-                SidebarWaitingAttentionDot()
+            if let hiddenActivity {
+                SidebarHiddenActivityIndicator(activity: hiddenActivity)
             }
         }
         // Offsetting the cluster rather than the title keeps the caret's gap measured from the
@@ -313,7 +313,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
 
     private var accessibilityLabel: String {
         let base = disclosure.map { toggleLabel(isExpanded: $0.isExpanded) } ?? title
-        return sidebarWaitingAttentionAccessibilityLabel(base, hidesWaitingThread: hidesWaitingThread)
+        return sidebarHiddenActivityAccessibilityLabel(base, activity: hiddenActivity)
     }
 
     private func toggleLabel(isExpanded: Bool) -> String {

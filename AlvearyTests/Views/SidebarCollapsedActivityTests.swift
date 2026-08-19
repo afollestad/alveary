@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 @MainActor
-final class SidebarWaitingAttentionTests: XCTestCase {
+final class SidebarCollapsedActivityTests: XCTestCase {
     // MARK: - Sections
 
     func testCollapsedTasksSectionHidingAWaitingTaskIsFlagged() throws {
@@ -12,9 +12,9 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         let waiting = insertTask(name: "Waiting", in: fixture)
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [.tasks], waiting: [waiting])
+        let activity = try fold(fixture, collapsedSections: [.tasks], waiting: [waiting])
 
-        XCTAssertTrue(attention.hidesWaitingThread(inSection: .tasks))
+        XCTAssertEqual(activity.hiddenActivity(inSection: .tasks), .waitingForUser)
     }
 
     // The row shows its own dot while the section is open, so the header must not double it.
@@ -23,9 +23,9 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         let waiting = insertTask(name: "Waiting", in: fixture)
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [], waiting: [waiting])
+        let activity = try fold(fixture, collapsedSections: [], waiting: [waiting])
 
-        XCTAssertEqual(attention, .none)
+        XCTAssertEqual(activity, .none)
     }
 
     func testCollapsedTasksSectionWithNothingWaitingIsNotFlagged() throws {
@@ -33,9 +33,9 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         _ = insertTask(name: "Idle", in: fixture)
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [.tasks], waiting: [])
+        let activity = try fold(fixture, collapsedSections: [.tasks], waiting: [])
 
-        XCTAssertEqual(attention, .none)
+        XCTAssertEqual(activity, .none)
     }
 
     func testCollapsedCustomSectionHidingAWaitingMemberIsFlagged() throws {
@@ -45,11 +45,11 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         member.customSection = fixture.context.resolveSidebarSection(id: sectionID)
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [.custom(sectionID)], waiting: [member])
+        let activity = try fold(fixture, collapsedSections: [.custom(sectionID)], waiting: [member])
 
-        XCTAssertTrue(attention.hidesWaitingThread(inSection: .custom(sectionID)))
+        XCTAssertEqual(activity.hiddenActivity(inSection: .custom(sectionID)), .waitingForUser)
         // Its home section absorbed it, so `Tasks` never listed it in the first place.
-        XCTAssertFalse(attention.hidesWaitingThread(inSection: .tasks))
+        XCTAssertNil(activity.hiddenActivity(inSection: .tasks))
     }
 
     // A pinned member renders under `Pinned`, which never collapses, so the collapse hides nothing.
@@ -61,9 +61,9 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         member.customSection = fixture.context.resolveSidebarSection(id: sectionID)
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [.custom(sectionID)], waiting: [member])
+        let activity = try fold(fixture, collapsedSections: [.custom(sectionID)], waiting: [member])
 
-        XCTAssertEqual(attention, .none)
+        XCTAssertEqual(activity, .none)
     }
 
     func testCollapsedProjectsSectionAggregatesEveryProjectChild() throws {
@@ -72,14 +72,14 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         let child = insertProjectThread(name: "Child", project: project, in: fixture)
         try fixture.context.save()
 
-        let attention = try fold(
+        let activity = try fold(
             fixture,
             collapsedSections: [.projects],
             expandedProjects: [project.path],
             waiting: [child]
         )
 
-        XCTAssertTrue(attention.hidesWaitingThread(inSection: .projects))
+        XCTAssertEqual(activity.hiddenActivity(inSection: .projects), .waitingForUser)
     }
 
     // `Pinned` heads a group with no collapse of its own, so it can never carry the dot.
@@ -89,10 +89,10 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         pinned.pinnedSortOrder = 0
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [.tasks], waiting: [pinned])
+        let activity = try fold(fixture, collapsedSections: [.tasks], waiting: [pinned])
 
-        XCTAssertFalse(attention.hidesWaitingThread(inSection: .pinned))
-        XCTAssertEqual(attention, .none)
+        XCTAssertNil(activity.hiddenActivity(inSection: .pinned))
+        XCTAssertEqual(activity, .none)
     }
 
     // MARK: - Project rows
@@ -103,11 +103,11 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         let child = insertProjectThread(name: "Child", project: project, in: fixture)
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [], waiting: [child])
+        let activity = try fold(fixture, collapsedSections: [], waiting: [child])
 
-        XCTAssertTrue(attention.hidesWaitingThread(inProjectAt: project.path))
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .waitingForUser)
         // The section is open, so only the row it hid carries the dot.
-        XCTAssertFalse(attention.hidesWaitingThread(inSection: .projects))
+        XCTAssertNil(activity.hiddenActivity(inSection: .projects))
     }
 
     func testExpandedProjectRowIsNeverFlagged() throws {
@@ -116,14 +116,14 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         let child = insertProjectThread(name: "Child", project: project, in: fixture)
         try fixture.context.save()
 
-        let attention = try fold(
+        let activity = try fold(
             fixture,
             collapsedSections: [],
             expandedProjects: [project.path],
             waiting: [child]
         )
 
-        XCTAssertEqual(attention, .none)
+        XCTAssertEqual(activity, .none)
     }
 
     // `Pinned` does not collapse, but the project rows inside it do.
@@ -135,42 +135,99 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         let child = insertProjectThread(name: "Child", project: project, in: fixture)
         try fixture.context.save()
 
-        let attention = try fold(fixture, collapsedSections: [], waiting: [child])
+        let activity = try fold(fixture, collapsedSections: [], waiting: [child])
 
-        XCTAssertTrue(attention.hidesWaitingThread(inProjectAt: project.path))
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .waitingForUser)
+    }
+
+    // MARK: - Working
+
+    func testCollapsedTasksSectionHidingABusyTaskReportsWorking() throws {
+        let fixture = try SidebarTestFixture()
+        let busy = insertTask(name: "Busy", in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [.tasks], working: [busy])
+
+        XCTAssertEqual(activity.hiddenActivity(inSection: .tasks), .working)
+    }
+
+    func testCollapsedProjectRowHidingABusyChildReportsWorking() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Alpha", path: "/tmp/working-collapsed")
+        let child = insertProjectThread(name: "Child", project: project, in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [], working: [child])
+
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .working)
+    }
+
+    // Deliberately inverts `ThreadStatus.folded`, where `.busy` outranks `.waitingForUser` for a
+    // single thread. Across separate hidden threads the answer is the only one the user can act on.
+    func testWaitingOutranksWorkingAcrossHiddenThreads() throws {
+        let fixture = try SidebarTestFixture()
+        let busy = insertTask(name: "Busy", in: fixture)
+        let waiting = insertTask(name: "Waiting", in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [.tasks], waiting: [waiting], working: [busy])
+
+        XCTAssertEqual(activity.hiddenActivity(inSection: .tasks), .waitingForUser)
+    }
+
+    // An inert thread is not worth standing in for: nothing to act on, nothing to wait for.
+    func testCollapsedSectionHidingOnlyInertThreadsReportsNothing() throws {
+        let fixture = try SidebarTestFixture()
+        _ = insertTask(name: "Idle", in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [.tasks])
+
+        XCTAssertEqual(activity, .none)
     }
 
     // MARK: - Accessibility
 
     // Both rows hide the dot from VoiceOver and announce it through this label instead, so the
     // wording is the only thing a screen-reader user gets.
-    func testAccessibilityLabelAnnouncesTheWaitingThreadOnlyWhenTheDotShows() {
+    func testAccessibilityLabelNamesWhicheverActivityTheIndicatorShows() {
         XCTAssertEqual(
-            sidebarWaitingAttentionAccessibilityLabel("Expand Tasks", hidesWaitingThread: true),
+            sidebarHiddenActivityAccessibilityLabel("Expand Tasks", activity: .waitingForUser),
             "Expand Tasks, waiting for you"
         )
         XCTAssertEqual(
-            sidebarWaitingAttentionAccessibilityLabel("Expand Tasks", hidesWaitingThread: false),
+            sidebarHiddenActivityAccessibilityLabel("Expand Tasks", activity: .working),
+            "Expand Tasks, working"
+        )
+        XCTAssertEqual(
+            sidebarHiddenActivityAccessibilityLabel("Expand Tasks", activity: nil),
             "Expand Tasks"
         )
     }
 
     // MARK: - Support
 
-    /// Runs the production fold with the waiting set stated outright, so these cases stay about
-    /// which container hides what rather than about how a thread reaches `.waitingForUser`.
+    /// Runs the production fold with each thread's status stated outright, so these cases stay
+    /// about which container hides what rather than about how a thread reaches a status.
     private func fold(
         _ fixture: SidebarTestFixture,
         collapsedSections: Set<SidebarCollapsibleSection>,
         expandedProjects: Set<String> = [],
-        waiting: [AgentThread]
-    ) throws -> SidebarWaitingAttention {
+        waiting: [AgentThread] = [],
+        working: [AgentThread] = []
+    ) throws -> SidebarCollapsedActivity {
         let waitingIDs = Set(waiting.map(\.persistentModelID))
-        return sidebarWaitingAttention(
+        let workingIDs = Set(working.map(\.persistentModelID))
+        return sidebarCollapsedActivity(
             snapshot: try fixture.renderSnapshot(),
             collapsedSections: collapsedSections,
             expandedProjects: expandedProjects,
-            isWaitingForUser: { waitingIDs.contains($0.persistentModelID) }
+            statusFor: { thread in
+                if waitingIDs.contains(thread.persistentModelID) { return .waitingForUser }
+                if workingIDs.contains(thread.persistentModelID) { return .busy }
+                return .stopped
+            }
         )
     }
 
@@ -184,7 +241,7 @@ final class SidebarWaitingAttentionTests: XCTestCase {
         guard case .created(let section) = try service.createSection(name: name),
               case .custom(let id) = section.id else {
             XCTFail("Expected a created custom section", file: file, line: line)
-            throw SidebarWaitingAttentionTestError.sectionNotCreated
+            throw SidebarCollapsedActivityTestError.sectionNotCreated
         }
         return id
     }
@@ -218,6 +275,6 @@ final class SidebarWaitingAttentionTests: XCTestCase {
     }
 }
 
-private enum SidebarWaitingAttentionTestError: Error {
+private enum SidebarCollapsedActivityTestError: Error {
     case sectionNotCreated
 }

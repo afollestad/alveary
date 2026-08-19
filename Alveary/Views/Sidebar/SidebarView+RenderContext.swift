@@ -26,9 +26,9 @@ struct SidebarRenderContext {
     /// mechanism). `ThreadDetailView` builds its tab presentations in `body` against the same
     /// hazards.
     let conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]]
-    /// Collapsed containers hiding a `.waitingForUser` thread, folded once per body beside the
-    /// statuses above — `SidebarWaitingAttention` owns why a row builder may not fold it instead.
-    let waitingAttention: SidebarWaitingAttention
+    /// Collapsed containers hiding a thread worth surfacing, folded once per body beside the
+    /// statuses above — `SidebarCollapsedActivity` owns why a row builder may not fold it instead.
+    let collapsedActivity: SidebarCollapsedActivity
 
     var pinnedItems: [SidebarPinnedItem] { snapshot.pinnedItems }
     var orderedProjects: [Project] { snapshot.orderedProjects }
@@ -54,12 +54,12 @@ struct SidebarRenderContext {
         conversationStatusesByThreadID[threadID] ?? []
     }
 
-    func sectionHidesWaitingThread(_ sectionID: SidebarSectionID) -> Bool {
-        waitingAttention.hidesWaitingThread(inSection: sectionID)
+    func sectionHiddenActivity(_ sectionID: SidebarSectionID) -> SidebarHiddenActivity? {
+        collapsedActivity.hiddenActivity(inSection: sectionID)
     }
 
-    func projectHidesWaitingThread(path: String) -> Bool {
-        waitingAttention.hidesWaitingThread(inProjectAt: path)
+    func projectHiddenActivity(path: String) -> SidebarHiddenActivity? {
+        collapsedActivity.hiddenActivity(inProjectAt: path)
     }
 }
 
@@ -94,9 +94,9 @@ extension SidebarView {
                 ConversationStatusSnapshot(conversation: conversation, attention: decisionAttention)
             )
         }
-        // Bound to its own `let` rather than folded into the initializer below: that call already
-        // carries nine arguments, and each one solved together lands on `body`'s type-check budget.
-        let waitingAttention = makeWaitingAttention(
+        // Bound to its own `let` rather than folded into the initializer below, whose seven
+        // arguments would otherwise be solved together on `body`'s type-check budget.
+        let collapsedActivity = makeCollapsedActivity(
             snapshot: snapshot,
             conversationStatusesByThreadID: conversationStatusesByThreadID
         )
@@ -121,28 +121,28 @@ extension SidebarView {
             hasArchivedThreads: !queriedArchivedThreadProbe.isEmpty,
             showsPullRequests: settings.pullRequestsEnabled,
             conversationStatusesByThreadID: conversationStatusesByThreadID,
-            waitingAttention: waitingAttention
+            collapsedActivity: collapsedActivity
         )
     }
 
-    /// The collapsed containers hiding a `.waitingForUser` thread, folded against this pass's
+    /// The collapsed containers hiding a thread worth surfacing, folded against this pass's
     /// statuses. Split out of `makeRenderContext()` so neither function's body outgrows the lint
-    /// limit; the placement contract itself lives on `sidebarWaitingAttention(...)`.
-    private func makeWaitingAttention(
+    /// limit; the placement contract itself lives on `sidebarCollapsedActivity(...)`.
+    private func makeCollapsedActivity(
         snapshot: SidebarRenderSnapshot,
         conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]]
-    ) -> SidebarWaitingAttention {
-        sidebarWaitingAttention(
+    ) -> SidebarCollapsedActivity {
+        sidebarCollapsedActivity(
             snapshot: snapshot,
             collapsedSections: collapsedSections,
             expandedProjects: expandedProjects,
-            isWaitingForUser: { thread in
+            statusFor: { thread in
                 // Every thread the snapshot holds came from the unarchived query.
                 viewModel.threadStatus(
                     threadID: thread.persistentModelID,
                     isArchived: false,
                     conversationStatuses: conversationStatusesByThreadID[thread.persistentModelID] ?? []
-                ) == .waitingForUser
+                )
             }
         )
     }

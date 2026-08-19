@@ -67,7 +67,7 @@ extension SnapshotTests {
                 actionAccessibilityLabel: "New task",
                 actionHelp: "New task",
                 disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
-                hidesWaitingThread: true,
+                hiddenActivity: .waitingForUser,
                 onAction: {}
             ),
             size: CGSize(width: 320, height: 56),
@@ -82,21 +82,27 @@ extension SnapshotTests {
             SidebarSectionHeaderRow(
                 title: "Review Queue",
                 disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
-                hidesWaitingThread: true
+                hiddenActivity: .waitingForUser
             ),
             size: CGSize(width: 320, height: 56),
             named: "section_header_custom_collapsed_waiting_dot"
         )
     }
 
-    // Stacked with no spacing, so a dot that grew the header or sat off the title's optical centre
-    // shows up as misalignment between the two titles.
-    func testSidebarSectionHeadersWithAndWithoutWaitingDotShareHeight() {
+    // Stacked with no spacing, so an indicator that grew a header or sat off the title's optical
+    // centre shows up as misalignment. The working ring and the waiting dot occupy the same 6pt
+    // frame, so all three rows must be identical in height.
+    func testSidebarSectionHeaderIndicatorsShareHeight() {
         let stack = VStack(spacing: 0) {
             SidebarSectionHeaderRow(
                 title: "Tasks",
                 disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
-                hidesWaitingThread: true
+                hiddenActivity: .waitingForUser
+            )
+            SidebarSectionHeaderRow(
+                title: "Tasks",
+                disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
+                hiddenActivity: .working
             )
             SidebarSectionHeaderRow(
                 title: "Tasks",
@@ -106,8 +112,24 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             stack,
-            size: CGSize(width: 320, height: 92),
-            named: "section_headers_waiting_dot_height_parity"
+            size: CGSize(width: 320, height: 132),
+            named: "section_header_indicators_height_parity"
+        )
+    }
+
+    func testSidebarSectionHeaderCollapsedWorkingIndicator() {
+        assertMacSnapshot(
+            SidebarSectionHeaderRow(
+                title: "Tasks",
+                actionSystemImage: "plus",
+                actionAccessibilityLabel: "New task",
+                actionHelp: "New task",
+                disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
+                hiddenActivity: .working,
+                onAction: {}
+            ),
+            size: CGSize(width: 320, height: 56),
+            named: "section_header_collapsed_working_indicator"
         )
     }
 
@@ -120,7 +142,7 @@ extension SnapshotTests {
             SidebarSectionHeaderRow(
                 title: long,
                 disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
-                hidesWaitingThread: true
+                hiddenActivity: .waitingForUser
             )
             SidebarSectionHeaderRow(
                 title: long,

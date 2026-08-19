@@ -33,7 +33,7 @@ extension SnapshotTests {
                 projectName: project.name,
                 isExpanded: false,
                 isSelected: false,
-                hidesWaitingThread: true,
+                hiddenActivity: .waitingForUser,
                 onToggleExpanded: {},
                 onActivate: {},
                 onCreateThread: {}
