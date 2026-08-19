@@ -278,7 +278,7 @@ private extension ConversationViewModel {
               ) else {
             return
         }
-        guard runtimeStatus == .idle || runtimeStatus == .neutral || runtimeStatus == .stopped else {
+        guard runtimeStatus.settlesQueueDrain else {
             return
         }
         guard let next = state.messageQueue.peekNext(),
@@ -330,9 +330,11 @@ private extension ConversationViewModel {
         hasActivatedControllerLifecycle || (allowInactiveBeforeFirstActivation && !hasEverActivatedViewLifecycle)
     }
 
+    /// `.error` joins `.busy` as a cached value worth confirming: a since-exited runtime reports
+    /// `.idle` only once something reads it, so a stale `.error` would strand a queued message.
     func runtimeStatusForQueueDrain() async -> ActivitySignal {
         let cachedStatus = agentsManager.status(for: conversation.id)
-        guard cachedStatus == .busy,
+        guard cachedStatus == .busy || cachedStatus == .error,
               !state.turnState.isActive,
               state.messageQueue.peekNext() != nil else {
             return cachedStatus

@@ -165,7 +165,7 @@ struct ConversationView: View {
             controllerLease.deactivate()
         }
         .onChange(of: runtimeStatus) { _, newStatus in
-            guard newStatus == .idle else {
+            guard newStatus.settlesQueueDrain else {
                 return
             }
             viewModel.scheduleQueueDrainIfNeeded()

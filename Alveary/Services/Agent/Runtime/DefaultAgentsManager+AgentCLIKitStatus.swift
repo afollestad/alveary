@@ -74,6 +74,17 @@ extension DefaultAgentsManager {
         }
     }
 
+    /// A settled `.error` outranks a runtime that still reports an active turn.
+    ///
+    /// AgentCLIKit clears `isTurnActive` only on an activity event, a terminal usage row, or a
+    /// terminal lifecycle — never on a bare `severity: .error` diagnostic — and it republishes
+    /// status after every appended envelope, stderr rows included. Without this guard the first
+    /// noisy row after a failed turn re-arms `.busy` for good: the sidebar keeps spinning, and
+    /// `isAgentActivelyWorking` queues the user's next message instead of sending it. Index-based
+    /// staleness cannot cover that, because each later envelope carries a higher `lastEventIndex`.
+    ///
+    /// The conversation cannot wedge red: a real send, a new buffer generation, resumed runtime
+    /// activity, an approval, and the next terminal token row all still clear `.error`.
     private func idleAgentCLIKitActivitySignal(
         for status: AgentCLIKit.AgentRuntimeStatus,
         conversationId: String,
@@ -81,10 +92,13 @@ extension DefaultAgentsManager {
     ) -> ActivitySignal? {
         switch status.state {
         case .starting, .running:
+            guard self.status(for: conversationId) != .error else {
+                return nil
+            }
             if status.isTurnActive && !ignoresStaleActiveStatus {
                 return .busy
             }
-            return self.status(for: conversationId) == .error ? nil : .idle
+            return .idle
         case .exited, .cancelled:
             if eventBuffers[conversationId]?.hasDeferredToolStop == true,
                self.status(for: conversationId) == .waitingForUser {

@@ -125,6 +125,13 @@ extension DefaultAgentsManager {
             throw AgentError.stdinClosed
         }
         try await services.runtime.startGoal(objective, conversationId: runtimeConversationId)
+        // A goal start is new provider work, so it supersedes the previous turn's settled error.
+        // Unlike `sendMessage` this path writes no status of its own — only the provider knows
+        // whether its goal start marked a turn active — so drop the error and let the refresh
+        // classify. `idleAgentCLIKitActivitySignal` will not promote `.error` back to `.busy`.
+        if self.status(for: conversationId) == .error {
+            updateStatus(.idle, for: conversationId)
+        }
         await refreshAgentCLIKitStatus(conversationId: conversationId, services: services)
     }
 

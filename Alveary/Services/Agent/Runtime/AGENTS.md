@@ -19,6 +19,7 @@ These instructions cover provider-neutral runtime management under `Alveary/Serv
 - **Every Alveary-launched Claude process disables native scheduling** with `CLAUDE_CODE_DISABLE_CRON=1` and a merged `RemoteTrigger` denial. Merge into existing configured deny-tool values instead of appending a competing variadic option.
 - **Preserve canonical workspace-root strings verbatim in the host-tool fallback retry.** A canceled or older replay generation must never disable the replacement runtime. `Alveary/Services/HostMCP/AGENTS.md` owns the retry itself.
 - **Session handoff replaces the provider session binding through `startFreshSession(...)`.** It must remove old session approvals, drop the old event buffer, and spawn with `forkSession: false`; do not route it through normal settings reconfiguration.
+- **A settled `.error` outranks polled status, so host-initiated new work must clear it.** `idleAgentCLIKitActivitySignal` owns why. A turn started through `runtime.*` plus `refreshAgentCLIKitStatus`, rather than `sendMessage` or a buffer install, otherwise leaves the row red while it runs.
 
 ### Notification Gating
 
