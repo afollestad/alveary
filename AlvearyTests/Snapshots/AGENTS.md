@@ -8,6 +8,7 @@ These instructions cover `AlvearyTests/Snapshots/` — `SnapshotTests` and its `
 
 - **Use `./scripts/snapshots.sh`, never `RECORD_SNAPSHOTS=1 ./scripts/test.sh`.** Plain `xcodebuild test` does not reliably propagate that variable into the app-hosted macOS tests, so the run silently verifies instead of recording. Its `usage()` covers both forms.
 - **Pass at most four focused identifiers per run.** Beyond that the run executes *zero* tests while still printing `status: success` and "Snapshot verification passed", so a batch re-record leaves every baseline stale. A real run prints `passed_tests` — two per test — and, recording, one "Record mode is on" error per baseline. Split longer lists into batches.
+- **A newly conditional element needs a fixture audit, not a `verify`.** One that renders only in some state adds too few pixels to breach the 1% budget, so grep the fixtures that seed that state (`setStatus`, say) and re-record their baselines.
 - **Audit for stale baselines by recording the full suite and diffing decoded pixels, not `git status`.** Decode drift marks most PNGs byte-changed, burying the few that actually moved.
 - **A macOS update can fail text baselines locally while CI stays green.** Local runs compare at 2x/`0.99` and CI's 1x fallback at `0.9`, so glyph-metric drift clears one threshold and not the other. Re-record, then confirm through `ALVEARY_FORCE_FIXED_SCALE_SNAPSHOTS=true ./scripts/snapshots.sh verify …`.
 
