@@ -19,6 +19,11 @@ final class PullRequestReviewProposalCoordinator {
     @ObservationIgnored private var observationTask: Task<Void, Never>?
     @ObservationIgnored private var remoteChangeTask: Task<Void, Never>?
     @ObservationIgnored var previewCacheTask: Task<Void, Never>?
+    @ObservationIgnored var previewWarmTask: Task<Void, Never>?
+    /// How long `scheduleRemoteReload` waits before reloading what an announcement invalidated.
+    /// Mirrors `PullRequestsViewModel.remoteRefreshDelay`, which coalesces the same burst.
+    @ObservationIgnored let remoteReloadDelay: Duration
+    @ObservationIgnored var remoteReloadTask: Task<Void, Never>?
     /// Handed to the transcript so a card's comment avatars come from the same cache the
     /// pull-request pane fills. Optional because tests build the coordinator without one.
     @ObservationIgnored let avatarLoader: GitHubAvatarLoader?
@@ -59,6 +64,7 @@ final class PullRequestReviewProposalCoordinator {
         avatarLoader: GitHubAvatarLoader? = nil,
         previewCache: PullRequestReviewProposalPreviewCache? = nil,
         notificationCenter: NotificationCenter = .default,
+        remoteReloadDelay: Duration = .milliseconds(750),
         now: @escaping () -> Date = Date.init
     ) {
         self.modelContext = modelContext
@@ -66,6 +72,7 @@ final class PullRequestReviewProposalCoordinator {
         self.avatarLoader = avatarLoader
         self.previewCache = previewCache
         self.notificationCenter = notificationCenter
+        self.remoteReloadDelay = remoteReloadDelay
         self.now = now
         reload()
         observeChanges()
@@ -75,6 +82,8 @@ final class PullRequestReviewProposalCoordinator {
         observationTask?.cancel()
         remoteChangeTask?.cancel()
         previewCacheTask?.cancel()
+        previewWarmTask?.cancel()
+        remoteReloadTask?.cancel()
         for task in previewTasks.values {
             task.cancel()
         }
@@ -302,9 +311,11 @@ final class PullRequestReviewProposalCoordinator {
         }
         apply(updated, for: presentation)
         // Unlike a removal, this cannot narrow the loaded preview in place: removal only subtracts,
-        // while an addition may need a file or hunk the preview deliberately dropped. Invalidate
-        // and let `ensurePreview` reload — the user is looking at the pane, so the reload is unseen.
+        // while an addition may need a file or hunk the preview deliberately dropped. Reloaded at
+        // once rather than on the card's next render — the user is composing in the pane, so the
+        // round trip is unseen, and one click is nothing for `scheduleRemoteReload` to coalesce.
         invalidatePreview(proposalID: proposalID)
+        ensurePreview(proposalID: proposalID)
         errorMessages[proposalID] = nil
         notifyChanged()
         return true

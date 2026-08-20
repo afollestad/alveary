@@ -100,7 +100,9 @@ extension ChatTranscriptView {
         guard presentation.sourceConversationID == conversationID else {
             return ReviewProposalWidgetState()
         }
-        // Loading is lazy: a card only fetches its diff once it is actually on screen.
+        // A fallback rather than the trigger: the coordinator warms every pending proposal's
+        // refresh at launch, and this covers a card the warm has not reached yet. Idempotent, so
+        // a card already refreshed costs nothing per render.
         coordinator.ensurePreview(proposalID: proposalID)
         let event = coordinator.selectedEvent(forProposalID: proposalID) ?? presentation.proposedEvent
         return ReviewProposalWidgetState(

@@ -23,7 +23,7 @@ extension PullRequestReviewProposalCoordinator {
         previewCacheTask?.cancel()
         previewCacheTask = Task { @MainActor [weak self] in
             let entries = await previewCache.load()
-            guard let self, !Task.isCancelled, !entries.isEmpty else {
+            guard let self, !Task.isCancelled else {
                 return
             }
             var painted = false
@@ -41,6 +41,46 @@ extension PullRequestReviewProposalCoordinator {
             }
             if painted {
                 notifyChanged()
+            }
+            // Chained behind the paint rather than run beside it: a refresh that failed first
+            // would leave `.failed` in `previews`, which the guard above overwrites for neither
+            // `nil` nor `.loading` — so the card would show an error in place of hunks already on
+            // disk. A coordinator built without a cache therefore skips the launch warm entirely
+            // and loads on render as it always did.
+            warmPreviews()
+        }
+    }
+
+    /// Starts every pending card's refresh without waiting for its thread to be opened, so opening
+    /// one costs no `gh` round trip at all — a cold cache included, which is the case that used to
+    /// leave a loading caption on screen for two of them.
+    ///
+    /// Every pending proposal warms, one at a time, newest first. Nothing under `fetchDetail` and
+    /// `fetchDiff` limits concurrency, so warming them together would put a `gh` pair per
+    /// unresolved proposal on the CPU at the moment of launch — and a proposal stays pending until
+    /// it is confirmed or rejected, so how many there are is the user's to decide, not a bound.
+    /// Serializing costs only latency, which is free here: no card is on screen waiting for it, and
+    /// one that does appear calls `ensurePreview` from its own render rather than queuing behind
+    /// this — so a warm working through older proposals never delays the card the user opened.
+    ///
+    /// Idempotent: `ensurePreview` skips anything already refreshed, so this only ever fetches for
+    /// proposals that have not been, which is what lets `scheduleRemoteReload` call it to reload
+    /// exactly what an announcement invalidated.
+    private func warmPreviews() {
+        previewWarmTask?.cancel()
+        previewWarmTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            for proposal in presentations.values.sorted(by: { $0.createdAt > $1.createdAt }) {
+                guard !Task.isCancelled else {
+                    return
+                }
+                ensurePreview(proposalID: proposal.id)
+                // Held as a value, because the load clears its own slot before it returns. Awaiting
+                // it is not cancellable, which is wanted: a load already in flight should still
+                // apply its result, and cancellation only has to stop the *next* one from starting.
+                await previewTasks[proposal.id]?.value
             }
         }
     }
@@ -109,12 +149,42 @@ extension PullRequestReviewProposalCoordinator {
         }
     }
 
-    /// Drops a card's preview and its refresh marker together, so the next render reloads it.
+    /// Drops a card's preview and its refresh marker together, leaving the reload to whichever
+    /// caller knows how soon it should run.
+    ///
+    /// The drop must not be answered by repainting from cache: the entry holds exactly the hunks
+    /// that just stopped being true — the pre-force-push lines, or a narrowing that predates the
+    /// comment `addStagedComment` staged, which a cached paint would report as unplaceable on a
+    /// comment the user just wrote. So the card *is* blank until a reload lands, and the two
+    /// callers differ on how to shorten that: a staged comment is one deliberate click and reloads
+    /// at once, while announcements arrive in bursts and reload through `scheduleRemoteReload`.
     func invalidatePreview(proposalID: String) {
         previews[proposalID] = nil
         refreshedProposalIDs.remove(proposalID)
         previewTasks[proposalID]?.cancel()
         previewTasks[proposalID] = nil
+    }
+
+    /// Reloads what the announcements dropped, once for the whole burst.
+    ///
+    /// Debounced like `PullRequestsViewModel`'s own refetch and for the same reason: one
+    /// address-feedback turn answers and resolves several threads in a row, and each is its own
+    /// announcement — reloading per announcement would cost a `gh` detail-plus-diff pair each.
+    /// Reloading at all, rather than waiting for the card's next render, is what keeps a thread
+    /// the user is not looking at from opening on a loading caption once they return to it.
+    private func scheduleRemoteReload() {
+        remoteReloadTask?.cancel()
+        let delay = remoteReloadDelay
+        remoteReloadTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard let self, !Task.isCancelled else {
+                return
+            }
+            // A cancelled run clears nothing: its handle already belongs to the schedule that
+            // replaced it, matching `previewTasks` and the pane's own remote refreshes.
+            remoteReloadTask = nil
+            warmPreviews()
+        }
     }
 
     /// A pull request that changed on GitHub invalidates the hunks its card drew. This matters more
@@ -138,5 +208,6 @@ extension PullRequestReviewProposalCoordinator {
             invalidatePreview(proposalID: proposalID)
         }
         notifyChanged()
+        scheduleRemoteReload()
     }
 }

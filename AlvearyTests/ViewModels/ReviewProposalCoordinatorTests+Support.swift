@@ -5,10 +5,16 @@ import XCTest
 @testable import Alveary
 
 /// A conversation holding one pending review proposal, plus the coordinator that owns it.
+/// `secondProposal` adds a second thread with its own, for the paths that survey all of them.
 @MainActor
 final class ReviewProposalFixture {
     static let proposalID = "proposal-1"
     static let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
+    /// A second thread's pending proposal, for the paths that survey every proposal at once
+    /// rather than one card's. Its own pull request, because propose time supersedes a second
+    /// proposal against one already spoken for.
+    static let secondProposalID = "proposal-2"
+    static let secondIdentifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 8)
 
     let modelContext: ModelContext
     let coordinator: PullRequestReviewProposalCoordinator
@@ -22,7 +28,9 @@ final class ReviewProposalFixture {
         body: String? = "Looks good to me.",
         comments: [PullRequestReviewProposalRecord.Comment]? = nil,
         cachedEntry: PullRequestReviewProposalPreviewCache.Entry? = nil,
-        corruptCache: Bool = false
+        corruptCache: Bool = false,
+        remoteReloadDelay: Duration = .zero,
+        secondProposal: Bool = false
     ) throws {
         let container = try ModelContainer(
             for: Project.self,
@@ -42,23 +50,17 @@ final class ReviewProposalFixture {
         thread.conversations = [sourceConversation]
         context.insert(thread)
         try sourceConversation.storePullRequestReviewProposal(
-            PullRequestReviewProposalRecord(
-                payloadVersion: PullRequestReviewProposalRecord.currentPayloadVersion,
+            Self.record(
                 id: Self.proposalID,
-                deduplicationKey: "dedup-1",
-                repositoryNameWithOwner: Self.identifier.nameWithOwner,
-                number: Self.identifier.number,
-                event: "approve",
+                identifier: Self.identifier,
                 body: body,
                 comments: comments,
-                titleSnapshot: "Detail title",
-                pendingCommentCountSnapshot: 1,
-                sourceProviderID: "codex",
-                sourceProcessToken: "token",
-                sourceRequestID: "request-1",
                 createdAt: Date(timeIntervalSince1970: 1_000)
             )
         )
+        if secondProposal {
+            try Self.insertSecondProposal(in: context, body: body, comments: comments)
+        }
         try context.save()
 
         previewCacheURL = try Self.makeCacheFile(cachedEntry: cachedEntry, corrupt: corruptCache)
@@ -68,12 +70,63 @@ final class ReviewProposalFixture {
             pullRequestsService: service,
             previewCache: PullRequestReviewProposalPreviewCache(fileURL: previewCacheURL),
             notificationCenter: notificationCenter,
+            // Zero by default: a test that posts one announcement has nothing to coalesce and
+            // should not wait. Only the burst test needs a window wide enough to span its posts.
+            remoteReloadDelay: remoteReloadDelay,
             now: { Date(timeIntervalSince1970: 2_000) }
         )
     }
 
     deinit {
         try? FileManager.default.removeItem(at: previewCacheURL)
+    }
+
+    /// A second thread with its own pending proposal, so a survey of every proposal has more than
+    /// one to find.
+    private static func insertSecondProposal(
+        in context: ModelContext,
+        body: String?,
+        comments: [PullRequestReviewProposalRecord.Comment]?
+    ) throws {
+        let thread = AgentThread(name: "Other Thread")
+        let conversation = Conversation(id: "other-conversation", provider: "codex", thread: thread)
+        thread.conversations = [conversation]
+        context.insert(thread)
+        try conversation.storePullRequestReviewProposal(
+            record(
+                id: secondProposalID,
+                identifier: secondIdentifier,
+                body: body,
+                comments: comments,
+                // Older, so `warmPreviews` reaches it second and the order under test is fixed.
+                createdAt: Date(timeIntervalSince1970: 900)
+            )
+        )
+    }
+
+    private static func record(
+        id: String,
+        identifier: PullRequestIdentifier,
+        body: String?,
+        comments: [PullRequestReviewProposalRecord.Comment]?,
+        createdAt: Date
+    ) -> PullRequestReviewProposalRecord {
+        PullRequestReviewProposalRecord(
+            payloadVersion: PullRequestReviewProposalRecord.currentPayloadVersion,
+            id: id,
+            deduplicationKey: "dedup-\(id)",
+            repositoryNameWithOwner: identifier.nameWithOwner,
+            number: identifier.number,
+            event: "approve",
+            body: body,
+            comments: comments,
+            titleSnapshot: "Detail title",
+            pendingCommentCountSnapshot: 1,
+            sourceProviderID: "codex",
+            sourceProcessToken: "token",
+            sourceRequestID: "request-\(id)",
+            createdAt: createdAt
+        )
     }
 
     private static func makeCacheFile(
@@ -130,6 +183,38 @@ final class ReviewProposalFixture {
             return [:]
         }
         return entries
+    }
+
+    /// Posts the announcement an `alveary_host` mutation makes, which drops the hunks a painted
+    /// card drew.
+    func announceRemoteChange(identifier: PullRequestIdentifier = ReviewProposalFixture.identifier) {
+        notificationCenter.post(
+            name: .pullRequestChangedOnGitHub,
+            object: nil,
+            userInfo: [
+                PullRequestChangeNotificationKey.announcement: PullRequestChangeAnnouncement(
+                    identifier: identifier,
+                    affectsListRow: false
+                )
+            ]
+        )
+    }
+
+    /// Awaits work the coordinator starts on its own, with no caller to await — the warm refresh
+    /// chained behind the cached paint, and the reload an invalidation kicks off.
+    func wait(
+        until condition: @MainActor () -> Bool,
+        _ message: String,
+        timeout: TimeInterval = 2
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() {
+                return
+            }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTFail(message)
     }
 
     /// The cached paint lands in its own task at init; poll rather than guessing at a sleep.
