@@ -72,20 +72,28 @@ enum PullRequestLinkedOwnerLookup {
     /// made. Owners are not deduplicated against each other: the same pull
     /// request may be linked from a project *and* its child threads, and each
     /// row selects a different sidebar item.
+    ///
+    /// Dead rows are dropped before any link column is read. The one caller passing
+    /// `@Query` results — `PullRequestPaneLinkedOwners`, whose link-holding threads are
+    /// exactly the agentic review threads a user deletes — still holds a row whose delete
+    /// committed this tick until the query republishes, and both listing that owner and
+    /// reading its persisted columns are wrong: the read can trap
+    /// (`Alveary/Data/PersistentModel+RenderLiveness.swift` owns the check and the crash it
+    /// came from). The service callers fetch fresh rows, so the filter is a no-op for them.
     static func owners(
         projects: [Project],
         threads: [AgentThread],
         linking identifier: PullRequestIdentifier
     ) -> [PullRequestLinkingOwner] {
         var projectRows: [LinkingRow] = []
-        for project in projects {
+        for project in projects where project.isLiveForRender {
             guard let link = project.linkedPullRequests.first(where: { $0.id == identifier }) else {
                 continue
             }
             projectRows.append(LinkingRow(owner: .project(project), linkedAt: link.linkedAt))
         }
         var threadRows: [LinkingRow] = []
-        for thread in threads {
+        for thread in threads where thread.isLiveForRender {
             guard let link = thread.linkedPullRequests.first(where: { $0.id == identifier }) else {
                 continue
             }

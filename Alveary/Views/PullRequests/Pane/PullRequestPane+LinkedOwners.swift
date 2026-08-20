@@ -15,6 +15,10 @@ struct PullRequestPaneLinkedOwners: View {
     @Environment(\.pullRequestLinkedOwnerOpenAction) private var openOwner
 
     var body: some View {
+        // The lookup drops rows a delete already removed; this pass then reads each survivor's
+        // name into a value while it is still known live, because a `ForEach` content closure runs
+        // later and a model read deferred into one can trap (`PullRequestLinkedOwnerLookup.owners`
+        // owns the liveness half).
         let owners = PullRequestLinkedOwnerLookup.owners(
             projects: projects,
             threads: threads,
@@ -23,7 +27,7 @@ struct PullRequestPaneLinkedOwners: View {
         if !owners.isEmpty {
             PullRequestOverviewSection(PullRequestLinkedOwnerLookup.title(for: owners)) {
                 PullRequestOverviewSectionRows {
-                    ForEach(owners) { owner in
+                    ForEach(owners.map(PullRequestLinkedOwnerPresentation.init)) { owner in
                         PullRequestLinkedOwnerRow(owner: owner) {
                             openOwner?(owner.linkOwner)
                         }
@@ -34,11 +38,26 @@ struct PullRequestPaneLinkedOwners: View {
     }
 }
 
+/// One linked owner as values, resolved while the row behind it is known live.
+private struct PullRequestLinkedOwnerPresentation: Identifiable {
+    let id: PersistentIdentifier
+    let displayName: String
+    let isProject: Bool
+    let linkOwner: PullRequestLinkOwner
+
+    init(_ owner: PullRequestLinkingOwner) {
+        id = owner.id
+        displayName = owner.displayName
+        isProject = owner.isProject
+        linkOwner = owner.linkOwner
+    }
+}
+
 /// One linked thread or project. The glyph is the only thing separating the two
 /// kinds visually, so it matches the icon each already wears elsewhere: the
 /// sidebar's project row and the `list_threads` tool row.
 private struct PullRequestLinkedOwnerRow: View {
-    let owner: PullRequestLinkingOwner
+    let owner: PullRequestLinkedOwnerPresentation
     let onOpen: () -> Void
 
     var body: some View {

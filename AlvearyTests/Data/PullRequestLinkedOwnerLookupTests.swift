@@ -67,6 +67,41 @@ final class PullRequestLinkedOwnerLookupTests: XCTestCase {
         XCTAssertEqual(owners.map(\.linkOwner), [.thread(matching.persistentModelID)])
     }
 
+    /// The pane's queries hold their results across a delete, and an agentic review thread is
+    /// exactly a link-holding thread. A row whose delete committed is not an owner, and reading
+    /// its persisted columns is the read that trapped in the 0.2.2 crash — an in-memory store
+    /// happens to answer it, so this asserts the list rather than the trap.
+    func testOwnersDropRowsWhoseDeleteAlreadyCommitted() throws {
+        let context = ModelContext(try makeContainer())
+        let deleted = AgentThread(name: "Review demo/waypoint#57")
+        let survivor = AgentThread(name: "Survivor")
+        let deletedProject = Project(path: "/tmp/gone", name: "Gone")
+        let survivingProject = Project(path: "/tmp/here", name: "Here")
+        context.insert(deleted)
+        context.insert(survivor)
+        context.insert(deletedProject)
+        context.insert(survivingProject)
+        for owner in [deleted, survivor] {
+            owner.linkedPullRequests = [link(number: 7, at: 10)]
+        }
+        for owner in [deletedProject, survivingProject] {
+            owner.linkedPullRequests = [link(number: 7, at: 10)]
+        }
+        try context.save()
+        context.delete(deleted)
+        context.delete(deletedProject)
+        try context.save()
+
+        // The pre-delete arrays, standing in for query results that have not republished yet.
+        let owners = PullRequestLinkedOwnerLookup.owners(
+            projects: [deletedProject, survivingProject],
+            threads: [deleted, survivor],
+            linking: identifier
+        )
+
+        XCTAssertEqual(owners.map(\.displayName), ["Here", "Survivor"])
+    }
+
     /// Projects lead, then threads; each group reads as its own linking history.
     func testOwnersListProjectsFirstThenThreadsByLinkTime() throws {
         let context = ModelContext(try makeContainer())
