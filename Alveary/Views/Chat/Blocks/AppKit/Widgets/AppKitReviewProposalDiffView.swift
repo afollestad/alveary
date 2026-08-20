@@ -8,9 +8,11 @@ import AppKit
 /// content gets a collapsed card with its controls laid over the clipped diff. It is not one
 /// `AppKitDiffCodeBlockView` either — that view puts every row in a single text view, which cannot
 /// interleave comment cards, and per-hunk segments would each compute their own gutter width and
-/// vertical padding. So the rows stack, and each draws its own slice through
-/// `AppKitDiffGutterPainter`. A transcript card cannot scroll anyway — the preview is already
-/// narrowed to the commented hunks, and the whole diff stays one Open PR away.
+/// vertical padding. So the content stacks as runs of consecutive lines with comment cards
+/// between them, each run drawing its gutter slices through `AppKitDiffGutterPainter`
+/// (`AppKitReviewProposalDiffRunView` owns why a run is one view). A transcript card cannot
+/// scroll anyway — the preview is already narrowed to the commented hunks, and the whole diff
+/// stays one Open PR away.
 ///
 /// It wears the shared code-block border and radius so the slab ends at an edge of its own rather
 /// than needing a rule across the card, and so a review's diff reads like every other fenced block
@@ -37,9 +39,9 @@ final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
     /// Rebuilt views are reused rather than reconstructed. The chat font-size setting is a live
     /// slider, so every step reconfigures this view; rebuilding from scratch would recreate a
     /// markdown body and refire an avatar load per comment on each one.
-    private var rowViewPool: [AppKitReviewProposalDiffRowView] = []
+    private var runViewPool: [AppKitReviewProposalDiffRunView] = []
     private var cardViewPool: [AppKitReviewProposalCommentCardView] = []
-    /// Summed at rebuild, because the widget queries it while measuring itself.
+    /// Computed during rebuild, because the widget queries it while measuring itself.
     private var widestRow: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
@@ -139,18 +141,40 @@ private extension AppKitReviewProposalDiffView {
             allowsRemoval: allowsRemoval,
             allowsJumping: allowsJumping
         )
-        var rowCount = 0
+        mount(items, metrics: metrics, font: font, context: context)
+    }
+
+    /// The stacking half of `rebuild`, split out to keep both bodies under the lint limit.
+    private func mount(
+        _ items: [Item],
+        metrics: AppKitDiffCodeBlockMetrics,
+        font: NSFont,
+        context: AppKitReviewProposalCommentContext
+    ) {
+        // Consecutive lines share one run view: the mounted-view count is what the card's
+        // configure and measure passes pay for, so the stack holds segments, not lines
+        // (`AppKitReviewProposalDiffRunView` owns the numbers).
+        var runCount = 0
         var cardCount = 0
+        var pendingRows: [DiffCodeHighlighting.Row] = []
         widestRow = 0
+        func flushPendingRows() {
+            guard !pendingRows.isEmpty else {
+                return
+            }
+            let view = runView(at: runCount)
+            runCount += 1
+            view.configure(rows: pendingRows, metrics: metrics, font: font)
+            widestRow = max(widestRow, view.naturalWidth)
+            stack.addFullWidthArrangedSubview(view)
+            pendingRows.removeAll(keepingCapacity: true)
+        }
         for (index, item) in items.enumerated() {
             switch item {
             case .row(let row):
-                let view = rowView(at: rowCount)
-                rowCount += 1
-                view.configure(row: row, metrics: metrics, font: font)
-                widestRow = max(widestRow, view.naturalWidth)
-                stack.addFullWidthArrangedSubview(view)
+                pendingRows.append(row)
             case .comment(let comment, let anchor, let anchoredKind):
+                flushPendingRows()
                 let view = cardView(at: cardCount)
                 cardCount += 1
                 view.configure(
@@ -167,16 +191,17 @@ private extension AppKitReviewProposalDiffView {
                 stack.addFullWidthArrangedSubview(view)
             }
         }
-        rowViewPool.removeSubrange(rowCount...)
+        flushPendingRows()
+        runViewPool.removeSubrange(runCount...)
         cardViewPool.removeSubrange(cardCount...)
     }
 
-    func rowView(at index: Int) -> AppKitReviewProposalDiffRowView {
-        if index < rowViewPool.count {
-            return rowViewPool[index]
+    func runView(at index: Int) -> AppKitReviewProposalDiffRunView {
+        if index < runViewPool.count {
+            return runViewPool[index]
         }
-        let view = AppKitReviewProposalDiffRowView()
-        rowViewPool.append(view)
+        let view = AppKitReviewProposalDiffRunView()
+        runViewPool.append(view)
         return view
     }
 

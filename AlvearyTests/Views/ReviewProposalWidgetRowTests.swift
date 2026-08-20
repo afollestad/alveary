@@ -69,6 +69,27 @@ final class ReviewProposalWidgetRowTests: XCTestCase {
         )
     }
 
+    /// The run view is pooled and reconfigured live (the chat font-size slider), so a shrink must
+    /// retire the extra labels — a stale one would keep drawing the previous preview's text. The
+    /// snapshot baselines cannot catch this: they always configure a fresh view once.
+    func testDiffRunViewRetiresExtraLabelsOnShrink() {
+        let view = AppKitReviewProposalDiffRunView()
+        let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        let rows = (0..<3).map { index in
+            DiffCodeHighlighting.Row(kind: .context, text: "line \(index)", oldNumber: index + 1, newNumber: index + 1)
+        }
+        let metrics = AppKitDiffCodeBlockMetrics(rows: rows, font: font)
+        view.configure(rows: rows, metrics: metrics, font: font)
+        let fullHeight = view.intrinsicContentSize.height
+        XCTAssertEqual(labels(in: view).count, 3)
+
+        view.configure(rows: Array(rows.prefix(1)), metrics: metrics, font: font)
+
+        XCTAssertEqual(labels(in: view), ["line 0"])
+        XCTAssertGreaterThan(view.intrinsicContentSize.height, 0)
+        XCTAssertLessThan(view.intrinsicContentSize.height, fullHeight)
+    }
+
     private func host(for entry: HostToolWidgetEntry) -> NSView {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = 640
