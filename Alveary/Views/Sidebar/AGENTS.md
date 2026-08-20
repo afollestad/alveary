@@ -9,6 +9,7 @@ The surfaces themselves each have their own scope: `Rows/` (project, thread, and
 ## Actions
 
 - **Re-check `voiceInputLifecycleController?.isModelPreparationModalPresented` after every suspension point**, not only on entry: an async action that selects, restores, or falls back must not navigate underneath a blocking modal that appeared while it was awaiting.
+- **A delete-confirm site calls `beginOptimisticThreadRemoval` synchronously before spawning its commit `Task`** — `SidebarView.pendingThreadRemovalIDs` owns why the row otherwise outlives the click by ~300ms.
 
 ## Pinned
 

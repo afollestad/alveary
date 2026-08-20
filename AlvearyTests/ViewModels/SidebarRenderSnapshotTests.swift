@@ -36,6 +36,34 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         )
     }
 
+    /// The optimistic-removal path: a confirmed delete hides its row from the snapshot before the
+    /// commit lands, wherever the thread renders — project child, standalone pin, or Task.
+    func testExcludedThreadIDsHideRowsEverywhereTheyRender() throws {
+        let fixture = try SidebarTestFixture()
+        let project = Project(path: "/tmp/snapshot-excluded", name: "Excluded")
+        let child = makeSnapshotThread(name: "Child", project: project)
+        let pinned = makeSnapshotThread(name: "Pinned", project: project, isPinned: true)
+        pinned.pinnedSortOrder = 0
+        let task = makeSnapshotTask(name: "Task")
+        fixture.context.insert(project)
+        fixture.context.insert(task)
+        try fixture.context.save()
+
+        let snapshot = try fixture.renderSnapshot(
+            excludedThreadIDs: [
+                child.persistentModelID,
+                pinned.persistentModelID,
+                task.persistentModelID
+            ]
+        )
+
+        XCTAssertTrue(snapshot.activeThreads(for: project).isEmpty)
+        XCTAssertFalse(snapshot.hasAnyActiveThreads(for: project))
+        XCTAssertTrue(snapshot.pinnedItems.isEmpty)
+        XCTAssertTrue(snapshot.activeTaskThreads.isEmpty)
+        XCTAssertFalse(snapshot.hasAnyActiveTaskThreads)
+    }
+
     func testArchivedOnlyProjectSuppressesTheNoThreadsPlaceholder() throws {
         let fixture = try SidebarTestFixture()
         let project = Project(path: "/tmp/snapshot-archived-only", name: "Archived Only")

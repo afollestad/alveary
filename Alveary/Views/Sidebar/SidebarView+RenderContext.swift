@@ -76,7 +76,8 @@ extension SidebarView {
             viewModel: viewModel,
             projects: queriedProjects.filter(\.isLiveForRender),
             unarchivedThreads: queriedUnarchivedThreads.filter(\.isLiveForRender),
-            sections: queriedSidebarSections.filter(\.isLiveForRender)
+            sections: queriedSidebarSections.filter(\.isLiveForRender),
+            excludedThreadIDs: pendingThreadRemovalIDs
         )
         let settings = viewModel.settingsService.current
         let decisionAttention = ConversationDecisionAttention(

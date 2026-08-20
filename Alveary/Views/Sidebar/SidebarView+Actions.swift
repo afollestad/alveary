@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 /// Shared by the sidebar and Archived dialogs. Value-typed on purpose: both arm their confirmation
 /// from a snapshot rather than a live row, so a delete cannot pull the copy's inputs out from under
@@ -175,7 +176,28 @@ extension SidebarView {
         }
     }
 
+    /// Hides a thread's row the moment its delete is confirmed, ahead of the commit —
+    /// `pendingThreadRemovalIDs` documents the gap this covers. Animated to match the collapse a
+    /// committed delete gets from `refreshThreadOrder(animated:)`; reduce-motion drops it the way
+    /// `threadOrderAnimation(expandedThreadCount:)` does.
+    func beginOptimisticThreadRemoval(_ threadID: PersistentIdentifier) {
+        withAnimation(accessibilityReduceMotion ? nil : .easeInOut(duration: 0.15)) {
+            _ = pendingThreadRemovalIDs.insert(threadID)
+        }
+    }
+
+    /// After a successful commit the query no longer holds the row, so this is invisible; after a
+    /// pre-commit failure it is what restores the hidden row.
+    func endOptimisticThreadRemoval(_ threadID: PersistentIdentifier) {
+        withAnimation(accessibilityReduceMotion ? nil : .easeInOut(duration: 0.15)) {
+            _ = pendingThreadRemovalIDs.remove(threadID)
+        }
+    }
+
     func confirmDeleteThread(_ thread: AgentThread) async {
+        // The ID is captured up front because the defer runs after the model may be dead.
+        let removalID = thread.persistentModelID
+        defer { endOptimisticThreadRemoval(removalID) }
         let routing = beginThreadRemovalRouting(
             thread,
             replacementItem: selectionAfterDeletingThread(thread),

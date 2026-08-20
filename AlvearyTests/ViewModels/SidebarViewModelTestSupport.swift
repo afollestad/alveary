@@ -106,14 +106,15 @@ struct SidebarTestFixture {
 
     /// The production sidebar render path: one project query plus one unarchived-thread
     /// query, grouped exactly as `SidebarView.body` groups them.
-    func renderSnapshot() throws -> SidebarRenderSnapshot {
+    func renderSnapshot(excludedThreadIDs: Set<PersistentIdentifier> = []) throws -> SidebarRenderSnapshot {
         SidebarRenderSnapshot(
             viewModel: viewModel,
             projects: try context.fetch(FetchDescriptor<Project>()),
             unarchivedThreads: try context.fetch(
                 FetchDescriptor<AgentThread>(predicate: #Predicate { $0.archivedAt == nil })
             ),
-            sections: try context.fetch(FetchDescriptor<SidebarSection>())
+            sections: try context.fetch(FetchDescriptor<SidebarSection>()),
+            excludedThreadIDs: excludedThreadIDs
         )
     }
 

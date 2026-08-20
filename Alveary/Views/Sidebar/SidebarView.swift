@@ -73,6 +73,13 @@ struct SidebarView: View, Equatable {
     @State var pendingRemoveSection: SidebarPendingSectionRemoval?
     @State var pendingArchiveThread: SidebarPendingThreadCleanup?
     @State var pendingDeleteThread: SidebarPendingThreadCleanup?
+    /// Threads a confirmed delete is about to remove, hidden from the render snapshot so the row
+    /// disappears on the confirm click itself. The actual commit runs in a `Task` that a
+    /// `confirmationDialog`'s dismissal starves for ~300ms (measured 19-08-2026), so without this
+    /// the row outlives the click by that long. Every confirm site inserts synchronously before
+    /// spawning its `Task`; `confirmDeleteThread` clears on exit, restoring the row if the delete
+    /// failed pre-commit.
+    @State var pendingThreadRemovalIDs: Set<PersistentIdentifier> = []
     @State var pendingDeleteProject: SidebarPendingProjectRemoval?
     @State var pendingTaskProjectAccess: SidebarTaskProjectAccessRequest?
     @State var sidebarDragInteractionState = SidebarDragInteractionState.idle
@@ -322,6 +329,10 @@ struct SidebarView: View, Equatable {
     }
 
     private func confirmThreadCleanup(_ thread: AgentThread, action: ThreadCleanupAction) {
+        // Synchronously, before the Task: `pendingThreadRemovalIDs` documents the gap this hides.
+        if action == .delete {
+            beginOptimisticThreadRemoval(thread.persistentModelID)
+        }
         Task {
             switch action {
             case .archive:

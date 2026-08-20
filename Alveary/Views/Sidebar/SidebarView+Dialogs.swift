@@ -69,6 +69,9 @@ extension SidebarView {
                     guard let thread = uiModelContext.resolveThread(id: pending.threadID) else {
                         return
                     }
+                    // Synchronously, before the Task: `pendingThreadRemovalIDs` documents the
+                    // dialog-dismissal gap this hides.
+                    beginOptimisticThreadRemoval(pending.threadID)
                     Task { await confirmDeleteThread(thread) }
                 }
 

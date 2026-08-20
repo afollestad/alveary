@@ -31,7 +31,8 @@ struct SidebarRenderSnapshot {
         viewModel: SidebarViewModel,
         projects: [Project],
         unarchivedThreads: [AgentThread],
-        sections: [SidebarSection] = []
+        sections: [SidebarSection] = [],
+        excludedThreadIDs: Set<PersistentIdentifier> = []
     ) {
         let regular = viewModel.regularProjects(from: projects)
         let pinnedProjects = projects.filter(\.isPinned)
@@ -44,8 +45,12 @@ struct SidebarRenderSnapshot {
         sectionDescriptors = descriptors
         let customSectionIDs = Set(descriptors.compactMap(\.id.customID))
 
-        // Provisional drafts never render as rows, counts, or pinned items.
-        let visibleThreads = unarchivedThreads.filter { !$0.isDraft }
+        // Provisional drafts never render as rows, counts, or pinned items. Excluded IDs are
+        // rows a confirmed delete is about to remove — `SidebarView.pendingThreadRemovalIDs`
+        // owns why they hide before the commit.
+        let visibleThreads = unarchivedThreads.filter {
+            !$0.isDraft && !excludedThreadIDs.contains($0.persistentModelID)
+        }
         let pinnedProjectIDs = Set(pinnedProjects.map(\.persistentModelID))
 
         let grouping = Self.groupThreads(
