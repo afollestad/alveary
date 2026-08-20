@@ -1,12 +1,14 @@
 /// What a collapsed sidebar container hides that is worth surfacing on the container itself.
 ///
 /// A thread shows its own status on its row, so collapsing the container holding it hides that
-/// signal; the container stands in for the row it hid. Only these two states are worth standing in
-/// for — an inert or finished thread has nothing the user needs to act on or wait for.
+/// signal; the container stands in for the row it hid. Only these three states are worth standing
+/// in for — an inert or finished thread has nothing the user needs to act on or wait for.
 enum SidebarHiddenActivity: Equatable {
     /// At least one hidden thread is `.waitingForUser`.
     case waitingForUser
-    /// No hidden thread is waiting, but at least one is `.busy`.
+    /// No hidden thread is waiting, but at least one is `.error`.
+    case failed
+    /// No hidden thread is waiting or failed, but at least one is `.busy`.
     case working
 }
 
@@ -68,27 +70,39 @@ func sidebarCollapsedActivity(
     return SidebarCollapsedActivity(sections: sections, projectPaths: projectPaths)
 }
 
-/// Waiting outranks working, inverting `ThreadStatus.folded`'s own ladder — deliberately.
+/// Ranks waiting, then failed, then working — sinking working below both states the user can act
+/// on, which inverts `ThreadStatus.folded`'s own ladder deliberately.
 ///
-/// There `.busy` beats `.waitingForUser` because both can describe the *same* thread, and a live
-/// busy proves its turn never ended. Across *different* hidden threads that argument does not
-/// apply: one thread genuinely needs an answer while another genuinely works, and the answer is
-/// the only one the user can act on. Reporting the spinner there would bury it.
+/// There `.busy` beats `.waitingForUser` and `.error` because all three can describe the *same*
+/// thread, and a live busy proves its turn never ended. Across *different* hidden threads that
+/// argument does not apply: one thread genuinely works while another genuinely needs an answer or
+/// has genuinely failed, and only those two are the user's to act on. Reporting the spinner there
+/// would bury them.
+///
+/// Waiting outranks failed — the order `ThreadStatus.folded` also uses — because a waiting thread
+/// is stalled until the user answers, while a failed turn is already settled and stays that way
+/// until they come back to it.
 @MainActor
 private func hiddenActivity(
     in threads: [AgentThread],
     statusFor: (AgentThread) -> ThreadStatus
 ) -> SidebarHiddenActivity? {
+    var hasFailed = false
     var isWorking = false
     for thread in threads {
         switch statusFor(thread) {
         case .waitingForUser:
             return .waitingForUser
+        case .error:
+            hasFailed = true
         case .busy:
             isWorking = true
-        case .unread, .stopped, .error, .archived:
+        case .unread, .stopped, .archived:
             continue
         }
+    }
+    if hasFailed {
+        return .failed
     }
     return isWorking ? .working : nil
 }

@@ -3,9 +3,9 @@ import SwiftUI
 /// The indicator a collapsed sidebar container shows for the thread its collapse hid.
 ///
 /// It stands in for that row's own status indicator, so it takes both its colour and its shape
-/// from **Status Dot Colors** in `Alveary/Views/AGENTS.md`: blue dot for `.waitingForUser`, the
-/// shared neutral ring for a working thread. Never give the working case a colour — the spinning
-/// shape is the signal.
+/// from **Status Dot Colors** in `Alveary/Views/AGENTS.md`: blue dot for `.waitingForUser`, red
+/// dot for a failed one, the shared neutral ring for a working thread. Never give the working case
+/// a colour — the spinning shape is the signal.
 ///
 /// Size and vertical placement are measured against the `.subheadline` title it trails, which on
 /// macOS is 11pt: cap height 7.75, x-height 5.87, a 14pt line box, and a cap-height centre sitting
@@ -14,8 +14,8 @@ import SwiftUI
 /// - `diameter` is 6 — between x-height and cap height — rather than `SidebarThreadRow`'s 8. That
 ///   row's indicator sits alone in a trailing column with no text to measure against; this one is
 ///   read beside a word, and 8 exceeds the cap height enough to look as tall as the capital letter.
-/// - **Both cases occupy exactly `diameter`.** `StatusIndicatorSpinner` pins its own frame to the
-///   diameter it is handed, so switching between them cannot resize the row or shift the title.
+/// - **Every case occupies exactly `diameter`.** `StatusIndicatorSpinner` pins its own frame to the
+///   diameter it is handed, so switching among them cannot resize the row or shift the title.
 /// - Vertical placement is the enclosing `HStack`'s plain `.center`. The 0.28pt gap between the two
 ///   centres is sub-pixel at 1x, so it already lands on the title's optical centre — do not add an
 ///   `alignmentGuide` or an `offset(y:)` correction.
@@ -43,6 +43,8 @@ struct SidebarHiddenActivityIndicator: View {
         switch activity {
         case .waitingForUser:
             Circle().fill(Color.blue)
+        case .failed:
+            Circle().fill(Color.red)
         case .working:
             StatusIndicatorSpinner(
                 color: .secondary,
@@ -56,6 +58,8 @@ struct SidebarHiddenActivityIndicator: View {
         switch activity {
         case .waitingForUser:
             return "Waiting for you"
+        case .failed:
+            return "Failed"
         case .working:
             return "Working"
         }
@@ -70,6 +74,8 @@ func sidebarHiddenActivityAccessibilityLabel(_ base: String, activity: SidebarHi
         return base
     case .waitingForUser:
         return "\(base), waiting for you"
+    case .failed:
+        return "\(base), failed"
     case .working:
         return "\(base), working"
     }

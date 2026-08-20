@@ -89,15 +89,38 @@ extension SnapshotTests {
         )
     }
 
+    // A failed hidden turn is settled rather than blocked, so the header carries the red dot the
+    // hidden row would have shown.
+    func testSidebarSectionHeaderCollapsedFailedDot() {
+        assertMacSnapshot(
+            SidebarSectionHeaderRow(
+                title: "Tasks",
+                actionSystemImage: "plus",
+                actionAccessibilityLabel: "New task",
+                actionHelp: "New task",
+                disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
+                hiddenActivity: .failed,
+                onAction: {}
+            ),
+            size: CGSize(width: 320, height: 56),
+            named: "section_header_collapsed_failed_dot"
+        )
+    }
+
     // Stacked with no spacing, so an indicator that grew a header or sat off the title's optical
-    // centre shows up as misalignment. The working ring and the waiting dot occupy the same 6pt
-    // frame, so all three rows must be identical in height.
+    // centre shows up as misalignment. The working ring and both dots occupy the same 6pt frame,
+    // so all four rows must be identical in height.
     func testSidebarSectionHeaderIndicatorsShareHeight() {
         let stack = VStack(spacing: 0) {
             SidebarSectionHeaderRow(
                 title: "Tasks",
                 disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
                 hiddenActivity: .waitingForUser
+            )
+            SidebarSectionHeaderRow(
+                title: "Tasks",
+                disclosure: SidebarSectionHeaderDisclosure(isExpanded: false, onToggle: {}),
+                hiddenActivity: .failed
             )
             SidebarSectionHeaderRow(
                 title: "Tasks",
@@ -112,7 +135,7 @@ extension SnapshotTests {
 
         assertMacSnapshot(
             stack,
-            size: CGSize(width: 320, height: 132),
+            size: CGSize(width: 320, height: 176),
             named: "section_header_indicators_height_parity"
         )
     }

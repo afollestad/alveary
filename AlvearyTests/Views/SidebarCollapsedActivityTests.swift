@@ -176,6 +176,54 @@ final class SidebarCollapsedActivityTests: XCTestCase {
         XCTAssertEqual(activity.hiddenActivity(inSection: .tasks), .waitingForUser)
     }
 
+    // MARK: - Failed
+
+    func testCollapsedTasksSectionHidingAFailedTaskReportsFailed() throws {
+        let fixture = try SidebarTestFixture()
+        let failed = insertTask(name: "Failed", in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [.tasks], failed: [failed])
+
+        XCTAssertEqual(activity.hiddenActivity(inSection: .tasks), .failed)
+    }
+
+    func testCollapsedProjectRowHidingAFailedChildReportsFailed() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Alpha", path: "/tmp/failed-collapsed")
+        let child = insertProjectThread(name: "Child", project: project, in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [], failed: [child])
+
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .failed)
+    }
+
+    // A failed turn is settled and stays that way; a waiting thread is stalled until answered.
+    func testWaitingOutranksFailedAcrossHiddenThreads() throws {
+        let fixture = try SidebarTestFixture()
+        let failed = insertTask(name: "Failed", in: fixture)
+        let waiting = insertTask(name: "Waiting", in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [.tasks], waiting: [waiting], failed: [failed])
+
+        XCTAssertEqual(activity.hiddenActivity(inSection: .tasks), .waitingForUser)
+    }
+
+    // Working sinks below failed for the same reason it sinks below waiting: only the failure is
+    // the user's to act on, and the spinner would bury it.
+    func testFailedOutranksWorkingAcrossHiddenThreads() throws {
+        let fixture = try SidebarTestFixture()
+        let busy = insertTask(name: "Busy", in: fixture)
+        let failed = insertTask(name: "Failed", in: fixture)
+        try fixture.context.save()
+
+        let activity = try fold(fixture, collapsedSections: [.tasks], failed: [failed], working: [busy])
+
+        XCTAssertEqual(activity.hiddenActivity(inSection: .tasks), .failed)
+    }
+
     // An inert thread is not worth standing in for: nothing to act on, nothing to wait for.
     func testCollapsedSectionHidingOnlyInertThreadsReportsNothing() throws {
         let fixture = try SidebarTestFixture()
@@ -197,6 +245,10 @@ final class SidebarCollapsedActivityTests: XCTestCase {
             "Expand Tasks, waiting for you"
         )
         XCTAssertEqual(
+            sidebarHiddenActivityAccessibilityLabel("Expand Tasks", activity: .failed),
+            "Expand Tasks, failed"
+        )
+        XCTAssertEqual(
             sidebarHiddenActivityAccessibilityLabel("Expand Tasks", activity: .working),
             "Expand Tasks, working"
         )
@@ -215,9 +267,11 @@ final class SidebarCollapsedActivityTests: XCTestCase {
         collapsedSections: Set<SidebarCollapsibleSection>,
         expandedProjects: Set<String> = [],
         waiting: [AgentThread] = [],
+        failed: [AgentThread] = [],
         working: [AgentThread] = []
     ) throws -> SidebarCollapsedActivity {
         let waitingIDs = Set(waiting.map(\.persistentModelID))
+        let failedIDs = Set(failed.map(\.persistentModelID))
         let workingIDs = Set(working.map(\.persistentModelID))
         return sidebarCollapsedActivity(
             snapshot: try fixture.renderSnapshot(),
@@ -225,6 +279,7 @@ final class SidebarCollapsedActivityTests: XCTestCase {
             expandedProjects: expandedProjects,
             statusFor: { thread in
                 if waitingIDs.contains(thread.persistentModelID) { return .waitingForUser }
+                if failedIDs.contains(thread.persistentModelID) { return .error }
                 if workingIDs.contains(thread.persistentModelID) { return .busy }
                 return .stopped
             }
