@@ -54,6 +54,29 @@ extension ScheduledTasksViewModelTests {
         XCTAssertNil(fixture.viewModel.makeEditDraft(definitionID: "reuse")?.reusedThread)
     }
 
+    /// Deleting the thread converts no definition — `ScheduledTaskTargetDetachment` filters to
+    /// `.existingThread`, so `.scheduledTasksChanged` never fires — leaving the lifecycle
+    /// notification as the only signal that stops an open Scheduled screen from naming a thread
+    /// that no longer exists, or offering it in the editor's thread picker.
+    func testDeletedReusedThreadRefreshesTheScreenThroughTheLifecycleNotification() async throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let thread = try fixture.insertReusedThreadDefinition(id: "reuse", threadName: "Morning triage")
+        fixture.viewModel.reload()
+        XCTAssertEqual(fixture.viewModel.tasks.first?.workspaceSummary, "Same thread each time · Morning triage")
+        XCTAssertEqual(fixture.viewModel.existingThreadTargets.map(\.conversationID), ["reuse-main"])
+
+        fixture.context.delete(thread)
+        try fixture.context.save()
+        fixture.notificationCenter.post(name: .threadLifecycleChanged, object: nil)
+
+        let healedSummary = "Same thread each time · Private workspace"
+        for _ in 0 ..< 20 where fixture.viewModel.tasks.first?.workspaceSummary != healedSummary {
+            await Task.yield()
+        }
+        XCTAssertEqual(fixture.viewModel.tasks.first?.workspaceSummary, healedSummary)
+        XCTAssertTrue(fixture.viewModel.existingThreadTargets.isEmpty)
+    }
+
     /// The proposal payload cannot carry the service-owned reuse link, so an edit-target
     /// proposal's review pane reads it off the live definition instead.
     func testEditProposalDraftSeedsTheReuseLinkFromTheLiveDefinition() throws {

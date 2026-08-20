@@ -26,20 +26,25 @@ extension ScheduledTasksViewModel {
             }
         }
 
-        let threadNotifications = notificationCenter.notifications(named: .threadPresentationChanged)
-        threadObservationTask = Task { @MainActor [weak self] in
-            for await _ in threadNotifications {
-                guard !Task.isCancelled else { return }
-                self?.reload()
-            }
-        }
+        threadObservationTask = reloadObservationTask(named: .threadPresentationChanged)
+
+        // Deleting or archiving a reuse schedule's own thread converts no definition —
+        // `ScheduledTaskTargetDetachment` filters to `.existingThread`, so `.scheduledTasksChanged`
+        // never fires — yet the card summary names that thread and the editor's thread picker
+        // offers it. The lifecycle notification is the only signal those reads have.
+        threadLifecycleObservationTask = reloadObservationTask(named: .threadLifecycleChanged)
 
         // Sections have no other route into an open editor: the sidebar reads them through its
         // own `@Query`, so a section created mid-session — including by the windowless
         // `create_section` host tool — reaches the Section picker only through this.
-        let sectionNotifications = notificationCenter.notifications(named: .sidebarSectionsChanged)
-        sectionObservationTask = Task { @MainActor [weak self] in
-            for await _ in sectionNotifications {
+        sectionObservationTask = reloadObservationTask(named: .sidebarSectionsChanged)
+    }
+
+    /// One subscription that answers every posting of `name` with a full `reload()`.
+    private func reloadObservationTask(named name: Notification.Name) -> Task<Void, Never> {
+        let notifications = notificationCenter.notifications(named: name)
+        return Task { @MainActor [weak self] in
+            for await _ in notifications {
                 guard !Task.isCancelled else { return }
                 self?.reload()
             }

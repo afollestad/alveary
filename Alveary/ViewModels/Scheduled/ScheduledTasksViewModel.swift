@@ -17,6 +17,7 @@ final class ScheduledTasksViewModel {
     @ObservationIgnored let notificationCenter: NotificationCenter
     @ObservationIgnored var changeObservationTask: Task<Void, Never>?
     @ObservationIgnored var threadObservationTask: Task<Void, Never>?
+    @ObservationIgnored var threadLifecycleObservationTask: Task<Void, Never>?
     @ObservationIgnored var proposalObservationTask: Task<Void, Never>?
     @ObservationIgnored var sectionObservationTask: Task<Void, Never>?
 
@@ -82,6 +83,7 @@ final class ScheduledTasksViewModel {
     deinit {
         changeObservationTask?.cancel()
         threadObservationTask?.cancel()
+        threadLifecycleObservationTask?.cancel()
         proposalObservationTask?.cancel()
         sectionObservationTask?.cancel()
     }
