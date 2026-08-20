@@ -104,12 +104,17 @@ elif mode == "canary":
 else:
     artifact_name = f"Alveary-{mode}-{version}-{build}-{short_sha}"
 
+# dSYMs are a plain ZIP in every mode, so their artifact name is free to describe
+# the run. A release has none: it attaches them to the GitHub Release instead.
+dsym_artifact_name = "" if mode == "release" else f"Alveary-{mode}-{version}-{build}-{short_sha}-dSYMs"
+
 with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
     print(f"mode={mode}", file=output)
     print(f"version={version}", file=output)
     print(f"build={build}", file=output)
     print(f"tag={tag}", file=output)
     print(f"artifact_name={artifact_name}", file=output)
+    print(f"dsym_artifact_name={dsym_artifact_name}", file=output)
 
 if mode == "dry-run":
     print(f"Preparing dry run for v{version} (build {build})")

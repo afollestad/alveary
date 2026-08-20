@@ -25,6 +25,7 @@ jobs:
       build: ${{ steps.version.outputs.build }}
       tag: ${{ steps.version.outputs.tag }}
       artifact_name: ${{ steps.version.outputs.artifact_name }}
+      dsym_artifact_name: ${{ steps.version.outputs.dsym_artifact_name }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -104,6 +105,12 @@ jobs:
           BUILD: ${{ needs.detect.outputs.build }}
         run: scripts/ci/verify-exported-app.sh
 
+      # Ahead of notarization so a missing dSYM fails before the notarytool round
+      # trip, and ahead of every upload so no mode can publish a binary without it.
+      - name: Package dSYMs
+        id: dsyms
+        run: scripts/ci/create-dsym-zip.sh
+
       - name: Notarize and staple app
         if: needs.detect.outputs.mode != 'canary'
         env:
@@ -138,6 +145,17 @@ jobs:
         with:
           name: ${{ needs.detect.outputs.artifact_name }}
           path: ${{ steps.package.outputs.zip_path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      # Releases attach the dSYMs to the GitHub Release instead; a canary keeps
+      # them in its own artifact because the app artifact must stay the bundle.
+      - name: Upload dSYMs
+        if: needs.detect.outputs.mode != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.dsym_artifact_name }}
+          path: ${{ steps.dsyms.outputs.dsym_path }}
           if-no-files-found: error
           retention-days: 14
 
@@ -180,4 +198,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ needs.detect.outputs.tag }}
           ZIP_PATH: ${{ steps.package.outputs.zip_path }}
+          DSYM_PATH: ${{ steps.dsyms.outputs.dsym_path }}
         run: scripts/ci/create-github-release.sh

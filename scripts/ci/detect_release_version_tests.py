@@ -98,7 +98,7 @@ class DetectReleaseVersionTests(unittest.TestCase):
     def test_builds_a_canary_when_the_release_tag_already_exists(self) -> None:
         previous = self.commit_version("0.2.2", "11")
         self.publish_tag("v0.2.2")
-        self.commit_version("0.2.2", "11")
+        head = self.commit_version("0.2.2", "11")
 
         result, outputs = self.detect(before_sha=previous)
 
@@ -110,6 +110,9 @@ class DetectReleaseVersionTests(unittest.TestCase):
         # Naming the artifact anything else would download as a directory that is
         # not a bundle, because the enclosing `.app` is not in the archive.
         self.assertEqual(outputs["artifact_name"], "Alveary.app")
+        # The bundle name leaves the canary's own artifact unidentifiable, so the
+        # dSYM ZIP beside it is what carries the version and commit.
+        self.assertEqual(outputs["dsym_artifact_name"], f"Alveary-canary-0.2.2-11-{head[:7]}-dSYMs")
 
     def test_builds_a_canary_when_the_previous_project_file_is_unreadable(self) -> None:
         for before_sha in ("", ALL_ZEROS_SHA):
@@ -132,6 +135,8 @@ class DetectReleaseVersionTests(unittest.TestCase):
         self.assertEqual(outputs["mode"], "release")
         self.assertEqual(outputs["tag"], "v0.2.3")
         self.assertEqual(outputs["artifact_name"], "")
+        # Both payloads become GitHub Release assets, so neither needs an artifact.
+        self.assertEqual(outputs["dsym_artifact_name"], "")
 
     def test_releases_an_unchanged_version_whose_tag_is_missing(self) -> None:
         previous = self.commit_version("0.2.3", "12")
@@ -151,6 +156,7 @@ class DetectReleaseVersionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(outputs["mode"], "dry-run")
         self.assertEqual(outputs["artifact_name"], f"Alveary-dry-run-0.2.3-12-{head[:7]}")
+        self.assertEqual(outputs["dsym_artifact_name"], f"Alveary-dry-run-0.2.3-12-{head[:7]}-dSYMs")
 
     def test_fails_when_bumping_to_a_version_that_is_already_tagged(self) -> None:
         previous = self.commit_version("0.2.2", "11")
