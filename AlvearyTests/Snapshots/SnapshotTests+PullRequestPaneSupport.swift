@@ -182,8 +182,15 @@ enum PullRequestPaneSnapshots {
             + "- Batched GraphQL listing\n- Review submission",
         reviewDecision: "REVIEW_REQUIRED",
         checks: [
-            PullRequestCheck(name: "build", state: .passing, detailsURL: URL(string: "https://ci.example.com/build")),
-            PullRequestCheck(name: "test", state: .pending, detailsURL: nil),
+            // The first two carry a workflow so the `Workflow / Job` label is covered; `ci/lint` is
+            // a legacy commit status, which stays unprefixed.
+            PullRequestCheck(
+                name: "build",
+                workflowName: "CI",
+                state: .passing,
+                detailsURL: URL(string: "https://ci.example.com/build")
+            ),
+            PullRequestCheck(name: "test", workflowName: "CI", state: .pending, detailsURL: nil),
             PullRequestCheck(name: "ci/lint", state: .failing, detailsURL: URL(string: "https://ci.example.com/lint"))
         ],
         comments: [

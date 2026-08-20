@@ -5,10 +5,32 @@ import Foundation
 // protocol and its list-side models live in `PullRequestsService.swift`;
 // local optimistic mutations of these live in `PullRequestModels+Optimistic.swift`.
 
-struct PullRequestCheck: Equatable, Sendable {
+struct PullRequestCheck: Equatable, Sendable, Identifiable {
+    /// The check run's job name, or the legacy commit status's context.
     let name: String
+    /// Workflow that produced the run, falling back to the posting app when a check run has no
+    /// workflow run. Nil for legacy commit statuses, which belong to no workflow.
+    ///
+    /// A `var` with a default, matching `PullRequestDetail` below: a `let` with a default is
+    /// dropped from the memberwise init entirely, which would pin this to nil forever.
+    var workflowName: String?
     let state: PullRequestChecksState
     let detailsURL: URL?
+
+    /// Unique because `makeChecks` collapses the rollup on exactly this pair, so two rows can
+    /// never share one. Keyed on the pair rather than the check run's id because a legacy
+    /// commit status has no id to key on.
+    var id: String { "\(workflowName ?? "")\u{0}\(name)" }
+
+    /// How github.com labels the row: `Workflow / Job`, or the bare name when there is no
+    /// workflow. Two workflows may each define a job called `Release`, and the prefix is the
+    /// only thing that tells those rows apart.
+    var displayName: String {
+        guard let workflowName, !workflowName.isEmpty else {
+            return name
+        }
+        return "\(workflowName) / \(name)"
+    }
 }
 
 /// GitHub's fixed reaction palette, in GitHub's picker order.

@@ -146,11 +146,17 @@ extension GitHubPullRequestsService {
               commit {
                 statusCheckRollup {
                   state
-                  contexts(first: 50) {
+                  contexts(first: 100) {
                     nodes {
                       __typename
-                      ... on CheckRun { name status conclusion detailsUrl }
-                      ... on StatusContext { context state targetUrl }
+                      ... on CheckRun {
+                        name status conclusion detailsUrl databaseId
+                        checkSuite {
+                          app { name }
+                          workflowRun { databaseId workflow { name } }
+                        }
+                      }
+                      ... on StatusContext { context state targetUrl createdAt }
                     }
                   }
                 }

@@ -214,12 +214,41 @@ extension GitHubPullRequestsService {
         }
     }
 
+    /// Collapses the rollup the way github.com does: one row per (job name, workflow) for check
+    /// runs, one per context for legacy commit statuses.
+    ///
+    /// `statusCheckRollup.contexts` carries *every* check run on the head commit, superseded ones
+    /// included. A workflow that re-triggers — on `pull_request_review`, say — mints a fresh check
+    /// suite each time, so a workflow that ran six times contributes six nodes per job. Rendering
+    /// them 1:1 is what put six identical `Release` rows in the pane against github.com's one.
+    ///
+    /// The survivor is the newest *run*, keyed on `checkSuite.workflowRun.databaseId` — **never on
+    /// `startedAt`/`completedAt`, which do not order the runs.** A job in a later run routinely
+    /// starts before one in an earlier run, and a skipped run can report `completedAt` ahead of its
+    /// own `startedAt`; sorting by time picks a stale run and links the row to the wrong job. The
+    /// check run's own `databaseId` breaks the remaining tie when a single job is re-run inside one
+    /// workflow run, which keeps the run id but mints a new check run. A commit status has neither
+    /// id, so it falls back to `createdAt`.
     static func makeChecks(from rollup: GraphQLRollupNode?) -> [PullRequestCheck] {
-        (rollup?.contexts?.nodes ?? []).compactMap { node in
-            guard let node else {
-                return nil
+        var winners: [String: (check: PullRequestCheck, rank: CheckRollupRank)] = [:]
+        for case let node? in rollup?.contexts?.nodes ?? [] {
+            guard let check = makeCheck(from: node) else {
+                continue
             }
-            return makeCheck(from: node)
+            // A check run and a commit status may share a display name without being the same
+            // check, so they never collapse into each other.
+            let key = "\(node.name == nil ? "status" : "run")\u{0}\(check.id)"
+            let rank = CheckRollupRank(node: node)
+            if let existing = winners[key], rank <= existing.rank {
+                continue
+            }
+            winners[key] = (check, rank)
+        }
+        // Alphabetical, as github.com orders the list. Dictionary order is not stable across
+        // runs, so without this the deduped rows would shuffle between refreshes.
+        return winners.values.map(\.check).sorted { lhs, rhs in
+            let ordering = lhs.displayName.caseInsensitiveCompare(rhs.displayName)
+            return ordering == .orderedSame ? lhs.id < rhs.id : ordering == .orderedAscending
         }
     }
 
@@ -237,7 +266,14 @@ extension GitHubPullRequestsService {
                     state = .failing
                 }
             }
-            return PullRequestCheck(name: name, state: state, detailsURL: node.detailsUrl.flatMap(URL.init(string:)))
+            return PullRequestCheck(
+                name: name,
+                // The workflow names the run; an app that posts checks outside Actions (Graphite,
+                // for one) has no workflow run, and its own name is the label github.com shows.
+                workflowName: node.checkSuite?.workflowRun?.workflow?.name ?? node.checkSuite?.app?.name,
+                state: state,
+                detailsURL: node.detailsUrl.flatMap(URL.init(string:))
+            )
         }
         if let context = node.context {
             let state: PullRequestChecksState
@@ -411,5 +447,23 @@ extension GitHubPullRequestsService {
             ))
         }
         return reviewers
+    }
+}
+
+/// Orders the rollup's repeats of one check so the newest wins. See `makeChecks` for why this
+/// leads with run ids rather than the timestamps the nodes also carry.
+private struct CheckRollupRank: Comparable {
+    let workflowRunID: Int
+    let checkRunID: Int
+    let postedAt: Date
+
+    init(node: GraphQLCheckContextNode) {
+        workflowRunID = node.checkSuite?.workflowRun?.databaseId ?? 0
+        checkRunID = node.databaseId ?? 0
+        postedAt = node.createdAt ?? .distantPast
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.workflowRunID, lhs.checkRunID, lhs.postedAt) < (rhs.workflowRunID, rhs.checkRunID, rhs.postedAt)
     }
 }

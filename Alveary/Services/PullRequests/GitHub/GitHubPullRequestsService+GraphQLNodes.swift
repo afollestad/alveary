@@ -107,9 +107,36 @@ struct GraphQLCheckContextNode: Decodable {
     let status: String?
     let conclusion: String?
     let detailsUrl: String?
+    /// `CheckRun.databaseId`. Rises with every re-run of a job inside one workflow run, so it
+    /// breaks the ties the workflow run's own `databaseId` cannot — see `makeChecks`.
+    let databaseId: Int?
+    let checkSuite: GraphQLCheckSuiteNode?
     let context: String?
     let state: String?
     let targetUrl: String?
+    /// `StatusContext.createdAt`. Legacy commit statuses carry no run id, so this is all that
+    /// orders repeated postings of one context.
+    let createdAt: Date?
+}
+
+/// The suite a `CheckRun` belongs to. `workflowRun` is null for checks an app posts outside
+/// GitHub Actions (Graphite, for one), which is why `app` supplies the fallback label.
+struct GraphQLCheckSuiteNode: Decodable {
+    let app: GraphQLCheckAppNode?
+    let workflowRun: GraphQLWorkflowRunNode?
+}
+
+struct GraphQLCheckAppNode: Decodable {
+    let name: String?
+}
+
+struct GraphQLWorkflowRunNode: Decodable {
+    let databaseId: Int?
+    let workflow: GraphQLWorkflowNode?
+}
+
+struct GraphQLWorkflowNode: Decodable {
+    let name: String?
 }
 
 // MARK: - Detail response

@@ -301,7 +301,7 @@ struct PullRequestPaneChecks: View {
     var body: some View {
         PullRequestOverviewSection("Checks") {
             PullRequestOverviewSectionRows {
-                ForEach(Array(checks.enumerated()), id: \.offset) { _, check in
+                ForEach(checks) { check in
                     PullRequestCheckRow(check: check)
                 }
             }
@@ -392,13 +392,13 @@ private struct PullRequestCheckRow: View {
                 rowContent(showsLinkGlyph: true)
             }
             .buttonStyle(PullRequestPaneRowButtonStyle())
-            .accessibilityLabel("\(check.name), \(stateAccessibilityName)")
+            .accessibilityLabel("\(check.displayName), \(stateAccessibilityName)")
             .accessibilityHint("Opens the check's details page")
         } else {
             rowContent(showsLinkGlyph: false)
                 .pullRequestOverviewRowInsets()
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(check.name), \(stateAccessibilityName)")
+                .accessibilityLabel("\(check.displayName), \(stateAccessibilityName)")
         }
     }
 
@@ -407,7 +407,7 @@ private struct PullRequestCheckRow: View {
             indicator
                 .frame(width: 12, alignment: .center)
 
-            Text(check.name)
+            Text(check.displayName)
                 .font(.subheadline)
                 .foregroundStyle(.primary)
                 .lineLimit(1)

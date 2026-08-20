@@ -6,6 +6,75 @@ import XCTest
 final class GitHubPullRequestsServiceTests: XCTestCase {
     // MARK: - Detail
 
+    /// The rollup lists every check run on the head commit, superseded ones included, which is
+    /// what showed one job six times in the pane. Collapsing must keep the newest *run* — and the
+    /// fixture is built so that ordering by `startedAt` instead would pick a different, failing
+    /// run for both `Release` and `flaky`, flipping their state and their link.
+    func testDetailCollapsesSupersededCheckRunsKeepingTheNewestRun() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.detailDuplicateChecks)))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        let detail = try await service.fetchDetail(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+
+        // Nine rollup nodes collapse to five rows, ordered as github.com orders them.
+        XCTAssertEqual(detail.checks.map(\.displayName), [
+            "Graphite / mergeability_check",
+            "legacy/status",
+            "Nightly / Release",
+            "PR-Auto-Merge / flaky",
+            "PR-Auto-Merge / Release"
+        ])
+
+        // Run 2420 wins over 2416 and 2417 even though 2417 started latest.
+        let release = try XCTUnwrap(detail.checks.first { $0.displayName == "PR-Auto-Merge / Release" })
+        XCTAssertEqual(release.detailsURL, URL(string: "https://ci.example.com/release/run-2420"))
+        XCTAssertEqual(release.state, .passing)
+
+        // A job re-run inside one workflow run is separated only by the check run id.
+        let flaky = try XCTUnwrap(detail.checks.first { $0.displayName == "PR-Auto-Merge / flaky" })
+        XCTAssertEqual(flaky.detailsURL, URL(string: "https://ci.example.com/flaky/attempt-2"))
+        XCTAssertEqual(flaky.state, .passing)
+
+        // Same job name under a different workflow is a different check, not a duplicate.
+        let nightly = try XCTUnwrap(detail.checks.first { $0.displayName == "Nightly / Release" })
+        XCTAssertEqual(nightly.detailsURL, URL(string: "https://ci.example.com/nightly/release"))
+
+        // No workflow run, so the posting app names the row.
+        let graphite = try XCTUnwrap(detail.checks.first { $0.name == "mergeability_check" })
+        XCTAssertEqual(graphite.workflowName, "Graphite")
+
+        // A commit status has no run ids, so `createdAt` orders its repeats — and it stays unprefixed.
+        let legacy = try XCTUnwrap(detail.checks.first { $0.name == "legacy/status" })
+        XCTAssertNil(legacy.workflowName)
+        XCTAssertEqual(legacy.displayName, "legacy/status")
+        XCTAssertEqual(legacy.detailsURL, URL(string: "https://ci.example.com/legacy/new"))
+        XCTAssertEqual(legacy.state, .passing)
+
+        // Rows must be distinguishable to SwiftUI now that identity is not the array index.
+        XCTAssertEqual(Set(detail.checks.map(\.id)).count, detail.checks.count)
+    }
+
+    /// Pins the rollup selection `makeChecks` depends on. Without these fields it still compiles
+    /// and still returns rows, but silently keeps an arbitrary run and drops every workflow label
+    /// — a regression no other assertion here would catch.
+    func testDetailQuerySelectsTheFieldsCheckDedupNeeds() async throws {
+        let shell = MockShellRunner()
+        await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.detail)))
+        let service = makeGitHubPullRequestsService(shell: shell)
+
+        _ = try await service.fetchDetail(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+
+        let invocations = await shell.invocations
+        let invocation = try XCTUnwrap(invocations.first)
+        let query = try XCTUnwrap(invocation.args.first { $0.hasPrefix("query=") })
+        XCTAssertTrue(query.contains("workflowRun { databaseId workflow { name } }"))
+        XCTAssertTrue(query.contains("app { name }"))
+        // GitHub caps this connection at 100, and dedup runs after the page, so a smaller page
+        // drops real checks that superseded runs crowded out.
+        XCTAssertTrue(query.contains("contexts(first: 100)"))
+    }
+
     func testDetailDecodesChecksUnionCommentsReviewsAndThreads() async throws {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.detail)))
@@ -22,19 +91,20 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         XCTAssertEqual(detail.additions, 40)
         XCTAssertEqual(detail.deletions, 9)
 
-        XCTAssertEqual(detail.checks.count, 3)
+        // Alphabetical by display name, so `ci/lint` sorts ahead of the `test` check run.
+        XCTAssertEqual(detail.checks.map(\.displayName), ["build", "ci/lint", "test"])
         XCTAssertEqual(detail.checks[0], PullRequestCheck(
             name: "build",
             state: .passing,
             detailsURL: URL(string: "https://ci.example.com/build")
         ))
-        XCTAssertEqual(detail.checks[1].name, "test")
-        XCTAssertEqual(detail.checks[1].state, .pending)
-        XCTAssertEqual(detail.checks[2], PullRequestCheck(
+        XCTAssertEqual(detail.checks[1], PullRequestCheck(
             name: "ci/lint",
             state: .failing,
             detailsURL: URL(string: "https://ci.example.com/lint")
         ))
+        XCTAssertEqual(detail.checks[2].name, "test")
+        XCTAssertEqual(detail.checks[2].state, .pending)
 
         XCTAssertEqual(detail.comments.count, 1)
         XCTAssertEqual(detail.comments[0].authorLogin, "helper-bot")
