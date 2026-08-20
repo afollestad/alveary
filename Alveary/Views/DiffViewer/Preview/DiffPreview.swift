@@ -57,7 +57,7 @@ struct DiffPreviewContent: View {
     let errorMessage: String?
     let isPending: Bool
     let isLoading: Bool
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {

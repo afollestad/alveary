@@ -24,10 +24,10 @@ extension DiffViewerViewModelTests {
         await fixture.viewModel.selectFile(file, in: fixture.directory)
 
         let preview = try XCTUnwrap(fixture.viewModel.imagePreview)
-        XCTAssertEqual(preview.old?.source, .index(path: "Assets/logo.png"))
+        XCTAssertEqual(preview.old?.source, .git(.index(path: "Assets/logo.png")))
         XCTAssertEqual(preview.old?.identityPrefix, "head123-index")
         XCTAssertEqual(preview.old?.needsContentHash, true)
-        XCTAssertEqual(preview.new?.source, .worktree(path: "Assets/logo.png"))
+        XCTAssertEqual(preview.new?.source, .git(.worktree(path: "Assets/logo.png")))
         XCTAssertEqual(preview.new?.identityPrefix, "head123-worktree")
         XCTAssertEqual(preview.new?.needsContentHash, true)
     }
@@ -53,7 +53,7 @@ extension DiffViewerViewModelTests {
 
         let preview = try XCTUnwrap(fixture.viewModel.imagePreview)
         XCTAssertNil(preview.old)
-        XCTAssertEqual(preview.new?.source, .worktree(path: "Assets/new-logo.png"))
+        XCTAssertEqual(preview.new?.source, .git(.worktree(path: "Assets/new-logo.png")))
         let syntheticDiffCalls = await fixture.gitService.syntheticDiffCalls()
         XCTAssertEqual(syntheticDiffCalls, ["Assets/new-logo.png"])
     }
@@ -106,7 +106,7 @@ extension DiffViewerViewModelTests {
 
         let preview = try XCTUnwrap(fixture.viewModel.imagePreview)
         XCTAssertNil(preview.old)
-        XCTAssertEqual(preview.new?.source, .index(path: "Assets/new-logo.png"))
+        XCTAssertEqual(preview.new?.source, .git(.index(path: "Assets/new-logo.png")))
         XCTAssertEqual(preview.new?.identityPrefix, "head123-index")
         XCTAssertEqual(preview.new?.needsContentHash, true)
     }
@@ -131,7 +131,7 @@ extension DiffViewerViewModelTests {
         await fixture.viewModel.selectFile(file, in: fixture.directory)
 
         let preview = try XCTUnwrap(fixture.viewModel.imagePreview)
-        XCTAssertEqual(preview.old?.source, .index(path: "Assets/removed-logo.png"))
+        XCTAssertEqual(preview.old?.source, .git(.index(path: "Assets/removed-logo.png")))
         XCTAssertEqual(preview.old?.identityPrefix, "head123-index")
         XCTAssertEqual(preview.old?.needsContentHash, true)
         XCTAssertNil(preview.new)
@@ -228,8 +228,8 @@ extension DiffViewerViewModelTests {
         await fixture.viewModel.loadAheadCommitsForActiveTarget()
 
         let preview = try XCTUnwrap(fixture.viewModel.commitImagePreviews["0:Assets/logo.png"])
-        XCTAssertEqual(preview.old?.source, .commitParent(hash: "abc123", path: "Assets/logo.png"))
-        XCTAssertEqual(preview.new?.source, .commit(hash: "abc123", path: "Assets/logo.png"))
+        XCTAssertEqual(preview.old?.source, .git(.commitParent(hash: "abc123", path: "Assets/logo.png")))
+        XCTAssertEqual(preview.new?.source, .git(.commit(hash: "abc123", path: "Assets/logo.png")))
     }
 
     func testCommitDiffBuildsOneSidedImagePreviewsForAddedAndDeletedFiles() async throws {
@@ -260,10 +260,10 @@ extension DiffViewerViewModelTests {
 
         let addedPreview = try XCTUnwrap(fixture.viewModel.commitImagePreviews["0:Assets/new-logo.png"])
         XCTAssertNil(addedPreview.old)
-        XCTAssertEqual(addedPreview.new?.source, .commit(hash: "abc123", path: "Assets/new-logo.png"))
+        XCTAssertEqual(addedPreview.new?.source, .git(.commit(hash: "abc123", path: "Assets/new-logo.png")))
 
         let deletedPreview = try XCTUnwrap(fixture.viewModel.commitImagePreviews["1:Assets/removed-logo.png"])
-        XCTAssertEqual(deletedPreview.old?.source, .commitParent(hash: "abc123", path: "Assets/removed-logo.png"))
+        XCTAssertEqual(deletedPreview.old?.source, .git(.commitParent(hash: "abc123", path: "Assets/removed-logo.png")))
         XCTAssertNil(deletedPreview.new)
     }
 
@@ -333,6 +333,37 @@ extension DiffViewerViewModelTests {
         -old
         +new
         """
+    }
+
+    /// The whole point of the opener seam: a clicked image reaches it with the materialized URL,
+    /// which is what routes it into the app's image modal rather than another application.
+    func testOpeningAWorktreeImageHandsItsURLToTheOpener() async throws {
+        let file = FileStatus(path: "Assets/logo.png", originalPath: nil, status: .modified, isStaged: false)
+        var opened: [(url: URL, name: String)] = []
+        let fixture = DiffViewerTestFixture(
+            gitService: DiffViewerMockGitService(
+                statusResults: [.success([file])],
+                diffResults: [Self.binaryDiff(path: file.path)],
+                currentHeadHashResult: .success("head123")
+            ),
+            imagePreviewOpener: { opened.append((url: $0, name: $1)) }
+        )
+        defer { fixture.viewModel.tearDown() }
+
+        await fixture.viewModel.switchToDirectory(
+            fixture.directory,
+            baseRef: "main",
+            remoteName: "origin",
+            conversationIds: []
+        )
+        await fixture.viewModel.selectFile(file, in: fixture.directory)
+        let version = try XCTUnwrap(fixture.viewModel.imagePreview?.new)
+
+        try await fixture.viewModel.openImagePreview(version)
+
+        // A worktree image opens in place, so the URL is the checkout's own file.
+        XCTAssertEqual(opened.map(\.url), [URL(fileURLWithPath: "\(fixture.directory)/Assets/logo.png")])
+        XCTAssertEqual(opened.map(\.name), ["logo.png"])
     }
 
 }

@@ -197,7 +197,9 @@ extension GitHubPullRequestsService {
             viewerAvatarURL: viewer?.avatarUrl.flatMap(URL.init(string:)),
             viewerCanUpdate: node.viewerCanUpdate ?? false,
             headRefExists: node.headRef != nil,
-            pendingReviewNodeID: node.pendingReview?.nodes?.first??.id
+            pendingReviewNodeID: node.pendingReview?.nodes?.first??.id,
+            headRefOid: node.headRefOid,
+            baseRefOid: node.baseRefOid
         )
     }
 

@@ -168,6 +168,7 @@ extension PullRequestsViewModel {
                 session.detail = detail
                 session.detailError = nil
                 session.isLoadingDetail = false
+                Self.refreshDiffImagePreviews(&session, identifier: target.identifier)
                 if session.summary == nil {
                     // An identifier-opened pane has no snapshot; the detail it just
                     // fetched is what one would have been derived from anyway.
@@ -202,6 +203,7 @@ extension PullRequestsViewModel {
                 session.diffFiles = parsed
                 session.diffState = .loaded
                 session.collapsedDiffFileIDs = PullRequestDiffFilePaging.autoCollapsedFileIDs(for: parsed)
+                Self.refreshDiffImagePreviews(&session, identifier: target.identifier)
             }
         } catch {
             guard !Task.isCancelled else {
@@ -215,5 +217,28 @@ extension PullRequestsViewModel {
                 }
             }
         }
+    }
+
+    /// Rebuilds the Changes tab's image rows from whatever the session currently holds.
+    ///
+    /// Called from both load legs because they race: the diff supplies the files and any Git LFS
+    /// pointers (which are ref-free, so they resolve without the detail), while the detail supplies
+    /// the commit oids an ordinary binary blob needs. Rebuilding is pure and cheap — it walks the
+    /// parsed files once — so running it twice costs less than coordinating the two legs.
+    static func refreshDiffImagePreviews(
+        _ session: inout PullRequestPaneSession,
+        identifier: PullRequestIdentifier
+    ) {
+        guard let files = session.diffFiles else {
+            session.diffImagePreviews = [:]
+            return
+        }
+        session.diffImagePreviews = DiffImagePreviewSupport.pullRequestPreviews(
+            for: files,
+            owner: identifier.owner,
+            repo: identifier.repo,
+            headRef: session.detail?.headRefOid,
+            baseRef: session.detail?.baseRefOid
+        )
     }
 }

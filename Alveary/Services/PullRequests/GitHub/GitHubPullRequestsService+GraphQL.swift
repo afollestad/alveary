@@ -139,7 +139,7 @@ extension GitHubPullRequestsService {
           id number title url state isDraft body viewerCanUpdate createdAt updatedAt
           reactionGroups { content viewerHasReacted reactors { totalCount } }
           author { login avatarUrl(size: 64) }
-          headRefName baseRefName additions deletions changedFiles reviewDecision
+          headRefName baseRefName headRefOid baseRefOid additions deletions changedFiles reviewDecision
           headRef { name }
           commits(last: 1) {
             nodes {

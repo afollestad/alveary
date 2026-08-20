@@ -15,7 +15,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffImagePreviewSlots(
                 preview: preview,
-                loadImage: { _ in try Self.imageOutput(width: 180, height: 110, color: CGColor(red: 0.16, green: 0.45, blue: 0.78, alpha: 1)) },
+                loadImage: { _, _ in try Self.imageOutput(width: 180, height: 110, color: CGColor(red: 0.16, green: 0.45, blue: 0.78, alpha: 1)) },
                 openImage: { _ in }
             )
             .padding(12),
@@ -33,7 +33,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffImagePreviewSlots(
                 preview: preview,
-                loadImage: { _ in try Self.imageOutput(width: 160, height: 120, color: CGColor(red: 0.70, green: 0.16, blue: 0.16, alpha: 1)) },
+                loadImage: { _, _ in try Self.imageOutput(width: 160, height: 120, color: CGColor(red: 0.70, green: 0.16, blue: 0.16, alpha: 1)) },
                 openImage: { _ in }
             )
             .padding(12),
@@ -51,7 +51,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffImagePreviewSlots(
                 preview: preview,
-                loadImage: { version in
+                loadImage: { version, _ in
                     switch version.side {
                     case .old:
                         return try Self.imageOutput(width: 130, height: 95, color: CGColor(red: 0.70, green: 0.16, blue: 0.16, alpha: 1))
@@ -70,7 +70,7 @@ extension SnapshotTests {
     func testDiffViewerImagePreviewLoadingSlots() {
         let preview = DiffImagePreview(
             old: DiffImageVersion(
-                source: .head(path: "Assets/logo.png"),
+                source: .git(.head(path: "Assets/logo.png")),
                 side: .old,
                 identityPrefix: "abc123",
                 fileIdentity: "Assets/logo.png",
@@ -78,7 +78,7 @@ extension SnapshotTests {
                 needsContentHash: false
             ),
             new: DiffImageVersion(
-                source: .worktree(path: "Assets/logo.png"),
+                source: .git(.worktree(path: "Assets/logo.png")),
                 side: .new,
                 identityPrefix: "abc123-worktree",
                 fileIdentity: "Assets/logo.png",
@@ -90,7 +90,7 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffImagePreviewSlots(
                 preview: preview,
-                loadImage: { _ in
+                loadImage: { _, _ in
                     try await Task.sleep(for: .seconds(30))
                     throw CancellationError()
                 },
@@ -106,7 +106,7 @@ extension SnapshotTests {
         let preview = DiffImagePreview(
             old: nil,
             new: DiffImageVersion(
-                source: .worktree(path: "Assets/broken.png"),
+                source: .git(.worktree(path: "Assets/broken.png")),
                 side: .new,
                 identityPrefix: "abc123-worktree",
                 fileIdentity: "Assets/broken.png",
@@ -118,12 +118,51 @@ extension SnapshotTests {
         assertMacSnapshot(
             DiffImagePreviewSlots(
                 preview: preview,
-                loadImage: { _ in throw DiffImagePreviewLoaderError.unsupportedImage },
+                loadImage: { _, _ in throw DiffImagePreviewLoaderError.unsupportedImage },
                 openImage: { _ in }
             )
             .padding(12),
             size: CGSize(width: 500, height: 220),
             named: "diff_viewer_image_preview_failed_slots"
+        )
+    }
+
+    /// Git LFS holds large files by design, so a size-gated image offers itself rather than
+    /// downloading on scroll.
+    func testDiffViewerImagePreviewLargeImageAwaitsConfirmation() {
+        let preview = DiffImagePreview(
+            old: nil,
+            new: Self.remoteImageVersion(path: "assets/hero.png", byteSize: 42 * 1024 * 1024)
+        )
+
+        assertMacSnapshot(
+            DiffImagePreviewSlots(
+                preview: preview,
+                loadImage: { version, _ in throw DiffImageBlobTooLargeError(byteSize: version.byteSize) },
+                openImage: { _ in }
+            )
+            .padding(12),
+            size: CGSize(width: 500, height: 220),
+            named: "diff_viewer_image_preview_awaits_confirmation"
+        )
+    }
+
+    func testDiffViewerImagePreviewPastTheHardCapOffersNoLoadButton() {
+        let oversized = DiffImagePreviewSupport.remoteMaxSourceBytes + 1
+        let preview = DiffImagePreview(
+            old: nil,
+            new: Self.remoteImageVersion(path: "assets/master.psd.png", byteSize: oversized)
+        )
+
+        assertMacSnapshot(
+            DiffImagePreviewSlots(
+                preview: preview,
+                loadImage: { version, _ in throw DiffImageBlobTooLargeError(byteSize: version.byteSize) },
+                openImage: { _ in }
+            )
+            .padding(12),
+            size: CGSize(width: 500, height: 220),
+            named: "diff_viewer_image_preview_too_large"
         )
     }
 
@@ -143,7 +182,7 @@ extension SnapshotTests {
                 fileDisplayName: { $0.path },
                 statusTitle: { $0.rawValue.capitalized },
                 diffPreviewIdentity: { $0.id },
-                loadImage: { _ in throw DiffImagePreviewLoaderError.unsupportedImage },
+                loadImage: { _, _ in throw DiffImagePreviewLoaderError.unsupportedImage },
                 openImage: { _ in }
             ),
             size: CGSize(width: 600, height: 420),
@@ -151,9 +190,29 @@ extension SnapshotTests {
         )
     }
 
+    /// A pull request image, whose bytes live on GitHub rather than in a checkout.
+    private static func remoteImageVersion(path: String, byteSize: Int) -> DiffImageVersion {
+        DiffImageVersion(
+            source: .gitHub(
+                GitHubImageBlobSource(
+                    owner: "octo",
+                    repo: "demo",
+                    path: path,
+                    storage: .lfs(oid: String(repeating: "a", count: 64), byteSize: byteSize)
+                )
+            ),
+            side: .new,
+            identityPrefix: "lfs-\(String(repeating: "a", count: 64))",
+            fileIdentity: path,
+            fileExtension: "png",
+            needsContentHash: false,
+            byteSize: byteSize
+        )
+    }
+
     private static func imageVersion(side: DiffImageVersion.Side, path: String) -> DiffImageVersion {
         DiffImageVersion(
-            source: side == .old ? .head(path: path) : .worktree(path: path),
+            source: side == .old ? .git(.head(path: path)) : .git(.worktree(path: path)),
             side: side,
             identityPrefix: side == .old ? "abc123" : "abc123-worktree",
             fileIdentity: path,

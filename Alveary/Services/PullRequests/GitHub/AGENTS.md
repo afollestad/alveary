@@ -1,6 +1,6 @@
 ## GitHub Pull Request Adapter
 
-These instructions cover `Alveary/Services/PullRequests/GitHub/` — the `PullRequestsService` protocol, its `gh api` implementation, the GraphQL documents and wire shapes, the domain models, and the list cache.
+These instructions cover `Alveary/Services/PullRequests/GitHub/` — the `PullRequestsService` protocol, its `gh api` implementation, the GraphQL documents and wire shapes, the domain models, the list cache, and the diff image blob fetcher.
 
 This is the layer *below* the host tools and linking: dependencies run one way, so nothing here may reach `PullRequestHostToolService`, `PullRequestLinkService`, SwiftData, or MCP. `Alveary/Services/PullRequests/HostTools/AGENTS.md` and `Alveary/Services/PullRequests/AGENTS.md` own the consumer side.
 
@@ -9,6 +9,7 @@ This is the layer *below* the host tools and linking: dependencies run one way, 
 - **File layout.** Reads plus the shared shell/decode/error helpers live in `GitHubPullRequestsService.swift`; every write lives in `+Mutations.swift` — which is why those helpers are internal, not private.
 - **Every mutation is unretried, and every call passes `standardInput: .nullDevice`.** A failed write may still have landed, so no mutation may join the read retry path. Inheriting stdin lets a credential or keychain prompt block the child until the timeout — a one-keystroke re-auth surfacing as an unexplained hang.
 - Keep explicit `stdoutLimitBytes` on every call (list 4 MB, detail 8 MB, diff 5 MB matching the diff-viewer cap) and treat `stdoutWasTruncated` as `responseTooLarge`.
+- **`GitHubDiffImageBlobFetcher` bypasses `gh api` deliberately — do not "fix" it back.** `gh` sends no `Authorization` header to `raw`/`media.githubusercontent.com` or the Git LFS batch endpoint, so routing image bytes through it 404s on every private repository. It sets the header on its own `URLSession`, still sourcing the token from `gh auth token`.
 
 ## Reads And Resilience
 

@@ -317,6 +317,12 @@ struct PullRequestDetail: Equatable, Sendable {
     /// through it, and submitting finishes *this* review rather than opening a
     /// second one beside it.
     var pendingReviewNodeID: String?
+    /// The head commit the diff ends at. Image rows in the Changes tab fetch ordinary blob bytes by
+    /// commit, so an image is left as a callout when this is missing.
+    var headRefOid: String?
+    /// The commit the diff starts from — GitHub's merge base for the comparison, which is what makes
+    /// the "before" side of a modified image the version the diff actually shows.
+    var baseRefOid: String?
 
     /// Threads holding the viewer's unsubmitted comments.
     var pendingReviewThreads: [PullRequestReviewThread] {

@@ -18,7 +18,9 @@ struct DiffViewerTestFixture {
         agentsManager: DiffViewerMockAgentsManager = DiffViewerMockAgentsManager(),
         loadingIndicatorDelay: Duration = .milliseconds(30),
         fsEventDebounceDuration: Duration = .milliseconds(500),
-        idlePollInterval: Duration = .seconds(60)
+        idlePollInterval: Duration = .seconds(60),
+        // Inert by default so no test can launch another app by opening an image.
+        imagePreviewOpener: @escaping @MainActor (URL, String) -> Void = { _, _ in }
     ) {
         self.gitService = gitService
         self.diffStore = DiffWorkspaceStore(gitService: gitService, loadingIndicatorDelay: loadingIndicatorDelay)
@@ -29,6 +31,7 @@ struct DiffViewerTestFixture {
             diffStore: diffStore,
             fileListManager: fileListManager,
             agentsManager: agentsManager,
+            imagePreviewOpener: imagePreviewOpener,
             fsEventDebounceDuration: fsEventDebounceDuration,
             idlePollInterval: idlePollInterval
         )

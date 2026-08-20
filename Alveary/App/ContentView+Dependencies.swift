@@ -46,6 +46,7 @@ struct ContentViewDependencies {
     let pullRequestAgenticThreadActivity: PullRequestAgenticThreadActivity
     let gitHubAttachmentUploadService: any GitHubAttachmentUploadService
     let gitHubAttachmentImageURLResolver: GitHubAttachmentImageURLResolver
+    let gitHubDiffImageBlobFetcher: GitHubDiffImageBlobFetcher
     let gitHubAvatarLoader: GitHubAvatarLoader
     let pullRequestsListCache: PullRequestsListCache
     let pullRequestReviewProposalPreviewCache: PullRequestReviewProposalPreviewCache
@@ -97,6 +98,7 @@ struct ContentViewDependencies {
             pullRequestAgenticThreadActivity: component.pullRequestAgenticThreadActivity,
             gitHubAttachmentUploadService: component.gitHubAttachmentUploadService,
             gitHubAttachmentImageURLResolver: component.gitHubAttachmentImageURLResolver,
+            gitHubDiffImageBlobFetcher: component.gitHubDiffImageBlobFetcher,
             gitHubAvatarLoader: component.gitHubAvatarLoader,
             pullRequestsListCache: component.pullRequestsListCache,
             pullRequestReviewProposalPreviewCache: component.pullRequestReviewProposalPreviewCache,

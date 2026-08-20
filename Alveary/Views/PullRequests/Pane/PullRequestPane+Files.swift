@@ -102,11 +102,18 @@ struct PullRequestPaneFiles: View, Equatable {
             )
             FlattenedDiffPreview(
                 files: rendered,
+                imagePreviews: session.diffImagePreviews,
                 showsFileHeaders: true,
                 allowsFileCollapse: true,
                 collapsedFileIDs: session.collapsedDiffFileIDs,
                 onToggleFileCollapse: { fileID in
                     viewModel.toggleDiffFileCollapse(fileID)
+                },
+                loadImage: { version, intent in
+                    try await viewModel.loadDiffImagePreview(version, intent: intent)
+                },
+                openImage: { version in
+                    try await viewModel.openDiffImagePreview(version)
                 },
                 commentAnnotations: content.annotations,
                 commentInteraction: commentInteraction,

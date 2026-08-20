@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -184,6 +185,12 @@ final class PullRequestsViewModel {
     /// SwiftUI's diffing. `touchReferenceDate()` advances it.
     private(set) var referenceDate: Date
 
+    /// Nil in demo and test builds, where the Changes tab renders its binary callouts instead of
+    /// reaching the network.
+    let imageBlobFetcher: (any DiffImageBlobFetching)?
+    let imagePreviewLoader: DiffImagePreviewLoader
+    let imagePreviewOpener: @MainActor (URL, String) -> Void
+
     init(
         service: any PullRequestsService,
         avatarLoader: GitHubAvatarLoader,
@@ -199,6 +206,9 @@ final class PullRequestsViewModel {
         )? = nil,
         agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
+        imageBlobFetcher: (any DiffImageBlobFetching)? = nil,
+        imagePreviewLoader: DiffImagePreviewLoader = .shared,
+        imagePreviewOpener: @escaping @MainActor (URL, String) -> Void = { url, _ in NSWorkspace.shared.open(url) },
         notificationCenter: NotificationCenter = .default,
         remoteRefreshDelay: Duration = .milliseconds(750),
         searchDebounce: Duration = .milliseconds(200),
@@ -209,6 +219,9 @@ final class PullRequestsViewModel {
         self.searchDebounce = searchDebounce
         self.service = service
         self.avatarLoader = avatarLoader
+        self.imageBlobFetcher = imageBlobFetcher
+        self.imagePreviewLoader = imagePreviewLoader
+        self.imagePreviewOpener = imagePreviewOpener
         self.listCache = listCache
         self.settingsService = settingsService
         self.attachmentUploadService = attachmentUploadService
@@ -387,31 +400,6 @@ extension PullRequestsViewModel {
             return
         }
         activePaneSummaryStatus = status
-    }
-
-    /// The active target, but only when its origin matches the surface asking.
-    /// The root builds `RightPaneContextualTargets` through this so a shared
-    /// pane lane cannot show one context's pull request inside another.
-    func activePaneTarget(for origin: PullRequestPaneOrigin) -> PullRequestPaneTarget? {
-        guard activePaneOrigin == origin else {
-            return nil
-        }
-        return activePaneTarget
-    }
-
-    func isDetailActive(_ id: PullRequestIdentifier) -> Bool {
-        activePaneTarget == .details(id)
-    }
-
-    /// The open detail's identifier, for surfaces that highlight one row out of many.
-    /// Handing rows this value rather than an `isDetailActive` closure lets them compare
-    /// equal across a render pass, so a selection change repaints two rows instead of all
-    /// of them. Reading it still registers the dependency on `activePaneTarget`.
-    var activeDetailIdentifier: PullRequestIdentifier? {
-        guard case .details(let id) = activePaneTarget else {
-            return nil
-        }
-        return id
     }
 
     /// Route-only deactivation; preserves the session for another root pane.

@@ -10,7 +10,7 @@ struct FlattenedDiffPreview: View {
     let allowsFileCollapse: Bool
     let collapsedFileIDs: Set<String>
     let onToggleFileCollapse: (String) -> Void
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
     let commentAnnotations: DiffCommentAnnotations
     let commentInteraction: DiffCommentInteraction?
@@ -48,7 +48,9 @@ struct FlattenedDiffPreview: View {
         allowsFileCollapse: Bool = false,
         collapsedFileIDs: Set<String> = [],
         onToggleFileCollapse: @escaping (String) -> Void = { _ in },
-        loadImage: @escaping (DiffImageVersion) async throws -> DiffImagePreviewOutput = { _ in throw DiffImagePreviewLoaderError.unsupportedImage },
+        loadImage: @escaping (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput = { _, _ in
+            throw DiffImagePreviewLoaderError.unsupportedImage
+        },
         openImage: @escaping (DiffImageVersion) async throws -> Void = { _ in },
         commentAnnotations: DiffCommentAnnotations = .none,
         commentInteraction: DiffCommentInteraction? = nil,
@@ -381,7 +383,7 @@ private struct FlattenedDiffPreviewRenderRow: View {
     let allowsFileCollapse: Bool
     let collapsedFileIDs: Set<String>
     let onToggleFileCollapse: (String) -> Void
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
     let allowsCommentComposing: Bool
     let commentInteraction: DiffCommentInteraction?

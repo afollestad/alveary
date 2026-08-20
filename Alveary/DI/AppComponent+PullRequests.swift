@@ -96,6 +96,17 @@ extension AppComponent {
         }
     }
 
+    /// App-scoped so the `gh auth token` read and its cache are shared by every pane, rather than
+    /// each pull request spawning its own `gh` on the first image it draws.
+    var gitHubDiffImageBlobFetcher: GitHubDiffImageBlobFetcher {
+        return shared {
+            GitHubDiffImageBlobFetcher(
+                shellRunner: shellRunner,
+                executableResolver: executablePathResolver
+            )
+        }
+    }
+
     var gitHubAvatarLoader: GitHubAvatarLoader {
         return shared { GitHubAvatarLoader() }
     }

@@ -15,7 +15,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             imageBlobResults: [.success(imageData)]
         )
         let version = DiffImageVersion(
-            source: .commit(hash: "abc123", path: "Assets/logo.png"),
+            source: .git(.commit(hash: "abc123", path: "Assets/logo.png")),
             side: .new,
             identityPrefix: "abc123",
             fileIdentity: "Assets/logo.png",
@@ -23,7 +23,10 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             needsContentHash: false
         )
 
-        let output = try await loader.loadPreview(version: version, directory: "/tmp/project", gitService: gitService)
+        let output = try await loader.loadPreview(
+            version: version,
+            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
+        )
 
         XCTAssertEqual(output.pixelSize, CGSize(width: 32, height: 16))
         let calls = await gitService.imageBlobCalls()
@@ -35,7 +38,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
         let cacheDirectory = root.appendingPathComponent("cache", isDirectory: true)
         let imageData = try Self.pngData(width: 12, height: 12)
         let version = DiffImageVersion(
-            source: .commit(hash: "abc123", path: "Assets/logo.png"),
+            source: .git(.commit(hash: "abc123", path: "Assets/logo.png")),
             side: .new,
             identityPrefix: "abc123",
             fileIdentity: "Assets/logo.png",
@@ -48,7 +51,10 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             statusResults: [.success([])],
             imageBlobResults: [.success(imageData)]
         )
-        _ = try await firstLoader.loadPreview(version: version, directory: "/tmp/project", gitService: firstGitService)
+        _ = try await firstLoader.loadPreview(
+            version: version,
+            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: firstGitService)
+        )
         await waitForDiskCacheFile(
             named: DiffImagePreviewIdentity.fileName(for: version, contentHash: nil, extension: "png"),
             in: cacheDirectory
@@ -59,7 +65,10 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             statusResults: [.success([])],
             imageBlobResults: [.failure(GitError.commandFailed("should not load"))]
         )
-        let cached = try await secondLoader.loadPreview(version: version, directory: "/tmp/project", gitService: secondGitService)
+        let cached = try await secondLoader.loadPreview(
+            version: version,
+            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: secondGitService)
+        )
 
         XCTAssertEqual(cached.pixelSize, CGSize(width: 12, height: 12))
         let imageBlobCalls = await secondGitService.imageBlobCalls()
@@ -79,8 +88,14 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             ]
         )
 
-        async let firstOutput = loader.loadPreview(version: first, directory: "/tmp/project", gitService: gitService)
-        async let secondOutput = loader.loadPreview(version: second, directory: "/tmp/project", gitService: gitService)
+        async let firstOutput = loader.loadPreview(
+            version: first,
+            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
+        )
+        async let secondOutput = loader.loadPreview(
+            version: second,
+            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
+        )
         let outputs = try await [firstOutput.pixelSize, secondOutput.pixelSize]
 
         XCTAssertEqual(Set(outputs), [CGSize(width: 10, height: 10), CGSize(width: 12, height: 12)])
@@ -99,7 +114,10 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
         )
 
         let task = Task {
-            try await loader.loadPreview(version: version, directory: "/tmp/project", gitService: gitService)
+            try await loader.loadPreview(
+                version: version,
+                fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
+            )
         }
         try await Task.sleep(for: .milliseconds(20))
         task.cancel()
@@ -144,7 +162,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
         let root = temporaryDirectory()
         let loader = DiffImagePreviewLoader(tempDirectory: root.appendingPathComponent("open", isDirectory: true))
         let version = DiffImageVersion(
-            source: .commit(hash: "abc123", path: "Sources/Assets/logo.png"),
+            source: .git(.commit(hash: "abc123", path: "Sources/Assets/logo.png")),
             side: .new,
             identityPrefix: "abc123",
             fileIdentity: String(repeating: "VeryLongFolderName/", count: 20) + "logo.png",
@@ -156,7 +174,10 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             imageBlobResults: [.success(try Self.pngData(width: 2, height: 2))]
         )
 
-        let url = try await loader.materializeForOpening(version: version, directory: "/tmp/project", gitService: gitService)
+        let url = try await loader.materializeForOpening(
+            version: version,
+            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
+        )
 
         XCTAssertLessThanOrEqual(url.lastPathComponent.count, 180)
         XCTAssertTrue(url.lastPathComponent.hasPrefix("abc123-VeryLongFolderName"))
@@ -165,7 +186,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
 
     func testFileNameIncludesStableHashForSanitizedPathCollisions() {
         let slashPath = DiffImageVersion(
-            source: .commit(hash: "abc123", path: "Assets/a/b.png"),
+            source: .git(.commit(hash: "abc123", path: "Assets/a/b.png")),
             side: .new,
             identityPrefix: "abc123",
             fileIdentity: "Assets/a/b.png",
@@ -173,7 +194,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             needsContentHash: false
         )
         let dashPath = DiffImageVersion(
-            source: .commit(hash: "abc123", path: "Assets/a-b.png"),
+            source: .git(.commit(hash: "abc123", path: "Assets/a-b.png")),
             side: .new,
             identityPrefix: "abc123",
             fileIdentity: "Assets/a-b.png",
@@ -191,7 +212,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
 
     func testFileNameSanitizesAndBoundsPathologicalExtensions() {
         let version = DiffImageVersion(
-            source: .commit(hash: "abc123", path: "Assets/logo.png"),
+            source: .git(.commit(hash: "abc123", path: "Assets/logo.png")),
             side: .new,
             identityPrefix: "abc123",
             fileIdentity: String(repeating: "Folder/", count: 30) + "logo.png",
@@ -211,7 +232,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
         let tempDirectory = root.appendingPathComponent("open", isDirectory: true)
         let loader = DiffImagePreviewLoader(tempDirectory: tempDirectory)
         let version = DiffImageVersion(
-            source: .worktree(path: "Assets/new-logo.png"),
+            source: .git(.worktree(path: "Assets/new-logo.png")),
             side: .new,
             identityPrefix: "abc123-worktree",
             fileIdentity: "Assets/new-logo.png",
@@ -223,7 +244,10 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
             imageBlobResults: [.failure(GitError.commandFailed("should not load"))]
         )
 
-        let url = try await loader.materializeForOpening(version: version, directory: "/tmp/project", gitService: gitService)
+        let url = try await loader.materializeForOpening(
+            version: version,
+            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
+        )
 
         XCTAssertEqual(url.path, "/tmp/project/Assets/new-logo.png")
         let imageBlobCalls = await gitService.imageBlobCalls()
@@ -255,7 +279,7 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
 
     private static func version(path: String) -> DiffImageVersion {
         DiffImageVersion(
-            source: .commit(hash: "abc123", path: path),
+            source: .git(.commit(hash: "abc123", path: path)),
             side: .new,
             identityPrefix: "abc123",
             fileIdentity: path,
@@ -294,4 +318,103 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
         }
         return data as Data
     }
+
+    // MARK: - The remote size gate
+
+    private static func remoteVersion(byteSize: Int) -> DiffImageVersion {
+        DiffImageVersion(
+            source: .gitHub(
+                GitHubImageBlobSource(
+                    owner: "octo",
+                    repo: "demo",
+                    path: "assets/hero.png",
+                    storage: .lfs(oid: String(repeating: "c", count: 64), byteSize: byteSize)
+                )
+            ),
+            side: .new,
+            identityPrefix: "lfs-\(String(repeating: "c", count: 64))",
+            fileIdentity: "assets/hero.png",
+            fileExtension: "png",
+            needsContentHash: false,
+            byteSize: byteSize
+        )
+    }
+
+    func testAnAutomaticLoadRefusesAnImagePastTheAutoLoadGate() async throws {
+        let version = Self.remoteVersion(byteSize: DiffImagePreviewSupport.autoLoadByteLimit + 1)
+        let loader = DiffImagePreviewLoader(cacheDirectory: temporaryDirectory())
+
+        do {
+            _ = try await loader.loadPreview(
+                version: version,
+                fetcher: UnusableDiffImageBlobFetcher(),
+                intent: .automatic
+            )
+            XCTFail("Expected the auto-load gate to refuse the image")
+        } catch let error as DiffImageBlobTooLargeError {
+            XCTAssertEqual(error.byteSize, DiffImagePreviewSupport.autoLoadByteLimit + 1)
+        }
+    }
+
+    /// The gate exists to avoid *downloading* unasked, not to hide an image already on disk — a
+    /// revisit must paint from the cache rather than asking for a second confirmation.
+    func testAGatedImageStillPaintsFromTheDiskCacheOnARevisit() async throws {
+        let cacheDirectory = temporaryDirectory().appendingPathComponent("cache", isDirectory: true)
+        let version = Self.remoteVersion(byteSize: DiffImagePreviewSupport.autoLoadByteLimit + 1)
+        let imageData = try Self.pngData(width: 10, height: 10)
+
+        let warming = DiffImagePreviewLoader(cacheDirectory: cacheDirectory)
+        _ = try await warming.loadPreview(
+            version: version,
+            fetcher: StubDiffImageBlobFetcher(data: imageData),
+            intent: .confirmed
+        )
+        await waitForDiskCacheFile(
+            named: DiffImagePreviewIdentity.fileName(for: version, contentHash: nil, extension: "png"),
+            in: cacheDirectory
+        )
+
+        // A fetcher that would fail proves the automatic load never reached the transport.
+        let revisiting = DiffImagePreviewLoader(cacheDirectory: cacheDirectory)
+        let cached = try await revisiting.loadPreview(
+            version: version,
+            fetcher: UnusableDiffImageBlobFetcher(),
+            intent: .automatic
+        )
+
+        XCTAssertEqual(cached.pixelSize, CGSize(width: 10, height: 10))
+    }
+
+    /// Opening is always an explicit act, so it uses the confirmed ceiling rather than the gate the
+    /// scroll-time load runs under.
+    func testOpeningAGatedImageIsNotHeldBackByTheAutoLoadGate() async throws {
+        let version = Self.remoteVersion(byteSize: DiffImagePreviewSupport.autoLoadByteLimit + 1)
+        let loader = DiffImagePreviewLoader(cacheDirectory: temporaryDirectory())
+        let imageData = try Self.pngData(width: 8, height: 8)
+
+        let url = try await loader.materializeForOpening(
+            version: version,
+            fetcher: StubDiffImageBlobFetcher(data: imageData)
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+}
+
+/// Returns fixed bytes for any source, standing in for a transport.
+private struct StubDiffImageBlobFetcher: DiffImageBlobFetching {
+    let data: Data
+
+    func blob(for source: DiffImageBlobSource, maxBytes: Int) async throws -> Data { data }
+    func existingFileURL(for source: DiffImageBlobSource) -> URL? { nil }
+}
+
+/// Fails if it is ever asked, so a test can prove a load was served without touching the transport.
+private struct UnusableDiffImageBlobFetcher: DiffImageBlobFetching {
+    func blob(for source: DiffImageBlobSource, maxBytes: Int) async throws -> Data {
+        XCTFail("The blob should not have been fetched")
+        throw DiffImagePreviewLoaderError.unsupportedSource
+    }
+
+    func existingFileURL(for source: DiffImageBlobSource) -> URL? { nil }
 }

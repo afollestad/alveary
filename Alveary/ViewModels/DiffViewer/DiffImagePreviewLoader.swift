@@ -34,24 +34,30 @@ final class DiffImagePreviewLoader: @unchecked Sendable {
 
     func loadPreview(
         version: DiffImageVersion,
-        directory: String,
-        gitService: GitService
+        fetcher: DiffImageBlobFetching,
+        intent: DiffImageLoadIntent = .automatic
     ) async throws -> DiffImagePreviewOutput {
         let stableFileName = version.needsContentHash
             ? nil
             : DiffImagePreviewIdentity.fileName(for: version, contentHash: nil, extension: "png")
 
+        // A cached preview is already downsampled, so an image the size gate would refuse still
+        // paints instantly on a revisit rather than asking for a second confirmation.
         if let stableFileName,
            let cached = await cachedPreview(named: stableFileName) {
             return cached
         }
 
+        if let byteSize = version.byteSize,
+           byteSize > DiffImagePreviewSupport.byteLimit(for: version.source, intent: intent) {
+            throw DiffImageBlobTooLargeError(byteSize: byteSize)
+        }
+
         // Mutable sources need their content hash before we can address the
         // disk cache, so they intentionally pay one bounded blob read first.
-        let data = try await gitService.imageBlob(
-            source: version.source,
-            maxBytes: DiffImagePreviewSupport.maxSourceBytes,
-            in: directory
+        let data = try await fetcher.blob(
+            for: version.source,
+            maxBytes: DiffImagePreviewSupport.byteLimit(for: version.source, intent: intent)
         )
         try Task.checkCancellation()
 
@@ -74,17 +80,15 @@ final class DiffImagePreviewLoader: @unchecked Sendable {
 
     func materializeForOpening(
         version: DiffImageVersion,
-        directory: String,
-        gitService: GitService
+        fetcher: DiffImageBlobFetching
     ) async throws -> URL {
-        if case .worktree(let path) = version.source {
-            return URL(fileURLWithPath: directory).appendingPathComponent(path)
+        if let existing = fetcher.existingFileURL(for: version.source) {
+            return existing
         }
 
-        let data = try await gitService.imageBlob(
-            source: version.source,
-            maxBytes: DiffImagePreviewSupport.maxSourceBytes,
-            in: directory
+        let data = try await fetcher.blob(
+            for: version.source,
+            maxBytes: DiffImagePreviewSupport.byteLimit(for: version.source, intent: .confirmed)
         )
         try Task.checkCancellation()
 
@@ -154,11 +158,16 @@ final class DiffImagePreviewLoader: @unchecked Sendable {
 
 enum DiffImagePreviewLoaderError: Error, LocalizedError {
     case unsupportedImage
+    /// A fetcher was handed a source from the other family — a programming error rather than a
+    /// condition the user can act on.
+    case unsupportedSource
 
     var errorDescription: String? {
         switch self {
         case .unsupportedImage:
             return "This image could not be decoded."
+        case .unsupportedSource:
+            return "This image could not be located."
         }
     }
 }

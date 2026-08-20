@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DiffImagePreviewScrollView: View {
     let preview: DiffImagePreview
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {
@@ -25,7 +25,7 @@ struct DiffImagePreviewScrollView: View {
 
 struct DiffImagePreviewSlots: View {
     let preview: DiffImagePreview
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {
@@ -55,7 +55,7 @@ struct DiffImagePreviewSlots: View {
 private struct DiffImagePreviewColumn: View {
     let version: DiffImageVersion
     let showsHeader: Bool
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {
@@ -102,12 +102,13 @@ private struct DiffImagePreviewColumn: View {
 /// the memory/disk cache, so the release costs nothing visible.
 private struct DiffImagePreviewSlot: View {
     let version: DiffImageVersion
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
 
     @State private var state: DiffImagePreviewSlotState = .idle
     @State private var isOpening = false
     @State private var openingTask: Task<Void, Never>?
+    @State private var loadingTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -140,12 +141,29 @@ private struct DiffImagePreviewSlot: View {
         .onDisappear {
             openingTask?.cancel()
             openingTask = nil
+            loadingTask?.cancel()
+            loadingTask = nil
             state = .idle
             isOpening = false
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(version.side.rawValue.capitalized) image preview")
-        .accessibilityAddTraits(state.isLoaded ? .isButton : [])
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(state.isActionable ? .isButton : [])
+        // The slot flattens its children, so the confirmation card's button has no element of its
+        // own — without this action a gated image could be seen but never loaded by VoiceOver.
+        .accessibilityAction { activate() }
+    }
+
+    /// The slot's single activation, matching whatever its current state offers.
+    private func activate() {
+        switch state {
+        case .needsConfirmation:
+            load(intent: .confirmed)
+        case .loaded:
+            open()
+        case .idle, .loading, .tooLarge, .failed:
+            break
+        }
     }
 
     @ViewBuilder
@@ -155,6 +173,20 @@ private struct DiffImagePreviewSlot: View {
             ProgressView()
                 .controlSize(.small)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .needsConfirmation(let byteSize):
+            DiffImagePreviewConfirmationCard(byteSize: byteSize) {
+                load(intent: .confirmed)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .tooLarge(let byteSize):
+            DiffCalloutCard(
+                icon: "exclamationmark.triangle",
+                title: "Image too large",
+                message: DiffImagePreviewByteFormat.tooLargeMessage(byteSize: byteSize)
+            )
+            .padding(12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let output):
             Image(decorative: output.image, scale: 1, orientation: .up)
                 .resizable()
@@ -171,22 +203,63 @@ private struct DiffImagePreviewSlot: View {
         }
     }
 
+    /// Runs the automatic load a freshly visible slot starts with. A size-gated image comes back as
+    /// `.needsConfirmation` rather than a failure, because nothing is wrong with it — it is just
+    /// bigger than we will pull down unasked.
     private func load() async {
+        await performLoad(intent: .automatic)
+    }
+
+    /// The explicit re-run behind the confirmation card's button. Held in `loadingTask` so a recycle
+    /// cancels it; `.task(id:)` only owns the automatic one.
+    private func load(intent: DiffImageLoadIntent) {
+        guard loadingTask == nil else {
+            return
+        }
+        loadingTask = Task {
+            await performLoad(intent: intent)
+            loadingTask = nil
+        }
+    }
+
+    private func performLoad(intent: DiffImageLoadIntent) async {
         state = .loading
         do {
-            let output = try await loadImage(version)
+            let output = try await loadImage(version, intent)
             guard !Task.isCancelled else {
                 return
             }
             state = .loaded(output)
         } catch is CancellationError {
             state = .idle
+        } catch let error as DiffImageBlobTooLargeError {
+            guard !Task.isCancelled else {
+                return
+            }
+            state = Self.gatedState(byteSize: error.byteSize ?? version.byteSize, version: version, intent: intent)
         } catch {
             guard !Task.isCancelled else {
                 return
             }
             state = .failed
         }
+    }
+
+    /// Confirming can only help while the image is still under the hard cap, and never after a
+    /// confirmed attempt has already been refused.
+    private static func gatedState(
+        byteSize: Int?,
+        version: DiffImageVersion,
+        intent: DiffImageLoadIntent
+    ) -> DiffImagePreviewSlotState {
+        if intent == .confirmed {
+            return .tooLarge(byteSize)
+        }
+        if let byteSize,
+           DiffImagePreviewSupport.exceedsHardLimit(byteSize: byteSize, source: version.source) {
+            return .tooLarge(byteSize)
+        }
+        return .needsConfirmation(byteSize)
     }
 
     private func open() {
@@ -213,26 +286,103 @@ private struct DiffImagePreviewSlot: View {
 private enum DiffImagePreviewSlotState {
     case idle
     case loading
+    /// Held back by the auto-load gate. Carries the size when it is known so the card can name it.
+    case needsConfirmation(Int?)
+    /// Past the hard cap, where confirming would not help.
+    case tooLarge(Int?)
     case loaded(DiffImagePreviewOutput)
     case failed
 
-    var isLoaded: Bool {
-        if case .loaded = self {
+    /// Whether activating the slot does anything — a gated image is as actionable as a loaded one.
+    var isActionable: Bool {
+        switch self {
+        case .loaded, .needsConfirmation:
             return true
+        case .idle, .loading, .tooLarge, .failed:
+            return false
         }
-        return false
     }
 }
 
 private extension DiffImagePreviewSlot {
+    var accessibilityLabel: String {
+        let side = version.side.rawValue.capitalized
+        switch state {
+        case .idle, .loading:
+            return "\(side) image preview, loading"
+        case .needsConfirmation(let byteSize):
+            return "\(side) image preview, \(DiffImagePreviewByteFormat.largeImageTitle(byteSize: byteSize))"
+        case .tooLarge:
+            return "\(side) image preview, too large to preview"
+        case .loaded:
+            return "\(side) image preview, open"
+        case .failed:
+            return "\(side) image preview, unavailable"
+        }
+    }
+
     var helpText: String {
         switch state {
         case .idle, .loading:
             return "Loading image preview"
+        case .needsConfirmation:
+            return "Load this image"
+        case .tooLarge:
+            return "Image too large to preview"
         case .loaded:
-            return "Open image in Preview"
+            return "Open image"
         case .failed:
             return "Image preview unavailable"
         }
+    }
+}
+
+/// Offers a size-gated image rather than downloading it on scroll. Git LFS holds large files by
+/// design, so a pull request full of them would otherwise pull tens of megabytes unasked.
+private struct DiffImagePreviewConfirmationCard: View {
+    let byteSize: Int?
+    let load: () -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "photo")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            Text(DiffImagePreviewByteFormat.largeImageTitle(byteSize: byteSize))
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.center)
+
+            Button("Load image", action: load)
+                .secondaryActionButtonStyle()
+                .accessibilityLabel("Load image")
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.06))
+        )
+    }
+}
+
+private enum DiffImagePreviewByteFormat {
+    static func string(byteSize: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(byteSize), countStyle: .file)
+    }
+
+    static func largeImageTitle(byteSize: Int?) -> String {
+        guard let byteSize else {
+            return "Large image"
+        }
+        return "Large image \u{00B7} \(string(byteSize: byteSize))"
+    }
+
+    static func tooLargeMessage(byteSize: Int?) -> String {
+        guard let byteSize else {
+            return "This image is too large to preview inline."
+        }
+        return "This image is \(string(byteSize: byteSize)), past the inline preview limit."
     }
 }

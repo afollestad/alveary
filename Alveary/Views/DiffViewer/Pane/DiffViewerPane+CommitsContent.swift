@@ -180,7 +180,7 @@ struct DiffViewerCommitsContent: View, Equatable {
                 onToggleFileCollapse: { fileID in
                     viewModel.toggleSelectedCommitFileCollapse(fileID: fileID)
                 },
-                loadImage: viewModel.loadImagePreview,
+                loadImage: { try await viewModel.loadImagePreview($0, intent: $1) },
                 openImage: viewModel.openImagePreview
             )
         } else if !viewModel.rawCommitDiffContent.isEmpty {

@@ -24,3 +24,5 @@ These instructions apply to Diff Viewer coordination and state under `Alveary/Vi
 
 - **Preserve full identity keys.** Image preview cache/temp filenames must include the readable commit/content prefix, full diff path identity, old/new side, and a stable hash of the unsanitized identity so different folders or sanitized paths cannot collide.
 - **Avoid extra Git work.** Current-change diff loading should request `HEAD` only after a parsed diff is known to be raster-previewable.
+- **A Git LFS file is a *text* diff, so never gate its preview on `DiffFile.isBinary`.** The pointer is the file's content, which makes that flag false; detection reads `GitLFSPointer.pointers(in:)` (`Alveary/DiffParser/GitLFSPointer.swift`), whose size field also spares the load gate a probe request.
+- **Pull request previews live in `DiffImagePreview+PullRequest.swift`** and address bytes on GitHub, since a pull request diff has no checkout; `DiffImageBlobSource` and `DiffImageBlobFetching` own the split and its failure mode.

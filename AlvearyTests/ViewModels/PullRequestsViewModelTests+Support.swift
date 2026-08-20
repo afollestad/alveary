@@ -18,6 +18,9 @@ func makePullRequestsViewModel(
     )? = nil,
     agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
+    imageBlobFetcher: (any DiffImageBlobFetching)? = nil,
+    // Inert by default so no test can launch another app by opening an image.
+    imagePreviewOpener: @escaping @MainActor (URL, String) -> Void = { _, _ in },
     // A private bus by default, so a suite cannot be disturbed by anything posting on `.default`;
     // pass a shared one to wire a coordinator or host-tool service to this view model. The delay
     // goes to zero so the debounce still coalesces without a test having to sleep through it.
@@ -41,6 +44,8 @@ func makePullRequestsViewModel(
         agenticThreadStarter: agenticThreadStarter,
         agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,
+        imageBlobFetcher: imageBlobFetcher,
+        imagePreviewOpener: imagePreviewOpener,
         notificationCenter: notificationCenter,
         remoteRefreshDelay: remoteRefreshDelay,
         searchDebounce: searchDebounce,

@@ -89,7 +89,7 @@ struct DiffViewerCurrentChangesContent: View, Equatable {
                 fileDisplayName: fileDisplayName,
                 statusTitle: statusTitle,
                 diffPreviewIdentity: diffPreviewIdentity,
-                loadImage: viewModel.loadImagePreview,
+                loadImage: { try await viewModel.loadImagePreview($0, intent: $1) },
                 openImage: viewModel.openImagePreview
             )
         }

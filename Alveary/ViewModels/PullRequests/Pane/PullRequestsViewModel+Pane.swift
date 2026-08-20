@@ -78,6 +78,12 @@ struct PullRequestPaneSession: Equatable {
     var diffState = PullRequestDiffState.loading
     var renderedDiffFileCount = PullRequestDiffFilePaging.initialFileCount
     var collapsedDiffFileIDs: Set<String> = []
+    /// Image rows for the Changes tab, keyed the way the flattened row builder keys files.
+    ///
+    /// Rebuilt only when the diff or the detail's ref oids change, never per render: this
+    /// participates in `FlattenedDiffPreview`'s render fingerprint, so a dictionary that churned
+    /// would rebuild every prepared row.
+    var diffImagePreviews: [String: DiffImagePreview] = [:]
     var pendingReview = PendingReviewDraft()
     var composerAnchor: DiffCommentAnchor?
     var composerText = ""
@@ -168,4 +174,37 @@ struct PendingReviewDraft: Equatable, Sendable {
     var overallComment = ""
     var isSubmitting = false
     var submissionError: String?
+}
+
+/// Read-only views onto which pane is open.
+///
+/// These live apart from the writes in `PullRequestsViewModel` because `paneSessions`,
+/// `activePaneTarget`, and `activePaneSummaryStatus` are all `private(set)` — every mutation has to
+/// stay in that file, while a pure read does not.
+@MainActor
+extension PullRequestsViewModel {
+    /// The active target, but only when its origin matches the surface asking.
+    /// The root builds `RightPaneContextualTargets` through this so a shared
+    /// pane lane cannot show one context's pull request inside another.
+    func activePaneTarget(for origin: PullRequestPaneOrigin) -> PullRequestPaneTarget? {
+        guard activePaneOrigin == origin else {
+            return nil
+        }
+        return activePaneTarget
+    }
+
+    func isDetailActive(_ id: PullRequestIdentifier) -> Bool {
+        activePaneTarget == .details(id)
+    }
+
+    /// The open detail's identifier, for surfaces that highlight one row out of many.
+    /// Handing rows this value rather than an `isDetailActive` closure lets them compare
+    /// equal across a render pass, so a selection change repaints two rows instead of all
+    /// of them. Reading it still registers the dependency on `activePaneTarget`.
+    var activeDetailIdentifier: PullRequestIdentifier? {
+        guard case .details(let id) = activePaneTarget else {
+            return nil
+        }
+        return id
+    }
 }

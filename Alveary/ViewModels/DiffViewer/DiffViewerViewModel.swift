@@ -109,7 +109,7 @@ final class DiffViewerViewModel {
     private var appActiveObserver: NSObjectProtocol?
     private var appWillTerminateObserver: NSObjectProtocol?
     let imagePreviewLoader: DiffImagePreviewLoader
-    let imagePreviewOpener: @MainActor (URL) -> Void
+    let imagePreviewOpener: @MainActor (URL, String) -> Void
 
     init(
         gitService: GitService,
@@ -117,7 +117,7 @@ final class DiffViewerViewModel {
         fileListManager: FileListManager,
         agentsManager: any AgentsManager,
         imagePreviewLoader: DiffImagePreviewLoader = .shared,
-        imagePreviewOpener: @escaping @MainActor (URL) -> Void = { NSWorkspace.shared.open($0) },
+        imagePreviewOpener: @escaping @MainActor (URL, String) -> Void = { url, _ in NSWorkspace.shared.open(url) },
         fsEventDebounceDuration: Duration = .milliseconds(500),
         idlePollInterval: Duration = .seconds(60)
     ) {

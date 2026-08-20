@@ -12,7 +12,7 @@ struct DiffViewerPreviewSection: View {
     let fileDisplayName: (FileStatus) -> String
     let statusTitle: (FileStatus.Status) -> String
     let diffPreviewIdentity: (FileStatus) -> String
-    let loadImage: (DiffImageVersion) async throws -> DiffImagePreviewOutput
+    let loadImage: (DiffImageVersion, DiffImageLoadIntent) async throws -> DiffImagePreviewOutput
     let openImage: (DiffImageVersion) async throws -> Void
 
     var body: some View {

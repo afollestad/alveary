@@ -2,7 +2,7 @@
 
 These instructions cover `Alveary/Views/DiffViewer/Preview/` — `FlattenedDiffPreview`, its row stream and width measurement, the image preview, and the comment rows the pull-request pane renders through it. The pane that hosts it in the diff viewer is `Alveary/Views/DiffViewer/Pane/`.
 
-**`FlattenedDiffPreview` has two hosts, and the second one is why most rules here exist.** The diff viewer renders it inert; the pull-request Changes tab drives it with comment annotations and interaction. A new parameter must keep the inert path's row stream byte-identical, or the diff viewer inherits pull-request chrome.
+**`FlattenedDiffPreview` has two hosts, and the second one is why most rules here exist.** The diff viewer renders it without comment chrome; the pull-request Changes tab drives it with comment annotations and interaction. Both drive its image rows, from different byte sources. A new parameter must keep the comment-free path's row stream byte-identical, or the diff viewer inherits pull-request chrome.
 
 **Keep a rule here only when the code that would violate it is not the code that documents it.** Most of this scope's mechanism is documented where it lives: `FlattenedDiffPreview`'s inset, caret-axis, and scroll-target properties (`scrollTarget`'s absence from `renderFingerprint`, `collapseCaretAxis` and its `fileHeaderTrailingExtension` derivation), `DiffPreviewWidthEstimator`'s measured metrics, `DiffPreviewScrollOffset`'s reference-type identity, `DiffCommentAnchor` / `DiffLineComment` / `DiffLineCommentThread` / `DiffCommentAnnotations` / `DiffCommentInteraction`'s per-field contracts, `DiffCommentCardChrome`, `DiffCommentRowWash`, and `DiffCommentCardInteriorPadding`'s arithmetic against the scroll indicator each carry theirs.
 

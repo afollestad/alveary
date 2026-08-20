@@ -140,6 +140,12 @@ struct PullRequestDetailNode: Decodable {
     let author: GraphQLActorNode?
     let headRefName: String?
     let baseRefName: String?
+    /// The exact commits the diff spans. Image rows address blob bytes by commit, so a
+    /// binary image in a pull request cannot be fetched from the branch *names* alone.
+    let headRefOid: String?
+    /// GitHub keeps this at the commit the pull request is compared against — the merge base of
+    /// the diff `gh pr diff` renders — rather than following the base branch as it moves.
+    let baseRefOid: String?
     /// Null once the head branch is deleted, while `headRefName` keeps the name.
     let headRef: GraphQLRefNode?
     let additions: Int?

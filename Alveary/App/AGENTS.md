@@ -39,4 +39,5 @@ These instructions cover `Alveary/App/` — the entry point, `AppDelegate`, `App
 ## First Appear And Root Modals
 
 - **On first appear, sync the dock badge with `notificationManager.refreshBadgeCount()`** and nothing else. Do not also call `handleAppVisibilityChanged()` — mark-read of the restored conversation is driven by `ThreadDetailView`'s selection task (`Alveary/Views/Chat/ThreadDetail/AGENTS.md`), so the extra call duplicates it plus an extra chained badge task.
+- **A clicked diff image reaches the image-preview modal only because the factories inject it.** `DiffViewerViewModel` and `PullRequestsViewModel` default `imagePreviewOpener` to `NSWorkspace`, so a view model built without `DiffImagePreviewPresentation.opener(appState:)` silently opens Preview.app instead; that type owns why an oversized image still does.
 - **Root modal priority is onboarding, then image preview.** Scheduling proposals are **not** modal — they are confirmed in their own transcript widget, which is why `ScheduledTaskProposalQueueCoordinator` reaches the chat surface through the environment rather than the root. Do not reintroduce a root proposal modal.

@@ -30,7 +30,7 @@ extension ContentView {
                 sidebarViewModel: sidebarViewModel
             ),
             lastActiveProjectRecorder: makeLastActiveProjectRecorder(dependencies: dependencies),
-            diffViewModel: makeDiffViewModel(dependencies: dependencies),
+            diffViewModel: makeDiffViewModel(dependencies: dependencies, appState: appState),
             scheduledTaskProposalQueueCoordinator: makeScheduledTaskProposalQueueCoordinator(dependencies: dependencies),
             reviewProposalCoordinator: reviewProposalCoordinator,
             pullRequestsViewModel: makePullRequestsViewModel(
@@ -101,12 +101,16 @@ extension ContentView {
         )
     }
 
-    static func makeDiffViewModel(dependencies: ContentViewDependencies) -> DiffViewerViewModel {
+    static func makeDiffViewModel(
+        dependencies: ContentViewDependencies,
+        appState: AppState
+    ) -> DiffViewerViewModel {
         DiffViewerViewModel(
             gitService: dependencies.gitService,
             diffStore: dependencies.diffWorkspaceStore,
             fileListManager: dependencies.fileListManager,
-            agentsManager: dependencies.agentsManager
+            agentsManager: dependencies.agentsManager,
+            imagePreviewOpener: DiffImagePreviewPresentation.opener(appState: appState)
         )
     }
 
@@ -190,7 +194,9 @@ extension ContentView {
                 )
             },
             agenticThreadActivity: dependencies.pullRequestAgenticThreadActivity,
-            reviewProposalCoordinator: reviewProposalCoordinator
+            reviewProposalCoordinator: reviewProposalCoordinator,
+            imageBlobFetcher: dependencies.gitHubDiffImageBlobFetcher,
+            imagePreviewOpener: DiffImagePreviewPresentation.opener(appState: appState)
         )
     }
 
