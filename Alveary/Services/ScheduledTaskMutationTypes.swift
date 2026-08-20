@@ -133,7 +133,10 @@ enum ScheduledTaskMutationError: Error, Equatable, LocalizedError {
         case .invalidRecurrence:
             "Scheduled task recurrence is invalid."
         case .invalidDestination:
-            "Scheduled task destination is invalid."
+            """
+            This task's destination was written by a newer version of Alveary. \
+            Open it to choose where its runs should post.
+            """
         case .projectWorkspaceRequiresProject:
             "Project schedules require a project."
         case .existingThreadRequiresAvailableThread:

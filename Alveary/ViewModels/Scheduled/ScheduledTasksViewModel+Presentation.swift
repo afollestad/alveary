@@ -56,7 +56,7 @@ extension ScheduledTasksViewModel {
             workspaceSummary = "New thread each time · \(workspaceDetail(for: definition))"
         case nil:
             providerID = definition.providerID
-            workspaceSummary = "Invalid destination"
+            workspaceSummary = "Unrecognized destination"
         }
 
         return ScheduledTaskRowPresentation(

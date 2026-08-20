@@ -7,7 +7,7 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
     case projectNotFound
     case existingThreadRequired
     case existingThreadUnavailable
-    case invalidPersistedDestination
+    case destinationNotRecognized
     case sectionNotFound
     case runNowRejected
 
@@ -25,8 +25,11 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
             "Choose a thread for this scheduled task."
         case .existingThreadUnavailable:
             "The selected thread is no longer available."
-        case .invalidPersistedDestination:
-            "This scheduled task has an invalid persisted destination."
+        case .destinationNotRecognized:
+            """
+            This task's destination was written by a newer version of Alveary. \
+            Choose where its runs should post to repair it.
+            """
         case .sectionNotFound:
             "The selected sidebar section no longer exists."
         case .runNowRejected:

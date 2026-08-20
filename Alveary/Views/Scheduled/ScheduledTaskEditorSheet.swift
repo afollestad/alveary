@@ -51,6 +51,17 @@ struct ScheduledTaskEditorContent: View {
                         )
                     }
 
+                    if draft.hasUnresolvedDestination {
+                        // No `onDismiss`: this is a state, not an event. It stands until the
+                        // user picks a destination, which is also what re-enables Save.
+                        InlineBanner(
+                            message: ScheduledTasksViewModelError.destinationNotRecognized
+                                .localizedDescription,
+                            severity: .warning,
+                            autoDismissAfter: nil
+                        )
+                    }
+
                     ScheduledTaskEditorDetailsSection(
                         draft: $draft,
                         promptDraft: promptDraft,
@@ -64,7 +75,9 @@ struct ScheduledTaskEditorContent: View {
                         draft: $draft,
                         onOpenReusedThread: viewModel.requestReusedThreadOpen(conversationID:)
                     )
-                    if draft.destination != .existingThread {
+                    // Withheld while the destination is unrecognized: every row below it would
+                    // be describing the fallback seed rather than anything the user chose.
+                    if !draft.hasUnresolvedDestination, draft.destination != .existingThread {
                         ScheduledTaskEditorAgentSection(viewModel: viewModel, draft: $draft)
                     }
                 }
@@ -223,7 +236,7 @@ struct ScheduledTaskEditorContent: View {
             ActionButtonLabel(title: submitTitle, icon: .system("checkmark"))
         }
         .primaryActionButtonStyle(expandsHorizontally: surface == .pane)
-        .disabled(isSubmitting)
+        .disabled(isSubmitting || draft.hasUnresolvedDestination)
     }
 }
 

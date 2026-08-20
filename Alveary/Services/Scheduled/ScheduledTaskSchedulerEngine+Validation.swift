@@ -84,7 +84,10 @@ extension ScheduledTaskSchedulerEngine {
             return "Scheduled task state is invalid."
         }
         guard let destination = definition.decodedDestination else {
-            return "Scheduled task destination is invalid."
+            return """
+                This task's destination was written by a newer version of Alveary. \
+                Open it to choose where its runs should post.
+                """
         }
         if destination == .existingThread,
            targetSnapshot(for: definition) == nil {

@@ -93,6 +93,15 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     var title: String
     var prompt: String
     var destination: ScheduledTaskDestination = .reusedThread
+    /// The persisted `destinationRawValue` that failed to decode, for a definition written by a
+    /// newer Alveary than the one reading it.
+    ///
+    /// Separate from `destination` because the editor's dependent sections need a concrete
+    /// destination to render at all; this field is what says the one they got is a fallback the
+    /// user never chose. It gates the save (`ScheduledTasksViewModel.makeDefinitionEdit`), so the
+    /// repair is always an explicit pick — the automatic paths stay fail-closed and leave an
+    /// undecodable row alone (`ScheduledTaskTargetDetachment`).
+    var unresolvedDestinationRawValue: String?
     /// The thread a `.reusedThread` schedule has already created, for the editor's read-only
     /// link row. A `let`, because `ScheduledTask.reusedThread` is service-owned and no edit
     /// surface may retarget it — and a snapshot like the rest of the draft, so a first run
@@ -122,6 +131,24 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
 
     var isEditing: Bool {
         definitionID != nil
+    }
+
+    var hasUnresolvedDestination: Bool {
+        unresolvedDestinationRawValue != nil
+    }
+
+    /// The destination picker's selection, `nil` until an unrecognized destination is repaired.
+    ///
+    /// Reading `nil` is what makes the menu fall back to its placeholder, and it is also why
+    /// re-picking the seeded fallback still counts as a choice: the getter never reports that
+    /// value as selected, so the setter runs and clears the flag.
+    var destinationSelection: ScheduledTaskDestination? {
+        get { hasUnresolvedDestination ? nil : destination }
+        set {
+            guard let newValue else { return }
+            destination = newValue
+            unresolvedDestinationRawValue = nil
+        }
     }
 
     var recurrence: ScheduledTaskRecurrence {

@@ -28,6 +28,61 @@ extension SnapshotTests {
         )
     }
 
+    /// The dead end this replaced: the card refused to open a pane at all, so an unrecognized
+    /// destination could only be deleted. Save stays disabled until the picker is answered.
+    func testScheduledTaskUnrecognizedDestinationPane() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(
+            includeTasks: false,
+            includeUnrecognizedDestinationTask: true
+        )
+        let target = "unrecognized-destination-snapshot"
+        XCTAssertTrue(fixture.viewModel.requestEdit(definitionID: target))
+
+        assertMacSnapshot(
+            ScheduledTaskEditorPane(viewModel: fixture.viewModel, target: .edit(target), onDismiss: {}),
+            size: CGSize(width: 420, height: 780),
+            named: "scheduled_task_unrecognized_destination_pane"
+        )
+    }
+
+    /// The Workspace section is below the pane's fold, so the placeholder picker and the rows it
+    /// withholds get their own baseline. Drives the real `makeEditDraft` path.
+    func testScheduledTaskEditorUnrecognizedDestinationHidesDependentRows() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(
+            includeTasks: false,
+            includeUnrecognizedDestinationTask: true
+        )
+        let draft = try XCTUnwrap(
+            fixture.viewModel.makeEditDraft(definitionID: "unrecognized-destination-snapshot")
+        )
+
+        assertMacSnapshot(
+            ScheduledTaskEditorWorkspaceSection(
+                projects: fixture.viewModel.projects,
+                threads: fixture.viewModel.existingThreadTargets,
+                sections: [],
+                draft: .constant(draft),
+                onOpenReusedThread: { _ in }
+            )
+            .padding(24),
+            size: CGSize(width: 760, height: 160),
+            named: "scheduled_task_editor_unrecognized_destination"
+        )
+    }
+
+    func testScheduledTasksScreenUnrecognizedDestinationCard() throws {
+        let fixture = try ScheduledTasksSnapshotFixture(
+            includeTasks: false,
+            includeUnrecognizedDestinationTask: true
+        )
+
+        assertMacSnapshot(
+            ScheduledTasksScreen(viewModel: fixture.viewModel),
+            size: CGSize(width: 900, height: 420),
+            named: "scheduled_tasks_screen_unrecognized_destination"
+        )
+    }
+
     func testScheduledTasksScreenEmpty() throws {
         let fixture = try ScheduledTasksSnapshotFixture(includeTasks: false)
 

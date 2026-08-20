@@ -378,22 +378,78 @@ extension ScheduledTasksViewModelTests {
         )
     }
 
-    func testUnknownDestinationPresentsInvalidRowAndRefusesEditDraft() throws {
+    func testUnrecognizedDestinationOpensTheEditorWithNoDestinationSelected() throws {
         let fixture = try ScheduledTasksViewModelFixture()
-        try fixture.insertDefinition(id: "unknown-destination", state: .active)
-        let definition = try XCTUnwrap(fixture.context.resolveScheduledTask(id: "unknown-destination"))
-        definition.destinationRawValue = "future-destination"
-        try fixture.context.save()
-
-        fixture.viewModel.reload()
+        let definition = try fixture.insertUnrecognizedDestinationDefinition()
 
         let row = try XCTUnwrap(fixture.viewModel.tasks.first)
         XCTAssertNil(row.destination)
-        XCTAssertEqual(row.workspaceSummary, "Invalid destination")
-        XCTAssertNil(fixture.viewModel.makeEditDraft(definitionID: definition.id))
+        XCTAssertEqual(row.workspaceSummary, "Unrecognized destination")
+
+        XCTAssertTrue(fixture.viewModel.requestEdit(definitionID: definition.id))
+        XCTAssertEqual(fixture.viewModel.activePaneTarget, .edit(definition.id))
+
+        let draft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
+        XCTAssertEqual(draft.unresolvedDestinationRawValue, "future-destination")
+        XCTAssertTrue(draft.hasUnresolvedDestination)
+        XCTAssertNil(draft.destinationSelection)
+        // The screen banner belonged to the refusal this replaced; the pane carries the notice now.
+        XCTAssertNil(fixture.viewModel.errorMessage)
+    }
+
+    func testUnrecognizedDestinationRefusesTheSaveAndLeavesTheStoredRawValueAlone() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let definition = try fixture.insertUnrecognizedDestinationDefinition()
+        XCTAssertTrue(fixture.viewModel.requestEdit(definitionID: definition.id))
+        var draft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
+        draft.title = "Renamed while unresolved"
+
+        fixture.viewModel.updateActiveDraft(draft)
+        fixture.viewModel.submitActivePane()
+
         XCTAssertEqual(
-            fixture.viewModel.errorMessage,
-            ScheduledTasksViewModelError.invalidPersistedDestination.localizedDescription
+            fixture.viewModel.editorErrorMessage,
+            ScheduledTasksViewModelError.destinationNotRecognized.localizedDescription
         )
+        XCTAssertEqual(fixture.viewModel.activePaneTarget, .edit(definition.id))
+        XCTAssertEqual(definition.destinationRawValue, "future-destination")
+        XCTAssertEqual(definition.title, "Scheduled task")
+        XCTAssertEqual(definition.revision, 1)
+    }
+
+    func testPickingADestinationRepairsTheRowAndAllowsTheSave() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let definition = try fixture.insertUnrecognizedDestinationDefinition()
+        XCTAssertTrue(fixture.viewModel.requestEdit(definitionID: definition.id))
+        var draft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
+
+        // The seeded fallback is `.reusedThread`, so picking it must still count as a choice.
+        draft.destinationSelection = .reusedThread
+        XCTAssertFalse(draft.hasUnresolvedDestination)
+        XCTAssertEqual(draft.destinationSelection, .reusedThread)
+
+        fixture.viewModel.updateActiveDraft(draft)
+        fixture.viewModel.submitActivePane()
+
+        XCTAssertNil(fixture.viewModel.editorErrorMessage)
+        XCTAssertEqual(definition.destinationRawValue, ScheduledTaskDestination.reusedThread.rawValue)
+        XCTAssertEqual(definition.decodedDestination, .reusedThread)
+        XCTAssertEqual(definition.revision, 2)
+        XCTAssertEqual(fixture.viewModel.tasks.first?.workspaceSummary.hasPrefix("Same thread each time"), true)
+    }
+}
+
+@MainActor
+private extension ScheduledTasksViewModelFixture {
+    /// A stored definition whose destination this build cannot decode — the shape a schedule
+    /// written by a newer Alveary takes when an older one reads it.
+    @discardableResult
+    func insertUnrecognizedDestinationDefinition() throws -> ScheduledTask {
+        try insertDefinition(id: "unknown-destination", state: .active)
+        let definition = try XCTUnwrap(context.resolveScheduledTask(id: "unknown-destination"))
+        definition.destinationRawValue = "future-destination"
+        try context.save()
+        viewModel.reload()
+        return definition
     }
 }

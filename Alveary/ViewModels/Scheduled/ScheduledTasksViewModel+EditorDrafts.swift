@@ -60,10 +60,7 @@ extension ScheduledTasksViewModel {
             reload()
             return nil
         }
-        guard let destination = definition.decodedDestination else {
-            errorMessage = ScheduledTasksViewModelError.invalidPersistedDestination.localizedDescription
-            return nil
-        }
+        let (destination, unresolvedDestinationRawValue) = editorDestinationSeed(for: definition)
 
         let recurrence = definition.recurrence
         let modelOptions = modelOptions(for: definition.providerID)
@@ -84,6 +81,7 @@ extension ScheduledTasksViewModel {
             title: definition.title,
             prompt: definition.prompt,
             destination: destination,
+            unresolvedDestinationRawValue: unresolvedDestinationRawValue,
             reusedThread: reusedThreadLink(for: definition),
             targetConversationID: definition.targetThread?.conversations.first(where: \.isMain)?.id,
             // Nullify already degraded a removed section, so the picker shows `Tasks` with no
@@ -173,5 +171,23 @@ extension ScheduledTasksViewModel {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = currentTimeZone()
         return calendar.dateInterval(of: .minute, for: date)?.start ?? date
+    }
+}
+
+private extension ScheduledTasksViewModel {
+    /// The destination an edit draft starts from, plus the persisted raw value when it did not
+    /// decode.
+    ///
+    /// An undecodable destination seeds the editor rather than refusing to open it: refusing left
+    /// the row with no surface at all — no pane, and Run now and Resume already fenced off — so
+    /// deleting it was the only way out. Returned as a pair so the fallback and the flag marking
+    /// it *as* a fallback cannot disagree; that flag is what makes
+    /// `ScheduledTasksViewModel.makeDefinitionEdit` refuse the save until the user picks a
+    /// destination, keeping the repair explicit.
+    func editorDestinationSeed(for definition: ScheduledTask) -> (ScheduledTaskDestination, String?) {
+        guard let destination = definition.decodedDestination else {
+            return (.reusedThread, definition.destinationRawValue)
+        }
+        return (destination, nil)
     }
 }

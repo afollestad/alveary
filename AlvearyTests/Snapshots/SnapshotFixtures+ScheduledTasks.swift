@@ -10,11 +10,12 @@ final class ScheduledTasksSnapshotFixture {
     let container: ModelContainer
     let viewModel: ScheduledTasksViewModel
 
-    /// `includeReusedThreadTask` is separate from `includeTasks` so the reuse schedule cannot
-    /// join — and reflow — every populated-screen baseline.
+    /// `includeReusedThreadTask` and `includeUnrecognizedDestinationTask` are separate from
+    /// `includeTasks` so neither schedule can join — and reflow — every populated-screen baseline.
     init(
         includeTasks: Bool = true,
         includeReusedThreadTask: Bool = false,
+        includeUnrecognizedDestinationTask: Bool = false,
         pullRequestsEnabled: Bool = true
     ) throws {
         container = try Self.makeContainer()
@@ -25,6 +26,10 @@ final class ScheduledTasksSnapshotFixture {
         }
         if includeReusedThreadTask {
             context.insert(Self.reusedThreadTask())
+            try context.save()
+        }
+        if includeUnrecognizedDestinationTask {
+            context.insert(Self.unrecognizedDestinationTask())
             try context.save()
         }
         let mutationService = ScheduledTaskMutationService(
@@ -91,6 +96,31 @@ final class ScheduledTasksSnapshotFixture {
             modifiedAt: Date(timeIntervalSince1970: 400)
         )
         task.reusedThread = thread
+        return task
+    }
+
+    /// A schedule whose stored destination this build cannot decode — what a definition written
+    /// by a newer Alveary looks like to an older one. Written after `init` because `destination`
+    /// only accepts the cases this build knows.
+    private static func unrecognizedDestinationTask() -> ScheduledTask {
+        let task = ScheduledTask(
+            id: "unrecognized-destination-snapshot",
+            title: "Review pull requests",
+            prompt: "Review my open pull requests and summarize what needs attention.",
+            destination: .reusedThread,
+            state: .paused,
+            recurrence: .interval(minutes: 60, anchor: Date(timeIntervalSince1970: 1_799_900_000)),
+            timeZoneIdentifier: "America/Chicago",
+            providerID: "claude",
+            workspaceKind: .privateWorkspace,
+            nextOccurrenceAt: Date(timeIntervalSince1970: 1_800_003_600),
+            pauseReason: """
+                This task's destination was written by a newer version of Alveary. \
+                Open it to choose where its runs should post.
+                """,
+            modifiedAt: Date(timeIntervalSince1970: 500)
+        )
+        task.destinationRawValue = "future-destination"
         return task
     }
 

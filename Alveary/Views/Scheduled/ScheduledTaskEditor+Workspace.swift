@@ -10,109 +10,127 @@ struct ScheduledTaskEditorWorkspaceSection: View {
 
     var body: some View {
         SettingsFormSection("Workspace") {
-            SettingsFormRow {
+            // Last row in the section while the destination is unresolved, so it drops its
+            // divider rather than trailing one under nothing.
+            SettingsFormRow(showsDivider: !draft.hasUnresolvedDestination) {
                 SettingsResponsiveControlRow("Runs in", horizontalControlSizing: .selectedContent) {
+                    // Optional-valued so an unrecognized persisted destination reads as no
+                    // selection and falls back to the placeholder, the same shape the Thread
+                    // picker below uses. No `None` row is added: nothing may select back into
+                    // the unresolved state.
                     ScheduledTaskMenuPicker(
                         accessibilityLabel: "Runs in",
-                        selection: $draft.destination,
+                        selection: $draft.destinationSelection,
                         options: [
-                            .init(value: .reusedThread, label: "Same thread each time"),
-                            .init(value: .newThreadPerRun, label: "New thread each time"),
-                            .init(value: .existingThread, label: "Existing thread")
-                        ]
+                            .init(value: Optional(.reusedThread), label: "Same thread each time"),
+                            .init(value: Optional(.newThreadPerRun), label: "New thread each time"),
+                            .init(value: Optional(.existingThread), label: "Existing thread")
+                        ],
+                        placeholder: "Choose a destination"
                     )
                 }
             }
 
-            // Once a run has minted the reuse thread, "Same thread each time" names a thread that
-            // already exists, so the row says which one. Above Project and Section deliberately:
-            // those rows now only describe the replacement a self-heal would create.
-            if draft.destination == .reusedThread, let reusedThread = draft.reusedThread {
-                SettingsFormRow {
-                    SettingsResponsiveControlRow(
-                        "Thread",
-                        // Names both self-heal triggers: this row is the only place the user can
-                        // see that a workspace or provider edit swaps the thread out from under
-                        // the schedule (`ScheduledTaskMutationService.preservesReuseLink`).
-                        helpText: """
-                            Every run posts here. Archiving or deleting it, or changing the \
-                            workspace or provider, makes the next run create a replacement.
-                            """,
-                        horizontalControlSizing: .selectedContent
-                    ) {
-                        ScheduledTaskReusedThreadLinkButton(link: reusedThread, onOpen: onOpenReusedThread)
-                    }
+            // Withheld while the persisted destination is unrecognized: each row below
+            // describes a destination the user has not chosen yet, and the Thread row would
+            // name the reuse link of a schedule that may not be a reuse schedule at all.
+            if !draft.hasUnresolvedDestination {
+                destinationDependentRows
+            }
+        }
+    }
+
+    /// Every Workspace row that only makes sense once the destination is known.
+    @ViewBuilder
+    private var destinationDependentRows: some View {
+        // Once a run has minted the reuse thread, "Same thread each time" names a thread that
+        // already exists, so the row says which one. Above Project and Section deliberately:
+        // those rows now only describe the replacement a self-heal would create.
+        if draft.destination == .reusedThread, let reusedThread = draft.reusedThread {
+            SettingsFormRow {
+                SettingsResponsiveControlRow(
+                    "Thread",
+                    // Names both self-heal triggers: this row is the only place the user can
+                    // see that a workspace or provider edit swaps the thread out from under
+                    // the schedule (`ScheduledTaskMutationService.preservesReuseLink`).
+                    helpText: """
+                        Every run posts here. Archiving or deleting it, or changing the \
+                        workspace or provider, makes the next run create a replacement.
+                        """,
+                    horizontalControlSizing: .selectedContent
+                ) {
+                    ScheduledTaskReusedThreadLinkButton(link: reusedThread, onOpen: onOpenReusedThread)
+                }
+            }
+        }
+
+        switch draft.destination {
+        case .reusedThread, .newThreadPerRun:
+            SettingsFormRow {
+                SettingsResponsiveControlRow("Project", horizontalControlSizing: .selectedContent) {
+                    ScheduledTaskMenuPicker(
+                        accessibilityLabel: "Project",
+                        selection: projectSelection,
+                        options: [.init(value: String?.none, label: "None")] + projects.map {
+                            .init(value: Optional($0.path), label: $0.name)
+                        }
+                    )
                 }
             }
 
-            switch draft.destination {
-            case .reusedThread, .newThreadPerRun:
+            // Gated on the kind, not `projectPath == nil`: a legacy `.project` row whose
+            // Project vanished must hide this alongside Run location rather than offer a
+            // section its `.project`-mode thread could never render in. Hidden entirely
+            // without custom sections — a picker whose only option is `Tasks` is no choice.
+            if draft.workspaceKind == .privateWorkspace, !sections.isEmpty {
                 SettingsFormRow {
-                    SettingsResponsiveControlRow("Project", horizontalControlSizing: .selectedContent) {
+                    SettingsResponsiveControlRow("Section", horizontalControlSizing: .selectedContent) {
                         ScheduledTaskMenuPicker(
-                            accessibilityLabel: "Project",
-                            selection: projectSelection,
-                            options: [.init(value: String?.none, label: "None")] + projects.map {
-                                .init(value: Optional($0.path), label: $0.name)
+                            accessibilityLabel: "Sidebar section",
+                            selection: $draft.sectionID,
+                            options: [.init(value: String?.none, label: "Tasks")] + sections.map {
+                                .init(value: Optional($0.id), label: $0.name)
                             }
                         )
                     }
                 }
+            }
 
-                // Gated on the kind, not `projectPath == nil`: a legacy `.project` row whose
-                // Project vanished must hide this alongside Run location rather than offer a
-                // section its `.project`-mode thread could never render in. Hidden entirely
-                // without custom sections — a picker whose only option is `Tasks` is no choice.
-                if draft.workspaceKind == .privateWorkspace, !sections.isEmpty {
-                    SettingsFormRow {
-                        SettingsResponsiveControlRow("Section", horizontalControlSizing: .selectedContent) {
-                            ScheduledTaskMenuPicker(
-                                accessibilityLabel: "Sidebar section",
-                                selection: $draft.sectionID,
-                                options: [.init(value: String?.none, label: "Tasks")] + sections.map {
-                                    .init(value: Optional($0.id), label: $0.name)
-                                }
-                            )
+            if draft.projectPath != nil {
+                SettingsFormRow {
+                    SettingsResponsiveControlRow("Run location", horizontalControlSizing: .intrinsic) {
+                        Picker("Run location", selection: $draft.workspaceStrategy) {
+                            Text("Worktree").tag(ScheduledTaskWorkspaceStrategy.worktree)
+                            Text("Local").tag(ScheduledTaskWorkspaceStrategy.localCheckout)
                         }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
                     }
                 }
+            }
 
-                if draft.projectPath != nil {
-                    SettingsFormRow {
-                        SettingsResponsiveControlRow("Run location", horizontalControlSizing: .intrinsic) {
-                            Picker("Run location", selection: $draft.workspaceStrategy) {
-                                Text("Worktree").tag(ScheduledTaskWorkspaceStrategy.worktree)
-                                Text("Local").tag(ScheduledTaskWorkspaceStrategy.localCheckout)
-                            }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                        }
+            folderGrantsRow
+        case .existingThread:
+            if threads.isEmpty {
+                SettingsFormRow(showsDivider: false) {
+                    SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
+                        Text("No eligible threads")
+                            .font(.callout)
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                 }
-
-                folderGrantsRow
-            case .existingThread:
-                if threads.isEmpty {
-                    SettingsFormRow(showsDivider: false) {
-                        SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
-                            Text("No eligible threads")
-                                .font(.callout)
-                                .foregroundStyle(.tertiary)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    }
-                } else {
-                    SettingsFormRow(showsDivider: false) {
-                        SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
-                            ScheduledTaskMenuPicker(
-                                accessibilityLabel: "Existing thread",
-                                selection: $draft.targetConversationID,
-                                options: [.init(value: String?.none, label: "Select a thread")] + threads.map {
-                                    .init(value: Optional($0.conversationID), label: $0.label)
-                                },
-                                placeholder: "Select a thread"
-                            )
-                        }
+            } else {
+                SettingsFormRow(showsDivider: false) {
+                    SettingsResponsiveControlRow("Thread", horizontalControlSizing: .selectedContent) {
+                        ScheduledTaskMenuPicker(
+                            accessibilityLabel: "Existing thread",
+                            selection: $draft.targetConversationID,
+                            options: [.init(value: String?.none, label: "Select a thread")] + threads.map {
+                                .init(value: Optional($0.conversationID), label: $0.label)
+                            },
+                            placeholder: "Select a thread"
+                        )
                     }
                 }
             }

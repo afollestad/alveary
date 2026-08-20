@@ -50,6 +50,12 @@ extension ScheduledTasksViewModel {
         from draft: ScheduledTaskEditorDraft,
         preservesTrustedGrantSnapshot: Bool
     ) throws -> ScheduledTaskDefinitionEdit {
+        // The authoritative gate on repairing an unrecognized destination; the editor's disabled
+        // submit button is only the affordance. Without it, saving any unrelated field would
+        // silently commit the fallback `makeEditDraft` seeded.
+        guard !draft.hasUnresolvedDestination else {
+            throw ScheduledTasksViewModelError.destinationNotRecognized
+        }
         let text = try validatedText(in: draft)
         let destination = try resolvedDestination(in: draft)
         let threadSection = try resolvedThreadSection(in: draft)
