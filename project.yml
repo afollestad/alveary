@@ -166,7 +166,7 @@ packages:
     revision: "69f7a889d2736f2621c6083ac29e0a75d158f249"
   swift-snapshot-testing:
     url: https://github.com/pointfreeco/swift-snapshot-testing
-    from: "1.17.0"
+    exactVersion: "1.19.2"
   # No target names this one. It reaches the graph through `swift-snapshot-testing` ->
   # `swift-custom-dump`, which asks for it `from: "1.2.2"`, and 1.12.0 turned it into a shim over
   # `pointfreeco/swift-issue-reporting`. Both then vend a library product named `IssueReporting`,
