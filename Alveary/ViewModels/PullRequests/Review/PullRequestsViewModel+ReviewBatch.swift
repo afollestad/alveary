@@ -348,12 +348,18 @@ extension PullRequestsViewModel {
     func submitReview(event: PullRequestReviewEvent) async -> Bool {
         guard let target = activePaneTarget,
               let session = paneSessions[target],
-              !session.pendingReview.isSubmitting,
-              Self.canSubmitReview(
-                  event: event,
-                  draft: session.pendingReview,
-                  pendingCommentCount: submittableCommentCount(for: target, session: session)
-              ) else {
+              !session.pendingReview.isSubmitting else {
+            return false
+        }
+        // The proposal's own body counts as the summary when the composer is empty, because that is
+        // what `confirm` would publish; `resolvedReviewSummary` owns the precedence both gates read.
+        var validated = session.pendingReview
+        validated.overallComment = resolvedReviewSummary(for: target, session: session)
+        guard Self.canSubmitReview(
+            event: event,
+            draft: validated,
+            pendingCommentCount: submittableCommentCount(for: target, session: session)
+        ) else {
             return false
         }
         if let proposal = pendingReviewProposal(for: target) {

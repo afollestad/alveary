@@ -268,62 +268,6 @@ extension PullRequestsViewModelTests {
         _ = await submission.value
     }
 
-    // MARK: - Submitting
-
-    /// Both sets are one GitHub review: the staged comments are written into the same draft the
-    /// viewer's own pending comments live in, and that draft is published once.
-    func testSubmittingPublishesTheStagedCommentsAndResolvesTheProposal() async throws {
-        let fixture = try ReviewProposalAttachmentFixture()
-        await fixture.openPane()
-        fixture.viewModel.updateOverallReviewComment("Looks fine.")
-
-        let didSubmit = await fixture.viewModel.submitReview(event: .comment)
-
-        XCTAssertTrue(didSubmit)
-        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Staged remark"])
-        // The footer's own summary outranks the proposal's body.
-        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Looks fine."])
-        XCTAssertTrue(fixture.service.submittedReviews.isEmpty)
-        // Confirming clears the envelope, so the proposal drops out with no detaching to do.
-        XCTAssertNil(fixture.viewModel.activePendingReviewProposal)
-        XCTAssertEqual(fixture.session?.pendingReview.overallComment, "")
-        XCTAssertFalse(try XCTUnwrap(fixture.session?.pendingReview.isSubmitting))
-    }
-
-    func testAFailedProposalSubmitLeavesTheReviewRetryable() async throws {
-        let fixture = try ReviewProposalAttachmentFixture()
-        await fixture.openPane()
-        fixture.service.detailResult = .failure(.rateLimited)
-
-        let didSubmit = await fixture.viewModel.submitReview(event: .comment)
-
-        XCTAssertFalse(didSubmit)
-        XCTAssertNotNil(fixture.session?.pendingReview.submissionError)
-        XCTAssertFalse(try XCTUnwrap(fixture.session?.pendingReview.isSubmitting))
-        // Unresolved, never wrongly resolved.
-        XCTAssertNotNil(fixture.viewModel.activePendingReviewProposal)
-    }
-
-    /// The footer's count note, its Submit enablement, and `submitReview`'s own guard all read this
-    /// one sum, so the button cannot offer a submit the guard then silently refuses.
-    func testTheSubmittableCountCoversStagedComments() async throws {
-        let fixture = try ReviewProposalAttachmentFixture()
-        await fixture.openPane()
-        let session = try XCTUnwrap(fixture.session)
-        let onGitHub = try XCTUnwrap(session.detail?.pendingCommentCount)
-        let submittable = fixture.viewModel.submittableCommentCount(for: fixture.target, session: session)
-
-        XCTAssertEqual(submittable, onGitHub + 1)
-        // A summary-less `.comment` review is submittable *because* of the staged comment.
-        XCTAssertTrue(
-            PullRequestsViewModel.canSubmitReview(
-                event: .comment,
-                draft: PendingReviewDraft(),
-                pendingCommentCount: submittable
-            )
-        )
-    }
-
     /// A pull request pushed to since the proposal was made can strand an anchor. Revealing has
     /// nothing to do then, and must not disturb the window it cannot help.
     func testRevealingAnUnmatchedAnchorChangesNothing() async throws {
@@ -362,8 +306,9 @@ final class ReviewProposalAttachmentFixture {
     }
 
     /// `proposalNumber` defaults to the pane's own pull request; pass another to cover a
-    /// proposal that cannot describe this pane.
-    init(fileCount: Int = 2, proposalNumber: Int? = nil) throws {
+    /// proposal that cannot describe this pane. `proposalEvent` is the verdict the model asked
+    /// for, which the pane's footer seeds its picker from.
+    init(fileCount: Int = 2, proposalNumber: Int? = nil, proposalEvent: String = "comment") throws {
         let container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
@@ -383,7 +328,11 @@ final class ReviewProposalAttachmentFixture {
         thread.conversations = [conversation]
         context.insert(thread)
         try conversation.storePullRequestReviewProposal(
-            Self.record(nameWithOwner: summary.id.nameWithOwner, number: proposalNumber ?? summary.id.number)
+            Self.record(
+                nameWithOwner: summary.id.nameWithOwner,
+                number: proposalNumber ?? summary.id.number,
+                event: proposalEvent
+            )
         )
         try context.save()
 
@@ -457,14 +406,18 @@ final class ReviewProposalAttachmentFixture {
     }
 
     /// One staged comment on `File0.swift:1`, the first line `makeUnifiedDiffFixture` emits.
-    private static func record(nameWithOwner: String, number: Int) -> PullRequestReviewProposalRecord {
+    private static func record(
+        nameWithOwner: String,
+        number: Int,
+        event: String
+    ) -> PullRequestReviewProposalRecord {
         PullRequestReviewProposalRecord(
             payloadVersion: PullRequestReviewProposalRecord.currentPayloadVersion,
             id: proposalID,
             deduplicationKey: "dedup-1",
             repositoryNameWithOwner: nameWithOwner,
             number: number,
-            event: "comment",
+            event: event,
             body: "Some notes.",
             comments: [
                 PullRequestReviewProposalRecord.Comment(

@@ -76,6 +76,58 @@ extension PullRequestsViewModel {
             + (pendingReviewProposal(for: target)?.comments.count ?? 0)
     }
 
+    /// The verdict a pending proposal holds for this pane, or nil when no proposal is pending and
+    /// the footer's own selection stands.
+    ///
+    /// The proposal owns the verdict so that the pane and the transcript card edit one value: an
+    /// untouched footer used to submit `comment` over whatever the model proposed, and a verdict
+    /// picked on the card reached GitHub only if the user never opened the pane. The coordinator's
+    /// getter falls back to `proposedEvent` until someone picks otherwise.
+    func selectedReviewEvent(for target: PullRequestPaneTarget) -> PullRequestReviewEvent? {
+        guard let proposal = pendingReviewProposal(for: target) else {
+            return nil
+        }
+        return reviewProposalCoordinator?.selectedEvent(forProposalID: proposal.id) ?? proposal.proposedEvent
+    }
+
+    /// Routes the footer picker's intent to whichever owner `selectedReviewEvent` reads. Returns
+    /// false when no proposal is pending, which is the footer's signal to keep its own state.
+    @discardableResult
+    func selectReviewEvent(_ event: PullRequestReviewEvent, for target: PullRequestPaneTarget) -> Bool {
+        guard let proposal = pendingReviewProposal(for: target) else {
+            return false
+        }
+        reviewProposalCoordinator?.selectEvent(event, forProposalID: proposal.id)
+        return true
+    }
+
+    /// The summary a submit from this pane would publish, under `confirm`'s own precedence: the
+    /// footer's text when it has one, otherwise what the model proposed.
+    ///
+    /// Both submit gates read this rather than `session.pendingReview.overallComment` alone. The
+    /// footer's verdict is seeded from the proposal, so a proposed `request_changes` arrives with
+    /// the composer untouched — and validating the empty composer would disable Submit over a body
+    /// `confirm` was going to supply anyway, with nothing on screen explaining the dead button.
+    ///
+    /// `typedOverride` stands in for the session's stored summary while the footer's editor is
+    /// mounted, because the live editor can be empty with stale text still serialized behind it.
+    /// It is a presence check, not the text — the footer passes a placeholder rather than encoding
+    /// markdown per keystroke.
+    ///
+    /// Takes the session for the reason `submittableCommentCount` does.
+    func resolvedReviewSummary(
+        for target: PullRequestPaneTarget,
+        session: PullRequestPaneSession,
+        typedOverride: String? = nil
+    ) -> String {
+        let typed = (typedOverride ?? session.pendingReview.overallComment)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard typed.isEmpty else {
+            return typed
+        }
+        return pendingReviewProposal(for: target)?.body ?? ""
+    }
+
     /// Writes a composed comment into the pending proposal's envelope instead of GitHub's draft.
     ///
     /// Composing in a pane with a review waiting adds to *that* review: a comment written to the

@@ -58,6 +58,20 @@ extension PullRequestsViewModelTests {
         XCTAssertTrue(canSubmit(.comment))
     }
 
+    /// With no proposal pending there is nothing to fall back to, so the guard still demands a
+    /// summary. `resolvedReviewSummary` widened what counts as one; it must not have widened
+    /// *whether* one is required.
+    func testSubmitReviewStillRefusesASummarylessRequestChanges() async {
+        let service = StubPullRequestsService()
+        let (viewModel, _) = await makeLoadedPullRequestPane(service: service)
+
+        let success = await viewModel.submitReview(event: .requestChanges)
+
+        XCTAssertFalse(success)
+        XCTAssertTrue(service.submittedPendingReviews.isEmpty)
+        XCTAssertTrue(service.submittedReviews.isEmpty)
+    }
+
     func testSubmitReviewFinishesThePendingReviewAndRefetches() async {
         let service = StubPullRequestsService()
         let (viewModel, summary) = await makeLoadedPullRequestPane(service: service)

@@ -17,9 +17,12 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     }
 
     @State private var isExpanded: Bool
+    /// Only consulted with no proposal pending. A pending one keeps the verdict on the coordinator
+    /// instead, so this pane and the transcript card decide one review together — see `eventBinding`.
     @State private var selectedEvent = PullRequestReviewEvent.comment
-    /// Nil takes the default action; a stale pick falls back the same way.
-    @State private var selectedStateKind: PullRequestStateAction.Kind?
+    /// Nil takes the default action; a stale pick falls back the same way. Internal rather than
+    /// private because `PullRequestPane+ReviewFooterStateActions.swift` reads and writes it.
+    @State var selectedStateKind: PullRequestStateAction.Kind?
     /// Seeded from settings at init rather than read in `body`: this view is a
     /// memoization boundary whose `==` excludes settings, so a `body` read would not
     /// re-render when the stored kind changed anyway.
@@ -115,7 +118,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     private var summaryComposer: some View {
         VStack(alignment: .leading, spacing: 8) {
             if authorship.allowsVerdictEvents {
-                Picker("Review action", selection: $selectedEvent) {
+                Picker("Review action", selection: eventBinding) {
                     Text("Comment").tag(PullRequestReviewEvent.comment)
                     Text("Approve").tag(PullRequestReviewEvent.approve)
                     Text("Request changes").tag(PullRequestReviewEvent.requestChanges)
@@ -137,13 +140,48 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         }
     }
 
+    /// The verdict this footer holds before authorship gating, from whichever owner has it: a
+    /// pending proposal's, so the pane and the transcript card cannot each submit their own, or
+    /// this view's `selectedEvent` when no proposal is pending.
+    ///
+    /// Read directly rather than through `eventBinding` — building a `Binding` costs a second
+    /// proposal lookup, and `effectiveEvent` is read several times per render.
+    private var currentEvent: PullRequestReviewEvent {
+        viewModel.selectedReviewEvent(for: target) ?? selectedEvent
+    }
+
+    /// The picker's selection, writing through to whichever owner `currentEvent` reads.
+    ///
+    /// Explicitly typed and off `body` for the type-check budget, and rebuilt per render rather
+    /// than stored so it never enters this view's `==`. `lastKnown` only covers a proposal
+    /// resolved between this render and the picker's read; the next render takes the other branch.
+    private var eventBinding: Binding<PullRequestReviewEvent> {
+        guard viewModel.selectedReviewEvent(for: target) != nil else {
+            return $selectedEvent
+        }
+        // Capture only what the closures need. `self` compiles too, but it drags a copy of
+        // `session` — detail, diff, and all — into a binding rebuilt on every render.
+        let viewModel = viewModel
+        let target = target
+        let lastKnown = currentEvent
+        return Binding(
+            get: { viewModel.selectedReviewEvent(for: target) ?? lastKnown },
+            set: { viewModel.selectReviewEvent($0, for: target) }
+        )
+    }
+
     /// Validation reads the live editor's emptiness instead of the last-serialized
     /// draft text, so Submit enables while typing without per-keystroke encoding.
+    ///
+    /// An empty editor still falls back to the pending proposal's body through
+    /// `resolvedReviewSummary`, matching what `submitReview` validates and what `confirm` publishes.
     private var draftForValidation: PendingReviewDraft {
         var draft = session.pendingReview
-        if let overallDraft {
-            draft.overallComment = overallDraft.isEffectivelyEmpty ? "" : "-"
-        }
+        draft.overallComment = viewModel.resolvedReviewSummary(
+            for: target,
+            session: session,
+            typedOverride: overallDraft.map { $0.isEffectivelyEmpty ? "" : "-" }
+        )
         return draft
     }
 
@@ -168,7 +206,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     /// hides the picker (e.g. the detail resolves the viewer as the author
     /// after Approve was already selected).
     private var effectiveEvent: PullRequestReviewEvent {
-        authorship.allowsVerdictEvents ? selectedEvent : .comment
+        authorship.allowsVerdictEvents ? currentEvent : .comment
     }
 
     private var isUploading: Bool {
@@ -248,28 +286,6 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    /// While the detail is unavailable the row still shows its even split, with
-    /// a disabled stand-in titled from the list row's known status — otherwise
-    /// the footer paints a lone trailing button and snaps once the detail lands.
-    /// An identifier-opened pane has no status to title one with until then.
-    private var stateActions: [PullRequestStateAction] {
-        guard session.detail != nil else {
-            guard let status = session.summary?.status else {
-                return []
-            }
-            return PullRequestStateAction.placeholder(for: status).map { [$0] } ?? []
-        }
-        return PullRequestStateAction.available(for: session.detail)
-    }
-
-    /// The selection falls back to the default whenever it no longer matches an
-    /// available action — which is what retires "Ready for review" the moment
-    /// the pull request leaves draft. Same guard as `effectiveEvent`.
-    private var effectiveStateAction: PullRequestStateAction? {
-        let actions = stateActions
-        return actions.first { $0.kind == selectedStateKind } ?? actions.first
     }
 
     @ViewBuilder
@@ -374,62 +390,6 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             viewModel.startAgenticThread(kind: .review)
         case .addressFeedback:
             viewModel.startAgenticThread(kind: .addressFeedback)
-        }
-    }
-
-    /// A single available action stays a plain button; more than one becomes the
-    /// shared split button, whose menu selects (never runs) the other action.
-    @ViewBuilder
-    private func stateActionButton(
-        _ action: PullRequestStateAction,
-        in actions: [PullRequestStateAction]
-    ) -> some View {
-        if actions.count > 1 {
-            SplitActionButton(
-                title: action.title,
-                icon: action.icon,
-                emphasis: action.isDestructive ? .destructive : .secondary,
-                expandsHorizontally: true,
-                selectedOption: action.kind,
-                options: actions.map(\.kind),
-                optionTitle: { kind in actions.first { $0.kind == kind }?.title ?? "" },
-                action: { run(action) },
-                selectOption: { selectedStateKind = $0 }
-            )
-            .disabled(!action.isEnabled || session.isChangingState)
-            .help(action.disabledNote ?? action.title)
-        } else {
-            plainStateActionButton(action)
-        }
-    }
-
-    @ViewBuilder
-    private func plainStateActionButton(_ action: PullRequestStateAction) -> some View {
-        let button = Button {
-            run(action)
-        } label: {
-            ActionButtonLabel(title: action.title, icon: action.icon)
-        }
-        .disabled(!action.isEnabled || session.isChangingState)
-        .help(action.disabledNote ?? action.title)
-
-        if action.isDestructive {
-            button.destructiveActionButtonStyle(expandsHorizontally: true)
-        } else {
-            button.secondaryActionButtonStyle(expandsHorizontally: true)
-        }
-    }
-
-    private func run(_ action: PullRequestStateAction) {
-        switch action.kind {
-        case .close:
-            viewModel.setPullRequestClosed(true)
-        case .reopen:
-            viewModel.setPullRequestClosed(false)
-        case .markReady:
-            viewModel.markPullRequestReadyForReview()
-        case .markDraft:
-            viewModel.convertPullRequestToDraft()
         }
     }
 
