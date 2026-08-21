@@ -315,8 +315,10 @@ extension SnapshotTests {
     }
 }
 
+/// Hosts a diff preview in a real window and reaches the `NSScrollView` behind it, which is the
+/// only place the scroll view's content size can be read. Shared with `SnapshotTests+DiffViewerContentHeight`.
 @MainActor
-private final class DiffPreviewScrollHost<Content: View> {
+final class DiffPreviewScrollHost<Content: View> {
     private let controller: NSHostingController<AnyView>
     private let window: NSWindow
 
@@ -382,6 +384,32 @@ private final class DiffPreviewScrollHost<Content: View> {
         layout()
         let documentView = try XCTUnwrap(scrollView.documentView, file: file, line: line)
         return max(documentView.frame.width - scrollView.contentView.bounds.width, 0)
+    }
+
+    func verticalMaxY(
+        in scrollView: NSScrollView,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> CGFloat {
+        layout()
+        let documentView = try XCTUnwrap(scrollView.documentView, file: file, line: line)
+        return max(documentView.frame.height - scrollView.contentView.bounds.height, 0)
+    }
+
+    /// Scrolls to the bottom and pumps, so a caller can compare the content height
+    /// the stack reported before every row on the way down was realized against the
+    /// height it reports after.
+    @discardableResult
+    func scrollToBottom(
+        _ scrollView: NSScrollView,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> CGFloat {
+        let maxY = try verticalMaxY(in: scrollView, file: file, line: line)
+        scrollView.contentView.scroll(to: NSPoint(x: scrollView.contentView.bounds.origin.x, y: maxY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        pumpRunLoop()
+        return maxY
     }
 
     @discardableResult

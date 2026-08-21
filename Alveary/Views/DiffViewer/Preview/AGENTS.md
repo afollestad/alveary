@@ -22,6 +22,14 @@ These instructions cover `Alveary/Views/DiffViewer/Preview/` — `FlattenedDiffP
 - **Clamp to the viewport, never to the scrollable width.** The two are equal only while the diff fits; past that, clamping to the scrollable width pushes the file header's badges and collapse caret off the pane the moment a line overflows.
 - `SnapshotTests+DiffViewerScroll.swift` guards both directions: fitting diffs must report zero horizontal overflow, long lines must still scroll with their headers clamped and pinned.
 
+## Scrollable Height
+
+- **The row stream declares its height rather than letting `LazyVStack` estimate one.** The estimate sizes unbuilt rows from the realized window's mean, so one comment card among uniform line rows inflated every row below it into thousands of points of dead scroll space. `FlattenedDiffPreviewHeightPlan` counts rows by key instead.
+    - **A new row kind owes `heightKey(collapsedFileIDs:)` a key and `fallbackHeight` a value.** Anything that varies the drawn height — the paddings the row model hands out, a file header's collapse state — belongs in the key, since one measurement sizes every row sharing it.
+    - **A row whose height is its content's, not its kind's, sets `hasContentDrivenHeight`**, which keys it by id and lets it borrow its measured siblings' average until it is first drawn.
+    - Builder and renderer must key with the *same* collapse set; `FlattenedDiffPreviewPreparedRows.collapsedFileIDs` is what carries it across.
+- `SnapshotTests+DiffViewerContentHeight.swift` guards it: one diff reports one content height from any scroll offset.
+
 ## Comment Rows
 
 - **A comment row is only ever emitted from a rendered line row.** The builder walks lines asking whether each has a thread; it never asks a thread whether it found a line, so an anchor matching nothing is dropped silently. Three things can hide the line — context collapsing, file collapse, and the paging window. `DiffPreviewHunkDisplayRows.makeRows(for:commentPath:commentAnchors:)` takes the anchors so a commented context line survives collapsing; callers with no annotations pass an empty set. The other two are the pull-request pane's to reveal — see `PullRequestsViewModel.revealDiffFile(containing:)`.

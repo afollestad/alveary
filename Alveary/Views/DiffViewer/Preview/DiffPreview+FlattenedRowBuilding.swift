@@ -21,7 +21,12 @@ enum FlattenedDiffPreviewRows {
             collapsedFileIDs: collapsedFileIDs,
             commentAnnotations: commentAnnotations,
             checksCancellation: false
-        )) ?? FlattenedDiffPreviewPreparedRows(rows: [], minimumScrollableContentWidth: 0)
+        )) ?? FlattenedDiffPreviewPreparedRows(
+            rows: [],
+            minimumScrollableContentWidth: 0,
+            heightPlan: FlattenedDiffPreviewHeightPlan(),
+            collapsedFileIDs: []
+        )
     }
 
     static func makeRowsUnlessCancelled(
@@ -58,58 +63,102 @@ enum FlattenedDiffPreviewRows {
         var scrollableContentWidth: CGFloat = 0
         for (fileIndex, file) in files.enumerated() {
             try checkCancellationIfNeeded(checksCancellation)
-            var rows: [FlattenedDiffPreviewRow] = []
-            let fileID = fileCollapseID(for: file, fileIndex: fileIndex)
-            if showsFileHeaders {
-                rows.append(
-                    .fileHeader(
-                        id: "file-\(fileIndex)-header",
-                        fileID: fileID,
-                        file: file,
-                        topPadding: 0
-                    )
-                )
-            }
-
-            if showsFileHeaders,
-               allowsFileCollapse,
-               collapsedFileIDs.contains(fileID) {
-                // Collapsed commit files still emit their header row so the preview
-                // remains one flat lazy row stream instead of nesting per-file stacks.
-                scrollableContentWidth = max(scrollableContentWidth, minimumScrollableContentWidth(for: rows))
-                allRows.append(contentsOf: rows)
-                continue
-            }
-
-            if file.isRenamed,
-               let oldPath = file.oldPath,
-               let newPath = file.newPath {
-                rows.append(.renameSummary(id: "file-\(fileIndex)-rename", oldPath: oldPath, newPath: newPath))
-            }
-
-            if let imagePreview = imagePreviews[fileID] {
-                rows.append(.imagePreview(id: "file-\(fileIndex)-image", preview: imagePreview))
-            } else if file.isBinary {
-                rows.append(.binaryCallout(id: "file-\(fileIndex)-binary"))
-            } else if file.hunks.isEmpty {
-                rows.append(.emptyCallout(id: "file-\(fileIndex)-empty", isRenamed: file.isRenamed))
-            } else {
-                rows.append(contentsOf: try hunkRows(
-                    for: file,
-                    fileIndex: fileIndex,
-                    commentAnnotations: commentAnnotations,
-                    checksCancellation: checksCancellation
-                ))
-            }
-            if showsFileHeaders {
-                rows.append(.fileContentSpacer(id: "file-\(fileIndex)-bottom-spacer", height: Self.expandedFileBottomPadding))
-            }
-
+            let rows = try fileRows(
+                file: file,
+                fileIndex: fileIndex,
+                imagePreviews: imagePreviews,
+                showsFileHeaders: showsFileHeaders,
+                allowsFileCollapse: allowsFileCollapse,
+                collapsedFileIDs: collapsedFileIDs,
+                commentAnnotations: commentAnnotations,
+                checksCancellation: checksCancellation
+            )
             scrollableContentWidth = max(scrollableContentWidth, minimumScrollableContentWidth(for: rows))
             allRows.append(contentsOf: rows)
         }
 
-        return FlattenedDiffPreviewPreparedRows(rows: allRows, minimumScrollableContentWidth: scrollableContentWidth)
+        return prepared(
+            rows: allRows,
+            scrollableContentWidth: scrollableContentWidth,
+            collapsedFileIDs: showsFileHeaders && allowsFileCollapse ? collapsedFileIDs : []
+        )
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private static func fileRows(
+        file: DiffFile,
+        fileIndex: Int,
+        imagePreviews: [String: DiffImagePreview],
+        showsFileHeaders: Bool,
+        allowsFileCollapse: Bool,
+        collapsedFileIDs: Set<String>,
+        commentAnnotations: DiffCommentAnnotations,
+        checksCancellation: Bool
+    ) throws -> [FlattenedDiffPreviewRow] {
+        var rows: [FlattenedDiffPreviewRow] = []
+        let fileID = fileCollapseID(for: file, fileIndex: fileIndex)
+        if showsFileHeaders {
+            rows.append(
+                .fileHeader(
+                    id: "file-\(fileIndex)-header",
+                    fileID: fileID,
+                    file: file,
+                    topPadding: 0
+                )
+            )
+        }
+
+        if showsFileHeaders,
+           allowsFileCollapse,
+           collapsedFileIDs.contains(fileID) {
+            // Collapsed commit files still emit their header row so the preview
+            // remains one flat lazy row stream instead of nesting per-file stacks.
+            return rows
+        }
+
+        if file.isRenamed,
+           let oldPath = file.oldPath,
+           let newPath = file.newPath {
+            rows.append(.renameSummary(id: "file-\(fileIndex)-rename", oldPath: oldPath, newPath: newPath))
+        }
+
+        if let imagePreview = imagePreviews[fileID] {
+            rows.append(.imagePreview(id: "file-\(fileIndex)-image", preview: imagePreview))
+        } else if file.isBinary {
+            rows.append(.binaryCallout(id: "file-\(fileIndex)-binary"))
+        } else if file.hunks.isEmpty {
+            rows.append(.emptyCallout(id: "file-\(fileIndex)-empty", isRenamed: file.isRenamed))
+        } else {
+            rows.append(contentsOf: try hunkRows(
+                for: file,
+                fileIndex: fileIndex,
+                commentAnnotations: commentAnnotations,
+                checksCancellation: checksCancellation
+            ))
+        }
+        if showsFileHeaders {
+            rows.append(.fileContentSpacer(id: "file-\(fileIndex)-bottom-spacer", height: Self.expandedFileBottomPadding))
+        }
+        return rows
+    }
+
+    /// `collapsedFileIDs` is the set the *renderer* will key its measurements with, so a row's
+    /// measured height lands under the key the plan counted it as.
+    private static func prepared(
+        rows: [FlattenedDiffPreviewRow],
+        scrollableContentWidth: CGFloat,
+        collapsedFileIDs: Set<String>
+    ) -> FlattenedDiffPreviewPreparedRows {
+        var plan = FlattenedDiffPreviewHeightPlan()
+        for row in rows {
+            plan.add(row, collapsedFileIDs: collapsedFileIDs)
+        }
+        return FlattenedDiffPreviewPreparedRows(
+            rows: rows,
+            minimumScrollableContentWidth: scrollableContentWidth,
+            heightPlan: plan,
+            collapsedFileIDs: collapsedFileIDs
+        )
     }
 
     static func fileCollapseID(for file: DiffFile, fileIndex: Int) -> String {
