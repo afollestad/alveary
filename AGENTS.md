@@ -34,13 +34,12 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 - The app pre-build needs `needle 0.25.1`; setup installs `needle` and fails clearly if the installed version does not match.
 - Build: `./scripts/build.sh`.
 - `TYPECHECK_BUDGET_MS=<ms>` fails the build when any function body or expression in this repo's own sources exceeds that type-check time, and prints the offenders. CI sets `3000`, plus `TYPECHECK_TEST_BUDGET_MS=7000` for test sources; every entry point reads `scripts/lib/typecheck-budget.sh`, whose comments cover the mechanism, exclusions, and CI noise. See the type-check budget bullet in `Alveary/Views/AGENTS.md`.
-    - `snapshots.sh` matches the settings but does not enforce. Budgeting changes build settings, forcing a full recompile; `build.sh` additionally forces `--no-xcsift`.
+    - `snapshots.sh` matches the settings but does not enforce; `build.sh` and `test.sh` each scan their own target's log and fail, and `build.sh` additionally forces `--no-xcsift`. Budgeting changes build settings, so an entry point that omits the flags recompiles the whole app and test target from scratch.
     - A local budget run only reports files the build actually recompiled, so an incremental run can pass while an untouched file is over budget; change the budget value (or clean) for the full picture. CI always builds clean.
     - A CI-only over-budget report on a trivial statement is attribution noise; do not restructure it. `scripts/lib/typecheck-budget.sh` lists the exempt paths and what each absorbs. Exempt a path rather than raising the budget — the noise drifts upward across toolchains, so a raise buys a run or two and then costs another red build, and enough of them leave the target unable to catch a genuine multi-second expression.
-        - **Prove it is noise before exempting.** Put a throwaway function doing strictly *less* ahead of the reported one; if the whole bill moves onto it, the reading is attribution, not cost. Reproduce on CI's pinned Xcode (`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`) — a newer local Xcode can solve the same body in under a tenth the time and hide it entirely.
+        - **Prove it is noise before exempting.** Put a throwaway function doing strictly *less* ahead of the reported one; if the whole bill moves onto it, the reading is attribution, not cost. Reproduce on CI's pinned Xcode — the version both workflows set in `DEVELOPER_DIR`, not whatever `/Applications/Xcode.app` points at — because a newer local Xcode can solve the same body in under a tenth the time and hide it entirely.
         - Every exemption is first-touch framework deserialization: `AppDelegateTests` for its suite, plus two `NSMenu`/`NSMenuItem` sources each billed to whichever function in its frontend batch touches a menu first. Which file wears it follows the driver's partitioning, so **adding any source file can move the bill onto a file you did not touch** — expect that rather than reading it as that file's regression.
     - Genuine cost is still worth removing: prefer explicitly typed helpers over repeating a nested initializer at many call sites (`AppDelegateTests+NotificationSupport.swift`), and hoist large typed literals out of generic assertion calls.
-    - The guard costs one extra full CI compile per run (~150s; the snapshot step's `build-for-testing` recompiles). Treat that as the price of the guard, not a misconfiguration to chase.
 
 ### Running And Testing
 
@@ -50,6 +49,7 @@ Read the nearest `AGENTS.md` before editing; every scoped folder pairs it with a
 - Lint: `./scripts/lint.sh`.
 - Release CI uses Developer ID signing and notarization secrets in GitHub Actions; do not commit certificate or API-key material.
 - Snapshot workflows use `./scripts/snapshots.sh`; verify snapshots before committing UI changes.
+- **CI does not run `snapshots.sh`, deliberately.** The scheme's test target is all of `AlvearyTests`, so `test.sh` already runs `SnapshotTests`; a separate verify step re-ran the same suite after a full recompile. Do not restore it.
 - Ordered workflows must stay serial, never parallelized: build-then-run, build-then-test, record-then-verify.
 - Add temporary logs early when useful; observe them yourself with `/usr/bin/log`, then remove them after confirming the fix.
 

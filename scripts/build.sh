@@ -15,8 +15,8 @@ fi
 # shellcheck source=lib/typecheck-budget.sh
 source "$repo_root/scripts/lib/typecheck-budget.sh"
 
-# This is the only entry point that *fails* on the budget; the others just match its build
-# settings so the compiled products stay shared.
+# This scans the app target; `test.sh` scans the test target at its own threshold. Both fail on
+# an offender. `snapshots.sh` only matches the build settings so the compiled products stay shared.
 typecheck_budget_ms="${TYPECHECK_BUDGET_MS:-}"
 typecheck_budget_log=""
 if [ -n "$typecheck_budget_ms" ]; then

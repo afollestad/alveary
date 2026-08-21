@@ -108,7 +108,10 @@ targets:
       - name: SwiftLint
         basedOnDependencyAnalysis: false
         script: |
-          if command -v swiftlint &> /dev/null; then
+          # Not dependency-analysed, so this reruns on every xcodebuild invocation. CI lints the
+          # same files in its own step, making those reruns pure cost; local builds keep it so a
+          # lint error surfaces without waiting for CI.
+          if [ "${CI:-}" != "true" ] && command -v swiftlint &> /dev/null; then
             swiftlint
           fi
       - name: Copy Demo Assets (Debug only)

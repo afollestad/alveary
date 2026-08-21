@@ -10,5 +10,4 @@ install_brew_formula() {
 
 install_brew_formula xcodegen
 install_brew_formula xcsift
-install_brew_formula swiftlint
 install_brew_formula needle

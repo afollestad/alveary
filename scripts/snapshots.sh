@@ -199,7 +199,8 @@ run_verify() {
     -scheme Alveary \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
-    test < "$tmp_args"
+    test \
+    "${typecheck_budget_flags[@]+"${typecheck_budget_flags[@]}"}" < "$tmp_args"
 }
 
 if [ "$mode" = "verify" ]; then

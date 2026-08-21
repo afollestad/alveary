@@ -81,9 +81,6 @@ jobs:
       - name: Test
         run: ./scripts/test.sh
 
-      - name: Verify snapshots
-        run: ./scripts/snapshots.sh verify
-
       - name: Check generated Needle output
         run: git diff --exit-code -- Alveary/DI/Generated/NeedleGenerated.swift
 
