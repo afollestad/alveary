@@ -13,5 +13,4 @@
 - **Keep non-publishing runs non-publishing.** Only push-triggered releases may create tags or GitHub Releases; `dry-run` and `canary` runs stop after uploading their artifact.
     - **Notarize dry runs, not canaries.** Manual `workflow_dispatch` runs rehearse the whole publish path, so they keep `notarize-and-staple-app.sh`; unbumped pushes skip it rather than put a notarytool round trip on every merge.
     - **Let `detect-release-version.py` own the mode.** It emits `mode`, `artifact_name`, and `dsym_artifact_name`; the workflow only compares them, and never recomputes any from `github.event_name`.
-    - **Upload canaries as the bundle, named `Alveary.app`.** `actions/upload-artifact` drops the enclosing directory, so `gh run download` rebuilds the bundle from that name and browser downloads cannot. Adding a sibling entry to restore the directory only wraps the app in a folder instead.
-    - **Keep `ensure-canary-uploads-verbatim.sh` ahead of that upload.** It flattens symlinks into copies without failing, which invalidates the signature.
+    - **Upload canaries as the bundle, from the staging directory `stage-canary-app.sh` prepares.** `actions/upload-artifact` roots the archive at the uploaded path and drops that directory's own name, so pointing it at the bundle stores a bare `Contents/`, and a second entry beside the app buries it in a folder.

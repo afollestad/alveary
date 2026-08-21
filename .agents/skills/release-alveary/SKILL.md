@@ -81,10 +81,10 @@ Download a canary build of an unbumped commit on `main`:
 
 ```sh
 gh run download <run-id> --repo afollestad/alveary -D ~/Downloads
-xattr -dr com.apple.quarantine ~/Downloads/Alveary.app
+xattr -dr com.apple.quarantine ~/Downloads/Alveary-canary-*/Alveary.app
 ```
 
-Canaries upload the bundle itself, so the download is `Alveary.app` with no archive inside it. Use `gh run download`, which names the directory after the artifact; downloading from the Actions page in a browser yields a bare `Contents/` folder instead. Clear quarantine because canaries are not notarized.
+Canaries upload the bundle itself, so there is no archive inside the download. The artifact is named `Alveary-canary-<version>-<build>-<short-sha>`; downloading from the Actions page in a browser works the same way. Clear the quarantine a browser download applies; Gatekeeper refuses an unnotarized canary otherwise.
 
 ## Rules
 
@@ -92,7 +92,7 @@ Canaries upload the bundle itself, so the download is `Alveary.app` with no arch
 - Push-triggered releases publish only when the target `vX.Y.Z` tag is missing; this supports initial and retry releases for an already-committed version.
 - Use manual `workflow_dispatch` runs only for dry runs; they must upload an Actions artifact and must not create tags or GitHub Releases.
 - Expect any push to `main` that does not publish to produce a canary artifact instead. Canaries are signed but not notarized, and must not create tags or GitHub Releases.
-- Keep the canary artifact named `Alveary.app` and holding the bundle itself; the name is what `gh run download` rebuilds the bundle from, so renaming it or zipping it first breaks that.
+- Keep the canary artifact holding the bundle itself, uploaded from the staging directory `scripts/ci/stage-canary-app.sh` prepares; uploading the bundle path directly or zipping it first breaks the download.
 - Keep the release ZIP as `Alveary.app` inside GitHub Release asset `Alveary.app.zip`; do not add DMG or PKG packaging.
 - Keep CI implementation details in `scripts/ci/*`; keep `.github/workflows/release.yml` as orchestration.
 - Do not print, commit, or rewrite signing/notarization secrets.

@@ -89,23 +89,15 @@ if should_release and version_changed and previous_build and previous_build.isdi
         f"error: build number must increase from {previous_build} to a larger integer, got {build}"
     )
 
-# Releases publish their ZIP as a release asset and upload no artifact. Canaries
-# upload the bundle itself, and `actions/upload-artifact` roots the archive at
-# the uploaded files' common ancestor, dropping the enclosing `.app` directory —
-# so the artifact name is what re-wraps `Contents/` into a runnable bundle on
-# download, and must be exactly the bundle name. That leaves the run as the only
-# thing identifying a canary, which is why dry runs still carry version and
-# commit: they upload a ZIP, whose name is free to describe it.
+# Releases publish their ZIP as a release asset and upload no artifact. Every
+# other mode names its artifact after the run: `stage-canary-app.sh` roots the
+# canary upload above the bundle, so the artifact name no longer has to be
+# `Alveary.app` to reconstitute one on download.
 short_sha = os.environ.get("GITHUB_SHA", "")[:7]
-if mode == "release":
-    artifact_name = ""
-elif mode == "canary":
-    artifact_name = "Alveary.app"
-else:
-    artifact_name = f"Alveary-{mode}-{version}-{build}-{short_sha}"
+artifact_name = "" if mode == "release" else f"Alveary-{mode}-{version}-{build}-{short_sha}"
 
-# dSYMs are a plain ZIP in every mode, so their artifact name is free to describe
-# the run. A release has none: it attaches them to the GitHub Release instead.
+# dSYMs are a plain ZIP in every mode, so their artifact name describes the run
+# too. A release has none: it attaches them to the GitHub Release instead.
 dsym_artifact_name = "" if mode == "release" else f"Alveary-{mode}-{version}-{build}-{short_sha}-dSYMs"
 
 with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:

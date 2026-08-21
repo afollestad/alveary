@@ -107,11 +107,9 @@ class DetectReleaseVersionTests(unittest.TestCase):
         self.assertEqual(outputs["version"], "0.2.2")
         self.assertEqual(outputs["build"], "11")
         self.assertEqual(outputs["tag"], "v0.2.2")
-        # Naming the artifact anything else would download as a directory that is
-        # not a bundle, because the enclosing `.app` is not in the archive.
-        self.assertEqual(outputs["artifact_name"], "Alveary.app")
-        # The bundle name leaves the canary's own artifact unidentifiable, so the
-        # dSYM ZIP beside it is what carries the version and commit.
+        # A canary publishes nothing, so its artifact name is the only place the
+        # version and commit it was built from survive.
+        self.assertEqual(outputs["artifact_name"], f"Alveary-canary-0.2.2-11-{head[:7]}")
         self.assertEqual(outputs["dsym_artifact_name"], f"Alveary-canary-0.2.2-11-{head[:7]}-dSYMs")
 
     def test_builds_a_canary_when_the_previous_project_file_is_unreadable(self) -> None:

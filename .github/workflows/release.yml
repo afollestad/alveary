@@ -119,23 +119,26 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
         run: scripts/ci/notarize-and-staple-app.sh
 
-      - name: Ensure canary uploads verbatim
+      - name: Stage canary app
         if: needs.detect.outputs.mode == 'canary'
-        run: scripts/ci/ensure-canary-uploads-verbatim.sh
+        id: canary
+        run: scripts/ci/stage-canary-app.sh
 
-      # Canaries skip the ZIP entirely: they upload the bundle so `gh run
-      # download` writes a runnable app rather than an archive inside an archive.
+      # Canaries skip the ZIP entirely: they upload the staged bundle so a
+      # download is a runnable app rather than an archive inside an archive.
       - name: Create release ZIP
         if: needs.detect.outputs.mode != 'canary'
         id: package
         run: scripts/ci/create-release-zip.sh
 
+      # Rooted at the staging directory, not the bundle, so `Alveary.app` is the
+      # archive's only top-level entry and every download expands to a bundle.
       - name: Upload canary app
         if: needs.detect.outputs.mode == 'canary'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.detect.outputs.artifact_name }}
-          path: ${{ env.EXPORT_PATH }}/${{ env.APP_NAME }}.app
+          path: ${{ steps.canary.outputs.app_dir }}
           if-no-files-found: error
           retention-days: 14
 

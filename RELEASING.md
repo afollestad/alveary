@@ -36,14 +36,14 @@ Canary builds make every commit on `main` downloadable without publishing anythi
 ```sh
 gh run list --workflow Release --branch main --limit 5
 gh run download <run-id> --repo afollestad/alveary -D ~/Downloads
-xattr -dr com.apple.quarantine ~/Downloads/Alveary.app
+xattr -dr com.apple.quarantine ~/Downloads/Alveary-canary-*/Alveary.app
 ```
 
-Canaries upload the exported bundle rather than a ZIP of it, so there is no archive inside the download. The `xattr` call is required because Gatekeeper quarantines the unnotarized app on download.
+Canaries upload the exported bundle rather than a ZIP of it, so there is no archive inside the download. The artifact is named `Alveary-canary-<version>-<build>-<short-sha>`, so the download says which commit it came from. The `xattr` call clears the quarantine a browser download applies, which Gatekeeper refuses because canaries are not notarized.
 
-**Download canaries with `gh run download`, not from the Actions page in a browser.** `actions/upload-artifact` roots its archive at the uploaded files' common ancestor, which drops the enclosing directory, so the archive holds `Contents/` and the artifact name is what restores the bundle around it. `gh run download` names the directory it creates after the artifact and reconstitutes `Alveary.app`. A browser download does not: macOS expands an archive with a single top-level entry directly, leaving a bare `Contents/` folder that is not a bundle. Recover it with `mkdir Alveary.app && mv Contents Alveary.app/`.
+Downloading from the Actions page in a browser works too. `actions/upload-artifact` roots its archive at the uploaded path and drops that directory's own name, so uploading the bundle would store a bare `Contents/` folder, and macOS expands a single-entry archive in place. `scripts/ci/stage-canary-app.sh` stages the app alone in a directory and the workflow uploads that instead, making `Alveary.app` the archive's only top-level entry.
 
-That naming requirement also leaves the run, not the filename, identifying which commit a canary came from. `scripts/ci/ensure-canary-uploads-verbatim.sh` fails the build if the bundle ever contains a symlink, because the upload would replace it with a copy of its target and invalidate the signature.
+The same script fails the build if the bundle ever contains a symlink, because the upload would replace it with a copy of its target and invalidate the signature.
 
 Canary and dry run artifacts both expire after 14 days, and neither is a GitHub Release, so the in-app updater never offers them.
 
@@ -58,7 +58,7 @@ The workflow performs these high-level steps:
 5. Archive and export the Developer ID app.
 6. Verify exported app metadata, signing, entitlements, and architectures.
 7. Notarize `Alveary.app`, staple the ticket, and confirm Gatekeeper acceptance. Canary builds skip this step.
-8. Create `Alveary.app.zip` with `scripts/ci/create-release-zip.sh`. Canary builds skip this and upload the bundle itself, guarded by `scripts/ci/ensure-canary-uploads-verbatim.sh`.
+8. Create `Alveary.app.zip` with `scripts/ci/create-release-zip.sh`. Canary builds skip this and upload the bundle itself, staged and guarded by `scripts/ci/stage-canary-app.sh`.
 9. For releases, generate header-free release notes with `scripts/ci/generate-release-notes.sh`. Notes cover user-facing changes only, grouped into bold theme bullets with indented italic child bullets that merge related commits.
 10. Upload the canary bundle or the dry run ZIP as an Actions artifact, or for releases publish the ZIP as a GitHub Release asset with `scripts/ci/create-github-release.sh`.
 
