@@ -99,11 +99,39 @@ targets:
 
           mkdir -p "${SRCROOT}/Alveary/DI/Generated"
           export SOURCEKIT_LOGGING=0
+
+          # Generate to a staging file and copy it over only when the content actually differs.
+          # This phase is not dependency-analysed, so it runs on every build; writing
+          # unconditionally moved the destination's mtime every time, which made llbuild
+          # recompile it and re-link on builds where nothing had changed.
+          GENERATED="${SRCROOT}/Alveary/DI/Generated/NeedleGenerated.swift"
+          # A directory, not `mktemp <template>.swift`: BSD mktemp only substitutes trailing
+          # `X`s, so that form yields a fixed path two concurrent builds would race on.
+          STAGE_DIR=$(mktemp -d)
+          if [ -z "$STAGE_DIR" ] || [ ! -d "$STAGE_DIR" ]; then
+            echo "error: could not create a staging directory for Needle output." >&2
+            exit 1
+          fi
+          STAGED="$STAGE_DIR/NeedleGenerated.swift"
+          trap 'rm -rf "$STAGE_DIR"' EXIT
+
           "$NEEDLE_CLI" generate \
-            "${SRCROOT}/Alveary/DI/Generated/NeedleGenerated.swift" \
+            "$STAGED" \
             "${SRCROOT}/Alveary/DI" \
             --exclude-paths "/DI/Generated"
-          python3 -c 'import os; from pathlib import Path; path = Path(os.environ["SRCROOT"]) / "Alveary/DI/Generated/NeedleGenerated.swift"; text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
+          STAGED="$STAGED" python3 -c 'import os; from pathlib import Path; path = Path(os.environ["STAGED"]); text = path.read_text(); path.write_text(text if text.endswith("\n") else text + "\n")'
+
+          # This phase has no `set -e`, so a Needle failure would otherwise reach the copy
+          # below, where `>` truncates the destination before `cat` reports the missing input.
+          if [ ! -s "$STAGED" ]; then
+            echo "error: Needle produced no output at $STAGED." >&2
+            exit 1
+          fi
+
+          # `cat >` rather than `mv` so the destination keeps its own permissions.
+          if ! cmp -s "$STAGED" "$GENERATED"; then
+            cat "$STAGED" > "$GENERATED"
+          fi
     postBuildScripts:
       - name: SwiftLint
         basedOnDependencyAnalysis: false
