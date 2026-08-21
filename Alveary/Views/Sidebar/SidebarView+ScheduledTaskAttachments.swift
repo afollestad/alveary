@@ -3,7 +3,7 @@ import Foundation
 extension SidebarView {
     func requestArchive(_ thread: AgentThread) {
         do {
-            try viewModel.requireNoActiveScheduledTaskRun(thread)
+            try viewModel.requireThreadLifecycleIsUnblocked(thread)
             pendingArchiveThread = SidebarPendingThreadCleanup(thread: thread)
         } catch {
             viewModel.presentSidebarError(error)
@@ -12,7 +12,7 @@ extension SidebarView {
 
     func requestDelete(_ thread: AgentThread) {
         do {
-            try viewModel.requireNoActiveScheduledTaskRun(thread)
+            try viewModel.requireThreadLifecycleIsUnblocked(thread)
             pendingDeleteThread = SidebarPendingThreadCleanup(thread: thread)
         } catch {
             viewModel.presentSidebarError(error)

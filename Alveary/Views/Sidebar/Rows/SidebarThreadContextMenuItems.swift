@@ -33,16 +33,17 @@ enum SidebarThreadContextMenuItem: Equatable, Hashable {
 }
 
 /// Why a row's action is unavailable. Only Archive and Delete are gated: a schedule no longer
-/// owns the thread it posts into, so unpinning it is always allowed, and an in-flight run is the
-/// sole remaining reason to hold the thread still.
+/// owns the thread it posts into, so unpinning it is always allowed, and work already in flight —
+/// a scheduled run, a review being published — is the sole remaining reason to hold the thread
+/// still. One reason in, because the row shows one tooltip; `threadCleanupBlockedReason` picks it.
 func sidebarThreadContextMenuDisabledReason(
     for item: SidebarThreadContextMenuItem,
-    activeScheduledTaskRunReason: String?
+    cleanupBlockedReason: String?
 ) -> String? {
-    guard let activeScheduledTaskRunReason else { return nil }
+    guard let cleanupBlockedReason else { return nil }
     switch item {
     case .archive, .delete:
-        return activeScheduledTaskRunReason
+        return cleanupBlockedReason
     case .forkLocal, .forkWorktree, .divider, .pin, .unpin, .rename:
         return nil
     }

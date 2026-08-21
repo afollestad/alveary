@@ -4,6 +4,33 @@ import Foundation
 // file stays inside the length limit; these reach the service through the `service` accessor rather
 // than the private stored property, and hold no coordinator state of their own.
 extension PullRequestReviewProposalCoordinator {
+    /// Opens the submitting span, in both places that track it.
+    ///
+    /// `submittingProposalIDs` is what the card reads; the announcement is what thread archive and
+    /// delete read, because that guard's owner is app-scoped while this coordinator is per-window —
+    /// `PullRequestReviewSubmissionActivity` owns why. Paired with `endSubmitting` so the two can
+    /// never drift: a span left open on one side would either freeze a card or wedge a thread as
+    /// permanently unarchivable.
+    func beginSubmitting(_ proposalID: String, conversationID: String) {
+        submittingProposalIDs.insert(proposalID)
+        PullRequestReviewSubmissionActivity.post(
+            conversationID: conversationID,
+            isSubmitting: true,
+            on: notificationCenter
+        )
+    }
+
+    /// Closes what `beginSubmitting` opened. Called from `confirm`'s `defer`, so it runs on the
+    /// failure path too.
+    func endSubmitting(_ proposalID: String, conversationID: String) {
+        submittingProposalIDs.remove(proposalID)
+        PullRequestReviewSubmissionActivity.post(
+            conversationID: conversationID,
+            isSubmitting: false,
+            on: notificationCenter
+        )
+    }
+
     /// The confirmed submission. Staged comments are written into the viewer's pending draft
     /// first — adopting an existing draft, since GitHub allows one per viewer, which also keeps
     /// publishing the user's own draft comments the way submitting always has — and

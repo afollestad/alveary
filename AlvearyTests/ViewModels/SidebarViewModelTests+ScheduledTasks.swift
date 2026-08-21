@@ -111,10 +111,10 @@ extension SidebarViewModelTests {
         try fixture.context.save()
 
         XCTAssertEqual(
-            fixture.viewModel.activeScheduledTaskRunReason(for: target),
+            fixture.viewModel.threadCleanupBlockedReason(for: target),
             "This thread has an active scheduled task run. Wait for it to finish before archiving or deleting this thread."
         )
-        XCTAssertThrowsError(try fixture.viewModel.requireNoActiveScheduledTaskRun(target)) { error in
+        XCTAssertThrowsError(try fixture.viewModel.requireThreadLifecycleIsUnblocked(target)) { error in
             guard case .activeScheduledTaskRunAttachment = error as? SidebarViewModelError else {
                 return XCTFail("Expected activeScheduledTaskRunAttachment, got \(error)")
             }

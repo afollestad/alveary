@@ -151,6 +151,44 @@ final class ThreadHostToolServiceTests: XCTestCase {
         XCTAssertNil(target.archivedAt)
     }
 
+    /// An unattended run must not abandon a review the user is mid-way through publishing, so
+    /// `archive_thread` carries the same refusal the sidebar does.
+    func testArchivingRefusesAThreadPublishingAReview() async throws {
+        let fixture = try ThreadHostToolFixture()
+        let target = try fixture.insertThread(name: "Target", conversationID: "target-main")
+        try fixture.modelContext.save()
+        NotificationCenter.default.post(
+            name: .pullRequestReviewSubmissionChanged,
+            object: nil,
+            userInfo: [
+                PullRequestReviewSubmissionKey.conversationID: "target-main",
+                PullRequestReviewSubmissionKey.isSubmitting: true
+            ]
+        )
+        defer {
+            NotificationCenter.default.post(
+                name: .pullRequestReviewSubmissionChanged,
+                object: nil,
+                userInfo: [
+                    PullRequestReviewSubmissionKey.conversationID: "target-main",
+                    PullRequestReviewSubmissionKey.isSubmitting: false
+                ]
+            )
+        }
+
+        let result = await fixture.service.handle(
+            context: fixture.agentContext(),
+            call: AgentCLIKit.AgentHostToolCall(
+                name: ThreadHostToolCatalog.archiveThreadToolName,
+                arguments: ["thread_id": .string("target-main")]
+            )
+        )
+
+        XCTAssertTrue(result.isError)
+        XCTAssertEqual(result.text, SidebarViewModelError.activeReviewSubmission.localizedDescription)
+        XCTAssertNil(target.archivedAt)
+    }
+
     func testListingStaysAvailableToAnAutomatedScheduledRunSource() async throws {
         let fixture = try ThreadHostToolFixture()
         fixture.thread.scheduledTaskRun = fixture.attachNonterminalScheduledRun()

@@ -5,25 +5,31 @@ extension SidebarViewModel {
         try threadLifecycle.requireNoScheduledTaskAttachment(thread)
     }
 
-    /// The archive/delete reason. A definition pointing at this thread no longer blocks its
-    /// lifecycle; only a run already posting into it does.
-    func activeScheduledTaskRunReason(for thread: AgentThread) -> String? {
-        threadLifecycle.activeScheduledTaskRunError(for: thread)?.localizedDescription
+    /// Why archiving or deleting this thread is refused, or nil when it is not. Both kinds of
+    /// in-flight work read the same way to the sidebar, which disables the controls and shows this
+    /// as their tooltip — so a new kind belongs here rather than as a second reason the row juggles.
+    ///
+    /// Only work already underway counts: a schedule merely *targeting* the thread, or a review
+    /// proposal merely waiting on the user, leaves the lifecycle alone.
+    func threadCleanupBlockedReason(for thread: AgentThread) -> String? {
+        let error = threadLifecycle.activeScheduledTaskRunError(for: thread)
+            ?? threadLifecycle.activeReviewSubmissionError(for: thread)
+        return error?.localizedDescription
     }
 
-    func requireNoActiveScheduledTaskRun(_ thread: AgentThread) throws {
-        try threadLifecycle.requireNoActiveScheduledTaskRun(thread)
+    func requireThreadLifecycleIsUnblocked(_ thread: AgentThread) throws {
+        try threadLifecycle.requireThreadLifecycleIsUnblocked(thread)
     }
 
-    func requireNoActiveScheduledTaskRuns(in project: Project) throws {
+    func requireThreadLifecycleIsUnblocked(in project: Project) throws {
         for thread in liveThreads(forProjectPath: project.path) {
-            try requireNoActiveScheduledTaskRun(thread)
+            try requireThreadLifecycleIsUnblocked(thread)
         }
     }
 
     func presentSidebarError(_ error: Error) {
         switch error as? SidebarViewModelError {
-        case .scheduledTaskAttachment, .activeScheduledTaskRunAttachment:
+        case .scheduledTaskAttachment, .activeScheduledTaskRunAttachment, .activeReviewSubmission:
             scheduledTaskAttachmentAlert = error.localizedDescription
         default:
             presentGeneralSidebarError(error)

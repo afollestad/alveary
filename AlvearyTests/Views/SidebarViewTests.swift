@@ -292,7 +292,7 @@ final class SidebarViewTests: XCTestCase {
             XCTAssertNil(
                 sidebarThreadContextMenuDisabledReason(
                     for: item,
-                    activeScheduledTaskRunReason: reason
+                    cleanupBlockedReason: reason
                 ),
                 "\(item)"
             )
@@ -301,7 +301,7 @@ final class SidebarViewTests: XCTestCase {
             XCTAssertEqual(
                 sidebarThreadContextMenuDisabledReason(
                     for: item,
-                    activeScheduledTaskRunReason: reason
+                    cleanupBlockedReason: reason
                 ),
                 reason
             )

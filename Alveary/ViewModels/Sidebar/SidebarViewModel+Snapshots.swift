@@ -48,6 +48,7 @@ enum SidebarViewModelError: LocalizedError {
     case scheduledTaskRunStillActive
     case scheduledTaskAttachment(String)
     case activeScheduledTaskRunAttachment
+    case activeReviewSubmission
     case threadForkUnavailable(String)
     case threadForkFailed(Error)
     case forkRollbackBlockedBySchedule
@@ -77,6 +78,8 @@ enum SidebarViewModelError: LocalizedError {
             return "This thread is attached to the scheduled task \"\(taskTitle)\". Remove or retarget that schedule first."
         case .activeScheduledTaskRunAttachment:
             return "This thread has an active scheduled task run. Wait for it to finish before archiving or deleting this thread."
+        case .activeReviewSubmission:
+            return "This thread is submitting a pull request review. Wait for it to finish before archiving or deleting this thread."
         case .threadForkUnavailable(let reason):
             return reason
         case .threadForkFailed(let error):
@@ -106,6 +109,7 @@ enum SidebarViewModelError: LocalizedError {
             return true
         case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingTaskWorkspace, .threadMissingDeletionMetadata,
              .scheduledTaskRunStillActive, .scheduledTaskAttachment, .activeScheduledTaskRunAttachment,
+             .activeReviewSubmission,
              .threadForkUnavailable, .threadForkFailed, .forkRollbackBlockedBySchedule, .threadForkRollbackFailed,
              .threadDeletePreparationFailed, .taskProjectAccessUnavailable, .noReadyThreadDefaultProvider:
             return false
@@ -195,7 +199,7 @@ extension SidebarViewModel {
 
     func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
         let dbProject = try requireProject(project)
-        try requireNoActiveScheduledTaskRuns(in: dbProject)
+        try requireThreadLifecycleIsUnblocked(in: dbProject)
         let projectPath = dbProject.path
         let attachedThreads = liveThreads(forProjectPath: projectPath)
         let taskThreads = attachedThreads.filter {

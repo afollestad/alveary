@@ -138,7 +138,7 @@ extension SidebarViewModelTests {
         let expectedReason =
             "This thread has an active scheduled task run. Wait for it to finish before archiving or deleting this thread."
 
-        XCTAssertEqual(fixture.viewModel.activeScheduledTaskRunReason(for: target), expectedReason)
+        XCTAssertEqual(fixture.viewModel.threadCleanupBlockedReason(for: target), expectedReason)
 
         do {
             try await fixture.viewModel.archiveThread(target)
@@ -171,8 +171,8 @@ extension SidebarViewModelTests {
 
         XCTAssertTrue(run.hasKnownTerminalStatus)
         XCTAssertFalse(target.hasBlockingScheduledTaskRunAttachment)
-        XCTAssertNil(fixture.viewModel.activeScheduledTaskRunReason(for: target))
-        XCTAssertNoThrow(try fixture.viewModel.requireNoActiveScheduledTaskRun(target))
+        XCTAssertNil(fixture.viewModel.threadCleanupBlockedReason(for: target))
+        XCTAssertNoThrow(try fixture.viewModel.requireThreadLifecycleIsUnblocked(target))
         XCTAssertNoThrow(try fixture.viewModel.setThreadPinned(target, isPinned: false))
         XCTAssertFalse(target.isPinned)
     }

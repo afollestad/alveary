@@ -11,7 +11,9 @@ import SwiftData
 final class PullRequestReviewProposalCoordinator {
     @ObservationIgnored private let modelContext: ModelContext
     @ObservationIgnored private let pullRequestsService: any PullRequestsService
-    @ObservationIgnored private let notificationCenter: NotificationCenter
+    /// Internal rather than private so `+Submission.swift` can announce the submitting span on the
+    /// same bus this coordinator observes. Immutable, so nothing is loosened by widening it.
+    @ObservationIgnored let notificationCenter: NotificationCenter
     @ObservationIgnored private let now: () -> Date
     /// Hunks a card can paint before any network runs, seeded at propose time. Optional because
     /// tests build the coordinator without one, in which case every card loads as it always did.
@@ -38,7 +40,11 @@ final class PullRequestReviewProposalCoordinator {
         Set(presentations.values.map(\.sourceConversationID))
     }
 
-    private(set) var submittingProposalIDs: Set<String> = []
+    /// Internal rather than `private(set)` because `+Submission.swift`'s `beginSubmitting` and
+    /// `endSubmitting` own both of its transitions; Swift cannot scope a setter to two files, and
+    /// pairing them there is what keeps this set and the app-scoped announcement from drifting.
+    /// Nothing outside this type's own files may write it.
+    var submittingProposalIDs: Set<String> = []
     private(set) var errorMessages: [String: String] = [:]
     /// The diff-with-comments preview each card renders, painted from cache and refreshed behind.
     ///
@@ -170,13 +176,13 @@ final class PullRequestReviewProposalCoordinator {
               let presentation = presentations[proposalID] else {
             return false
         }
-        submittingProposalIDs.insert(proposalID)
+        beginSubmitting(proposalID, conversationID: presentation.sourceConversationID)
         errorMessages[proposalID] = nil
         // Entering and leaving the submitting state both re-render the card; the transcript
         // only re-reads this coordinator on the change notification.
         notifyChanged()
         defer {
-            submittingProposalIDs.remove(proposalID)
+            endSubmitting(proposalID, conversationID: presentation.sourceConversationID)
             notifyChanged()
         }
 

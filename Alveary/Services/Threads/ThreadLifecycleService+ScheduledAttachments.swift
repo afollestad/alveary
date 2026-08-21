@@ -44,6 +44,34 @@ extension ThreadLifecycleService {
         }
     }
 
+    /// Why publishing a review forbids archiving or deleting the thread it is publishing from.
+    ///
+    /// The same shape as `activeScheduledTaskRunError`, and for the same reason: a proposal merely
+    /// waiting on the user never blocks the lifecycle — dismissing the card is how that ends — but a
+    /// submit already talking to GitHub would be abandoned mid-flight, with the review half written
+    /// and no card left to retry from.
+    func activeReviewSubmissionError(for thread: AgentThread) -> SidebarViewModelError? {
+        // Ahead of `thread.conversations`, not after it: see `isIdle`.
+        guard !reviewSubmissionActivity.isIdle else {
+            return nil
+        }
+        return reviewSubmissionActivity.isSubmitting(anyOf: thread.conversations.map(\.id))
+            ? .activeReviewSubmission
+            : nil
+    }
+
+    func requireNoActiveReviewSubmission(_ thread: AgentThread) throws {
+        if let error = activeReviewSubmissionError(for: thread) {
+            throw error
+        }
+    }
+
+    /// Both lifecycle refusals in one call, so a guard site cannot pick up one and forget the other.
+    func requireThreadLifecycleIsUnblocked(_ thread: AgentThread) throws {
+        try requireNoActiveScheduledTaskRun(thread)
+        try requireNoActiveReviewSubmission(thread)
+    }
+
     func quiesceScheduledTaskRunIfNeeded(for thread: AgentThread) async throws -> AgentThread {
         let threadID = thread.persistentModelID
         guard let run = thread.scheduledTaskRun else {

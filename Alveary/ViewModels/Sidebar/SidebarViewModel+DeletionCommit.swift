@@ -3,10 +3,12 @@ import Foundation
 extension SidebarViewModel {
     func commitThreadDeletion(_ snapshot: ThreadCleanupSnapshot) throws {
         var detachedScheduledTaskIDs: [String] = []
+        var heldReviewProposal = false
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbThread = modelContext.resolveThread(id: snapshot.threadID) {
-                try requireNoActiveScheduledTaskRun(dbThread)
+                try requireThreadLifecycleIsUnblocked(dbThread)
+                heldReviewProposal = Self.holdsReviewProposal(dbThread)
                 try clearCompletedPendingWorktreeCleanupBeforeThreadDeletion(snapshot)
                 try promoteScheduledWorktreeCleanupIfNeeded(snapshot)
                 // Before the delete, while the row still carries the workspace the surviving
@@ -23,6 +25,7 @@ extension SidebarViewModel {
             modelContext.rollback()
             throw error
         }
+        announceReviewProposalsIfNeeded(heldReviewProposal)
         invalidateDraftThreadIfNeeded(threadID: snapshot.threadID)
         refreshThreadOrder(animated: true)
         postThreadLifecycleChanged(threadID: snapshot.threadID, mode: snapshot.mode)
@@ -38,10 +41,11 @@ extension SidebarViewModel {
     ) throws {
         let threadIDs = Set(snapshot.threadSnapshots.map(\.threadID))
         var affectedScheduledTaskIDs = OrderedScheduledTaskIDs()
+        var heldReviewProposal = false
         try flushPendingModelChangesBeforeDeletion()
         do {
             if let dbProject = modelContext.resolveProject(id: snapshot.projectID) {
-                try requireNoActiveScheduledTaskRuns(in: dbProject)
+                try requireThreadLifecycleIsUnblocked(in: dbProject)
                 for threadSnapshot in snapshot.threadSnapshots {
                     try promoteScheduledWorktreeCleanupIfNeeded(threadSnapshot)
                     // Only `threadSnapshots` cascade with the Project; `detachedTaskThreadIDs`
@@ -49,6 +53,7 @@ extension SidebarViewModel {
                     guard let dbThread = modelContext.resolveThread(id: threadSnapshot.threadID) else {
                         continue
                     }
+                    heldReviewProposal = heldReviewProposal || Self.holdsReviewProposal(dbThread)
                     affectedScheduledTaskIDs.append(
                         contentsOf: ScheduledTaskTargetDetachment.detachTargets(
                             of: dbThread,
@@ -79,11 +84,29 @@ extension SidebarViewModel {
             modelContext.rollback()
             throw error
         }
+        announceReviewProposalsIfNeeded(heldReviewProposal)
         invalidateDraftThreadIfNeeded(threadIDs: threadIDs)
         NotificationCenter.default.postScheduledTasksDetached(
             object: self,
             definitionIDs: affectedScheduledTaskIDs.ids
         )
+    }
+
+    /// Whether any of the thread's conversations is holding a review proposal, read *before* the
+    /// delete because the cascade takes the envelope with the row.
+    static func holdsReviewProposal(_ thread: AgentThread) -> Bool {
+        thread.conversations.contains { (try? $0.pullRequestReviewProposal()) != nil }
+    }
+
+    /// Deleting needs no marker — the transcript that would show one is gone — but every window's
+    /// proposal coordinator still holds the presentation in memory, and nothing else tells it to
+    /// re-read. Without this the pull request pane keeps offering Submit for a deleted thread's
+    /// review. Archiving announces from its own path, which also writes the dismissal marker.
+    func announceReviewProposalsIfNeeded(_ heldReviewProposal: Bool) {
+        guard heldReviewProposal else {
+            return
+        }
+        NotificationCenter.default.post(name: .pullRequestReviewProposalsChanged, object: nil)
     }
 
     /// Order-preserving dedupe for one project deletion's paused definitions. A legacy row can be

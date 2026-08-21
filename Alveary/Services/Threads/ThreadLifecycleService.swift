@@ -117,6 +117,9 @@ final class ThreadLifecycleService {
     // Reached from `ThreadLifecycleService+Pinning.swift`.
     let savePendingSidebarChanges: @MainActor (ModelContext) throws -> Void
     let saveSidebarOrdering: @MainActor (ModelContext) throws -> Void
+    /// Which conversations are mid-review-submit, so archive and delete can refuse. Defaults to the
+    /// app-wide instance; tests pass their own over a private notification centre.
+    let reviewSubmissionActivity: PullRequestReviewSubmissionActivity
 
     init(
         modelContext: ModelContext,
@@ -129,7 +132,8 @@ final class ThreadLifecycleService {
         stopAndWaitForScheduledTaskRun: @escaping ScheduledTaskRunQuiescence = { _ in },
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         savePendingSidebarChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
-        saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
+        saveSidebarOrdering: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
+        reviewSubmissionActivity: PullRequestReviewSubmissionActivity = .shared
     ) {
         self.modelContext = modelContext
         self.settingsService = settingsService
@@ -142,6 +146,7 @@ final class ThreadLifecycleService {
         self.saveThreadCreation = saveThreadCreation
         self.savePendingSidebarChanges = savePendingSidebarChanges
         self.saveSidebarOrdering = saveSidebarOrdering
+        self.reviewSubmissionActivity = reviewSubmissionActivity
     }
 
     func insertProjectThread(projectPath: String, seed: ProjectThreadSeed) throws -> AgentThread {
