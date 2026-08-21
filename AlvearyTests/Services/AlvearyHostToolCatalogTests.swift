@@ -142,6 +142,21 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
         XCTAssertTrue(instructions.contains("gh pr create"))
     }
 
+    /// The card lets the user submit a verdict other than the proposed one while the body publishes
+    /// untouched, so a body written as "Blocking on..." lands verbatim under an approval. The tool
+    /// description is where that constraint has to live: the review prompt beside it is editable, so
+    /// a persisted copy never sees a change to the packaged default.
+    func testProposingAReviewTellsTheModelTheBodyMayNotAnnounceTheVerdict() throws {
+        let propose = try XCTUnwrap(
+            AlvearyHostToolCatalog.tools.first { $0.name == PullRequestHostToolCatalog.proposeReviewToolName }
+        )
+
+        XCTAssertTrue(propose.description.contains("never as an announcement of the verdict"))
+        // The reason too, not just the prohibition: without it the sentence reads as style advice
+        // and trimming it back to the rule alone looks like tightening rather than a regression.
+        XCTAssertTrue(propose.description.contains("the user may submit a different one"))
+    }
+
     func testInstructionsComposeTheNeutralPreambleWithEachFeatureFragment() throws {
         let instructions = try XCTUnwrap(AlvearyHostToolCatalog.serverMetadata.instructions)
 

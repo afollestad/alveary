@@ -51,7 +51,9 @@ enum PullRequestReviewPromptDefaults {
       - **[P3]** nit — trivial preferences and optional improvements.
     - Wrap file names, class names, function names, variable names, and other code tokens in backticks.
     - The inline comments carry all the feedback, so keep the summary body minimal: omit it when the verdict allows, and when \#
-    `request_changes` requires one, write a single sentence naming what blocks — never priority counts, restated comments, or \#
-    filler.
+    `request_changes` requires one, write a single sentence naming the finding itself rather than the verdict — never priority \#
+    counts, restated comments, or filler. The user may submit a verdict other than the one you propose and the body publishes \#
+    exactly as written, so a sentence about what blocks contradicts an approval where a sentence about the finding still reads \#
+    true.
     """#
 }

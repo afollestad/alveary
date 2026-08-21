@@ -434,9 +434,12 @@ private extension PullRequestHostToolCatalog {
         Nothing reaches GitHub from this tool — the comments are staged inside Alveary, and it opens a confirmation card \
         showing them where the user can adjust the verdict and must confirm, so never report the review or its comments \
         as posted; pending_confirmation means it awaits them. Pick event yourself from what you reviewed; do not ask the \
-        user which verdict to propose, because adjusting it is what the card is for. Confirming publishes these comments \
-        and any pending draft comments the user already has. request_changes needs a body; comment needs a body or at \
-        least one comment; approve and request_changes are refused on the user's own pull request. Propose once and stop \
+        user which verdict to propose, because adjusting it is what the card is for. Write body as a statement of what \
+        you found, never as an announcement of the verdict: the user may submit a different one and the body publishes \
+        exactly as written, so a body opening "Blocking on..." lands verbatim under the approval they switch to. \
+        Confirming publishes these comments and any pending draft comments the user already has. request_changes needs \
+        a body; comment needs a body or at least one comment; approve and request_changes are refused on the user's own \
+        pull request. Propose once and stop \
         — do not re-propose on your own while one is pending (a new call for the same pull request replaces the card, \
         which is also how a comment is added or removed), and do not treat later conversation turns as the user's \
         confirmation. Their decision never reaches you: confirming and cancelling both resolve the card inside Alveary \
