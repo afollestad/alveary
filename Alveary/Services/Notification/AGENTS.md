@@ -1,10 +1,10 @@
 ## Notifications
 
-These instructions cover `DefaultNotificationManager`, `NotificationRouter`, and `NotificationTapDelegate` under `Alveary/Services/Notification/`.
+These instructions cover `DefaultNotificationManager`, `UserNotificationGateway`, `NotificationRouter`, and `NotificationTapDelegate` under `Alveary/Services/Notification/`.
 
 ## Invariants
 
-- OS notification `identifier` equals the `conversationId`. New events for the same conversation replace any pending banner (so stale "finished working" notifications don't pile up once newer events arrive), and `UNUserNotificationCenter.removeDeliveredNotifications(withIdentifiers:)` can target precisely on mark-read. Do not change to a per-event UUID.
+- OS notification `identifier` equals the `conversationId`. New events for the same conversation replace any pending banner (so stale "finished working" notifications don't pile up once newer events arrive), and `UserNotificationGateway.removeDeliveredNotifications(withIdentifiers:)` can target precisely on mark-read. Do not change to a per-event UUID.
 - Scheduled-definition failures are a separate namespace: use `scheduled-task-definition:<definitionID>` plus `scheduledTaskDefinitionId`, route taps to the Scheduled editor, and never pass them through conversation unread or badge handling.
 - Notification copy must name the actual state:
     - **Reserve completion copy for terminal work.** Do not use "finished working" for pending approval, `AskUserQuestion`, interim usage, or successful `tool_deferred` stops.
@@ -14,10 +14,12 @@ These instructions cover `DefaultNotificationManager`, `NotificationRouter`, and
 - "Actively viewing" (`isActivelyViewing`) means the app is in foreground *and* the specific conversation is selected. `isAppInForeground()` alone is not enough — a foreground app with a different conversation selected should still mark the event's conversation unread.
 - Any code path that removes a conversation must dismiss its banner and clear its unread flag *before* the SwiftData delete. That both dismisses any pending OS banner and captures the post-mark-read unread count for the chained `refreshBadgeCount()` task; skipping it leaves an orphaned banner and a stale dock badge until the next event. Snapshot conversation IDs before thread/project-level removals and pass them to `NotificationManager.forgetConversations(withIDs:)`; use `markConversationRead(conversationId:)` directly when removing a single conversation inside a still-live thread (`ThreadDetailView.removeConversation`).
 - Posters share one authorization `Task` each, so notifications arriving while the system prompt is pending all deliver once it is granted; an "already asked this launch" flag delivers only the first and silently drops the rest. `DefaultNotificationManager.requestAuthorizationIfNeeded()` prompts proactively once onboarding is dismissed, so the dialog does not land mid-turn and swallow the notification that triggered it.
-- Every poster requests the same `[.alert, .sound, .badge]` option set. `DefaultNotificationManager` and `ScheduledTaskDefinitionFailureNotifier` can race at launch and whichever asks first fixes what the user granted, so a narrower set in one of them silently costs that permission everywhere.
+- **Route every OS notification effect through `UserNotificationGateway`.** Posting, authorization, badge, delivered-notification removal, and notification sounds all go through it; a direct `UNUserNotificationCenter.current()` call in a new poster puts real banners on the developer's desktop during app-hosted test runs.
+    - The lone exception is the inert `delegate` assignment in `Alveary/App/AppDelegate.swift`. The shared `[.alert, .sound, .badge]` option set lives on the gateway, whose doc comment owns why the two posters must not diverge.
 - `.agentStatusChanged` is a shared bus. Observers that rescan the filesystem on status changes (e.g. `DiffViewerViewModel`) must gate on `userInfo["signal"] is ActivitySignal`, because `DefaultNotificationManager` also posts on this name when flipping `isUnread` and those posts carry no `signal` key. Observers that refresh purely visual status (e.g. `SidebarViewModel`'s dot) should not gate — they want both kinds of post.
 
 ## Testing seams
 
 - `DefaultNotificationManager` exposes test seams: the `setBadgeCount`, `onPostNotification`, `onDismissDelivered`, `isAppInForeground`, `activeConversationId`, `playInAppSound`, `notificationAuthorizationStatus`, `requestNotificationAuthorization`, and `addNotificationRequest` closures, plus the `setActiveConversationProvider` method. Badge assertions must `await manager.awaitPendingBadgeUpdate()` first, since submission goes through the chained `Task`. `ScheduledTaskDefinitionFailureNotifier` exposes the same three authorization closures plus `onPostNotification`.
 - `NotificationManagerTestFactory` wires a `NotificationSpy` to those seams; prefer that helper over constructing `DefaultNotificationManager` directly in tests unless you need to control chaining or observer wiring explicitly.
+- Under app-hosted tests the gateway reports `.denied`, so an unstubbed poster delivers nothing. Still stub the seams when a test asserts *what* would have been posted — the gateway only guarantees the OS stays untouched.

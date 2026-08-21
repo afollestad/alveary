@@ -23,7 +23,7 @@ final class DefaultNotificationManager: NotificationManager {
     }
     var activeConversationId: @MainActor () -> String? = { nil }
     var playInAppSound: @MainActor (String) -> Void = { name in
-        NSSound(named: NSSound.Name(name))?.play()
+        UserNotificationGateway.playSound(named: name)
     }
     typealias PostNotificationHandler = @MainActor (
         _ context: ConversationNotificationContext,
@@ -33,17 +33,16 @@ final class DefaultNotificationManager: NotificationManager {
     var onPostNotification: PostNotificationHandler?
     var onDismissDelivered: (@MainActor (_ conversationId: String) -> Void)?
     var setBadgeCount: @MainActor (Int) async -> Void = { count in
-        try? await UNUserNotificationCenter.current().setBadgeCount(count)
+        await UserNotificationGateway.setBadgeCount(count)
     }
     var notificationAuthorizationStatus: @MainActor () async -> UNAuthorizationStatus = {
-        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        await UserNotificationGateway.authorizationStatus()
     }
     var requestNotificationAuthorization: @MainActor () async -> Bool = {
-        let options: UNAuthorizationOptions = [.alert, .sound, .badge]
-        return (try? await UNUserNotificationCenter.current().requestAuthorization(options: options)) ?? false
+        await UserNotificationGateway.requestAuthorization()
     }
     var addNotificationRequest: @MainActor (UNNotificationRequest) async -> Void = { request in
-        try? await UNUserNotificationCenter.current().add(request)
+        await UserNotificationGateway.add(request)
     }
 
     init(
@@ -259,7 +258,7 @@ final class DefaultNotificationManager: NotificationManager {
             return
         }
 
-        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [conversationId])
+        UserNotificationGateway.removeDeliveredNotifications(withIdentifiers: [conversationId])
     }
 
     private func resolveContext(for conversationId: String) -> ConversationNotificationContext {

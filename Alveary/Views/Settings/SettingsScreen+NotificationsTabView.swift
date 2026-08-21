@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UserNotifications
 
 struct NotificationsSettingsTabView: View {
     private static let notificationSettingsURLCandidates = [
@@ -33,7 +32,10 @@ struct NotificationsSettingsTabView: View {
         _soundName = soundName
         // Snapshots inject the state; production reads it live, following the App Shots tab.
         _isDeniedBySystem = State(initialValue: systemDeniedOverride ?? false)
-        refreshesLiveAuthorization = systemDeniedOverride == nil
+        // Suppressed under app-hosted tests too: two `SnapshotTests` cases render this tab with no
+        // override, and reading the real status would both touch the OS and let the developer's
+        // own grant decide whether the denial hint lands in their baselines.
+        refreshesLiveAuthorization = systemDeniedOverride == nil && !UserNotificationGateway.isSuppressed
     }
 
     var body: some View {
@@ -88,7 +90,7 @@ struct NotificationsSettingsTabView: View {
         guard refreshesLiveAuthorization else {
             return
         }
-        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        let status = await UserNotificationGateway.authorizationStatus()
         isDeniedBySystem = status == .denied
     }
 

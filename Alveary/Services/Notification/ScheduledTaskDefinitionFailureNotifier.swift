@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 @preconcurrency import UserNotifications
 
@@ -20,20 +19,16 @@ final class ScheduledTaskDefinitionFailureNotifier {
 
     var onPostNotification: NotificationPoster?
     var playInAppSound: @MainActor (String) -> Void = { name in
-        NSSound(named: NSSound.Name(name))?.play()
+        UserNotificationGateway.playSound(named: name)
     }
     var notificationAuthorizationStatus: @MainActor () async -> UNAuthorizationStatus = {
-        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        await UserNotificationGateway.authorizationStatus()
     }
-    /// Matches `DefaultNotificationManager`'s option set. These two can race at launch, and
-    /// whichever asks first fixes what the user is granted — a narrower set here would silently
-    /// cost the badge permission.
     var requestNotificationAuthorization: @MainActor () async -> Bool = {
-        let options: UNAuthorizationOptions = [.alert, .sound, .badge]
-        return (try? await UNUserNotificationCenter.current().requestAuthorization(options: options)) ?? false
+        await UserNotificationGateway.requestAuthorization()
     }
     var addNotificationRequest: @MainActor (UNNotificationRequest) async -> Void = { request in
-        try? await UNUserNotificationCenter.current().add(request)
+        await UserNotificationGateway.add(request)
     }
 
     init(
