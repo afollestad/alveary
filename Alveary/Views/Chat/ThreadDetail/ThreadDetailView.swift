@@ -50,6 +50,7 @@ struct ThreadDetailView: View {
     var body: some View {
         let conversations = conversations
         let decisionAttention = decisionAttention
+        let workActivity = workActivity
         let selectedConversation = appState.selectedConversation(in: thread, conversations: conversations)
         let selectedConversationID = selectedConversation?.persistentModelID
         let conversationIDs = Set(conversations.map(\.id))
@@ -60,6 +61,7 @@ struct ThreadDetailView: View {
         let tabPresentations = conversationTabPresentations(
             conversations: conversations,
             decisionAttention: decisionAttention,
+            workActivity: workActivity,
             statusVersion: statusVersion
         )
         let selectedTab = tabPresentations.first { $0.conversationModelID == selectedConversationID }

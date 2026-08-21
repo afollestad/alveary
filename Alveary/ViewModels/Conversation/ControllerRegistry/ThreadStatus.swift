@@ -23,6 +23,8 @@ struct ConversationStatusSnapshot: Equatable {
     /// From `ConversationDecisionAttention.awaitsDecision(_:)`, evaluated at snapshot time while
     /// the row is known live — see that function's contract.
     let awaitsUserDecision: Bool
+    /// From `ConversationWorkActivity.isWorking(_:)` — app-side work the runtime cannot report.
+    let isWorking: Bool
     /// `Conversation.lastTurnFailedAt != nil` — the durable half of `.error`, since the runtime's
     /// own signal lives only in `DefaultAgentsManager.statusSnapshot`.
     let lastTurnFailed: Bool
@@ -30,12 +32,20 @@ struct ConversationStatusSnapshot: Equatable {
 
 extension ConversationStatusSnapshot {
     /// Declared in an extension so the synthesized memberwise initializer survives for tests.
+    ///
+    /// Neither collaborator takes a default: a surface that folded statuses without one would
+    /// silently lose an indicator rather than fail to build, and there are only two call sites.
     @MainActor
-    init(conversation: Conversation, attention: ConversationDecisionAttention) {
+    init(
+        conversation: Conversation,
+        attention: ConversationDecisionAttention,
+        activity: ConversationWorkActivity
+    ) {
         self.init(
             conversationID: conversation.id,
             isUnread: conversation.isUnread,
             awaitsUserDecision: attention.awaitsDecision(conversation),
+            isWorking: activity.isWorking(conversation.id),
             lastTurnFailed: conversation.lastTurnFailedAt != nil
         )
     }
@@ -50,6 +60,10 @@ extension ThreadStatus {
     /// `ConversationDecisionAttention`. It ranks exactly like `.waitingForUser`, so `.busy` still
     /// wins and the dot appears once work settles, and it beats `.unread`: a pending scheduled
     /// proposal marks its conversation unread, and green already means "done".
+    ///
+    /// `isWorking` is the same idea for app-side work — see `ConversationWorkActivity` — and ranks
+    /// exactly like `.busy`, so a conversation both publishing and awaiting a decision spins rather
+    /// than showing the dot behind it.
     ///
     /// `lastTurnFailed` is the durable half of `.error`, and it deliberately outranks that
     /// conversation's own `.busy`. Nothing records it without a turn ending, and
@@ -88,6 +102,13 @@ private struct ThreadStatusFold {
         if conversation.lastTurnFailed {
             hasError = true
         } else if signal == .busy {
+            hasLiveBusy = true
+        }
+        // Deliberately outside that chain, unlike the runtime's `.busy`: the suppression above
+        // exists because a runtime signal outliving a failed turn proves a dead process never
+        // released it, while this span is work the app itself opened and `confirm`'s `defer`
+        // closes, so it is live whatever the last turn did.
+        if conversation.isWorking {
             hasLiveBusy = true
         }
         if signal == .waitingForUser || conversation.awaitsUserDecision {

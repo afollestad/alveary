@@ -190,10 +190,39 @@ final class ThreadStatusTests: XCTestCase {
         XCTAssertEqual(folded([.init(lastTurnFailed: true)], isArchived: true), .archived)
     }
 
+    // MARK: - App-side work
+
+    /// The regression this input exists for: the review proposal that raised the dot is now
+    /// publishing, and a row that keeps saying "your turn" is wrong for the whole round trip.
+    func testWorkingOutranksItsOwnPendingDecision() {
+        XCTAssertEqual(folded([.init(awaitsDecision: true, isWorking: true)]), .busy)
+    }
+
+    /// Deliberately unlike the runtime's `.busy`, which a durable failure suppresses: this span is
+    /// the app's own and is provably live. `ThreadStatusFold.add` owns the argument.
+    func testWorkingSurvivesADurableFailure() {
+        XCTAssertEqual(folded([.init(isWorking: true, lastTurnFailed: true)]), .busy)
+    }
+
+    func testWorkingInOneConversationSpinsTheWholeThread() {
+        XCTAssertEqual(
+            folded([
+                .init(isUnread: true),
+                .init(isWorking: true)
+            ]),
+            .busy
+        )
+    }
+
+    func testArchivedOverridesWorking() {
+        XCTAssertEqual(folded([.init(isWorking: true)], isArchived: true), .archived)
+    }
+
     private struct ConversationSpec {
         var isUnread = false
         var runtime: ActivitySignal = .neutral
         var awaitsDecision = false
+        var isWorking = false
         var lastTurnFailed = false
     }
 
@@ -206,6 +235,7 @@ final class ThreadStatusTests: XCTestCase {
                 conversationID: conversationID,
                 isUnread: spec.isUnread,
                 awaitsUserDecision: spec.awaitsDecision,
+                isWorking: spec.isWorking,
                 lastTurnFailed: spec.lastTurnFailed
             )
         }

@@ -2,7 +2,7 @@
 
 These instructions cover `Alveary/ViewModels/Conversation/ControllerRegistry/` — who owns a `ConversationViewModel`, how long, and the thread status the surfaces derive from that. The view model itself is `Alveary/ViewModels/Conversation/AGENTS.md`; scheduled-task management is `Alveary/ViewModels/Scheduled/AGENTS.md`.
 
-**Keep a rule here only when the code that would violate it is not the code that documents it.** `ConversationDecisionAttention` owns why a completed turn can still await the user and how a new such surface enrolls, and `ThreadStatus` owns where `awaitsUserDecision` ranks.
+**Keep a rule here only when the code that would violate it is not the code that documents it.** `ConversationDecisionAttention` owns why a completed turn can still await the user and how a new such surface enrolls, `ConversationWorkActivity` owns the working half and why its read may not move behind the fold, and `ThreadStatus` owns where both rank.
 
 - `ConversationControllerRegistry` is the app-scoped owner for conversation view models. View and background leases for one conversation share its subscription, queue drain, persistence path, and terminal outcome stream.
 - Keep background retention distinct from view mounting: background leases may keep provider work alive, but only view leases change `ConversationState.isViewMounted`.

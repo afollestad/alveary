@@ -14,6 +14,7 @@ extension ThreadDetailView {
     func conversationTabPresentations(
         conversations: [Conversation],
         decisionAttention: ConversationDecisionAttention,
+        workActivity: ConversationWorkActivity,
         statusVersion: Int
     ) -> [ConversationTabPresentation] {
         let isThreadArchived = liveThread?.archivedAt != nil
@@ -23,7 +24,11 @@ extension ThreadDetailView {
                 status: .folded(
                     isArchived: isThreadArchived,
                     conversations: [
-                        ConversationStatusSnapshot(conversation: conversation, attention: decisionAttention)
+                        ConversationStatusSnapshot(
+                            conversation: conversation,
+                            attention: decisionAttention,
+                            activity: workActivity
+                        )
                     ],
                     runtimeFor: { agentsManager.status(for: $0) }
                 )

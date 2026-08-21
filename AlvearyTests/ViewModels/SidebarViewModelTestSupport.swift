@@ -93,13 +93,14 @@ struct SidebarTestFixture {
     /// then fold through `SidebarViewModel.threadStatus` exactly as `SidebarView.body` does.
     func threadStatus(
         for thread: AgentThread,
-        attention: ConversationDecisionAttention = .none
+        attention: ConversationDecisionAttention = .none,
+        activity: ConversationWorkActivity = .none
     ) -> ThreadStatus {
         viewModel.threadStatus(
             threadID: thread.persistentModelID,
             isArchived: thread.archivedAt != nil,
             conversationStatuses: thread.conversations.map {
-                ConversationStatusSnapshot(conversation: $0, attention: attention)
+                ConversationStatusSnapshot(conversation: $0, attention: attention, activity: activity)
             }
         )
     }

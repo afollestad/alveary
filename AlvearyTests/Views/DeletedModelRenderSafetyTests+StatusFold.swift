@@ -55,7 +55,7 @@ extension DeletedModelRenderSafetyTests {
             showsPullRequestLinkPrompts: false
         )
         let snapshots = thread.conversations.map {
-            ConversationStatusSnapshot(conversation: $0, attention: attention)
+            ConversationStatusSnapshot(conversation: $0, attention: attention, activity: .none)
         }
 
         fixture.context.delete(thread)

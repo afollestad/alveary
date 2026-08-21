@@ -40,11 +40,26 @@ final class PullRequestReviewProposalCoordinator {
         Set(presentations.values.map(\.sourceConversationID))
     }
 
+    /// The conversation each in-flight submission publishes from, keyed by proposal id.
+    ///
     /// Internal rather than `private(set)` because `+Submission.swift`'s `beginSubmitting` and
     /// `endSubmitting` own both of its transitions; Swift cannot scope a setter to two files, and
-    /// pairing them there is what keeps this set and the app-scoped announcement from drifting.
+    /// pairing them there is what keeps this map and the app-scoped announcement from drifting.
     /// Nothing outside this type's own files may write it.
-    var submittingProposalIDs: Set<String> = []
+    ///
+    /// It stores the conversation rather than re-deriving it from `presentations`, because
+    /// `reload()` can empty that dictionary mid-flight — another window rejecting the proposal, an
+    /// archive clearing the envelope, a thread delete announcing — while this submit is still
+    /// inside GitHub. A derived read would drop the working ring there while the archive guard
+    /// still refuses the thread.
+    var submittingConversationIDsByProposalID: [String: String] = [:]
+
+    /// Every conversation inside `confirm`'s network span. Thread status reads this to raise the
+    /// working ring over the waiting dot for exactly that long; see `ConversationWorkActivity`.
+    var submittingSourceConversationIDs: Set<String> {
+        Set(submittingConversationIDsByProposalID.values)
+    }
+
     private(set) var errorMessages: [String: String] = [:]
     /// The diff-with-comments preview each card renders, painted from cache and refreshed behind.
     ///
@@ -113,7 +128,7 @@ final class PullRequestReviewProposalCoordinator {
     }
 
     func isSubmitting(proposalID: String) -> Bool {
-        submittingProposalIDs.contains(proposalID)
+        submittingConversationIDsByProposalID[proposalID] != nil
     }
 
     func errorMessage(forProposalID proposalID: String) -> String? {
@@ -172,7 +187,7 @@ final class PullRequestReviewProposalCoordinator {
         event: PullRequestReviewEvent,
         bodyOverride: String? = nil
     ) async -> Bool {
-        guard !submittingProposalIDs.contains(proposalID),
+        guard submittingConversationIDsByProposalID[proposalID] == nil,
               let presentation = presentations[proposalID] else {
             return false
         }
@@ -235,7 +250,7 @@ final class PullRequestReviewProposalCoordinator {
 
     @discardableResult
     func reject(proposalID: String) -> Bool {
-        guard !submittingProposalIDs.contains(proposalID),
+        guard submittingConversationIDsByProposalID[proposalID] == nil,
               let presentation = presentations[proposalID] else {
             return false
         }
@@ -264,7 +279,7 @@ final class PullRequestReviewProposalCoordinator {
     /// this rewrites the stored envelope and prunes the loaded preview rather than calling anything.
     @discardableResult
     func removeStagedComment(proposalID: String, at index: Int) -> Bool {
-        guard !submittingProposalIDs.contains(proposalID),
+        guard submittingConversationIDsByProposalID[proposalID] == nil,
               let presentation = presentations[proposalID],
               presentation.comments.indices.contains(index) else {
             return false
@@ -300,7 +315,7 @@ final class PullRequestReviewProposalCoordinator {
         side: PullRequestDiffSide,
         body: String
     ) -> Bool {
-        guard !submittingProposalIDs.contains(proposalID),
+        guard submittingConversationIDsByProposalID[proposalID] == nil,
               let presentation = presentations[proposalID] else {
             return false
         }

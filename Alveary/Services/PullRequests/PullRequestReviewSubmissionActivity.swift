@@ -18,6 +18,11 @@ import Foundation
 ///
 /// A pending card holds nothing here. Only work already underway blocks a thread's lifecycle, the
 /// rule `activeScheduledTaskRunError` states for scheduled runs.
+///
+/// The sidebar's working ring spans the same submits but deliberately does not read this: a
+/// notification-fed plain class publishes nothing SwiftUI observes, so a row reading it would never
+/// repaint. `ConversationWorkActivity` takes the per-window coordinator's `@Observable` half
+/// instead, which is also the seam to union this in should a second window ever need the ring.
 @MainActor
 final class PullRequestReviewSubmissionActivity {
     /// The app-wide instance every lifecycle guard reads. A shared static rather than a DI edge

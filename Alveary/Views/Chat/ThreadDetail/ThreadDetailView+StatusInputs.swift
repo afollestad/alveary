@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// The two status inputs no runtime `ActivitySignal` reports, built for the conversation-tab chips
+/// from the same coordinators the sidebar rows read, so the two surfaces cannot disagree.
 extension ThreadDetailView {
     /// Waiting-dot sources the runtime cannot report, so a conversation-tab chip agrees with its
     /// sidebar row.
@@ -15,5 +17,14 @@ extension ThreadDetailView {
             reviewProposals: pullRequestReviewProposalCoordinator,
             settings: settingsService.current
         )
+    }
+
+    /// Working-ring sources the runtime cannot report, so a chip spins alongside its sidebar row
+    /// rather than showing the dot the same proposal raised while it was still pending.
+    ///
+    /// Read from `body` for the same reason as `decisionAttention` above, and for one more that
+    /// `ConversationWorkActivity` owns: this read *is* the chip's repaint signal.
+    var workActivity: ConversationWorkActivity {
+        ConversationWorkActivity(reviewProposals: pullRequestReviewProposalCoordinator)
     }
 }

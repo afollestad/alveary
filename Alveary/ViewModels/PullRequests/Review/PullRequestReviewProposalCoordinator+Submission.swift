@@ -6,13 +6,13 @@ import Foundation
 extension PullRequestReviewProposalCoordinator {
     /// Opens the submitting span, in both places that track it.
     ///
-    /// `submittingProposalIDs` is what the card reads; the announcement is what thread archive and
-    /// delete read, because that guard's owner is app-scoped while this coordinator is per-window —
-    /// `PullRequestReviewSubmissionActivity` owns why. Paired with `endSubmitting` so the two can
-    /// never drift: a span left open on one side would either freeze a card or wedge a thread as
-    /// permanently unarchivable.
+    /// `submittingConversationIDsByProposalID` is what the card and the sidebar's working ring
+    /// read; the announcement is what thread archive and delete read, because that guard's owner is
+    /// app-scoped while this coordinator is per-window — `PullRequestReviewSubmissionActivity` owns
+    /// why. Paired with `endSubmitting` so the two can never drift: a span left open on one side
+    /// would either freeze a card or wedge a thread as permanently unarchivable.
     func beginSubmitting(_ proposalID: String, conversationID: String) {
-        submittingProposalIDs.insert(proposalID)
+        submittingConversationIDsByProposalID[proposalID] = conversationID
         PullRequestReviewSubmissionActivity.post(
             conversationID: conversationID,
             isSubmitting: true,
@@ -23,7 +23,7 @@ extension PullRequestReviewProposalCoordinator {
     /// Closes what `beginSubmitting` opened. Called from `confirm`'s `defer`, so it runs on the
     /// failure path too.
     func endSubmitting(_ proposalID: String, conversationID: String) {
-        submittingProposalIDs.remove(proposalID)
+        submittingConversationIDsByProposalID[proposalID] = nil
         PullRequestReviewSubmissionActivity.post(
             conversationID: conversationID,
             isSubmitting: false,

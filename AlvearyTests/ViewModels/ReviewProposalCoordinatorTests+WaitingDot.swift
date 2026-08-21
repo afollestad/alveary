@@ -6,6 +6,9 @@ import XCTest
 /// `pendingSourceConversationIDs` is the only thing standing between a pending review and the
 /// sidebar's blue waiting dot — `ConversationDecisionAttention` reads nothing else from this
 /// coordinator — so every path that resolves a proposal owes it an assertion.
+///
+/// It raises the dot; it does not decide the row shows one. A submit in flight raises the working
+/// ring over it — `ReviewProposalCoordinatorTests+WorkingRing.swift`.
 @MainActor
 extension ReviewProposalCoordinatorTests {
     func testAPendingProposalMarksItsSourceConversationWaiting() throws {

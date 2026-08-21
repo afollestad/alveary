@@ -14,11 +14,12 @@ struct SidebarRenderContext {
     let showsPullRequests: Bool
     /// Per-thread status inputs, snapshotted as values once per body.
     ///
-    /// Two constraints meet here. The waiting-dot sets behind `ConversationDecisionAttention`
-    /// are cached observable coordinator state whose reads must land inside `SidebarView.body`'s
-    /// observation scope: every `sidebarThreadRow` call site sits in a `ForEach` content closure,
-    /// which registers on that element instead, and nothing else repaints the row when a proposal
-    /// resolves — that happens outside the provider turn, so no `.agentStatusChanged` bumps
+    /// Two constraints meet here. The waiting-dot and working-ring sets behind
+    /// `ConversationDecisionAttention` and `ConversationWorkActivity` are cached observable
+    /// coordinator state whose reads must land inside `SidebarView.body`'s observation scope: every
+    /// `sidebarThreadRow` call site sits in a `ForEach` content closure, which registers on that
+    /// element instead, and nothing else repaints the row when a proposal resolves or its submit
+    /// starts and ends — those happen outside the provider turn, so no `.agentStatusChanged` bumps
     /// `statusVersion`, and both proposal coordinators clear through their own `ModelContext`, so
     /// the sidebar's `@Query` never sees it either. And the persisted per-conversation reads must
     /// happen while this pass's liveness-filtered rows are known live — deferring them to a row
@@ -80,21 +81,7 @@ extension SidebarView {
             excludedThreadIDs: pendingThreadRemovalIDs
         )
         let settings = viewModel.settingsService.current
-        let decisionAttention = ConversationDecisionAttention(
-            approvals: unresolvedApprovalRegistry,
-            scheduledProposals: scheduledTaskProposalQueueCoordinator,
-            reviewProposals: pullRequestReviewProposalCoordinator,
-            settings: settings
-        )
-        var conversationStatusesByThreadID: [PersistentIdentifier: [ConversationStatusSnapshot]] = [:]
-        for conversation in queriedStatusFoldConversations.filter(\.isLiveForRender) {
-            guard let thread = conversation.thread, thread.isLiveForRender else {
-                continue
-            }
-            conversationStatusesByThreadID[thread.persistentModelID, default: []].append(
-                ConversationStatusSnapshot(conversation: conversation, attention: decisionAttention)
-            )
-        }
+        let conversationStatusesByThreadID = makeConversationStatuses(settings: settings)
         // Bound to its own `let` rather than folded into the initializer below, whose seven
         // arguments would otherwise be solved together on `body`'s type-check budget.
         let collapsedActivity = makeCollapsedActivity(
@@ -124,6 +111,39 @@ extension SidebarView {
             conversationStatusesByThreadID: conversationStatusesByThreadID,
             collapsedActivity: collapsedActivity
         )
+    }
+
+    /// This pass's per-thread status inputs. Split out of `makeRenderContext()` so neither
+    /// function's body outgrows the lint limit; `SidebarRenderContext.conversationStatusesByThreadID`
+    /// owns the two constraints that put the work in the body pass at all.
+    ///
+    /// Both coordinator reads happen here rather than behind the fold, because this runs
+    /// synchronously inside `SidebarView.body`'s observation scope — that read is what repaints a
+    /// row when a proposal resolves or its submit starts and ends.
+    private func makeConversationStatuses(
+        settings: AppSettings
+    ) -> [PersistentIdentifier: [ConversationStatusSnapshot]] {
+        let decisionAttention = ConversationDecisionAttention(
+            approvals: unresolvedApprovalRegistry,
+            scheduledProposals: scheduledTaskProposalQueueCoordinator,
+            reviewProposals: pullRequestReviewProposalCoordinator,
+            settings: settings
+        )
+        let workActivity = ConversationWorkActivity(reviewProposals: pullRequestReviewProposalCoordinator)
+        var statuses: [PersistentIdentifier: [ConversationStatusSnapshot]] = [:]
+        for conversation in queriedStatusFoldConversations.filter(\.isLiveForRender) {
+            guard let thread = conversation.thread, thread.isLiveForRender else {
+                continue
+            }
+            statuses[thread.persistentModelID, default: []].append(
+                ConversationStatusSnapshot(
+                    conversation: conversation,
+                    attention: decisionAttention,
+                    activity: workActivity
+                )
+            )
+        }
+        return statuses
     }
 
     /// The collapsed containers hiding a thread worth surfacing, folded against this pass's
