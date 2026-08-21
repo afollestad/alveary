@@ -210,6 +210,34 @@ extension SnapshotTests {
         )
     }
 
+    /// A portrait screenshot letterboxed into the row's bounded box, which is the shape that used to
+    /// stretch the row to its own 2532pt height.
+    func testDiffViewerImageRowFitsAPortraitScreenshot() throws {
+        let path = "snapshots/LOCAL_CASH_happy.png"
+        let raw = """
+        diff --git a/\(path) b/\(path)
+        deleted file mode 100644
+        index abbe130..0000000
+        Binary files a/\(path) and /dev/null differ
+        """
+        let files = DiffParser.parse(raw)
+        let fileID = FlattenedDiffPreviewRows.fileCollapseID(for: files[0], fileIndex: 0)
+
+        assertMacSnapshot(
+            FlattenedDiffPreview(
+                files: files,
+                imagePreviews: [fileID: DiffImagePreview(old: Self.imageVersion(side: .old, path: path), new: nil)],
+                showsFileHeaders: true,
+                loadImage: { _, _ in
+                    try Self.imageOutput(width: 585, height: 1_266, color: CGColor(red: 0.12, green: 0.35, blue: 0.62, alpha: 1))
+                },
+                openImage: { _ in }
+            ),
+            size: CGSize(width: 620, height: 520),
+            named: "diff_viewer_image_row_portrait"
+        )
+    }
+
     private static func imageVersion(side: DiffImageVersion.Side, path: String) -> DiffImageVersion {
         DiffImageVersion(
             source: side == .old ? .git(.head(path: path)) : .git(.worktree(path: path)),

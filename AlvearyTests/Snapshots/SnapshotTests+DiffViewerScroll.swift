@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import SwiftUI
 import XCTest
 
@@ -144,6 +145,129 @@ extension SnapshotTests {
          (function () {
         +    let ready = true;
         """
+    }
+
+    /// A portrait screenshot must not set the row's height from its own pixels.
+    ///
+    /// The row sits in a vertical scroll view, which proposes unbounded height, so a `.fit` image
+    /// answers with its intrinsic size — a 1170x2532 phone screenshot produced a 2532pt row.
+    func testDiffViewerPortraitImageDoesNotStretchTheRow() throws {
+        let host = DiffPreviewScrollHost(
+            Self.portraitImageDiffPreview(),
+            size: CGSize(width: 1_200, height: 700)
+        )
+        defer { host.close() }
+        host.pumpRunLoop(seconds: 0.3)
+
+        let scrollView = try host.scrollView()
+        assertRowHeightComesFromThePaneNotTheImage(scrollView)
+    }
+
+    /// The same row at a pane too narrow for the image, where an unbounded row also scrolls sideways.
+    func testDiffViewerPortraitImageFitsANarrowPane() throws {
+        let host = DiffPreviewScrollHost(
+            Self.portraitImageDiffPreview(),
+            size: CGSize(width: 600, height: 700)
+        )
+        defer { host.close() }
+        host.pumpRunLoop(seconds: 0.3)
+
+        let scrollView = try host.scrollView()
+        assertRowHeightComesFromThePaneNotTheImage(scrollView)
+        let maxX = try host.horizontalMaxX(in: scrollView)
+        XCTAssertEqual(maxX, 0, accuracy: 0.5)
+    }
+
+    /// An image row reports no scrollable width, so per this scope's rule it must clamp itself to the
+    /// viewport rather than stretching to the width some *other* row's long line opened up.
+    func testDiffViewerImageDoesNotStretchToAnotherRowsScrollWidth() throws {
+        let host = DiffPreviewScrollHost(
+            Self.portraitImageDiffPreview(includingLongLineFile: true),
+            size: CGSize(width: 600, height: 700)
+        )
+        defer { host.close() }
+        host.pumpRunLoop(seconds: 0.3)
+
+        let scrollView = try host.scrollView()
+        // The long line legitimately opens horizontal range...
+        let maxX = try host.horizontalMaxX(in: scrollView)
+        XCTAssertGreaterThan(maxX, 0)
+        // ...but the image row must not have grown into it.
+        assertRowHeightComesFromThePaneNotTheImage(scrollView)
+    }
+
+    /// The content is bounded by the pane rather than by the image, so the document view settles
+    /// near the viewport instead of scaling with the image's 2532pt height (it measured 3315pt at a
+    /// 1200pt pane and 1692pt at 600pt before the row was given a definite box).
+    private func assertRowHeightComesFromThePaneNotTheImage(
+        _ scrollView: NSScrollView,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let documentHeight = scrollView.documentView?.frame.height ?? 0
+        XCTAssertLessThan(
+            documentHeight,
+            scrollView.contentView.bounds.height + 200,
+            "Row height must come from the pane, not the image",
+            file: file,
+            line: line
+        )
+    }
+
+    private static func portraitImageDiffPreview(includingLongLineFile: Bool = false) -> some View {
+        let path = "snapshots/LOCAL_CASH_happy.png"
+        var raw = """
+        diff --git a/\(path) b/\(path)
+        deleted file mode 100644
+        index abbe130..0000000
+        Binary files a/\(path) and /dev/null differ
+        """
+        if includingLongLineFile {
+            raw += "\n" + longLineChangedDiff()
+        }
+        let files = DiffParser.parse(raw)
+        let fileID = FlattenedDiffPreviewRows.fileCollapseID(for: files[0], fileIndex: 0)
+        let preview = DiffImagePreview(
+            old: portraitImageVersion(path: path),
+            new: nil
+        )
+        return FlattenedDiffPreview(
+            files: files,
+            imagePreviews: [fileID: preview],
+            showsFileHeaders: true,
+            loadImage: { _, _ in try portraitImageOutput() },
+            openImage: { _ in }
+        )
+    }
+
+    private static func portraitImageVersion(path: String) -> DiffImageVersion {
+        DiffImageVersion(
+            source: .git(.head(path: path)),
+            side: .old,
+            identityPrefix: "abc123",
+            fileIdentity: path,
+            fileExtension: "png",
+            needsContentHash: false
+        )
+    }
+
+    /// A phone screenshot's proportions, which is the shape that exposed the bug.
+    private static func portraitImageOutput() throws -> DiffImagePreviewOutput {
+        let width = 1_170
+        let height = 2_532
+        let context = try XCTUnwrap(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(CGColor(red: 0.1, green: 0.1, blue: 0.1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = try XCTUnwrap(context.makeImage())
+        return DiffImagePreviewOutput(image: image, pixelSize: CGSize(width: width, height: height))
     }
 
     private static func longLineStructuredDiff() -> String {

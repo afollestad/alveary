@@ -13,6 +13,10 @@ enum DiffViewerPaneMetrics {
     /// inset, so any offset here reads as the two panes' close buttons not
     /// lining up as they swap in the shared lane.
     static let headerTrailingInset = ContextualPaneLayout.horizontalInset
+    /// Height of an image row's preview box in the flattened row stream. Tall enough that a
+    /// portrait screenshot stays legible, bounded so an image cannot set its own row's height; the
+    /// slot letterboxes inside it and a click opens the image at full size in the preview modal.
+    static let diffPreviewImageRowHeight: CGFloat = 420
     static let selectionBackgroundLeadingInset = ContextualPaneLayout.horizontalInset - 4
     static let selectionBackgroundTrailingInset = ContextualPaneLayout.horizontalInset + 1
     static let diffPreviewHorizontalInset = ContextualPaneLayout.horizontalInset - 4

@@ -406,12 +406,20 @@ private struct FlattenedDiffPreviewRenderRow: View {
             DiffPreviewRenameSummary(oldPath: oldPath, newPath: newPath)
                 .padding(.bottom, 14)
         case .imagePreview(_, let preview):
+            // A *definite* box in both axes, not a minimum. The row contributes no scrollable
+            // width and its scroll container proposes nil in each axis, so a `.fit` image answers
+            // with its intrinsic size: a 1170x2532 phone screenshot measured a 3315pt row. The
+            // width frame matters just as much — an unclamped row instead stretches to whatever
+            // scroll width some *other* row's long line opened, which drove the same screenshot to
+            // 17849pt. Current changes mode is already bounded this way by
+            // `DiffImagePreviewScrollView`'s `GeometryReader`; full size is one click away.
             DiffImagePreviewSlots(
                 preview: preview,
                 loadImage: loadImage,
                 openImage: openImage
             )
-            .frame(minHeight: 280)
+            .frame(height: DiffViewerPaneMetrics.diffPreviewImageRowHeight)
+            .diffPreviewViewportContentWidthFrame()
             .padding(.bottom, 14)
         case .binaryCallout:
             DiffCalloutCard(
