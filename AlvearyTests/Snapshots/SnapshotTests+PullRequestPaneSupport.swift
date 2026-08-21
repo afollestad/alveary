@@ -131,6 +131,47 @@ enum PullRequestPaneSnapshots {
         return session
     }
 
+    /// A bot comment whose footer is the `<section class="footnotes">` wrapper GitHub bots use.
+    /// The reviews and threads the other baselines cover are cleared so this one stays on the
+    /// comment card. `checks` is a `let`, so its section rides along.
+    static var sectionFooterSession: PullRequestPaneSession {
+        var detail = detail
+        detail.bodyMarkdown = "Adds a **Pull requests** sidebar item."
+        detail.reviews = []
+        detail.reviewThreads = []
+        detail.timelineEvents = []
+        detail.comments = [
+            PullRequestComment(
+                authorLogin: "builderbot-code-review",
+                authorAvatarURL: nil,
+                bodyMarkdown: """
+                ✅ no findings — nothing to flag! 🎉
+
+                **Risk: low.** New tip-split state is hardcoded to zero.
+
+                <section data-footnotes="" class="footnotes">
+                  <p dir="auto">
+                    <br>
+                    Reviewed <a href="https://github.com/o/r/commit/190644c">190644c</a>
+                    &nbsp;•&nbsp;
+                    Iterate locally with <code>sq agents review</code>
+                  </p>
+                </section>
+                """,
+                createdAt: Date(timeIntervalSince1970: 1_799_950_000),
+                databaseId: 601,
+                nodeID: "IC_SECTION",
+                isBot: true
+            )
+        ]
+
+        var session = PullRequestPaneSession(generation: UUID(), summary: summary)
+        session.detail = detail
+        session.isLoadingDetail = false
+        session.diffState = .loaded
+        return session
+    }
+
     /// Anchored to the generated diff's own first added line (`File0.swift`, new
     /// line 1) and not outdated, so `commentAnnotations` actually inserts a
     /// thread row into the Changes tab.

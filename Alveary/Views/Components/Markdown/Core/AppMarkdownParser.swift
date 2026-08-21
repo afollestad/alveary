@@ -82,6 +82,14 @@ struct AppMarkdownParser {
         imagePreprocessing: AppMarkdownImagePreprocessing = .altTextFallback
     ) -> (text: String, inlineImages: [BlockInputImage]) {
         var output = markdownByNormalizingFrontMatter(in: input)
+        if imagePreprocessing != .preserveSource {
+            // `.preserveSource` is the block splitter's text, and a disclosure is block-level
+            // markup it has to be able to find. Every other path renders a flat attributed
+            // string that has nowhere to put a disclosure, so the tags collapse into a bold
+            // summary above an always-visible body — which is also the fallback that keeps
+            // unbalanced markup readable.
+            output = markdownByFlatteningDisclosures(in: output)
+        }
         output = replacingMatchesOutsideCode(
             pattern: #"<u(?:\s[^>]*)?>([\s\S]*?)</u>"#,
             in: output
@@ -90,6 +98,7 @@ struct AppMarkdownParser {
         }
         output = replacingHTMLPairTags(["strong", "b"], marker: "**", in: output)
         output = replacingHTMLPairTags(["em", "i"], marker: "*", in: output)
+        output = replacingHTMLPairTags(["code"], marker: "`", in: output)
         output = replacingMatchesOutsideCode(
             pattern: #"<a\s+[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)</a>"#,
             in: output
@@ -108,6 +117,15 @@ struct AppMarkdownParser {
         ) { source, match in
             "\n\n\(source.substring(with: match.range(at: 1)))\n\n"
         }
+        // Two trailing spaces is markdown's hard line break; a bare `\n` would be folded back
+        // into the surrounding paragraph.
+        output = replacingMatchesOutsideCode(
+            pattern: #"<br\s*/?>"#,
+            in: output
+        ) { _, _ in
+            "  \n"
+        }
+        output = markdownByDroppingUnhandledHTMLTags(in: output)
         switch imagePreprocessing {
         case .preserveSource:
             return (output, [])
@@ -175,50 +193,6 @@ struct AppMarkdownParser {
 
     private func trimmedLine(_ line: String) -> String {
         line.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func replacingHTMLPairTags(
-        _ tags: [String],
-        marker: String,
-        in input: String
-    ) -> String {
-        tags.reduce(input) { partial, tag in
-            replacingMatchesOutsideCode(
-                pattern: #"<\#(tag)(?:\s[^>]*)?>([\s\S]*?)</\#(tag)>"#,
-                in: partial
-            ) { source, match in
-                marker + source.substring(with: match.range(at: 1)) + marker
-            }
-        }
-    }
-
-    private func replacingMatchesOutsideCode(
-        pattern: String,
-        in input: String,
-        replacement: (NSString, NSTextCheckingResult) -> String
-    ) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return input
-        }
-
-        let source = input as NSString
-        let fullRange = NSRange(location: 0, length: source.length)
-        let codeRanges = AppMarkdownCodeBlockParser.codeRanges(in: input)
-        let excludedRanges = codeRanges.blockRanges + codeRanges.inlineFullRanges
-        let matches = regex.matches(in: input, range: fullRange)
-            .filter { match in
-                !excludedRanges.contains { NSIntersectionRange($0, match.range).length > 0 }
-            }
-            .reversed()
-        guard !matches.isEmpty else {
-            return input
-        }
-
-        let result = NSMutableString(string: input)
-        for match in matches {
-            result.replaceCharacters(in: match.range, with: replacement(source, match))
-        }
-        return result as String
     }
 
     private func applyUnderlineMarkers(to attributedString: inout AttributedString) {

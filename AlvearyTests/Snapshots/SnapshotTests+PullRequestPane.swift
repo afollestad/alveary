@@ -23,6 +23,24 @@ extension SnapshotTests {
         }
     }
 
+    /// No other Overview baseline carries a disclosure at all. This one is the bot footer that
+    /// used to print its own `<section>` tags and box its indented body as code — it must draw a
+    /// single collapsed chevron instead, with the comment's prose above it untouched.
+    func testPullRequestPaneOverviewSectionFooter() async throws {
+        AppMarkdownDetailsExpansionStore.removeAll()
+        await assertMacModelSnapshot(
+            modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),
+            size: CGSize(width: 460, height: 900),
+            named: "pull_request_pane_overview_section_footer"
+        ) {
+            PullRequestPaneOverview(
+                session: PullRequestPaneSnapshots.sectionFooterSession,
+                viewModel: PullRequestPaneSnapshots.inertViewModel,
+                onOpenFiles: {}
+            )
+        }
+    }
+
     func testPullRequestPaneOverviewDark() async throws {
         await assertMacModelSnapshot(
             modelContainer: try PullRequestPaneSnapshots.makeModelContainer(),

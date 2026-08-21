@@ -5,7 +5,10 @@ let appMarkdownImageDefaultAspectRatio: CGFloat = 16.0 / 9.0
 let appMarkdownImageMinimumDisplayDimension: CGFloat = 24
 
 extension AppMarkdownParser {
-    func appMarkdownDocumentBlocks(
+    /// Splits a fragment into markdown and image blocks. Disclosures are already gone by the
+    /// time this runs — `appMarkdownDocumentBlocks(for:fullContent:)` lifts those out first and
+    /// feeds each remaining fragment through here.
+    func appMarkdownImageBlocks(
         for input: String,
         fullContent: AttributedString? = nil
     ) throws -> [AppMarkdownDocumentBlock] {
@@ -53,17 +56,6 @@ extension AppMarkdownParser {
             return [.markdown(try attributedString(for: input))]
         }
         return blocks
-    }
-
-    func appMarkdownDocumentBlocksPreservingSource(
-        for input: String,
-        fullContent: AttributedString
-    ) -> [AppMarkdownDocumentBlock] {
-        do {
-            return try appMarkdownDocumentBlocks(for: input, fullContent: fullContent)
-        } catch {
-            return [.markdown(fullContent)]
-        }
     }
 
     private func appendMarkdownBlock(

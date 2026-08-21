@@ -13,15 +13,47 @@ struct AppKitMarkdownBlockRenderer {
     let heightInvalidationHandler: () -> Void
     var imageStore: AppMarkdownImageStore = .shared
 
-    func views(for blocks: [AppMarkdownDocumentBlock]) -> [NSView] {
-        blocks.flatMap { block -> [NSView] in
+    /// Block index prefixes the path, matching `AppKitMarkdownLayoutMeasurer.measureBlocks` and the
+    /// SwiftUI renderer — task and disclosure state is keyed by it, so the three have to agree.
+    func views(for blocks: [AppMarkdownDocumentBlock], path: String = "") -> [NSView] {
+        blocks.enumerated().flatMap { index, block -> [NSView] in
+            let blockPath = path.appMarkdownAppendingPathComponent(index)
             switch block {
             case .markdown(let content):
-                return views(for: content)
+                return views(for: content, path: blockPath)
             case .image(let imageBlock):
                 return [imageView(for: imageBlock)]
+            case .details(let detailsBlock):
+                return [detailsView(for: detailsBlock, path: blockPath)]
             }
         }
+    }
+
+    private func detailsView(
+        for block: AppMarkdownDetailsBlock,
+        path: String
+    ) -> NSView {
+        AppKitMarkdownDetailsBlockView(
+            summary: AppKitMarkdownAttributedStringBuilder.attributedString(
+                from: block.summary,
+                baseFont: typography.body,
+                inlineCodeFont: typography.inlineCode,
+                weight: .regular,
+                inlineCodeStyle: inlineCodeStyle,
+                imageStore: imageStore
+            ),
+            accessibilityLabel: detailsAccessibilityLabel(for: block),
+            hasBody: !block.blocks.isEmpty,
+            storeID: AppMarkdownDetailsExpansionStore.key(namespace: taskStateNamespace, path: path),
+            isInitiallyOpen: block.isInitiallyOpen,
+            makeContentViews: { self.views(for: block.blocks, path: path) },
+            onHeightInvalidated: heightInvalidationHandler
+        )
+    }
+
+    private func detailsAccessibilityLabel(for block: AppMarkdownDetailsBlock) -> String {
+        let text = String(block.summary.characters)
+        return text.isEmpty ? AppMarkdownDetailsSyntaxParser.defaultSummary : text
     }
 
     func views<Content: AttributedStringProtocol>(

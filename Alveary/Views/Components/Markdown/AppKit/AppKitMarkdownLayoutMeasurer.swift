@@ -2,7 +2,6 @@
 import Foundation
 import SwiftUI
 
-private let rendererVersion = 3
 private let tableMinimumColumnWidth: CGFloat = 120
 private let tableFallbackViewportWidth: CGFloat = 520
 private let tableCellHorizontalPadding: CGFloat = 10
@@ -68,6 +67,12 @@ struct AppKitMarkdownLayoutMeasurer {
                 )
             case .image(let imageBlock):
                 return measureImage(imageBlock.image, width: width)
+            case .details(let detailsBlock):
+                return measureDetails(
+                    detailsBlock,
+                    width: width,
+                    path: path.appMarkdownAppendingPathComponent(index)
+                )
             }
         }
         let spacing = AppKitMarkdownMetrics.blockSpacing * CGFloat(max(measurements.count - 1, 0))
@@ -127,6 +132,57 @@ struct AppKitMarkdownLayoutMeasurer {
         default:
             return measureText(content, font: typography.body, weight: .regular, width: width)
         }
+    }
+
+    /// Mirrors `AppKitMarkdownDetailsBlockView`.
+    ///
+    /// Collapsed, a disclosure is its header and nothing else — no body height and no block
+    /// spacing, because the view removes its body from the stack rather than hiding it at zero
+    /// height. Adding a spacing here that the view does not draw is what would leave the pane
+    /// reserving a gap under a collapsed section.
+    private func measureDetails(
+        _ block: AppMarkdownDetailsBlock,
+        width: CGFloat,
+        path: String
+    ) -> AppKitMarkdownLayoutMeasurement {
+        let summary = AppKitMarkdownAttributedStringBuilder.attributedString(
+            from: block.summary,
+            baseFont: typography.body,
+            inlineCodeFont: typography.inlineCode,
+            weight: .regular,
+            inlineCodeStyle: inlineCodeStyle,
+            imageStore: imageStore
+        )
+        let chevronLane = AppMarkdownDetailsMetrics.chevronWidth + AppMarkdownDetailsMetrics.chevronSpacing
+        let summarySize = measuredTextSize(summary, width: max(width - chevronLane, 0), wraps: true)
+        let headerHeight = ceil(summarySize.height)
+        let headerNaturalWidth = ceil(summarySize.width + chevronLane)
+
+        let isExpanded = AppMarkdownDetailsExpansionStore.value(
+            for: AppMarkdownDetailsExpansionStore.key(namespace: document.taskStateNamespace, path: path),
+            defaultValue: block.isInitiallyOpen
+        )
+        guard isExpanded, !block.blocks.isEmpty else {
+            return AppKitMarkdownLayoutMeasurement(
+                contentHeight: headerHeight,
+                naturalContentWidth: headerNaturalWidth,
+                fallbackRequired: false
+            )
+        }
+
+        let body = measureBlocks(
+            block.blocks,
+            width: max(width - AppMarkdownDetailsMetrics.bodyIndent, 0),
+            path: path
+        )
+        return AppKitMarkdownLayoutMeasurement(
+            contentHeight: ceil(headerHeight + AppMarkdownDetailsMetrics.bodySpacing + body.contentHeight),
+            naturalContentWidth: max(
+                headerNaturalWidth,
+                ceil(body.naturalContentWidth + AppMarkdownDetailsMetrics.bodyIndent)
+            ),
+            fallbackRequired: body.fallbackRequired
+        )
     }
 
     private func measureText(
@@ -376,93 +432,6 @@ struct AppKitMarkdownLayoutMeasurer {
         let value = String(content.characters)
         return value.hasSuffix("\n") ? String(value.dropLast()) : value
     }
-}
-
-struct AppKitMarkdownLayoutMeasurement: Equatable {
-    let contentHeight: CGFloat
-    let naturalContentWidth: CGFloat
-    let fallbackRequired: Bool
-}
-
-/// Cache identity for prepared markdown measurements. Keep this aligned with
-/// every input that can change text layout or bubble chrome height.
-struct AppKitMarkdownPreparedLayoutKey: Hashable {
-    let rowID: String?
-    let markdown: String
-    let role: String
-    let availableWidth: CGFloat
-    let bubbleMaxWidth: CGFloat
-    let typography: AppKitMarkdownTypographySignature
-    let inlineCodeStyle: AppMarkdownInlineCodeStyle
-    let appearanceName: String
-    let isExpanded: Bool
-    let showsRetry: Bool
-    // Inline images swap from alt text to attachments as they load, changing
-    // measured heights; the digest keeps pre-load measurements from sticking.
-    let inlineImageFingerprint: String
-    let rendererVersion: Int
-
-    init(
-        rowID: String?,
-        markdown: String,
-        role: String,
-        availableWidth: CGFloat,
-        bubbleMaxWidth: CGFloat,
-        typography: AppKitMarkdownTypography,
-        inlineCodeStyle: AppMarkdownInlineCodeStyle,
-        appearanceName: String,
-        isExpanded: Bool,
-        showsRetry: Bool,
-        inlineImageFingerprint: String = "",
-        rendererVersion: Int = AppKitMarkdownRendererVersion.current
-    ) {
-        self.rowID = rowID
-        self.markdown = markdown
-        self.role = role
-        self.availableWidth = availableWidth
-        self.bubbleMaxWidth = bubbleMaxWidth
-        self.typography = AppKitMarkdownTypographySignature(typography)
-        self.inlineCodeStyle = inlineCodeStyle
-        self.appearanceName = appearanceName
-        self.isExpanded = isExpanded
-        self.showsRetry = showsRetry
-        self.inlineImageFingerprint = inlineImageFingerprint
-        self.rendererVersion = rendererVersion
-    }
-}
-
-struct AppKitMarkdownTypographySignature: Hashable {
-    let title1: FontSignature
-    let title2: FontSignature
-    let headline: FontSignature
-    let subheadline: FontSignature
-    let body: FontSignature
-    let codeBlock: FontSignature
-    let inlineCode: FontSignature
-
-    init(_ typography: AppKitMarkdownTypography) {
-        title1 = FontSignature(typography.title1)
-        title2 = FontSignature(typography.title2)
-        headline = FontSignature(typography.headline)
-        subheadline = FontSignature(typography.subheadline)
-        body = FontSignature(typography.body)
-        codeBlock = FontSignature(typography.codeBlock)
-        inlineCode = FontSignature(typography.inlineCode)
-    }
-
-    struct FontSignature: Hashable {
-        let fontName: String
-        let pointSize: CGFloat
-
-        init(_ font: NSFont) {
-            fontName = font.fontName
-            pointSize = font.pointSize
-        }
-    }
-}
-
-enum AppKitMarkdownRendererVersion {
-    static let current = rendererVersion
 }
 
 private extension Collection {

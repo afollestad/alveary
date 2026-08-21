@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 
+/// Matches `AppKitMarkdownMetrics.blockSpacing`, so a document's blocks sit the same distance
+/// apart in both renderers.
+private let appMarkdownDocumentBlockSpacing: CGFloat = 8
+
 struct AppMarkdownRenderer: View {
     let document: AppMarkdownDocument
     let inlineCodeStyle: AppMarkdownInlineCodeStyle
@@ -15,30 +19,15 @@ struct AppMarkdownRenderer: View {
                     inlineCodeStyle: inlineCodeStyle
                 )
             } else {
-                interleavedBlocks
+                AppMarkdownBlockList(
+                    blocks: document.blocks,
+                    taskStateNamespace: document.taskStateNamespace,
+                    inlineCodeStyle: inlineCodeStyle,
+                    baseURL: baseURL
+                )
             }
         }
         .textSelection(.enabled)
-    }
-
-    /// Image blocks interleave with markdown fragments; fragment indices prefix the
-    /// task-state path so checkbox identity stays stable across the split.
-    private var interleavedBlocks: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(document.blocks.enumerated()), id: \.offset) { index, block in
-                switch block {
-                case .markdown(let content):
-                    AppMarkdownBlockContent(
-                        content: content,
-                        taskStateNamespace: document.taskStateNamespace,
-                        path: "\(index)",
-                        inlineCodeStyle: inlineCodeStyle
-                    )
-                case .image(let imageBlock):
-                    AppMarkdownImageBlockView(block: imageBlock, baseURL: baseURL)
-                }
-            }
-        }
     }
 
     private var onlyContent: AttributedString? {
@@ -47,5 +36,56 @@ struct AppMarkdownRenderer: View {
             return nil
         }
         return content
+    }
+}
+
+/// Markdown fragments, image blocks, and disclosures interleave in source order.
+///
+/// Block indices prefix the task-state path so checkbox and disclosure identity stay stable
+/// across the split, and so a disclosure's body gets its own path space — two checkboxes at the
+/// same position inside and outside a disclosure must not share one entry.
+///
+/// This is a plain `VStack`, deliberately not `AppMarkdownBlockStackLayout`: that layout caches
+/// its measurement by proposal width and subview count, neither of which changes when a
+/// disclosure opens, so a disclosure hosted there would keep reporting its collapsed height.
+struct AppMarkdownBlockList: View {
+    let blocks: [AppMarkdownDocumentBlock]
+    let taskStateNamespace: String
+    var pathPrefix: String = ""
+    let inlineCodeStyle: AppMarkdownInlineCodeStyle
+    var baseURL: URL?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: appMarkdownDocumentBlockSpacing) {
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
+                blockView(block, path: pathPrefix.appMarkdownAppendingPathComponent(index))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func blockView(
+        _ block: AppMarkdownDocumentBlock,
+        path: String
+    ) -> some View {
+        switch block {
+        case .markdown(let content):
+            AppMarkdownBlockContent(
+                content: content,
+                taskStateNamespace: taskStateNamespace,
+                path: path,
+                inlineCodeStyle: inlineCodeStyle
+            )
+        case .image(let imageBlock):
+            AppMarkdownImageBlockView(block: imageBlock, baseURL: baseURL)
+        case .details(let detailsBlock):
+            AppMarkdownDetailsBlockView(
+                block: detailsBlock,
+                taskStateNamespace: taskStateNamespace,
+                path: path,
+                inlineCodeStyle: inlineCodeStyle,
+                baseURL: baseURL
+            )
+        }
     }
 }

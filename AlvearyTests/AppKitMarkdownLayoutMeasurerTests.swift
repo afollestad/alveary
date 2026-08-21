@@ -180,7 +180,8 @@ final class AppKitMarkdownLayoutMeasurerTests: XCTestCase {
         XCTAssertEqual(measured.contentHeight, view.intrinsicContentSize.height, accuracy: 0.5)
     }
 
-    private func assertMarkdownMeasurementParity(
+    // Not private: the `+Details` companion measures disclosures through the same helper.
+    func assertMarkdownMeasurementParity(
         _ markdown: String,
         width: CGFloat = 420,
         file: StaticString = #filePath,
