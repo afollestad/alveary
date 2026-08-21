@@ -281,7 +281,8 @@ private struct PullRequestActivityEntryView: View {
                     markdown: bodyMarkdown,
                     nodeID: nodeID,
                     reactions: reactions,
-                    viewModel: viewModel
+                    viewModel: viewModel,
+                    stateScope: nodeID ?? ""
                 )
             }
         }

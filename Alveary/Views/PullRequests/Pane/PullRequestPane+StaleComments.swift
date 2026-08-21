@@ -58,7 +58,12 @@ struct PullRequestPaneStaleComments: View {
                     )
                 }
             }
-            AppMarkdownText(markdown: comment.bodyMarkdown)
+            // A stale comment exists only inside the proposal envelope, so its array position
+            // is the only identity available to separate its disclosure state from a sibling's.
+            AppMarkdownText(
+                markdown: comment.bodyMarkdown,
+                taskStateScope: "stale:\(comment.path):\(comment.proposedIndex)"
+            )
         }
         .accessibilityElement(children: .contain)
         // No line to name — that is the whole point — so the label says the file and the reason.

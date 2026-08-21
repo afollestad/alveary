@@ -313,12 +313,16 @@ struct PullRequestCommentBody: View {
     let nodeID: String?
     let reactions: [PullRequestCommentReaction]
     let viewModel: PullRequestsViewModel
+    /// Namespaces this comment's interactive markdown state — `<details>` expansion, task
+    /// checkboxes — which is otherwise keyed by body text alone, so two comments carrying the
+    /// same section would open and close together. Empty falls back to that shared keying.
+    var stateScope: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             let sanitized = PullRequestMarkdown.sanitized(markdown)
             if !sanitized.isEmpty {
-                AppMarkdownText(markdown: sanitized)
+                AppMarkdownText(markdown: sanitized, taskStateScope: stateScope)
             }
 
             if let nodeID {

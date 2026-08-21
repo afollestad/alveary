@@ -3,12 +3,31 @@ import XCTest
 @testable import Alveary
 
 final class PullRequestMarkdownTests: XCTestCase {
-    func testRewritesDetailsSummaryAndParagraphTags() {
+    /// The sanitizer used to flatten a disclosure into a bold summary above an always-visible
+    /// body. It now leaves the tags for the markdown layer, which renders a real collapsible
+    /// block; rewriting them here would reopen every section its author chose to collapse.
+    func testPassesDetailsAndSummaryThroughWhileRewritingParagraphs() {
         let input = "Cheers\n<details><summary>Test run logs</summary>\n<p>\nBody text\n</p></details>"
 
         let output = PullRequestMarkdown.sanitized(input)
 
-        XCTAssertEqual(output, "Cheers\n\n**Test run logs**\n\nBody text")
+        XCTAssertEqual(output, "Cheers\n<details><summary>Test run logs</summary>\n\nBody text\n\n</details>")
+    }
+
+    /// The sanitized string is what every pull request surface hands the renderer, so the round
+    /// trip is what proves the pane actually gets a disclosure.
+    func testSanitizedDetailsSurviveIntoACollapsibleBlock() throws {
+        let sanitized = PullRequestMarkdown.sanitized(
+            "<details><summary>Test run logs</summary>\n\nBody text\n\n</details>"
+        )
+
+        let document = try AppMarkdownParser().document(for: sanitized)
+
+        guard case .details(let details) = document.blocks.first else {
+            return XCTFail("Expected a details block, got \(document.blocks)")
+        }
+        XCTAssertEqual(String(details.summary.characters), "Test run logs")
+        XCTAssertFalse(details.isInitiallyOpen)
     }
 
     /// The `builderbot-code-review` footer, verbatim. Every defect it used to draw is asserted

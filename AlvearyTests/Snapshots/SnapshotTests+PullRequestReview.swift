@@ -90,6 +90,44 @@ extension SnapshotTests {
         )
     }
 
+    /// A bot's `<details>` section, collapsed, as the comment's **last** block — where the gap a
+    /// disagreeing view and measurer would leave lands against the card's bottom edge, visible
+    /// rather than buried between paragraphs. The second comment repeats the first's summary text
+    /// on purpose: their disclosure state is namespaced per comment, so only one opens at a time.
+    func testDiffCommentThreadRowCollapsedDetails() {
+        AppMarkdownDetailsExpansionStore.removeAll()
+        let thread = DiffLineCommentThread(
+            comments: [
+                DiffLineComment(
+                    author: "ci-bot",
+                    bodyMarkdown: "Coverage dropped by 0.4%.\n\n<details><summary>Test run logs</summary>\n\nfailing case: row 42\n\n</details>",
+                    isPending: false,
+                    remoteID: 987,
+                    nodeID: "PRRC_987",
+                    isBot: true
+                ),
+                DiffLineComment(
+                    author: "carol",
+                    bodyMarkdown: "<details><summary>Test run logs</summary>\n\na different body\n\n</details>",
+                    isPending: false,
+                    remoteID: 988,
+                    nodeID: "PRRC_988"
+                )
+            ]
+        )
+
+        assertMacSnapshot(
+            DiffCommentThreadRow(
+                thread: thread,
+                anchor: Self.reviewAnchor,
+                interaction: Self.inertReviewInteraction()
+            )
+            .padding(16),
+            size: CGSize(width: 520, height: 240),
+            named: "diff_comment_thread_row_collapsed_details"
+        )
+    }
+
     func testDiffCommentThreadRowResolvedCollapsed() {
         let thread = DiffLineCommentThread(
             comments: [

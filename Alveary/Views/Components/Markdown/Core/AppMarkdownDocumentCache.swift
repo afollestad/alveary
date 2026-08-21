@@ -103,8 +103,9 @@ enum AppMarkdownDocumentCache {
         markdown: String,
         context: AppMarkdownDocumentCacheContext
     ) -> NSString {
-        // `taskStateScope` only namespaces interactive checkbox state; it does not
-        // change parsed markdown, so identical content can share the cached document.
+        // `taskStateScope` only namespaces interactive state — checkboxes and `<details>`
+        // expansion; it does not change parsed markdown, so identical content can share the
+        // cached document.
         [
             component(context.baseURL?.absoluteString ?? ""),
             component(context.inlineCodeStyle.cacheKey),

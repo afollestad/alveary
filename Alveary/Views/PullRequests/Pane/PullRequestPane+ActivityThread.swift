@@ -170,7 +170,10 @@ struct PullRequestReviewThreadView: View {
                     // reactions on it; withholding the node id hides the bar.
                     nodeID: comment.isPending ? nil : comment.nodeID,
                     reactions: comment.reactions,
-                    viewModel: viewModel
+                    viewModel: viewModel,
+                    // Unlike `nodeID`, this wants the pending comment's id too: the scope only
+                    // separates one comment's disclosure state from another's.
+                    stateScope: comment.nodeID ?? ""
                 )
             }
         }

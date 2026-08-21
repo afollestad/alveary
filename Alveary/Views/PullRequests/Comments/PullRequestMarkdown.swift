@@ -2,9 +2,13 @@ import Foundation
 
 /// GitHub-flavored markdown allows a small set of raw HTML that the app's markdown
 /// renderer prints literally. Rewrites the common tags into markdown equivalents
-/// (`<summary>` → bold, `<b>` → `**`, `<br>` → newline) and strips the known
-/// wrappers (`<details>`, `<p>`, comments). Fenced code blocks pass through
-/// untouched so code samples containing HTML stay verbatim.
+/// (`<b>` → `**`, `<br>` → newline) and strips the known wrappers (`<p>`, comments).
+/// Fenced code blocks pass through untouched so code samples containing HTML stay verbatim.
+///
+/// **`<details>` and `<summary>` deliberately pass through.** The markdown layer owns them now —
+/// `AppMarkdownDetailsSyntaxParser` lifts them into a real collapsible block. Rewriting the summary
+/// to bold here would flatten the disclosure back open and hand the reader the long log its author
+/// chose to hide.
 enum PullRequestMarkdown {
     static func sanitized(_ markdown: String) -> String {
         // Alternate segments: outside/inside fenced code blocks. Only even-indexed
@@ -20,13 +24,6 @@ enum PullRequestMarkdown {
     private static func sanitizeSegment(_ segment: String) -> String {
         var text = segment
         replace(&text, pattern: "<!--.*?-->", with: "", options: [.dotMatchesLineSeparators])
-        replace(
-            &text,
-            pattern: "<summary(\\s[^>]*)?>(.*?)</summary>",
-            with: "**$2**\n",
-            options: [.dotMatchesLineSeparators, .caseInsensitive]
-        )
-        replace(&text, pattern: "</?details(\\s[^>]*)?>", with: "\n", options: [.caseInsensitive])
         replace(&text, pattern: "</?p(\\s[^>]*)?>", with: "\n\n", options: [.caseInsensitive])
         replace(&text, pattern: "<br\\s*/?>", with: "\n", options: [.caseInsensitive])
         replace(&text, pattern: "</?(b|strong)>", with: "**", options: [.caseInsensitive])

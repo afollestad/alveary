@@ -266,7 +266,7 @@ struct PullRequestPaneOverview: View, Equatable {
                     .font(.body)
                     .foregroundStyle(.secondary)
             } else {
-                AppMarkdownText(markdown: body)
+                AppMarkdownText(markdown: body, taskStateScope: detail.nodeID ?? "")
                     .environment(\.openURL, OpenURLAction { url in
                         UIApplicationShim.open(url: url)
                         return .handled
