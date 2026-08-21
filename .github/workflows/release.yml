@@ -80,6 +80,20 @@ jobs:
           TAG_NAME: ${{ needs.detect.outputs.tag }}
         run: scripts/ci/ensure-release-tag-available.sh
 
+      # The archive passes no `-derivedDataPath`, so `SourcePackages` lands under a
+      # settings-hashed DerivedData path that is not worth targeting. These two are
+      # path-stable and hold the clones and manifest cache, which is where a cold
+      # resolve spends its time.
+      - name: Cache Swift packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.swiftpm/cache
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-release-swiftpm-${{ hashFiles('project.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-release-swiftpm-
+
       - name: Install build tools
         run: scripts/ci/install-release-tools.sh
 
