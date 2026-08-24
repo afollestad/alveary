@@ -43,6 +43,15 @@ final class BlockInputComposerStyleTests: XCTestCase {
         }
     }
 
+    func testComposerStyleOpensUpLineSpacing() {
+        let style = BlockInputComposerStyle.make()
+
+        // A chip fill is taller than its line, so the editor's default of 0 read as colliding with
+        // the line below it.
+        XCTAssertEqual(style.baseText.lineSpacing, BlockInputComposerStyle.lineSpacing)
+        XCTAssertGreaterThan(BlockInputComposerStyle.lineSpacing, 0)
+    }
+
     func testComposerStyleUsesAlvearyChipTokens() {
         let style = BlockInputComposerStyle.make()
 

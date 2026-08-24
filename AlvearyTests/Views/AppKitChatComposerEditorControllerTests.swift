@@ -108,7 +108,9 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
             invalidationAnimationFlags.append(animateSurfaceHeight)
         }
 
-        controller.configure(makeConfiguration(text: "ss\ns"))
+        // Taller than the two visible lines `editorBaseHeight` seeds, so the first measurement has
+        // something to correct; a draft that rests at the seeded height reports nothing.
+        controller.configure(makeConfiguration(text: "ss\ns\ns\ns"))
         invalidationAnimationFlags.removeAll()
         _ = controller.measuredHeight(width: 400)
 

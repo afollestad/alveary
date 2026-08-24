@@ -3,6 +3,14 @@ import BlockInputKit
 
 enum BlockInputComposerStyle {
     static let chipCornerRadius: CGFloat = 4
+    /// Air BlockInputKit puts between the rendered lines of a wrapping composer block.
+    ///
+    /// A chip fill is taller than the line it sits on, so at the editor's default of `0` a wrapped
+    /// draft read as colliding with the line below it. This is literal points, unscaled by
+    /// `blockVerticalInsetMultiplier` (which scales block insets, not text metrics). TextKit leaves
+    /// a block's last line alone, so only wrapped drafts get taller and the resting composer height
+    /// — which `editorBaseHeight` has to match — does not move.
+    static let lineSpacing: CGFloat = 3
     static let completionPopupCornerRadius: CGFloat = AppCornerRadius.standard
     static let completionPopupBorderWidth: CGFloat = 1
     static let imagePreviewThumbnailSize = NSSize(width: 76, height: 76)
@@ -51,6 +59,7 @@ enum BlockInputComposerStyle {
         strokedEdges: BlockInputEditorChromeEdges = .all
     ) -> BlockInputStyle {
         return BlockInputStyle(
+            baseText: BlockInputTextStyle(lineSpacing: lineSpacing),
             selectionBackgroundColor: selectionBackgroundColor,
             inlineCode: BlockInputInlineCodeStyle(
                 foregroundColor: AppMarkdownCodeBlockPalette.composerChipForegroundNSColor,

@@ -85,7 +85,11 @@ final class AppKitChatComposerEditorController {
 extension AppKitChatComposerEditorController {
     nonisolated static let editorHorizontalPadding: CGFloat = 14
     nonisolated static let editorVerticalPadding: CGFloat = 10
-    nonisolated static let editorBaseHeight: CGFloat = 68
+    /// Seeds `measuredEditorHeight` until BlockInputKit reports the editor's own height, so it has
+    /// to equal the empty composer's resting height or the first frame lays out at the wrong size.
+    /// `AppKitChatComposerEditorControllerTests+Height.swift` measures that height and fails when
+    /// the two drift apart.
+    nonisolated static let editorBaseHeight: CGFloat = 65
     nonisolated static let editorCornerRadius: CGFloat = AppCornerRadius.standard
     nonisolated static let borderWidth: CGFloat = 1
     nonisolated static let autocompleteVerticalOffset: CGFloat = 8
