@@ -51,6 +51,32 @@ final class AutoNamingTests: XCTestCase {
         )
     }
 
+    /// A composer file mention is a Markdown link labelled with the whole repo-relative path, which used to fill the
+    /// preview budget on its own and leave the thread titled `In...`.
+    func testSessionPreviewCompactsFileMentionPathToFileName() {
+        let path = "local/views/src/main/kotlin/app/cash/local/views/brand/profile/v2/content/tabs/" +
+            "LocalBrandProfileV2ContentAboutTab.kt"
+
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: "In [\(path)](\(path)) the `CenteredDividedChip` doesn't center its inner Row"
+            ),
+            "In LocalBrandProfileV2ContentAboutTab.kt the..."
+        )
+    }
+
+    /// The composer labels a mention with an absolute path whenever the user's query started at `/`, and the
+    /// generator's slash-command guard reads the *flattened* text — so before the label compacted to its file name, a
+    /// message opening with one looked like `/command` and suppressed the title entirely.
+    func testSessionPreviewTitlesAMessageOpeningWithAnAbsolutePathMention() {
+        let path = "/Users/me/Development/project/Sources/SomeVeryLongFileName.swift"
+
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: "[\(path)](\(path)) needs the parser fix"),
+            "SomeVeryLongFileName.swift needs the parser fix"
+        )
+    }
+
     func testSessionPreviewReplacesHTMLImageTagBeforeTruncating() {
         XCTAssertEqual(
             AgentSessionPreviewGenerator.preview(
