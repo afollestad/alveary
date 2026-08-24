@@ -12,6 +12,13 @@ import Foundation
 /// A project-scoped read carries that project's trust state and must never be served stale, and
 /// the two filtered accessors have no callers here, so all of them pass straight through.
 ///
+/// `timeToLive` bounds *staleness*, not latency: an aged snapshot is returned on the caller's own
+/// cycle and refreshed behind the answer. A TTL that instead made the read block turned every New
+/// Thread click past the session's first minute back into the full fan-out, with no UI feedback
+/// because selection only moves once `SidebarViewModel.openDraftThread` returns. The one read that
+/// still blocks is the first after launch or after `invalidate()`, which is what the `warm()` call
+/// sites front-run.
+///
 /// Provider *enablement* is not cached at all: `ThreadDefaultResolver` reads it from `AppSettings`
 /// on every resolve. What ages here is installation state, setup readiness, and model catalogs —
 /// all of which change from the Agents settings screen, which invalidates before it reads.
@@ -20,8 +27,9 @@ actor CachingAgentProviderDiscoveryService: AgentProviderDiscoveryService {
     private let timeToLive: TimeInterval
     private let now: @Sendable () -> Date
 
-    private var cachedStatuses: [AgentProviderID: AgentProviderStatus]?
-    private var cachedAt: Date?
+    /// One optional rather than a statuses/timestamp pair, so "have an answer" and "know its age"
+    /// cannot disagree — every read decides whether to serve or refresh from both at once.
+    private var snapshot: Snapshot?
     /// Every caller waiting on a probe shares this one; without it a burst of thread creations
     /// each spawns the full subprocess fan-out.
     private var inFlight: Task<[AgentProviderID: AgentProviderStatus], Never>?
@@ -43,27 +51,16 @@ actor CachingAgentProviderDiscoveryService: AgentProviderDiscoveryService {
         guard projectURL == nil else {
             return await base.providerStatuses(projectURL: projectURL)
         }
-        if let cachedStatuses, let cachedAt, now().timeIntervalSince(cachedAt) <= timeToLive {
-            return cachedStatuses
+        guard let snapshot else {
+            return await probe().value
         }
-        if let inFlight {
-            return await inFlight.value
+        if !isSnapshotFresh {
+            // Refresh behind the answer rather than ahead of it. Discarding the task is the
+            // point: `probe()` has already published it as `inFlight`, and awaiting it here is
+            // exactly the blocking read this decorator exists to prevent.
+            _ = probe()
         }
-
-        let startedAt = generation
-        let task = Task { [base] in await base.providerStatuses(projectURL: nil) }
-        inFlight = task
-        let statuses = await task.value
-        guard generation == startedAt else {
-            // Invalidated mid-probe. The answer predates whatever changed, so it is not
-            // cacheable — but it is still exactly what this caller would have got, and
-            // `inFlight` now belongs to whoever came after the invalidation.
-            return statuses
-        }
-        inFlight = nil
-        cachedStatuses = statuses
-        cachedAt = now()
-        return statuses
+        return snapshot.statuses
     }
 
     func installedProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] {
@@ -84,15 +81,54 @@ actor CachingAgentProviderDiscoveryService: AgentProviderDiscoveryService {
 
     /// Drops the cache and disowns any probe already running, so the next read re-probes.
     func invalidate() {
-        cachedStatuses = nil
-        cachedAt = nil
+        snapshot = nil
         inFlight = nil
         generation &+= 1
     }
 
-    /// Fills the cache ahead of the first thread creation. Launch calls this so the session's
-    /// first New Thread or agentic review does not pay for discovery.
+    /// Blocks until the snapshot is fresh, unlike `providerStatuses(projectURL:)`, which never
+    /// waits once it has any snapshot at all. Launch, wake, and each opened pull request call this
+    /// so the session's one genuinely blocking read happens off the click path.
     func warm() async {
-        _ = await providerStatuses(projectURL: nil)
+        guard !isSnapshotFresh else { return }
+        _ = await probe().value
+    }
+
+    /// Returns the shared probe, starting one when none is running.
+    ///
+    /// The result is stored from inside the task rather than by the awaiting caller, because a
+    /// stale-serving read has no caller left to write it back. It must stay an unstructured
+    /// `Task` for the same reason: `async let` or a task-group child would be cancelled the
+    /// moment the click returns, so the refresh would never land.
+    private func probe() -> Task<[AgentProviderID: AgentProviderStatus], Never> {
+        if let inFlight {
+            return inFlight
+        }
+        let startedAt = generation
+        let task = Task { [self] in
+            let statuses = await base.providerStatuses(projectURL: nil)
+            store(statuses, generation: startedAt)
+            return statuses
+        }
+        inFlight = task
+        return task
+    }
+
+    /// Adopts a completed probe's answer unless it was invalidated mid-flight, in which case the
+    /// answer predates whatever changed and `inFlight` already belongs to whoever came after.
+    private func store(_ statuses: [AgentProviderID: AgentProviderStatus], generation startedAt: Int) {
+        guard generation == startedAt else { return }
+        inFlight = nil
+        snapshot = Snapshot(statuses: statuses, storedAt: now())
+    }
+
+    private var isSnapshotFresh: Bool {
+        guard let snapshot else { return false }
+        return now().timeIntervalSince(snapshot.storedAt) <= timeToLive
+    }
+
+    private struct Snapshot {
+        let statuses: [AgentProviderID: AgentProviderStatus]
+        let storedAt: Date
     }
 }

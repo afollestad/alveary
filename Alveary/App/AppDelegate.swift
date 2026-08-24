@@ -79,14 +79,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
-            await dependencies.providerDetection.checkAllProviders()
-            guard !Task.isCancelled else {
-                return
-            }
-
-            // Fills the shared discovery cache before the user can ask for a thread, so the
-            // session's first New Thread or agentic review skips the subprocess fan-out.
-            await dependencies.providerDiscoveryCache.warm()
+            // Both fan out subprocesses per provider, and neither reads the other's result, so
+            // running them in series only widens the window in which the session's first New
+            // Thread still pays for discovery. Scheduled activation stays behind both.
+            let providerDetection = dependencies.providerDetection
+            let providerDiscoveryCache = dependencies.providerDiscoveryCache
+            async let detection: Void = providerDetection.checkAllProviders()
+            async let discoveryWarm: Void = providerDiscoveryCache.warm()
+            _ = await (detection, discoveryWarm)
             guard !Task.isCancelled else {
                 return
             }

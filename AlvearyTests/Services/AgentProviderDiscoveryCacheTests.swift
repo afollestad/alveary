@@ -8,11 +8,14 @@ import XCTest
 /// subprocess fan-out, without ever answering a project-scoped or post-install read from memory.
 final class AgentProviderDiscoveryCacheTests: XCTestCase {
     /// Counts probes and can be held open, so a test can prove coalescing rather than infer it.
+    /// Its answer is settable because stale-while-revalidate makes *which* snapshot a read served
+    /// the thing under test, not just how many probes ran.
     private actor ProbeCountingDiscovery: AgentProviderDiscoveryService {
         private(set) var allCallCount = 0
         private(set) var lastProjectURLs: [URL?] = []
         private var gate: CheckedContinuation<Void, Never>?
         private var isHeld = false
+        private var answer: [AgentProviderID: AgentProviderStatus] = [:]
 
         func hold() {
             isHeld = true
@@ -24,6 +27,10 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
             gate = nil
         }
 
+        func setAnswer(_ answer: [AgentProviderID: AgentProviderStatus]) {
+            self.answer = answer
+        }
+
         func providerStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] {
             allCallCount += 1
             lastProjectURLs.append(projectURL)
@@ -32,7 +39,7 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
                     gate = continuation
                 }
             }
-            return [:]
+            return answer
         }
 
         func installedProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { [:] }
@@ -84,15 +91,29 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
-    func testAReadPastTheWindowProbesAgain() async {
+    /// The TTL bounds staleness, not latency. A read past the window must not block on the
+    /// subprocess fan-out — that is exactly the New Thread delay this decorator exists to remove.
+    func testAStaleReadIsAnsweredFromTheSnapshotAndRefreshesBehindIt() async {
         let fixture = makeService()
-
+        await fixture.base.setAnswer(Self.statuses(version: "1.0.0"))
         _ = await fixture.service.providerStatuses(projectURL: nil)
+
         fixture.clock.advance(61)
-        _ = await fixture.service.providerStatuses(projectURL: nil)
+        await fixture.base.setAnswer(Self.statuses(version: "2.0.0"))
+        await fixture.base.hold()
 
-        let count = await fixture.base.allCallCount
-        XCTAssertEqual(count, 2)
+        let stale = await fixture.service.providerStatuses(projectURL: nil)
+        XCTAssertEqual(stale[.claude]?.availability?.versionDescription, "1.0.0")
+
+        await waitUntil("expected the stale read to have started a refresh") {
+            await fixture.base.allCallCount == 2
+        }
+        await fixture.base.release()
+
+        await waitUntil("expected the refresh to replace the snapshot") {
+            let statuses = await fixture.service.providerStatuses(projectURL: nil)
+            return statuses[.claude]?.availability?.versionDescription == "2.0.0"
+        }
     }
 
     /// A burst of thread creations must share one probe; without coalescing each would spawn the
@@ -175,5 +196,55 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
 
         let count = await fixture.base.allCallCount
         XCTAssertEqual(count, 1)
+    }
+
+    /// `warm()` is the one path that still blocks, so wake's re-warm resolves before the next
+    /// read rather than handing it the pre-sleep snapshot.
+    func testWarmRefreshesAStaleSnapshotBeforeReturning() async {
+        let fixture = makeService()
+        await fixture.base.setAnswer(Self.statuses(version: "1.0.0"))
+        await fixture.service.warm()
+
+        fixture.clock.advance(61)
+        await fixture.base.setAnswer(Self.statuses(version: "2.0.0"))
+        await fixture.service.warm()
+
+        let statuses = await fixture.service.providerStatuses(projectURL: nil)
+        let count = await fixture.base.allCallCount
+        XCTAssertEqual(count, 2)
+        XCTAssertEqual(statuses[.claude]?.availability?.versionDescription, "2.0.0")
+    }
+
+    /// Distinguishable snapshots, so a test can assert which one a read served.
+    private static func statuses(version: String) -> [AgentProviderID: AgentProviderStatus] {
+        [
+            .claude: AgentProviderStatus(
+                providerId: .claude,
+                definition: ClaudeProviderDefinition.definition,
+                installation: .installed,
+                availability: AgentProviderAvailability(
+                    providerId: .claude,
+                    executablePath: "/usr/local/bin/claude",
+                    versionDescription: version
+                ),
+                setup: .ready,
+                modelOptions: []
+            )
+        ]
+    }
+
+    private func waitUntil(
+        _ message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        condition: () async -> Bool
+    ) async {
+        for _ in 0..<200 {
+            if await condition() {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail(message, file: file, line: line)
     }
 }

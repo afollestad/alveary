@@ -88,6 +88,46 @@ final class ConversationViewAsyncRoutingTests: XCTestCase {
         )
     }
 
+    /// A refresh keeps showing the last resolved snapshot for its key, so a new thread's model
+    /// list and Goal-mode tooltip do not blank out while its own probe runs.
+    func testARefreshReSeedsFromTheCachedSnapshotForItsOwnKey() {
+        ComposerProviderStatusCache.removeAll()
+        defer { ComposerProviderStatusCache.removeAll() }
+
+        let request = ConversationAsyncRouting.ProviderStatusRequest(
+            key: "request-a",
+            projectURL: URL(fileURLWithPath: "/tmp/project-a", isDirectory: true)
+        )
+        let stored = ComposerProviderStatusSnapshot(
+            ordering: [.codex, .claude],
+            statuses: [.claude: providerStatus(for: .claude)]
+        )
+        ComposerProviderStatusCache.store(stored, for: request.key)
+
+        let seeded = ConversationAsyncRouting.seededProviderStatusSnapshot(for: request)
+
+        XCTAssertEqual(seeded?.ordering, [.codex, .claude])
+        XCTAssertEqual(Set(seeded?.statuses.keys.map(\.self) ?? []), Set([.claude]))
+    }
+
+    /// A draft project reassignment changes the key, and the previous project's snapshot is not
+    /// an honest answer for the new one — the composer must report not-loaded instead.
+    func testARefreshUnderAnUnseenKeyHasNoSnapshotToReSeedFrom() {
+        ComposerProviderStatusCache.removeAll()
+        defer { ComposerProviderStatusCache.removeAll() }
+
+        ComposerProviderStatusCache.store(
+            ComposerProviderStatusSnapshot(ordering: [.claude], statuses: [.claude: providerStatus(for: .claude)]),
+            for: "request-a"
+        )
+        let requestB = ConversationAsyncRouting.ProviderStatusRequest(
+            key: "request-b",
+            projectURL: URL(fileURLWithPath: "/tmp/project-b", isDirectory: true)
+        )
+
+        XCTAssertNil(ConversationAsyncRouting.seededProviderStatusSnapshot(for: requestB))
+    }
+
     func testOlderWorkingDirectoryWarmCannotSwitchDiffAfterNewerReassignment() async throws {
         let fixture = try ConversationAsyncRoutingThreadFixture(threadCount: 1)
         let thread = try XCTUnwrap(fixture.threads.first)

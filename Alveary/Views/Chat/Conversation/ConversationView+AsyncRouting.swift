@@ -21,7 +21,22 @@ extension ConversationView {
             ),
             projectURL: projectURL
         )
-        hasLoadedComposerProviderStatuses = false
+        // Thread switches create a fresh `ConversationView`; seed it from the
+        // last successful discovery result so model-scoped effort labels do not
+        // temporarily disappear while async provider discovery warms back up.
+        //
+        // Keyed on the *new* request key, not the mount: `init`'s seed belongs to the key this
+        // view was built with, so a draft project reassignment must re-seed here or honestly
+        // report not-loaded. Clearing the flag unconditionally emptied the model list and put
+        // Goal mode back to "Checking..." on every mount, defeating that seeding.
+        if let seeded = ConversationAsyncRouting.seededProviderStatusSnapshot(for: request) {
+            composerProviderOrdering = seeded.ordering
+            composerProviderStatuses = seeded.statuses
+            hasLoadedComposerProviderStatuses = true
+        } else {
+            hasLoadedComposerProviderStatuses = false
+        }
+
         guard let result = await ConversationAsyncRouting.loadProviderStatuses(
             request: request,
             providerDiscovery: providerDiscovery,
@@ -30,9 +45,6 @@ extension ConversationView {
             return
         }
 
-        // Thread switches create a fresh `ConversationView`; seed it from the
-        // last successful discovery result so model-scoped effort labels do not
-        // temporarily disappear while async provider discovery warms back up.
         ConversationAsyncRouting.applyProviderStatusResult(result) { snapshot in
             composerProviderOrdering = snapshot.ordering
             composerProviderStatuses = snapshot.statuses
@@ -91,6 +103,14 @@ enum ConversationAsyncRouting {
             return nil
         }
         return ProviderStatusResult(requestKey: request.key, snapshot: snapshot)
+    }
+
+    /// The snapshot a refresh may keep showing while its own probe runs, or `nil` when this key
+    /// has never resolved. Exists as a static so `ConversationViewAsyncRoutingTests` can reach the
+    /// lookup without hosting the view.
+    @MainActor
+    static func seededProviderStatusSnapshot(for request: ProviderStatusRequest) -> ComposerProviderStatusSnapshot? {
+        ComposerProviderStatusCache.snapshot(for: request.key)
     }
 
     @MainActor

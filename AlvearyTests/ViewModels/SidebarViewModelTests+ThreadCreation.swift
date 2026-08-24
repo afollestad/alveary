@@ -137,6 +137,48 @@ extension SidebarViewModelTests {
         XCTAssertEqual(fixture.settingsService.current.lastActiveProjectPath, beta.path)
     }
 
+    /// The reported New Thread delay, at the layer that produced it. `SidebarView+Actions` only
+    /// moves the selection once this returns, so a blocking discovery probe leaves the content
+    /// pane on the old thread for the whole subprocess fan-out.
+    func testOpenDraftThreadDoesNotWaitOnAStaleProviderDiscoveryProbe() async throws {
+        let base = PausingDraftProviderDiscoveryService(
+            statuses: [
+                .claude: SettingsViewModelTests.providerStatus(
+                    for: .claude,
+                    modelOptions: AgentModelOptionTestFixtures.claudeModelOptions
+                )
+            ],
+            startsPaused: false
+        )
+        let clock = DraftDiscoveryTestClock()
+        let cache = CachingAgentProviderDiscoveryService(
+            base: base,
+            timeToLive: 60,
+            now: { clock.now }
+        )
+        await cache.warm()
+        clock.advance(61)
+        await base.pause()
+
+        let fixture = try SidebarTestFixture(providerDiscovery: cache)
+        let project = try fixture.insertProject(name: "Alpha", path: "/tmp/stale-discovery-alpha")
+
+        // Would hang here before stale-while-revalidate: the held probe was on the click's path.
+        let draft = try await fixture.viewModel.openDraftThread(project: project)
+        XCTAssertTrue(try fixture.requireThread(draft).isDraft)
+
+        var refreshStarted = false
+        for _ in 0..<200 {
+            if await base.providerStatusesCallCount() == 2 {
+                refreshStarted = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(refreshStarted, "expected the stale read to refresh behind the answer")
+        await base.resumeProviderStatuses()
+    }
+
     func testCreateThreadSeedsDefaultsAndInitialConversationForGitProjects() async throws {
         let fixture = try SidebarTestFixture(defaultEffort: "max", createWorktreeByDefault: true)
         let project = Project(
@@ -325,143 +367,5 @@ extension SidebarViewModelTests {
         XCTAssertFalse(savedThread.useWorktree)
         XCTAssertEqual(savedThread.effort, "max")
         XCTAssertEqual(savedThread.conversations.count, 1)
-    }
-}
-
-@MainActor
-private func makePreservedDraftRuntime(conversationID: String) -> PreservedDraftRuntime {
-    let store = MockConversationRuntimeStore()
-    let state = store.conversationState(for: conversationID)
-    let attachmentDate = Date(timeIntervalSince1970: 123)
-    let image = LocalImageAttachment(
-        id: "image",
-        fileURL: URL(fileURLWithPath: "/tmp/draft-image.png"),
-        label: "draft-image.png",
-        createdAt: attachmentDate
-    )
-    let file = LocalFileAttachment(
-        id: "file",
-        fileURL: URL(fileURLWithPath: "/tmp/draft-notes.txt"),
-        createdAt: attachmentDate
-    )
-    let appShot = AppShotAttachment(
-        id: "app-shot",
-        appName: "Preview",
-        bundleIdentifier: "com.apple.Preview",
-        windowTitle: "Draft window",
-        screenshot: image,
-        axTreeText: "Draft accessibility text",
-        focusedElementSummary: "Focused text field",
-        attachmentStoreRoot: URL(fileURLWithPath: "/tmp/draft-app-shots", isDirectory: true)
-    )
-    let goal = AgentGoalSnapshot(
-        objective: "Preserve the draft",
-        status: .active,
-        availableActions: [.pause, .delete],
-        elapsedSeconds: 10
-    )
-    state.inputDraft = "Keep this composer text"
-    state.inputDraftIsEffectivelyEmpty = false
-    state.stagedContext = "Keep this staged context"
-    state.stagedImageAttachments = [image]
-    state.stagedFileAttachments = [file]
-    state.stagedAppShots = [appShot]
-    state.isGoalModeArmed = true
-    state.goalSnapshot = goal
-    return PreservedDraftRuntime(store: store, state: state, image: image, file: file, appShot: appShot, goal: goal)
-}
-
-@MainActor
-private func assertPreservedDraftRuntime(_ preserved: PreservedDraftRuntime, conversationID: String) {
-    let movedState = preserved.store.conversationState(for: conversationID)
-    XCTAssertTrue(movedState === preserved.state)
-    XCTAssertEqual(movedState.inputDraft, "Keep this composer text")
-    XCTAssertFalse(movedState.inputDraftIsEffectivelyEmpty)
-    XCTAssertEqual(movedState.stagedContext, "Keep this staged context")
-    XCTAssertEqual(movedState.stagedImageAttachments, [preserved.image])
-    XCTAssertEqual(movedState.stagedFileAttachments, [preserved.file])
-    XCTAssertEqual(movedState.stagedAppShots, [preserved.appShot])
-    XCTAssertTrue(movedState.isGoalModeArmed)
-    XCTAssertEqual(movedState.goalSnapshot, preserved.goal)
-}
-
-private struct PreservedDraftRuntime {
-    let store: MockConversationRuntimeStore
-    let state: ConversationState
-    let image: LocalImageAttachment
-    let file: LocalFileAttachment
-    let appShot: AppShotAttachment
-    let goal: AgentGoalSnapshot
-}
-
-private actor PausingDraftProviderDiscoveryService: AgentCLIKit.AgentProviderDiscoveryService {
-    private let statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
-    private var didRequestProviderStatuses = false
-    private var requestWaiters: [CheckedContinuation<Void, Never>] = []
-    private var providerStatusesContinuation: CheckedContinuation<Void, Never>?
-
-    init(statuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]) {
-        self.statuses = statuses
-    }
-
-    func providerStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        didRequestProviderStatuses = true
-        requestWaiters.forEach { $0.resume() }
-        requestWaiters.removeAll()
-        await withCheckedContinuation { providerStatusesContinuation = $0 }
-        return statuses
-    }
-
-    func installedProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses.filter { $0.value.isInstalled }
-    }
-
-    func availableProviderStatuses(projectURL: URL?) async -> [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus] {
-        statuses.filter { $0.value.isEnabled && $0.value.installation != .missing }
-    }
-
-    func modelOptions(for providerId: AgentCLIKit.AgentProviderID) async -> [AgentCLIKit.AgentModelOption] {
-        statuses[providerId]?.modelOptions ?? []
-    }
-
-    func stableProviderOrdering() async -> [AgentCLIKit.AgentProviderID] {
-        [.claude, .codex]
-    }
-
-    func waitUntilProviderStatusesRequested() async {
-        guard !didRequestProviderStatuses else {
-            return
-        }
-        await withCheckedContinuation { requestWaiters.append($0) }
-    }
-
-    func resumeProviderStatuses() {
-        providerStatusesContinuation?.resume()
-        providerStatusesContinuation = nil
-    }
-}
-
-private enum DraftProjectMoveSaveError: Error {
-    case forced
-}
-
-private final class DraftProjectChangeNotificationRecorder: @unchecked Sendable {
-    private let expectedThreadID: PersistentIdentifier
-    private let lock = NSLock()
-    private var recordedCount = 0
-
-    init(expectedThreadID: PersistentIdentifier) {
-        self.expectedThreadID = expectedThreadID
-    }
-
-    var count: Int {
-        lock.withLock { recordedCount }
-    }
-
-    func recordIfMatching(_ payload: [AnyHashable: Any]?) {
-        guard payload?[ThreadDraftNotificationKey.threadID] as? PersistentIdentifier == expectedThreadID else {
-            return
-        }
-        lock.withLock { recordedCount += 1 }
     }
 }
