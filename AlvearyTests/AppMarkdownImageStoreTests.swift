@@ -220,6 +220,37 @@ final class AppMarkdownImageStoreTests: XCTestCase {
         XCTAssertEqual(store.loadStateFingerprint(forMarkdown: markdown), "l40x20")
     }
 
+    /// The SwiftUI table's grid layout caches column widths and keys them on this overload, so an
+    /// image cell that resolves has to move the digest just as the markdown variant does.
+    func testLoadStateFingerprintForImagesTracksALoad() async throws {
+        let store = AppMarkdownImageStore(loader: StubImageLoader(result: .success), diskCache: nil)
+        let image = BlockInputImage(source: "https://example.com/p1.png")
+        let before = store.loadStateFingerprint(forImages: [image])
+
+        store.ensureLoad(for: image, baseURL: nil)
+        try await waitForLoadedImage(of: "https://example.com/p1.png", in: store)
+
+        XCTAssertEqual(before, "n")
+        XCTAssertEqual(store.loadStateFingerprint(forImages: [image]), "l40x20")
+        XCTAssertEqual(store.loadStateFingerprint(forImages: []), "")
+    }
+
+    /// The invariant every snapshot baseline holding a fixture image depends on: a dark-mode host
+    /// records the same bytes a light-mode CI runner renders. Filling with the dynamic color
+    /// directly baked the host's variant in, and the two disagreed over the whole image area.
+    func testFixturePNGBytesDoNotDependOnTheHostAppearance() throws {
+        var perAppearance: [Data] = []
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            var data: Data?
+            NSAppearance(named: name)?.performAsCurrentDrawingAppearance {
+                data = try? appMarkdownTestPNGData(width: 4, height: 4, color: .systemIndigo)
+            }
+            perAppearance.append(try XCTUnwrap(data))
+        }
+
+        XCTAssertEqual(perAppearance.first, perAppearance.last)
+    }
+
     private func temporaryDirectoryURL() throws -> URL {
         let directoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -398,6 +429,10 @@ struct AppMarkdownPendingImageLoader: BlockInputImageLoading {
 }
 
 /// Builds a solid-color PNG whose pixel size equals its point size (72 DPI).
+///
+/// The fill resolves through `appearanceStableFixtureFillColor(_:)`, so the bytes are the same on
+/// every machine — a snapshot baseline holding one of these images is compared pixel for pixel
+/// against a CI run of the same test.
 func appMarkdownTestPNGData(width: Int, height: Int, color: NSColor = .systemTeal) throws -> Data {
     guard let bitmap = NSBitmapImageRep(
         bitmapDataPlanes: nil,
@@ -417,7 +452,7 @@ func appMarkdownTestPNGData(width: Int, height: Int, color: NSColor = .systemTea
     NSGraphicsContext.saveGraphicsState()
     if let context = NSGraphicsContext(bitmapImageRep: bitmap) {
         NSGraphicsContext.current = context
-        color.setFill()
+        appearanceStableFixtureFillColor(color).setFill()
         NSRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)).fill()
         context.flushGraphics()
     }
@@ -426,6 +461,18 @@ func appMarkdownTestPNGData(width: Int, height: Int, color: NSColor = .systemTea
         throw AppMarkdownImageFixtureError.invalidFixture
     }
     return data
+}
+
+/// Flattens a fill to concrete sRGB components under Aqua, because `NSColor.systemIndigo` and every
+/// other system color is dynamic: a fixture built on a dark-mode machine bakes the dark variant into
+/// its bytes, and a snapshot recorded there disagrees with a light-mode CI runner over the whole
+/// image area — far past the perceptual tolerance for a saturated hue.
+func appearanceStableFixtureFillColor(_ color: NSColor) -> NSColor {
+    var resolved = color
+    NSAppearance(named: .aqua)?.performAsCurrentDrawingAppearance {
+        resolved = color.usingColorSpace(.sRGB) ?? color
+    }
+    return resolved
 }
 
 enum AppMarkdownImageFixtureError: Error {

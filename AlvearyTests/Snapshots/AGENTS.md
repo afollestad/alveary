@@ -16,6 +16,7 @@ These instructions cover `AlvearyTests/Snapshots/` — `SnapshotTests` and its `
 
 - **Keep stored baselines at 2x, and never re-record one only because CI captured it at 1x.** The fallback normalizes the 2x reference in memory; re-recording against a 1x runner would bake the lower-resolution capture in for everyone.
 - **Reach for `assertMacModelSnapshot()` whenever the view reads `@Query`.** The synchronous helper returns before SwiftUI unregisters SwiftData observations, so a later in-memory context save crashes an unrelated test. A custom persistent host that bypasses both helpers owes the same pairing — `closeSnapshotWindow()` then `awaitSnapshotHostTeardown(retaining:)`.
+- **Fill a fixture bitmap through `appearanceStableFixtureFillColor(_:)`.** System colors are dynamic, so a dark-mode host bakes the dark variant into the bytes and a light-mode CI runner disagrees over the whole image area.
 - **A passing `verify` is not proof the baseline is current.** `precision: 0.99` budgets 1% of pixels and a changed label occupies far less — a full-screen toggle-title rename measured ~0.2% — so `verify` passes with the old text still in the PNG. For an intentional visible change, `record` the affected baselines and eyeball the new images. Do not chase this with stricter call-site precision; the decode drift `defaultPixelPrecision` describes lives on exactly those large images.
 
 ### Organizing Baselines

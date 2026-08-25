@@ -2,10 +2,6 @@
 import Foundation
 import SwiftUI
 
-private let tableMinimumColumnWidth: CGFloat = 120
-private let tableFallbackViewportWidth: CGFloat = 520
-private let tableCellHorizontalPadding: CGFloat = 10
-private let tableCellVerticalPadding: CGFloat = 7
 private let codeBlockHorizontalInset: CGFloat = 12
 private let codeBlockVerticalInset: CGFloat = 10
 // AppKit's scroll-view-backed code block fitting keeps short code surfaces from
@@ -309,8 +305,9 @@ struct AppKitMarkdownLayoutMeasurer {
         guard columnCount > 0 else {
             return AppKitMarkdownLayoutMeasurement(contentHeight: 0, naturalContentWidth: 0, fallbackRequired: false)
         }
-        let viewportWidth = tableViewportWidth(columnCount: columnCount, width: width)
-        let tableWidth = max(CGFloat(columnCount) * tableMinimumColumnWidth, viewportWidth)
+        let columnWidthFloor = columnWidthFloor(rows: rows)
+        let viewportWidth = tableViewportWidth(columnCount: columnCount, columnWidthFloor: columnWidthFloor, width: width)
+        let tableWidth = max(CGFloat(columnCount) * columnWidthFloor, viewportWidth)
         let columnWidth = tableWidth / CGFloat(columnCount)
         let height = rows.enumerated().reduce(CGFloat.zero) { total, rowContext in
             let rowIndex = rowContext.offset
@@ -338,6 +335,12 @@ struct AppKitMarkdownLayoutMeasurer {
         isHeader: Bool,
         width: CGFloat
     ) -> CGFloat {
+        if let cellImage = content.appMarkdownSoleInlineImage {
+            let imageHeight = AppKitMarkdownTableMetrics
+                .imageDisplaySize(for: cellImage, store: imageStore, inCellWidth: width)
+                .height
+            return ceil(imageHeight + AppKitMarkdownTableMetrics.cellVerticalPadding * 2)
+        }
         let attributed = AppKitMarkdownAttributedStringBuilder.attributedString(
             from: content,
             baseFont: typography.body,
@@ -346,8 +349,8 @@ struct AppKitMarkdownLayoutMeasurer {
             inlineCodeStyle: inlineCodeStyle,
             imageStore: imageStore
         )
-        let textWidth = max(width - tableCellHorizontalPadding * 2, 0)
-        return ceil(measuredTextSize(attributed, width: textWidth, wraps: true).height + tableCellVerticalPadding * 2)
+        let textWidth = max(width - AppKitMarkdownTableMetrics.cellHorizontalPadding * 2, 0)
+        return ceil(measuredTextSize(attributed, width: textWidth, wraps: true).height + AppKitMarkdownTableMetrics.cellVerticalPadding * 2)
     }
 
     private func measureAttributedText(
@@ -398,12 +401,24 @@ struct AppKitMarkdownLayoutMeasurer {
         return ceil(typography.body.ascender - typography.body.descender + typography.body.leading)
     }
 
-    private func tableViewportWidth(columnCount: Int, width: CGFloat) -> CGFloat {
-        let naturalWidth = CGFloat(columnCount) * tableMinimumColumnWidth
+    private func tableViewportWidth(columnCount: Int, columnWidthFloor: CGFloat, width: CGFloat) -> CGFloat {
+        let naturalWidth = CGFloat(columnCount) * columnWidthFloor
         if width > 0 {
             return min(naturalWidth, width)
         }
-        return min(naturalWidth, tableFallbackViewportWidth)
+        return min(naturalWidth, AppKitMarkdownTableMetrics.fallbackViewportWidth)
+    }
+
+    /// Mirrors `AppKitMarkdownTableView`'s floor: the widest image cell raises every equal-width
+    /// column, so a fitted bitmap is not squeezed into the text-table minimum.
+    private func columnWidthFloor(rows: [[AttributedString]]) -> CGFloat {
+        rows.lazy.joined().reduce(AppKitMarkdownTableMetrics.minimumColumnWidth) { floor, cell in
+            guard let cellImage = cell.appMarkdownSoleInlineImage else {
+                return floor
+            }
+            let width = AppKitMarkdownTableMetrics.imageDisplaySize(for: cellImage, store: imageStore).width
+            return max(floor, width + AppKitMarkdownTableMetrics.cellHorizontalPadding * 2)
+        }
     }
 
     private func tableRows(

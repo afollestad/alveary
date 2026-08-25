@@ -21,7 +21,7 @@ final class AppKitMarkdownView: NSView {
     }
     var onOpenImage: ((BlockInputImage, URL?) -> Void)? {
         didSet {
-            applyImageOpenHandler(to: self)
+            applyImageOpenHandler()
         }
     }
 
@@ -194,11 +194,10 @@ final class AppKitMarkdownView: NSView {
         view.subviews.forEach(applyLinkHandler(to:))
     }
 
-    private func applyImageOpenHandler(to view: NSView) {
-        if let imageView = view as? AppKitMarkdownImageBlockView {
+    private func applyImageOpenHandler() {
+        appKitMarkdownImageViews(in: self).forEach { imageView in
             imageView.onOpen = onOpenImage
         }
-        view.subviews.forEach(applyImageOpenHandler(to:))
     }
 
     private func updateImageDisplayWidths() {
@@ -209,8 +208,14 @@ final class AppKitMarkdownView: NSView {
         }
     }
 
+    /// Every image block this document owns *directly*. The walk stops at a table because a table
+    /// cell's image answers to its column, not to the document: the cell fits the bitmap to the
+    /// column width and opens the author's wrapper link, both of which this pass would overwrite.
     private func appKitMarkdownImageViews(in view: NSView) -> [AppKitMarkdownImageBlockView] {
         view.subviews.flatMap { child -> [AppKitMarkdownImageBlockView] in
+            guard !(child is AppKitMarkdownTableView) else {
+                return []
+            }
             var matches = appKitMarkdownImageViews(in: child)
             if let imageView = child as? AppKitMarkdownImageBlockView {
                 matches.insert(imageView, at: 0)

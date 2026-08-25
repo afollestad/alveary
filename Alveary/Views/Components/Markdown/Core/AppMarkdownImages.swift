@@ -1,9 +1,6 @@
 import BlockInputKit
 import Foundation
 
-let appMarkdownImageDefaultAspectRatio: CGFloat = 16.0 / 9.0
-let appMarkdownImageMinimumDisplayDimension: CGFloat = 24
-
 extension AppMarkdownParser {
     /// Splits a fragment into markdown and image blocks. Disclosures are already gone by the
     /// time this runs — `appMarkdownDocumentBlocks(for:fullContent:)` lifts those out first and
@@ -128,38 +125,6 @@ func appMarkdownCompactDisplaySource(from input: String) -> String {
             pattern: #"</?\s*[A-Za-z][A-Za-z0-9:-]*(?:\s+[^<>]*)?\s*/?>"#,
             with: ""
         )
-}
-
-func appMarkdownImageDisplaySize(
-    for image: BlockInputImage,
-    constrainedTo width: CGFloat,
-    defaultAspectRatio: CGFloat = appMarkdownImageDefaultAspectRatio
-) -> CGSize {
-    let availableWidth = max(width, appMarkdownImageMinimumDisplayDimension)
-    let aspectRatio = max(defaultAspectRatio, 0.01)
-    let sourceWidth: CGFloat
-    let sourceHeight: CGFloat
-
-    switch (image.width, image.height) {
-    case let (width?, height?):
-        sourceWidth = CGFloat(width)
-        sourceHeight = CGFloat(height)
-    case let (width?, nil):
-        sourceWidth = CGFloat(width)
-        sourceHeight = sourceWidth / aspectRatio
-    case let (nil, height?):
-        sourceHeight = CGFloat(height)
-        sourceWidth = sourceHeight * aspectRatio
-    case (nil, nil):
-        sourceWidth = availableWidth
-        sourceHeight = availableWidth / aspectRatio
-    }
-
-    return appMarkdownConstrainedImageSize(
-        width: sourceWidth,
-        height: sourceHeight,
-        availableWidth: availableWidth
-    )
 }
 
 enum AppMarkdownImageSourceResolver {
@@ -312,29 +277,6 @@ extension BlockInputImage {
     var appMarkdownAltFallback: String {
         altText.isEmpty ? source : altText
     }
-
-    /// Fills in missing dimensions from the image's real pixel size so display
-    /// sizing wraps the bitmap instead of falling back to
-    /// `appMarkdownImageDefaultAspectRatio`. Declared HTML dimensions win — an
-    /// author who sized an image meant it. Both renderers and the AppKit
-    /// measurer resolve through this, or a measured height stops matching a
-    /// drawn one.
-    func appMarkdownResolved(naturalSize: CGSize?) -> BlockInputImage {
-        guard let naturalSize,
-              naturalSize.width > 0,
-              naturalSize.height > 0,
-              width == nil,
-              height == nil else {
-            return self
-        }
-        return BlockInputImage(
-            source: source,
-            altText: altText,
-            width: Int(naturalSize.width.rounded()),
-            height: Int(naturalSize.height.rounded()),
-            sourceStyle: sourceStyle
-        )
-    }
 }
 
 extension String {
@@ -360,20 +302,6 @@ private extension NSString {
         }
         return true
     }
-}
-
-private func appMarkdownConstrainedImageSize(
-    width: CGFloat,
-    height: CGFloat,
-    availableWidth: CGFloat
-) -> CGSize {
-    let safeWidth = max(width, appMarkdownImageMinimumDisplayDimension)
-    let safeHeight = max(height, appMarkdownImageMinimumDisplayDimension)
-    let scale = min(1, availableWidth / safeWidth)
-    return CGSize(
-        width: ceil(max(appMarkdownImageMinimumDisplayDimension, safeWidth * scale)),
-        height: ceil(max(appMarkdownImageMinimumDisplayDimension, safeHeight * scale))
-    )
 }
 
 private extension Array where Element == AppMarkdownImageMatch {

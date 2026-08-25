@@ -54,7 +54,7 @@ private struct ComposerPlusMenuSnapshot: NSViewControllerRepresentable {
 private func composerPlusMenuAppShotIcon() -> NSImage {
     let image = NSImage(size: NSSize(width: 128, height: 128))
     image.lockFocus()
-    NSColor.systemIndigo.setFill()
+    appearanceStableFixtureFillColor(.systemIndigo).setFill()
     NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: 128, height: 128), xRadius: 26, yRadius: 26).fill()
     image.unlockFocus()
     return image

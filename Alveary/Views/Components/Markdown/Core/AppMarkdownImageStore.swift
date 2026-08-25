@@ -29,7 +29,12 @@ final class AppMarkdownImageStore {
     /// probe below fills it synchronously *during* a SwiftUI `body`, and an
     /// observed mutation there would re-enter the render pass. A remote source
     /// lands here only via a load, which flips observed `states` in the same
-    /// turn and drives the refresh instead.
+    /// turn and drives the refresh instead — but only for a view that reads
+    /// `states`. A SwiftUI view that sizes itself from `naturalSize(for:)` alone
+    /// registers no dependency and, if its own stored properties are unchanged
+    /// across the load, is never re-evaluated: it keeps the pre-load box and
+    /// squeezes the bitmap into it. Resolve such a box in a parent that reads
+    /// load state and pass the size down.
     @ObservationIgnored private var naturalSizes: [String: CGSize] = [:]
     /// Keys whose file probe already ran, so a source that has no readable
     /// header is not re-probed on every layout pass.
@@ -276,10 +281,20 @@ final class AppMarkdownImageStore {
         guard markdown.contains("![") || markdown.range(of: "<img", options: .caseInsensitive) != nil else {
             return ""
         }
-        return AppMarkdownImageSyntaxParser.imageMatchesOutsideCode(in: markdown)
-            .map { match in
+        return loadStateFingerprint(
+            forImages: AppMarkdownImageSyntaxParser.imageMatchesOutsideCode(in: markdown).map(\.image),
+            baseURL: baseURL
+        )
+    }
+
+    /// The same digest for callers holding already-parsed images rather than the markdown that
+    /// produced them — the SwiftUI table's grid layout caches column widths across passes and
+    /// only its cells' images can change them.
+    func loadStateFingerprint(forImages images: [BlockInputImage], baseURL: URL? = nil) -> String {
+        images
+            .map { image in
                 let stateMark: String
-                switch states[storageKey(forSource: match.image.source, baseURL: baseURL)] {
+                switch states[storageKey(forSource: image.source, baseURL: baseURL)] {
                 case .none:
                     stateMark = "n"
                 case .loading:
@@ -289,7 +304,7 @@ final class AppMarkdownImageStore {
                 case .loaded:
                     stateMark = "l"
                 }
-                guard let size = naturalSize(for: match.image, baseURL: baseURL) else {
+                guard let size = naturalSize(for: image, baseURL: baseURL) else {
                     return stateMark
                 }
                 return "\(stateMark)\(Int(size.width))x\(Int(size.height))"

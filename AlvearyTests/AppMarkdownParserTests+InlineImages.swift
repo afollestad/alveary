@@ -78,6 +78,84 @@ extension AppMarkdownParserTests {
         XCTAssertNil(inlineImageInfo(for: "P1", in: attributed))
     }
 
+    func testTableCellHoldingOnlyALinkedImageResolvesToACellImage() throws {
+        let document = AppMarkdownParser().documentPreservingSource(for: Self.beforeAfterTableMarkdown)
+        let cellImages = tableCells(in: document).compactMap(\.appMarkdownSoleInlineImage)
+
+        XCTAssertEqual(cellImages.count, 2)
+        let before = try XCTUnwrap(cellImages.first)
+        XCTAssertEqual(before.image.source, "https://example.com/before.png")
+        XCTAssertEqual(before.image.altText, "Before")
+        // The wrapper link is what a click follows, so it has to survive the cell round trip.
+        XCTAssertEqual(before.link, URL(string: "https://example.com/before.mp4"))
+    }
+
+    func testTableCellCarryingTextIsNotACellImage() throws {
+        let document = AppMarkdownParser().documentPreservingSource(for: Self.beforeAfterTableMarkdown)
+        let textCells = tableCells(in: document).filter { $0.appMarkdownSoleInlineImage == nil }
+
+        // Both header cells and both build-link cells stay inline text.
+        XCTAssertEqual(textCells.count, 4)
+
+        let mixed = AppMarkdownParser()
+            .documentPreservingSource(for: "Shipped ![P1](https://example.com/p1.png)")
+        XCTAssertNil(mixed.content.appMarkdownSoleInlineImage)
+    }
+
+    func testInlineImageDisplaySizeFitsTheInlineCap() {
+        let info = AppMarkdownInlineImageInfo(
+            image: BlockInputImage(source: "https://example.com/tall.png", altText: "Tall")
+        )
+
+        let badge = info.displaySize(forNaturalSize: CGSize(width: 40, height: 20))
+        XCTAssertEqual(badge, CGSize(width: 40, height: 20))
+
+        // A phone capture inline: scaled into the cap instead of sizing at 720x1565.
+        let capture = info.displaySize(forNaturalSize: CGSize(width: 720, height: 1_565))
+        XCTAssertLessThanOrEqual(capture.width, appMarkdownInlineImageMaxSize.width)
+        XCTAssertLessThanOrEqual(capture.height, appMarkdownInlineImageMaxSize.height)
+        XCTAssertEqual(capture.width / capture.height, 720.0 / 1_565.0, accuracy: 0.01)
+    }
+
+    func testBaselineDropCentersBadgesAndClampsPictures() {
+        let capHeight: CGFloat = 9
+
+        // Unchanged for a badge: it still centers on the cap-height midline.
+        XCTAssertEqual(
+            AppMarkdownInlineImageInfo.baselineDrop(forDisplayHeight: 20, capHeight: capHeight),
+            5.5,
+            accuracy: 0.01
+        )
+        // Clamped for a picture. Unclamped this is ~778pt, all of which renders as blank space
+        // above the image because the drop is descent added on top of the image's full ascent.
+        XCTAssertEqual(
+            AppMarkdownInlineImageInfo.baselineDrop(forDisplayHeight: 1_565, capHeight: capHeight),
+            capHeight,
+            accuracy: 0.01
+        )
+    }
+
+    private static let beforeAfterTableMarkdown = """
+    | Before | After |
+    | --- | --- |
+    | [![Before](https://example.com/before.png)](https://example.com/before.mp4) | \
+    [![After](https://example.com/after.png)](https://example.com/after.mp4) |
+    | Build #26 | Build #99199 |
+    """
+
+    /// Every cell of the document's single table, in row-major order.
+    private func tableCells(in document: AppMarkdownDocument) -> [AttributedString] {
+        document.content.appMarkdownBlockRuns(parent: nil).flatMap { tableRun -> [AttributedString] in
+            let tableContent = document.content[tableRun.range]
+            return tableContent.appMarkdownBlockRuns(parent: tableRun.intent).flatMap { rowRun in
+                let rowContent = tableContent[rowRun.range]
+                return rowContent.appMarkdownBlockRuns(parent: rowRun.intent).map { cellRun in
+                    AttributedString(rowContent[cellRun.range])
+                }
+            }
+        }
+    }
+
     private func inlineImageInfo(
         for text: String,
         in attributed: AttributedString

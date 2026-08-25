@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import BlockInputKit
 import Foundation
 
 /// AppKit table renderer that keeps the visible viewport sized to the bubble
@@ -158,7 +159,17 @@ final class AppKitMarkdownTableView: AppKitDynamicColorView {
     }
 
     private var naturalTableWidth: CGFloat {
-        CGFloat(columnCount) * minimumColumnWidth
+        CGFloat(columnCount) * columnWidthFloor
+    }
+
+    /// The per-column width floor. An image cell needs the room its capped bitmap occupies, and
+    /// every column here is equal-width, so the widest image cell raises the floor for all of them
+    /// rather than being squeezed into `AppKitMarkdownTableMetrics.minimumColumnWidth`. Computed
+    /// rather than stored: a remote image's real dimensions resolve after the table is built.
+    private var columnWidthFloor: CGFloat {
+        cellRows.lazy.joined().reduce(AppKitMarkdownTableMetrics.minimumColumnWidth) { floor, cell in
+            max(floor, cell.naturalContentWidth)
+        }
     }
 
     private func tableDocumentWidth(for width: CGFloat) -> CGFloat {
@@ -189,7 +200,7 @@ final class AppKitMarkdownTableView: AppKitDynamicColorView {
         if width > 0 {
             return min(naturalWidth, width)
         }
-        return min(naturalWidth, fallbackTableViewportWidth)
+        return min(naturalWidth, AppKitMarkdownTableMetrics.fallbackViewportWidth)
     }
 
     private static func rows(
@@ -236,7 +247,14 @@ final class AppKitMarkdownTableView: AppKitDynamicColorView {
 
 private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
     private let isHeader: Bool
+    private let alignment: NSTextAlignment
     private var textView: AppKitMarkdownTextView?
+    /// Set instead of `textView` when the cell holds nothing but an image, so the bitmap fits the
+    /// column the way GitHub renders it rather than sizing against the text run.
+    private var imageView: AppKitMarkdownImageBlockView?
+    /// Set alongside `imageView` so the capped box can be re-resolved after a load lands.
+    private var cellImage: AppMarkdownCellImage?
+    private var imageStore: AppMarkdownImageStore?
 
     init(
         content: AttributedString,
@@ -245,6 +263,7 @@ private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
         rendering: AppKitMarkdownTableRendering
     ) {
         self.isHeader = isHeader
+        self.alignment = alignment
         super.init(frame: .zero)
         setup(
             content: content,
@@ -258,6 +277,18 @@ private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// What this cell needs its column to be at least as wide as, chrome included. Only an image
+    /// cell has an opinion; a text cell wraps into whatever column width it is given.
+    var naturalContentWidth: CGFloat {
+        // Deliberately the store-derived cap rather than the view's current size: the view's is
+        // already clamped by the column it was given, which would let a narrow column keep itself
+        // narrow forever.
+        guard imageView != nil else {
+            return 0
+        }
+        return cappedImageWidth + AppKitMarkdownTableMetrics.cellHorizontalPadding * 2
+    }
+
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         updateLayerColors()
@@ -265,14 +296,41 @@ private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
 
     override func layout() {
         super.layout()
-        textView?.frame = bounds.insetBy(dx: 10, dy: 7)
+        if let imageView {
+            // Sized here rather than read back from the view: its own sizing clamps to its current
+            // bounds, so a column that grew would never let the image grow with it.
+            let size = imageDisplaySize(inCellWidth: bounds.width)
+            imageView.maximumDisplayWidth = size.width
+            imageView.frame = NSRect(
+                x: imageOriginX(forImageWidth: size.width, cellWidth: bounds.width),
+                y: AppKitMarkdownTableMetrics.cellVerticalPadding,
+                width: size.width,
+                height: size.height
+            )
+            imageView.layoutSubtreeIfNeeded()
+            return
+        }
+        textView?.frame = bounds.insetBy(
+            dx: AppKitMarkdownTableMetrics.cellHorizontalPadding,
+            dy: AppKitMarkdownTableMetrics.cellVerticalPadding
+        )
         textView?.layoutSubtreeIfNeeded()
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
-        textView?.frame = NSRect(x: 10, y: 7, width: max(width - 20, 0), height: CGFloat.greatestFiniteMagnitude / 2)
+        if imageView != nil {
+            return ceil(
+                imageDisplaySize(inCellWidth: width).height + AppKitMarkdownTableMetrics.cellVerticalPadding * 2
+            )
+        }
+        textView?.frame = NSRect(
+            x: AppKitMarkdownTableMetrics.cellHorizontalPadding,
+            y: AppKitMarkdownTableMetrics.cellVerticalPadding,
+            width: max(width - AppKitMarkdownTableMetrics.cellHorizontalPadding * 2, 0),
+            height: CGFloat.greatestFiniteMagnitude / 2
+        )
         textView?.layoutSubtreeIfNeeded()
-        return ceil((textView?.intrinsicContentSize.height ?? 0) + 14)
+        return ceil((textView?.intrinsicContentSize.height ?? 0) + AppKitMarkdownTableMetrics.cellVerticalPadding * 2)
     }
 
     private func setup(
@@ -283,6 +341,11 @@ private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
         wantsLayer = true
         layer?.borderWidth = 0.5
         updateLayerColors()
+
+        if let cellImage = content.appMarkdownSoleInlineImage {
+            setupImage(cellImage, rendering: rendering)
+            return
+        }
 
         let textView = AppKitMarkdownTextView(
             content: AppKitMarkdownAttributedStringBuilder.attributedString(
@@ -300,6 +363,67 @@ private final class AppKitMarkdownTableCellView: AppKitDynamicColorView {
         textView.translatesAutoresizingMaskIntoConstraints = true
         addSubview(textView)
         self.textView = textView
+    }
+
+    private func setupImage(
+        _ cellImage: AppMarkdownCellImage,
+        rendering: AppKitMarkdownTableRendering
+    ) {
+        let onOpenLink = rendering.onOpenLink
+        let imageView = AppKitMarkdownImageBlockView(
+            configuration: .init(image: cellImage.image, baseURL: nil),
+            imageStore: rendering.imageStore,
+            onOpen: { image, _ in
+                // The wrapper link is what the author pointed the thumbnail at; without one the
+                // image's own source is the only thing left to open.
+                guard let url = cellImage.link
+                    ?? AppMarkdownImageSourceResolver.resolvedURL(for: image.source, baseURL: nil) else {
+                    return
+                }
+                onOpenLink?(url)
+            },
+            onHeightInvalidated: rendering.heightInvalidationHandler
+        )
+        self.cellImage = cellImage
+        imageStore = rendering.imageStore
+        imageView.maximumDisplayWidth = AppKitMarkdownTableMetrics
+            .imageDisplaySize(for: cellImage, store: rendering.imageStore)
+            .width
+        imageView.translatesAutoresizingMaskIntoConstraints = true
+        addSubview(imageView)
+        self.imageView = imageView
+    }
+
+    /// The cap this cell's image asks its column to clear, before the column has a width to offer.
+    private var cappedImageWidth: CGFloat {
+        guard let cellImage, let imageStore else {
+            return 0
+        }
+        return AppKitMarkdownTableMetrics.imageDisplaySize(for: cellImage, store: imageStore).width
+    }
+
+    private func imageDisplaySize(inCellWidth cellWidth: CGFloat) -> CGSize {
+        guard let cellImage, let imageStore else {
+            return .zero
+        }
+        return AppKitMarkdownTableMetrics.imageDisplaySize(
+            for: cellImage,
+            store: imageStore,
+            inCellWidth: cellWidth
+        )
+    }
+
+    private func imageOriginX(forImageWidth imageWidth: CGFloat, cellWidth: CGFloat) -> CGFloat {
+        let padding = AppKitMarkdownTableMetrics.cellHorizontalPadding
+        let interior = max(cellWidth - padding * 2, 0)
+        switch alignment {
+        case .center:
+            return padding + max(0, (interior - imageWidth) / 2)
+        case .right:
+            return padding + max(0, interior - imageWidth)
+        default:
+            return padding
+        }
     }
 
     private func updateLayerColors() {
@@ -353,6 +477,3 @@ private extension Collection {
         indices.contains(index) ? self[index] : nil
     }
 }
-
-private let minimumColumnWidth: CGFloat = 120
-private let fallbackTableViewportWidth: CGFloat = 520
