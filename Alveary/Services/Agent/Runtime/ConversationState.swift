@@ -110,6 +110,13 @@ final class ConversationState {
     private(set) var hasDeferredControllerTerminalBoundary = false
     var stagedContext: String?
     var sessionContinuityNotice: String?
+    /// Message from a provider that refused the turn until its credential is renewed.
+    ///
+    /// Held apart from `lastTurnError` on purpose: `shouldPersistErrorEvent` nils that field on the
+    /// provider-error path, so it cannot carry a notice that has to survive the failure it describes —
+    /// signing in means leaving the app, and the banner must still be there on return. Cleared by
+    /// `markVisibleTurnStarted()` instead, so it outlives the failed turn but not the next one.
+    var providerAuthenticationFailure: String?
     var isSendingMessage = false
     var isCancellingTurn = false
     var isCancellingInitialSetup = false

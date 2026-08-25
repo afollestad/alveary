@@ -27,7 +27,9 @@ extension ConversationViewModel {
     }
 }
 private extension ConversationViewModel {
-    // swiftlint:disable:next cyclomatic_complexity
+    // An exhaustive dispatch table over one enum; every case already delegates, so the only way to
+    // shorten it is to split the routing this file is supposed to own.
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
         if state.isGeneratingCommitMessage { return shouldPersistHiddenCommitMessageGenerationEvent(event) }
         if state.isHandingOffSession || state.failedSessionHandoffMessage != nil { return shouldPersistHiddenSessionHandoffEvent(event) }
@@ -87,6 +89,9 @@ private extension ConversationViewModel {
 
         case .error(let message):
             return shouldPersistErrorEvent(message: message)
+
+        case .providerAuthenticationRequired(let message):
+            return shouldPersistProviderAuthenticationRequiredEvent(message: message)
 
         case .subAgentStarted, .subAgentProgress, .subAgentCompleted:
             return shouldPersistSubAgentControlEvent(event)
@@ -396,40 +401,6 @@ private extension ConversationViewModel {
             persistSyntheticStopRecord(message: ConversationInterruption.displayMessage)
         }
         scheduleSave()
-    }
-
-    func shouldPersistErrorEvent(message: String) -> Bool {
-        state.activeRuntimeActivityTurnId = nil
-        state.clearStreamingText()
-        if shouldSuppressInterruptedError(message) {
-            state.isCancellingTurn = false
-            state.endTurn()
-            scheduleSave()
-            return false
-        }
-
-        state.isAutomaticSessionHandoffPending = false
-        state.isCancellingTurn = false
-        state.lastTurnInterrupted = false
-        controllerTerminalFailureMessage = normalizedTurnErrorMessage(message, fallback: "Agent turn failed")
-        state.lastTurnError = nil
-        state.endTurn()
-        return true
-    }
-
-    func shouldSuppressInterruptedError(_ message: String) -> Bool {
-        guard state.lastTurnInterrupted, !state.turnState.isActive else {
-            return false
-        }
-        let normalizedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalizedMessage.contains("interrupt") ||
-            normalizedMessage.contains("cancel") ||
-            normalizedMessage.contains("no active turn")
-    }
-
-    func normalizedTurnErrorMessage(_ message: String, fallback: String) -> String {
-        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedMessage.isEmpty ? fallback : trimmedMessage
     }
 
     func shouldPersistStopEvent(message: String?) -> Bool {

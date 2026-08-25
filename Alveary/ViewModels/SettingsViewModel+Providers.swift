@@ -144,6 +144,10 @@ extension SettingsViewModel {
         agentRegistry.agent(for: providerId)?.installCommand
     }
 
+    func signInCommand(for providerId: String) -> String? {
+        agentRegistry.agent(for: providerId)?.signInCommand
+    }
+
     func providerStatus(for providerId: String) -> AgentCLIKit.AgentProviderStatus? {
         if let status = providerStatuses[providerId] {
             return status

@@ -20,6 +20,7 @@ struct ContentView: View {
     let agentOneShotPromptService: any AgentOneShotPromptService
     private let conversationControllerRegistry: any ConversationControllerRegistry
     private let providerSetup: ProviderSetupService
+    private let providerSignIn: ProviderSignInService
     private let contextWindowCache: any ContextWindowCache
     private let fileListManager: FileListManager
     let notificationManager: any NotificationManager
@@ -91,6 +92,7 @@ struct ContentView: View {
         self.agentOneShotPromptService = dependencies.agentOneShotPromptService
         self.conversationControllerRegistry = dependencies.conversationControllerRegistry
         self.providerSetup = dependencies.providerSetup
+        self.providerSignIn = dependencies.providerSignIn
         self.contextWindowCache = dependencies.contextWindowCache
         self.fileListManager = dependencies.fileListManager
         self.notificationManager = dependencies.notificationManager
@@ -270,6 +272,12 @@ private extension ContentView {
     func rootWindowChrome<Content: View>(_ content: Content) -> some View {
         content
         .environment(terminalManager)
+        // Both the Agents settings card and the composer's credential banner offer Sign In; the card
+        // also needs `appState` to reveal the pane holding the tab it opens. Read `appState` from here
+        // for identity only — a body that reads one of its properties re-renders on every selection
+        // and pane change. `ChatView` takes it as an injected `@Bindable` and is unaffected.
+        .environment(providerSignIn)
+        .environment(appState)
         .environment(appShotCoordinator)
         // Scheduling proposals are confirmed inside transcript widgets, so the queue
         // coordinator and its editor drafts have to reach the chat surface.
@@ -414,9 +422,11 @@ private extension ContentView {
         }
         .onChange(of: terminalManager.runningProjectActionSessionIDs, initial: true) { _, runningSessionIDs in
             handleTerminalRunningSessionIDsChange(runningSessionIDs)
+            providerSignIn.handleRunningProjectActionSessionIDsChange(runningSessionIDs)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             onboardingViewModel.handleAppDidBecomeActive()
+            providerSignIn.handleAppDidBecomeActive()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: .voiceInputComposerInteractionLockChanged,

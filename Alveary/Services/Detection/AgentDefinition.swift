@@ -15,6 +15,11 @@ struct AgentDefinition: Sendable, Equatable {
     let id: String
     let name: String
     let installCommand: String?
+    /// Command that signs the agent's CLI in, such as `claude auth login`.
+    ///
+    /// Interactive by nature — it opens a browser and waits for a pasted code — so a caller runs it in
+    /// a live terminal tab rather than capturing its output.
+    let signInCommand: String?
     let docUrl: String?
     let provider: ProviderDefinition?
     let skillsDirectory: String?

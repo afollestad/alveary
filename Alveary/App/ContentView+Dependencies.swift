@@ -28,6 +28,7 @@ struct ContentViewDependencies {
     let scheduledTaskLifecycleCoordinator: ScheduledTaskLifecycleCoordinator
     let providerSessionActions: any ProviderSessionActionService
     let providerSetup: ProviderSetupService
+    let providerSignIn: ProviderSignInService
     let contextWindowCache: any ContextWindowCache
     let fileListManager: FileListManager
     let notificationManager: any NotificationManager
@@ -54,7 +55,9 @@ struct ContentViewDependencies {
     let voiceInputLifecycleController: VoiceInputLifecycleController
     let modelContainer: ModelContainer
 
+    // A flat one-to-one mapping of the root's dependencies; splitting it would only hide the list.
     @MainActor
+    // swiftlint:disable:next function_body_length
     static func resolve(_ component: AppComponent) -> ContentViewDependencies {
         ContentViewDependencies(
             settingsService: component.settingsService,
@@ -81,6 +84,7 @@ struct ContentViewDependencies {
             scheduledTaskLifecycleCoordinator: component.scheduledTaskLifecycleCoordinator,
             providerSessionActions: component.providerSessionActionService,
             providerSetup: component.providerSetupService,
+            providerSignIn: component.providerSignInService,
             contextWindowCache: component.contextWindowCache,
             fileListManager: component.fileListManager,
             notificationManager: component.notificationManager,

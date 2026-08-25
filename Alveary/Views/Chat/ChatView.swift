@@ -32,6 +32,11 @@ struct ChatView: View {
     /// to `nil`, which is exactly that no-app-root behavior, so the warning is expected.
     @Environment(AppShotCoordinator.self) var appShotCoordinator: AppShotCoordinator?
 
+    /// Optional for the same reason as `appShotCoordinator`: a snapshot host with no app root simply
+    /// offers no Sign In action on the credential banner.
+    @Environment(ProviderSignInService.self) var providerSignIn: ProviderSignInService?
+    @Environment(TerminalManager.self) var terminalManager: TerminalManager?
+
     @Query private var events: [ConversationEventRecord]
     @State private var lastScrollTime: Date = .distantPast
     @State var isFollowing = true

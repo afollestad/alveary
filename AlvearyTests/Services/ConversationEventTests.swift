@@ -226,4 +226,15 @@ final class ConversationEventTests: XCTestCase {
                 .toRecord(conversation: conversation)
         )
     }
+
+    /// The credential banner accompanies an `.error` that persists on its own, so persisting this one
+    /// too would double the transcript row a reader sees.
+    func testProviderAuthenticationRequiredDoesNotCreateRecord() {
+        let conversation = Conversation(provider: "claude")
+
+        XCTAssertNil(
+            ConversationEvent.providerAuthenticationRequired(message: "OAuth session expired")
+                .toRecord(conversation: conversation)
+        )
+    }
 }

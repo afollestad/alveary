@@ -315,12 +315,29 @@ private struct SkillsServiceFixture {
             )
         }
 
-        let agentRegistry = ServiceTestAgentRegistry(
+        service = DefaultSkillsService(
+            baseDir: baseDir,
+            session: ServiceURLProtocolStub.makeSession(),
+            bundle: Bundle(for: SkillsServiceTests.self),
+            sharedSkillsDirectories: [sharedSkillsDirectory.path],
+            agentRegistry: Self.makeAgentRegistry(
+                claudeSkillsDirectory: claudeSkillsDirectory,
+                ampSkillsDirectory: ampSkillsDirectory
+            )
+        )
+    }
+
+    private static func makeAgentRegistry(
+        claudeSkillsDirectory: URL,
+        ampSkillsDirectory: URL
+    ) -> ServiceTestAgentRegistry {
+        ServiceTestAgentRegistry(
             agents: [
                 AgentDefinition(
                     id: "claude",
                     name: "Claude Code",
                     installCommand: nil,
+                    signInCommand: nil,
                     docUrl: nil,
                     provider: nil,
                     skillsDirectory: claudeSkillsDirectory.path,
@@ -331,6 +348,7 @@ private struct SkillsServiceFixture {
                     id: "amp",
                     name: "Amp",
                     installCommand: nil,
+                    signInCommand: nil,
                     docUrl: nil,
                     provider: nil,
                     skillsDirectory: ampSkillsDirectory.path,
@@ -338,14 +356,6 @@ private struct SkillsServiceFixture {
                     mcp: nil
                 )
             ]
-        )
-
-        service = DefaultSkillsService(
-            baseDir: baseDir,
-            session: ServiceURLProtocolStub.makeSession(),
-            bundle: Bundle(for: SkillsServiceTests.self),
-            sharedSkillsDirectories: [sharedSkillsDirectory.path],
-            agentRegistry: agentRegistry
         )
     }
 

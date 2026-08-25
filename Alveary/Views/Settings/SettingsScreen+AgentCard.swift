@@ -10,6 +10,12 @@ struct SettingsAgentCard: View {
     let providerID: String
     @Binding var extraArgs: String
 
+    /// Both optional so a snapshot host mounted without the app root renders the card with no Sign In
+    /// action rather than failing to resolve.
+    @Environment(ProviderSignInService.self) private var providerSignIn: ProviderSignInService?
+    @Environment(TerminalManager.self) private var terminalManager: TerminalManager?
+    @Environment(AppState.self) private var appState: AppState?
+
     var body: some View {
         SettingsFormSection {
             let status = viewModel.providerStatus(for: providerID)
@@ -87,6 +93,28 @@ private extension SettingsAgentCard {
             installCommandSection(for: status)
 
             diagnosticsSection(for: status)
+
+            signInSection(for: status)
+        }
+    }
+
+    /// Sign In for an installed provider whose credential needs renewing. Gated the same way as
+    /// `installCommandSection`: the state it fixes, plus a registry command to fix it with.
+    @ViewBuilder
+    func signInSection(for status: AgentProviderStatus?) -> some View {
+        if status?.installation == .installed,
+           status?.setup == .needsSetup,
+           viewModel.signInCommand(for: providerID) != nil,
+           let providerSignIn,
+           let terminalManager {
+            Button("Sign In") {
+                guard providerSignIn.startSignIn(providerID: providerID, terminalManager: terminalManager) else {
+                    return
+                }
+                appState?.showTerminalPane()
+            }
+            .secondaryActionButtonStyle()
+            .padding(.top, 2)
         }
     }
 

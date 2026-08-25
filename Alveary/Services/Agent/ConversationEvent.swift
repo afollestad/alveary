@@ -152,6 +152,11 @@ enum ConversationEvent: Sendable, Equatable {
     case notification(type: String, message: String?)
     case stop(message: String?)
     case error(message: String)
+    /// The provider refused the turn because its stored credential must be renewed.
+    ///
+    /// Accompanies rather than replaces `.error`: this case drives a live, actionable banner and
+    /// persists nothing, so the transcript history stays the error row a reader expects.
+    case providerAuthenticationRequired(message: String)
 
     @MainActor
     // swiftlint:disable:next cyclomatic_complexity
@@ -199,7 +204,8 @@ enum ConversationEvent: Sendable, Equatable {
              .runtimeActivity,
              .providerSessionMetadataChanged,
              .collaborationModeChanged,
-             .permissionModeChanged:
+             .permissionModeChanged,
+             .providerAuthenticationRequired:
             return nil
         }
     }

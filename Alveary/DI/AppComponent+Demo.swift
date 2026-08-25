@@ -1,6 +1,7 @@
+import AgentCLIKit
 import Foundation
 
-/// The four services demo mode replaces.
+/// The five services demo mode replaces.
 ///
 /// Each accessor answers `nil` outside demo mode, so its registration in `AppComponent` reads as
 /// `demoX ?? RealX(...)` and constructs the real service lazily. Keeping the branches here rather
@@ -51,6 +52,22 @@ extension AppComponent {
             return nil
         }
         return DemoPullRequestsService()
+        #else
+        return nil
+        #endif
+    }
+
+    /// The probe-less Claude setup, which reports ready with no diagnostics.
+    ///
+    /// Demo mode must not spawn `claude auth status`: the result would be the developer's own
+    /// sign-in state, so a signed-out machine would put an orange badge and a `claude auth login`
+    /// diagnostic into demo screenshots.
+    var demoClaudeProviderSetup: AgentCLIKit.ClaudeProviderSetup? {
+        #if DEBUG
+        guard storageProfile.isDemo else {
+            return nil
+        }
+        return AgentCLIKit.ClaudeProviderSetup(configStore: agentCLIKitClaudeConfigStore)
         #else
         return nil
         #endif

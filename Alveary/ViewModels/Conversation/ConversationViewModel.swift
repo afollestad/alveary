@@ -102,6 +102,11 @@ final class ConversationViewModel {
         set { state.sessionContinuityNotice = newValue }
     }
 
+    var providerAuthenticationFailure: String? {
+        get { state.providerAuthenticationFailure }
+        set { state.providerAuthenticationFailure = newValue }
+    }
+
     var setupPhase: SetupPhase? {
         get { state.setupPhase }
         set { state.setupPhase = newValue }

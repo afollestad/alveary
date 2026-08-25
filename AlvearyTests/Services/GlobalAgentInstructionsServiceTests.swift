@@ -272,6 +272,7 @@ private extension GlobalAgentInstructionsServiceTests {
             id: id,
             name: id.capitalized,
             installCommand: nil,
+            signInCommand: nil,
             docUrl: nil,
             provider: nil,
             skillsDirectory: nil,

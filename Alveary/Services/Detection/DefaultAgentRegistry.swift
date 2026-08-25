@@ -4,6 +4,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
             id: "claude",
             name: "Claude Code",
             installCommand: "curl -fsSL https://claude.ai/install.sh | bash",
+            signInCommand: "claude auth login",
             docUrl: "https://code.claude.com/docs/en/quickstart",
             provider: ProviderDefinition(
                 id: "claude",
@@ -47,6 +48,7 @@ final class DefaultAgentRegistry: AgentRegistry, Sendable {
             id: "codex",
             name: "Codex",
             installCommand: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
+            signInCommand: "codex login",
             docUrl: "https://developers.openai.com/codex/app-server",
             provider: ProviderDefinition(
                 id: "codex",

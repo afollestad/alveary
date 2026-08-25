@@ -2,6 +2,9 @@ extension ConversationViewModel {
     func markVisibleTurnStarted(isSessionHandoffSeed: Bool = false) {
         markPromptDismissalNewOutboundTurnStarted()
         controllerTerminalFailureMessage = nil
+        // The credential notice has to outlive the turn that failed, not a turn the user just started:
+        // signing in and sending again would otherwise leave a stale Sign In banner up for good.
+        state.providerAuthenticationFailure = nil
         clearDurableTurnFailure()
         state.currentTurnActivityVisibility = .visible
         state.hasRecordedLocalTurnEndActivity = false

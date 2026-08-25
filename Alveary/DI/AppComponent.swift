@@ -229,10 +229,6 @@ extension AppComponent {
         return shared { AgentCLIKit.AgentProviderDetector(shellRunner: agentCLIKitShellRunner) }
     }
 
-    var agentCLIKitProviderSetup: AgentCLIKit.ClaudeProviderSetup {
-        return shared { AgentCLIKit.ClaudeProviderSetup(configStore: agentCLIKitClaudeConfigStore) }
-    }
-
     var agentCLIKitCodexProviderSetup: AgentCLIKit.CodexProviderSetup {
         return shared { AgentCLIKit.CodexProviderSetup(configStore: agentCLIKitCodexConfigStore) }
     }

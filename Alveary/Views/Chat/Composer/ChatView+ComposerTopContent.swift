@@ -4,6 +4,7 @@ import SwiftUI
 extension ChatView {
     var composerTopContentConfiguration: AppKitChatComposerTopContentView.Configuration {
         var items: [AppKitChatComposerTopContentView.Item] = []
+        appendProviderAuthenticationNotice(to: &items)
         appendLastTurnError(to: &items)
         appendVoiceInputNotice(to: &items)
         appendSessionContinuityNotice(to: &items)
@@ -30,6 +31,39 @@ extension ChatView {
             },
             onDismiss: voiceInputCoordinator.dismissNotice
         )))
+    }
+
+    /// Banner for a provider that refused the turn until its credential is renewed.
+    ///
+    /// First in the list, so it outranks every other composer notice: it is the only one offering a way
+    /// out of a state where nothing else will work. The accompanying `.error` becomes the transcript
+    /// row rather than a second banner — `shouldPersistErrorEvent` nils `lastTurnError` on that path.
+    /// The Sign In action appears only when the registry defines a command for this provider;
+    /// otherwise the banner still explains the failure, which is more than the bare error row did.
+    private func appendProviderAuthenticationNotice(to items: inout [AppKitChatComposerTopContentView.Item]) {
+        guard let message = viewModel.providerAuthenticationFailure else {
+            return
+        }
+        let canSignIn = providerSignIn?.signInCommand(for: providerID) != nil && terminalManager != nil
+        items.append(.inlineBanner(.init(
+            message: message,
+            severity: .error,
+            actionTitle: canSignIn ? "Sign In" : nil,
+            onAction: canSignIn ? { startProviderSignIn() } : nil,
+            onDismiss: { viewModel.providerAuthenticationFailure = nil }
+        )))
+    }
+
+    /// Opens the sign-in tab and reveals the pane holding it, then clears the banner: the pane is now
+    /// what the user is acting in, so leaving the banner up would only be stale.
+    private func startProviderSignIn() {
+        guard let providerSignIn,
+              let terminalManager,
+              providerSignIn.startSignIn(providerID: providerID, terminalManager: terminalManager) else {
+            return
+        }
+        appState.showTerminalPane()
+        viewModel.providerAuthenticationFailure = nil
     }
 
     private func appendLastTurnError(to items: inout [AppKitChatComposerTopContentView.Item]) {

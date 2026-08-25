@@ -14,6 +14,14 @@ extension AgentCLIKitEventMapper {
                 message: event.message
             ))]
         }
+        // Both events, in this order: the banner state should be set before the transcript row lands,
+        // and the error row is what the persisted history keeps.
+        if event.code == .providerAuthenticationRequired {
+            return [
+                .providerAuthenticationRequired(message: event.message),
+                .error(message: event.message)
+            ]
+        }
         if event.code == .codexAppServerResponseFailure,
            event.severity == .warning,
            event.metadata.diagnosticStringValue("codex_status")?.lowercased() == "systemerror" {
