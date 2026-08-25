@@ -222,8 +222,8 @@ enum AppMarkdownImageSyntaxParser {
                 image: BlockInputImage(
                     source: imageSource,
                     altText: attributes["alt"] ?? "",
-                    width: attributes["width"].flatMap(Int.init),
-                    height: attributes["height"].flatMap(Int.init),
+                    width: attributes["width"]?.appMarkdownHTMLPixelDimension,
+                    height: attributes["height"]?.appMarkdownHTMLPixelDimension,
                     sourceStyle: .html
                 )
             )
@@ -280,6 +280,24 @@ extension BlockInputImage {
 }
 
 extension String {
+    /// An `<img>` `width`/`height` attribute as a point count, or `nil` when it declares no fixed
+    /// size the renderers can use.
+    ///
+    /// GitHub honors a CSS unit here, and bots write one: Graphite's stack comment sizes its badge
+    /// `width="10px"`, which a bare `Int(_:)` rejects. Falling through to `nil` is not harmless —
+    /// the image then sizes from its loaded bitmap, and that badge's PNG is 128x128 despite the
+    /// `32x32` in its filename, so one bullet grew a 128pt square. Relative units (`%`, `em`) and
+    /// `auto` still answer `nil` on purpose: nothing downstream can resolve them against a
+    /// container, so the natural size remains the better fallback.
+    var appMarkdownHTMLPixelDimension: Int? {
+        let value = trimmingCharacters(in: .whitespaces).lowercased()
+        let digits = value.hasSuffix("px") ? String(value.dropLast(2)) : value
+        guard let points = Int(digits), points > 0 else {
+            return nil
+        }
+        return points
+    }
+
     var appMarkdownIsRemoteImageSource: Bool {
         guard let url = URL(string: self),
               let scheme = url.scheme?.lowercased() else {

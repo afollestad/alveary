@@ -150,7 +150,7 @@ struct AppKitMarkdownLayoutMeasurer {
             imageStore: imageStore
         )
         let chevronLane = AppMarkdownDetailsMetrics.chevronWidth + AppMarkdownDetailsMetrics.chevronSpacing
-        let summarySize = measuredTextSize(summary, width: max(width - chevronLane, 0), wraps: true)
+        let summarySize = appKitMarkdownMeasuredTextSize(summary, width: max(width - chevronLane, 0), wraps: true)
         let headerHeight = ceil(summarySize.height)
         let headerNaturalWidth = ceil(summarySize.width + chevronLane)
 
@@ -213,7 +213,7 @@ struct AppKitMarkdownLayoutMeasurer {
             colorScheme: colorScheme,
             font: typography.codeBlock
         )
-        let textSize = measuredTextSize(attributed, width: .greatestFiniteMagnitude, wraps: false)
+        let textSize = appKitMarkdownMeasuredTextSize(attributed, width: .greatestFiniteMagnitude, wraps: false)
         let textNaturalWidth = ceil(textSize.width + codeBlockHorizontalInset * 2)
         let documentWidth = max(width, textNaturalWidth)
         let documentHeight = ceil(textSize.height + codeBlockVerticalInset * 2)
@@ -231,7 +231,7 @@ struct AppKitMarkdownLayoutMeasurer {
         let rows = DiffCodeHighlighting.rows(in: source)
         let metrics = AppKitDiffCodeBlockMetrics(rows: rows, font: typography.codeBlock)
         let attributed = AppKitDiffCodeBlockContent.attributedString(rows: rows, font: typography.codeBlock)
-        let textSize = measuredTextSize(attributed, width: .greatestFiniteMagnitude, wraps: false)
+        let textSize = appKitMarkdownMeasuredTextSize(attributed, width: .greatestFiniteMagnitude, wraps: false)
         let naturalWidth = ceil(
             metrics.contentLeading + textSize.width + AppKitDiffCodeBlockMetrics.contentTrailingPadding
         )
@@ -279,85 +279,49 @@ struct AppKitMarkdownLayoutMeasurer {
         )
     }
 
+    /// Mirrors `AppKitMarkdownBlockRenderer.quoteView`, including its alert branch.
+    ///
+    /// The header is another block in the same child stack, so it costs `blockSpacing` above the
+    /// body — and costs none at all when the alert has no body, because the renderer adds no body
+    /// view for the stack to space against.
     private func measureQuote(
         intent: PresentationIntent.IntentType?,
         content: AttributedString,
         path: String,
         width: CGFloat
     ) -> AppKitMarkdownLayoutMeasurement {
+        let alert = AppMarkdownAlert(content: content)
         let childWidth = max(width - AppKitMarkdownMetrics.quoteBarWidth - 10, 0)
-        let child = measureBlocks(content, parent: intent, width: childWidth, path: path)
+        let hasBody = alert?.hasBody ?? true
+        let child = hasBody
+            ? measureBlocks(alert?.contentWithoutMarker ?? content, parent: intent, width: childWidth, path: path)
+            : AppKitMarkdownLayoutMeasurement(contentHeight: 0, naturalContentWidth: 0, fallbackRequired: false)
+
+        guard let alert else {
+            return AppKitMarkdownLayoutMeasurement(
+                contentHeight: child.contentHeight,
+                naturalContentWidth: AppKitMarkdownMetrics.quoteBarWidth + 10 + child.naturalContentWidth,
+                fallbackRequired: child.fallbackRequired
+            )
+        }
+
+        let headerHeight = AppKitMarkdownAlertHeaderView.height(font: typography.body)
+        let headerWidth = AppKitMarkdownAlertHeaderView.naturalWidth(kind: alert.kind, font: typography.body)
+        let bodyHeight = hasBody ? AppKitMarkdownMetrics.blockSpacing + child.contentHeight : 0
         return AppKitMarkdownLayoutMeasurement(
-            contentHeight: child.contentHeight,
-            naturalContentWidth: AppKitMarkdownMetrics.quoteBarWidth + 10 + child.naturalContentWidth,
+            contentHeight: ceil(headerHeight + bodyHeight),
+            naturalContentWidth: ceil(
+                AppKitMarkdownMetrics.quoteBarWidth + 10 + max(headerWidth, child.naturalContentWidth)
+            ),
             fallbackRequired: child.fallbackRequired
         )
-    }
-
-    private func measureTable(
-        intent: PresentationIntent.IntentType?,
-        content: AttributedString,
-        columns: [PresentationIntent.TableColumn],
-        width: CGFloat
-    ) -> AppKitMarkdownLayoutMeasurement {
-        let rows = tableRows(intent: intent, content: content)
-        let columnCount = max(columns.count, rows.map(\.count).max() ?? 0)
-        guard columnCount > 0 else {
-            return AppKitMarkdownLayoutMeasurement(contentHeight: 0, naturalContentWidth: 0, fallbackRequired: false)
-        }
-        let columnWidthFloor = columnWidthFloor(rows: rows)
-        let viewportWidth = tableViewportWidth(columnCount: columnCount, columnWidthFloor: columnWidthFloor, width: width)
-        let tableWidth = max(CGFloat(columnCount) * columnWidthFloor, viewportWidth)
-        let columnWidth = tableWidth / CGFloat(columnCount)
-        let height = rows.enumerated().reduce(CGFloat.zero) { total, rowContext in
-            let rowIndex = rowContext.offset
-            let row = rowContext.element
-            let rowHeight = (0..<columnCount).map { columnIndex in
-                measureTableCell(
-                    row[safe: columnIndex] ?? AttributedString(),
-                    isHeader: rowIndex == 0,
-                    width: columnWidth
-                )
-            }
-            .max() ?? 0
-            return total + rowHeight
-        }
-        let reserve = tableWidth > viewportWidth + 0.5 ? ceil(NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay)) : 0
-        return AppKitMarkdownLayoutMeasurement(
-            contentHeight: ceil(height + reserve),
-            naturalContentWidth: viewportWidth,
-            fallbackRequired: false
-        )
-    }
-
-    private func measureTableCell(
-        _ content: AttributedString,
-        isHeader: Bool,
-        width: CGFloat
-    ) -> CGFloat {
-        if let cellImage = content.appMarkdownSoleInlineImage {
-            let imageHeight = AppKitMarkdownTableMetrics
-                .imageDisplaySize(for: cellImage, store: imageStore, inCellWidth: width)
-                .height
-            return ceil(imageHeight + AppKitMarkdownTableMetrics.cellVerticalPadding * 2)
-        }
-        let attributed = AppKitMarkdownAttributedStringBuilder.attributedString(
-            from: content,
-            baseFont: typography.body,
-            inlineCodeFont: typography.inlineCode,
-            weight: isHeader ? .semibold : .regular,
-            inlineCodeStyle: inlineCodeStyle,
-            imageStore: imageStore
-        )
-        let textWidth = max(width - AppKitMarkdownTableMetrics.cellHorizontalPadding * 2, 0)
-        return ceil(measuredTextSize(attributed, width: textWidth, wraps: true).height + AppKitMarkdownTableMetrics.cellVerticalPadding * 2)
     }
 
     private func measureAttributedText(
         _ attributed: NSAttributedString,
         width: CGFloat
     ) -> AppKitMarkdownLayoutMeasurement {
-        let textSize = measuredTextSize(attributed, width: width, wraps: true)
+        let textSize = appKitMarkdownMeasuredTextSize(attributed, width: width, wraps: true)
         let naturalRect = attributed.boundingRect(
             with: NSSize(width: max(width, 1), height: CGFloat.greatestFiniteMagnitude / 2),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
@@ -367,24 +331,6 @@ struct AppKitMarkdownLayoutMeasurer {
             naturalContentWidth: ceil(naturalRect.width),
             fallbackRequired: false
         )
-    }
-
-    private func measuredTextSize(
-        _ attributed: NSAttributedString,
-        width: CGFloat,
-        wraps: Bool
-    ) -> NSSize {
-        let storage = NSTextStorage(attributedString: attributed)
-        let layoutManager = NSLayoutManager()
-        let containerWidth = wraps ? max(width, 0) : CGFloat.greatestFiniteMagnitude
-        let textContainer = NSTextContainer(size: NSSize(width: containerWidth, height: CGFloat.greatestFiniteMagnitude))
-        textContainer.lineFragmentPadding = 0
-        textContainer.widthTracksTextView = wraps
-        storage.addLayoutManager(layoutManager)
-        layoutManager.addTextContainer(textContainer)
-        layoutManager.ensureLayout(for: textContainer)
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        return NSSize(width: ceil(usedRect.width), height: ceil(usedRect.height))
     }
 
     private func markerWidth(isOrdered: Bool, taskState: AppMarkdownTaskListState?) -> CGFloat {
@@ -401,56 +347,33 @@ struct AppKitMarkdownLayoutMeasurer {
         return ceil(typography.body.ascender - typography.body.descender + typography.body.leading)
     }
 
-    private func tableViewportWidth(columnCount: Int, columnWidthFloor: CGFloat, width: CGFloat) -> CGFloat {
-        let naturalWidth = CGFloat(columnCount) * columnWidthFloor
-        if width > 0 {
-            return min(naturalWidth, width)
-        }
-        return min(naturalWidth, AppKitMarkdownTableMetrics.fallbackViewportWidth)
-    }
-
-    /// Mirrors `AppKitMarkdownTableView`'s floor: the widest image cell raises every equal-width
-    /// column, so a fitted bitmap is not squeezed into the text-table minimum.
-    private func columnWidthFloor(rows: [[AttributedString]]) -> CGFloat {
-        rows.lazy.joined().reduce(AppKitMarkdownTableMetrics.minimumColumnWidth) { floor, cell in
-            guard let cellImage = cell.appMarkdownSoleInlineImage else {
-                return floor
-            }
-            let width = AppKitMarkdownTableMetrics.imageDisplaySize(for: cellImage, store: imageStore).width
-            return max(floor, width + AppKitMarkdownTableMetrics.cellHorizontalPadding * 2)
-        }
-    }
-
-    private func tableRows(
-        intent: PresentationIntent.IntentType?,
-        content: AttributedString
-    ) -> [[AttributedString]] {
-        content.appMarkdownBlockRuns(parent: intent).compactMap { rowRun in
-            let rowContent = content[rowRun.range]
-            let cells = rowContent.appMarkdownBlockRuns(parent: rowRun.intent).map { cellRun in
-                AttributedString(rowContent[cellRun.range])
-            }
-            return isDelimiterRow(cells) ? nil : cells
-        }
-    }
-
-    private func isDelimiterRow(_ cells: [AttributedString]) -> Bool {
-        !cells.isEmpty && cells.allSatisfy { cell in
-            let text = String(cell.characters).trimmingCharacters(in: .whitespacesAndNewlines)
-            return !text.isEmpty && text.allSatisfy { character in
-                character == "-" || character == ":"
-            }
-        }
-    }
-
     private func codeBlockText(_ content: AttributedString) -> String {
         let value = String(content.characters)
         return value.hasSuffix("\n") ? String(value.dropLast()) : value
     }
 }
 
-private extension Collection {
-    subscript(safe index: Index) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
+/// Lays text out through the same `NSLayoutManager` stack `AppKitMarkdownTextView` draws with, so a
+/// measured height matches a rendered one exactly. File-scope rather than a measurer member because
+/// `AppKitMarkdownLayoutMeasurer+Tables.swift` needs it too and it reads no measurer state.
+///
+/// Pass `wraps: false` for unwrapped code: the container then goes unbounded and `usedRect(for:)`
+/// answers with the natural glyph width instead of the proposed one.
+@MainActor
+func appKitMarkdownMeasuredTextSize(
+    _ attributed: NSAttributedString,
+    width: CGFloat,
+    wraps: Bool
+) -> NSSize {
+    let storage = NSTextStorage(attributedString: attributed)
+    let layoutManager = NSLayoutManager()
+    let containerWidth = wraps ? max(width, 0) : CGFloat.greatestFiniteMagnitude
+    let textContainer = NSTextContainer(size: NSSize(width: containerWidth, height: CGFloat.greatestFiniteMagnitude))
+    textContainer.lineFragmentPadding = 0
+    textContainer.widthTracksTextView = wraps
+    storage.addLayoutManager(layoutManager)
+    layoutManager.addTextContainer(textContainer)
+    layoutManager.ensureLayout(for: textContainer)
+    let usedRect = layoutManager.usedRect(for: textContainer)
+    return NSSize(width: ceil(usedRect.width), height: ceil(usedRect.height))
 }

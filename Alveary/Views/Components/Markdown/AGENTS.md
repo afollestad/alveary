@@ -75,6 +75,7 @@ Narrower scopes:
     - **A collapsed disclosure costs its header and nothing else, in both the view and the measurer.** The AppKit view removes its body from the stack rather than hiding it at zero height, because `NSStackView` spends spacing around a zero-height arranged subview; `AppKitMarkdownLayoutMeasurer.measureDetails` mirrors that by spending no `blockSpacing` while collapsed. Either half disagreeing leaves a pane reserving space no pixel occupies.
     - **A disclosure must stay a *document-level* block in SwiftUI.** `AppMarkdownBlockStackLayout` caches by proposal width and subview count, so one hosted there would keep reporting its collapsed height.
 - Task-list markers (`[ ]`, `[x]`) render as interactive checkboxes with local cached state.
+- **A GitHub alert is a blockquote opening with `[!KIND]`, detected once in `Core/AppMarkdownAlert.swift`.** Both renderers tint the quote bar and prepend an icon-and-title header; `AppKitMarkdownLayoutMeasurer.measureQuote` mirrors the AppKit half, so a header geometry change must land in both.
 
 ## Palette Internals
 

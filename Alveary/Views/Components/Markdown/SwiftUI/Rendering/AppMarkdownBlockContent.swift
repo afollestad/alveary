@@ -82,20 +82,13 @@ struct AppMarkdownBlock: View {
                 inlineCodeStyle: inlineCodeStyle
             )
         case .blockQuote:
-            HStack(alignment: .top, spacing: 10) {
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.45))
-                    .frame(width: 3)
-                    .clipShape(Capsule())
-                AppMarkdownBlockContent(
-                    content: content,
-                    parent: intent,
-                    taskStateNamespace: taskStateNamespace,
-                    path: path,
-                    inlineCodeStyle: inlineCodeStyle
-                )
-            }
-            .padding(.vertical, 2)
+            AppMarkdownQuote(
+                intent: intent,
+                content: AttributedString(content),
+                taskStateNamespace: taskStateNamespace,
+                path: path,
+                inlineCodeStyle: inlineCodeStyle
+            )
         case .thematicBreak:
             Rectangle()
                 .fill(Color.secondary.opacity(0.24))

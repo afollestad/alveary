@@ -41,6 +41,26 @@ extension AppMarkdownParserTests {
         XCTAssertEqual(info.height, 20)
     }
 
+    func testRemoteHTMLInlineImageAcceptsPixelUnitDimensions() throws {
+        let document = AppMarkdownParser().documentPreservingSource(
+            for: #"Badge <img src="https://example.com/p1.png" alt="P1" width="10px" height="10px"> alert"#
+        )
+
+        let info = try XCTUnwrap(inlineImageInfo(for: "P1", in: document.content))
+        XCTAssertEqual(info.width, 10)
+        XCTAssertEqual(info.height, 10)
+    }
+
+    func testRemoteHTMLInlineImageIgnoresNonPixelDimensions() throws {
+        let document = AppMarkdownParser().documentPreservingSource(
+            for: #"Badge <img src="https://example.com/p1.png" alt="P1" width="100%" height="auto"> alert"#
+        )
+
+        let info = try XCTUnwrap(inlineImageInfo(for: "P1", in: document.content))
+        XCTAssertNil(info.width)
+        XCTAssertNil(info.height)
+    }
+
     func testRemoteImageAloneOnItsLineStillBecomesImageBlock() throws {
         let document = AppMarkdownParser()
             .documentPreservingSource(for: "Text\n\n![Alt](https://example.com/image.png)\n\nMore")

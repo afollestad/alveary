@@ -11,7 +11,8 @@ final class PullRequestMarkdownTests: XCTestCase {
 
         let output = PullRequestMarkdown.sanitized(input)
 
-        XCTAssertEqual(output, "Cheers\n<details><summary>Test run logs</summary>\n\nBody text\n\n</details>")
+        // `Cheers` picks up the two-space hard break every non-final prose line gets.
+        XCTAssertEqual(output, "Cheers  \n<details><summary>Test run logs</summary>\n\nBody text\n\n</details>")
     }
 
     /// The sanitized string is what every pull request surface hands the renderer, so the round
@@ -84,8 +85,69 @@ final class PullRequestMarkdownTests: XCTestCase {
     func testRewritesInlineFormattingTags() {
         XCTAssertEqual(
             PullRequestMarkdown.sanitized("<b>bold</b> and <em>italic</em> and <code>code</code><br>next"),
-            "**bold** and *italic* and `code`\nnext"
+            "**bold** and *italic* and `code`  \nnext"
         )
+    }
+
+    /// GitHub renders comment bodies with hard breaks on, so consecutive prose lines must not
+    /// reflow into one wrapped paragraph. owner-owl's `r:`/`cc:` footer is the case that drove it.
+    func testMarksConsecutiveProseLinesAsHardBreaks() {
+        XCTAssertEqual(
+            PullRequestMarkdown.sanitized("r: @octocat\ncc: @hubot\nthanks"),
+            "r: @octocat  \ncc: @hubot  \nthanks"
+        )
+    }
+
+    func testLeavesBlankLineSeparatedParagraphsAlone() {
+        XCTAssertEqual(
+            PullRequestMarkdown.sanitized("First paragraph.\n\nSecond paragraph."),
+            "First paragraph.\n\nSecond paragraph."
+        )
+    }
+
+    func testDoesNotDoubleAnExistingHardBreak() {
+        XCTAssertEqual(
+            PullRequestMarkdown.sanitized("already  \nbroken\\\nalso broken\nend"),
+            "already  \nbroken\\\nalso broken  \nend"
+        )
+    }
+
+    func testHardBreaksDoNotReachFencedCode() {
+        XCTAssertEqual(
+            PullRequestMarkdown.sanitized("```\nlet a = 1\nlet b = 2\n```"),
+            "```\nlet a = 1\nlet b = 2\n```"
+        )
+    }
+
+    /// A quote's blank separator line is `>`, which is not blank by the sanitizer's reckoning and so
+    /// picks up the marker too. `>  ` has to stay a blank quote line, or an alert's multi-block body
+    /// collapses into one paragraph.
+    func testHardBreaksKeepAnAlertsBlockBodySeparated() throws {
+        let sanitized = PullRequestMarkdown.sanitized("> [!NOTE]\n> Lead paragraph.\n>\n> - First\n> - Second")
+
+        let document = AppMarkdownParser().documentPreservingSource(for: sanitized)
+        let quote = try XCTUnwrap(document.content.appMarkdownBlockRuns(parent: nil).first)
+        let alert = try XCTUnwrap(AppMarkdownAlert(content: AttributedString(document.content[quote.range])))
+        let kinds = alert.contentWithoutMarker
+            .appMarkdownBlockRuns(parent: quote.intent)
+            .compactMap(\.intent?.kind)
+
+        guard kinds.count == 2, case .paragraph = kinds[0], case .unorderedList = kinds[1] else {
+            return XCTFail("Expected a paragraph then an unordered list, got \(kinds)")
+        }
+    }
+
+    /// A table's rows, delimiter row, and list items all still parse as themselves with the marker
+    /// appended — the marker is only meaningful inside a paragraph.
+    func testHardBreaksLeaveTablesAndListsParsing() throws {
+        let sanitized = PullRequestMarkdown.sanitized("| A | B |\n| --- | --- |\n| 1 | 2 |\n\n- one\n- two")
+
+        let document = AppMarkdownParser().documentPreservingSource(for: sanitized)
+        let kinds = document.content.appMarkdownBlockRuns(parent: nil).compactMap(\.intent?.kind)
+
+        guard kinds.count == 2, case .table = kinds[0], case .unorderedList = kinds[1] else {
+            return XCTFail("Expected a table then an unordered list, got \(kinds)")
+        }
     }
 
     func testStripsSubAndSupTagsKeepingContent() {

@@ -173,11 +173,15 @@ struct AppKitMarkdownBlockRenderer {
         return stack
     }
 
+    /// A blockquote, and — when it opens with a `[!KIND]` marker — one of GitHub's alerts, which
+    /// tints the bar and gains a header row. `AppKitMarkdownLayoutMeasurer.measureQuote` mirrors
+    /// both shapes.
     private func quoteView(
         intent: PresentationIntent.IntentType?,
         content: AttributedString,
         path: String
     ) -> NSView {
+        let alert = AppMarkdownAlert(content: content)
         let row = NSStackView()
         row.orientation = .horizontal
         row.alignment = .top
@@ -187,14 +191,24 @@ struct AppKitMarkdownBlockRenderer {
         let bar = NSBox()
         bar.boxType = .custom
         bar.isTransparent = false
-        bar.fillColor = .separatorColor
+        bar.fillColor = alert?.kind.accentNSColor ?? .separatorColor
         bar.cornerRadius = AppKitMarkdownMetrics.quoteBarWidth / 2
         bar.translatesAutoresizingMaskIntoConstraints = false
         bar.widthAnchor.constraint(equalToConstant: AppKitMarkdownMetrics.quoteBarWidth).isActive = true
         row.addArrangedSubview(bar)
 
+        // The child stack's own spacing is `blockSpacing`, which is also `headerSpacing`, so the
+        // header is just another block here and a bodyless alert spends no gap under it.
         let childStack = verticalStack()
-        views(for: content, parent: intent, path: path).forEach(childStack.addArrangedSubview)
+        if let alert {
+            childStack.addArrangedSubview(
+                AppKitMarkdownAlertHeaderView(kind: alert.kind, font: typography.body)
+            )
+        }
+        if alert?.hasBody ?? true {
+            views(for: alert?.contentWithoutMarker ?? content, parent: intent, path: path)
+                .forEach(childStack.addArrangedSubview)
+        }
         row.addArrangedSubview(childStack)
         return row
     }

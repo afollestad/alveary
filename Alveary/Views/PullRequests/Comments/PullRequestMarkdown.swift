@@ -32,7 +32,37 @@ enum PullRequestMarkdown {
         // Markdown has no sub/superscript; keep the content, drop the tags.
         replace(&text, pattern: "</?su[bp](\\s[^>]*)?>", with: "", options: [.caseInsensitive])
         replace(&text, pattern: "\n{3,}", with: "\n\n", options: [])
-        return text
+        return hardBreaking(text)
+    }
+
+    /// Marks every newline that GitHub would render as a line break, since it renders comment
+    /// bodies with hard breaks on. Without this, owner-owl's `r:` and `cc:` lines — separate lines
+    /// in the source — reflow into one wrapped paragraph.
+    ///
+    /// Two trailing spaces is markdown's own hard-break syntax, so Foundation turns each marked
+    /// newline into a real `\n` run and both renderers break the line with no further handling.
+    /// Only prose is affected: a marker at the end of a table row, list item, or ATX heading leaves
+    /// those structures parsing identically, and fenced code never reaches here because
+    /// `sanitized(_:)` transforms only the segments outside a fence.
+    private static func hardBreaking(_ text: String) -> String {
+        let lines = text.components(separatedBy: "\n")
+        return lines.enumerated()
+            .map { index, line in
+                let next = index + 1 < lines.count ? lines[index + 1] : ""
+                guard !isBlank(line), !isBlank(next), !endsWithHardBreak(line) else {
+                    return line
+                }
+                return line + "  "
+            }
+            .joined(separator: "\n")
+    }
+
+    private static func isBlank(_ line: String) -> Bool {
+        line.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private static func endsWithHardBreak(_ line: String) -> Bool {
+        line.hasSuffix("  ") || line.hasSuffix("\\")
     }
 
     private static func replace(

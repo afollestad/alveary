@@ -135,3 +135,69 @@ enum AppMarkdownCodeBlockPalette {
         }
     }
 }
+
+/// Accents for GitHub's alert blockquotes, one per `AppMarkdownAlertKind`.
+///
+/// The swatches are GitHub's own light/dark pairs rather than the app's semantic status colors:
+/// five kinds need five distinguishable hues, and a reader who recognizes a Caution block on
+/// GitHub should recognize the same red here. They tint the quote bar, the header glyph, and the
+/// header label — never a background, which GitHub leaves transparent.
+///
+/// Cached `static let` dynamic colors for the reason the swatches above are: fresh dynamic
+/// `NSColor` instances are not `==`, and these reach attributed-string attributes that tests
+/// round-trip through `NSAttributedString`.
+enum AppMarkdownAlertPalette {
+    static func accentNSColor(for kind: AppMarkdownAlertKind) -> NSColor {
+        switch kind {
+        case .note: return noteNSColor
+        case .tip: return tipNSColor
+        case .important: return importantNSColor
+        case .warning: return warningNSColor
+        case .caution: return cautionNSColor
+        }
+    }
+
+    // GitHub `#0969da` / `#4493f8`.
+    static let noteNSColor = accentNSColor(
+        light: NSColor(srgbRed: 0.035, green: 0.412, blue: 0.855, alpha: 1),
+        dark: NSColor(srgbRed: 0.267, green: 0.576, blue: 0.973, alpha: 1)
+    )
+
+    // GitHub `#1a7f37` / `#3fb950`.
+    static let tipNSColor = accentNSColor(
+        light: NSColor(srgbRed: 0.102, green: 0.498, blue: 0.216, alpha: 1),
+        dark: NSColor(srgbRed: 0.247, green: 0.725, blue: 0.314, alpha: 1)
+    )
+
+    // GitHub `#8250df` / `#ab7df8`.
+    static let importantNSColor = accentNSColor(
+        light: NSColor(srgbRed: 0.510, green: 0.314, blue: 0.875, alpha: 1),
+        dark: NSColor(srgbRed: 0.671, green: 0.490, blue: 0.973, alpha: 1)
+    )
+
+    // GitHub `#9a6700` / `#d29922`.
+    static let warningNSColor = accentNSColor(
+        light: NSColor(srgbRed: 0.604, green: 0.404, blue: 0.000, alpha: 1),
+        dark: NSColor(srgbRed: 0.824, green: 0.600, blue: 0.133, alpha: 1)
+    )
+
+    // GitHub `#cf222e` / `#f85149`.
+    static let cautionNSColor = accentNSColor(
+        light: NSColor(srgbRed: 0.812, green: 0.133, blue: 0.180, alpha: 1),
+        dark: NSColor(srgbRed: 0.973, green: 0.318, blue: 0.286, alpha: 1)
+    )
+
+    private static func accentNSColor(
+        light: NSColor,
+        dark: NSColor
+    ) -> NSColor {
+        NSColor(name: nil, dynamicProvider: { appearance in
+            switch appearance.bestMatch(from: [.darkAqua, .aqua]) {
+            case .darkAqua:
+                return dark
+            default:
+                return light
+            }
+        })
+    }
+}
