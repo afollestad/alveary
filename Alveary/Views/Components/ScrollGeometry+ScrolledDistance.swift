@@ -21,4 +21,24 @@ extension ScrollGeometry {
     var horizontalScrolledDistance: CGFloat {
         contentOffset.x + contentInsets.leading
     }
+
+    /// The vertical twin of ``horizontalScrolledDistance``: `0` at rest, rising as the content
+    /// scrolls up, and negative only under the elastic overscroll past the top edge. Adding the
+    /// inset back is what makes it 0-based in every layout, for the reason that property's doc
+    /// comment gives — a scroll view with a top content inset rests at `contentOffset.y ==
+    /// -contentInsets.top`, not at zero.
+    var verticalScrolledDistance: CGFloat {
+        contentOffset.y + contentInsets.top
+    }
+
+    /// Whether content has scrolled away from the top edge, for chrome that appears only once
+    /// rows pass under it. The slack absorbs a fractional resting offset, which would otherwise
+    /// read as a scroll; it matches the `0.5` the chip strips compare their own distances against.
+    ///
+    /// Transform a scroll observer to *this* rather than to the distance when the reading only
+    /// gates something on or off — `onScrollGeometryChange` then fires on the crossing instead of
+    /// on every scroll frame.
+    var isScrolledFromTop: Bool {
+        verticalScrolledDistance > 0.5
+    }
 }

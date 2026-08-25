@@ -102,6 +102,12 @@ struct DiffPreviewScrollContainer<Content: View>: View {
     private let topContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewTopInset
     private let bottomContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewBottomInset
     private let minimumScrollableContentWidth: CGFloat
+    /// Reports whether the content has scrolled away from its top edge, for host chrome that
+    /// appears only once rows pass under it. Nil on the diff viewer's path, which draws none.
+    ///
+    /// **The reading is retracted when this container goes away**, so a host cannot be left
+    /// gating chrome on a scroll view that no longer exists — see the `onDisappear` in `body`.
+    private let onScrolledFromTopChange: ((Bool) -> Void)?
 
     // Written per scroll frame from `onScrollGeometryChange`; a reference type
     // so the writes invalidate only the pinned rows reading it, never this body.
@@ -112,10 +118,12 @@ struct DiffPreviewScrollContainer<Content: View>: View {
     init(
         minimumScrollableContentWidth: CGFloat = 0,
         horizontalContentPadding: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset,
+        onScrolledFromTopChange: ((Bool) -> Void)? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.minimumScrollableContentWidth = minimumScrollableContentWidth
         self.horizontalContentPadding = horizontalContentPadding
+        self.onScrolledFromTopChange = onScrolledFromTopChange
         self.content = content
     }
 
@@ -143,6 +151,19 @@ struct DiffPreviewScrollContainer<Content: View>: View {
                 geometry.contentOffset.x
             } action: { _, offset in
                 scrollOffset.horizontal = offset
+            }
+            // Its own observer rather than a field on the one above: transforming to a `Bool`
+            // is what keeps the host's callback to the crossings instead of every scroll frame.
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.isScrolledFromTop
+            } action: { _, isScrolledFromTop in
+                onScrolledFromTopChange?(isScrolledFromTop)
+            }
+            // Every state that drops this container — the host swapping the preview out, and the
+            // prepared-rows rebuild that replaces it with a spinner — leaves the last reading with
+            // nothing left to scroll, and the replacement starts back at the top regardless.
+            .onDisappear {
+                onScrolledFromTopChange?(false)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }

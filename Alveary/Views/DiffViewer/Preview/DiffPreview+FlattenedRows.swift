@@ -38,6 +38,14 @@ struct FlattenedDiffPreview: View {
     /// row existed, so the owner can clear its one-shot state instead of
     /// retrying forever against a row the diff no longer contains.
     let onScrollTargetConsumed: ((UUID) -> Void)?
+    /// Reports whether the diff has scrolled away from its top edge, for host chrome that appears
+    /// only once rows pass under it — the pull-request pane's tab-row divider. Fires on the
+    /// crossing, not per scroll frame, and reports `false` again whenever the scroll view goes
+    /// away — including the prepared-rows rebuild that swaps it for the preparing spinner, which
+    /// a host watching its own state cannot see. Absent from `renderFingerprint` for the same
+    /// reason `scrollTarget` is: it changes no row, so folding it in would rebuild every prepared
+    /// row.
+    let onScrolledFromTopChange: ((Bool) -> Void)?
     @State private var preparedRows: FlattenedDiffPreviewPreparedRows?
     @State private var preparedRowsID: Int?
     /// Drawn row heights, filled in as rows realize. Held here rather than in the container so a
@@ -61,7 +69,8 @@ struct FlattenedDiffPreview: View {
         horizontalContentInset: CGFloat = DiffViewerPaneMetrics.diffPreviewHorizontalInset,
         collapseCaretAxis: CGFloat? = nil,
         scrollTarget: FlattenedDiffPreviewScrollTarget? = nil,
-        onScrollTargetConsumed: ((UUID) -> Void)? = nil
+        onScrollTargetConsumed: ((UUID) -> Void)? = nil,
+        onScrolledFromTopChange: ((Bool) -> Void)? = nil
     ) {
         self.files = files
         self.imagePreviews = imagePreviews
@@ -78,6 +87,7 @@ struct FlattenedDiffPreview: View {
         self.collapseCaretAxis = collapseCaretAxis
         self.scrollTarget = scrollTarget
         self.onScrollTargetConsumed = onScrollTargetConsumed
+        self.onScrolledFromTopChange = onScrolledFromTopChange
     }
 
     var body: some View {
@@ -167,7 +177,8 @@ struct FlattenedDiffPreview: View {
             scrollTargetObserver(
                 DiffPreviewScrollContainer(
                     minimumScrollableContentWidth: preparedRows.minimumScrollableContentWidth,
-                    horizontalContentPadding: horizontalContentInset
+                    horizontalContentPadding: horizontalContentInset,
+                    onScrolledFromTopChange: onScrolledFromTopChange
                 ) {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(preparedRows.rows) { row in

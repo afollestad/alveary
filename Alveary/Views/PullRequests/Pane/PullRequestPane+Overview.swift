@@ -19,6 +19,9 @@ struct PullRequestPaneOverview: View, Equatable {
     /// earns an appended entry an automatic scroll. Starts false so the first
     /// detail cannot scroll a freshly opened pane away from its header.
     @State private var isFollowingTimeline = false
+    /// Gates this tab's share of the pane's tab-row divider; see
+    /// ``SwiftUI/View/pullRequestPaneTabDivider(isScrolled:)`` for why each tab draws its own.
+    @State private var isScrolledFromTop = false
 
     private var avatarLoader: GitHubAvatarLoader {
         viewModel.avatarLoader
@@ -108,6 +111,8 @@ struct PullRequestPaneOverview: View, Equatable {
             scrollPosition: $scrollPosition,
             isFollowing: $isFollowingTimeline
         ))
+        .pullRequestPaneScrolledFromTop($isScrolledFromTop)
+        .pullRequestPaneTabDivider(isScrolled: isScrolledFromTop)
     }
 
     /// Everything the activity timeline can grow by. Closing, reopening, or

@@ -15,6 +15,14 @@ struct PullRequestPaneFiles: View, Equatable {
         lhs.session == rhs.session && lhs.viewModel === rhs.viewModel && lhs.target == rhs.target
     }
 
+    /// Gates this tab's share of the pane's tab-row divider; see
+    /// ``SwiftUI/View/pullRequestPaneTabDivider(isScrolled:)`` for why each tab draws its own.
+    /// Written by the diff preview rather than an observer here, because the scroll view belongs
+    /// to `FlattenedDiffPreview`, not this tab — which is also why nothing clears it on a diff
+    /// state change: the preview retracts its own reading when it drops the scroll view, and it
+    /// sees rebuilds this tab's state cannot.
+    @State private var isScrolledFromTop = false
+
     // The delete-comment confirmation dialog lives on `PullRequestPane`, shared
     // with the Overview timeline, so arming a deletion on either tab presents it.
     var body: some View {
@@ -22,6 +30,7 @@ struct PullRequestPaneFiles: View, Equatable {
             diffStateContent
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .pullRequestPaneTabDivider(isScrolled: isScrolledFromTop)
     }
 
     @ViewBuilder
@@ -134,7 +143,8 @@ struct PullRequestPaneFiles: View, Equatable {
                 },
                 onScrollTargetConsumed: { token in
                     viewModel.consumeCommentScrollTarget(token: token, target: target)
-                }
+                },
+                onScrolledFromTopChange: { isScrolledFromTop = $0 }
             )
 
             let remaining = PullRequestDiffFilePaging.remainingFileCount(

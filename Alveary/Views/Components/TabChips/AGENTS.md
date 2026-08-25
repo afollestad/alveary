@@ -1,7 +1,6 @@
 ## Shared Tab Chips
 
-Rules for `SelectableTabChip.swift`, `TabChipButtonStyle.swift`, and
-`ScrollGeometry+ScrolledDistance.swift`.
+Rules for `SelectableTabChip.swift`, `TabChipButtonStyle.swift`, and `PaneFilterChip.swift`.
 
 - **Gate a scrolling chip strip's edge dividers on `ScrollGeometry.horizontalScrolledDistance`, never on `contentOffset.x` or its magnitude.** A leading content inset biases the raw offset in some window layouts only; the extension's doc comment owns why. All three chip strips use it.
 - Use `TabChipButtonStyle(isSelected:)` for pill-shaped selection controls.
