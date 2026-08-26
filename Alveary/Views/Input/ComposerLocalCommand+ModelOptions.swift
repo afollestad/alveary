@@ -8,7 +8,7 @@ extension ComposerLocalCommandAvailability {
         var length = 0
         var didTruncate = false
 
-        for option in modelOptions {
+        for option in Self.hintOrderedOptions(modelOptions) {
             let normalizedName = option.shortName.lowercased()
             guard !option.shortName.isEmpty, seenNames.insert(normalizedName).inserted else {
                 continue
@@ -55,6 +55,28 @@ extension ComposerLocalCommandAvailability {
 
     /// Roughly one composer line of aliases; the trailing ellipsis signals the rest are still selectable.
     private static let modelArgumentHintBudget = 40
+
+    /// Within each provider, options carrying a real alias lead, so a provider that mostly reports long pinned version
+    /// ids still spends the hint's budget on names worth typing. Providers keep their order, because the hint reads as
+    /// the reasoning menu's provider grouping and a later provider must not jump ahead of the active one.
+    private static func hintOrderedOptions(_ options: [ComposerModelCommandOption]) -> [ComposerModelCommandOption] {
+        var providerOrder: [String] = []
+        var optionsByProvider: [String: [ComposerModelCommandOption]] = [:]
+        for option in options {
+            if optionsByProvider[option.providerID] == nil {
+                providerOrder.append(option.providerID)
+            }
+            optionsByProvider[option.providerID, default: []].append(option)
+        }
+        return providerOrder.flatMap { providerID -> [ComposerModelCommandOption] in
+            let providerOptions = optionsByProvider[providerID] ?? []
+            return providerOptions.filter(isAliased) + providerOptions.filter { !isAliased($0) }
+        }
+    }
+
+    private static func isAliased(_ option: ComposerModelCommandOption) -> Bool {
+        option.shortName.caseInsensitiveCompare(option.value) != .orderedSame
+    }
 
     private static func firstModelOption(
         in options: [ComposerModelCommandOption],

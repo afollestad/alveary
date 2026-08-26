@@ -72,7 +72,12 @@ extension ScheduledTasksViewModel {
     func normalizeProviderDependentFields(_ draft: inout ScheduledTaskEditorDraft) {
         let modelOptions = modelPickerOptions(for: draft.providerID, including: AppSettings.defaultModelValue)
         if !modelOptions.contains(where: { $0.value == draft.modelSelection }) {
-            draft.modelSelection = modelOptions.first?.value ?? AppSettings.defaultModelValue
+            // Resolve the provider's own default rather than taking the first row: a provider is free to list its
+            // strongest model first, and falling into that would silently upgrade the task's cost on a provider switch.
+            draft.modelSelection = AgentModelOptionSelection.pickerValue(
+                in: self.modelOptions(for: draft.providerID),
+                matching: AppSettings.defaultModelValue
+            )
         }
 
         let effortOptions = effortOptions(for: draft.providerID, modelSelection: draft.modelSelection)

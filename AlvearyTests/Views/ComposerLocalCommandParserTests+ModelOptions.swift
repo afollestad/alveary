@@ -28,6 +28,33 @@ extension ComposerLocalCommandParserTests {
         XCTAssertEqual(hint, "sonnet|fable|opus|haiku|gpt-5.4-mini|…")
     }
 
+    /// Claude puts a family alias on only its newest version, so catalog order alone would spend the budget on
+    /// `claude-sonnet-4-6` before `opus` or `haiku` were ever shown.
+    func testModelArgumentHintListsAliasedOptionsBeforeBareIDs() {
+        let availability = ComposerLocalCommandAvailability(modelOptions: [
+            option(providerID: "claude", value: "claude-fable-5", shortName: "fable", title: "Fable 5"),
+            option(providerID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
+            option(providerID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8"),
+            option(providerID: "claude", value: "claude-opus-4-7", shortName: "claude-opus-4-7", title: "Opus 4.7"),
+            option(providerID: "claude", value: "claude-sonnet-5", shortName: "sonnet", title: "Sonnet 5"),
+            option(providerID: "claude", value: "claude-sonnet-4-6", shortName: "claude-sonnet-4-6", title: "Sonnet 4.6"),
+            option(providerID: "claude", value: "claude-haiku-4-5", shortName: "haiku", title: "Haiku 4.5")
+        ])
+
+        XCTAssertEqual(availability.modelArgumentHint, "fable|opus|sonnet|haiku|claude-opus-4-8|…")
+    }
+
+    func testModelOptionResolvesAFamilyAliasAndItsPinnedVersions() {
+        let availability = ComposerLocalCommandAvailability(modelOptions: [
+            option(providerID: "claude", value: "claude-opus-5", shortName: "opus", title: "Opus 5"),
+            option(providerID: "claude", value: "claude-opus-4-8", shortName: "claude-opus-4-8", title: "Opus 4.8")
+        ])
+
+        XCTAssertEqual(availability.modelOption(matching: "opus")?.value, "claude-opus-5")
+        XCTAssertEqual(availability.modelOption(matching: "claude-opus-4-8")?.value, "claude-opus-4-8")
+        XCTAssertEqual(availability.modelOption(matching: "Opus 4.8")?.value, "claude-opus-4-8")
+    }
+
     func testModelArgumentHintDeduplicatesSharedShortNames() {
         let availability = ComposerLocalCommandAvailability(modelOptions: [
             option(providerID: "claude", value: "default", shortName: "default", title: "Default"),

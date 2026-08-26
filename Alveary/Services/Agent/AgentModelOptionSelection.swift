@@ -34,6 +34,12 @@ enum AgentModelOptionSelection {
         if let exact = options.first(where: { $0.id == trimmed || $0.model == trimmed }) {
             return exact
         }
+        // A selection persisted before a provider listed pinned versions is a family alias such as `opus`, which now
+        // survives only as the newest version's short name. Without this the stored value reads as unknown and every
+        // caller resets it, silently discarding the user's model.
+        if let aliased = options.first(where: { $0.shortName == trimmed }) {
+            return aliased
+        }
         if trimmed == AppSettings.defaultModelValue {
             return defaultOption(in: options)
         }

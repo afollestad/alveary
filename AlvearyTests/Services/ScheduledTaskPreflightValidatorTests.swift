@@ -54,6 +54,34 @@ final class ScheduledTaskPreflightValidatorTests: XCTestCase {
         )
     }
 
+    /// A task saved before Claude listed pinned versions stores a family alias, which matches no option id. Preflight
+    /// refuses a model it cannot resolve, so an alias that stopped resolving would fail the task on its next run.
+    func testTaskSavedWithAFamilyAliasStillValidates() async {
+        let status = Self.makeReadyProviderStatus(
+            modelOptions: [
+                AgentModelOption(
+                    providerId: .claude,
+                    id: "claude-opus-5",
+                    model: "claude-opus-5",
+                    label: "Opus 5",
+                    shortName: "opus",
+                    isDefault: true,
+                    supportedEffortOptions: [AgentProviderOption(
+                        value: "high",
+                        label: "High",
+                        description: "Use high reasoning effort."
+                    )]
+                )
+            ]
+        )
+        let validator = makeValidator(loadProviderStatus: { _, _ in status })
+        let snapshot = makeSnapshot(model: "opus")
+
+        let outcome = await validator.validate(snapshot)
+
+        XCTAssertEqual(outcome, .ready(expectedIdentities(for: snapshot)))
+    }
+
     func testUnsupportedProviderSettingsAreInvalid() async {
         let status = Self.makeReadyProviderStatus(
             modelOptions: [
