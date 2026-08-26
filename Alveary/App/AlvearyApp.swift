@@ -163,7 +163,7 @@ struct AlvearyApp: App {
             value: paragraphStyle,
             range: NSRange(location: 0, length: attributed.length)
         )
-        addLink(to: attributed, label: "Website", urlString: "https://af.codes")
+        addLink(to: attributed, label: "Website", urlString: "https://alveary.af.codes")
         addLink(to: attributed, label: "Ko-fi", urlString: "https://ko-fi.com/aidan1995")
         if let creditsURL = Bundle.main.url(forResource: "VoiceInputAttributions", withExtension: "txt") {
             addLink(to: attributed, label: "Voice Input Credits", url: creditsURL)
