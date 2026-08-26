@@ -21,7 +21,16 @@ extension ChatTranscriptView {
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.size.width
         } action: { newValue in
+            // A transcript reports `0` until its host has a real frame, and writing that back would
+            // overwrite the width `init` seeded — re-deriving `bubbleMaxWidth` as `.infinity` and
+            // re-dirtying every row for one discarded pass. Only a real layout may move this.
+            guard newValue > 0 else {
+                return
+            }
             transcriptContentWidth = newValue
+            // Seeds the next transcript's first measurement pass; `TranscriptContentWidthCache`
+            // owns why that pass is otherwise thrown away.
+            TranscriptContentWidthCache.store(newValue)
         }
     }
 

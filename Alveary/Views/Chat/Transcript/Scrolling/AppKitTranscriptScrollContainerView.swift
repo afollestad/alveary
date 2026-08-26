@@ -343,13 +343,13 @@ final class AppKitTranscriptDocumentLayoutView: NSView {
     }
 
     func layoutRows(width: CGFloat) {
-        // Reentrant layout during a measured frame animation must not commit the
-        // final document height early, or bottom-pinned collapse visibly jumps.
-        guard !isMeasuringRows, !isApplyingFrameUpdates, !hasActiveFrameAnimation else {
+        let contentWidth = max(0, width - transcriptScrollLeadingInset - transcriptScrollTrailingInset)
+        // Reentrant layout during a measured frame animation must not commit the final document
+        // height early, or bottom-pinned collapse visibly jumps. A zero width means no frame yet, and
+        // the first real pass re-dirties every row, so measuring here is waste that every mount pays.
+        guard !isMeasuringRows, !isApplyingFrameUpdates, !hasActiveFrameAnimation, contentWidth > 0 else {
             return
         }
-
-        let contentWidth = max(0, width - transcriptScrollLeadingInset - transcriptScrollTrailingInset)
         lastLayoutChangedFrames = false
         if lastContentWidth.map({ abs($0 - contentWidth) > 0.5 }) ?? true {
             markAllRowHeightsDirty()

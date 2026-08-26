@@ -37,12 +37,33 @@ struct ChatTranscriptView: View {
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State var latestMetrics: ChatTranscriptScrollMetrics?
     @State var appKitScrollToBottomRequest = 0
-    @State var transcriptContentWidth: CGFloat = 0
+    @State var transcriptContentWidth: CGFloat
     @State var expandedTranscriptRows: Set<String> = []
     @State var appKitToolApprovalSelectionsBySessionID: [String: ToolApprovalSelection] = [:]
     @State var appKitPullRequestPromptSelections: [String: PullRequestLinkPromptSelection] = [:]
     @State var scheduledProposalRevision = 0
     @State var reviewProposalRevision = 0
+
+    /// Written out rather than left memberwise so `transcriptContentWidth` can start at the width this
+    /// process last laid out; `TranscriptContentWidthCache` owns what a `0` start costs.
+    init(
+        viewModel: ConversationViewModel,
+        appState: AppState,
+        events: [ConversationEventRecord],
+        workingDirectory: String?,
+        lastScrollTime: Binding<Date>,
+        isFollowing: Binding<Bool>,
+        scrollToBottomRequest: Binding<Int>
+    ) {
+        self.viewModel = viewModel
+        self.appState = appState
+        self.events = events
+        self.workingDirectory = workingDirectory
+        _lastScrollTime = lastScrollTime
+        _isFollowing = isFollowing
+        _scrollToBottomRequest = scrollToBottomRequest
+        _transcriptContentWidth = State(initialValue: TranscriptContentWidthCache.lastKnownWidth ?? 0)
+    }
 
     var shouldShowTransientInterruptedNote: Bool {
         !viewModel.state.grouper.items.hasInterruptedNoteAfterLatestUserMessage
