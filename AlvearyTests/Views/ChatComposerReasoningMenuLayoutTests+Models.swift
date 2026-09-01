@@ -451,42 +451,4 @@ extension ChatComposerReasoningMenuLayoutTests {
         XCTAssertEqual(try XCTUnwrap(controller.debugEffortSlider).frame.minY, ComposerReasoningMenuMetrics.topInset)
     }
 
-    private func groupedController(
-        groups: [ChatComposerActionRowView.ReasoningModelGroup]
-    ) -> ComposerReasoningMenuViewController {
-        var configuration = makeReasoningConfiguration()
-        configuration.modelGroups = groups
-        let controller = ComposerReasoningMenuViewController(configuration: configuration, onRequestCloseMainMenu: {})
-        controller.loadViewIfNeeded()
-        return controller
-    }
-
-    private func mountForModelsSectionLayout(_ controller: ComposerReasoningMenuViewController) -> NSWindow {
-        let host = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 600))
-        let window = NSWindow(
-            contentRect: host.bounds,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = host
-        controller.view.frame = NSRect(origin: .zero, size: controller.preferredContentSize)
-        host.addSubview(controller.view)
-        controller.view.layoutSubtreeIfNeeded()
-        return window
-    }
-
-    private func modelGroup(
-        providerID: String,
-        title: String,
-        models: [(String, String)]
-    ) -> ChatComposerActionRowView.ReasoningModelGroup {
-        .init(
-            providerID: providerID,
-            providerTitle: title,
-            options: models.map {
-                .init(providerID: providerID, value: $0.0, title: $0.1)
-            }
-        )
-    }
 }

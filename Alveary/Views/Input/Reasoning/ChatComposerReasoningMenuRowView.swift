@@ -4,6 +4,7 @@ import AppKit
 final class ComposerReasoningMenuRowView: NSView {
     private var configuration: Configuration?
     private var trackingArea: NSTrackingArea?
+    private var geometryObservers: [NSObjectProtocol] = []
     private var focusStateIsVisible = false
     private var isHovering = false
     private var isPressed = false
@@ -46,6 +47,9 @@ final class ComposerReasoningMenuRowView: NSView {
     }
 
     #if DEBUG
+    /// Stands in for `mouseLocationOutsideOfEventStream` (and its key-window guard) so tests can
+    /// steer `refreshHoverFromPointerLocation()` without a real pointer.
+    static var debugPointerLocationInWindowOverride: NSPoint?
     var debugIconName: String? { configuration?.iconName }
     var debugIconRotationRadians: CGFloat { configuration?.iconRotationRadians ?? 0 }
     var debugTrailingIconName: String? { configuration?.trailingIconName }
@@ -119,20 +123,32 @@ final class ComposerReasoningMenuRowView: NSView {
         return true
     }
 
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        // Released on the way out, not in `deinit`, which cannot touch main-actor state — and a
+        // closing window does not always run `viewDidMoveToWindow` for its views again.
+        guard newWindow == nil else {
+            return
+        }
+        releaseGeometryObservers()
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil {
+        guard window != nil else {
             focusStateIsVisible = false
             resetInteractionState()
+            return
         }
+        observeEnclosingScroll()
+        refreshHoverFromPointerLocation()
     }
 
     override func mouseEntered(with event: NSEvent) {
         guard configuration?.isEnabled == true else {
             return
         }
-        isHovering = true
-        needsDisplay = true
+        setHovering(true)
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -388,73 +404,64 @@ final class ComposerReasoningMenuRowView: NSView {
 }
 
 private extension ComposerReasoningMenuRowView {
-    func symbolImage(named name: String, pointSize: CGFloat, color: NSColor) -> NSImage? {
-        let configuration = NSImage.SymbolConfiguration(
-            pointSize: pointSize,
-            weight: .semibold
-        ).applying(.init(paletteColors: [color, color, color]))
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(configuration)
-    }
-
-    func iconColor(for configuration: Configuration) -> NSColor {
-        let color: NSColor = configuration.isWarning ? .systemOrange : .labelColor
-        return color.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.72 : 0.32)
-    }
-
-    func titleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
-        let color: NSColor = configuration.isWarning ? .systemOrange : .labelColor
-        return [
-            .font: ComposerReasoningMenuMetrics.itemFont,
-            .foregroundColor: color.appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.86 : 0.42),
-            .paragraphStyle: ComposerReasoningMenuMetrics.truncatingParagraphStyle
-        ]
-    }
-
-    func subtitleAttributes(for configuration: Configuration) -> [NSAttributedString.Key: Any] {
-        var attributes = Self.subtitleMeasurementAttributes(lineLimit: configuration.subtitleLineLimit)
-        attributes[.foregroundColor] = NSColor.secondaryLabelColor
-            .appKitResolvedColor(in: self, alpha: configuration.isEnabled ? 0.68 : 0.32)
-        return attributes
-    }
-
-    func symbolDrawingSize(for image: NSImage, maxSize: CGFloat) -> NSSize {
-        let imageSize = image.size
-        guard imageSize.width > 0, imageSize.height > 0 else {
-            return NSSize(width: maxSize, height: maxSize)
-        }
-        let scale = min(maxSize / imageSize.width, maxSize / imageSize.height)
-        return NSSize(width: ceil(imageSize.width * scale), height: ceil(imageSize.height * scale))
-    }
-
-    func drawImage(_ image: NSImage, in rect: NSRect, rotationRadians: CGFloat) {
-        guard rotationRadians != 0 else {
-            image.draw(
-                in: rect,
-                from: .zero,
-                operation: .sourceOver,
-                fraction: 1,
-                respectFlipped: true,
-                hints: nil
-            )
+    /// Scrolling moves rows under a stationary pointer with no mouse event, and keyboard focus
+    /// does the same through `becomeFirstResponder()`'s `scrollToVisible` — AppKit delivers no
+    /// `mouseExited` for either, so every row the cursor passes over would keep its hover
+    /// highlight. Re-deriving hover from the pointer's actual location on each scroll or resize
+    /// frame is what unsticks it. Rows in popovers without a scroll view have nothing to observe.
+    func observeEnclosingScroll() {
+        releaseGeometryObservers()
+        guard let clipView = enclosingScrollView?.contentView else {
             return
         }
+        clipView.postsBoundsChangedNotifications = true
+        clipView.postsFrameChangedNotifications = true
+        geometryObservers = [NSView.boundsDidChangeNotification, NSView.frameDidChangeNotification]
+            .map { name in
+                NotificationCenter.default.addObserver(forName: name, object: clipView, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.refreshHoverFromPointerLocation()
+                    }
+                }
+            }
+    }
 
-        NSGraphicsContext.saveGraphicsState()
-        let transform = NSAffineTransform()
-        transform.translateX(by: rect.midX, yBy: rect.midY)
-        transform.rotate(byRadians: rotationRadians)
-        transform.translateX(by: -rect.midX, yBy: -rect.midY)
-        transform.concat()
-        image.draw(
-            in: rect,
-            from: .zero,
-            operation: .sourceOver,
-            fraction: 1,
-            respectFlipped: true,
-            hints: nil
-        )
-        NSGraphicsContext.restoreGraphicsState()
+    func releaseGeometryObservers() {
+        for observer in geometryObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        geometryObservers = []
+    }
+
+    func refreshHoverFromPointerLocation() {
+        guard configuration?.isEnabled == true, let pointerInWindow = pointerLocationInWindow() else {
+            setHovering(false)
+            return
+        }
+        let pointer = convert(pointerInWindow, from: nil)
+        // The pointer can sit inside this view's bounds while the view is scrolled out of the
+        // clip view, so the visible rect has to agree before the row claims the highlight.
+        setHovering(bounds.contains(pointer) && visibleRect.contains(pointer))
+    }
+
+    func pointerLocationInWindow() -> NSPoint? {
+        #if DEBUG
+        if let override = Self.debugPointerLocationInWindowOverride {
+            return override
+        }
+        #endif
+        guard let window, window.isKeyWindow else {
+            return nil
+        }
+        return window.mouseLocationOutsideOfEventStream
+    }
+
+    func setHovering(_ hovering: Bool) {
+        guard isHovering != hovering else {
+            return
+        }
+        isHovering = hovering
+        needsDisplay = true
     }
 
     func resetInteractionState() {
