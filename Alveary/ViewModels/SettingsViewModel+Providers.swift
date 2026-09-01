@@ -161,7 +161,7 @@ extension SettingsViewModel {
             installation: .unknown,
             isEnabled: settingsService.current.isProviderEnabled(providerId),
             setup: .unknown,
-            modelOptions: AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: id)
+            modelOptions: AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: id)
         )
     }
 

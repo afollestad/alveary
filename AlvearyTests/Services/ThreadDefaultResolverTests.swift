@@ -48,6 +48,34 @@ final class ThreadDefaultResolverTests: XCTestCase {
         XCTAssertEqual(resolution.readyProviderIDs, ["claude"])
     }
 
+    /// Before discovery reports statuses, the fallback options must be the real Claude catalog — the one-row
+    /// provider-default placeholder resolved nothing, so pre-discovery UI flashed raw model ids.
+    func testEmptyStatusesFallBackToTheStaticClaudeCatalog() {
+        let claudeOptions = ThreadDefaultResolver.modelOptions(for: "claude", providerStatuses: [:])
+        let codexOptions = ThreadDefaultResolver.modelOptions(for: "codex", providerStatuses: [:])
+
+        XCTAssertEqual(claudeOptions.filter(\.isDefault).map(\.id), ["claude-sonnet-5"])
+        XCTAssertEqual(codexOptions.map(\.id), ["default"])
+    }
+
+    /// The static-fallback paths (host tools, pull-request threads, nil-discovery view models) used to reset a stored
+    /// pinned model to the default sentinel because the placeholder options could not resolve it.
+    func testStaticFallbackPreservesAStoredPinnedModel() {
+        var settings = AppSettings()
+        settings.defaultProvider = "claude"
+        settings.defaultModel = "claude-opus-5"
+
+        let resolution = ThreadDefaultResolver.resolve(
+            settings: settings,
+            providerOrdering: ["claude"],
+            providerStatuses: [:],
+            allowStaticFallback: true
+        )
+
+        XCTAssertEqual(resolution.providerID, "claude")
+        XCTAssertEqual(resolution.storedThreadModel, "claude-opus-5")
+    }
+
     private static func status(
         for providerId: AgentCLIKit.AgentProviderID,
         setup: AgentCLIKit.AgentProviderReadinessState

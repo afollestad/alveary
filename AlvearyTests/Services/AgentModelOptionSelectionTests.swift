@@ -67,6 +67,30 @@ final class AgentModelOptionSelectionTests: XCTestCase {
         XCTAssertEqual(pickerValue, "claude-sonnet-5")
     }
 
+    /// The composer paints before discovery's first probe lands, so the cold-path catalog must resolve a persisted
+    /// pinned id to its real label instead of synthesizing a raw-id row.
+    func testStaticCatalogResolvesAPersistedPinnedIDBeforeDiscovery() {
+        let options = AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude)
+        let menuItems = AgentModelOptionSelection.menuItems(
+            in: options,
+            selectedModel: "claude-opus-5",
+            fallbackTitle: ChatComposerTextSupport.modelLabel(for:)
+        )
+
+        XCTAssertEqual(menuItems.first { $0.value == "claude-opus-5" }?.title, "Opus 5")
+        // No synthesized fallback row: the pinned id belongs to a listed option.
+        XCTAssertEqual(menuItems.map(\.value), options.map(\.id))
+    }
+
+    func testStaticCatalogResolvesTheDefaultSentinelToTheDefaultOption() {
+        let pickerValue = AgentModelOptionSelection.pickerValue(
+            in: AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: .claude),
+            matching: AppSettings.defaultModelValue
+        )
+
+        XCTAssertEqual(pickerValue, "claude-sonnet-5")
+    }
+
     /// Mirrors the real catalog's shape: the strongest model leads and the default sits further down.
     private static let claudeOptions: [AgentCLIKit.AgentModelOption] = [
         AgentCLIKit.AgentModelOption(

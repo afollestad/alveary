@@ -90,7 +90,7 @@ enum ThreadDefaultResolver {
         guard let id = AgentCLIKit.AgentProviderID(rawValue: providerID) else {
             return []
         }
-        return AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: id)
+        return AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: id)
     }
 
     static func orderedSupportedProviderIDs(_ providerOrdering: [String]) -> [String] {

@@ -38,7 +38,9 @@ extension ThreadHostToolServiceTests {
     }
 
     /// The caller's model belongs to its provider, so naming a different provider falls back to
-    /// the user's defaults rather than dragging a foreign model string along.
+    /// the user's defaults rather than dragging a foreign model string along. An unset default
+    /// resolves against the static Claude catalog, so it materializes as the catalog's default
+    /// model — the same value discovery-backed resolution produces.
     func testCreateThreadDoesNotInheritSettingsAcrossAnExplicitProviderChange() async throws {
         let fixture = try ThreadHostToolFixture()
 
@@ -50,7 +52,7 @@ extension ThreadHostToolServiceTests {
         XCTAssertFalse(result.isError, result.text)
         let content = try object(result.structuredContent)
         XCTAssertEqual(content["provider"], .string("claude"))
-        XCTAssertEqual(content["model"], .string("default"))
+        XCTAssertEqual(content["model"], .string("claude-sonnet-5"))
     }
 
     /// A caller running its provider's default model passes that on as-is: the created thread

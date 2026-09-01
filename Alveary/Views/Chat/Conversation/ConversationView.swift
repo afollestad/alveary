@@ -300,7 +300,7 @@ private extension ConversationView {
         if let options = composerProviderStatuses[providerId]?.modelOptions, !options.isEmpty {
             return options
         }
-        return AgentCLIKit.AgentDefaultModelOptions.providerDefault(for: providerId)
+        return AgentCLIKit.AgentDefaultModelOptions.staticOptions(for: providerId)
     }
 
     func reasoningModelGroup(

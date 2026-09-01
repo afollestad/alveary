@@ -108,7 +108,9 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.lastSettingsPage, .terminal)
         XCTAssertEqual(viewModel.defaultProvider, "claude")
-        XCTAssertEqual(viewModel.defaultModel, "opus")
+        // The picker value resolves the stored alias against the static catalog, mirroring what a
+        // discovery-backed screen shows.
+        XCTAssertEqual(viewModel.defaultModel, "claude-opus-5")
         XCTAssertEqual(viewModel.permissionMode, "acceptEdits")
         XCTAssertEqual(viewModel.effort, "high")
         XCTAssertEqual(viewModel.defaultThreadCleanupAction, .delete)
@@ -201,7 +203,8 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(service.current.lastSettingsPage, .git)
         XCTAssertEqual(service.current.defaultProvider, "claude")
-        XCTAssertEqual(service.current.defaultModel, "sonnet")
+        // Writes store the catalog id the typed alias resolves to, mirroring a discovery-backed screen.
+        XCTAssertEqual(service.current.defaultModel, "claude-sonnet-5")
         XCTAssertEqual(service.current.permissionMode, "acceptEdits")
         XCTAssertEqual(service.current.effort, "max")
         XCTAssertEqual(service.current.defaultThreadCleanupAction, .delete)
