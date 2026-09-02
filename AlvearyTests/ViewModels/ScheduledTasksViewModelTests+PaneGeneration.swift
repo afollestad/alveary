@@ -68,6 +68,31 @@ extension ScheduledTasksViewModelTests {
         XCTAssertFalse(fixture.viewModel.tasks.contains { $0.id == "deleted-edit" })
     }
 
+    /// The editor's footer toggle pauses the task behind the open pane; the draft captured the
+    /// pre-pause revision, and without a re-stamp the save that follows can only ever fail.
+    func testPauseFromOpenEditorKeepsDraftSaveable() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        try fixture.insertDefinition(id: "pause-while-editing", title: "Before", revision: 1)
+        fixture.viewModel.reload()
+        fixture.viewModel.requestEdit(definitionID: "pause-while-editing")
+        var draft = try XCTUnwrap(fixture.viewModel.pendingEditorDraft)
+        draft.title = "After"
+        fixture.viewModel.updateActiveDraft(draft)
+        let task = try XCTUnwrap(fixture.viewModel.tasks.first { $0.id == "pause-while-editing" })
+
+        fixture.viewModel.pause(task)
+        XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.expectedRevision, 2)
+        XCTAssertEqual(fixture.viewModel.pendingEditorDraft?.title, "After")
+
+        fixture.viewModel.submitActivePane()
+
+        XCTAssertNil(fixture.viewModel.editorErrorMessage)
+        let definition = try XCTUnwrap(fixture.context.resolveScheduledTask(id: "pause-while-editing"))
+        XCTAssertEqual(definition.title, "After")
+        XCTAssertEqual(definition.state, .paused)
+        XCTAssertEqual(definition.revision, 3)
+    }
+
     func testProposalLoadPreservesManualSessionWhileScreenLoadNormalizesWithoutClearingError() async throws {
         let fixture = try ScheduledTasksViewModelFixture()
         fixture.viewModel.requestCreate()

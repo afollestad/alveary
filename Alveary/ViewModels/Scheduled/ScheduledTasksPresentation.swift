@@ -89,7 +89,12 @@ struct ScheduledTaskRowPresentation: Identifiable, Equatable {
 struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     let id: UUID
     let definitionID: String?
-    let expectedRevision: Int?
+    /// The definition revision the save must find, or `nil` for a new task. Mutable only so the
+    /// view model's own Pause/Resume can re-stamp it: those bump the revision without touching any
+    /// field this draft edits, and leaving the stale value made every later Save fail until the
+    /// pane was closed, discarding the user's edits. Nothing else may write it — a bump from an
+    /// edit made elsewhere must still fail the save rather than clobber that edit.
+    var expectedRevision: Int?
     var title: String
     var prompt: String
     var destination: ScheduledTaskDestination = .reusedThread

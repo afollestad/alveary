@@ -477,4 +477,18 @@ extension ScheduledTasksViewModel {
             pendingPaneDismissals.insert(.init(target: target, generation: generation))
         }
     }
+
+    /// Re-stamps a cached editor session with the definition's live revision after a state-only
+    /// mutation this view model performed itself. See `ScheduledTaskEditorDraft.expectedRevision`
+    /// for why only Pause/Resume may call this. Lives here for the same reason as
+    /// `discardEditSession`: `paneSessions` has a private setter.
+    func refreshEditSessionRevision(definitionID: String) {
+        let target = ScheduledTaskPaneTarget.edit(definitionID)
+        guard var session = paneSessions[target],
+              let definition = modelContext.resolveScheduledTask(id: definitionID) else {
+            return
+        }
+        session.draft.expectedRevision = definition.revision
+        paneSessions[target] = session
+    }
 }
