@@ -8,6 +8,9 @@ import Foundation
 struct HostToolFeatureCatalog: Sendable {
     /// Stable identifier used in diagnostics and collision reports, such as `scheduling`.
     let featureID: String
+    /// What the MCP screen's Built-in section calls this feature's tools, such as `Threads`;
+    /// sentence case, matching the sidebar.
+    let title: String
     let tools: [AgentCLIKit.AgentHostToolDefinition]
     /// The feature's paragraph of server instructions, composed into one blob by
     /// `AlvearyHostToolCatalog` in enrollment order.

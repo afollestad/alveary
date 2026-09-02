@@ -224,7 +224,7 @@ extension ContentView {
             SkillsPane(viewModel: skillsViewModel, target: target, onDismiss: onDismiss)
                 .equatable()
         case .mcp(let target):
-            MCPServerPane(viewModel: mcpViewModel, target: target, onDismiss: onDismiss)
+            MCPPane(viewModel: mcpViewModel, target: target, onDismiss: onDismiss)
                 .equatable()
         case .scheduled(let target):
             ScheduledTaskEditorPane(viewModel: scheduledTasksViewModel, target: target, onDismiss: onDismiss)

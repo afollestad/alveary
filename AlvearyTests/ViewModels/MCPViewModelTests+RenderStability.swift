@@ -26,6 +26,17 @@ extension MCPViewModelTests {
         XCTAssertNotEqual(card, makeCard(server: recommended, isSelected: true))
         XCTAssertNotEqual(card, makeCard(server: recommended, focusID: "mcp-recommended-other"))
     }
+
+    func testBuiltInMCPToolGroupCardEqualityIgnoresItsActionAndComparesTheRenderedGroup() {
+        let group = makeBuiltInToolGroup()
+        let card = makeBuiltInCard(group: group)
+
+        XCTAssertEqual(card, makeBuiltInCard(group: group))
+        XCTAssertNotEqual(card, makeBuiltInCard(group: makeBuiltInToolGroup(title: "Something else")))
+        XCTAssertNotEqual(card, makeBuiltInCard(group: makeBuiltInToolGroup(tools: [])))
+        XCTAssertNotEqual(card, makeBuiltInCard(group: group, isSelected: true))
+        XCTAssertNotEqual(card, makeBuiltInCard(group: group, focusID: "mcp-built-in-other"))
+    }
 }
 
 private func makeServer(name: String = "context7", providers: [String] = ["claude"]) -> MCPServer {
@@ -83,6 +94,15 @@ private func makeCard(
     RecommendedMCPCardEqualityHost(server: server, isSelected: isSelected, focusID: focusID).card
 }
 
+@MainActor
+private func makeBuiltInCard(
+    group: BuiltInMCPToolGroup,
+    isSelected: Bool = false,
+    focusID: String = "mcp-built-in-threads"
+) -> BuiltInMCPToolGroupCard {
+    BuiltInMCPToolGroupCardEqualityHost(group: group, isSelected: isSelected, focusID: focusID).card
+}
+
 private struct MCPServerRowEqualityHost: View {
     let server: MCPServer
     let isSelected: Bool
@@ -103,6 +123,28 @@ private struct MCPServerRowEqualityHost: View {
 
     var body: some View {
         row
+    }
+}
+
+private struct BuiltInMCPToolGroupCardEqualityHost: View {
+    let group: BuiltInMCPToolGroup
+    let isSelected: Bool
+    let focusID: String
+
+    @FocusState private var focus: String?
+
+    var card: BuiltInMCPToolGroupCard {
+        BuiltInMCPToolGroupCard(
+            group: group,
+            isSelected: isSelected,
+            onOpen: {},
+            openFocus: $focus,
+            openFocusID: focusID
+        )
+    }
+
+    var body: some View {
+        card
     }
 }
 

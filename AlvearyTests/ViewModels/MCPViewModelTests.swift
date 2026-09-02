@@ -201,7 +201,7 @@ final class MCPViewModelTests: XCTestCase {
         viewModel.requestEdit(server)
         viewModel.requestAddCustom()
 
-        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft.name, "unsaved-custom")
+        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft?.name, "unsaved-custom")
         XCTAssertNotNil(viewModel.paneSessions[.edit("existing")])
     }
 
@@ -219,7 +219,7 @@ final class MCPViewModelTests: XCTestCase {
         ])
         await viewModel.refreshProviders()
 
-        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft.name, "keep-me")
+        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft?.name, "keep-me")
         XCTAssertEqual(viewModel.availableAgents.map(\.agentId), ["codex"])
     }
 
@@ -253,7 +253,7 @@ final class MCPViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.activePaneTarget, .addCustom)
         XCTAssertEqual(viewModel.paneSessions[.addCustom]?.generation, reopenedGeneration)
-        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft.name, "reopened")
+        XCTAssertEqual(viewModel.paneSessions[.addCustom]?.draft?.name, "reopened")
         XCTAssertEqual(viewModel.paneDismissalGeneration, 1)
     }
 

@@ -118,7 +118,7 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testMCPScreenPopulated() async {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
 
         assertMacSnapshot(

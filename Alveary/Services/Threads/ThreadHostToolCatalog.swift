@@ -19,6 +19,7 @@ enum ThreadHostToolCatalog {
     static var featureCatalog: HostToolFeatureCatalog {
         HostToolFeatureCatalog(
             featureID: featureID,
+            title: "Threads",
             tools: tools,
             instructionsFragment: instructionsFragment
         )

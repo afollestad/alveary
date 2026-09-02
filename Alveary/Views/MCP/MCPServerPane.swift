@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// The add and edit form for a user-configured server; `MCPPane` mounts it for every
+/// target but `.builtInToolGroup`.
+///
 /// The pane compares equal across the lane's own render passes so a resize drag or an
 /// unrelated root invalidation cannot rebuild the form — including its two AppKit-backed
 /// text editors. Its body still reads `paneSessions`, so typing re-renders it as before.
@@ -20,10 +23,10 @@ struct MCPServerPane: View, Equatable {
     private var draft: Binding<MCPServerDraft> {
         Binding(
             get: {
-                guard let session = viewModel.paneSessions[target] else {
+                guard let draft = viewModel.paneSessions[target]?.draft else {
                     return MCPServerDraft(availableAgents: viewModel.availableAgents)
                 }
-                return session.draft
+                return draft
             },
             set: { viewModel.updateActiveDraft($0) }
         )
@@ -36,9 +39,12 @@ struct MCPServerPane: View, Equatable {
     private var title: String {
         switch target {
         case .edit:
-            session?.draft.name.isEmpty == false ? session?.draft.name ?? "Edit Server" : "Edit Server"
+            session?.draft?.name.isEmpty == false ? session?.draft?.name ?? "Edit Server" : "Edit Server"
         case .addCustom, .addRecommended:
             "Add Server"
+        case .builtInToolGroup:
+            // `MCPPane` routes built-in targets to `BuiltInMCPToolGroupPane`; this never renders.
+            "Built-in tools"
         }
     }
 

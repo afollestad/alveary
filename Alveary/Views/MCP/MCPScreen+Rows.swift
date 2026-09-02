@@ -102,6 +102,25 @@ struct MCPServerRow: View, Equatable {
     }
 }
 
+/// The small secondary capsule the MCP cards share — a recommended server's transport, a
+/// built-in tool's feature — so the two surfaces cannot drift apart.
+struct MCPMetaCapsule: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.secondary.opacity(0.14)))
+            .foregroundStyle(.secondary)
+    }
+}
+
 struct RecommendedMCPCard: View, Equatable {
     let server: RecommendedMCPServer
     let isSelected: Bool
@@ -138,12 +157,7 @@ struct RecommendedMCPCard: View, Equatable {
                 .accessibilityLabel("Add \(server.template.name)")
             }
 
-            Text(server.template.transport.rawValue.uppercased())
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color.secondary.opacity(0.14)))
-                .foregroundStyle(.secondary)
+            MCPMetaCapsule(server.template.transport.rawValue.uppercased())
 
             Text(server.description)
                 .font(.subheadline)

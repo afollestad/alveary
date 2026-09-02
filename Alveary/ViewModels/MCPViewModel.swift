@@ -5,6 +5,9 @@ enum MCPPaneTarget: Hashable {
     case addCustom
     case addRecommended(String)
     case edit(String)
+    /// Read-only details for one feature's `alveary_host` tools, keyed by
+    /// `BuiltInMCPToolGroup.id`.
+    case builtInToolGroup(String)
 
     var defaultFocusRestorationID: String {
         switch self {
@@ -14,6 +17,8 @@ enum MCPPaneTarget: Hashable {
             "mcp-recommended-\(serverID)"
         case .edit(let serverName):
             "mcp-edit-\(serverName)"
+        case .builtInToolGroup(let groupID):
+            "mcp-built-in-\(groupID)"
         }
     }
 }
@@ -104,7 +109,9 @@ struct MCPServerDraft: Equatable {
 
 struct MCPPaneSession: Equatable {
     let generation: UUID
-    var draft: MCPServerDraft
+    /// `nil` for a built-in tool group's details, which have nothing to edit and nothing
+    /// to submit; the session then exists only to give the pane a presentation generation.
+    var draft: MCPServerDraft?
     var errorMessage: String?
     var isSubmitting = false
 }
@@ -118,6 +125,11 @@ final class MCPViewModel {
     /// ``ScrollOffsetStore`` for why it cannot live on the screen.
     @ObservationIgnored let listScrollOffset = ScrollOffsetStore()
 
+    /// The `alveary_host` tools the screen lists read-only above the user's servers, one
+    /// group per feature. Static for the app's lifetime, so `load()` never touches it;
+    /// injected so snapshots can keep the previews short.
+    let builtInToolGroups: [BuiltInMCPToolGroup]
+
     private(set) var servers: [MCPServer] = []
     private(set) var recommended: [RecommendedMCPServer] = []
     private(set) var availableAgents: [MCPAgentAvailability] = []
@@ -130,8 +142,41 @@ final class MCPViewModel {
     private var deactivatedPaneDismissals: Set<PaneSessionDismissalRequest<MCPPaneTarget>> = []
     var searchQuery: String = ""
 
-    init(mcpService: any MCPService) {
+    init(
+        mcpService: any MCPService,
+        builtInToolGroups: [BuiltInMCPToolGroup] = BuiltInMCPToolGroup.all
+    ) {
         self.mcpService = mcpService
+        self.builtInToolGroups = builtInToolGroups
+    }
+
+    /// A query matching a group's title keeps the whole group; otherwise the group is
+    /// narrowed to the tools that match, so its card previews exactly what was found.
+    var filteredBuiltInToolGroups: [BuiltInMCPToolGroup] {
+        let query = normalizedSearchQuery
+        guard !query.isEmpty else {
+            return builtInToolGroups
+        }
+
+        return builtInToolGroups.compactMap { group in
+            if group.title.localizedCaseInsensitiveContains(query) {
+                return group
+            }
+            let tools = group.tools.filter { tool in
+                tool.name.localizedCaseInsensitiveContains(query) ||
+                    tool.title.localizedCaseInsensitiveContains(query) ||
+                    tool.description.localizedCaseInsensitiveContains(query)
+            }
+            guard !tools.isEmpty else {
+                return nil
+            }
+            return BuiltInMCPToolGroup(id: group.id, title: group.title, tools: tools)
+        }
+    }
+
+    /// The unfiltered group, which is what its pane lists even while a search narrows the card.
+    func builtInToolGroup(id: String) -> BuiltInMCPToolGroup? {
+        builtInToolGroups.first { $0.id == id }
     }
 
     var filteredServers: [MCPServer] {
@@ -215,6 +260,14 @@ final class MCPViewModel {
         }
     }
 
+    func requestBuiltInToolGroupDetails(_ group: BuiltInMCPToolGroup, focusRestorationID: String? = nil) {
+        let target = MCPPaneTarget.builtInToolGroup(group.id)
+        paneFocusRestorationID = focusRestorationID ?? target.defaultFocusRestorationID
+        activate(target) {
+            nil
+        }
+    }
+
     func updateActiveDraft(_ draft: MCPServerDraft) {
         guard let target = activePaneTarget,
               var session = paneSessions[target] else {
@@ -235,6 +288,7 @@ final class MCPViewModel {
     func submitActivePane() async {
         guard let target = activePaneTarget,
               var session = paneSessions[target],
+              let draft = session.draft,
               !session.isSubmitting else {
             return
         }
@@ -244,7 +298,7 @@ final class MCPViewModel {
         paneSessions[target] = session
 
         do {
-            try await addServer(session.draft.makeServer(), for: Array(session.draft.selectedAgents))
+            try await addServer(draft.makeServer(), for: Array(draft.selectedAgents))
             guard paneSessions[target]?.generation == generation else {
                 return
             }
@@ -256,6 +310,10 @@ final class MCPViewModel {
                     if !filteredServers.contains(where: { $0.name == originalName }) {
                         paneFocusRestorationID = MCPPaneTarget.addCustom.defaultFocusRestorationID
                     }
+                case .builtInToolGroup:
+                    // Unreachable: a built-in group's session has no draft, so the guard
+                    // above already returned.
+                    break
                 }
             }
             pendingPaneDismissals.insert(.init(target: target, generation: generation))
@@ -315,7 +373,7 @@ final class MCPViewModel {
 }
 
 private extension MCPViewModel {
-    func activate(_ target: MCPPaneTarget, makeDraft: () -> MCPServerDraft) {
+    func activate(_ target: MCPPaneTarget, makeDraft: () -> MCPServerDraft?) {
         if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
             deactivatedPaneDismissals.remove(request)
             dismissPane(target, generation: request.generation, restoreFocus: false)

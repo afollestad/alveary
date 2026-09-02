@@ -4,7 +4,7 @@ import XCTest
 
 extension SnapshotTests {
     func testMCPAddCustomPaneAtMinimumWidth() async {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
         viewModel.requestAddCustom()
 
@@ -16,7 +16,7 @@ extension SnapshotTests {
     }
 
     func testMCPAddRecommendedPaneAtMinimumWidth() async throws {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
         let recommended = try XCTUnwrap(viewModel.recommended.first)
         viewModel.requestAddRecommended(recommended)
@@ -29,7 +29,7 @@ extension SnapshotTests {
     }
 
     func testMCPEditPaneAtMinimumWidth() async throws {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
         let server = try XCTUnwrap(viewModel.servers.first)
         viewModel.requestEdit(server)
@@ -45,7 +45,7 @@ extension SnapshotTests {
     /// `isSelected` to the right pane target — comparing a server's id against an
     /// `.edit` target's name is the shape of bug it catches.
     func testMCPScreenSelectedRow() async throws {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
         let server = try XCTUnwrap(viewModel.servers.first)
         viewModel.requestEdit(server)
@@ -58,7 +58,7 @@ extension SnapshotTests {
     }
 
     func testMCPScreenPopulatedDark() async {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
 
         assertMacSnapshot(
@@ -70,7 +70,7 @@ extension SnapshotTests {
     }
 
     func testMCPScreenPopulatedNarrow() async {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
 
         assertMacSnapshot(
@@ -81,7 +81,7 @@ extension SnapshotTests {
     }
 
     func testMCPScreenPopulatedSqueezed() async {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
 
         assertMacSnapshot(
@@ -95,7 +95,7 @@ extension SnapshotTests {
     /// where Pull Requests has long traded its own for a button. The header must measure
     /// the parts it actually has rather than follow a shared threshold.
     func testMCPHeaderKeepsSearchFieldWhileItFits() async {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService())
+        let viewModel = makeSnapshotMCPViewModel()
         await viewModel.load()
 
         assertMacSnapshot(
@@ -114,13 +114,40 @@ extension SnapshotTests {
     }
 
     func testMCPScreenNoAddedServers() async {
-        let viewModel = MCPViewModel(mcpService: SnapshotMCPService(servers: []))
+        let viewModel = makeSnapshotMCPViewModel(servers: [])
         await viewModel.load()
 
         assertMacSnapshot(
             MCPScreen(viewModel: viewModel),
             size: CGSize(width: 1120, height: 900),
             named: "mcp_screen_no_added_servers"
+        )
+    }
+
+    /// Like `testMCPScreenSelectedRow`: the built-in card's fill follows the
+    /// `.builtInToolGroup` target's id, and this baseline is what holds it there.
+    func testMCPScreenSelectedBuiltInToolGroup() async throws {
+        let viewModel = makeSnapshotMCPViewModel()
+        await viewModel.load()
+        let group = try XCTUnwrap(viewModel.builtInToolGroups.first)
+        viewModel.requestBuiltInToolGroupDetails(group)
+
+        assertMacSnapshot(
+            MCPScreen(viewModel: viewModel),
+            size: CGSize(width: 1120, height: 900),
+            named: "mcp_screen_selected_built_in_tool_group"
+        )
+    }
+
+    /// Mounted through `MCPPane` so the lane's target routing is what renders it.
+    func testMCPBuiltInToolGroupPaneAtMinimumWidth() async throws {
+        let viewModel = makeSnapshotMCPViewModel()
+        let group = try XCTUnwrap(viewModel.builtInToolGroups.first)
+
+        assertMacSnapshot(
+            MCPPane(viewModel: viewModel, target: .builtInToolGroup(group.id), onDismiss: {}),
+            size: CGSize(width: 320, height: 780),
+            named: "mcp_built_in_tool_group_pane_minimum_width"
         )
     }
 }

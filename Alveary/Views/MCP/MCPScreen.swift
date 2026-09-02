@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Has no empty state, deliberately: the built-in section is always present, so the screen
+/// never has nothing to show even with no servers added and no recommendations loaded.
 struct MCPScreen: View {
     let viewModel: MCPViewModel
 
@@ -36,11 +38,24 @@ struct MCPScreen: View {
                         )
                     }
 
+                    let activeTarget = viewModel.activePaneTarget
+                    let filteredBuiltInToolGroups = viewModel.filteredBuiltInToolGroups
+
+                    if !filteredBuiltInToolGroups.isEmpty {
+                        BuiltInMCPToolsSection(
+                            groups: filteredBuiltInToolGroups,
+                            columns: gridColumns,
+                            selectedGroupID: selectedBuiltInToolGroupID(activeTarget),
+                            focusedPaneTrigger: $focusedPaneTriggerID,
+                            onOpen: { group in
+                                viewModel.requestBuiltInToolGroupDetails(group)
+                            }
+                        )
+                    }
+
                     if viewModel.servers.isEmpty && !viewModel.recommended.isEmpty {
                         NoMCPServersAddedLabel()
                     }
-
-                    let activeTarget = viewModel.activePaneTarget
 
                     if !viewModel.filteredServers.isEmpty {
                         VStack(alignment: .leading, spacing: 14) {
@@ -92,25 +107,6 @@ struct MCPScreen: View {
                             .adaptiveCardGridReflow(columnCount: gridColumnCount)
                         }
                     }
-
-                    if viewModel.servers.isEmpty && viewModel.recommended.isEmpty && hasLoaded {
-                        EmptyStateView(
-                            icon: "server.rack",
-                            heading: "No MCP servers available",
-                            subtext: "Recommended servers are unavailable right now, but you can still add a custom one.",
-                            actions: [
-                                .init(
-                                    title: "Add Server",
-                                    systemImage: "plus",
-                                    style: .primary,
-                                    focusID: "mcp-add-empty"
-                                ) {
-                                    openCustomServer(focusRestorationID: "mcp-add-empty")
-                                }
-                            ],
-                            actionFocus: $focusedPaneTriggerID
-                        )
-                    }
                 }
                 .padding(
                     EdgeInsets(
@@ -159,18 +155,26 @@ private extension MCPScreen {
         ids.formUnion(viewModel.filteredRecommended.map {
             MCPPaneTarget.addRecommended($0.id).defaultFocusRestorationID
         })
-        if viewModel.servers.isEmpty, viewModel.recommended.isEmpty, hasLoaded {
-            ids.insert("mcp-add-empty")
-        }
+        ids.formUnion(viewModel.filteredBuiltInToolGroups.map {
+            MCPPaneTarget.builtInToolGroup($0.id).defaultFocusRestorationID
+        })
         return ids
+    }
+
+    /// The built-in group whose details pane is open, so its card can render selected.
+    func selectedBuiltInToolGroupID(_ activeTarget: MCPPaneTarget?) -> String? {
+        guard case .builtInToolGroup(let groupID) = activeTarget else {
+            return nil
+        }
+        return groupID
     }
 
     var gridColumns: [GridItem] {
         AdaptiveCardGridLayout.columns(count: gridColumnCount)
     }
 
-    func openCustomServer(focusRestorationID: String? = nil) {
-        viewModel.requestAddCustom(focusRestorationID: focusRestorationID)
+    func openCustomServer() {
+        viewModel.requestAddCustom()
     }
 
     func remove(_ server: MCPServer) async {

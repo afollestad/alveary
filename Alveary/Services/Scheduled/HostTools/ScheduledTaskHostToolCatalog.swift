@@ -10,6 +10,7 @@ enum ScheduledTaskHostToolCatalog {
     static var featureCatalog: HostToolFeatureCatalog {
         HostToolFeatureCatalog(
             featureID: featureID,
+            title: "Scheduled tasks",
             tools: tools,
             instructionsFragment: instructionsFragment(
                 timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier

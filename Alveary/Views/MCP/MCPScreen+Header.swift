@@ -10,7 +10,7 @@ struct MCPScreenHeader: View {
 
     var body: some View {
         ResponsivePaneHeader(
-            search: PaneHeaderSearch(placeholder: "Search servers", text: $searchQuery)
+            search: PaneHeaderSearch(placeholder: "Search servers and tools", text: $searchQuery)
         ) { isCompact in
             addButton(isCompact: isCompact)
 

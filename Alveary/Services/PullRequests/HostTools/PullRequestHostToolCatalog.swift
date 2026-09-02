@@ -33,6 +33,7 @@ enum PullRequestHostToolCatalog {
     static var featureCatalog: HostToolFeatureCatalog {
         HostToolFeatureCatalog(
             featureID: featureID,
+            title: "Pull requests",
             tools: tools,
             instructionsFragment: instructionsFragment
         )

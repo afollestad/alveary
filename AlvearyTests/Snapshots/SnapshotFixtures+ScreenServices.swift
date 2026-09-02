@@ -104,8 +104,79 @@ private extension SnapshotSkillsService {
     }
 }
 
+/// Short built-in groups rather than the real catalog, whose name previews and pane
+/// descriptions are prose that reflows across macOS versions; `BuiltInMCPToolGroupTests`
+/// covers the real listing textually.
+@MainActor
+func makeSnapshotMCPViewModel(
+    servers: [MCPServer]? = nil,
+    recommended: [RecommendedMCPServer]? = nil
+) -> MCPViewModel {
+    MCPViewModel(
+        mcpService: SnapshotMCPService(servers: servers, recommended: recommended),
+        builtInToolGroups: SnapshotMCPService.builtInToolGroups
+    )
+}
+
 @MainActor
 final class SnapshotMCPService: MCPService {
+    static let builtInToolGroups: [BuiltInMCPToolGroup] = [
+        BuiltInMCPToolGroup(
+            id: "scheduling",
+            title: "Scheduled tasks",
+            tools: [
+                BuiltInMCPTool(
+                    name: "list_scheduled_tasks",
+                    title: "List scheduled tasks",
+                    description: "Lists Alveary's scheduled tasks with their IDs, states, and schedule summaries.",
+                    isReadOnly: true
+                ),
+                BuiltInMCPTool(
+                    name: "propose_scheduled_task",
+                    title: "Propose a scheduled task change",
+                    description: "Creates, edits, pauses, resumes, deletes, or runs a scheduled task.",
+                    isReadOnly: false
+                )
+            ]
+        ),
+        BuiltInMCPToolGroup(
+            id: "threads",
+            title: "Threads",
+            tools: [
+                BuiltInMCPTool(
+                    name: "list_threads",
+                    title: "List Alveary threads",
+                    description: "Lists the user's active threads.",
+                    isReadOnly: true
+                ),
+                BuiltInMCPTool(
+                    name: "create_thread",
+                    title: "Create an Alveary thread",
+                    description: "Creates a new thread in a Project or its own task workspace.",
+                    isReadOnly: false
+                ),
+                BuiltInMCPTool(
+                    name: "archive_thread",
+                    title: "Archive an Alveary thread",
+                    description: "Archives a thread.",
+                    isReadOnly: false
+                )
+            ]
+        ),
+        BuiltInMCPToolGroup(
+            id: "pull_requests",
+            title: "Pull requests",
+            tools: [
+                BuiltInMCPTool(
+                    name: "get_pr_address_feedback_instructions",
+                    title: "Get the user's instructions for addressing a pull request's feedback",
+                    description: "Returns the user's saved guidance for addressing review feedback.",
+                    isReadOnly: true
+                )
+            ]
+        )
+    ]
+
     private let servers: [MCPServer]
     private let recommended: [RecommendedMCPServer]
 
