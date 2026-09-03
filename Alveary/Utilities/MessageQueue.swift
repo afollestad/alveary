@@ -15,6 +15,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
     let appShots: [AppShotAttachment]
     let providerMetadata: [String: AgentCLIKit.JSONValue]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
+    let relayedFrom: RelayedPromptAttribution?
 
     init(
         id: UUID = UUID(),
@@ -27,7 +28,8 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
-        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
+        relayedFrom: RelayedPromptAttribution? = nil
     ) {
         self.id = id
         self.text = text
@@ -40,6 +42,7 @@ struct QueuedMessage: Identifiable, Sendable, Equatable {
         self.appShots = appShots
         self.providerMetadata = providerMetadata
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
+        self.relayedFrom = relayedFrom
     }
 }
 
@@ -58,7 +61,8 @@ final class MessageQueue {
         fileAttachments: [LocalFileAttachment] = [],
         appShots: [AppShotAttachment] = [],
         providerMetadata: [String: AgentCLIKit.JSONValue] = [:],
-        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
+        relayedFrom: RelayedPromptAttribution? = nil
     ) {
         pending.append(QueuedMessage(
             text: message,
@@ -70,7 +74,8 @@ final class MessageQueue {
             fileAttachments: fileAttachments,
             appShots: appShots,
             providerMetadata: providerMetadata,
-            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
+            relayedFrom: relayedFrom
         ))
     }
 
@@ -130,7 +135,8 @@ final class MessageQueue {
                 attachments: message.attachments,
                 fileAttachments: message.fileAttachments,
                 appShots: message.appShots,
-                providerMetadata: message.providerMetadata
+                providerMetadata: message.providerMetadata,
+                relayedFrom: message.relayedFrom
             )
         }
     }

@@ -97,6 +97,44 @@ struct ThreadHostToolParsedCreateRequest {
     let canonicalPayloadHash: String
 }
 
+/// A `send_prompt_to_thread` request as parsed, paired with the hash that identifies an exact
+/// retry of it. Whether the thread exists, may receive a prompt, or is the caller's own is host
+/// state, so `ThreadHostToolService+SendPrompt.swift` decides.
+struct ThreadHostToolParsedSendPromptRequest: Equatable {
+    let threadID: String
+    let prompt: String
+    let canonicalPayloadHash: String
+}
+
+/// The message `send_prompt_to_thread` posts into its target. The visible text is the prompt
+/// itself; the sender rides on the persisted row as `RelayedPromptAttribution`, which the
+/// transcript renders as a note above the bubble, so the user can tell a relayed prompt from one
+/// they typed without it reading as part of the prompt. The transport text adds the sender's
+/// thread ID and how to answer, which only the model acts on. Nothing here carries attachments,
+/// app shots, or plan guidance — those belong to whatever the target's own user is composing.
+struct ThreadHostToolRelayedPrompt: Equatable {
+    let prompt: String
+    let senderName: String
+    let senderThreadID: String
+
+    /// Answering is conditional on purpose: an unconditional "reply with this tool" had two
+    /// threads echoing one another, because each reply read as a prompt to answer.
+    var transportText: String {
+        "[Sent by the Alveary thread \"\(senderName)\" (thread_id: \(senderThreadID)) through send_prompt_to_thread. " +
+            "That thread is not waiting on this turn. If this message asks for an answer, reply with " +
+            "send_prompt_to_thread and that thread_id; otherwise do not acknowledge or echo it, and never answer " +
+            "a reply that asks nothing.]\n\n\(prompt)"
+    }
+
+    var outbound: OutboundMessageText {
+        OutboundMessageText(
+            visibleText: prompt,
+            transportText: transportText,
+            relayedFrom: RelayedPromptAttribution(conversationID: senderThreadID, threadName: senderName)
+        )
+    }
+}
+
 /// A `link_pr` request. `threadID` omitted means the calling conversation's thread.
 struct ThreadHostToolPullRequestLinkRequest {
     let identifier: PullRequestIdentifier
@@ -137,7 +175,12 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
     case effortUnavailable(effort: String, supported: [String])
     case permissionModeUnavailable(mode: String, providerID: String, supported: [String])
     case threadNotFound
+    case threadArchived(name: String)
     case cannotArchiveOwnThread
+    case cannotSendToOwnThread
+    case relayEchoesPrompt(threadName: String)
+    case relayRepeatsPrompt(threadName: String, count: Int)
+    case promptDeliveryFailed(threadName: String, reason: String)
     case threadCannotBeArchived(reason: String)
     case threadAbsorbedByPinnedProject(projectName: String)
     case sectionUnknown(name: String, existing: [String])
@@ -181,9 +224,24 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
         case let .permissionModeUnavailable(mode, providerID, supported):
             "\(mode) is not a permission mode \(providerID) supports. Supported: \(Self.list(supported))."
         case .threadNotFound:
-            "That thread no longer exists. Call list_threads again before archiving."
+            "That thread no longer exists. Call list_threads again."
+        case .threadArchived(let name):
+            "The thread \"\(name)\" is archived, so it cannot receive a prompt. The user can restore it from " +
+                "Alveary's Archived screen."
         case .cannotArchiveOwnThread:
             "This conversation cannot archive its own thread. Ask the user to archive it from Alveary's sidebar."
+        case .cannotSendToOwnThread:
+            "This conversation cannot send a prompt to its own thread; it would only queue behind the turn making " +
+                "this call. Continue the work here instead."
+        case .relayEchoesPrompt(let threadName):
+            "That is the prompt the thread \"\(threadName)\" just sent here. Never echo a relayed prompt back; reply " +
+                "only with what it asked for, or end your turn."
+        case let .relayRepeatsPrompt(threadName, count):
+            "This conversation has already sent that exact prompt to the thread \"\(threadName)\" \(count) times " +
+                "since the user last typed, so sending it again would only loop. Do not send it again; end your " +
+                "turn and let the user decide."
+        case let .promptDeliveryFailed(threadName, reason):
+            "Alveary could not deliver the prompt to the thread \"\(threadName)\": \(reason)"
         case .threadCannotBeArchived(let reason):
             reason
         case .threadAbsorbedByPinnedProject(let projectName):

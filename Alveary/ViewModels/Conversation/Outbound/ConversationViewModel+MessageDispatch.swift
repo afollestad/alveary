@@ -177,13 +177,7 @@ extension ConversationViewModel {
                 message: queuedMessage.transportText ?? queuedMessage.text,
                 stagedContext: queuedMessage.stagedContext
             )
-            let localMessage = insertLocalUserMessage(
-                queuedMessage.text,
-                into: dbConversation,
-                imageAttachments: queuedMessage.attachments,
-                fileAttachments: queuedMessage.fileAttachments,
-                appShots: queuedMessage.appShots
-            )
+            let localMessage = insertLocalUserMessage(for: queuedMessage, into: dbConversation)
             onLocalMessageInserted(localMessage.id)
 
             state.lastTurnInterrupted = false
@@ -378,15 +372,9 @@ private extension ConversationViewModel {
                 return
             }
             clearQueuedMessagesPauseIfQueueEmpty()
-            let transportText = revisionTransportTextForQueuedMessage(queuedMessage)
+            let transportText = transportTextForQueuedMessage(queuedMessage)
 
-            let localMessage = insertLocalUserMessage(
-                queuedMessage.text,
-                into: dbConversation,
-                imageAttachments: queuedMessage.attachments,
-                fileAttachments: queuedMessage.fileAttachments,
-                appShots: queuedMessage.appShots
-            )
+            let localMessage = insertLocalUserMessage(for: queuedMessage, into: dbConversation)
             localMessageID = localMessage.id
 
             let resolvedStagedContext = resolveSessionRecoveryStagedContext(
@@ -420,7 +408,7 @@ private extension ConversationViewModel {
     }
 
     func prepareQueuedMessageRequirements(_ queuedMessage: QueuedMessage) async throws {
-        let preflightTransportText = revisionTransportTextForQueuedMessage(queuedMessage)
+        let preflightTransportText = transportTextForQueuedMessage(queuedMessage)
         let requiredPlanModeEnabled = planModeRequirementForQueuedMessage(queuedMessage, transportText: preflightTransportText)
 
         if let requiredPlanModeEnabled {

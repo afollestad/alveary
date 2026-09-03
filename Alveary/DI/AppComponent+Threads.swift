@@ -15,6 +15,13 @@ extension AppComponent {
                 providerDiscovery: cachedAgentProviderDiscoveryService,
                 startInitialPrompt: { conversation, prompt in
                     self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)
+                },
+                deliverPrompt: { conversation, outbound in
+                    try await HeadlessRelayedPromptDelivery.deliver(
+                        outbound,
+                        into: conversation,
+                        registry: self.conversationControllerRegistry
+                    )
                 }
             )
         }

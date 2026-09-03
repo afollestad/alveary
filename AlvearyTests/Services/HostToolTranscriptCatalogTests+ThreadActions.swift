@@ -9,7 +9,8 @@ extension HostToolTranscriptCatalogTests {
             ThreadHostToolCatalog.createThreadToolName,
             ThreadHostToolCatalog.pinThreadToolName,
             ThreadHostToolCatalog.unpinThreadToolName,
-            ThreadHostToolCatalog.archiveThreadToolName
+            ThreadHostToolCatalog.archiveThreadToolName,
+            ThreadHostToolCatalog.sendPromptToThreadToolName
         ] {
             XCTAssertNotNil(HostToolTranscriptCatalog.descriptor(forToolName: hostToolName), hostToolName)
             // Claude qualifies host tool names; Codex reports them bare. Both must match.
@@ -263,6 +264,58 @@ extension HostToolTranscriptCatalogTests {
         )
     }
 
+    func testSentPromptResultNamesTheThreadAndOpensIt() throws {
+        let content = try XCTUnwrap(
+            ThreadActionWidgetParsing.content(
+                action: .sendPrompt,
+                input: Self.sendPromptInput,
+                output: Self.sendPromptOutput(status: "sent"),
+                isError: false
+            )
+        )
+        XCTAssertEqual(content.status, .applied)
+
+        let entry = entry(content, action: .sendPrompt)
+        XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "Prompt sent to thread: Add caching")
+        XCTAssertNil(HostToolWidgetSummary.detail(for: entry))
+        XCTAssertEqual(entry.openableTarget, .thread("conv-1"))
+        XCTAssertTrue(entry.isSettledWithoutDecision)
+    }
+
+    /// A queued prompt is one the target now holds, so the card reads as landed, not pending.
+    func testQueuedPromptResultReadsAsSent() throws {
+        let content = try XCTUnwrap(
+            ThreadActionWidgetParsing.content(
+                action: .sendPrompt,
+                input: Self.sendPromptInput,
+                output: Self.sendPromptOutput(status: "queued"),
+                isError: false
+            )
+        )
+        XCTAssertEqual(content.status, .applied)
+        XCTAssertEqual(
+            HostToolWidgetSummary.text(for: entry(content, action: .sendPrompt)),
+            "Prompt sent to thread: Add caching"
+        )
+    }
+
+    func testRunningSendPromptOpensNothingYet() throws {
+        let content = try XCTUnwrap(
+            ThreadActionWidgetParsing.content(
+                action: .sendPrompt,
+                input: Self.sendPromptInput,
+                output: nil,
+                isError: false
+            )
+        )
+        XCTAssertEqual(content.status, .running)
+        XCTAssertEqual(content.threadID, "conv-1")
+
+        let entry = entry(content, action: .sendPrompt)
+        XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "Sending prompt to thread…")
+        XCTAssertNil(entry.openableTarget)
+    }
+
     private func entry(
         _ content: ThreadActionWidgetContent,
         action: ThreadActionWidgetContent.Action
@@ -289,10 +342,20 @@ extension HostToolTranscriptCatalogTests {
             ThreadHostToolCatalog.createSectionToolName
         case .moveSection:
             ThreadHostToolCatalog.moveThreadToSectionToolName
+        case .sendPrompt:
+            ThreadHostToolCatalog.sendPromptToThreadToolName
         }
     }
 
     static let threadInput = #"{"thread_id":"conv-1"}"#
+    static let sendPromptInput = #"{"thread_id":"conv-1","prompt":"Summarize your progress."}"#
+
+    static func sendPromptOutput(status: String) -> String {
+        """
+        {"status":"\(status)","thread_id":"conv-1","name":"Add caching",\
+        "message":"Sent the prompt to the thread \\"Add caching\\" (id: conv-1)."}
+        """
+    }
 
     static var pinnedOutput: String {
         threadOutput(status: "pinned")

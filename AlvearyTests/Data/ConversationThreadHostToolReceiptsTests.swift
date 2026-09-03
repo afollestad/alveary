@@ -122,6 +122,40 @@ final class ConversationThreadHostToolReceiptsTests: XCTestCase {
         XCTAssertNil(conversation.scheduledTaskProposalReceiptsJSON)
     }
 
+    /// Receipts written before `send_prompt_to_thread` existed carry no status, and must keep
+    /// decoding as the `create_thread` results they were.
+    func testAReceiptWithoutAStatusStillDecodes() throws {
+        let conversation = try makeConversation()
+        conversation.threadHostToolReceiptsJSON = """
+        [{"createdAt":"2001-01-12T13:46:40Z","deduplicationKey":"alpha","message":"Created the thread.",\
+        "sourceProcessToken":"\(processToken.uuidString.lowercased())","threadID":"thread-alpha"}]
+        """
+
+        let found = try conversation.threadHostToolReceipt(
+            matching: "alpha",
+            currentProcessToken: processToken,
+            at: now
+        )
+
+        XCTAssertEqual(found?.threadID, "thread-alpha")
+        XCTAssertNil(found?.status)
+    }
+
+    func testAReceiptStatusRoundTrips() throws {
+        let conversation = try makeConversation()
+        var receipt = makeReceipt(key: "alpha")
+        receipt.status = "queued"
+
+        try conversation.recordThreadHostToolReceipt(receipt)
+
+        let found = try conversation.threadHostToolReceipt(
+            matching: "alpha",
+            currentProcessToken: processToken,
+            at: now
+        )
+        XCTAssertEqual(found?.status, "queued")
+    }
+
     private func makeReceipt(key: String, threadID: String = "thread-alpha") -> ThreadHostToolReceipt {
         ThreadHostToolReceipt(
             deduplicationKey: key,

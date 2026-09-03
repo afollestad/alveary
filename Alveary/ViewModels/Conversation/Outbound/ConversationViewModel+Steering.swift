@@ -75,7 +75,8 @@ private extension ConversationViewModel {
             into: dbConversation,
             imageAttachments: outbound.attachments,
             fileAttachments: outbound.consumedFileAttachments,
-            appShots: outbound.appShots
+            appShots: outbound.appShots,
+            relayedFrom: outbound.relayedFrom
         )
         clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
         clearStagedFileAttachmentsIfTheyMatch(outbound.consumedFileAttachments)

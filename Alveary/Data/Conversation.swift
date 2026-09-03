@@ -164,7 +164,7 @@ private extension Conversation {
         let speaker: String
         switch role {
         case ConversationEventRecord.userRole:
-            speaker = "User"
+            speaker = record.relayedFromThreadName.map { "User (relayed from the thread \"\($0)\")" } ?? "User"
         case ConversationEventRecord.assistantRole:
             speaker = "Assistant"
         default:

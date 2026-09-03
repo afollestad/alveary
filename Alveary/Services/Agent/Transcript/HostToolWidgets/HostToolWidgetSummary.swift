@@ -279,6 +279,13 @@ private extension HostToolWidgetSummary {
                 unchanged: "Thread already in that section",
                 failed: "Could not move the thread"
             )
+        case .sendPrompt:
+            // `send_prompt_to_thread` reports no unchanged status; a queued prompt is still one
+            // the thread now holds, so it reads as sent.
+            ThreadPhrases(
+                running: "Sending prompt to thread", applied: "Prompt sent to thread",
+                unchanged: "Prompt sent to thread", failed: "Could not send the prompt"
+            )
         }
     }
 

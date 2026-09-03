@@ -374,6 +374,8 @@ private extension SidebarViewModel {
             toolOutputNoOutputExpected: record.toolOutputNoOutputExpected,
             parentToolUseId: record.parentToolUseId,
             callerAgent: record.callerAgent,
+            relayedFromConversationId: record.relayedFromConversationId,
+            relayedFromThreadName: record.relayedFromThreadName,
             isError: record.isError,
             tokenInput: record.tokenInput,
             tokenOutput: record.tokenOutput,

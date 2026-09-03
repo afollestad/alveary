@@ -43,6 +43,7 @@ final class ThreadHostToolServiceTests: XCTestCase {
                 "list_threads",
                 "move_thread_to_section",
                 "pin_thread",
+                "send_prompt_to_thread",
                 "unlink_pr",
                 "unpin_thread"
             ]
@@ -287,6 +288,23 @@ final class ThreadHostToolPromptRecorder {
     }
 }
 
+/// Stands in for `HeadlessRelayedPromptDelivery`: records what `send_prompt_to_thread` handed
+/// over, and answers with whatever outcome or failure a test configures.
+@MainActor
+final class ThreadHostToolRelayedPromptRecorder {
+    private(set) var delivered: [(conversationID: String, outbound: OutboundMessageText)] = []
+    var delivery: RelayedPromptDelivery = .sent
+    var failure: Error?
+
+    func deliver(conversationID: String, outbound: OutboundMessageText) throws -> RelayedPromptDelivery {
+        if let failure {
+            throw failure
+        }
+        delivered.append((conversationID, outbound))
+        return delivery
+    }
+}
+
 @MainActor
 final class ThreadHostToolFixture {
     let sidebar: SidebarTestFixture
@@ -297,6 +315,7 @@ final class ThreadHostToolFixture {
     let thread: AgentThread
     let conversation: Conversation
     let startedPrompts = ThreadHostToolPromptRecorder()
+    let relayedPrompts = ThreadHostToolRelayedPromptRecorder()
     let processToken = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE") ?? UUID()
 
     var modelContext: ModelContext { sidebar.context }
@@ -329,6 +348,7 @@ final class ThreadHostToolFixture {
         try sidebar.context.save()
 
         let recorder = startedPrompts
+        let relayedRecorder = relayedPrompts
         let pullRequestsService = StubPullRequestsService()
         pullRequests = pullRequestsService
         summaryHandoff = PullRequestSummaryHandoff()
@@ -346,6 +366,9 @@ final class ThreadHostToolFixture {
             providerDiscovery: providerDiscovery,
             startInitialPrompt: { conversation, prompt in
                 recorder.record(conversationID: conversation.id, prompt: prompt)
+            },
+            deliverPrompt: { conversation, outbound in
+                try relayedRecorder.deliver(conversationID: conversation.id, outbound: outbound)
             },
             now: now
         )
@@ -423,6 +446,8 @@ final class ThreadHostToolFixture {
             return ["name": .string("Research")]
         case ThreadHostToolCatalog.moveThreadToSectionToolName:
             return ["thread_id": .string("some-thread"), "section": .string("Tasks")]
+        case ThreadHostToolCatalog.sendPromptToThreadToolName:
+            return ["thread_id": .string("some-thread"), "prompt": .string("Summarize your progress.")]
         default:
             return [:]
         }

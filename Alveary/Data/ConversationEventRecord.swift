@@ -48,6 +48,12 @@ final class ConversationEventRecord {
     var toolOutputNoOutputExpected: Bool
     var parentToolUseId: String?
     var callerAgent: String?
+    /// The thread a relayed prompt (`send_prompt_to_thread`) came from, on the user row it
+    /// produced: the sender's main-conversation id for the unattended-exchange guard, and its
+    /// name at send time for the note the transcript shows above the bubble. Nil on every row
+    /// the user typed. Both are optional additions SwiftData migrates in place.
+    var relayedFromConversationId: String?
+    var relayedFromThreadName: String?
     var isError: Bool
     var tokenInput: Int
     var tokenOutput: Int
@@ -81,6 +87,8 @@ final class ConversationEventRecord {
         toolOutputNoOutputExpected: Bool = false,
         parentToolUseId: String? = nil,
         callerAgent: String? = nil,
+        relayedFromConversationId: String? = nil,
+        relayedFromThreadName: String? = nil,
         isError: Bool = false,
         tokenInput: Int = 0,
         tokenOutput: Int = 0,
@@ -120,6 +128,8 @@ final class ConversationEventRecord {
         self.toolOutputNoOutputExpected = toolOutputNoOutputExpected
         self.parentToolUseId = parentToolUseId
         self.callerAgent = callerAgent
+        self.relayedFromConversationId = relayedFromConversationId
+        self.relayedFromThreadName = relayedFromThreadName
         self.isError = isError
         self.tokenInput = tokenInput
         self.tokenOutput = tokenOutput

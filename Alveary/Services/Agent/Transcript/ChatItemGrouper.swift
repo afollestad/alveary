@@ -228,11 +228,22 @@ final class ChatItemGrouper {
         latestUnansweredPrompt != nil
     }
 
-    func appendLocalUserMessage(id: String, text: String) {
+    func appendLocalUserMessage(id: String, text: String, relayedFromThreadName: String? = nil) {
         flushGroup()
         flushSubAgents()
-        appendTranscriptItem(.userMessage(id: id, text: text))
+        appendUserMessage(id: id, text: text, relayedFromThreadName: relayedFromThreadName)
         processedCount += 1
+    }
+
+    /// A relayed prompt's sender rides in a note at the bubble's trailing edge, above it, so the
+    /// bubble holds only what the other thread sent and the row's own text stays the prompt.
+    func appendUserMessage(id: String, text: String, relayedFromThreadName: String?) {
+        if let relayedFromThreadName {
+            appendTranscriptItem(
+                .transcriptNote(id: "relayed-\(id)", kind: .relayedPrompt(threadName: relayedFromThreadName))
+            )
+        }
+        appendTranscriptItem(.userMessage(id: id, text: text))
     }
 
     func appendTranscriptItem(_ item: ChatItem) {

@@ -11,6 +11,9 @@ struct OutboundMessageText: Equatable, Sendable {
     let consumedFileAttachments: [LocalFileAttachment]
     let consumedAppShots: [AppShotAttachment]
     let consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
+    /// Set only on a prompt another thread's agent sent through `send_prompt_to_thread`; it
+    /// lands on the persisted user row rather than in either text.
+    let relayedFrom: RelayedPromptAttribution?
 
     init(
         visibleText: String,
@@ -21,7 +24,8 @@ struct OutboundMessageText: Equatable, Sendable {
         consumedAttachments: [LocalImageAttachment] = [],
         consumedFileAttachments: [LocalFileAttachment] = [],
         consumedAppShots: [AppShotAttachment] = [],
-        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil
+        consumedExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance? = nil,
+        relayedFrom: RelayedPromptAttribution? = nil
     ) {
         self.visibleText = visibleText
         self.transportText = transportText
@@ -32,6 +36,7 @@ struct OutboundMessageText: Equatable, Sendable {
         self.consumedFileAttachments = consumedFileAttachments
         self.consumedAppShots = consumedAppShots
         self.consumedExitPlanModeRevisionGuidance = consumedExitPlanModeRevisionGuidance
+        self.relayedFrom = relayedFrom
     }
 
     func resolvingImageAttachments(
@@ -52,7 +57,8 @@ struct OutboundMessageText: Equatable, Sendable {
                 consumedAttachments: stagedAttachments,
                 consumedFileAttachments: consumedFileAttachments,
                 consumedAppShots: consumedAppShots,
-                consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+                consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
+                relayedFrom: relayedFrom
             )
         }
 
@@ -64,7 +70,8 @@ struct OutboundMessageText: Equatable, Sendable {
             consumedAttachments: stagedAttachments,
             consumedFileAttachments: consumedFileAttachments,
             consumedAppShots: consumedAppShots,
-            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
+            relayedFrom: relayedFrom
         )
     }
 
@@ -84,7 +91,8 @@ struct OutboundMessageText: Equatable, Sendable {
             consumedAttachments: consumedAttachments,
             consumedFileAttachments: stagedAttachments,
             consumedAppShots: consumedAppShots,
-            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
+            relayedFrom: relayedFrom
         )
     }
 
@@ -122,7 +130,16 @@ struct OutboundMessageText: Equatable, Sendable {
             consumedAttachments: consumedAttachments,
             consumedFileAttachments: consumedFileAttachments,
             consumedAppShots: stagedAppShots,
-            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+            consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
+            relayedFrom: relayedFrom
         )
     }
+}
+
+/// Which thread a relayed prompt came from: the sender's main-conversation id — the same handle
+/// `list_threads` reports — and its name at send time, kept so the transcript can still name a
+/// thread that was renamed or archived since.
+struct RelayedPromptAttribution: Equatable, Sendable {
+    let conversationID: String
+    let threadName: String
 }

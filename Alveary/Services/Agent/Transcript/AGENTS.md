@@ -44,5 +44,5 @@ These instructions cover `Alveary/Services/Agent/Transcript/` — `ChatItemGroup
 
 ### Transcript Notes
 
-- **Use typed transcript notes for subtle lifecycle rows.** `Interrupted`, session handoff, provider context compaction, steering markers, and plan-mode transitions all flow through `ChatItem.transcriptNote` so grouping, restore, alignment, and future note-style events share one representation.
+- **Use typed transcript notes for subtle lifecycle rows.** `Interrupted`, session handoff, provider context compaction, steering markers, plan-mode transitions, and a relayed prompt's sender all flow through `ChatItem.transcriptNote` so grouping, restore, alignment, and future note-style events share one representation.
 - **Replace compaction starts with terminal notes.** A later completed or failed record with the same compaction ID replaces the `context_compaction_started` row instead of appending beneath it.

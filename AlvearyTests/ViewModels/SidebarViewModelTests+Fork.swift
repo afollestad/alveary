@@ -305,6 +305,9 @@ private func assertCopiedForkEvents(in fixture: SidebarTestFixture, conversation
         copiedEvents.first(where: { $0.type == "message" })?.persistedFileAttachments,
         [forkSourceFileAttachment()]
     )
+    // A relayed prompt keeps its sender, or the fork would show the row as one the user typed.
+    XCTAssertEqual(copiedEvents.first(where: { $0.type == "message" })?.relayedFromConversationId, "planner-main")
+    XCTAssertEqual(copiedEvents.first(where: { $0.type == "message" })?.relayedFromThreadName, "Planner")
 }
 
 private func assertForkWorktreePreparation(
@@ -358,6 +361,8 @@ private func forkSourceMessage(conversation: Conversation) -> ConversationEventR
         type: "message",
         role: "user",
         content: "Keep this context",
+        relayedFromConversationId: "planner-main",
+        relayedFromThreadName: "Planner",
         conversation: conversation
     )
     record.setPersistedTranscriptAttachments(images: [], appShots: [], files: [forkSourceFileAttachment()])

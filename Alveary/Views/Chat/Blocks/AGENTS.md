@@ -27,7 +27,7 @@ Shared transcript block constants and presentation helpers live here. Narrower s
 ## Transcript Notes
 
 - Subtle lifecycle text like `Interrupted`, plan-mode success, and denied `ExitPlanMode` renders through `AppKitTranscriptNoteView`.
-- Render these as text-only transcript notes, not bubbles. Use `TranscriptNoteAlignment`: context compaction and session handoff stay centered, plan-mode and steering notes align with tool rows, and `Interrupted` aligns to the user-bubble trailing edge.
+- Render these as text-only transcript notes, not bubbles. Use `TranscriptNoteAlignment`: context compaction and session handoff stay centered, plan-mode and steering notes align with tool rows, and `Interrupted` and a relayed prompt's sender align to the user-bubble trailing edge.
 
 ## Shared Expansion Controls
 

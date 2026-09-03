@@ -72,6 +72,20 @@ struct ThreadHostToolRequestParser {
         )
     }
 
+    /// `send_prompt_to_thread`. Both required: the tool never guesses a target, and an empty prompt
+    /// would start a turn with nothing to do.
+    func parseSendPrompt(arguments: [String: AgentCLIKit.JSONValue]) throws -> ThreadHostToolParsedSendPromptRequest {
+        let object = StrictHostToolObject(arguments, path: "arguments")
+        try object.requireOnly(["thread_id", "prompt"])
+        let threadID = try object.requiredNonEmptyString("thread_id")
+        let prompt = try object.requiredNonEmptyString("prompt")
+        return ThreadHostToolParsedSendPromptRequest(
+            threadID: threadID,
+            prompt: prompt,
+            canonicalPayloadHash: try Self.canonicalSendPromptPayloadHash(threadID: threadID, prompt: prompt)
+        )
+    }
+
     /// The shape every tool that names one thread and nothing else takes — archive, pin, unpin.
     func parseThreadIdentifier(arguments: [String: AgentCLIKit.JSONValue]) throws -> String {
         let object = StrictHostToolObject(arguments, path: "arguments")
@@ -206,6 +220,17 @@ private extension ThreadHostToolRequestParser {
 
     func invalid(_ message: String) -> HostToolRequestError {
         .invalidArguments(message)
+    }
+
+    /// Both fields change what gets delivered, so a retry naming another thread or another prompt
+    /// is its own request.
+    static func canonicalSendPromptPayloadHash(threadID: String, prompt: String) throws -> String {
+        let object: AgentCLIKit.JSONValue = .object([
+            "tool": .string(ThreadHostToolCatalog.sendPromptToThreadToolName),
+            "thread_id": .string(threadID),
+            "prompt": .string(prompt)
+        ])
+        return HostToolDeduplication.sha256(try HostToolDeduplication.canonicalJSON(object))
     }
 
     /// Every field that changes what gets created, so a retry cannot replay a receipt for a

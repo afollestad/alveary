@@ -50,6 +50,7 @@ extension ThreadHostToolService {
                 deduplicationKey: deduplicationKey,
                 threadID: insertion.created.threadID,
                 name: insertion.created.name,
+                status: "created",
                 message: insertion.created.message,
                 sourceProcessToken: context.processToken.uuidString.lowercased(),
                 createdAt: requestDate
@@ -142,41 +143,6 @@ private extension ThreadHostToolService {
                     placement: placement
                 )
             )
-        }
-    }
-
-    func replayedReceipt(
-        on sourceConversation: Conversation,
-        deduplicationKey: String,
-        processToken: UUID,
-        at requestDate: Date
-    ) throws -> ThreadHostToolReceipt? {
-        do {
-            let receipt = try sourceConversation.threadHostToolReceipt(
-                matching: deduplicationKey,
-                currentProcessToken: processToken,
-                at: requestDate
-            )
-            if modelContext.hasChanges {
-                try modelContext.save()
-            }
-            return receipt
-        } catch {
-            modelContext.rollback()
-            throw ThreadHostToolServiceError.persistenceFailure
-        }
-    }
-
-    func persistReceipt(
-        _ receipt: ThreadHostToolReceipt,
-        on sourceConversation: Conversation
-    ) throws {
-        do {
-            try sourceConversation.recordThreadHostToolReceipt(receipt)
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            throw ThreadHostToolServiceError.persistenceFailure
         }
     }
 

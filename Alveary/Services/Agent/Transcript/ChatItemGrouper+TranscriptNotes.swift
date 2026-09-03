@@ -92,8 +92,8 @@ extension ChatItemGrouper {
             return "EnterPlanMode"
         case .exitedPlanMode, .stayingInPlanMode:
             return "ExitPlanMode"
-        case .interrupted, .sessionHandoffInProgress, .sessionHandoff, .sessionForked, .scheduledTask, .steeredConversation,
-             .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
+        case .interrupted, .sessionHandoffInProgress, .sessionHandoff, .sessionForked, .scheduledTask, .relayedPrompt,
+             .steeredConversation, .contextCompactionStarted, .contextCompactionCompleted, .contextCompactionFailed:
             return "Tool"
         }
     }

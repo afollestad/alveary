@@ -1,13 +1,17 @@
 import Foundation
 
-/// What a `create_thread` call produced, kept so an exact retry replays it instead of creating a
-/// second thread. Mirrors `ScheduledTaskProposalReceipt`'s ledger semantics.
+/// What a `create_thread` or `send_prompt_to_thread` call produced, kept so an exact retry replays
+/// it instead of creating a second thread or posting the prompt again. Mirrors
+/// `ScheduledTaskProposalReceipt`'s ledger semantics.
 struct ThreadHostToolReceipt: Codable, Equatable, Sendable {
     let deduplicationKey: String
-    /// Persistent identifier of the created thread's main conversation — the same handle
-    /// `list_threads` returns, so a replay can name the thread it already made.
+    /// Persistent identifier of the thread's main conversation — the same handle `list_threads`
+    /// returns, so a replay can name the thread it already made or posted into.
     let threadID: String
     var name: String?
+    /// The `status` the original result reported. Nil on receipts written before
+    /// `send_prompt_to_thread` existed, which were all `create_thread`'s and read as `created`.
+    var status: String?
     let message: String
     let sourceProcessToken: String
     let createdAt: Date

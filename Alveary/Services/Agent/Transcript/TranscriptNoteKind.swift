@@ -4,6 +4,8 @@ enum TranscriptNoteKind: Equatable {
     case sessionHandoff
     case sessionForked
     case scheduledTask(String)
+    /// Names the thread whose agent sent the user row beneath it through `send_prompt_to_thread`.
+    case relayedPrompt(threadName: String)
     case enteredPlanMode
     case exitedPlanMode
     case stayingInPlanMode
@@ -19,7 +21,7 @@ enum TranscriptNoteKind: Equatable {
             return .centered
         case .enteredPlanMode, .exitedPlanMode, .stayingInPlanMode, .steeredConversation:
             return .toolUsageLeading
-        case .interrupted:
+        case .interrupted, .relayedPrompt:
             return .userBubbleTrailing
         }
     }
@@ -36,6 +38,8 @@ enum TranscriptNoteKind: Equatable {
             return ConversationSessionFork.displayMessage
         case .scheduledTask(let text):
             return text
+        case .relayedPrompt(let threadName):
+            return "From thread “\(threadName)”"
         case .enteredPlanMode:
             return "Entered plan mode"
         case .exitedPlanMode:

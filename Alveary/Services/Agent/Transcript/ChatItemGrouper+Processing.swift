@@ -8,7 +8,7 @@ extension ChatItemGrouper {
             currentToolApprovalBatch = nil
             flushGroup()
             flushSubAgents()
-            appendTranscriptItem(.userMessage(id: event.id, text: event.content ?? ""))
+            appendUserMessage(id: event.id, text: event.content ?? "", relayedFromThreadName: event.relayedFromThreadName)
         case ConversationEventRecord.messageType where event.role == ConversationEventRecord.assistantRole:
             handleAssistantMessage(event)
         case ConversationEventRecord.toolCallType:

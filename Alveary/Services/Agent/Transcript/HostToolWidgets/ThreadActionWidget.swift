@@ -1,8 +1,8 @@
 import AgentCLIKit
 import Foundation
 
-/// A `create_thread`, `pin_thread`, `unpin_thread`, or `archive_thread` call, as recorded
-/// durably in the transcript.
+/// A thread mutation — `create_thread`, `pin_thread`, `unpin_thread`, `archive_thread`, the
+/// section tools, or `send_prompt_to_thread` — as recorded durably in the transcript.
 ///
 /// Every thread mutation applies immediately, so the tool result *is* the outcome: these
 /// widgets carry no `host_tool_outcome` marker and never wait on a user decision.
@@ -14,12 +14,14 @@ struct ThreadActionWidgetContent: Equatable {
         case archive
         case createSection
         case moveSection
+        case sendPrompt
     }
 
     enum Status: Equatable {
         /// The call has not returned yet.
         case running
-        /// The thread was created, pinned, unpinned, or archived.
+        /// The thread was created, pinned, unpinned, archived, moved, or handed the prompt —
+        /// a queued prompt included, since queueing is what the call set out to do.
         case applied
         /// The thread was already in the requested state, so nothing changed.
         case unchanged
@@ -60,10 +62,10 @@ enum ThreadActionWidgetParsing {
         return ThreadActionWidgetContent(
             action: action,
             // The result echoes the thread Alveary acted on, which is canonical. `pin_thread`,
-            // `unpin_thread`, and `archive_thread` require the id in the request, so their cards
-            // can name it while the call is still running; `create_thread` cannot, and for a
-            // provider that emits only the text fallback its own message is the sole source. A
-            // structured receipt never takes that fallback — its fields are the answer.
+            // `unpin_thread`, `archive_thread`, and `send_prompt_to_thread` require the id in the
+            // request, so their cards can name it while the call is still running; `create_thread`
+            // cannot, and for a provider that emits only the text fallback its own message is the
+            // sole source. A structured receipt never takes that fallback — its fields are the answer.
             threadID: receipt?.threadID
                 ?? HostToolWidgetJSON.string(arguments["thread_id"])
                 ?? (receipt == nil ? threadID(inMessage: message) : nil),

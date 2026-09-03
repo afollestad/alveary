@@ -14,6 +14,7 @@ enum ThreadHostToolCatalog {
     static let unpinThreadToolName = "unpin_thread"
     static let createSectionToolName = "create_section"
     static let moveThreadToSectionToolName = "move_thread_to_section"
+    static let sendPromptToThreadToolName = "send_prompt_to_thread"
 
     /// What thread management advertises on the shared `alveary_host` server.
     static var featureCatalog: HostToolFeatureCatalog {
@@ -27,12 +28,12 @@ enum ThreadHostToolCatalog {
 
     static let instructionsFragment = """
     These tools manage Alveary's own threads — the workspaces in its sidebar — not files, branches, or anything in the \
-    user's project. Use them only when the user explicitly asks to list, create, or archive an Alveary thread; wanting a \
-    task done is not a request for a new thread. Call list_projects for a Project path, and list_threads for a real thread \
-    ID. Leaving create_thread's placement unset puts the new thread wherever this conversation's thread already works and \
-    shows it beside this thread in the sidebar, so name a Project, a private workspace, or a section only when the user \
-    asks for one. create_thread applies immediately, and an initial prompt starts running in the background right away — \
-    its work does not appear in this conversation. \
+    user's project. Use them only when the user explicitly asks to list, create, or archive an Alveary thread, or to send \
+    one a prompt; wanting a task done is not a request for a new thread. Call list_projects for a Project path, and \
+    list_threads for a real thread ID. Leaving create_thread's placement unset puts the new thread wherever this \
+    conversation's thread already works and shows it beside this thread in the sidebar, so name a Project, a private \
+    workspace, or a section only when the user asks for one. create_thread applies immediately, and an initial prompt \
+    starts running in the background right away — its work does not appear in this conversation. \
     archive_thread also applies immediately, stops whatever that thread is doing, and is reversible only by the user from \
     Alveary's Archived screen. No tool here deletes or restores a thread, so never claim a thread was deleted or offer to \
     restore one. A conversation cannot archive its own thread. link_pr and unlink_pr change only Alveary's local record \
@@ -43,8 +44,14 @@ enum ThreadHostToolCatalog {
     for those. Sidebar sections only group threads in the sidebar: create_section adds one at the bottom, and \
     move_thread_to_section changes where a task thread appears, never what it can reach. create_thread's section must \
     already exist, so call create_section first; neither tool creates a section as a side effect. No tool removes or \
-    renames a section — only the user can, from the sidebar — so never claim one was removed. Report each tool's returned \
-    `status` rather than describing the change in your own terms.
+    renames a section — only the user can, from the sidebar — so never claim one was removed. send_prompt_to_thread \
+    hands a prompt to another thread as if the user typed it there — an idle thread starts on it at once, a busy one \
+    queues it behind its current turn — and its work stays in that thread, so never wait for or describe a result here. \
+    The recipient is told which thread sent it and answers with the same tool only when the prompt asks for something: \
+    never acknowledge or echo a relayed prompt, and never answer an answer, because two threads replying to each other \
+    never stop; Alveary refuses an echo and a prompt repeated to the same thread. An answer arrives here as a new user \
+    message on a later turn, so end your turn if you are waiting for one. A conversation cannot send a prompt to its \
+    own thread. Report each tool's returned `status` rather than describing the change in your own terms.
     """
 
     /// Tools whose error results carry a `status` field, matching their output schema.
@@ -56,7 +63,8 @@ enum ThreadHostToolCatalog {
         pinThreadToolName,
         unpinThreadToolName,
         createSectionToolName,
-        moveThreadToSectionToolName
+        moveThreadToSectionToolName,
+        sendPromptToThreadToolName
     ]
 
     static let tools: [AgentCLIKit.AgentHostToolDefinition] = [
@@ -70,7 +78,8 @@ enum ThreadHostToolCatalog {
         pinThreadTool,
         unpinThreadTool,
         createSectionTool,
-        moveThreadToSectionTool
+        moveThreadToSectionTool,
+        sendPromptToThreadTool
     ]
 }
 
@@ -107,10 +116,11 @@ private extension ThreadHostToolCatalog {
         title: "List Alveary threads",
         description: """
         List the user's active Alveary threads with their current settings. The thread hosting this conversation is marked \
-        is_current, which is how you identify where you are running; you cannot archive it. Use the ID for archive_thread, \
-        or for propose_scheduled_task's target_thread_id when a scheduled task should post into an existing thread — a \
-        scheduled task can only target some of these, and proposing one will say so. Archived and draft threads are never \
-        returned. This exposes no conversation content; never use it to browse or read transcripts.
+        is_current, which is how you identify where you are running; you cannot archive it or send it a prompt. Use the \
+        ID for archive_thread or send_prompt_to_thread, or for propose_scheduled_task's target_thread_id when a scheduled \
+        task should post into an existing thread — a scheduled task can only target some of these, and proposing one \
+        will say so. Archived and draft threads are never returned. This exposes no conversation content; never use it \
+        to browse or read transcripts.
         """,
         inputSchema: HostToolSchema.strictObject(properties: [:], required: []),
         outputSchema: HostToolSchema.strictObject(
@@ -380,6 +390,36 @@ private extension ThreadHostToolCatalog {
                 "thread_id": HostToolSchema.stringSchema,
                 "name": HostToolSchema.stringSchema,
                 "section": HostToolSchema.stringSchema,
+                "message": HostToolSchema.stringSchema
+            ],
+            required: ["status", "message"]
+        ),
+        annotations: HostToolSchema.reversibleMutationAnnotations
+    )
+
+    static let sendPromptToThreadTool = AgentCLIKit.AgentHostToolDefinition(
+        name: sendPromptToThreadToolName,
+        title: "Send a prompt to an Alveary thread",
+        description: """
+        Send a prompt to another Alveary thread, as if the user had typed it there. Applies immediately: an idle thread \
+        starts a turn on it at once, and a busy thread queues it behind its current turn. Either way the work happens in \
+        that thread, not here, so do not wait for a result or describe what it did. That thread is told which thread sent \
+        the prompt and may reply with this tool when the prompt asks for an answer; a reply arrives here as a new user \
+        message on a later turn. Echoing a relayed prompt back, or repeating one prompt to the same thread, is refused. \
+        Call list_threads first and pass one of its exact IDs. A conversation cannot send a prompt to its own thread.
+        """,
+        inputSchema: HostToolSchema.strictObject(
+            properties: [
+                "thread_id": HostToolSchema.nonEmptyStringSchema,
+                "prompt": HostToolSchema.nonEmptyStringSchema
+            ],
+            required: ["thread_id", "prompt"]
+        ),
+        outputSchema: HostToolSchema.strictObject(
+            properties: [
+                "status": HostToolSchema.enumSchema(["sent", "queued", "error"]),
+                "thread_id": HostToolSchema.stringSchema,
+                "name": HostToolSchema.stringSchema,
                 "message": HostToolSchema.stringSchema
             ],
             required: ["status", "message"]

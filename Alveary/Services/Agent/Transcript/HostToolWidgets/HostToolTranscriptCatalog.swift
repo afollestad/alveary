@@ -176,7 +176,8 @@ private extension HostToolTranscriptCatalog {
             threadActionDescriptor(
                 hostToolName: ThreadHostToolCatalog.moveThreadToSectionToolName,
                 action: .moveSection
-            )
+            ),
+            threadActionDescriptor(hostToolName: ThreadHostToolCatalog.sendPromptToThreadToolName, action: .sendPrompt)
         ]
     }
 

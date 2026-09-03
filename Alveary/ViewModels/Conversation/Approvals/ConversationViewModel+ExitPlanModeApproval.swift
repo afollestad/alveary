@@ -122,13 +122,19 @@ extension ConversationViewModel {
         state.pendingExitPlanModeRevisionGuidance = guidance
     }
 
-    func revisionTransportTextForQueuedMessage(_ queuedMessage: QueuedMessage) -> String? {
-        guard let transportText = queuedMessage.transportText,
-              let guidance = queuedMessage.consumedExitPlanModeRevisionGuidance,
-              canUseExitPlanModeRevisionGuidance(guidance) else {
+    /// The provider-facing text a drained queued message sends. Plan-revision guidance is the one
+    /// transport text that can go stale — plan mode may have ended while the message waited — so
+    /// it is dropped once it no longer applies. Any other transport text — an app shot's hidden
+    /// context, a relayed prompt's sender header — is exactly what the message was queued with,
+    /// and dropping it would silently send the visible text instead.
+    func transportTextForQueuedMessage(_ queuedMessage: QueuedMessage) -> String? {
+        guard let transportText = queuedMessage.transportText else {
             return nil
         }
-        return transportText
+        guard let guidance = queuedMessage.consumedExitPlanModeRevisionGuidance else {
+            return transportText
+        }
+        return canUseExitPlanModeRevisionGuidance(guidance) ? transportText : nil
     }
 
     func planModeRequirementForQueuedMessage(

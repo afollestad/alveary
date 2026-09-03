@@ -48,6 +48,23 @@ final class ConversationRestoreContextTests: XCTestCase {
         XCTAssertTrue(pendingRestoreContext.contains("Agent turn failed after the permission denial"))
     }
 
+    /// A fresh provider session should know a prompt came from another thread, not the user.
+    func testRefreshPendingRestoreContextNamesTheThreadARelayedPromptCameFrom() throws {
+        let fixture = try ConversationRestoreContextFixture()
+        let conversation = fixture.conversation
+
+        fixture.addEvent(type: "message", role: "user", content: "Summarize your progress.", relayedFromThreadName: "Planner")
+        fixture.addEvent(type: "message", role: "assistant", content: "Two of three steps are done.")
+
+        conversation.refreshPendingRestoreContextFromHistory()
+
+        let pendingRestoreContext = try XCTUnwrap(conversation.pendingRestoreContext)
+        XCTAssertTrue(
+            pendingRestoreContext.contains("User (relayed from the thread \"Planner\"): Summarize your progress."),
+            pendingRestoreContext
+        )
+    }
+
     func testRefreshPendingRestoreContextUsesFallbackForGenericTokenErrorNote() throws {
         let fixture = try ConversationRestoreContextFixture()
         let conversation = fixture.conversation
@@ -284,7 +301,8 @@ private struct ConversationRestoreContextFixture {
         toolOutputStderr: String? = nil,
         isError: Bool = false,
         stopReason: String? = nil,
-        notificationType: String? = nil
+        notificationType: String? = nil,
+        relayedFromThreadName: String? = nil
     ) {
         let timestamp = Date(timeIntervalSince1970: TimeInterval(conversation.events.count))
         let record = ConversationEventRecord(
@@ -296,6 +314,7 @@ private struct ConversationRestoreContextFixture {
             toolName: toolName,
             toolOutput: toolOutput,
             toolOutputStderr: toolOutputStderr,
+            relayedFromThreadName: relayedFromThreadName,
             isError: isError,
             notificationType: notificationType,
             stopReason: stopReason,

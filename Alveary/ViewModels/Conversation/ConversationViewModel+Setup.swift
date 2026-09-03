@@ -64,6 +64,7 @@ extension ConversationViewModel {
             imageAttachments: outbound.attachments,
             fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots,
+            relayedFrom: outbound.relayedFrom,
             schedulesSave: materializedThread == nil
         )
         let localUserMessageID = localUserMessage.id
@@ -247,7 +248,8 @@ extension ConversationViewModel {
         marksSessionHandoffSeedTurn: Bool = false,
         failureHandling: LocalUserMessageFailureHandling = .retryable,
         isAutomatedScheduledTurn: Bool = false,
-        hostToolExposure: HostToolExposure = .ordinaryOutbound
+        hostToolExposure: HostToolExposure = .ordinaryOutbound,
+        relayedFrom: RelayedPromptAttribution? = nil
     ) async throws {
         try repairMissingWorktreeIfNeeded()
         let resolvedStagedContext = try await prepareRuntimeAndResolveSessionRecoveryContext(
@@ -270,7 +272,8 @@ extension ConversationViewModel {
                 consumedAttachments: consumedAttachments,
                 consumedFileAttachments: consumedFileAttachments,
                 consumedAppShots: consumedAppShots,
-                consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance
+                consumedExitPlanModeRevisionGuidance: consumedExitPlanModeRevisionGuidance,
+                relayedFrom: relayedFrom
             ),
             stagedContextOverride: resolvedStagedContext.stagedContext,
             useCurrentStagedContextWhenOverrideNil: resolvedStagedContext.recoveryContext == nil ? useCurrentStagedContextWhenOverrideNil : false,

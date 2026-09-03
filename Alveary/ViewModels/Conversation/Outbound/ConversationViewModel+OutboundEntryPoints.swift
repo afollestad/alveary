@@ -70,6 +70,28 @@ extension ConversationViewModel {
         }
     }
 
+    /// Delivers a prompt another thread's agent sent through `send_prompt_to_thread`, taking the
+    /// same queue-or-send decision as `queueOrSend`, and reports which it took.
+    ///
+    /// Deliberately bypasses `outboundText(for:)`: this conversation's staged attachments, app
+    /// shots, and pending plan-revision guidance belong to whatever its own user is composing here
+    /// and must not ride out on a message that arrived from elsewhere. Restore context still
+    /// applies through the shared helpers — it precedes the next message whoever sends it.
+    func queueOrSendRelayedPrompt(_ outbound: OutboundMessageText) async throws -> RelayedPromptDelivery {
+        try validateQueueOrSendAvailability()
+        guard !shouldQueueOutboundMessage,
+              !defersOrdinaryScheduledOutbound else {
+            enqueueOutboundMessage(outbound, requiredPlanModeEnabled: nil, requiredSpeedMode: nil)
+            return .queued
+        }
+        if needsSetup {
+            try await runInitialSetupOutbound(outbound, requiredPlanModeEnabled: nil, requiredSpeedMode: nil)
+        } else {
+            try await sendOutboundNow(outbound, requiredPlanModeEnabled: nil, requiredSpeedMode: nil)
+        }
+        return .sent
+    }
+
     func sendBeforePausedQueuedMessages(
         _ message: String,
         supportsLocalImageInput: Bool = true
@@ -130,6 +152,12 @@ extension ConversationViewModel {
             throw error
         }
     }
+}
+
+/// Which way `queueOrSendRelayedPrompt` went: the prompt started a turn, or is waiting behind one.
+enum RelayedPromptDelivery: Equatable, Sendable {
+    case sent
+    case queued
 }
 
 private extension ConversationViewModel {
@@ -197,7 +225,8 @@ private extension ConversationViewModel {
             consumedFileAttachments: outbound.consumedFileAttachments,
             consumedAppShots: outbound.consumedAppShots,
             consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
-            stagedContextOverride: stagedContextOverride
+            stagedContextOverride: stagedContextOverride,
+            relayedFrom: outbound.relayedFrom
         )
     }
 
@@ -216,7 +245,8 @@ private extension ConversationViewModel {
             fileAttachments: outbound.consumedFileAttachments,
             appShots: outbound.appShots,
             providerMetadata: outbound.providerMetadata,
-            consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
+            consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
+            relayedFrom: outbound.relayedFrom
         )
         state.stagedContext = nil
         clearStagedImageAttachmentsIfTheyMatch(outbound.consumedAttachments)
@@ -252,7 +282,8 @@ private extension ConversationViewModel {
                 consumedAttachments: outbound.consumedAttachments,
                 consumedFileAttachments: outbound.consumedFileAttachments,
                 consumedAppShots: outbound.consumedAppShots,
-                consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
+                consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
+                relayedFrom: outbound.relayedFrom
             )
         }
     }
@@ -311,7 +342,8 @@ private extension ConversationViewModel {
                 consumedAttachments: outbound.consumedAttachments,
                 consumedFileAttachments: outbound.consumedFileAttachments,
                 consumedAppShots: outbound.consumedAppShots,
-                consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance
+                consumedExitPlanModeRevisionGuidance: outbound.consumedExitPlanModeRevisionGuidance,
+                relayedFrom: outbound.relayedFrom
             )
         }
     }

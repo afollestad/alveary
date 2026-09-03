@@ -2,8 +2,8 @@ import AgentCLIKit
 import Foundation
 import SwiftData
 
-/// The `alveary_host` thread tools: list, create, archive. Never delete — no tool here removes a
-/// thread, and none should be added.
+/// The `alveary_host` thread tools: list, create, archive, and send a prompt into another thread.
+/// Never delete — no tool here removes a thread, and none should be added.
 @MainActor
 final class ThreadHostToolService {
     let modelContext: ModelContext
@@ -20,6 +20,10 @@ final class ThreadHostToolService {
     /// Starts a created thread's first turn headlessly. Fire-and-forget: `create_thread` reports
     /// dispatch, never the turn's outcome.
     let startInitialPrompt: @MainActor (Conversation, String) -> Void
+    /// Posts a relayed prompt into an existing thread and reports whether it started a turn or
+    /// queued behind one. Awaited, unlike `startInitialPrompt`, because `send_prompt_to_thread`
+    /// answers with that distinction; required so a construction site must choose.
+    let deliverPrompt: @MainActor (Conversation, OutboundMessageText) async throws -> RelayedPromptDelivery
     private let requestParser: ThreadHostToolRequestParser
     private let now: () -> Date
 
@@ -32,6 +36,7 @@ final class ThreadHostToolService {
         settingsService: SettingsService,
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         startInitialPrompt: @escaping @MainActor (Conversation, String) -> Void = { _, _ in },
+        deliverPrompt: @escaping @MainActor (Conversation, OutboundMessageText) async throws -> RelayedPromptDelivery,
         requestParser: ThreadHostToolRequestParser = ThreadHostToolRequestParser(),
         now: @escaping () -> Date = Date.init
     ) {
@@ -43,6 +48,7 @@ final class ThreadHostToolService {
         self.settingsService = settingsService
         self.providerDiscovery = providerDiscovery
         self.startInitialPrompt = startInitialPrompt
+        self.deliverPrompt = deliverPrompt
         self.requestParser = requestParser
         self.now = now
     }
@@ -101,6 +107,8 @@ final class ThreadHostToolService {
             return try createSection(context: context, arguments: call.arguments)
         case ThreadHostToolCatalog.moveThreadToSectionToolName:
             return try moveThreadToSection(context: context, arguments: call.arguments)
+        case ThreadHostToolCatalog.sendPromptToThreadToolName:
+            return try await sendPromptToThread(context: context, arguments: call.arguments)
         default:
             throw ThreadHostToolServiceError.unsupportedTool
         }
@@ -108,6 +116,10 @@ final class ThreadHostToolService {
 
     func parseCreate(arguments: [String: AgentCLIKit.JSONValue]) throws -> ThreadHostToolParsedCreateRequest {
         try requestParser.parseCreate(arguments: arguments)
+    }
+
+    func parseSendPrompt(arguments: [String: AgentCLIKit.JSONValue]) throws -> ThreadHostToolParsedSendPromptRequest {
+        try requestParser.parseSendPrompt(arguments: arguments)
     }
 
     func parseArchive(arguments: [String: AgentCLIKit.JSONValue]) throws -> String {
