@@ -11,6 +11,7 @@ These instructions cover `Alveary/Services/Scheduled/` — claiming a due occurr
 - **Compose execution through `ScheduledTaskSchedulerCoordinator`.** Same-source worktree creation and overlapping primary/granted roots must keep their separate lock scopes.
 - **Use the shared `ConversationControllerRegistry` background lease and outcome stream.** Scheduled execution must never open a second provider subscription.
 - `ScheduledTaskSchedulerCoordinator` owns scheduled keep-awake from claimed or recovered run launch through materialization, lock waits, execution, and failure or cancellation.
+- **Every scheduled turn's text opens with `DefaultScheduledTaskRunExecutor.scheduledRunPreamble`.** The executor applies it because it is the single path from a run snapshot to a provider turn; a second caller of `startAutomatedScheduledTurn` would otherwise send a run without it.
 
 ### Quiescence And User Stop
 

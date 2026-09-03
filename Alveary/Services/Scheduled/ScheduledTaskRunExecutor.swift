@@ -83,7 +83,7 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
         let (run, conversation) = try resolveExecutionModels(materialization)
         let runID = run.persistentModelID
         let conversationID = conversation.id
-        let prompt = materialization.prompt
+        let prompt = Self.outboundPrompt(for: materialization.prompt)
         let controllerKey = ConversationControllerKey(conversationID: conversationID)
         let baselineEpoch = controllerRegistry.currentOutcome(for: controllerKey)?.turn.epoch
         let lease = controllerRegistry.makeBackgroundLease(
