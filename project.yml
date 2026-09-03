@@ -182,7 +182,7 @@ packages:
     revision: "6cc504edd43872031149453e2fecf7609ed64192"
   BlockInputKit:
     url: https://github.com/afollestad/BlockInputKit.git
-    revision: "9e2ca67edb3f71db940349f03307f795d1c4037a"
+    revision: "0a0aa9f5992ec06911beae40dfb80660cfca351a"
   FluidAudio:
     url: https://github.com/FluidInference/FluidAudio.git
     exactVersion: "0.15.5"
