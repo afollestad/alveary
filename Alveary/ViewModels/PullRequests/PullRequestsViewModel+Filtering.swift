@@ -53,7 +53,7 @@ extension PullRequestsViewModel {
     }
 
     var repositoryFilterOptions: [String] {
-        Set(items.map(\.repositoryNameWithOwner)).sorted()
+        knownRepositories.sorted()
     }
 
     /// Whether the menu narrows the list at all. True for the packaged `.open` default too — the
@@ -80,6 +80,7 @@ extension PullRequestsViewModel {
         if selectedRepositories.contains(nameWithOwner) {
             selectedRepositories.remove(nameWithOwner)
         } else {
+            knownRepositories.insert(nameWithOwner)
             selectedRepositories.insert(nameWithOwner)
         }
         persistRepositoryFilters()
@@ -225,13 +226,6 @@ extension PullRequestsViewModel {
             ]
         }
         return sections.filter { !$0.rows.isEmpty }
-    }
-
-    /// Keeps the repository menu honest when a refresh drops selected repositories.
-    /// Deliberately not persisted: only explicit user toggles write settings, so a
-    /// repository that is temporarily absent from one fetch can reappear selected.
-    func normalizeRepositoryFilter() {
-        selectedRepositories.formIntersection(repositoryFilterOptions)
     }
 
     private func persistRepositoryFilters() {

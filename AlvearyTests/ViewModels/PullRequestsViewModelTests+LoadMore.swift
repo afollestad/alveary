@@ -17,17 +17,23 @@ extension PullRequestsViewModelTests {
         XCTAssertTrue(viewModel.canLoadMore(for: .authored))
         let fetchedAt = viewModel.bucketStates[.authored]?.fetchedAt
 
-        service.listResult = pagedAuthoredResult(numbers: [3, 4], endCursor: "a4", hasNextPage: false)
+        service.listResult = pagedAuthoredResult(numbers: [3, 4], repo: "octo/beta", endCursor: "a4", hasNextPage: false)
         await viewModel.loadMore()
 
         let request = service.listRequests.last
         XCTAssertEqual(request?.options.cursors, [.authored: "a2"])
         XCTAssertEqual(viewModel.items.map(\.id.number), [1, 2, 3, 4])
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha", "octo/beta"])
         XCTAssertEqual(viewModel.bucketStates[.authored]?.endCursor, "a4")
         XCTAssertFalse(viewModel.canLoadMore(for: .authored))
         // Paging deeper must not re-satisfy the throttle that governs page one.
         XCTAssertEqual(viewModel.bucketStates[.authored]?.fetchedAt, fetchedAt)
         XCTAssertFalse(viewModel.isLoadingMore)
+
+        service.listResult = pagedAuthoredResult(numbers: [1, 2], endCursor: "a2", hasNextPage: true)
+        await viewModel.refresh()
+        XCTAssertEqual(viewModel.items.map(\.id.number), [1, 2])
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha", "octo/beta"])
     }
 
     /// A cursor is opaque and belongs to the search that produced it, so the footer must not
@@ -169,21 +175,24 @@ extension PullRequestsViewModelTests {
 private extension PullRequestsViewModelTests {
     func pagedAuthoredResult(
         numbers: [Int],
+        repo: String = "octo/alpha",
         endCursor: String,
         hasNextPage: Bool
     ) -> Result<PullRequestListResult, PullRequestsServiceError> {
-        pagedResult(bucket: .authored, numbers: numbers, endCursor: endCursor, hasNextPage: hasNextPage)
+        pagedResult(bucket: .authored, numbers: numbers, repo: repo, endCursor: endCursor, hasNextPage: hasNextPage)
     }
 
     func pagedResult(
         bucket: PullRequestInvolvementBucket,
         numbers: [Int],
+        repo: String = "octo/alpha",
         endCursor: String,
         hasNextPage: Bool
     ) -> Result<PullRequestListResult, PullRequestsServiceError> {
         let summaries = numbers.map { number in
             makePullRequestSummary(
                 number: number,
+                repo: repo,
                 isAuthored: bucket == .authored,
                 isReviewRequested: bucket == .reviewRequested,
                 hasReviewed: bucket == .reviewed

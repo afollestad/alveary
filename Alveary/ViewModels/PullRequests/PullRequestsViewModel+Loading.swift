@@ -296,7 +296,6 @@ extension PullRequestsViewModel {
             rebuildItems()
             warnings = collectedWarnings
             touchReferenceDate()
-            normalizeRepositoryFilter()
             saveListCache()
         }
 
@@ -352,7 +351,6 @@ extension PullRequestsViewModel {
         }
         if appended {
             rebuildItems()
-            normalizeRepositoryFilter()
             saveListCache()
         }
         errorMessage = failure?.localizedDescription
@@ -390,7 +388,6 @@ extension PullRequestsViewModel {
         }
         rebuildItems()
         touchReferenceDate()
-        normalizeRepositoryFilter()
     }
 
     /// Persists every bucket held, not just the ones a load refreshed, so a lazy per-tab fetch

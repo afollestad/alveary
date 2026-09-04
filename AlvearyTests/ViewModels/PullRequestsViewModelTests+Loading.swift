@@ -234,6 +234,52 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.loadPhase, .loaded)
     }
 
+    func testRepositoryFiltersSurviveEmptyResultsAfterStatusChangeAndFailure() async {
+        let service = StubPullRequestsService()
+        service.listResult = .success(PullRequestListResult(
+            summaries: [makePullRequestSummary(number: 1, isAuthored: true)],
+            warnings: []
+        ))
+        let viewModel = makePullRequestsViewModel(service: service)
+        await viewModel.refresh()
+        viewModel.toggleRepositoryFilter("octo/alpha")
+
+        service.listResult = .success(PullRequestListResult(summaries: [], warnings: []))
+        viewModel.selectStatusFilter(.draft)
+        await waitFor { viewModel.items.isEmpty && !viewModel.isRefreshing }
+
+        XCTAssertTrue(viewModel.items.isEmpty)
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha"])
+        XCTAssertEqual(viewModel.selectedRepositories, ["octo/alpha"])
+
+        service.listResult = .failure(.rateLimited)
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha"])
+        XCTAssertEqual(viewModel.selectedRepositories, ["octo/alpha"])
+    }
+
+    func testDiscoveredRepositoryOptionsDoNotPersistAcrossSessions() async {
+        let settings = InMemorySettingsService()
+        settings.update { $0.pullRequestsRepositoryFilters = ["octo/alpha"] }
+        let service = StubPullRequestsService()
+        service.listResult = .success(PullRequestListResult(
+            summaries: [makePullRequestSummary(number: 1, repo: "octo/beta", isAuthored: true)],
+            warnings: []
+        ))
+        let viewModel = makePullRequestsViewModel(service: service, settingsService: settings)
+        let updateCount = settings.updateCount
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha", "octo/beta"])
+        XCTAssertEqual(settings.updateCount, updateCount)
+
+        let nextSession = makePullRequestsViewModel(service: service, settingsService: settings)
+        XCTAssertEqual(nextSession.repositoryFilterOptions, ["octo/alpha"])
+        await nextSession.refresh()
+        XCTAssertEqual(nextSession.repositoryFilterOptions, ["octo/alpha", "octo/beta"])
+    }
+
     // MARK: - Launch prefetch
 
     func testTheLaunchPrefetchWarmsThePersistedTabSoItsFirstVisitFetchesNothing() async {

@@ -107,11 +107,12 @@ final class PullRequestsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.visibleRows(for: .all).map(\.id.number), [2])
     }
 
-    func testRepositoryFilterOptionsAndNormalization() async {
+    func testRepositoryOptionsAndSelectionsSurviveDisappearingResults() async {
         let service = StubPullRequestsService()
+        let beta = makePullRequestSummary(number: 1, repo: "octo/beta", isAuthored: true)
         service.listResult = .success(PullRequestListResult(
             summaries: [
-                makePullRequestSummary(number: 1, repo: "octo/beta", isAuthored: true),
+                beta,
                 makePullRequestSummary(number: 2, repo: "octo/alpha", isAuthored: true)
             ],
             warnings: []
@@ -122,15 +123,25 @@ final class PullRequestsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha", "octo/beta"])
 
         viewModel.toggleRepositoryFilter("octo/beta")
-        viewModel.toggleRepositoryFilter("octo/alpha")
         service.listResult = .success(PullRequestListResult(
-            summaries: [makePullRequestSummary(number: 2, repo: "octo/alpha", isAuthored: true)],
+            summaries: [
+                makePullRequestSummary(number: 2, repo: "octo/alpha", isAuthored: true),
+                makePullRequestSummary(number: 3, repo: "octo/gamma", isAuthored: true),
+                makePullRequestSummary(number: 4, repo: "octo/gamma", isAuthored: true)
+            ],
             warnings: []
         ))
         await viewModel.refresh()
 
-        // The vanished repository is pruned; the surviving selection stays.
-        XCTAssertEqual(viewModel.selectedRepositories, ["octo/alpha"])
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha", "octo/beta", "octo/gamma"])
+        XCTAssertEqual(viewModel.selectedRepositories, ["octo/beta"])
+        XCTAssertTrue(viewModel.visibleRows(for: .authored).isEmpty)
+
+        service.listResult = .success(PullRequestListResult(summaries: [beta], warnings: []))
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha", "octo/beta", "octo/gamma"])
+        XCTAssertEqual(viewModel.visibleRows(for: .authored), [beta])
     }
 
     func testFailureWithoutItemsMapsToUnavailableReason() async {
@@ -230,6 +241,10 @@ final class PullRequestsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedFilter, .reviewing)
         XCTAssertEqual(viewModel.selectedStatusFilter, .draft)
         XCTAssertEqual(viewModel.selectedRepositories, ["octo/alpha"])
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha"])
+
+        viewModel.clearRepositoryFilters()
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha"])
     }
 
     func testInvalidPersistedTabFallsBackToAll() {
@@ -266,12 +281,14 @@ final class PullRequestsViewModelTests: XCTestCase {
 
         XCTAssertEqual(settings.current.pullRequestsStatusFilter, .merged)
         XCTAssertEqual(settings.current.pullRequestsRepositoryFilters, ["octo/alpha"])
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha"])
 
         viewModel.selectStatusFilter(.all)
         viewModel.clearRepositoryFilters()
 
         XCTAssertEqual(settings.current.pullRequestsStatusFilter, .all)
         XCTAssertEqual(settings.current.pullRequestsRepositoryFilters, [])
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha"])
     }
 
     func testCancelledRefreshSurfacesNoErrorOrUnavailableState() async {
@@ -345,7 +362,7 @@ final class PullRequestsViewModelTests: XCTestCase {
         let gate = PullRequestsServiceGate()
         service.listGate = gate
         service.listResult = .success(PullRequestListResult(
-            summaries: [makePullRequestSummary(number: 10, isAuthored: true)],
+            summaries: [makePullRequestSummary(number: 10, repo: "octo/beta", isAuthored: true)],
             warnings: []
         ))
         let viewModel = makePullRequestsViewModel(service: service, listCache: cache)
@@ -362,10 +379,12 @@ final class PullRequestsViewModelTests: XCTestCase {
         }
         XCTAssertEqual(viewModel.items.map(\.id.number), [9])
         XCTAssertEqual(viewModel.loadPhase, .loaded)
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha"])
 
         gate.open()
         await screenTask.value
         XCTAssertEqual(viewModel.items.map(\.id.number), [10])
+        XCTAssertEqual(viewModel.repositoryFilterOptions, ["octo/alpha", "octo/beta"])
 
         // The refresh persists the fresh list for the next launch.
         for _ in 0..<2_000 {

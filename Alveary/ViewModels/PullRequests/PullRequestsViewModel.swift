@@ -171,6 +171,10 @@ final class PullRequestsViewModel {
     private(set) var selectedStatusFilter: PullRequestStatusFilter = .open
     /// An empty set means "no constraint" — every repository passes.
     var selectedRepositories: Set<String> = []
+    /// Keeps options available when results change during this root-owned view model's lifetime.
+    /// Seeded from saved selections, then accumulated from loaded rows and explicit selections;
+    /// discovered names are not persisted separately from the existing selections and list cache.
+    var knownRepositories: Set<String> = []
     /// The active tab; restored from settings and persisted through `selectFilter(_:)`.
     private(set) var selectedFilter = PullRequestsFilter.all
 
@@ -237,6 +241,7 @@ final class PullRequestsViewModel {
             selectedFilter = PullRequestsFilter(rawValue: settings.pullRequestsSelectedTab) ?? .all
             selectedStatusFilter = settings.pullRequestsStatusFilter
             selectedRepositories = settings.pullRequestsRepositoryFilters
+            knownRepositories = selectedRepositories
         }
         observeRemoteChanges()
         observeAgenticThreadActivity()
@@ -273,6 +278,7 @@ final class PullRequestsViewModel {
         items = PullRequestListMerge.merge(
             PullRequestInvolvementBucket.allCases.compactMap { bucketStates[$0]?.summaries }
         )
+        knownRepositories.formUnion(items.map(\.repositoryNameWithOwner))
         avatarLoader.prefetch(items.compactMap(\.authorAvatarURL))
     }
 
