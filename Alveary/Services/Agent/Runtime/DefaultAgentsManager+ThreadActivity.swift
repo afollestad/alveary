@@ -56,6 +56,9 @@ extension DefaultAgentsManager {
         }
     }
 
+    /// The turn-ended status can land before the terminal event it describes, since AgentCLIKit
+    /// yields them on separate streams. Stash the visibility as the event path does, or the late
+    /// terminal token reads an already-hidden turn and its notification is dropped.
     func handleRuntimeTurnActiveStatus(
         _ status: AgentCLIKit.AgentRuntimeStatus,
         conversationId: String
@@ -65,9 +68,13 @@ extension DefaultAgentsManager {
         }
         let wasTurnActive = managedBuffer.lastKnownRuntimeTurnActive
         managedBuffer.lastKnownRuntimeTurnActive = status.isTurnActive
-        if wasTurnActive && !status.isTurnActive {
-            recordVisibleTurnEndedIfNeeded(conversationId: conversationId)
+        guard wasTurnActive, !status.isTurnActive else {
+            return
         }
+        if managedBuffer.currentTurnActivityVisibility == .visible {
+            managedBuffer.terminalNotificationVisibility = .visible
+        }
+        recordVisibleTurnEndedIfNeeded(conversationId: conversationId)
     }
 }
 

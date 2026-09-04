@@ -25,6 +25,7 @@ These instructions cover provider-neutral runtime management under `Alveary/Serv
 
 - Runtime notification gating is terminal-aware:
     - **Suppress hidden activity.** Hidden runtime turns, including one-shot commit-message generation, must not raise desktop notifications. Classify terminal events from the turn visibility captured *before* terminal cleanup resets the buffer state.
+    - **The status stream is a terminal boundary too.** `handleRuntimeTurnActiveStatus` must stash the turn visibility like the event path does; the two streams race, and a hidden-only flip silently drops the completion notification.
     - **Suppress progress token notifications.** `usage_update` token rows are interim usage, not turn completion.
     - **Treat `tool_deferred` as waiting.** A successful `tool_deferred` token stop means the runtime is waiting on an approval or prompt; notify from the `tool_approval` request instead of announcing that the agent finished.
     - **Suppress resolved denials.** After the user denies a tool approval, later provider token rows reporting that same `permission_denial` are confirmation, not a new request.

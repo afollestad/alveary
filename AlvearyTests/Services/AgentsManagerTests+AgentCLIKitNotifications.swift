@@ -155,6 +155,58 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
+    func testStatusDrivenTurnEndBeforeTerminalTokenStillNotifies() async throws {
+        let executable = try makeScript(named: "slow-agent", body: "sleep 5\n")
+        defer { try? FileManager.default.removeItem(at: executable.deletingLastPathComponent()) }
+        let notifications = StubNotificationManager()
+        let fixture = makeAgentCLIKitFixture(
+            adapter: PathResolvingAgentCLIKitAdapter(executableName: executable.lastPathComponent),
+            detectedPath: executable.path,
+            basePath: "/usr/bin:/bin",
+            notificationManager: notifications
+        )
+        let manager = fixture.manager
+        let conversationId = "agentclikit-status-first-terminal-notification"
+
+        try await manager.spawn(id: conversationId, config: spawnConfig(workingDirectory: executable.deletingLastPathComponent().path))
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+
+        await manager.markCurrentTurnActivityVisibility(.visible, conversationId: conversationId)
+        // Drive the status stream by hand so the turn-ended status lands before the terminal token.
+        await manager.handleRuntimeTurnActiveStatus(
+            runtimeStatus(conversationId: conversationId, isTurnActive: true),
+            conversationId: conversationId
+        )
+        await manager.handleRuntimeTurnActiveStatus(
+            runtimeStatus(conversationId: conversationId, isTurnActive: false),
+            conversationId: conversationId
+        )
+        await manager.handleStreamEvent(
+            terminalSuccessTokens(),
+            conversationId: conversationId,
+            generation: generation,
+            providerId: "claude"
+        )
+
+        XCTAssertEqual(notifications.handledEvents.count, 1)
+        XCTAssertEqual(notifications.handledEvents.first?.conversationId, conversationId)
+        XCTAssertEqual(notifications.handledEvents.first?.event, terminalSuccessTokens())
+        await manager.kill(conversationId: conversationId)
+    }
+
+    private func runtimeStatus(conversationId: String, isTurnActive: Bool) -> AgentCLIKit.AgentRuntimeStatus {
+        AgentCLIKit.AgentRuntimeStatus(
+            conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
+            providerId: .claude,
+            generation: 1,
+            state: .running,
+            lastEventIndex: 1,
+            providerSessionId: nil,
+            isTurnActive: isTurnActive
+        )
+    }
+
     private func tokenError(stopReason: String) -> ConversationEvent {
         .tokens(
             input: 1,
