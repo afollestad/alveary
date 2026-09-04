@@ -27,8 +27,8 @@ struct PullRequestCommentAttachButton: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help("Attach files")
-                .accessibilityLabel("Attach files")
+                .help("Attach images or videos")
+                .accessibilityLabel("Attach images or videos")
             }
         }
     }
@@ -38,7 +38,9 @@ struct PullRequestCommentAttachButton: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
-        panel.message = "Choose files to attach to this comment"
+        panel.allowedContentTypes = GitHubAttachmentFile.supportedExtensions.compactMap { UTType(filenameExtension: $0) }
+        panel.allowsOtherFileTypes = false
+        panel.message = "Choose images or videos to attach to this comment"
         panel.prompt = "Attach"
         guard panel.runModal() == .OK, !panel.urls.isEmpty else {
             return

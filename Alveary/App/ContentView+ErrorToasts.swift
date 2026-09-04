@@ -72,6 +72,7 @@ private struct AppErrorToast: View {
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
                 .lineLimit(3)
+                .help(toast.message)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityLabel("\(toast.kind.accessibilityPrefix): \(toast.message)")
 

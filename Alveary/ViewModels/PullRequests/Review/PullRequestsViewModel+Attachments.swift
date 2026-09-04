@@ -8,19 +8,6 @@ enum PullRequestAttachmentDestination: Hashable, Sendable {
     case reviewSummary
 }
 
-/// A `sessionUnavailable` upload failure held for the access-guidance sheet, so
-/// Retry can re-run the exact upload. Captures the repository because the pane
-/// session that resolved it may be discarded before the user returns from
-/// System Settings.
-@MainActor
-struct PullRequestAttachmentAccessRequest: Identifiable {
-    let id = UUID()
-    let files: [URL]
-    let destination: PullRequestAttachmentDestination
-    let repository: String
-    let draft: PullRequestCommentDraftBox
-}
-
 extension PullRequestsViewModel {
     /// Whether an upload targeting `destination` is running. Hosts disable their
     /// save/submit action and show progress while it is true.
@@ -38,8 +25,8 @@ extension PullRequestsViewModel {
     ///
     /// The work runs in an unstructured view-model-owned task: the view model is
     /// root-lived, so closing the pane or leaving the Pull requests screen cannot
-    /// cancel an upload in flight. A failure withdraws the placeholders and keeps
-    /// everything the user typed, then reports through an app toast, because the
+    /// cancel an upload in flight. Partial failures keep successful references and
+    /// withdraw remaining placeholders. Errors report through an app toast because the
     /// originating pane may be gone by the time the failure lands.
     func attachFiles(
         _ files: [URL],
@@ -50,7 +37,7 @@ extension PullRequestsViewModel {
             return
         }
         guard let attachmentUploadService else {
-            presentToast(GitHubAttachmentUploadError.extensionMissing.localizedDescription)
+            presentToast("Attachment uploads are unavailable.")
             return
         }
         // Capture the repository now; the session backing it may be discarded
@@ -62,27 +49,13 @@ extension PullRequestsViewModel {
         attachFiles(files, to: destination, repository: repository, draft: draft, using: attachmentUploadService)
     }
 
-    /// Re-runs the upload the access-guidance sheet was presented for, with its
-    /// captured repository — the pane that resolved it may already be closed.
-    func retryAttachmentUpload() {
-        guard let request = attachmentAccessRequest else {
-            return
-        }
-        attachmentAccessRequest = nil
-        guard let attachmentUploadService else {
-            return
-        }
-        attachFiles(
-            request.files,
-            to: request.destination,
-            repository: request.repository,
-            draft: request.draft,
-            using: attachmentUploadService
-        )
-    }
-
-    func dismissAttachmentAccessRequest() {
-        attachmentAccessRequest = nil
+    /// GitHub's in-progress marker. Plain text, not `![…]()`: the draft round
+    /// trips through `BlockInputDocument`, which rewrites image syntax.
+    static func placeholder(for file: URL) -> String {
+        let name = file.lastPathComponent
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+        return "Uploading \(name)…"
     }
 
     private func attachFiles(
@@ -101,58 +74,31 @@ extension PullRequestsViewModel {
         Task { [weak self] in
             defer { self?.attachmentUploadsInFlight.remove(destination) }
             do {
-                let uploads = try await attachmentUploadService.upload(files: files, repository: repository)
+                let batch = try await attachmentUploadService.upload(files: files, repository: repository)
                 // Seed before the references land in the draft: the editor
                 // loads an image block as soon as its markdown appears, and the
                 // fresh asset is still session-gated on GitHub's side.
                 if let seeder = self?.attachmentImageSeeder {
-                    for upload in uploads {
+                    for upload in batch.uploads {
                         await seeder(upload)
                     }
                 }
-                self?.replacePlaceholders(with: uploads, in: draft)
+                self?.replacePlaceholders(with: batch.uploads, in: draft)
+                let remaining = Array(files.dropFirst(batch.uploads.count))
+                self?.removePlaceholders(for: remaining, in: draft)
+                if let failure = batch.failure, failure != .cancelled {
+                    self?.presentToast(Self.attachmentFailureMessage(files: remaining, error: failure))
+                }
             } catch is CancellationError {
                 // A cancelled upload still owes the draft its placeholders back.
                 self?.removePlaceholders(for: files, in: draft)
             } catch {
                 self?.removePlaceholders(for: files, in: draft)
-                self?.presentUploadFailure(
-                    error,
-                    files: files,
-                    destination: destination,
-                    repository: repository,
-                    draft: draft
-                )
+                if !Task.isCancelled {
+                    self?.presentToast(Self.attachmentFailureMessage(files: files, error: error))
+                }
             }
         }
-    }
-
-    /// Session-unavailable failures open the access-guidance sheet — the remedy
-    /// is a privacy grant or a browser sign-in, which a toast cannot walk the
-    /// user through. Everything else keeps the toast.
-    private func presentUploadFailure(
-        _ error: any Error,
-        files: [URL],
-        destination: PullRequestAttachmentDestination,
-        repository: String,
-        draft: PullRequestCommentDraftBox
-    ) {
-        if case GitHubAttachmentUploadError.sessionUnavailable = error {
-            attachmentAccessRequest = PullRequestAttachmentAccessRequest(
-                files: files,
-                destination: destination,
-                repository: repository,
-                draft: draft
-            )
-        } else {
-            presentToast(Self.attachmentFailureMessage(files: files, error: error))
-        }
-    }
-
-    /// GitHub's in-progress marker. Plain text, not `![…]()`: the draft round
-    /// trips through `BlockInputDocument`, which rewrites image syntax.
-    static func placeholder(for file: URL) -> String {
-        "Uploading \(file.lastPathComponent)…"
     }
 
     /// Swaps each file's placeholder for its reference, in order, so duplicate
@@ -177,18 +123,20 @@ extension PullRequestsViewModel {
     }
 
     private func removePlaceholders(for files: [URL], in draft: PullRequestCommentDraftBox) {
-        var markdown = draft.markdown
-        for file in files {
-            guard let range = markdown.range(of: Self.placeholder(for: file)) else {
-                continue
-            }
-            markdown.removeSubrange(range)
+        guard !files.isEmpty else {
+            return
         }
-        // Withdrawing a placeholder leaves the line it sat on empty; collapse
-        // those so the draft does not accumulate blank paragraphs.
-        let lines = markdown
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        var lines = draft.markdown.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        for file in files {
+            let placeholder = Self.placeholder(for: file)
+            if let index = lines.firstIndex(where: { $0.contains(placeholder) }),
+               let range = lines[index].range(of: placeholder) {
+                lines[index].removeSubrange(range)
+                if lines[index].isEmpty {
+                    lines.remove(at: index)
+                }
+            }
+        }
         draft.replaceText(lines.joined(separator: "\n"))
     }
 
@@ -197,7 +145,7 @@ extension PullRequestsViewModel {
         guard !lines.isEmpty else {
             return
         }
-        let addition = lines.joined(separator: "\n")
+        let addition = lines.joined(separator: "\n\n")
         let existing = draft.markdown
         // A blank line keeps the addition its own paragraph. No trailing newline:
         // the document round trip strips it anyway.

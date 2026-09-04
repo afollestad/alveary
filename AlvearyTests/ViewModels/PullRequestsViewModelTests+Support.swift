@@ -74,20 +74,16 @@ func makeAgenticThreadStart(
 /// drive success and failure deterministically.
 @MainActor
 final class StubGitHubAttachmentUploadService: GitHubAttachmentUploadService {
-    var available = true
+    var batchFailure: GitHubAttachmentUploadError?
     var result: Result<[GitHubAttachmentUpload], GitHubAttachmentUploadError> = .success([])
     private(set) var uploadCalls: [(files: [URL], repository: String)] = []
     /// Held closed until `openGate()` so a test can observe the in-flight state.
     var gate: PullRequestsServiceGate?
 
-    func isAvailable() async -> Bool {
-        available
-    }
-
-    func upload(files: [URL], repository: String) async throws -> [GitHubAttachmentUpload] {
+    func upload(files: [URL], repository: String) async throws -> GitHubAttachmentUploadBatch {
         uploadCalls.append((files: files, repository: repository))
         await gate?.wait()
-        return try result.get()
+        return GitHubAttachmentUploadBatch(uploads: try result.get(), failure: batchFailure)
     }
 }
 

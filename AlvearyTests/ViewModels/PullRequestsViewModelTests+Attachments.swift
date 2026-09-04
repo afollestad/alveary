@@ -5,29 +5,6 @@ import XCTest
 
 @MainActor
 extension PullRequestsViewModelTests {
-    private static func upload(_ name: String, reference: String) -> GitHubAttachmentUpload {
-        GitHubAttachmentUpload(fileURL: URL(fileURLWithPath: "/tmp/\(name)"), markdownReference: reference)
-    }
-
-    /// Opens a pane so `attachFiles` can resolve the repository to upload against.
-    private func makeViewModelWithOpenPane(
-        uploader: StubGitHubAttachmentUploadService,
-        presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in }
-    ) async -> (PullRequestsViewModel, PullRequestSummary) {
-        let summary = makePullRequestSummary(number: 7, repo: "octo/alpha")
-        let service = StubPullRequestsService()
-        service.detailResult = .success(makePullRequestDetail(id: summary.id))
-        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
-        let viewModel = makePullRequestsViewModel(
-            service: service,
-            attachmentUploadService: uploader,
-            presentToast: presentToast
-        )
-        viewModel.requestDetails(summary)
-        await waitForPaneContent(viewModel, target: .details(summary.id))
-        return (viewModel, summary)
-    }
-
     func testAttachFilesShowsPlaceholdersImmediatelyThenSwapsInLinks() async {
         let uploader = StubGitHubAttachmentUploadService()
         let gate = PullRequestsServiceGate()
@@ -143,7 +120,25 @@ extension PullRequestsViewModelTests {
         XCTAssertFalse(viewModel.isUploadingAttachments(to: .composer))
     }
 
-    func testAttachWithoutAnUploaderToastsInstallGuidance() async {
+    func testFailedUploadPreservesTextTypedBesidePlaceholder() async {
+        let uploader = StubGitHubAttachmentUploadService()
+        let gate = PullRequestsServiceGate()
+        uploader.gate = gate
+        uploader.result = .failure(.notAuthenticated)
+        let (viewModel, _) = await makeViewModelWithOpenPane(uploader: uploader)
+        let draft = PullRequestCommentDraftBox(markdown: "First\n\nSecond")
+        let file = URL(fileURLWithPath: "/tmp/a\nb.png")
+        viewModel.attachFiles([file], to: .composer, draft: draft)
+        XCTAssertTrue(draft.markdown.contains("Uploading a b.png…"), draft.markdown)
+        draft.replaceText(draft.markdown + " Extra text")
+        gate.open()
+        await waitFor { !viewModel.isUploadingAttachments(to: .composer) }
+        XCTAssertTrue(draft.markdown.contains("First\n\nSecond"), draft.markdown)
+        XCTAssertTrue(draft.markdown.contains("Extra text"), draft.markdown)
+        XCTAssertFalse(draft.markdown.contains("Uploading"), draft.markdown)
+    }
+
+    func testAttachWithoutAnUploaderToastsUnavailable() async {
         let summary = makePullRequestSummary(number: 7)
         let service = StubPullRequestsService()
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
@@ -162,87 +157,56 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(toasts.messages.count, 1)
         XCTAssertEqual(
             toasts.messages.first,
-            GitHubAttachmentUploadError.extensionMissing.localizedDescription
+            "Attachment uploads are unavailable."
         )
     }
 
-    /// A browser-session failure is a privacy grant to walk through, not a
-    /// message: it must open the access-guidance sheet instead of toasting.
-    func testSessionUnavailableFailureOpensAccessGuidanceInsteadOfToasting() async {
+    func testPartialUploadKeepsSuccessfulReferencesAndReportsRemainingFiles() async {
         let uploader = StubGitHubAttachmentUploadService()
-        uploader.result = .failure(.sessionUnavailable("no session token found"))
+        uploader.result = .success([Self.upload("a.png", reference: "![a](https://example.com/a)")])
+        uploader.batchFailure = .permissionDenied
         let toasts = ToastRecorder()
-        let (viewModel, _) = await makeViewModelWithOpenPane(
-            uploader: uploader,
-            presentToast: { message in toasts.record(message) }
+        let (viewModel, _) = await makeViewModelWithOpenPane(uploader: uploader, presentToast: { toasts.record($0) })
+        let draft = PullRequestCommentDraftBox(markdown: "First paragraph\n\nSecond paragraph")
+        viewModel.attachFiles(
+            [URL(fileURLWithPath: "/tmp/a.png"), URL(fileURLWithPath: "/tmp/b.mp4")], to: .composer, draft: draft
         )
+        await waitFor { !viewModel.isUploadingAttachments(to: .composer) }
+        XCTAssertTrue(draft.markdown.contains("First paragraph\n\nSecond paragraph"), draft.markdown)
+        XCTAssertTrue(draft.markdown.contains("![a](https://example.com/a)"), draft.markdown)
+        XCTAssertFalse(draft.markdown.contains("Uploading"), draft.markdown)
+        XCTAssertEqual(toasts.messages, ["Uploading b.mp4 failed. " + GitHubAttachmentUploadError.permissionDenied.localizedDescription])
+    }
+
+    func testCancelledBatchKeepsSuccessfulVideoAndClearsRemainingPlaceholdersSilently() async {
+        let uploader = StubGitHubAttachmentUploadService()
+        uploader.result = .success([Self.upload("a.mp4", reference: "https://github.com/user-attachments/assets/aaa")])
+        uploader.batchFailure = .cancelled
+        let toasts = ToastRecorder()
+        let (viewModel, _) = await makeViewModelWithOpenPane(uploader: uploader, presentToast: { toasts.record($0) })
+        let draft = PullRequestCommentDraftBox(markdown: "Typed summary")
+        viewModel.attachFiles(
+            [URL(fileURLWithPath: "/tmp/a.mp4"), URL(fileURLWithPath: "/tmp/b.mp4")], to: .reviewSummary, draft: draft
+        )
+        await waitFor { !viewModel.isUploadingAttachments(to: .reviewSummary) }
+        XCTAssertTrue(draft.markdown.contains("Typed summary\n\nhttps://github.com/user-attachments/assets/aaa"), draft.markdown)
+        XCTAssertFalse(draft.markdown.contains("Uploading"), draft.markdown)
+        XCTAssertTrue(toasts.messages.isEmpty)
+    }
+
+    func testCompatibilityFailureKeepsDraftAndReportsUpgradeGuidance() async {
+        let uploader = StubGitHubAttachmentUploadService()
+        uploader.result = .failure(.unsupportedCLI("2.98.0"))
+        let toasts = ToastRecorder()
+        let (viewModel, _) = await makeViewModelWithOpenPane(uploader: uploader, presentToast: { toasts.record($0) })
         let draft = PullRequestCommentDraftBox(markdown: "Typed comment")
-
         viewModel.attachFiles([URL(fileURLWithPath: "/tmp/a.png")], to: .composer, draft: draft)
-        for _ in 0..<2_000 where viewModel.attachmentAccessRequest == nil {
-            await Task.yield()
-        }
-
-        XCTAssertTrue(toasts.messages.isEmpty, toasts.messages.joined())
+        await waitFor { !viewModel.isUploadingAttachments(to: .composer) }
         XCTAssertEqual(draft.markdown, "Typed comment")
-        XCTAssertEqual(viewModel.attachmentAccessRequest?.repository, "octo/alpha")
-        XCTAssertEqual(viewModel.attachmentAccessRequest?.files, [URL(fileURLWithPath: "/tmp/a.png")])
-        XCTAssertEqual(viewModel.attachmentAccessRequest?.destination, .composer)
-        XCTAssertFalse(viewModel.isUploadingAttachments(to: .composer))
-    }
-
-    /// Retry must work after the pane is gone: the guidance sheet outlives it
-    /// (the user detours through System Settings), so the request carries the
-    /// repository the pane originally resolved.
-    func testRetryFromAccessGuidanceReusesCapturedRepositoryAfterPaneCloses() async {
-        let uploader = StubGitHubAttachmentUploadService()
-        uploader.result = .failure(.sessionUnavailable("no session token found"))
-        let (viewModel, summary) = await makeViewModelWithOpenPane(uploader: uploader)
-        let draft = PullRequestCommentDraftBox(markdown: "")
-
-        viewModel.attachFiles([URL(fileURLWithPath: "/tmp/a.png")], to: .composer, draft: draft)
-        for _ in 0..<2_000 where viewModel.attachmentAccessRequest == nil {
-            await Task.yield()
-        }
-
-        let target = PullRequestPaneTarget.details(summary.id)
-        guard let generation = viewModel.paneSessions[target]?.generation else {
-            return XCTFail("Missing pane session")
-        }
-        viewModel.deactivatePane(target, generation: generation)
-        viewModel.dismissPane(target, generation: generation, restoreFocus: false)
-
-        uploader.result = .success([Self.upload("a.png", reference: "![a.png](https://example.com/a)")])
-        viewModel.retryAttachmentUpload()
-        XCTAssertNil(viewModel.attachmentAccessRequest)
-        for _ in 0..<2_000 where viewModel.isUploadingAttachments(to: .composer) {
-            await Task.yield()
-        }
-
-        XCTAssertEqual(uploader.uploadCalls.count, 2)
-        XCTAssertEqual(uploader.uploadCalls.last?.repository, "octo/alpha")
-        XCTAssertEqual(draft.markdown, "![a.png](https://example.com/a)")
-    }
-
-    func testDismissingAccessGuidanceClearsTheRequestWithoutUploading() async {
-        let uploader = StubGitHubAttachmentUploadService()
-        uploader.result = .failure(.sessionUnavailable("no session token found"))
-        let (viewModel, _) = await makeViewModelWithOpenPane(uploader: uploader)
-        let draft = PullRequestCommentDraftBox(markdown: "")
-
-        viewModel.attachFiles([URL(fileURLWithPath: "/tmp/a.png")], to: .composer, draft: draft)
-        for _ in 0..<2_000 where viewModel.attachmentAccessRequest == nil {
-            await Task.yield()
-        }
-
-        viewModel.dismissAttachmentAccessRequest()
-        XCTAssertNil(viewModel.attachmentAccessRequest)
-        // No retry happened: the failed attempt remains the only upload call.
-        XCTAssertEqual(uploader.uploadCalls.count, 1)
-        // A retry after dismissal is a no-op rather than a stale re-upload.
-        viewModel.retryAttachmentUpload()
-        await Task.yield()
-        XCTAssertEqual(uploader.uploadCalls.count, 1)
+        XCTAssertEqual(toasts.messages.count, 1)
+        XCTAssertTrue(toasts.messages[0].contains("2.99.0"))
+        XCTAssertTrue(toasts.messages[0].contains("brew upgrade gh"))
+        XCTAssertTrue(viewModel.supportsAttachmentUploads)
     }
 
     /// Uploaded bytes seed the image caches before the references land in the
@@ -257,18 +221,19 @@ extension PullRequestsViewModelTests {
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         let seeded = ToastRecorder()
+        let draft = PullRequestCommentDraftBox(markdown: "")
         let viewModel = makePullRequestsViewModel(
             service: service,
             attachmentUploadService: uploader,
             attachmentImageSeeder: { seededUpload in
                 // The placeholder must still be in the draft while seeding runs.
+                XCTAssertTrue(draft.markdown.contains("Uploading a.png…"), draft.markdown)
+                XCTAssertFalse(draft.markdown.contains(seededUpload.markdownReference), draft.markdown)
                 seeded.record(seededUpload.markdownReference)
             }
         )
         viewModel.requestDetails(summary)
         await waitForPaneContent(viewModel, target: .details(summary.id))
-        let draft = PullRequestCommentDraftBox(markdown: "")
-
         viewModel.attachFiles([URL(fileURLWithPath: "/tmp/a.png")], to: .composer, draft: draft)
         for _ in 0..<2_000 where viewModel.isUploadingAttachments(to: .composer) {
             await Task.yield()
@@ -323,6 +288,29 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(draft.markdown, "![a.png](https://example.com/a)")
     }
+
+    private static func upload(_ name: String, reference: String) -> GitHubAttachmentUpload {
+        GitHubAttachmentUpload(fileURL: URL(fileURLWithPath: "/tmp/\(name)"), markdownReference: reference)
+    }
+
+    /// Opens a pane so `attachFiles` can resolve the repository to upload against.
+    private func makeViewModelWithOpenPane(
+        uploader: StubGitHubAttachmentUploadService,
+        presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in }
+    ) async -> (PullRequestsViewModel, PullRequestSummary) {
+        let summary = makePullRequestSummary(number: 7, repo: "octo/alpha")
+        let service = StubPullRequestsService()
+        service.detailResult = .success(makePullRequestDetail(id: summary.id))
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+        let viewModel = makePullRequestsViewModel(
+            service: service,
+            attachmentUploadService: uploader,
+            presentToast: presentToast
+        )
+        viewModel.requestDetails(summary)
+        await waitForPaneContent(viewModel, target: .details(summary.id))
+        return (viewModel, summary)
+    }
 }
 
 /// Main-actor recorder: the toast closure is `@Sendable` and cannot capture a
@@ -334,4 +322,5 @@ final class ToastRecorder {
     func record(_ message: String) {
         messages.append(message)
     }
+
 }

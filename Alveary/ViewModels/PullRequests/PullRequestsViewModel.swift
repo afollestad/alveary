@@ -148,10 +148,6 @@ final class PullRequestsViewModel {
     @ObservationIgnored
     var paneLoadTasks: [PullRequestPaneTarget: PullRequestPaneLoadTasks] = [:]
 
-    /// A failed upload waiting on browser-session access; non-nil presents the
-    /// Full Disk Access guidance sheet. Mutated by the attachments companion.
-    var attachmentAccessRequest: PullRequestAttachmentAccessRequest?
-
     /// Memoized list shaping per tab, owned by `PullRequestsViewModel+Filtering.swift`.
     /// One entry per tab rather than one overall, so alternating tabs hits instead of
     /// recomputing each way. `@ObservationIgnored` so filling it during a render publishes

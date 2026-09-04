@@ -1,229 +1,174 @@
 import Foundation
 
-/// One uploaded attachment: the local file it came from plus the markdown
-/// reference GitHub serves it under (`![name](url)` for images, a link for
-/// other types, a bare URL for video).
-struct GitHubAttachmentUpload: Sendable, Equatable {
-    let fileURL: URL
-    let markdownReference: String
-
-    /// The uploaded asset's URL, extracted from whichever reference form the
-    /// extension printed: `![name](url)`, `[name](url)`, or a bare URL.
-    var referenceURL: URL? {
-        if let range = markdownReference.range(of: #"\]\(([^)]+)\)$"#, options: .regularExpression) {
-            let inner = markdownReference[range].dropFirst("](".count).dropLast()
-            return URL(string: String(inner))
-        }
-        let trimmed = markdownReference.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.lowercased().hasPrefix("https://") else {
-            return nil
-        }
-        return URL(string: trimmed)
-    }
-}
-
-enum GitHubAttachmentUploadError: LocalizedError, Sendable, Equatable {
-    /// The `gh-image` extension is not installed. GitHub publishes no API for
-    /// comment attachments, so the extension is the only upload path.
-    case extensionMissing
-    /// The extension ran but could not read a GitHub web session from the browser.
-    /// Usually a privacy grant, not a sign-in problem: Safari keeps its cookies in
-    /// a TCC-protected container, and the child process inherits *Alveary's*
-    /// grants, so a read that works from Terminal fails when the app spawns it.
-    case sessionUnavailable(String)
-    case ghNotInstalled
-    /// A file exceeds GitHub's attachment size limit for its kind; caught
-    /// before invoking the extension. The message names the file and limit.
-    case fileTooLarge(String)
-    case uploadFailed(String)
-    /// The extension exited successfully but printed fewer references than files.
-    case incompleteOutput
-
-    var errorDescription: String? {
-        switch self {
-        case .extensionMissing:
-            return "Attaching files needs the gh-image extension. Install it with: gh extension install drogers0/gh-image"
-        case .sessionUnavailable(let detail):
-            return """
-                Alveary could not read your GitHub browser session. Safari keeps cookies where Alveary needs \
-                Full Disk Access to read them; signing in with Chrome instead needs only a one-time Keychain \
-                approval. \(detail)
-                """
-        case .ghNotInstalled:
-            return "The GitHub CLI (gh) could not be found."
-        case .fileTooLarge(let detail):
-            return detail
-        case .uploadFailed(let detail):
-            return detail
-        case .incompleteOutput:
-            return "The upload finished without returning a link for every file."
-        }
-    }
-}
-
-/// GitHub's published attachment size limits by file kind. Enforced before the
-/// upload runs so an oversized file fails instantly with a clear message
-/// instead of the policy endpoint's HTML-laden 422 ("Yowza that's a big file").
-/// Limits use binary megabytes — the generous reading of GitHub's "10 MB" — and
-/// the 422 classification in `failure(for:)` backstops anything that slips by.
-enum GitHubAttachmentSizeLimit {
-    private static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "tiff", "heic", "heif"]
-    private static let videoExtensions: Set<String> = ["mp4", "mov", "webm"]
-
-    /// The limit and human-readable kind for a file, by path extension.
-    static func limit(forPathExtension pathExtension: String) -> (bytes: Int, label: String) {
-        let normalized = pathExtension.lowercased()
-        if imageExtensions.contains(normalized) {
-            return (10 * 1024 * 1024, "images up to 10 MB")
-        }
-        if videoExtensions.contains(normalized) {
-            return (100 * 1024 * 1024, "videos up to 100 MB")
-        }
-        return (25 * 1024 * 1024, "files up to 25 MB")
-    }
-
-    /// Returns a thrown-ready error when `file` exceeds its kind's limit; nil
-    /// when it fits or its size cannot be read (the upload then surfaces the
-    /// real filesystem error).
-    static func oversizeError(for file: URL) -> GitHubAttachmentUploadError? {
-        guard let bytes = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
-            return nil
-        }
-        let limit = limit(forPathExtension: file.pathExtension)
-        guard bytes > limit.bytes else {
-            return nil
-        }
-        let size = ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
-        return .fileTooLarge("\(file.lastPathComponent) is \(size) — GitHub allows \(limit.label).")
-    }
-}
-
 @MainActor
 protocol GitHubAttachmentUploadService: AnyObject, Sendable {
-    /// Whether the `gh-image` extension is installed and runnable.
-    func isAvailable() async -> Bool
-    /// Uploads `files` to `repository` ("owner/name") and returns one reference
-    /// per file, in the order given.
-    func upload(files: [URL], repository: String) async throws -> [GitHubAttachmentUpload]
+    /// Preflight failures throw before uploading; a later failure returns the successful prefix.
+    func upload(files: [URL], repository: String) async throws -> GitHubAttachmentUploadBatch
 }
 
-/// Uploads comment attachments by shelling out to the `gh-image` extension.
-///
-/// GitHub's own drag-and-drop flow (`/upload/policies/assets` → S3 → finalize)
-/// authenticates only with the `user_session` browser cookie; an API token is
-/// ignored outright. Delegating to the extension keeps that full-account
-/// credential out of Alveary — the extension reads it from the browser's
-/// encrypted cookie store under the user's own Keychain grant.
+/// Uses the authenticated endpoint behind native `gh --attach`, preserving upload-only drafts.
+/// The endpoint contract and repair procedure live in `docs/github-attachments.md` at the repo root.
 @MainActor
 final class DefaultGitHubAttachmentUploadService: GitHubAttachmentUploadService {
-    /// Uploads are network-bound and can be several megabytes per file, so this
-    /// is far longer than a metadata call's budget.
-    private static let uploadTimeout: Duration = .seconds(300)
-    private static let availabilityTimeout: Duration = .seconds(20)
-    private static let outputLimitBytes = 64 * 1024
-
-    private let shellRunner: any ShellRunner
-    private let executableResolver: any ExecutablePathResolving
-
     init(shellRunner: any ShellRunner, executableResolver: any ExecutablePathResolving) {
         self.shellRunner = shellRunner
         self.executableResolver = executableResolver
     }
 
-    func isAvailable() async -> Bool {
-        guard let ghPath = await executableResolver.resolveExecutablePath(for: "gh") else {
-            return false
-        }
-        do {
-            let result = try await shellRunner.run(
-                executable: ghPath,
-                args: ["image", "--version"],
-                timeout: Self.availabilityTimeout,
-                stdoutLimitBytes: Self.outputLimitBytes,
-                stderrLimitBytes: Self.outputLimitBytes,
-                standardInput: .nullDevice
-            )
-            return result.succeeded
-        } catch {
-            return false
-        }
-    }
-
-    func upload(files: [URL], repository: String) async throws -> [GitHubAttachmentUpload] {
+    func upload(files: [URL], repository: String) async throws -> GitHubAttachmentUploadBatch {
         guard !files.isEmpty else {
-            return []
+            return GitHubAttachmentUploadBatch(uploads: [])
         }
-        for file in files {
-            if let oversized = GitHubAttachmentSizeLimit.oversizeError(for: file) {
-                throw oversized
-            }
-        }
+        try Task.checkCancellation()
+        let attachments = try files.map(GitHubAttachmentFile.init)
         guard let ghPath = await executableResolver.resolveExecutablePath(for: "gh") else {
             throw GitHubAttachmentUploadError.ghNotInstalled
         }
+        try await checkCompatibility(executable: ghPath)
+        let repositoryID = try await resolveRepository(repository, executable: ghPath)
+        var uploads: [GitHubAttachmentUpload] = []
+        for attachment in attachments {
+            do {
+                try Task.checkCancellation()
+                let result = try await run(
+                    executable: ghPath,
+                    args: Self.uploadArguments(attachment, repositoryID: repositoryID),
+                    timeout: .seconds(300)
+                )
+                let response = try Self.decode(AssetResponse.self, from: result)
+                guard let url = URL(string: response.url),
+                      url.scheme == "https", url.host == "github.com",
+                      url.user == nil, url.password == nil, url.port == nil,
+                      url.query == nil, url.fragment == nil,
+                      url.path.hasPrefix("/user-attachments/assets/"),
+                      UUID(uuidString: url.lastPathComponent) != nil else {
+                    throw GitHubAttachmentUploadError.invalidResponse("GitHub returned an invalid attachment URL.")
+                }
+                // Record a confirmed upload even if cancellation arrived while the response was being read.
+                uploads.append(attachment.upload(at: url))
+            } catch is CancellationError {
+                return GitHubAttachmentUploadBatch(uploads: uploads, failure: .cancelled)
+            } catch {
+                let failure = Task.isCancelled ? .cancelled : GitHubAttachmentUploadError.wrapping(error)
+                return GitHubAttachmentUploadBatch(uploads: uploads, failure: failure)
+            }
+        }
+        return GitHubAttachmentUploadBatch(uploads: uploads)
+    }
 
-        // `--` guards filenames that begin with a dash from being read as flags.
-        let args = ["image", "--repo", repository, "--"] + files.map(\.path)
+    private let shellRunner: any ShellRunner
+    private let executableResolver: any ExecutablePathResolving
+
+    /// Rechecked per batch so replacing the executable after an upgrade needs no app restart.
+    private func checkCompatibility(executable: String) async throws {
         let result: ShellResult
         do {
             result = try await shellRunner.run(
-                executable: ghPath,
-                args: args,
-                timeout: Self.uploadTimeout,
-                stdoutLimitBytes: Self.outputLimitBytes,
-                stderrLimitBytes: Self.outputLimitBytes,
-                // Never inherit stdin: a credential or confirmation prompt would
-                // otherwise hang the upload with no visible cause.
+                executable: executable,
+                args: ["--version"],
+                timeout: .seconds(20),
+                stdoutLimitBytes: 64 * 1024,
+                stderrLimitBytes: 64 * 1024,
                 standardInput: .nullDevice
             )
-        } catch let error as GitHubAttachmentUploadError {
-            throw error
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            throw GitHubAttachmentUploadError.uploadFailed(error.localizedDescription)
+            try Task.checkCancellation()
+            throw GitHubAttachmentUploadError.compatibilityCheckFailed("\(executable): \(error.localizedDescription)")
         }
-
-        guard result.succeeded else {
-            throw Self.failure(for: result)
+        try Task.checkCancellation()
+        guard result.succeeded, !result.stdoutWasTruncated else {
+            throw GitHubAttachmentUploadError.compatibilityCheckFailed("\(executable): \(Self.detail(from: result))")
         }
-
-        let references = result.stdout
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        guard references.count == files.count else {
-            throw GitHubAttachmentUploadError.incompleteOutput
-        }
-        return zip(files, references).map { file, reference in
-            GitHubAttachmentUpload(fileURL: file, markdownReference: reference)
-        }
+        try GitHubAttachmentUploadError.checkVersion(result.stdout, executable: executable)
     }
 
-    /// Classifies a failed run so hosts can offer the right remedy: installing
-    /// the extension, signing in again, or just reporting the message.
-    private static func failure(for result: ShellResult) -> GitHubAttachmentUploadError {
-        let combined = [result.stderr, result.stdout]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        let lowercased = combined.lowercased()
-
-        if lowercased.contains("unknown command") || lowercased.contains("extension not found") {
-            return .extensionMissing
+    private func resolveRepository(_ repository: String, executable: String) async throws -> Int64 {
+        let parts = repository.split(separator: "/", omittingEmptySubsequences: false)
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+        guard parts.count == 2, parts.allSatisfy({ part in
+            !part.isEmpty && part != "." && part != ".." && part.unicodeScalars.allSatisfy(allowed.contains)
+        }) else {
+            throw GitHubAttachmentUploadError.uploadFailed("The attachment repository must be owner/name.")
         }
-        // The policy endpoint's size rejection carries an HTML-laden message;
-        // replace it with the limits. Backstops the pre-flight check when
-        // GitHub's enforced threshold is stricter than the advertised one.
-        if lowercased.contains("\"resource\":\"userasset\""), lowercased.contains("\"field\":\"size\"") {
-            return .fileTooLarge(
-                "GitHub rejected an attachment as too large: images can be up to 10 MB, videos 100 MB, and other files 25 MB."
+        try Task.checkCancellation()
+        let result = try await run(
+            executable: executable,
+            args: ["api", "--hostname", "github.com", "repos/\(repository)"],
+            timeout: .seconds(20)
+        )
+        let response = try Self.decode(RepositoryResponse.self, from: result)
+        guard response.id > 0 else {
+            throw GitHubAttachmentUploadError.invalidResponse("GitHub returned an invalid repository ID.")
+        }
+        guard response.permissions.push else {
+            throw GitHubAttachmentUploadError.permissionDenied
+        }
+        return response.id
+    }
+
+    private func run(executable: String, args: [String], timeout: Duration) async throws -> ShellResult {
+        do {
+            let result = try await shellRunner.run(
+                executable: executable,
+                args: args,
+                timeout: timeout,
+                stdoutLimitBytes: 64 * 1024,
+                stderrLimitBytes: 64 * 1024,
+                standardInput: .nullDevice
             )
+            guard result.succeeded else {
+                throw GitHubAttachmentUploadError.failure(for: result)
+            }
+            return result
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw GitHubAttachmentUploadError.wrapping(error)
         }
-        if lowercased.contains("session") || lowercased.contains("cookie") || lowercased.contains("sign in") {
-            return .sessionUnavailable(combined)
-        }
-        guard !combined.isEmpty else {
-            return .uploadFailed("Uploading attachments failed with exit code \(result.exitCode).")
-        }
-        return .uploadFailed(combined)
     }
+
+    /// With `--input`, fields become query parameters while the file remains the raw request body.
+    private static func uploadArguments(_ attachment: GitHubAttachmentFile, repositoryID: Int64) -> [String] {
+        [
+            "api", "--hostname", "github.com", "--method", "POST",
+            "https://uploads.github.com/user-attachments/assets",
+            "--input", attachment.fileURL.path,
+            "--header", "Content-Type: application/octet-stream",
+            "--header", "Accept: application/vnd.github+json",
+            "--raw-field", "name=\(attachment.fileURL.lastPathComponent)",
+            "--raw-field", "content_type=\(attachment.contentType)",
+            "--field", "repository_id=\(repositoryID)"
+        ]
+    }
+
+    private static func decode<T: Decodable>(_ type: T.Type, from result: ShellResult) throws -> T {
+        guard !result.stdoutWasTruncated else {
+            throw GitHubAttachmentUploadError.invalidResponse("GitHub's attachment response was truncated.")
+        }
+        do {
+            return try JSONDecoder().decode(type, from: result.stdoutData)
+        } catch {
+            throw GitHubAttachmentUploadError.invalidResponse("GitHub returned an unreadable attachment response.")
+        }
+    }
+
+    private static func detail(from result: ShellResult) -> String {
+        let detail = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        return detail.isEmpty ? "gh exited with status \(result.exitCode)." : String(detail.prefix(1_000))
+    }
+}
+
+private struct RepositoryResponse: Decodable {
+    let id: Int64
+    let permissions: Permissions
+
+    struct Permissions: Decodable {
+        let push: Bool
+    }
+}
+
+private struct AssetResponse: Decodable {
+    let url: String
 }
