@@ -90,7 +90,17 @@ struct PullRequestHostToolRequestParser {
         arguments: [String: AgentCLIKit.JSONValue]
     ) throws -> PullRequestHostToolDiffRequest {
         let object = StrictHostToolObject(arguments, path: "arguments")
-        try object.requireOnly(["url", "paths", "offset"])
+        try object.requireOnly(["url", "paths", "offset", "cursor"])
+        if let raw = try object.optionalNonEmptyString("cursor") {
+            let cursor = try PullRequestHostToolDiffCursor.decode(raw)
+            if let url = try object.optionalNonEmptyString("url"), try Self.identifier(from: url) != cursor.identifier {
+                throw invalid("url must match the pull request in cursor.")
+            }
+            guard object.values["paths"] == nil, object.values["offset"] == nil else {
+                throw invalid("cursor already includes paths and offset; pass cursor alone to continue.")
+            }
+            return PullRequestHostToolDiffRequest(identifier: cursor.identifier, paths: cursor.paths, offset: cursor.file, cursor: cursor)
+        }
         let offset: Int
         if object.values["offset"] != nil {
             offset = try object.requiredInteger("offset")
@@ -343,12 +353,20 @@ private extension PullRequestHostToolRequestParser {
             let comment = StrictHostToolObject(fields, path: "\(object.path).comments[\(index)]")
             try comment.requireOnly(["path", "line", "side", "body"])
             return PullRequestHostToolReviewCommentItem(
-                path: try comment.requiredNonEmptyString("path"),
+                path: try commentPath(in: comment),
                 line: try comment.requiredPositiveInteger("line"),
                 side: try side(in: comment),
                 body: try comment.requiredNonEmptyString("body")
             )
         }
+    }
+
+    /// Preserve whitespace in Git paths while keeping ordinary string validation for prose.
+    func commentPath(in object: StrictHostToolObject) throws -> String {
+        guard case .string(let path) = object.values["path"], !path.isEmpty else {
+            throw invalid("\(object.path).path must be a nonempty string.")
+        }
+        return path
     }
 
     /// Shape only. Whether a path exists in the diff is GitHub state, so it
@@ -361,11 +379,10 @@ private extension PullRequestHostToolRequestParser {
             guard case .string(let path) = value else {
                 throw invalid("\(object.path).paths[\(index)] must be a string.")
             }
-            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else {
+            guard !path.isEmpty else {
                 throw invalid("\(object.path).paths[\(index)] must not be empty.")
             }
-            return trimmed
+            return path
         }
         guard !paths.isEmpty else {
             throw invalid("\(object.path).paths must not be empty; omit it to include every file.")

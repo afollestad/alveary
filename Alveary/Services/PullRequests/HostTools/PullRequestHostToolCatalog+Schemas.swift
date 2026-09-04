@@ -161,7 +161,8 @@ extension PullRequestHostToolCatalog {
             "can_reply": HostToolSchema.booleanSchema,
             "comment_count": HostToolSchema.integerSchema(minimum: 0),
             "comments": HostToolSchema.arraySchema(items: threadCommentSchema),
-            "comments_truncated": HostToolSchema.booleanSchema
+            "comments_truncated": HostToolSchema.booleanSchema,
+            "comment_omissions": HostToolSchema.arraySchema(items: HostToolSchema.stringSchema)
         ],
         required: [
             "is_resolved", "is_outdated", "is_pending", "can_reply",
@@ -179,6 +180,13 @@ extension PullRequestHostToolCatalog {
             "thread_count": HostToolSchema.integerSchema(minimum: 0),
             "patch": HostToolSchema.stringSchema,
             "patch_truncated": HostToolSchema.booleanSchema,
+            "patch_offset": HostToolSchema.integerSchema(minimum: 0),
+            "patch_old_line": HostToolSchema.integerSchema(minimum: 0),
+            "patch_new_line": HostToolSchema.integerSchema(minimum: 0),
+            "patch_starts_mid_line": HostToolSchema.booleanSchema,
+            "patch_ends_mid_line": HostToolSchema.booleanSchema,
+            "thread_offset": HostToolSchema.integerSchema(minimum: 0),
+            "threads_truncated": HostToolSchema.booleanSchema,
             "threads": HostToolSchema.arraySchema(items: diffThreadSchema)
         ],
         required: ["path", "additions", "deletions", "is_binary", "thread_count"]

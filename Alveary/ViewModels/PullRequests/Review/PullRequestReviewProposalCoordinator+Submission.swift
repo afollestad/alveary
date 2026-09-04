@@ -101,12 +101,12 @@ extension PullRequestReviewProposalCoordinator {
     private func resolvedCommentLines(
         for presentation: PullRequestReviewProposalPresentation
     ) async -> [Int?] {
-        guard let diffText = try? await service.fetchDiff(presentation.identifier) else {
+        guard let files = try? await service.fetchDiffFiles(presentation.identifier, paths: Set(presentation.comments.map(\.path))) else {
             return presentation.comments.map { $0.line }
         }
         return ReviewProposalAnchorResolution.resolvedLines(
             presentation.comments,
-            against: DiffParser.parse(diffText)
+            against: files
         )
     }
 

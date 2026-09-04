@@ -68,6 +68,10 @@ Alveary keeps a system menu bar item with your five most recent threads plus New
 
 The same tab has **Launch at startup**, which registers Alveary as a macOS login item. macOS owns that registration, so the switch reflects System Settings → General → Login Items rather than a saved preference, and it tells you when the item is switched off there.
 
+## Pull Request Reviews
+
+Large pull-request reviews automatically fall back to a temporary bare Git repository when GitHub refuses the full diff. Alveary uses your existing GitHub CLI sign-in, then serves the complete textual diff in resumable pages. Preparation may take several minutes; review tasks do not need a project checkout.
+
 ## GitHub Attachments
 
 Comment and review attachments use GitHub CLI 2.99.0 or newer with repository write access. Supported images and videos upload using your existing GitHub CLI sign-in. See [attachment implementation and troubleshooting](docs/github-attachments.md) for formats, limits, and repair guidance.

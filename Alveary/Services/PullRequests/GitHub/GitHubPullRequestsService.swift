@@ -3,6 +3,8 @@ import Foundation
 /// Fetches and mutates pull requests through the GitHub CLI so private repositories work
 /// with the user's existing `gh` auth.
 actor GitHubPullRequestsService: PullRequestsService {
+    let diffSnapshots = PullRequestDiffJobs<PullRequestDiffSnapshot>()
+    var diffShellRunner: any ShellRunner { shellRunner }
     private static let maxTransientRetries = 2
 
     /// What one list or detail attempt may take, and what the whole call may take including
@@ -70,6 +72,14 @@ actor GitHubPullRequestsService: PullRequestsService {
     }
 
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String {
+        do {
+            return try await fetchRawDiff(id)
+        } catch where Self.needsGitDiff(error) {
+            return try await fetchDiffSnapshot(id).text(maxBytes: 5 * 1024 * 1024)
+        }
+    }
+
+    func fetchRawDiff(_ id: PullRequestIdentifier) async throws -> String {
         let ghExecutable = try await resolveGitHubCLI()
         let result = try await runGitHubCLIRetryingTransientFailures(
             executable: ghExecutable,
@@ -83,7 +93,10 @@ actor GitHubPullRequestsService: PullRequestsService {
         guard !result.stdoutWasTruncated else {
             throw PullRequestsServiceError.responseTooLarge
         }
-        return result.stdout
+        guard let text = String(data: result.stdoutData, encoding: .utf8) else {
+            throw PullRequestDiffError.invalidEncoding
+        }
+        return text
     }
 
     /// One `gh` invocation per bucket, in parallel. GitHub runs a batched request's aliased

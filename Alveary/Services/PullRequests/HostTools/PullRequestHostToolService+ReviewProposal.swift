@@ -26,7 +26,10 @@ extension PullRequestHostToolService {
             return replayedResult(receipt: receipt, fields: Self.echoFields(request))
         }
 
-        let target = try await validatedDetail(for: request)
+        let target = try await validatedDetail(
+            for: request,
+            reviewedRevision: reviewedDiffRevisions["\(context.conversationId.rawValue):\(request.identifier.displayKey)"]
+        )
         let detail = target.detail
 
         if let existing = try existingProposal(on: source.conversation) {
@@ -86,14 +89,24 @@ private extension PullRequestHostToolService {
     /// comment's anchor against the live diff — all at propose time, so a proposal the user
     /// confirms cannot fail on a precondition the model could have seen.
     func validatedDetail(
-        for request: PullRequestHostToolReviewProposalRequest
+        for request: PullRequestHostToolReviewProposalRequest,
+        reviewedRevision: (base: String?, head: String?)?
     ) async throws -> ValidatedProposalTarget {
         let detail = try await fetchDetail(request.identifier)
+        if let revision = reviewedRevision, revision.head != nil,
+           revision.head != detail.headRefOid || revision.base != detail.baseRefOid {
+            throw PullRequestDiffError.revisionChanged
+        }
         try Self.validate(request, against: detail)
         guard !request.comments.isEmpty else {
             return ValidatedProposalTarget(detail: detail, diffFiles: nil)
         }
-        let diffFiles = DiffParser.parse(try await fetchDiff(request.identifier))
+        let snapshot = try await pullRequestsService.fetchDiffSnapshot(request.identifier)
+        if let head = snapshot.headOID, head != detail.headRefOid || snapshot.baseOID != detail.baseRefOid {
+            throw PullRequestDiffError.revisionChanged
+        }
+        let paths = Set(request.comments.map(\.path))
+        let diffFiles = try await Task.detached { try snapshot.parsedFiles(paths: paths) }.value
         try Self.validateAnchors(request.comments, against: diffFiles)
         return ValidatedProposalTarget(detail: detail, diffFiles: diffFiles)
     }

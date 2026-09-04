@@ -91,7 +91,8 @@ extension PullRequestReviewProposalCoordinator {
                     )
                 )
             }
-            let parsed = DiffParser.parse(try await service.fetchDiff(presentation.identifier))
+            let paths = Set(presentation.comments.map(\.path) + pendingThreads.map(\.path))
+            let parsed = try await service.fetchDiffFiles(presentation.identifier, paths: paths)
             return commentedLoad(
                 for: presentation,
                 detail: detail,

@@ -191,13 +191,13 @@ final class GitHubPullRequestsServiceTests: XCTestCase {
         XCTAssertEqual(invocation.standardInput, .nullDevice)
     }
 
-    func testDiffTruncatedThrowsTooLarge() async {
+    func testRawDiffTruncatedThrowsTooLarge() async {
         let shell = MockShellRunner()
         await shell.enqueue(.success(pullRequestsShellResult(stdout: "diff", stdoutWasTruncated: true)))
         let service = makeGitHubPullRequestsService(shell: shell)
 
         await assertPullRequestsServiceThrows(.responseTooLarge) {
-            _ = try await service.fetchDiff(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
+            _ = try await service.fetchRawDiff(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7))
         }
     }
 

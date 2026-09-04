@@ -20,6 +20,9 @@ final class PullRequestHostToolService {
     /// the service without one, and a miss only costs the card its usual load.
     let reviewProposalPreviewCache: PullRequestReviewProposalPreviewCache?
     let notificationCenter: NotificationCenter
+    let diffJobs: PullRequestDiffJobs<PullRequestHostToolDiffSession>
+    let diffWait: Duration
+    var reviewedDiffRevisions: [String: (base: String?, head: String?)] = [:]
     private let requestParser: PullRequestHostToolRequestParser
     private let now: () -> Date
     private let proposalIDProvider: () -> String
@@ -31,6 +34,8 @@ final class PullRequestHostToolService {
         summaryHandoff: PullRequestSummaryHandoff,
         reviewProposalPreviewCache: PullRequestReviewProposalPreviewCache? = nil,
         notificationCenter: NotificationCenter = .default,
+        diffJobs: PullRequestDiffJobs<PullRequestHostToolDiffSession> = PullRequestDiffJobs(),
+        diffWait: Duration = .seconds(20),
         requestParser: PullRequestHostToolRequestParser = PullRequestHostToolRequestParser(),
         now: @escaping () -> Date = Date.init,
         makeProposalID: @escaping () -> String = { UUID().uuidString }
@@ -42,6 +47,8 @@ final class PullRequestHostToolService {
         self.summaryHandoff = summaryHandoff
         self.reviewProposalPreviewCache = reviewProposalPreviewCache
         self.notificationCenter = notificationCenter
+        self.diffJobs = diffJobs
+        self.diffWait = diffWait
         self.requestParser = requestParser
         self.now = now
     }
@@ -263,16 +270,6 @@ final class PullRequestHostToolService {
         }
     }
 
-    func fetchDiff(_ identifier: PullRequestIdentifier) async throws -> String {
-        do {
-            return try await pullRequestsService.fetchDiff(identifier)
-        } catch PullRequestsServiceError.responseTooLarge {
-            throw PullRequestHostToolServiceError.diffTooLarge
-        } catch let error as PullRequestsServiceError {
-            throw Self.unavailable(error)
-        }
-    }
-
     static func unavailable(_ error: PullRequestsServiceError) -> PullRequestHostToolServiceError {
         .pullRequestUnavailable(error.errorDescription ?? error.localizedDescription)
     }
@@ -334,6 +331,8 @@ final class PullRequestHostToolService {
             message = requestError.localizedDescription
         case let serviceError as PullRequestHostToolServiceError:
             message = serviceError.localizedDescription
+        case let diffError as PullRequestDiffError:
+            message = diffError.localizedDescription
         case let pullRequestError as PullRequestsServiceError:
             // A GitHub reachability failure is the model's to report, not Alveary's to swallow as
             // a generic persistence problem.

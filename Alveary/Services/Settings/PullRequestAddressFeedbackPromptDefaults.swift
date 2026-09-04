@@ -18,8 +18,9 @@ enum PullRequestAddressFeedbackPromptDefaults {
     ## Workflow
 
     1. Call `get_pr` to read the pull request's title, description, state, and branches.
-    2. Call `get_pr_timeline` for the conversation as a whole, then `get_pr_diff`, paging with offset until every file has \#
-    been read, for each thread's full discussion and the `thread_id` that replying and resolving need.
+    2. Call `get_pr_timeline` for the conversation as a whole, then `get_pr_diff`. Follow `next_cursor` with `cursor`, \#
+    including while preparing, until every file, patch fragment, and thread has been read. Use the returned `thread_id` \#
+    when replying and resolving.
     3. Run `git status` and `git branch --show-current` before changing anything. Work on the pull request's own head \#
     branch, leave unrelated dirty changes alone, and stop and explain if either stands in the way.
     4. Decide each item before you edit: whether it is accurate, what behavior the fix must preserve, which commit should \#

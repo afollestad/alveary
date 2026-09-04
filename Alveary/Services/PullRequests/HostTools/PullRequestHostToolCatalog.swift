@@ -61,7 +61,8 @@ enum PullRequestHostToolCatalog {
     call get_pr_address_feedback_instructions before anything else for the same reasons. Reviewing gives new feedback \
     and ends at propose_pr_review; addressing answers existing feedback and ends at reply_to_pr_thread and \
     resolve_pr_thread, so pick the tool that matches what was asked. When get_pr_diff \
-    returns next_offset, call it again with that offset or narrow it with paths, and copy @@ hunk headers exactly as \
+    returns next_cursor (including while preparing), call it again with cursor until exhausted. Patch fragments continue \
+    by path and UTF-8 patch_offset, including inside a line; use patch_old_line/patch_new_line and the mid-line flags. Copy @@ headers as \
     returned when you quote a patch, because Alveary renders the line numbers from them. When list_involved_prs returns \
     next_cursor, more pull requests matched than it listed: call it again passing only that cursor, which carries the \
     search it is continuing. propose_pr_review carries the \
@@ -313,33 +314,36 @@ private extension PullRequestHostToolCatalog {
         name: diffToolName,
         title: "Get a GitHub pull request's diff with review threads",
         description: """
-        Read one GitHub pull request's diff with its review comment threads attached to the lines they discuss. Every \
-        response lists every changed file with its counts and thread_count; patch text is included for as many whole files \
-        as fit the output budget, starting at offset (a file index, default 0). When next_offset is returned, more files \
-        remain — call again with that offset, or pass paths to read only the named files. Threads carry the thread_id that \
-        reply_to_pr_thread and resolve_pr_thread take; pending ones are the user's own unsubmitted draft comments, and \
-        is_outdated ones discuss code that has since changed, so they carry no line to read off the patch but are still \
-        feedback awaiting an answer.
+        Read a pull request's complete diff and review threads. An initial call takes url, optional paths, and a file-index
+        offset. Follow next_cursor with cursor alone, including when status is preparing. Inventory and patches may span
+        responses; inventory_complete means the file list has finished. Concatenate patch fragments by path and UTF-8
+        patch_offset: fragments can begin inside a hunk or line, with patch_old_line, patch_new_line, and mid-line flags
+        identifying the starting position. Continue until next_cursor is absent. Pending threads cannot take replies;
+        outdated threads remain relevant even when they have no current line.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: [
                 "url": HostToolSchema.nonEmptyStringSchema,
                 "paths": HostToolSchema.arraySchema(items: HostToolSchema.nonEmptyStringSchema),
-                "offset": HostToolSchema.integerSchema(minimum: 0)
+                "offset": HostToolSchema.integerSchema(minimum: 0),
+                "cursor": HostToolSchema.nonEmptyStringSchema
             ],
-            required: ["url"]
+            required: []
         ),
         outputSchema: HostToolSchema.strictObject(
             properties: [
+                "status": HostToolSchema.stringSchema,
                 "repository": HostToolSchema.stringSchema,
                 "number": HostToolSchema.integerSchema(minimum: 1),
                 "total_files": HostToolSchema.integerSchema(minimum: 0),
                 "patches_included": HostToolSchema.booleanSchema,
+                "next_cursor": HostToolSchema.stringSchema,
+                "inventory_complete": HostToolSchema.booleanSchema,
                 "next_offset": HostToolSchema.integerSchema(minimum: 0),
                 "files": HostToolSchema.arraySchema(items: diffFileSchema),
                 "guidance": HostToolSchema.stringSchema
             ],
-            required: ["repository", "number", "total_files", "patches_included", "files"]
+            required: ["status", "repository", "number"]
         ),
         annotations: HostToolSchema.readOnlyAnnotations
     )

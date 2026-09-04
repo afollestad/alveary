@@ -49,12 +49,12 @@ struct PullRequestHostToolTimelineRequest {
     let limit: Int
 }
 
-/// A `get_pr_diff` request. `paths` narrows to named files; `offset` is the
-/// file index patch paging starts at, after any path filtering.
+/// An initial diff request selects paths and a file offset; a cursor resumes an immutable job.
 struct PullRequestHostToolDiffRequest {
     let identifier: PullRequestIdentifier
     let paths: [String]?
     let offset: Int
+    var cursor: PullRequestHostToolDiffCursor?
 }
 
 /// One inline comment in a `propose_pr_review` request.
@@ -267,15 +267,20 @@ enum PullRequestHostToolText {
             )
             return "\(indent)\(comment.authorLogin): \(body.text.replacingOccurrences(of: "\n", with: " "))"
         }
-        let capOmitted = thread.comments.count - bounded.comments.count
-        if capOmitted > 0, !lines.isEmpty {
-            lines.insert("\(indent)(\(capOmitted) earlier \(replyNoun(capOmitted)) omitted)", at: 1)
-        }
-        let unfetched = thread.commentCount - thread.comments.count
-        if unfetched > 0 {
-            lines.append("\(indent)(\(unfetched) newer \(replyNoun(unfetched)) not fetched)")
-        }
+        let omissions = threadOmissions(thread, limit: limit)
+        if let earlier = omissions.earlier, !lines.isEmpty { lines.insert(indent + earlier, at: 1) }
+        if let newer = omissions.newer { lines.append(indent + newer) }
         return lines
+    }
+
+    static func threadOmissions(_ thread: PullRequestReviewThread, limit: Int) -> (earlier: String?, newer: String?) {
+        let bounded = PullRequestHostToolJSON.boundedThreadComments(thread, limit: limit)
+        let omitted = thread.comments.count - bounded.comments.count
+        let unfetched = thread.commentCount - thread.comments.count
+        return (
+            omitted > 0 ? "(\(omitted) earlier \(replyNoun(omitted)) omitted)" : nil,
+            unfetched > 0 ? "(\(unfetched) newer \(replyNoun(unfetched)) not fetched)" : nil
+        )
     }
 
     private static func replyNoun(_ count: Int) -> String {

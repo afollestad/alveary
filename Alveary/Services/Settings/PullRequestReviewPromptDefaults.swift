@@ -14,7 +14,8 @@ enum PullRequestReviewPromptDefaults {
 
     1. Call `get_pr` to read the pull request's title, description, and state.
     2. Call `get_pr_timeline` to read the feedback already given — top-level comments, review summaries, and inline threads.
-    3. Call `get_pr_diff` to read the diff, paging with offset until every file has been read. Judge the change as a whole: \#
+    3. Call `get_pr_diff` to read the diff. Follow `next_cursor` with `cursor`, including while preparing, until every file and \#
+    patch fragment has been read. Judge the change as a whole: \#
     understand its full scope and how the files relate before commenting on any one of them.
     4. Call `get_pr_review_proposal` to read any review already staged and awaiting confirmation. Staged comments are \#
     not published feedback — they exist only in Alveary, so the rule against re-raising raised issues does not apply to \#

@@ -155,11 +155,11 @@ extension PullRequestHostToolServiceTests {
         XCTAssertTrue(result.text.contains("(41 newer replies not fetched)"), result.text)
     }
 
-    func testDiffPagesByFileAndAlwaysListsEveryFile() async throws {
+    func testDiffStartsWithTheInventoryAndResumesWithinAFile() async throws {
         let fixture = try PullRequestHostToolFixture()
         let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
         fixture.pullRequests.detailResult = .success(makePullRequestDetail(id: identifier))
-        // Each file's patch is far larger than the whole budget, so only one fits per call.
+        // The response includes one full file and starts the next; its cursor must retain that position.
         fixture.pullRequests.diffResult = .success(
             makeUnifiedDiffFixture(fileCount: 3, addedLinesPerFile: 12_000)
         )
@@ -168,20 +168,23 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(first["total_files"], .number(3))
         // The map is complete regardless of the patch window, so the model sees the whole shape.
         XCTAssertEqual(try array(first["files"]).count, 3)
-        XCTAssertEqual(first["next_offset"], .number(1))
+        let token = try XCTUnwrap(first["next_cursor"])
+        XCTAssertNil(first["next_offset"])
         XCTAssertNotNil(first["guidance"])
 
         let resumed = try object(
             await fixture.handle(
                 PullRequestHostToolCatalog.diffToolName,
-                arguments: ["url": .string(PullRequestHostToolFixture.url), "offset": .number(1)]
+                arguments: ["cursor": token]
             ).structuredContent
         )
         let patched = try array(resumed["files"]).filter { file in
             (try? object(file))?["patch"] != nil
         }
-        XCTAssertEqual(patched.count, 1)
-        XCTAssertEqual(try object(patched.first)["path"], .string("File1.swift"))
+        XCTAssertEqual(patched.count, 2)
+        let continued = try object(patched.first)
+        XCTAssertEqual(continued["path"], .string("File1.swift"))
+        XCTAssertNotEqual(continued["patch_offset"], .number(0))
     }
 
     func testDiffRefusesAnOffsetPastTheEndRatherThanReturningNothing() async throws {

@@ -244,13 +244,13 @@ private struct DiffFileBuilder {
 
         if line.hasPrefix("rename from ") {
             isRenamed = true
-            oldPath = String(line.dropFirst("rename from ".count))
+            oldPath = GitDiffPath.decoded(String(line.dropFirst("rename from ".count)))
             return
         }
 
         if line.hasPrefix("rename to ") {
             isRenamed = true
-            newPath = String(line.dropFirst("rename to ".count))
+            newPath = GitDiffPath.decoded(String(line.dropFirst("rename to ".count)))
             return
         }
 
@@ -265,19 +265,12 @@ private struct DiffFileBuilder {
     }
 
     private static func parseHeaderPaths(_ headerLine: String) -> HeaderPaths? {
-        guard let aRange = headerLine.range(of: " a/"),
-              let bRange = headerLine.range(of: " b/", range: aRange.upperBound..<headerLine.endIndex) else {
-            return nil
-        }
-
-        return HeaderPaths(
-            oldPath: String(headerLine[aRange.upperBound..<bRange.lowerBound]),
-            newPath: String(headerLine[bRange.upperBound...])
-        )
+        guard let paths = GitDiffPath.headerPaths(headerLine) else { return nil }
+        return HeaderPaths(oldPath: paths.old, newPath: paths.new)
     }
 
     private static func parsePathMarker(_ line: String, prefix: String, expectedPathPrefix: String) -> String? {
-        let pathLine = String(line.dropFirst(prefix.count))
+        let pathLine = GitDiffPath.decoded(String(line.dropFirst(prefix.count)))
         if pathLine == "/dev/null" {
             return nil
         }

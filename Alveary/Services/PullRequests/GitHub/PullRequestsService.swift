@@ -362,6 +362,7 @@ protocol PullRequestsService: Sendable {
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail
     /// Returns the raw unified diff for the pull request.
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String
+    func fetchDiffSnapshot(_ id: PullRequestIdentifier) async throws -> PullRequestDiffSnapshot
     /// Posts a verdict and summary as a review of its own. Used only when the
     /// viewer has no pending review; otherwise `submitPendingReview` finishes
     /// that one, and its inline comments go with it.

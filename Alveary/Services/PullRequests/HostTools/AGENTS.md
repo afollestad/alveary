@@ -24,6 +24,9 @@ These instructions cover `Alveary/Services/PullRequests/HostTools/` — the `alv
 
 ### Read Tools
 
+- **Continue diffs with `next_cursor`, including `preparing` responses.** File offsets cannot resume a partial hunk or line. Keep catalog guidance and packaged review instructions aligned; the cursor restores its filter from the source-bound snapshot job.
+- **Use targeted snapshot reads for proposal validation and previews**, as the coordinator does in `Alveary/ViewModels/PullRequests/Review/`; routing either through the pane's bounded string adapter reintroduces the large-PR failure.
+
 - **Neither read tool hides an outdated thread.** Feedback on code that has since changed is exactly what an address-feedback run must answer, and GitHub reports no `line` for most of them — so they list under their file with `is_outdated` set and no line, rather than being filtered out for having nowhere to anchor. Whether they can be *drawn* in the pane's Changes tab is a separate question (`Alveary/Views/PullRequests/Review/AGENTS.md`); do not re-derive the tool filter from it.
 
 ### Review Proposals
