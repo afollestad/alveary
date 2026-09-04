@@ -71,6 +71,57 @@ extension ScheduledTaskRunExecutorTests {
         XCTAssertFalse(persistedRun.requiresFinalizationRecovery)
     }
 
+    func testFinalizationWaitsForLiveBackgroundTasksWithoutReportingAnError() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let run = try attachRun(to: fixture, status: .preparing)
+        var suspensionCount = 0
+        var retryWaits = 0
+        let registry = DefaultConversationControllerRegistry(
+            makeViewModel: { _ in fixture.viewModel },
+            suspendRuntime: { _ in suspensionCount += 1 },
+            runtimeIsSuspended: { _ in true }
+        )
+        let executor = DefaultScheduledTaskRunExecutor(
+            modelContext: fixture.context,
+            controllerRegistry: registry,
+            notificationManager: makeNotificationManager(fixture: fixture),
+            startAutomatedTurn: { viewModel, _ in
+                viewModel.markVisibleTurnStarted()
+                viewModel.turnState.beginTurn()
+            },
+            persistenceRetryWait: {
+                retryWaits += 1
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+        )
+        let execution = Task {
+            try await executor.execute(makeMaterialization(run: run, fixture: fixture))
+        }
+        try await waitUntil("expected scheduled run to start") {
+            run.status == .running
+        }
+
+        fixture.viewModel.state.liveBackgroundTaskCount = 1
+        fixture.viewModel.state.endTurn()
+        try await waitUntil("expected finalization to retry while background tasks are live") {
+            retryWaits >= 2
+        }
+        XCTAssertEqual(suspensionCount, 0)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+
+        fixture.viewModel.state.liveBackgroundTaskCount = 0
+        let result = try await execution.value
+
+        let verificationContext = ModelContext(fixture.container)
+        let persistedRun = try XCTUnwrap(
+            verificationContext.resolveScheduledTaskRun(id: run.persistentModelID)
+        )
+        XCTAssertEqual(result, .succeeded)
+        XCTAssertEqual(suspensionCount, 1)
+        XCTAssertNil(fixture.viewModel.lastTurnError)
+        XCTAssertFalse(persistedRun.requiresFinalizationRecovery)
+    }
+
     func testFinalizationMarkerSaveRetriesBeforeRunWideFenceReleases() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let run = try attachRun(to: fixture, status: .preparing)

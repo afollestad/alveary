@@ -247,3 +247,72 @@ struct GoalStartingAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
         await recorder.record(objective: objective, conversationId: context.conversationId.rawValue)
     }
 }
+
+/// Echoes `tasks:<count>`, `done:<task>`, and `active:<turn>` sentinels back as events and ends the
+/// host turn after each, so a turn can finish while background tasks stay live.
+struct BackgroundTaskAgentCLIKitAdapter: AgentCLIKit.AgentProviderAdapter {
+    let definition = AgentCLIKit.AgentProviderDefinition(
+        id: .claude,
+        displayName: "Claude",
+        executableNames: ["claude"]
+    )
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentCLIKit.AgentSpawnConfig,
+        resumedSession: AgentCLIKit.AgentSessionRecord?
+    ) async throws -> AgentCLIKit.AgentLaunchConfiguration {
+        AgentCLIKit.AgentLaunchConfiguration(
+            executable: "/bin/sh",
+            arguments: [
+                "-c",
+                """
+                while IFS= read -r line; do
+                  case "$line" in
+                    tasks:*|done:*|active:*) printf '%s\\nusage:end_turn\\n' "$line" ;;
+                    finish) printf 'usage:end_turn\\n' ;;
+                    *) printf 'usage:tool_use\\n' ;;
+                  esac
+                done
+                """
+            ],
+            includesSpawnArguments: true
+        )
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentCLIKit.AgentEvent] {
+        if let count = line.removingPrefix("tasks:").flatMap(Int.init) {
+            let tasks = (0..<count).map { AgentCLIKit.AgentBackgroundTask(id: "task-\($0)", kind: "local_agent") }
+            return [.backgroundTasks(AgentCLIKit.AgentBackgroundTasksEvent(tasks: tasks))]
+        }
+        if let taskId = line.removingPrefix("done:") {
+            return [.subAgent(AgentCLIKit.AgentSubAgentEvent(
+                id: "toolu_\(taskId)",
+                phase: .terminal,
+                status: "completed",
+                metadata: [
+                    AgentCLIKit.AgentBackgroundTaskMetadata.taskId: .string(taskId),
+                    AgentCLIKit.AgentBackgroundTaskMetadata.delivery: .string(AgentCLIKit.AgentBackgroundTaskMetadata.dequeuedDelivery)
+                ]
+            ))]
+        }
+        if let turnId = line.removingPrefix("active:") {
+            return [.activity(AgentCLIKit.AgentActivityEvent(state: .active, turnId: turnId, metadata: [:]))]
+        }
+        guard let stopReason = line.removingPrefix("usage:") else {
+            return []
+        }
+        return [.usage(AgentCLIKit.AgentUsageEvent(
+            model: nil,
+            inputTokens: nil,
+            outputTokens: nil,
+            stopReason: stopReason
+        ))]
+    }
+
+    func encodeInput(_ input: AgentCLIKit.AgentInput) async throws -> Data {
+        if case let .userMessage(message) = input {
+            return Data((message.text + "\n").utf8)
+        }
+        return Data()
+    }
+}

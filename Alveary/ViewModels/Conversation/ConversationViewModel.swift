@@ -64,8 +64,11 @@ final class ConversationViewModel {
     var completedThoughtText: String? { state.completedThoughtText }
     var completedThoughtSequence: Int { state.completedThoughtSequence }
 
+    /// Live background tasks keep the manager `.busy` for the sidebar and keep-awake, but the main
+    /// agent is idle then, so they must not queue sends or block hidden turns.
     var isAgentActivelyWorking: Bool {
-        state.turnState.isActive || agentsManager.status(for: conversation.id) == .busy
+        state.turnState.isActive ||
+            (agentsManager.status(for: conversation.id) == .busy && state.liveBackgroundTaskCount == 0)
     }
 
     var providerCanSteerCurrentTurn: Bool {

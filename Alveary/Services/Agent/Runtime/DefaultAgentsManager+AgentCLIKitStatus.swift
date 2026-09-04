@@ -42,6 +42,7 @@ extension DefaultAgentsManager {
         }
         syncRuntimeSettingsStatus(status, conversationId: conversationId)
         syncRuntimeGoalStatus(status.goal, conversationId: conversationId)
+        syncRuntimeBackgroundTaskStatus(status.liveBackgroundTaskCount, conversationId: conversationId)
         processSnapshot.withLock { $0 = [] }
         publishManagedProcessesChanged()
         if suppressCancelledInteractionStatusIfNeeded(status, conversationId: conversationId) {
@@ -95,7 +96,7 @@ extension DefaultAgentsManager {
             guard self.status(for: conversationId) != .error else {
                 return nil
             }
-            if status.isTurnActive && !ignoresStaleActiveStatus {
+            if (status.isTurnActive && !ignoresStaleActiveStatus) || status.liveBackgroundTaskCount > 0 {
                 return .busy
             }
             return .idle
@@ -158,6 +159,20 @@ extension DefaultAgentsManager {
             state.goalSnapshot = goal
             if !goal.status.isTerminal {
                 state.dismissedTerminalGoalKeys.removeAll()
+            }
+        }
+    }
+
+    /// Mirrors the runtime's live background task count into `ConversationState` the way goals are
+    /// mirrored, so the controller registry retains the controller and runtime through observation.
+    private func syncRuntimeBackgroundTaskStatus(_ count: Int, conversationId: String) {
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            let state = conversationState(for: conversationId)
+            if state.liveBackgroundTaskCount != count {
+                state.liveBackgroundTaskCount = count
             }
         }
     }

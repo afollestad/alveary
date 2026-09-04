@@ -321,8 +321,10 @@ extension DefaultAgentsManager {
         }
         agentCLIKitStatuses[conversationId] = status
 
+        // Background tasks live inside the provider process; suspending would kill them.
         guard status.waitingState == .idle,
-              !status.isTurnActive else {
+              !status.isTurnActive,
+              status.liveBackgroundTaskCount == 0 else {
             return
         }
 

@@ -27,6 +27,11 @@ extension DefaultAgentsManager {
             }
         }
         agentCLIKitStatuses.removeValue(forKey: conversationId)
+        // The status task was cancelled above, so the final zero-count status may never arrive.
+        await MainActor.run {
+            let state = conversationStatesStore.withLock { $0[conversationId] }
+            state?.liveBackgroundTaskCount = 0
+        }
         agentCLIKitGenerationByConversation.removeValue(forKey: conversationId)
         agentCLIKitGenerationUUIDs.removeValue(forKey: conversationId)
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)

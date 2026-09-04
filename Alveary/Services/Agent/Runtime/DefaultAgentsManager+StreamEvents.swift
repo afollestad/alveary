@@ -15,11 +15,12 @@ extension DefaultAgentsManager {
               managedBuffer.acceptsLiveEvents || allowAfterDeferredStop else {
             return
         }
+        let event = strippingExpectedExitMessage(from: event, managedBuffer: managedBuffer)
         managedBuffer.buffer.push(event)
         managedBuffer.observedEventCount += 1
 
         await handleConversationLifecycleEvent(event, conversationId: conversationId)
-        await handleRuntimeStatusEvent(event, conversationId: conversationId)
+        await handleRuntimeStatusEvent(event, conversationId: conversationId, providerId: providerId)
         noteTerminalRuntimeEventIfNeeded(event, conversationId: conversationId, runtimeEventIndex: runtimeEventIndex)
         let preTerminalActivityVisibility = managedBuffer.currentTurnActivityVisibility
         let notificationActivityVisibility = notificationActivityVisibility(
@@ -108,9 +109,23 @@ extension DefaultAgentsManager {
         managedBuffer.buffer.finishAll()
     }
 
+    /// A deferred-tool stop ends the process on purpose, so its exit must not read as unexpected.
+    private func strippingExpectedExitMessage(
+        from event: ConversationEvent,
+        managedBuffer: ManagedEventBuffer
+    ) -> ConversationEvent {
+        guard case .stop(let message) = event,
+              ConversationProviderExit.isDisplayMessage(message),
+              managedBuffer.hasDeferredToolStop else {
+            return event
+        }
+        return .stop(message: nil)
+    }
+
     private func handleRuntimeStatusEvent(
         _ event: ConversationEvent,
-        conversationId: String
+        conversationId: String,
+        providerId: String
     ) async {
         switch event {
         case .tokens:
@@ -133,7 +148,12 @@ extension DefaultAgentsManager {
                 updateStatus(.error, for: conversationId)
             }
         case .runtimeActivity(let state, _, let outcome):
-            handleRuntimeActivityStatus(state, outcome: outcome, conversationId: conversationId)
+            handleRuntimeActivityStatus(
+                state,
+                outcome: outcome,
+                conversationId: conversationId,
+                providerId: providerId
+            )
         default:
             break
         }
@@ -163,7 +183,8 @@ extension DefaultAgentsManager {
     private func handleRuntimeActivityStatus(
         _ state: ConversationRuntimeActivityState,
         outcome: ConversationRuntimeActivityOutcome,
-        conversationId: String
+        conversationId: String,
+        providerId: String
     ) {
         // Cancelled interactions stay idle; activity from the cancelled turn must
         // not reopen busy or error state. Do not clear the marker here — only new
@@ -187,6 +208,12 @@ extension DefaultAgentsManager {
         switch state {
         case .active:
             eventBuffers[conversationId]?.hasSentProviderErrorNotification = false
+            // Claude reports `.active` only for turns it starts itself, to consume a background task
+            // notification; those must notify like user turns. Codex reports it for every turn,
+            // hidden host turns included, so the host-chosen visibility stands there.
+            if providerId == "claude" {
+                markCurrentTurnActivityVisibility(.visible, conversationId: conversationId)
+            }
             // Pending approvals own the waiting state; parallel tool activity must
             // not flip a waiting conversation back to busy.
             guard status(for: conversationId) != .waitingForUser else {
@@ -199,7 +226,7 @@ extension DefaultAgentsManager {
             guard status(for: conversationId) == .busy else {
                 return
             }
-            updateStatus(.idle, for: conversationId)
+            updateStatus(settledIdleSignal(for: conversationId), for: conversationId)
         }
     }
 
@@ -262,14 +289,18 @@ extension DefaultAgentsManager {
             return
         }
 
-        updateStatus(
-            tokenStatusSignal(
-                isError: payload.isError,
-                stopReason: payload.stopReason,
-                permissionDenials: payload.permissionDenials
-            ),
-            for: conversationId
+        let signal = tokenStatusSignal(
+            isError: payload.isError,
+            stopReason: payload.stopReason,
+            permissionDenials: payload.permissionDenials
         )
+        updateStatus(signal == .idle ? settledIdleSignal(for: conversationId) : signal, for: conversationId)
+    }
+
+    /// Live background tasks outlive the turn that started them. The status stream only restores
+    /// `.busy` on the next runtime event, so a turn-ending idle must not clear the working indicator.
+    private func settledIdleSignal(for conversationId: String) -> ActivitySignal {
+        (agentCLIKitStatuses[conversationId]?.liveBackgroundTaskCount ?? 0) > 0 ? .busy : .idle
     }
 
     private func handleToolDeferredStopIfNeeded(

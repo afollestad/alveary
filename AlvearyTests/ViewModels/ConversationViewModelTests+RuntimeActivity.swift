@@ -44,6 +44,53 @@ extension ConversationViewModelTests {
         XCTAssertEqual(fixture.viewModel.streamingText, "Partial")
     }
 
+    func testRuntimeActivityActiveOutsideTurnStartsVisibleTurn() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.currentTurnActivityVisibility = .hidden
+
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .active, turnId: "background-task:1", outcome: .unknown))
+
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+        XCTAssertEqual(fixture.viewModel.state.currentTurnActivityVisibility, .visible)
+        XCTAssertEqual(fixture.viewModel.state.activeRuntimeActivityTurnId, "background-task:1")
+    }
+
+    func testLiveBackgroundTasksDoNotQueueOutboundWhileManagerIsBusy() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        await fixture.agentsManager.setStatus(.busy, for: fixture.conversation.id)
+        fixture.viewModel.state.liveBackgroundTaskCount = 1
+
+        XCTAssertFalse(fixture.viewModel.isAgentActivelyWorking)
+        try await fixture.viewModel.queueOrSend("Follow-up")
+
+        let sentMessages = await fixture.agentsManager.sentMessages()
+        XCTAssertEqual(sentMessages, ["Follow-up"])
+        XCTAssertNil(fixture.viewModel.messageQueue.peekNext())
+    }
+
+    func testRuntimeActivityActiveDuringHiddenTurnKeepsHiddenVisibility() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.beginHiddenActivityTurn()
+
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .active, turnId: "turn-1", outcome: .unknown))
+
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+        XCTAssertEqual(fixture.viewModel.state.currentTurnActivityVisibility, .hidden)
+    }
+
+    func testRuntimeActivityActiveAfterInterruptedTurnStartsNewTurn() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.state.turnState.beginTurn()
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .idle, turnId: nil, outcome: .interrupted))
+        XCTAssertFalse(fixture.viewModel.turnState.isActive)
+
+        fixture.viewModel.handleEvent(.runtimeActivity(state: .active, turnId: "background-task:1", outcome: .unknown))
+
+        XCTAssertTrue(fixture.viewModel.turnState.isActive)
+        XCTAssertEqual(fixture.viewModel.state.activeRuntimeActivityTurnId, "background-task:1")
+        XCTAssertEqual(fixture.viewModel.state.currentTurnActivityVisibility, .visible)
+    }
+
     func testRuntimeActivityFailedIdleEndsTurnWithoutDrainingQueuedMessage() async throws {
         let fixture = try ConversationViewModelTestFixture()
         fixture.viewModel.state.turnState.beginTurn()

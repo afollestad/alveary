@@ -90,6 +90,7 @@ extension ConversationViewModel {
         state.lastPersistedEventIndex = 0
         state.activeBufferGeneration = nil
         state.activeRuntimeActivityTurnId = nil
+        state.liveBackgroundTaskCount = 0
         state.grouper.resetInFlightStateForNewSession()
         subscribe()
     }

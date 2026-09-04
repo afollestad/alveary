@@ -37,6 +37,7 @@ final class ControllerEntry {
                 viewModel.state.isAutomaticSessionHandoffPending,
             isGeneratingCommitMessage: viewModel.state.isGeneratingCommitMessage,
             hasNonterminalGoal: viewModel.state.goalSnapshot?.status.isTerminal == false,
+            hasLiveBackgroundTasks: viewModel.state.liveBackgroundTaskCount > 0,
             terminalBoundary: viewModel.state.lastControllerTerminalBoundary,
             hasPendingPersistence: viewModel.hasPendingPersistence
         )
@@ -53,7 +54,7 @@ final class ControllerEntry {
         if snapshot.isTurnActive, snapshot.activityVisibility == .visible {
             return .active
         }
-        if snapshot.isTurnActive || snapshot.hasNonterminalGoal {
+        if snapshot.isTurnActive || snapshot.hasNonterminalGoal || snapshot.hasLiveBackgroundTasks {
             return .hiddenActive
         }
         return .idle
@@ -69,7 +70,8 @@ final class ControllerEntry {
             snapshot.isReconfiguringSession ||
             snapshot.hasSessionHandoff ||
             snapshot.isGeneratingCommitMessage ||
-            snapshot.hasNonterminalGoal
+            snapshot.hasNonterminalGoal ||
+            snapshot.hasLiveBackgroundTasks
     }
 
     var hasUnpublishedTerminal: Bool {
@@ -193,6 +195,9 @@ struct ObservedControllerState: Equatable {
     let hasSessionHandoff: Bool
     let isGeneratingCommitMessage: Bool
     let hasNonterminalGoal: Bool
+    /// Retains the controller and runtime like a nonterminal goal, but never defers the terminal
+    /// boundary: the provider's follow-up turn produces its own boundary once the tasks report back.
+    let hasLiveBackgroundTasks: Bool
     let terminalBoundary: ConversationTerminalBoundary?
     let hasPendingPersistence: Bool
 }

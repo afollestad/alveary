@@ -33,7 +33,9 @@ private extension ConversationViewModel {
     func shouldPersistEvent(_ event: ConversationEvent) -> Bool {
         if state.isGeneratingCommitMessage { return shouldPersistHiddenCommitMessageGenerationEvent(event) }
         if state.isHandingOffSession || state.failedSessionHandoffMessage != nil { return shouldPersistHiddenSessionHandoffEvent(event) }
-        if state.isDrainingCommitMessageGenerationEvents { return acknowledgeLateHiddenCommitMessageGenerationEvent(event) }
+        if state.isDrainingCommitMessageGenerationEvents, !isProviderInitiatedTurnStart(event) {
+            return acknowledgeLateHiddenCommitMessageGenerationEvent(event)
+        }
 
         if shouldSuppressPromptDismissalEvent(event) || shouldSuppressPromptDismissalFallout(event) {
             return false
@@ -221,7 +223,7 @@ private extension ConversationViewModel {
              .taskListSnapshot,
              .tokens,
              .stop,
-             .runtimeActivity:
+             .runtimeActivity(.idle, _, _):
             state.activeRuntimeActivityTurnId = nil
             state.isAutomaticSessionHandoffPending = false
             state.isCancellingTurn = false
@@ -316,6 +318,12 @@ private extension ConversationViewModel {
     ) -> Bool {
         switch activityState {
         case .active:
+            // See `isProviderInitiatedTurnStart`: no host turn means the provider started this one.
+            if !state.turnState.isActive {
+                state.lastTurnInterrupted = false
+                state.isCancellingTurn = false
+                markVisibleTurnStarted()
+            }
             state.activeRuntimeActivityTurnId = turnId
             state.turnState.beginTurn()
             scheduleSave()
@@ -323,6 +331,15 @@ private extension ConversationViewModel {
             handleRuntimeActivityIdle(turnId: turnId, outcome: outcome)
         }
         return false
+    }
+
+    /// Host-started turns begin before their `.active` arrives, so `.active` outside a turn can only be
+    /// the provider starting one itself, such as Claude consuming a background task notification.
+    func isProviderInitiatedTurnStart(_ event: ConversationEvent) -> Bool {
+        guard case .runtimeActivity(.active, _, _) = event else {
+            return false
+        }
+        return !state.turnState.isActive
     }
 
     func handleRuntimeActivityIdle(

@@ -40,14 +40,14 @@ struct AgentCLIKitEventMapper: Sendable {
         case .interaction(let event):
             return interactionEvents(from: event, providerSessionId: envelope.providerSessionId?.rawValue)
         case .lifecycle(let event):
-            return lifecycleEvents(from: event)
+            return lifecycleEvents(from: event, providerId: envelope.providerId)
         case .diagnostic(let event):
             return diagnosticEvents(from: event)
         case .rateLimit(let event):
             return [.notification(type: "rate_limit", message: event.status.rawValue)]
         case .activity(let event):
             return activityEvents(from: event, envelope: envelope)
-        case .rawOutput:
+        case .rawOutput, .backgroundTasks:
             return []
         }
     }
@@ -339,14 +339,24 @@ struct AgentCLIKitEventMapper: Sendable {
         }
     }
 
-    private func lifecycleEvents(from event: AgentCLIKit.AgentLifecycleEvent) -> [ConversationEvent] {
+    private func lifecycleEvents(
+        from event: AgentCLIKit.AgentLifecycleEvent,
+        providerId: AgentCLIKit.AgentProviderID
+    ) -> [ConversationEvent] {
         switch event.state {
         case .cancelled:
             return [.stop(message: event.message ?? ConversationInterruption.displayMessage)]
         case .failed:
-            return [.error(message: event.message ?? "Agent process failed")]
+            let fallback = event.exitCode.map {
+                ConversationProviderExit.failureMessage(providerId: providerId, exitCode: $0)
+            }
+            return [.error(message: event.message ?? fallback ?? "Agent process failed")]
         case .exited:
-            return [.stop(message: event.message)]
+            // Only an exit code distinguishes a process ending from a decoder-level exit.
+            let exitMessage = event.exitCode.map {
+                ConversationProviderExit.displayMessage(providerId: providerId, exitCode: $0)
+            }
+            return [.stop(message: event.message ?? exitMessage)]
         case .starting, .running:
             return []
         }

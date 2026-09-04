@@ -9,6 +9,7 @@ extension ConversationViewModel {
         state.activeBufferGeneration = nil
         state.activeSubscriptionToken = nil
         state.activeRuntimeActivityTurnId = nil
+        state.liveBackgroundTaskCount = 0
         state.grouper.resetInFlightStateForNewSession()
     }
 }

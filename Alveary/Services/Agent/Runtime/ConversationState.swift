@@ -193,6 +193,10 @@ final class ConversationState {
     var transcriptAppShots: [String: [AppShotAttachment]] = [:]
     var appShotProviderSessionTitleFallback: String?
     var pendingSyntheticAssistantDuplicateText: String?
+    /// Non-ambient background tasks the provider process still owns after its turn ended, mirrored from
+    /// `AgentRuntimeStatus.liveBackgroundTaskCount`. The controller registry keeps the controller and
+    /// runtime while this is non-zero because suspension would kill those tasks with the process.
+    var liveBackgroundTaskCount = 0
     var isGoalModeArmed = false
     var goalSnapshot: AgentGoalSnapshot? {
         didSet {

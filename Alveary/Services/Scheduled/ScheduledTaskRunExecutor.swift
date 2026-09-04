@@ -469,7 +469,11 @@ private extension DefaultScheduledTaskRunExecutor {
                 await supersedeTerminalInteractionsAndDiscardRuntimeIfNeeded(
                     execution.lease.viewModel
                 )
-                execution.lease.viewModel.lastTurnError = persistenceRetryMessage(for: error)
+                // A non-quiescent controller is still doing work, such as a provider follow-up turn or
+                // live background tasks; only persistence failures are worth a banner.
+                if !(error is DeferredControllerFinalizationError) {
+                    execution.lease.viewModel.lastTurnError = persistenceRetryMessage(for: error)
+                }
                 await persistenceRetryWait()
             }
         }
