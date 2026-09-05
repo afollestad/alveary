@@ -174,15 +174,9 @@ extension AppComponent {
         }
     }
 
+    /// Cleanup must reach the server holding the Codex thread's writer lock, which outlives its runtime sentinel.
     var agentCLIKitSessionActionRouter: AgentCLIKit.AgentProviderSessionActionRouter {
-        let claudeConfiguration = agentCLIKitClaudeProviderConfiguration
-        let codexConfiguration = agentCLIKitCodexProviderConfiguration
-        return AgentCLIKit.AgentProviderSessionActionRouter {
-            AgentCLIKit.AgentProviderAdapterSet.default(
-                claude: claudeConfiguration,
-                codex: codexConfiguration
-            )
-        }
+        AgentCLIKit.AgentProviderSessionActionRouter(borrowing: agentCLIKitProviderAdapterSet)
     }
 
     var providerSessionActionService: any ProviderSessionActionService {

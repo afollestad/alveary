@@ -28,6 +28,8 @@ Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, FluidA
 ./scripts/setup.sh
 ```
 
+Provider-session cleanup borrows the runtime's AgentCLIKit adapters so Codex archive and delete requests reach the server holding each thread's writer lock.
+
 Generate the Xcode project after project-structure changes:
 
 ```sh

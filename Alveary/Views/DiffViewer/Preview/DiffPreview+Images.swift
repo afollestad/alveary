@@ -190,7 +190,7 @@ private struct DiffImagePreviewSlot: View {
         case .loaded(let output):
             Image(decorative: output.image, scale: 1, orientation: .up)
                 .resizable()
-                .aspectRatio(contentMode: .fit)
+                .scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed:
             DiffCalloutCard(
