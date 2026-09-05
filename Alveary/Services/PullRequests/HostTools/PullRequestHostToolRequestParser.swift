@@ -327,17 +327,13 @@ private extension PullRequestHostToolRequestParser {
         return side
     }
 
-    /// Shape only, like `paths(in:)`. Two comments on one line are legal GitHub state and can be
-    /// deliberate, so duplicates pass. Nil means the field was omitted — a summary-only proposal;
-    /// an empty array is refused rather than silently meaning the same thing.
+    /// Normalize omitted and empty arrays to nil so equivalent reviews share a retry hash.
+    /// Duplicate anchors are allowed because two comments on one line can be deliberate.
     func reviewComments(
         in object: StrictHostToolObject
     ) throws -> [PullRequestHostToolReviewCommentItem]? {
-        guard let values = try object.optionalArray("comments") else {
+        guard let values = try object.optionalArray("comments"), !values.isEmpty else {
             return nil
-        }
-        guard !values.isEmpty else {
-            throw invalid("\(object.path).comments must not be empty; omit it for a summary-only review.")
         }
         guard values.count <= PullRequestHostToolLimits.maxReviewCommentsPerProposal else {
             throw invalid(

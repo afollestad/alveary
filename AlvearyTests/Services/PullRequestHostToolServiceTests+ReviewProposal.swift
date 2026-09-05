@@ -45,13 +45,37 @@ extension PullRequestHostToolServiceTests {
             arguments: [
                 "url": .string(PullRequestHostToolFixture.url),
                 "event": .string("comment"),
-                "body": .string("No actionable findings.")
+                "body": .string("No actionable findings."),
+                "comments": .array([])
             ]
         )
 
         XCTAssertFalse(result.isError, result.text)
         XCTAssertTrue(result.text.contains("no inline comments are staged"), result.text)
         XCTAssertFalse(result.text.contains("leave a review comment"), result.text)
+        let stored = try XCTUnwrap(try fixture.conversation.pullRequestReviewProposal())
+        XCTAssertEqual(stored.body, "No actionable findings.")
+        XCTAssertTrue(stored.stagedComments.isEmpty)
+        XCTAssertEqual(try object(result.structuredContent)["status"], .string("pending_confirmation"))
+        XCTAssertTrue(fixture.pullRequests.submittedReviews.isEmpty)
+        XCTAssertTrue(fixture.pullRequests.submittedPendingReviews.isEmpty)
+    }
+
+    func testAnEmptyCommentBatchDoesNotSatisfyACommentVerdict() async throws {
+        let fixture = try PullRequestHostToolFixture()
+        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
+        var detail = makePullRequestDetail(id: identifier)
+        detail.viewerLogin = "viewer"
+        fixture.pullRequests.detailResult = .success(detail)
+
+        let result = await fixture.handle(
+            PullRequestHostToolCatalog.proposeReviewToolName,
+            arguments: PullRequestHostToolFixture.reviewProposalArguments(bodies: [])
+        )
+
+        XCTAssertTrue(result.isError)
+        XCTAssertEqual(result.text, PullRequestHostToolServiceError.reviewCommentRequired.localizedDescription)
+        XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
     }
 
     /// A bodyless approve publishes neither comments nor a summary, so the message may claim

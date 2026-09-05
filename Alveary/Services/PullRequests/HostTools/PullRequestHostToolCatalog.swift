@@ -436,6 +436,7 @@ private extension PullRequestHostToolCatalog {
         Propose the user's review of a pull request: approve, request_changes, or comment, with an optional summary body \
         and the review's inline comments. Pass every comment for the review in this one call, each anchored to a path and \
         line from get_pr_diff; side is RIGHT (the new code, the default) or LEFT (the old code, for deleted lines). \
+        Omit comments or pass [] when there are no inline comments. \
         Nothing reaches GitHub from this tool — the comments are staged inside Alveary, and it opens a confirmation card \
         showing them where the user can adjust the verdict and must confirm, so never report the review or its comments \
         as posted; pending_confirmation means it awaits them. Pick event yourself from what you reviewed; do not ask the \
@@ -457,7 +458,6 @@ private extension PullRequestHostToolCatalog {
                 "body": HostToolSchema.nonEmptyStringSchema,
                 "comments": HostToolSchema.arraySchema(
                     items: reviewCommentInputSchema,
-                    minItems: 1,
                     maxItems: PullRequestHostToolLimits.maxReviewCommentsPerProposal
                 )
             ],

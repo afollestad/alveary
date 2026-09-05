@@ -192,16 +192,22 @@ final class PullRequestHostToolRequestParserTests: XCTestCase {
         XCTAssertThrowsError(try parser.parseReviewProposal(arguments: Self.batch([comment])))
     }
 
-    func testAReviewCommentBatchIsBoundedAtBothEnds() throws {
-        // Omitting the array is the summary-only shape; passing it empty is a refusal, so the
-        // two spellings cannot silently mean the same call.
-        XCTAssertThrowsError(try parser.parseReviewProposal(arguments: Self.batch([]))) { error in
-            XCTAssertTrue(error.localizedDescription.contains("omit it"), error.localizedDescription)
-        }
-        let summaryOnly = try parser.parseReviewProposal(
-            arguments: ["url": .string(Self.url), "event": .string("approve")]
+    func testAnEmptyReviewCommentBatchReadsAsAnOmittedOne() throws {
+        let empty = try parser.parseReviewProposal(arguments: Self.batch([]))
+        let omitted = try parser.parseReviewProposal(
+            arguments: ["url": .string(Self.url), "event": .string("comment")]
         )
-        XCTAssertTrue(summaryOnly.comments.isEmpty)
+        XCTAssertTrue(empty.comments.isEmpty)
+        XCTAssertEqual(empty.canonicalPayloadHash, omitted.canonicalPayloadHash)
+
+        XCTAssertThrowsError(
+            try parser.parseReviewProposal(
+                arguments: ["url": .string(Self.url), "event": .string("comment"), "comments": .string("")]
+            )
+        )
+    }
+
+    func testAReviewCommentBatchIsBoundedAndAllowsDuplicateAnchors() throws {
         let overCap = (0...PullRequestHostToolLimits.maxReviewCommentsPerProposal).map { index in
             Self.comment(line: index + 1)
         }
