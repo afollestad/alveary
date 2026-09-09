@@ -55,6 +55,33 @@ final class AppMarkdownEditorReplacementTests: XCTestCase {
         XCTAssertTrue(current === original, "A mid-edit splice rebuilt the editor and dropped the caret")
     }
 
+    func testReviewInstructionsRowsStaySeparatedAtSheetWidths() async throws {
+        for width in [620.0, 720.0] {
+            let draft = AppMarkdownDraft(markdown: AppSettings.defaultPullRequestReviewPrompt)
+            let host = mountSheet(draft: draft, width: width)
+            defer { host.tearDown() }
+            let editor = try XCTUnwrap(Self.firstBlockInputView(in: host.hosting))
+            let collection = try XCTUnwrap(Self.firstDescendant(NSCollectionView.self, in: editor))
+            let scrollView = try XCTUnwrap(collection.enclosingScrollView)
+            scrollView.scrollerStyle = .legacy
+            await host.settle()
+
+            let index = try XCTUnwrap(editor.document.blocks.firstIndex {
+                $0.text.hasPrefix("Only include actionable findings")
+            })
+            collection.scrollToItems(at: [IndexPath(item: index, section: 0)], scrollPosition: .top)
+            await host.settle()
+            try assertVisibleRowsFit(collection, width: width)
+            try attachInstructionsImage(editor, width: width)
+
+            collection.scrollToItems(at: [IndexPath(item: 0, section: 0)], scrollPosition: .top)
+            await host.settle()
+            collection.scrollToItems(at: [IndexPath(item: index, section: 0)], scrollPosition: .top)
+            await host.settle()
+            try assertVisibleRowsFit(collection, width: width)
+        }
+    }
+
     /// Reopening the proposal pane for a newer proposal replaces the bound draft
     /// under a still-mounted editor, so `onAppear` never runs again. The editor
     /// must follow, or it renders the previous proposal's instructions and writes
@@ -120,7 +147,7 @@ final class AppMarkdownEditorReplacementTests: XCTestCase {
         }
     }
 
-    private func mountSheet(draft: AppMarkdownDraft) -> Host {
+    private func mountSheet(draft: AppMarkdownDraft, width: CGFloat = 720) -> Host {
         mount(
             SettingsPromptEditorSheet(
                 title: "Agentic review instructions",
@@ -130,8 +157,39 @@ final class AppMarkdownEditorReplacementTests: XCTestCase {
                 onCancel: {},
                 onSave: {}
             ),
-            size: NSRect(x: 0, y: 0, width: 720, height: 620)
+            size: NSRect(x: 0, y: 0, width: width, height: 620)
         )
+    }
+
+    private func assertVisibleRowsFit(_ collection: NSCollectionView, width: CGFloat) throws {
+        let items = collection.visibleItems().sorted { $0.view.frame.minY < $1.view.frame.minY }
+        XCTAssertFalse(items.isEmpty)
+        for item in items {
+            let textView = try XCTUnwrap(Self.firstDescendant(NSTextView.self, in: item.view))
+            let container = try XCTUnwrap(textView.textContainer)
+            let layoutManager = try XCTUnwrap(textView.layoutManager)
+            layoutManager.ensureLayout(for: container)
+            let usedRect = layoutManager.usedRect(for: container).offsetBy(
+                dx: textView.textContainerOrigin.x,
+                dy: textView.textContainerOrigin.y
+            )
+            let renderedRect = textView.convert(usedRect, to: item.view)
+            XCTAssertLessThanOrEqual(renderedRect.maxY, item.view.bounds.maxY + 0.5, "Sheet width \(width)")
+        }
+        for (previous, next) in zip(items, items.dropFirst()) {
+            XCTAssertLessThanOrEqual(previous.view.frame.maxY, next.view.frame.minY + 0.5, "Sheet width \(width)")
+        }
+    }
+
+    private func attachInstructionsImage(_ view: NSView, width: CGFloat) throws {
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        let image = NSImage(size: view.bounds.size)
+        image.addRepresentation(bitmap)
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "review-instructions-\(Int(width))"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func mountEditor(draft: AppMarkdownDraft) -> Host {
@@ -183,10 +241,14 @@ final class AppMarkdownEditorReplacementTests: XCTestCase {
     }
 
     private static func firstBlockInputView(in view: NSView) -> BlockInputView? {
-        if let match = view as? BlockInputView {
+        firstDescendant(BlockInputView.self, in: view)
+    }
+
+    private static func firstDescendant<T: NSView>(_ type: T.Type, in view: NSView) -> T? {
+        if let match = view as? T {
             return match
         }
-        return view.subviews.lazy.compactMap { firstBlockInputView(in: $0) }.first
+        return view.subviews.lazy.compactMap { firstDescendant(type, in: $0) }.first
     }
 }
 
