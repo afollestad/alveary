@@ -19,7 +19,6 @@ struct SidebarThreadRow: View, Equatable {
     static let cleanupWidthAnimationDuration = 0.18
     static let cleanupWidthAnimationNanoseconds: UInt64 = 180_000_000
     private static let cleanupHideAnimationDuration = 0.12
-    private static let cleanupStatusTransitionDuration = 0.18
     static let cleanupConfirmationTimeoutNanoseconds: UInt64 = 500_000_000
     private static let cleanupDestructiveTint = Color(red: 0.74, green: 0.18, blue: 0.17)
     private static let cleanupDestructivePressedTint = Color(red: 0.54, green: 0.08, blue: 0.08)
@@ -220,13 +219,13 @@ struct SidebarThreadRow: View, Equatable {
         }
     }
 
+    /// Swap the status and cleanup glyphs immediately so hover animations cannot overlap them.
     private var trailingStatusOrCleanupControl: some View {
         ZStack(alignment: .trailing) {
             statusIndicator
                 .frame(width: Self.statusIndicatorSize, height: Self.statusIndicatorSize)
                 .opacity(showsStatusIndicator ? 1 : 0)
-                .scaleEffect(showsStatusIndicator ? 1 : 0.55)
-                .animation(.easeInOut(duration: Self.cleanupStatusTransitionDuration), value: showsStatusIndicator)
+                .animation(nil, value: showsStatusIndicator)
                 .frame(width: Self.cleanupButtonSize, height: Self.cleanupButtonSize, alignment: .center)
 
             if showsCleanupButton {
@@ -326,7 +325,7 @@ struct SidebarThreadRow: View, Equatable {
                     }
                 }
             }
-            .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
+            .transition(.identity)
             .animation(.easeOut(duration: 0.08), value: isCleanupButtonPressed)
     }
 
