@@ -51,7 +51,7 @@ extension SnapshotTests {
                 onClose: {},
                 initialTabRawValue: "git"
             ),
-            size: CGSize(width: 400, height: 900),
+            size: CGSize(width: 400, height: 1600),
             named: "settings_screen_git_narrow_split_inputs"
         )
     }
@@ -86,7 +86,7 @@ extension SnapshotTests {
                 onClose: {},
                 initialTabRawValue: "git"
             ),
-            size: CGSize(width: 1100, height: 1250),
+            size: CGSize(width: 1100, height: 1400),
             named: "settings_screen_git_custom_sections"
         )
     }
@@ -117,6 +117,7 @@ extension SnapshotTests {
     func testSettingsScreenGitTabDarkSubsectionHeaders() {
         var settings = AppSettings()
         settings.branchPrefix = "af/"
+        settings.pullRequestReviewPermissionMode = "default"
         settings.pullRequestReviewSectionID = "section-reviews"
         settings.pullRequestAddressFeedbackSectionID = "section-fixes"
 
@@ -142,7 +143,7 @@ extension SnapshotTests {
                 onClose: {},
                 initialTabRawValue: "git"
             ),
-            size: CGSize(width: 1100, height: 1250),
+            size: CGSize(width: 1100, height: 1400),
             named: "settings_screen_git_dark_subsection_headers",
             colorScheme: .dark
         )

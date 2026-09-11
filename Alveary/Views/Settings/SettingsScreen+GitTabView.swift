@@ -191,7 +191,7 @@ private extension GitSettingsTabView {
     }
 
     /// Which agent runs either agentic route — reviewing or addressing feedback. Each
-    /// picker's first row is "Default", meaning the Threads tab's own default; effort hides
+    /// picker's first row follows the Threads tab's own default; effort hides
     /// entirely when the model reports no options.
     @ViewBuilder
     var agenticAgentRows: some View {
@@ -214,7 +214,7 @@ private extension GitSettingsTabView {
         }
 
         let effortOptions = viewModel.pullRequestReviewEffortOptions
-        SettingsFormRow(showsDivider: !effortOptions.isEmpty) {
+        SettingsFormRow {
             SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
                 SettingsMenuPicker(
                     "Model",
@@ -229,7 +229,7 @@ private extension GitSettingsTabView {
         }
 
         if !effortOptions.isEmpty {
-            SettingsFormRow(showsDivider: false) {
+            SettingsFormRow {
                 SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
                     SettingsMenuPicker(
                         "Effort",
@@ -241,6 +241,24 @@ private extension GitSettingsTabView {
                         label: { viewModel.pullRequestReviewLabel(forEffort: $0) }
                     )
                 }
+            }
+        }
+
+        SettingsFormRow(showsDivider: false) {
+            SettingsResponsiveControlRow(
+                "Permission mode",
+                helpText: GitSettingsHelp.pullRequestPermissions,
+                horizontalControlSizing: .intrinsic
+            ) {
+                SettingsMenuPicker(
+                    "Permission mode",
+                    selection: Binding(
+                        get: { viewModel.pullRequestReviewPermissionSelection },
+                        set: { viewModel.setPullRequestReviewPermission($0) }
+                    ),
+                    options: viewModel.pullRequestReviewPermissionOptions,
+                    label: { viewModel.pullRequestReviewLabel(forPermission: $0) }
+                )
             }
         }
     }
@@ -365,6 +383,9 @@ private enum GitSettingsHelp {
         + "It reads the feedback, changes the code where the feedback holds up, then replies and resolves the threads."
     static let pullRequestAgent =
         "Which agent runs \"Agentic review\" and \"Address feedback\". Default follows the Threads tab."
+    static let pullRequestPermissions =
+        "Permissions for new \"Agentic review\" and \"Address feedback\" threads. "
+        + "\"Use thread default\" follows the Threads tab when using the same agent, or the selected agent's default otherwise."
     static let pullRequestAddressFeedbackSection =
         "Sidebar section the thread \"Address feedback\" creates lands in. It seeds that new thread only — "
         + "moving a thread afterwards is a drag in the sidebar."

@@ -78,7 +78,7 @@ final class PullRequestAgenticThreadService {
         }
 
         /// Each route has its own section setting — a review thread and a feedback thread are
-        /// different work — unlike the provider, model, and effort they share.
+        /// different work — unlike the provider, model, effort, and permission mode they share.
         func sectionID(in settings: AppSettings) -> String? {
             switch self {
             case .review:
@@ -360,7 +360,7 @@ final class PullRequestAgenticThreadService {
         )
     }
 
-    /// Degrade, never fail. A model or effort the provider stopped offering falls back to what a
+    /// Degrade, never fail. A model, effort, or permission mode the provider stopped offering falls back to what a
     /// typed thread would get, because refusing to start would leave the user with an error and no
     /// way to see why from the footer. Only "nothing can run at all" is an error, and that is
     /// caught before this runs.
@@ -384,10 +384,26 @@ final class PullRequestAgenticThreadService {
             model: model,
             inheritsResolution: inheritsResolution
         )
-        let permissionMode = inheritsResolution
-            ? resolution.permissionMode
-            : AppSettings.defaultPermissionMode(forProvider: provider)
+        let permissionMode = resolvedPermissionMode(
+            settings: settings,
+            resolution: resolution,
+            provider: provider,
+            inheritsResolution: inheritsResolution
+        )
         return SeedSettings(provider: provider, model: model, effort: effort, permissionMode: permissionMode)
+    }
+
+    private static func resolvedPermissionMode(
+        settings: AppSettings,
+        resolution: ThreadDefaultResolution,
+        provider: String,
+        inheritsResolution: Bool
+    ) -> String {
+        if let requested = settings.pullRequestReviewPermissionMode,
+           AppSettings.supportedPermissionModes(forProvider: provider).contains(requested) {
+            return requested
+        }
+        return inheritsResolution ? resolution.permissionMode : AppSettings.defaultPermissionMode(forProvider: provider)
     }
 
     private static func resolvedModel(

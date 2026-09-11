@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 /// The agentic review's seed resolution. Its contract is to degrade rather than fail: a
-/// pinned provider, model, or effort that a provider no longer offers falls back to what a
+/// pinned provider, model, effort, or permission mode that a provider no longer offers falls back to what a
 /// typed thread would get, because a footer button has nowhere to explain a refusal.
 @MainActor
 final class PullRequestAgenticThreadServiceTests: XCTestCase {
@@ -62,6 +62,39 @@ final class PullRequestAgenticThreadServiceTests: XCTestCase {
 
         XCTAssertEqual(resolved.model, "haiku")
         XCTAssertEqual(resolved.effort, "low")
+    }
+
+    func testAPinnedPermissionModeWinsOverTheThreadDefault() {
+        var settings = AppSettings()
+        settings.pullRequestReviewPermissionMode = "default"
+        let resolved = seed(settings: settings, resolution: resolution(permissionMode: "acceptEdits"))
+
+        XCTAssertEqual(resolved.permissionMode, "default")
+    }
+
+    func testAnUnsupportedPermissionModeDegradesToTheThreadDefault() {
+        for permissionMode in ["retired-mode", "never"] {
+            var settings = AppSettings()
+            settings.pullRequestReviewPermissionMode = permissionMode
+            let resolved = seed(settings: settings, resolution: resolution(permissionMode: "acceptEdits"))
+
+            XCTAssertEqual(resolved.permissionMode, "acceptEdits", permissionMode)
+        }
+    }
+
+    func testAPinnedProviderUsesOnlyItsSupportedPermissionModes() {
+        for (permissionMode, expected) in [("never", "never"), ("acceptEdits", "on-request"), ("retired-mode", "on-request")] {
+            var settings = AppSettings()
+            settings.pullRequestReviewPermissionMode = permissionMode
+            let resolved = seed(
+                settings: settings,
+                resolution: resolution(permissionMode: "acceptEdits"),
+                provider: "codex",
+                modelOptions: AgentModelOptionTestFixtures.codexModelOptions
+            )
+
+            XCTAssertEqual(resolved.permissionMode, expected, permissionMode)
+        }
     }
 
     /// The failure this guards: a model the user pinned months ago that the provider has since

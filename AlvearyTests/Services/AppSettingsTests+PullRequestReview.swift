@@ -4,7 +4,7 @@ import XCTest
 @testable import Alveary
 
 // Agentic pull-request settings: the two sets of editable instructions, the pinned agent
-// trio they share, and the footer's two remembered split-button picks.
+// options they share, and the footer's two remembered split-button picks.
 extension AppSettingsTests {
     func testPullRequestReviewDefaultsWhenFieldsAreMissing() throws {
         let json = Data("{}".utf8)
@@ -16,6 +16,7 @@ extension AppSettingsTests {
         XCTAssertNil(settings.pullRequestReviewProvider)
         XCTAssertNil(settings.pullRequestReviewModel)
         XCTAssertNil(settings.pullRequestReviewEffort)
+        XCTAssertNil(settings.pullRequestReviewPermissionMode)
         // Nil here means the plain `Tasks` list, not "no placement".
         XCTAssertNil(settings.pullRequestAddressFeedbackSectionID)
         XCTAssertNil(settings.pullRequestReviewSectionID)
@@ -30,6 +31,7 @@ extension AppSettingsTests {
         settings.pullRequestReviewProvider = "codex"
         settings.pullRequestReviewModel = "gpt-5"
         settings.pullRequestReviewEffort = "high"
+        settings.pullRequestReviewPermissionMode = "never"
         settings.pullRequestOwnFooterActionKind = "submitReview"
         settings.pullRequestOthersFooterActionKind = "addressFeedback"
 
@@ -41,8 +43,17 @@ extension AppSettingsTests {
         XCTAssertEqual(decoded.pullRequestReviewProvider, "codex")
         XCTAssertEqual(decoded.pullRequestReviewModel, "gpt-5")
         XCTAssertEqual(decoded.pullRequestReviewEffort, "high")
+        XCTAssertEqual(decoded.pullRequestReviewPermissionMode, "never")
         XCTAssertEqual(decoded.pullRequestOwnFooterActionKind, "submitReview")
         XCTAssertEqual(decoded.pullRequestOthersFooterActionKind, "addressFeedback")
+    }
+
+    func testAMalformedReviewPermissionDecodesAsInherit() throws {
+        let json = Data(#"{"pullRequestReviewPermissionMode":true}"#.utf8)
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertNil(settings.pullRequestReviewPermissionMode)
     }
 
     // MARK: - The single footer pick that preceded the split
@@ -125,11 +136,26 @@ extension AppSettingsTests {
         settings.pullRequestReviewProvider = "  "
         settings.pullRequestReviewModel = ""
         settings.pullRequestReviewEffort = "\n"
+        settings.pullRequestReviewPermissionMode = " \n "
 
         let normalized = settings.normalized()
         XCTAssertNil(normalized.pullRequestReviewProvider)
         XCTAssertNil(normalized.pullRequestReviewModel)
         XCTAssertNil(normalized.pullRequestReviewEffort)
+        XCTAssertNil(normalized.pullRequestReviewPermissionMode)
+    }
+
+    func testNormalizationPreservesKnownReviewPermissionsAndDropsUnsupportedModes() {
+        var settings = AppSettings()
+        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewPermissionMode = "bypassPermissions"
+
+        XCTAssertEqual(settings.normalized().pullRequestReviewPermissionMode, "bypassPermissions")
+
+        for mode in ["unknown", "plan"] {
+            settings.pullRequestReviewPermissionMode = mode
+            XCTAssertNil(settings.normalized().pullRequestReviewPermissionMode, mode)
+        }
     }
 
     func testNormalizationDropsAnUnsupportedReviewProvider() {
@@ -179,9 +205,11 @@ extension AppSettingsTests {
         var settings = AppSettings()
         settings.pullRequestReviewProvider = "  codex  "
         settings.pullRequestReviewEffort = " high "
+        settings.pullRequestReviewPermissionMode = " never "
 
         let normalized = settings.normalized()
         XCTAssertEqual(normalized.pullRequestReviewProvider, "codex")
         XCTAssertEqual(normalized.pullRequestReviewEffort, "high")
+        XCTAssertEqual(normalized.pullRequestReviewPermissionMode, "never")
     }
 }

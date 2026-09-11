@@ -67,6 +67,7 @@ extension AppSettings {
         case pullRequestReviewProvider
         case pullRequestReviewModel
         case pullRequestReviewEffort
+        case pullRequestReviewPermissionMode
         case pullRequestAddressFeedbackSectionID
         case pullRequestReviewSectionID
         case gitCommitIncludeUnstagedChanges
@@ -328,6 +329,7 @@ extension AppSettings {
         pullRequestReviewProvider = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewProvider)
         pullRequestReviewModel = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewModel)
         pullRequestReviewEffort = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewEffort)
+        pullRequestReviewPermissionMode = try? container.decodeIfPresent(String.self, forKey: .pullRequestReviewPermissionMode)
         // Same for an absent section: nil is the `Tasks` list, not a value worth defaulting.
         pullRequestAddressFeedbackSectionID = try container.decodeIfPresent(
             String.self,

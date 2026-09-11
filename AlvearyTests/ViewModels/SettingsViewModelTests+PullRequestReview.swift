@@ -4,7 +4,7 @@ import XCTest
 
 @testable import Alveary
 
-/// The Git tab's agentic-review agent pickers: a leading "Default" row that persists as
+/// The Git tab's agentic-review agent pickers: a leading inherit row that persists as
 /// nil, and the lockstep clearing that keeps a pinned model from outliving its provider.
 @MainActor
 extension SettingsViewModelTests {
@@ -49,7 +49,9 @@ extension SettingsViewModelTests {
         XCTAssertEqual(viewModel.pullRequestReviewProviderSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(viewModel.pullRequestReviewModelSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(viewModel.pullRequestReviewEffortSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
         XCTAssertEqual(viewModel.pullRequestReviewLabel(forProvider: SettingsViewModel.pullRequestReviewInheritValue), "Default")
+        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: SettingsViewModel.pullRequestReviewInheritValue), "Use thread default")
     }
 
     func testTheInheritRowLeadsEveryPickerExactlyOnce() async {
@@ -61,30 +63,41 @@ extension SettingsViewModelTests {
             viewModel.pullRequestReviewModelOptions.filter { $0 == SettingsViewModel.pullRequestReviewInheritValue }.count,
             1
         )
+        XCTAssertEqual(
+            viewModel.pullRequestReviewPermissionOptions,
+            [SettingsViewModel.pullRequestReviewInheritValue, "default", "acceptEdits", "auto", "bypassPermissions"]
+        )
     }
 
     func testPickingTheInheritRowClearsTheStoredValue() async {
         var settings = AppSettings()
         settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewPermissionMode = "never"
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let initialUpdateCount = settingsService.updateCount
 
         viewModel.setPullRequestReviewProvider(SettingsViewModel.pullRequestReviewInheritValue)
 
         XCTAssertNil(settingsService.current.pullRequestReviewProvider)
+        XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
+        XCTAssertEqual(settingsService.updateCount, initialUpdateCount + 1)
     }
 
-    func testPinningAProviderPersistsItAndClearsTheModelAndEffortInTheSameWrite() async {
+    func testPinningAProviderClearsDependentOverridesInOneWrite() async {
         var settings = AppSettings()
         settings.pullRequestReviewModel = "sonnet"
         settings.pullRequestReviewEffort = "max"
+        settings.pullRequestReviewPermissionMode = "bypassPermissions"
         let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let initialUpdateCount = settingsService.updateCount
 
         viewModel.setPullRequestReviewProvider("codex")
 
         XCTAssertEqual(settingsService.current.pullRequestReviewProvider, "codex")
-        // A Claude model cannot survive onto Codex, and neither can an effort scoped to it.
         XCTAssertNil(settingsService.current.pullRequestReviewModel)
         XCTAssertNil(settingsService.current.pullRequestReviewEffort)
+        XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
+        XCTAssertEqual(settingsService.updateCount, initialUpdateCount + 1)
     }
 
     func testPinningAModelPersistsItAndTheEffortRowFollowsThatModel() async {
@@ -133,6 +146,51 @@ extension SettingsViewModelTests {
         XCTAssertNil(settingsService.current.pullRequestReviewEffort)
     }
 
+    func testReviewPermissionPersistsAnExplicitDefaultAndClearsTheInheritRow() async {
+        var settings = AppSettings()
+        settings.permissionMode = "acceptEdits"
+        let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+
+        viewModel.setPullRequestReviewPermission("default")
+
+        XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "default")
+        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, "default")
+        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: "default"), "Default (Claude)")
+        XCTAssertEqual(settingsService.current.permissionMode, "acceptEdits")
+
+        viewModel.setPullRequestReviewPermission(SettingsViewModel.pullRequestReviewInheritValue)
+
+        XCTAssertNil(settingsService.current.pullRequestReviewPermissionMode)
+        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
+    }
+
+    func testAnUnavailableReviewProviderShowsInheritedPermissionWithoutDiscardingThePin() async {
+        var settings = AppSettings()
+        settings.pullRequestReviewProvider = "codex"
+        settings.pullRequestReviewPermissionMode = "never"
+        let settingsService = InMemorySettingsService(current: settings)
+        let viewModel = SettingsViewModel(
+            settingsService: settingsService,
+            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
+                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+            ])
+        )
+        await viewModel.refreshProviderStatuses()
+        let initialUpdateCount = settingsService.updateCount
+
+        XCTAssertEqual(viewModel.pullRequestReviewEffectiveProviderID, "claude")
+        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, SettingsViewModel.pullRequestReviewInheritValue)
+        XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "never")
+        XCTAssertEqual(settingsService.updateCount, initialUpdateCount)
+
+        XCTAssertTrue(viewModel.pullRequestReviewPermissionOptions.contains("acceptEdits"))
+        viewModel.setPullRequestReviewPermission("acceptEdits")
+
+        XCTAssertEqual(settingsService.current.pullRequestReviewProvider, "codex")
+        XCTAssertEqual(settingsService.current.pullRequestReviewPermissionMode, "acceptEdits")
+        XCTAssertEqual(viewModel.pullRequestReviewPermissionSelection, "acceptEdits")
+    }
+
     func testTheReviewPromptPassesThroughToSettings() async {
         let (viewModel, settingsService) = await reviewViewModel()
 
@@ -142,9 +200,7 @@ extension SettingsViewModelTests {
         XCTAssertEqual(viewModel.pullRequestReviewPrompt, "Only look at the tests.")
     }
 
-    /// Model and effort options come from whichever provider the review will actually use, so a
-    /// pinned provider must move them off the Threads default's catalog.
-    func testAPinnedProviderSuppliesTheModelOptions() async {
+    func testAPinnedProviderSuppliesModelAndPermissionOptions() async {
         var settings = AppSettings()
         settings.pullRequestReviewProvider = "codex"
         let (viewModel, _) = await reviewViewModel(settings: settings)
@@ -152,6 +208,11 @@ extension SettingsViewModelTests {
         XCTAssertEqual(viewModel.pullRequestReviewEffectiveProviderID, "codex")
         XCTAssertTrue(viewModel.pullRequestReviewModelOptions.contains("gpt-5.5"))
         XCTAssertFalse(viewModel.pullRequestReviewModelOptions.contains("sonnet"))
+        XCTAssertEqual(
+            viewModel.pullRequestReviewPermissionOptions,
+            [SettingsViewModel.pullRequestReviewInheritValue, "untrusted", "on-request", "never"]
+        )
+        XCTAssertEqual(viewModel.pullRequestReviewLabel(forPermission: "never"), "Full access")
     }
 
     func testTasksLeadsBothSectionPickersAsTheNilRow() async {

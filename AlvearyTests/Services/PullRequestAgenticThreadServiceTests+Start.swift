@@ -99,6 +99,29 @@ extension PullRequestAgenticThreadServiceTests {
         XCTAssertEqual(start.prompts.wasLinkedAtDispatch, [true])
     }
 
+    func testBothRoutesCreateThreadsWithThePinnedPermissionMode() async throws {
+        let start = try makeStartFixture()
+        let project = Project(
+            path: "/tmp/alveary-permission-project",
+            name: "alpha",
+            githubRepository: start.identifier.nameWithOwner
+        )
+        start.fixture.context.insert(project)
+        try start.fixture.context.save()
+        start.fixture.settingsService.update { settings in
+            settings.permissionMode = "acceptEdits"
+            settings.pullRequestReviewPermissionMode = "bypassPermissions"
+        }
+
+        for kind in PullRequestAgenticThreadService.Kind.allCases {
+            let started = try await start.service.start(kind: kind, identifier: start.identifier, url: start.url)
+            _ = try await started.dispatch.value
+
+            let thread = start.fixture.context.resolveConversation(conversationID: started.conversationID)?.thread
+            XCTAssertEqual(thread?.permissionMode, "bypassPermissions")
+        }
+    }
+
     /// The pane already fetched this pull request; linking must not fetch it again.
     func testASuppliedDetailSparesTheLinkItsRoundTrip() async throws {
         let start = try makeStartFixture()

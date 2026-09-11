@@ -2,8 +2,8 @@ import AgentCLIKit
 import SwiftUI
 
 /// The Git tab's agentic pull-request settings, shared by both routes the footer offers.
-/// Each picker offers a leading "Default" row meaning "follow the Threads tab", which is
-/// what `nil` persists as; only an explicit pick pins a provider, model, or effort. The
+/// Each picker offers a leading row that follows the Threads tab, persisted as nil;
+/// only an explicit pick pins an agent setting. The
 /// `pullRequestReview` names are historical — the pins have never been review-only since
 /// address-feedback shipped.
 extension SettingsViewModel {
@@ -39,13 +39,13 @@ extension SettingsViewModel {
         [Self.pullRequestReviewInheritValue] + threadDefaultProviderIDs
     }
 
-    /// Model and effort are provider-scoped, so pinning a different provider clears both in the
-    /// same write — a model from the old provider would not exist on the new one.
+    /// Model, effort, and permissions are provider-scoped, so changing providers clears their pins.
     func setPullRequestReviewProvider(_ value: String) {
         settingsService.update { settings in
             settings.pullRequestReviewProvider = value == Self.pullRequestReviewInheritValue ? nil : value
             settings.pullRequestReviewModel = nil
             settings.pullRequestReviewEffort = nil
+            settings.pullRequestReviewPermissionMode = nil
         }
     }
 
@@ -107,7 +107,25 @@ extension SettingsViewModel {
         }
     }
 
-    /// One label for every picker's inherit row, so all three read the same.
+    /// Unsupported pins display the inherited choice without mutating settings during a read.
+    var pullRequestReviewPermissionSelection: String {
+        guard let stored = settingsService.current.pullRequestReviewPermissionMode,
+              pullRequestReviewPermissionOptions.contains(stored) else {
+            return Self.pullRequestReviewInheritValue
+        }
+        return stored
+    }
+
+    var pullRequestReviewPermissionOptions: [String] {
+        [Self.pullRequestReviewInheritValue] + permissionModeOptions(for: pullRequestReviewEffectiveProviderID)
+    }
+
+    func setPullRequestReviewPermission(_ value: String) {
+        settingsService.update { settings in
+            settings.pullRequestReviewPermissionMode = value == Self.pullRequestReviewInheritValue ? nil : value
+        }
+    }
+
     func pullRequestReviewLabel(forProvider value: String) -> String {
         value == Self.pullRequestReviewInheritValue ? "Default" : providerDisplayName(for: value)
     }
@@ -124,6 +142,16 @@ extension SettingsViewModel {
         }
         return pullRequestReviewEffortOptions.first { $0.value == value }?.label
             ?? ChatComposerTextSupport.effortLabel(for: value)
+    }
+
+    func pullRequestReviewLabel(forPermission value: String) -> String {
+        guard value != Self.pullRequestReviewInheritValue else {
+            return "Use thread default"
+        }
+        let provider = pullRequestReviewEffectiveProviderID
+        let label = permissionModeLabel(for: value, providerId: provider)
+        // Claude's concrete default must remain distinguishable from inheriting Threads settings.
+        return label == "Default" ? "Default (\(providerDisplayName(for: provider)))" : label
     }
 
     /// Per-route, unlike the agent pickers above: a review thread and a feedback thread are
