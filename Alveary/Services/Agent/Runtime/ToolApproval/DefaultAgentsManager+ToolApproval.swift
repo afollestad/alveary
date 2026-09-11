@@ -224,8 +224,7 @@ extension DefaultAgentsManager {
     }
 
     private func recordCancelledInteractionResolutionIfNeeded(_ request: AgentToolApprovalResolutionRequest) -> Bool {
-        guard request.resolution.decision == .deny,
-              request.approval.isAppNativeInteractionPrompt else {
+        guard request.cancelsInteraction else {
             cancelledInteractionsByConversation.removeValue(forKey: request.conversationId)
             return false
         }

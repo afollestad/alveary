@@ -7,11 +7,12 @@ extension DefaultAgentsManager {
         runtimeConversationId: AgentCLIKit.AgentConversationID,
         config: AgentSpawnConfig,
         forkSession: Bool,
-        services: AgentCLIKitHostServices
+        services: AgentCLIKitHostServices,
+        resumingTurn: Bool = false
     ) async throws {
         do {
             let spawnConfig = try await agentCLIKitSpawnConfig(config, forkSession: forkSession, services: services)
-            try await services.runtime.spawn(conversationId: runtimeConversationId, config: spawnConfig)
+            try await services.runtime.spawn(conversationId: runtimeConversationId, config: spawnConfig, resumingTurn: resumingTurn)
         } catch {
             guard HostToolFallbackClassifier.decision(for: error, config: config) == .retryWithoutHostTools else {
                 throw error
@@ -26,7 +27,7 @@ extension DefaultAgentsManager {
                 forkSession: forkSession,
                 services: services
             )
-            try await services.runtime.spawn(conversationId: runtimeConversationId, config: spawnConfig)
+            try await services.runtime.spawn(conversationId: runtimeConversationId, config: spawnConfig, resumingTurn: resumingTurn)
         }
     }
 

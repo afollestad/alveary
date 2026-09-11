@@ -42,10 +42,9 @@ struct ParallelApprovalResolutionAdapter: AgentCLIKit.AgentProviderAdapter {
               esac
               if [ "$first$second" = "11" ]; then
                 printf 'message:resumed-both\\n'
-                exit 0
+                first=resolved
               fi
             done
-            sleep 5
             """
         return AgentCLIKit.AgentLaunchConfiguration(
             executable: "/bin/sh",

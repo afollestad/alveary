@@ -17,6 +17,11 @@ struct AgentToolApprovalResolutionRequest: Sendable, Equatable {
     /// settings that Claude can only take as flags — model and effort — apply to the resumed tool.
     let requiresProviderRestart: Bool
 
+    /// Denying an app-native prompt ends its turn; a denied tool can still let the provider continue.
+    var cancelsInteraction: Bool {
+        resolution.decision == .deny && approval.isAppNativeInteractionPrompt
+    }
+
     init(
         conversationId: String,
         approval: ToolApprovalRequest,

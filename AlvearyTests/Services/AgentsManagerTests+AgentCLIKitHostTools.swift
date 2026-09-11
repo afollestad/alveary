@@ -64,6 +64,42 @@ extension AgentsManagerTests {
         )
     }
 
+    func testApprovalResumeStaysBusyAfterRetryWithoutHostTools() async throws {
+        let fixture = makeAgentCLIKitFixture(
+            adapter: RestoredApprovalCLIKitAdapter(),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin"
+        )
+        let conversationId = "agentclikit-resume-without-host-tools"
+        let config = Alveary.AgentSpawnConfig(
+            providerId: "claude",
+            workingDirectory: "/tmp",
+            permissionMode: nil,
+            model: nil,
+            effort: nil,
+            initialPrompt: nil,
+            hostTools: [hostToolTestDefinition]
+        )
+
+        try await fixture.manager.spawnWithAgentCLIKit(
+            id: conversationId,
+            config: config,
+            forkSession: false,
+            resumingTurn: true
+        )
+        let maybeSubscription = await fixture.manager.subscribe(conversationId: conversationId, afterIndex: 0)
+        let subscription = try XCTUnwrap(maybeSubscription)
+        let event = try await nextEvent(from: subscription.stream, description: "resumed output after host-tool fallback")
+        XCTAssertEqual(event, .message(role: "assistant", content: "restored-resumed", parentToolUseId: nil))
+
+        let runtimeStatus = await fixture.runtime.status(conversationId: AgentConversationID(rawValue: conversationId))
+        let signal = await fixture.manager.refreshStatus(conversationId: conversationId)
+        XCTAssertTrue(runtimeStatus?.isTurnActive == true)
+        XCTAssertEqual(signal, .busy)
+        XCTAssertTrue(fixture.manager.conversationState(for: conversationId).hostToolsDisabled)
+        await fixture.manager.kill(conversationId: conversationId)
+    }
+
     func testHostToolFailureDiagnosticIgnoresReplacedSubscriptionAndOlderReplayGeneration() async throws {
         let fixture = await makeHostToolDiagnosticSubscriptionFixture()
         defer { fixture.finish() }

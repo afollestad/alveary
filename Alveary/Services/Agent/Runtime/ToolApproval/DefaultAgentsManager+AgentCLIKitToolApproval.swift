@@ -54,15 +54,18 @@ extension DefaultAgentsManager {
         )
         var didSpawn = false
         do {
-            await MainActor.run {
-                conversationState(for: request.conversationId).turnState.beginTurn()
+            if !request.cancelsInteraction {
+                await MainActor.run {
+                    conversationState(for: request.conversationId).turnState.beginTurn()
+                }
             }
             try await spawnWithAgentCLIKit(
                 id: request.conversationId,
                 config: request.config,
                 forkSession: false,
                 initialTurnActivityVisibility: .visible,
-                dropsPreStartTerminalLifecycle: true
+                dropsPreStartTerminalLifecycle: true,
+                resumingTurn: !request.cancelsInteraction
             )
             didSpawn = true
             // Transient hook decisions cover hook callbacks, but a deferred respawn can also leave the new

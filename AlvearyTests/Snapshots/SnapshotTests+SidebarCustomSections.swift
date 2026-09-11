@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 import XCTest
@@ -112,6 +113,43 @@ extension SnapshotTests {
             SidebarView(viewModel: sidebar.fixture.viewModel, appState: AppState())
         }
     }
+
+    func testSidebarCustomSectionResumesWorkingWithoutRemounting() async throws {
+        let sidebar = try await makeCustomSectionSidebarSnapshotFixture(
+            sectionName: "PR review",
+            memberNames: ["Review changes"]
+        )
+        let thread = try XCTUnwrap(sidebar.members.first)
+        let conversationID = try XCTUnwrap(thread.conversations.first?.id)
+        await sidebar.fixture.agentsManager.setStatus(.waitingForUser, for: conversationID)
+
+        // Finish closing the query-bearing host before awaiting its SwiftData teardown, including failures.
+        let verification = Task { @MainActor in
+            let host = SidebarStatusTransitionHost(sidebar: sidebar, selectedThread: thread)
+            defer { host.close() }
+            try await waitUntil("the mounted sidebar shows its waiting dot") {
+                try host.indicatorShape() == .solid
+            }
+            let statusVersion = sidebar.fixture.viewModel.statusVersion
+
+            await sidebar.fixture.agentsManager.setStatus(.busy, for: conversationID)
+            NotificationCenter.default.post(
+                name: .agentStatusChanged,
+                object: nil,
+                userInfo: [
+                    AgentStatusChangedKey.conversationID: conversationID,
+                    AgentStatusChangedKey.signal: ActivitySignal.busy
+                ]
+            )
+
+            try await waitUntil("the same sidebar row replaces its dot with a working ring") {
+                try sidebar.fixture.viewModel.statusVersion > statusVersion && host.indicatorShape() == .hollow
+            }
+        }
+        let result = await verification.result
+        await awaitSnapshotHostTeardown(retaining: sidebar.fixture.container)
+        try result.get()
+    }
 }
 
 /// A collapsed custom section outlined as its open secondary-click menu leaves it: the header's
@@ -222,4 +260,91 @@ func makeCustomSectionSidebarSnapshotFixture(
 
 enum SnapshotCustomSectionFixtureError: Error {
     case sectionNotCreated
+}
+
+/// Keeps the actual `List` mounted across a runtime-only status change; fresh snapshot hosts cannot catch missed invalidation.
+@MainActor
+private final class SidebarStatusTransitionHost {
+    init(sidebar: SnapshotCustomSectionSidebarFixture, selectedThread: AgentThread) {
+        let size = CGSize(width: 320, height: 480)
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(selectedThread)
+        let frame = SidebarStatusTransitionFrame()
+        rowFrame = frame
+        let root = SidebarView(viewModel: sidebar.fixture.viewModel, appState: appState)
+            .modelContainer(sidebar.fixture.container)
+            .environment(\.colorScheme, .light)
+            .environment(\.statusSpinnerAnimationsDisabled, true)
+            .transaction { $0.animation = nil }
+            .onPreferenceChange(SidebarDragGeometryPreferenceKey.self) { geometry in
+                frame.value = geometry[.customSectionTerminal(sidebar.sectionID)]?.sidebarUnion
+            }
+            .frame(width: size.width, height: size.height)
+        controller = NSHostingController(rootView: AnyView(root))
+        controller.view.frame = CGRect(origin: .zero, size: size)
+        controller.view.appearance = NSAppearance(named: .aqua)
+        window = NSWindow(
+            contentRect: CGRect(origin: CGPoint(x: -3_000, y: -3_000), size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .aqua)
+        window.contentViewController = controller
+        window.makeFirstResponder(nil)
+    }
+
+    /// Tests the 8pt indicator itself: a ring needs a clear center and a painted edge, so an absent indicator cannot pass.
+    func indicatorShape() throws -> SidebarStatusIndicatorShape {
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
+        let view = controller.view
+        view.layoutSubtreeIfNeeded()
+        view.displayIfNeeded()
+        guard let frame = rowFrame.value else {
+            return .empty
+        }
+        let centerX = frame.maxX - SidebarProjectRow.horizontalPadding - 8
+        let centerY = view.isFlipped ? frame.midY : view.bounds.height - frame.midY
+        let crop = CGRect(x: centerX - 8, y: centerY - 8, width: 16, height: 16)
+        let bitmap = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: crop))
+        view.cacheDisplay(in: crop, to: bitmap)
+        let background = try pixelColor(bitmap, x: 1, y: 1)
+        let center = try pixelColor(bitmap, x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2)
+        let edge = try pixelColor(bitmap, x: bitmap.pixelsWide * 11 / 16 - 1, y: bitmap.pixelsHigh / 2)
+        if !colorsMatch(center, background) {
+            return .solid
+        }
+        return colorsMatch(edge, background) ? .empty : .hollow
+    }
+
+    func close() {
+        closeSnapshotWindow(window, controller: controller)
+    }
+
+    private let controller: NSHostingController<AnyView>
+    private let window: NSWindow
+    private let rowFrame: SidebarStatusTransitionFrame
+
+    private func pixelColor(_ bitmap: NSBitmapImageRep, x column: Int, y row: Int) throws -> NSColor {
+        try XCTUnwrap(bitmap.colorAt(x: column, y: row)?.usingColorSpace(.deviceRGB))
+    }
+
+    private func colorsMatch(_ lhs: NSColor, _ rhs: NSColor) -> Bool {
+        abs(lhs.redComponent - rhs.redComponent) < 0.04
+            && abs(lhs.greenComponent - rhs.greenComponent) < 0.04
+            && abs(lhs.blueComponent - rhs.blueComponent) < 0.04
+    }
+}
+
+@MainActor
+private final class SidebarStatusTransitionFrame {
+    var value: CGRect?
+}
+
+private enum SidebarStatusIndicatorShape: Equatable {
+    case empty
+    case solid
+    case hollow
 }
