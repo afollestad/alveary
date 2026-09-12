@@ -70,6 +70,10 @@ jobs:
           xcodebuild -version
           xcrun swift --version
 
+      # SwiftTerm compiles Metal shaders; the runner image omits this optional component.
+      - name: Install Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
       - name: Configure release paths
         run: |
           {
