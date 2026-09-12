@@ -73,6 +73,7 @@ struct ScheduledTaskDefinitionEdit {
     /// `Tasks`. `nil` means `Tasks`. There is deliberately no reuse-thread field here — that
     /// link is service-owned, never user-supplied.
     let threadSection: SidebarSection?
+    let workspaceSnapshot: WorkspaceSnapshot
 
     init(
         title: String,
@@ -89,7 +90,8 @@ struct ScheduledTaskDefinitionEdit {
         grantedRoots: [String],
         project: Project?,
         targetThread: AgentThread? = nil,
-        threadSection: SidebarSection? = nil
+        threadSection: SidebarSection? = nil,
+        workspaceSnapshot: WorkspaceSnapshot? = nil
     ) {
         self.title = title
         self.prompt = prompt
@@ -106,6 +108,12 @@ struct ScheduledTaskDefinitionEdit {
         self.project = project
         self.targetThread = targetThread
         self.threadSection = threadSection
+        self.workspaceSnapshot = workspaceSnapshot ?? WorkspaceSnapshot(
+            primarySource: workspaceKind == .project ? project?.primaryFolder?.snapshot : nil,
+            grants: grantedRoots.map { path in
+                project?.orderedFolders.first { $0.path == path }?.snapshot ?? SourceFolderSnapshot(path: path)
+            }
+        )
     }
 }
 

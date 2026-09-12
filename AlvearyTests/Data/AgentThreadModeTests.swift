@@ -47,7 +47,9 @@ final class AgentThreadModeTests: XCTestCase {
         }
 
         try autoreleasepool {
-            let reopenedContainer = try makeCurrentAgentThreadModeContainer(configuration: configuration)
+            let reopenedContainer = try DataComponent.openModelContainer(
+                isStoredInMemoryOnly: false, persistentStoreURL: directory.appendingPathComponent("Alveary.store")
+            )
             let context = reopenedContainer.mainContext
             let thread = try XCTUnwrap(
                 try context.fetch(FetchDescriptor<AgentThread>()).first { $0.name == "Legacy thread" }
@@ -56,11 +58,14 @@ final class AgentThreadModeTests: XCTestCase {
             XCTAssertEqual(thread.modeRawValue, AgentThreadMode.project.rawValue)
             XCTAssertEqual(thread.mode, .project)
             assertLegacyTaskWorkspaceDefaults(thread)
-            XCTAssertEqual(thread.project?.path, CanonicalPath.normalize(projectPath))
+            XCTAssertEqual(thread.project?.path, projectPath)
+            XCTAssertEqual(thread.sourceFolder?.path, projectPath)
+            XCTAssertEqual(thread.workspaceSnapshot?.rootsExplicitlyManaged, false)
             XCTAssertEqual(thread.conversations.map(\.id), [conversationID])
             // `PreTaskModeSchema` is frozen without the column, so this is the lightweight-migration
             // lock for `Conversation.lastTurnFailedAt`.
             XCTAssertNil(thread.conversations.first?.lastTurnFailedAt)
+            XCTAssertNil(thread.conversations.first?.pullRequestReviewRunJSON)
             XCTAssertEqual(thread.conversations.first?.events.map(\.id), ["pre-task-mode-event"])
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTask>()), 0)
             XCTAssertEqual(try context.fetchCount(FetchDescriptor<ScheduledTaskRun>()), 0)

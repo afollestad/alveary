@@ -9,6 +9,27 @@ struct DiffCreatePullRequestModalContext: Identifiable, Equatable {
     let remoteName: String?
     /// The selection the created pull request links to automatically.
     let owner: PullRequestLinkOwner
+    /// Literal selected folder; the Git directory may be its parent repository root.
+    let sourceDirectory: String?
+
+    init(
+        directory: String, targetName: String, baseBranch: String, remoteName: String?,
+        owner: PullRequestLinkOwner, sourceDirectory: String? = nil
+    ) {
+        self.directory = directory
+        self.targetName = targetName
+        self.baseBranch = baseBranch
+        self.remoteName = remoteName
+        self.owner = owner
+        self.sourceDirectory = sourceDirectory
+    }
+
+    func requireSourceDirectory() throws {
+        guard let sourceDirectory else { return }
+        _ = try WorkspaceFolderTarget(
+            directory: sourceDirectory, source: SourceFolderSnapshot(path: sourceDirectory), isPrimary: true
+        ).requireDirectory()
+    }
 }
 
 /// Drives the create-pull-request modal: branch choice, title and description
@@ -176,6 +197,7 @@ final class DiffCreatePullRequestModalModel: Identifiable {
         defer { isLoadingInitialState = false }
 
         do {
+            try context.requireSourceDirectory()
             // Resolve the base first: the on-base check below and every later
             // read would otherwise be decided against the stale hint.
             resolvedBaseBranch = await gitService.defaultBranch(
@@ -221,6 +243,7 @@ final class DiffCreatePullRequestModalModel: Identifiable {
 
             if branchSelection == .new, currentBranch != trimmedNewBranchName {
                 phase = .branching
+                try context.requireSourceDirectory()
                 try await gitService.checkoutNewBranch(trimmedNewBranchName, in: context.directory)
                 currentBranch = trimmedNewBranchName
             }
@@ -232,9 +255,11 @@ final class DiffCreatePullRequestModalModel: Identifiable {
             // An already-pushed branch exits 0 ("Everything up-to-date"), so
             // pushing unconditionally is safe and covers the never-pushed case.
             phase = .pushing
+            try context.requireSourceDirectory()
             try await gitService.pushCurrentBranch(remoteName: context.remoteName, in: context.directory)
 
             phase = .creating
+            try context.requireSourceDirectory()
             let identifier = try await pullRequestsService.createPullRequest(
                 inDirectory: context.directory,
                 baseBranch: baseBranch,
@@ -277,6 +302,7 @@ private extension DiffCreatePullRequestModalModel {
     }
 
     func validatePreflight() async throws {
+        try context.requireSourceDirectory()
         if currentBranch == nil {
             currentBranch = try await gitService.currentBranch(in: context.directory)
         }

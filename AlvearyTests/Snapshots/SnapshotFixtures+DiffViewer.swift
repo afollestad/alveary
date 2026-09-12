@@ -30,6 +30,8 @@ struct SnapshotDiffViewerFixture {
 }
 
 actor SnapshotMockGitService: GitService {
+    func repositoryRoot(in directory: String) async throws -> String? { directory }
+
     private var statusResults: [[FileStatus]]
     private var diffStatsResults: [DiffStats]
     private var diffResults: [String]

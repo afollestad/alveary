@@ -19,9 +19,8 @@ enum ScheduledTaskTargetDetachment {
     enum Continuation {
         /// Keep the cadence and inherit the lost thread's workspace.
         case reuseInheritedWorkspace
-        /// The thread's Project is being deleted in the same commit, so inherit nothing that
-        /// depends on it and pause with the reason a directly-attached schedule already gets.
-        case pauseForProjectDeletion(projectPath: String)
+        /// Remove sidebar placement and pause while preserving the frozen source and grants.
+        case pauseForProjectDeletion
     }
 
     /// - Returns: the IDs of the definitions this changed, for the caller to publish after saving.
@@ -54,7 +53,8 @@ enum ScheduledTaskTargetDetachment {
             if let strategy = workspace.strategy {
                 definition.workspaceStrategy = strategy
             }
-            definition.grantedRoots = workspace.grantedRoots
+            definition.grantedRoots = workspace.snapshot?.grants.map(\.path) ?? []
+            definition.workspaceSnapshot = workspace.snapshot
             definition.threadSection = workspace.section
             switch continuation {
             case .reuseInheritedWorkspace:
@@ -79,57 +79,21 @@ enum ScheduledTaskTargetDetachment {
 private struct InheritedWorkspace {
     let kind: ScheduledTaskWorkspaceKind
     let project: Project?
-    /// `nil` leaves the definition's stored strategy alone — without a Project it is dead data the
-    /// editor never shows.
     let strategy: ScheduledTaskWorkspaceStrategy?
-    let grantedRoots: [String]
+    let snapshot: WorkspaceSnapshot?
     let section: SidebarSection?
 
     init(thread: AgentThread, continuation: ScheduledTaskTargetDetachment.Continuation) {
-        if case .pauseForProjectDeletion(let projectPath) = continuation {
-            kind = .privateWorkspace
-            project = nil
-            strategy = nil
-            grantedRoots = Self.inheritedGrantedRoots(of: thread)
-                .filter { $0 != projectPath }
-            section = Self.inheritedSection(of: thread)
-            return
+        // Owned workspaces are being removed. Retain their source repository and every grant,
+        // so the next run can create a replacement from the same frozen configuration.
+        snapshot = thread.workspaceSnapshot
+        kind = snapshot?.primarySource == nil ? .privateWorkspace : .project
+        let ownsWorktree = thread.resolvedWorkspaceDescriptor?.ownershipStrategy == .projectWorktreeOwned
+        strategy = kind == .project ? (thread.useWorktree || ownsWorktree ? .worktree : .localCheckout) : nil
+        switch continuation {
+        case .reuseInheritedWorkspace: project = thread.project
+        case .pauseForProjectDeletion: project = nil
         }
-        // A `.project`-mode thread with no Project cannot name one here, so it falls back to the
-        // private-workspace shape rather than persisting an unsatisfiable `.project` kind.
-        if thread.effectiveMode == .project, let threadProject = thread.project {
-            kind = .project
-            project = threadProject
-            strategy = thread.useWorktree ? .worktree : .localCheckout
-            grantedRoots = []
-            // A Project-backed thread nests under its Project and never renders in a section.
-            section = nil
-            return
-        }
-        kind = .privateWorkspace
-        project = nil
-        strategy = nil
-        grantedRoots = Self.inheritedGrantedRoots(of: thread)
-        section = Self.inheritedSection(of: thread)
-    }
-
-    /// Copies the descriptor's roots literally — no re-canonicalization.
-    ///
-    /// `CanonicalPath.normalize` resolves symlinks, so normalizing here would silently rewrite a
-    /// grant whose folder was replaced by a symlink since the descriptor was written, moving the
-    /// user's authorization boundary without review. `TaskWorkspaceDescriptor` already stores
-    /// canonical, deduplicated roots, and `ScheduledTaskMutationService.create` refuses to
-    /// re-normalize for the same reason.
-    private static func inheritedGrantedRoots(of thread: AgentThread) -> [String] {
-        thread.taskWorkspaceDescriptor?.grantedRoots ?? []
-    }
-
-    /// Builtin membership is never persisted on a thread, but a definition may only name a custom
-    /// section — matching `ScheduledTaskMutationService.validate(_:timeZoneIdentifier:)`.
-    private static func inheritedSection(of thread: AgentThread) -> SidebarSection? {
-        guard let section = thread.customSection, section.kind == .custom else {
-            return nil
-        }
-        return section
+        section = project == nil && thread.customSection?.kind == .custom ? thread.customSection : nil
     }
 }

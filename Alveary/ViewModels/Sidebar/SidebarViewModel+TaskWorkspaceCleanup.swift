@@ -39,11 +39,14 @@ extension SidebarViewModel {
     }
 }
 
-private extension SidebarViewModel {
+extension SidebarViewModel {
     nonisolated func removePrivateOwnedTaskWorkspace(_ workspace: TaskWorkspaceDescriptor) async throws {
         try taskWorkspaceOwnershipService.removeOwnedWorkspace(workspace)
     }
 
+}
+
+private extension SidebarViewModel {
     nonisolated func cleanupOwnedTaskWorktree(
         _ workspace: TaskWorkspaceDescriptor,
         snapshot: ThreadCleanupSnapshot

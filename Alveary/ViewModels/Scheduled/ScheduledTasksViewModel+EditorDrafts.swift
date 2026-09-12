@@ -103,8 +103,10 @@ extension ScheduledTasksViewModel {
             permissionMode: definition.permissionMode,
             workspaceKind: definition.workspaceKind,
             workspaceStrategy: definition.workspaceStrategy,
-            projectPath: definition.project?.path,
-            grantedRoots: definition.grantedRoots
+            projectPath: definition.workspaceSnapshot?.primarySource?.path,
+            grantedRoots: definition.grantedRoots,
+            projectID: definition.project?.id,
+            workspaceSnapshot: definition.workspaceSnapshot
         )
     }
 
@@ -137,7 +139,8 @@ extension ScheduledTasksViewModel {
             // The proposal payload carries no section field, and absence must mean *preserve*:
             // confirming an unrelated "make it weekly" edit proposal must not silently reset the
             // schedule's section, so an edit target seeds from the live definition.
-            sectionID: definitionID.flatMap { modelContext.resolveScheduledTask(id: $0)?.threadSection?.id },
+            sectionID: definitionDraft.workspaceSnapshot == nil
+                ? definitionID.flatMap { modelContext.resolveScheduledTask(id: $0)?.threadSection?.id } : definitionDraft.sectionID,
             recurrenceKind: recurrence.kind,
             onceOccurrenceAt: recurrenceFields.onceOccurrenceAt,
             intervalAnchorAt: recurrenceFields.intervalAnchorAt,
@@ -158,7 +161,9 @@ extension ScheduledTasksViewModel {
             workspaceKind: definitionDraft.workspaceKind,
             workspaceStrategy: definitionDraft.workspaceStrategy,
             projectPath: definitionDraft.projectPath,
-            grantedRoots: definitionDraft.grantedRoots
+            grantedRoots: definitionDraft.grantedRoots,
+            projectID: definitionDraft.projectID,
+            workspaceSnapshot: definitionDraft.workspaceSnapshot
         )
     }
 }

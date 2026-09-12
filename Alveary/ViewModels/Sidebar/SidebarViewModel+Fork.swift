@@ -46,7 +46,17 @@ extension SidebarViewModel {
 
         let sourceRecord = try await resolveForkSourceRecord(source)
         let worktree = try await createForkWorktreeIfNeeded(source)
-        let target = try insertForkTarget(source: source, sourceRecord: sourceRecord, worktree: worktree)
+        let target: ThreadForkTargetSnapshot
+        do {
+            target = try insertForkTarget(source: source, sourceRecord: sourceRecord, worktree: worktree)
+        } catch {
+            let original = error
+            let cleanup = Task { try await self.removeForkWorktreeIfUnclaimed(worktree, projectPath: source.projectPath) }
+            do { try await cleanup.value } catch {
+                throw SidebarViewModelError.threadForkRollbackFailed(original: original, cleanup: error)
+            }
+            throw original
+        }
 
         do {
             try await agentsManager.spawn(
@@ -78,26 +88,25 @@ private extension SidebarViewModel {
         guard dbThread.effectiveMode == .project else {
             throw SidebarViewModelError.threadForkUnavailable("Task threads cannot be forked")
         }
-        guard let project = dbThread.project else {
-            throw SidebarViewModelError.threadMissingParentProject
-        }
         guard let sourceConversation = mainConversation(for: dbThread) else {
             throw SidebarViewModelError.threadForkUnavailable("Thread has no main conversation to fork")
         }
 
-        let projectPath = project.path
-        let sourceWorkingDirectory = dbThread.worktreePath ?? projectPath
+        guard let workspace = dbThread.workspaceSnapshot, let sourceFolder = workspace.primarySource,
+              let sourceWorkingDirectory = dbThread.primaryWorkingDirectory else { throw WorkspaceFolderError.invalidSnapshot }
+        let projectPath = sourceFolder.path
         let sourceProviderID = sourceConversation.provider
             ?? sourceConversation.providerSessionProviderId
             ?? settingsService.current.defaultProvider
 
         return ThreadForkSourceSnapshot(
             threadID: dbThread.persistentModelID,
-            projectID: project.persistentModelID,
+            projectID: dbThread.project?.persistentModelID,
             projectPath: projectPath,
-            projectBaseRef: project.baseRef,
-            projectRemoteName: project.remoteName,
-            isGitRepository: project.isGitRepository,
+            workspaceSnapshot: workspace,
+            projectBaseRef: sourceFolder.baseRef,
+            projectRemoteName: sourceFolder.remoteName,
+            isGitRepository: sourceFolder.isGitRepository,
             sourceConversationID: sourceConversation.id,
             sourceProviderID: sourceProviderID,
             sourceProviderSessionID: sourceConversation.providerSessionId,
@@ -174,12 +183,14 @@ private extension SidebarViewModel {
                 worktreePath: info.path
             )
         } catch {
-            try? await worktreeManager.remove(
-                projectPath: source.projectPath,
-                worktreePath: info.path,
-                branch: info.branch
-            )
-            throw error
+            let original = error
+            let cleanup = Task {
+                try await worktreeManager.remove(projectPath: source.projectPath, worktreePath: info.path, branch: info.branch)
+            }
+            do { try await cleanup.value } catch {
+                throw SidebarViewModelError.threadForkRollbackFailed(original: original, cleanup: error)
+            }
+            throw original
         }
 
         let expectedStatus = await gitStatusSnapshot(in: info.path)
@@ -218,9 +229,9 @@ private extension SidebarViewModel {
         sourceRecord: AgentCLIKit.AgentSessionRecord,
         worktree: ForkCreatedWorktree?
     ) throws -> ThreadForkTargetSnapshot {
-        guard let dbProject = modelContext.resolveProject(id: source.projectID) else {
-            throw SidebarViewModelError.projectMissing
-        }
+        let dbProject = source.projectID.flatMap(modelContext.resolveProject(id:))
+        if source.projectID != nil, dbProject == nil { throw SidebarViewModelError.projectMissing }
+        if modelContext.hasChanges { try modelContext.save() }
 
         let thread = makeForkThread(source: source, worktree: worktree, project: dbProject)
         let conversation = makeForkConversation(source: source, sourceRecord: sourceRecord, thread: thread)
@@ -228,11 +239,13 @@ private extension SidebarViewModel {
         thread.conversations = [conversation]
         modelContext.insert(thread)
         modelContext.insert(conversation)
-        try copyForkTranscript(
-            fromConversationID: source.sourceConversationID,
-            to: conversation
-        )
-        try modelContext.save()
+        do {
+            try copyForkTranscript(fromConversationID: source.sourceConversationID, to: conversation)
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
 
         let config = makeForkSpawnConfig(source: source, sourceRecord: sourceRecord, worktree: worktree)
         return ThreadForkTargetSnapshot(
@@ -247,9 +260,9 @@ private extension SidebarViewModel {
     func makeForkThread(
         source: ThreadForkSourceSnapshot,
         worktree: ForkCreatedWorktree?,
-        project: Project
+        project: Project?
     ) -> AgentThread {
-        AgentThread(
+        let thread = AgentThread(
             name: source.threadName,
             hasCustomName: false,
             branch: worktree?.info.branch,
@@ -265,6 +278,8 @@ private extension SidebarViewModel {
             modifiedAt: Date(),
             project: project
         )
+        thread.workspaceSnapshot = source.workspaceSnapshot
+        return thread
     }
 
     func makeForkConversation(
@@ -305,6 +320,9 @@ private extension SidebarViewModel {
                 mode: source.mode.sessionForkMode
             ),
             initialPrompt: nil,
+            additionalWorkspaceRoots: source.workspaceSnapshot.additionalWorkspaceRoots(
+                workingDirectory: worktree?.info.path ?? source.projectPath
+            ),
             hostToolServer: AlvearyHostToolCatalog.serverMetadata,
             hostTools: AlvearyHostToolCatalog.tools
         )

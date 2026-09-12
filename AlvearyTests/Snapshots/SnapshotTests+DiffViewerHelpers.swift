@@ -5,8 +5,7 @@ import SwiftUI
 extension SnapshotTests {
     func primaryToolbarButtonGroup(
         selectedThread: AgentThread? = nil,
-        // A selected project row owns its actions by path; pass this instead of
-        // `selectedThread` to render the project-row case.
+        // Pass a source path to render captured project-row actions.
         selectedProjectPath: String? = nil,
         projectActions: [AlvearyProjectConfig.ProjectAction] = [],
         terminalDisplayState: TerminalToolbarDisplayState = .idle,
@@ -16,8 +15,13 @@ extension SnapshotTests {
         settingsBadgeState: AppUpdateToolbarBadgeState = .none,
         diffDisplayState: DiffViewerToolbarDisplayState
     ) -> some View {
-        let owner = selectedThread.map { ToolbarProjectActionsOwner.thread($0.persistentModelID) }
-            ?? selectedProjectPath.map { ToolbarProjectActionsOwner.project($0) }
+        let owner = selectedThread.flatMap { thread in
+            thread.workspaceFolderTargets.first.map { ToolbarProjectActionsOwner.folder(.thread(thread.persistentModelID), $0) }
+        } ?? selectedProjectPath.map { path in
+            ToolbarProjectActionsOwner.folder(.project("snapshot-project"), WorkspaceFolderTarget(
+                directory: path, source: SourceFolderSnapshot(path: path), isPrimary: true
+            ))
+        }
         return PrimaryToolbarButtonGroup(
             isSelectionProjectActionCapable: owner != nil,
             projectActions: projectActions,

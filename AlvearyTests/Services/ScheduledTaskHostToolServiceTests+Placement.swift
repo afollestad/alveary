@@ -9,11 +9,11 @@ import XCTest
 /// the Project has to already be registered, and every grant must be an existing folder.
 @MainActor
 extension ScheduledTaskHostToolServiceTests {
-    func testCreateIntoAnExistingThreadBindsTheTargetWithoutTouchingItsPlacement() throws {
+    func testCreateIntoAnExistingThreadBindsTheTargetWithoutTouchingItsPlacement() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let target = try fixture.insertTargetThread(name: "Release chat", conversationID: "release-main")
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -37,23 +37,23 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertFalse(result.text.lowercased().contains("pin"), result.text)
     }
 
-    func testCreateRejectsAnUnknownOrIneligibleTargetThread() throws {
+    func testCreateRejectsAnUnknownOrIneligibleTargetThread() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let archived = try fixture.insertTargetThread(name: "Archived", conversationID: "archived-main")
         archived.archivedAt = Date(timeIntervalSince1970: 10)
         try fixture.modelContext.save()
 
-        let unknown = fixture.proposeExistingThread(targetThreadID: "no-such-thread")
+        let unknown = await fixture.proposeExistingThread(targetThreadID: "no-such-thread")
         XCTAssertTrue(unknown.isError)
         XCTAssertTrue(unknown.text.contains("no longer exists"), unknown.text)
 
-        let ineligible = fixture.proposeExistingThread(targetThreadID: "archived-main")
+        let ineligible = await fixture.proposeExistingThread(targetThreadID: "archived-main")
         XCTAssertTrue(ineligible.isError)
         XCTAssertTrue(ineligible.text.contains("cannot receive scheduled runs"), ineligible.text)
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
     }
 
-    func testCreateAcceptsARegisteredProjectWithAddedGrantsAndRefusesUnknownPaths() throws {
+    func testCreateAcceptsARegisteredProjectWithAddedGrantsAndRefusesUnknownPaths() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         fixture.modelContext.insert(Project(path: "/tmp/other-project", name: "Other"))
         try fixture.modelContext.save()
@@ -64,7 +64,7 @@ extension ScheduledTaskHostToolServiceTests {
         let grantPath = CanonicalPath.normalize(grantDir.path)
 
         // A Project selection may carry folder grants alongside it, like the editor pane.
-        let accepted = fixture.proposeWorkspace([
+        let accepted = await fixture.proposeWorkspace([
             "kind": .string("project"),
             "project_path": .string("/tmp/other-project"),
             "granted_roots": .array([.string(grantDir.path)])
@@ -78,7 +78,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertTrue(accepted.text.contains(grantPath), accepted.text)
 
         try fixture.deleteProposals()
-        let refused = fixture.proposeWorkspace([
+        let refused = await fixture.proposeWorkspace([
             "kind": .string("project"),
             "project_path": .string("/tmp/never-registered")
         ])
@@ -87,7 +87,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
     }
 
-    func testCreateReplacesGrantsAndMayAddExistingFolders() throws {
+    func testCreateReplacesGrantsAndMayAddExistingFolders() async throws {
         let grants = try makeGrantDirectories(count: 2)
         defer { try? FileManager.default.removeItem(at: grants.root) }
         let fixture = try ScheduledTaskHostToolFixture.task(
@@ -99,7 +99,7 @@ extension ScheduledTaskHostToolServiceTests {
             )
         )
 
-        let narrowed = fixture.proposeWorkspace([
+        let narrowed = await fixture.proposeWorkspace([
             "kind": .string("private"),
             "granted_roots": .array([.string(grants.paths[0])])
         ])
@@ -113,7 +113,7 @@ extension ScheduledTaskHostToolServiceTests {
         try FileManager.default.createDirectory(at: extra, withIntermediateDirectories: true)
         let extraPath = CanonicalPath.normalize(extra.path)
         try fixture.deleteProposals()
-        let added = fixture.proposeWorkspace([
+        let added = await fixture.proposeWorkspace([
             "kind": .string("private"),
             "granted_roots": .array([.string(grants.paths[0]), .string(extra.path)])
         ])
@@ -123,7 +123,7 @@ extension ScheduledTaskHostToolServiceTests {
 
         try fixture.deleteProposals()
         for unusable in ["Grants/relative", "/tmp/never-granted-\(UUID().uuidString)"] {
-            let refused = fixture.proposeWorkspace([
+            let refused = await fixture.proposeWorkspace([
                 "kind": .string("private"),
                 "granted_roots": .array([.string(unusable)])
             ])
@@ -133,7 +133,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
     }
 
-    func testEmptyGrantListDropsEveryInheritedGrant() throws {
+    func testEmptyGrantListDropsEveryInheritedGrant() async throws {
         let grants = try makeGrantDirectories(count: 1)
         defer { try? FileManager.default.removeItem(at: grants.root) }
         let fixture = try ScheduledTaskHostToolFixture.task(
@@ -145,7 +145,7 @@ extension ScheduledTaskHostToolServiceTests {
             )
         )
 
-        let result = fixture.proposeWorkspace([
+        let result = await fixture.proposeWorkspace([
             "kind": .string("private"),
             "granted_roots": .array([])
         ])
@@ -155,12 +155,12 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertTrue(result.text.contains("no folder grants"), result.text)
     }
 
-    func testEditCanRetargetAnExistingDefinitionToAnotherThread() throws {
+    func testEditCanRetargetAnExistingDefinitionToAnotherThread() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let definition = fixture.insertDefinition(id: "retarget", revision: 2)
         try fixture.insertTargetThread(name: "Release chat", conversationID: "release-main")
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -188,14 +188,14 @@ extension ScheduledTaskHostToolServiceTests {
     /// The proposal's trusted Project has to be the one its draft names. `ScheduledTaskProposal`
     /// keeps the Project as a relationship so deletion nullifies it, and the queue coordinator
     /// refuses to confirm any proposal whose relationship disagrees with the draft's path.
-    func testEditToAnotherProjectStoresThatProjectAsTheProposalsTrustedOne() throws {
+    func testEditToAnotherProjectStoresThatProjectAsTheProposalsTrustedOne() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let definition = fixture.insertDefinition(id: "reproject", revision: 2)
         let target = Project(path: "/tmp/other-project", name: "Other")
         fixture.modelContext.insert(target)
         try fixture.modelContext.save()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -222,10 +222,10 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertTrue(proposal.hasValidActionShape)
     }
 
-    func testInheritedPlacementLeavesTheSourceWorkspaceUntouched() throws {
+    func testInheritedPlacementLeavesTheSourceWorkspaceUntouched() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -268,18 +268,18 @@ extension ScheduledTaskHostToolFixture {
         try modelContext.save()
     }
 
-    func proposeExistingThread(targetThreadID: String) -> AgentCLIKit.AgentHostToolResult {
-        propose([
+    func proposeExistingThread(targetThreadID: String) async -> AgentCLIKit.AgentHostToolResult {
+        await propose([
             "destination": .string("existing_thread"),
             "target_thread_id": .string(targetThreadID)
         ])
     }
 
-    func proposeWorkspace(_ workspace: [String: AgentCLIKit.JSONValue]) -> AgentCLIKit.AgentHostToolResult {
-        propose(["workspace": .object(workspace)])
+    func proposeWorkspace(_ workspace: [String: AgentCLIKit.JSONValue]) async -> AgentCLIKit.AgentHostToolResult {
+        await propose(["workspace": .object(workspace)])
     }
 
-    private func propose(_ placement: [String: AgentCLIKit.JSONValue]) -> AgentCLIKit.AgentHostToolResult {
+    private func propose(_ placement: [String: AgentCLIKit.JSONValue]) async -> AgentCLIKit.AgentHostToolResult {
         var arguments: [String: AgentCLIKit.JSONValue] = [
             "action": .string("create"),
             "title": .string("Daily review"),
@@ -291,7 +291,7 @@ extension ScheduledTaskHostToolFixture {
             ])
         ]
         arguments.merge(placement) { _, new in new }
-        return service.handle(
+        return await service.handle(
             // A fresh request id per call, so a differing placement is not read as a retry.
             context: agentContext(requestID: "string:\(UUID().uuidString)"),
             call: AgentCLIKit.AgentHostToolCall(

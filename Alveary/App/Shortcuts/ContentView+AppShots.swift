@@ -4,11 +4,9 @@ import SwiftData
 @MainActor
 final class AppShotCaptureController {
     typealias PrepareCapture = @MainActor () async throws -> PreparedAppShotCapture
-    typealias OpenDraft = @MainActor (PersistentIdentifier) async throws -> PersistentIdentifier
+    typealias OpenDraft = @MainActor (PersistentIdentifier?) async throws -> PersistentIdentifier
     typealias StageAppShot = @MainActor (ConversationState, AppShotAttachment) throws -> Void
     typealias IsVoiceInputLocked = @MainActor () -> Bool
-
-    nonisolated static let noProjectMessage = "Add a project before capturing an app shot."
 
     private let appState: AppState
     private let modelContext: ModelContext
@@ -104,10 +102,6 @@ private extension AppShotCaptureController {
                 modelContext: modelContext,
                 settingsService: settingsService
             )
-        } catch AppShotRoutingError.noProject {
-            activateAlveary()
-            appState.presentUnexpectedError(message: Self.noProjectMessage)
-            return nil
         } catch {
             presentAppLevelError(error)
             return nil
@@ -213,7 +207,7 @@ private extension AppShotCaptureController {
         switch intent.route {
         case .conversation(let snapshot):
             return snapshot.claim(opensDraftOnSuccess: false)
-        case .project(let projectID):
+        case .draft(let projectID):
             let draftThreadID = try await openDraft(projectID)
             guard intent.isCurrent(appState: appState, modelContext: modelContext, settingsService: settingsService),
                   let draft = modelContext.resolveThread(id: draftThreadID),
@@ -297,7 +291,7 @@ private extension AppShotCaptureController {
 private struct AppShotDestinationIntent {
     enum Route {
         case conversation(AppShotConversationSnapshot)
-        case project(PersistentIdentifier)
+        case draft(PersistentIdentifier?)
     }
 
     let navigationToken: AppShotNavigationToken
@@ -337,16 +331,14 @@ private struct AppShotDestinationIntent {
         let resolution = NewThreadProjectResolver.resolve(
             selection: appState.selectedSidebarItem,
             previousSelection: appState.previousSelection,
-            lastActiveProjectPath: settingsService.current.lastActiveProjectPath,
+            lastActiveProjectID: settingsService.current.lastActiveProjectID,
+            legacyProjectPath: settingsService.current.lastActiveProjectPath,
             modelContext: modelContext
         )
-        settingsService.updateLastActiveProjectPath(resolution.lastActiveProjectPath)
-        guard let project = resolution.project else {
-            throw AppShotRoutingError.noProject
-        }
+        settingsService.updateLastActiveProjectID(resolution.lastActiveProjectID)
         return AppShotDestinationIntent(
             navigationToken: navigationToken,
-            route: .project(project.persistentModelID)
+            route: .draft(resolution.project?.persistentModelID)
         )
     }
 
@@ -373,11 +365,12 @@ private struct AppShotDestinationIntent {
             }
             return selectedConversation(in: thread, modelContext: modelContext, appState: appState)?.persistentModelID ==
                 snapshot.conversationPersistentID
-        case .project(let projectID):
+        case .draft(let projectID):
             let resolution = NewThreadProjectResolver.resolve(
                 selection: appState.selectedSidebarItem,
                 previousSelection: appState.previousSelection,
-                lastActiveProjectPath: settingsService.current.lastActiveProjectPath,
+                lastActiveProjectID: settingsService.current.lastActiveProjectID,
+                legacyProjectPath: settingsService.current.lastActiveProjectPath,
                 modelContext: modelContext
             )
             return resolution.project?.persistentModelID == projectID
@@ -462,15 +455,12 @@ private enum AppShotNavigationToken: Equatable {
 }
 
 enum AppShotRoutingError: LocalizedError, Equatable {
-    case noProject
     case destinationUnavailable
     case draftUnavailable
     case destinationDeleted
 
     var errorDescription: String? {
         switch self {
-        case .noProject:
-            return AppShotCaptureController.noProjectMessage
         case .destinationUnavailable:
             return "Could not resolve a conversation for the app shot."
         case .draftUnavailable:

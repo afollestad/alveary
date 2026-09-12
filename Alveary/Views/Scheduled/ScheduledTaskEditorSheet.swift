@@ -236,7 +236,7 @@ struct ScheduledTaskEditorContent: View {
             ActionButtonLabel(title: submitTitle, icon: .system("checkmark"))
         }
         .primaryActionButtonStyle(expandsHorizontally: surface == .pane)
-        .disabled(isSubmitting || draft.hasUnresolvedDestination)
+        .disabled(isSubmitting || draft.hasUnresolvedDestination || draft.isResolvingFolders)
     }
 }
 

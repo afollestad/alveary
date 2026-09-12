@@ -39,7 +39,7 @@ extension ConversationViewModel {
     func publishDraftMaterialized(thread: AgentThread, conversation: Conversation) {
         let threadID = thread.persistentModelID
         let conversationID = conversation.persistentModelID
-        let projectPath = thread.project?.path
+        let projectPath = thread.project?.id
         settingsService.updateRestoreSelection(threadID: threadID, conversationID: conversationID)
         if thread.mode == .task {
             threadActivityRecorder.recordTaskMaterialized(conversationId: conversation.id)
@@ -51,7 +51,7 @@ extension ConversationViewModel {
             ThreadDraftNotificationKey.mode: thread.mode.rawValue
         ]
         if let projectPath {
-            userInfo[ThreadDraftNotificationKey.projectPath] = projectPath
+            userInfo[ThreadDraftNotificationKey.projectID] = projectPath
         }
         NotificationCenter.default.post(name: .threadDraftMaterialized, object: nil, userInfo: userInfo)
     }

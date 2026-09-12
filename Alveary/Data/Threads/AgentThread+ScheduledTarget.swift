@@ -1,6 +1,14 @@
 import Foundation
 
 extension AgentThread {
+    /// Reuse runs retain the definition's roots. Editing their thread's grants independently
+    /// would make the next claim inconsistent; archive and pure placement remain allowed.
+    var blockingWorkspaceGrantScheduledTask: ScheduledTask? {
+        blockingScheduledTaskAttachment ?? reusingScheduledTasks.min {
+            $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+        }
+    }
+
     /// Whether a scheduled task may post into this thread.
     ///
     /// Pinning is deliberately irrelevant: a schedule does not own its target's sidebar placement,
@@ -19,7 +27,7 @@ extension AgentThread {
         }
         switch effectiveMode {
         case .project:
-            return project != nil
+            return sourceFolder != nil && primaryWorkingDirectory != nil
         case .task:
             return true
         }

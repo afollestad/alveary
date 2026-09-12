@@ -328,6 +328,7 @@ extension AppComponent {
                 settingsService: settingsService,
                 keepAwakeService: keepAwakeService,
                 notificationManager: notificationManager,
+                fileListManager: fileListManager,
                 threadActivityRecorder: threadActivityRecorder,
                 claudeApprovalPersistenceStore: claudeApprovalPersistenceStore,
                 providerSessionBindingStore: providerSessionBindingStore

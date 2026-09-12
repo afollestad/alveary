@@ -57,7 +57,7 @@ extension SidebarViewModel {
                     affectedScheduledTaskIDs.append(
                         contentsOf: ScheduledTaskTargetDetachment.detachTargets(
                             of: dbThread,
-                            continuation: .pauseForProjectDeletion(projectPath: snapshot.projectPath),
+                            continuation: .pauseForProjectDeletion,
                             at: actionDate
                         )
                     )
@@ -73,7 +73,7 @@ extension SidebarViewModel {
                 for threadID in snapshot.detachedTaskThreadIDs {
                     modelContext.resolveThread(id: threadID)?.project = nil
                 }
-                modelContext.delete(dbProject)
+                deleteProjectRecord(dbProject)
                 _ = try normalizeSidebarOrderingForLifecycle(
                     excludingProjectIDs: [snapshot.projectID],
                     excludingThreadIDs: threadIDs
@@ -130,6 +130,16 @@ extension SidebarViewModel {
         mutating func append(contentsOf newIDs: [String]) {
             newIDs.forEach { append($0) }
         }
+    }
+
+    private func deleteProjectRecord(_ project: Project) {
+        // A cascade over untouched folder faults leaves future backing objects in SwiftData's undo graph.
+        // Materialize and delete memberships explicitly so rollback can restore their snapshots.
+        for folder in project.orderedFolders {
+            _ = folder.snapshot
+            modelContext.delete(folder)
+        }
+        modelContext.delete(project)
     }
 
     private func flushPendingModelChangesBeforeDeletion() throws {

@@ -162,9 +162,9 @@ extension ScheduledTaskProposalQueueTests {
         XCTAssertEqual(viewModel.editorErrorMessage, expectedError)
     }
 
-    func testProductionContextTopologySharesHostQueueAndMainMutations() throws {
+    func testProductionContextTopologySharesHostQueueAndMainMutations() async throws {
         let fixture = try ScheduledTaskProposalCrossContextFixture()
-        let firstProposalID = try fixture.propose(
+        let firstProposalID = try await fixture.propose(
             title: "First proposal",
             conversationID: fixture.firstConversationID,
             requestID: "first"
@@ -174,7 +174,7 @@ extension ScheduledTaskProposalQueueTests {
 
         XCTAssertTrue(fixture.coordinator.reject(proposalID: firstProposalID))
         fixture.advanceClock()
-        let replacementProposalID = try fixture.propose(
+        let replacementProposalID = try await fixture.propose(
             title: "Replacement proposal",
             conversationID: fixture.firstConversationID,
             requestID: "replacement"
@@ -183,7 +183,7 @@ extension ScheduledTaskProposalQueueTests {
         fixture.coordinator.reload()
         XCTAssertEqual(fixture.coordinator.currentProposal?.id, replacementProposalID)
 
-        let queuedProposalID = try fixture.propose(
+        let queuedProposalID = try await fixture.propose(
             title: "Queued proposal",
             conversationID: fixture.secondConversationID,
             requestID: "queued"
@@ -268,8 +268,8 @@ private final class ScheduledTaskProposalCrossContextFixture {
         title: String,
         conversationID: String,
         requestID: String
-    ) throws -> String {
-        let result = hostService.handle(
+    ) async throws -> String {
+        let result = await hostService.handle(
             context: AgentCLIKit.AgentHostToolCallContext(
                 conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationID),
                 providerId: .codex,

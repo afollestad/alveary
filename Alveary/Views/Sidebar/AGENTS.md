@@ -24,7 +24,7 @@ The surfaces themselves each have their own scope: `Rows/` (project, thread, and
 ## Tasks
 
 - The Tasks section renders below Projects:
-    - **Route New task to Task composition.** Its header action starts the native Task-mode composer flow, never Scheduled.
+    - **Route New thread through the unified draft.** The Tasks header seeds private-workspace placement; changing destinations preserves the provisional conversation.
     - **Keep the empty placeholder publishing `.tasksTerminal`**, whichever of its two labels `sidebarTasksPlaceholderLabel` picks, or the Tasks drop container stops covering the label region.
     - **Route removal fallback by placement.** Removing a selected projectless Task prefers the next visible Task, then the previous; if none remains, request a blank Task composer with no selected sidebar row. A Task placed in a project uses the project-child fallback instead — previous sibling, next sibling, then the project row.
 

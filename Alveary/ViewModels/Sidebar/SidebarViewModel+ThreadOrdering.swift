@@ -23,7 +23,7 @@ struct SidebarPinnedItem: Identifiable {
     var id: String {
         switch kind {
         case .project(let project):
-            "project:\(project.path)"
+            "project:\(project.id)"
         case .thread(let thread):
             "thread:\(String(describing: thread.persistentModelID))"
         }
@@ -41,14 +41,10 @@ struct SidebarPinnedItem: Identifiable {
     var dragItem: SidebarDragItem {
         switch kind {
         case .project(let project):
-            .project(project.persistentModelID)
+            return .project(project.persistentModelID)
         case .thread(let thread):
-            switch thread.effectiveMode {
-            case .project:
-                .pinnedThread(thread.persistentModelID)
-            case .task:
-                .pinnedTask(thread.persistentModelID)
-            }
+            if thread.supportsIndependentSidebarPlacement { return .pinnedTask(thread.persistentModelID) }
+            return .pinnedThread(thread.persistentModelID)
         }
     }
 
@@ -73,7 +69,7 @@ struct SidebarPinnedItem: Identifiable {
     var stableID: String {
         switch kind {
         case .project(let project):
-            project.path
+            project.id
         case .thread(let thread):
             String(describing: thread.persistentModelID)
         }
@@ -195,15 +191,15 @@ extension SidebarViewModel {
             }
         )
         return AgentThreadOrdering.sorted(
-            ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .task }
+            ((try? modelContext.fetch(descriptor)) ?? []).filter { $0.supportsIndependentSidebarPlacement }
         )
     }
 
     func activeThreads(for project: Project) -> [AgentThread] {
-        let projectPath = project.path
+        let projectPath = project.id
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.id == projectPath
             }
         )
 
@@ -221,7 +217,7 @@ extension SidebarViewModel {
         do {
             let dbProject = try resolveProjectForPinning(project.persistentModelID)
             let wasPinned = dbProject.isPinned
-            let projectPath = dbProject.path
+            let projectPath = dbProject.id
             var didChange = try normalizeSidebarOrdering()
 
             if isPinned, !wasPinned {
@@ -287,7 +283,7 @@ private extension SidebarViewModel {
     func latestVisibleThreadModifiedAt(for project: Project, threads: [AgentThread]) -> Date? {
         // Mode-agnostic, matching `SidebarRenderSnapshot`: any thread in the project is a child.
         threads
-            .filter { $0.project?.path == project.path }
+            .filter { $0.project?.id == project.id }
             .compactMap(\.modifiedAt)
             .max()
     }

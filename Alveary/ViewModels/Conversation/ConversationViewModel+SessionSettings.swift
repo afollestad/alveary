@@ -52,7 +52,9 @@ extension ConversationViewModel {
         let planModeOverride = spawnPlanModeOverride(settingsSource: settingsSource, context: settingsContext)
         let speedModeOverride = spawnSpeedModeOverride(settingsSource: settingsSource, context: settingsContext)
         let modelAndEffort = spawnModelAndEffort(context: settingsContext, thread: dbConversation.thread)
-        let additionalWorkspaceRoots = scheduledAdditionalWorkspaceRoots(in: dbConversation.thread)
+        let additionalWorkspaceRoots = try effectiveAdditionalWorkspaceRoots(
+            in: dbConversation.thread, workingDirectory: workingDirectory
+        )
         let preservesAutomatedScheduledTurn = settingsSource == .currentContinuation
             && settingsContext.liveConfig?.isAutomatedScheduledTurn == true
             && defersOrdinaryScheduledOutbound

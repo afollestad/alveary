@@ -5,8 +5,11 @@ import SwiftData
 extension PullRequestAgenticThreadService {
     func startCollectiveReview(
         _ work: CollectiveReviewWork,
-        coordinator: PullRequestReviewTeamCoordinator
+        coordinator: PullRequestReviewTeamCoordinator?
     ) async throws -> PullRequestAgenticThreadStart {
+        guard let coordinator else {
+            throw ReviewTeamError.invalidOutput("Review team is unavailable. Check Pull requests settings.")
+        }
         let team = try await coordinator.preflight(settings: work.settings)
         guard let lead = team.first else {
             throw StartError.noReadyProvider
@@ -21,6 +24,7 @@ extension PullRequestAgenticThreadService {
             seed,
             name: Kind.review.threadName(for: work.identifier),
             workspace: nil,
+            workspaceSnapshot: nil,
             placement: resolvedPlacement(for: .review, settings: work.settings)
         ))
         guard let conversation = thread.soleMainConversation else {

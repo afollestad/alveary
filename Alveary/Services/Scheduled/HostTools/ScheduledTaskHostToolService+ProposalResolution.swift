@@ -4,13 +4,13 @@ extension ScheduledTaskHostToolService {
     func resolveProposal(
         _ request: ScheduledTaskProposalRequest,
         sourceThread: AgentThread,
-        sourceProviderID: String
+        sourceProviderID: String,
+        resolveNewFolder: (String) throws -> SourceFolderSnapshot = { SourceFolderSnapshot(path: $0) }
     ) throws -> ScheduledTaskHostToolProposalResolution {
         switch request {
         case let .create(title, prompt, schedule, placement):
             return try resolveCreateProposal(
-                title: title,
-                prompt: prompt,
+                content: (title, prompt),
                 schedule: schedule,
                 placement: placement,
                 source: ScheduledTaskHostToolCreateSource(
@@ -19,13 +19,15 @@ extension ScheduledTaskHostToolService {
                         sourceThread: sourceThread,
                         providerID: sourceProviderID
                     )
-                )
+                ),
+                resolveNewFolder: resolveNewFolder
             )
         case let .edit(definitionID, expectedRevision, changes):
             return try resolveEditProposal(
                 definitionID: definitionID,
                 expectedRevision: expectedRevision,
-                changes: changes
+                changes: changes,
+                resolveNewFolder: resolveNewFolder
             )
         case let .pause(definitionID, expectedRevision):
             return try resolvePauseProposal(definitionID: definitionID, expectedRevision: expectedRevision)
@@ -43,12 +45,13 @@ extension ScheduledTaskHostToolService {
     }
 
     func resolveCreateProposal(
-        title: String,
-        prompt: String,
+        content: (title: String, prompt: String),
         schedule: ScheduledTaskProposalSchedule,
         placement: ScheduledTaskProposalPlacement?,
-        source: ScheduledTaskHostToolCreateSource
+        source: ScheduledTaskHostToolCreateSource,
+        resolveNewFolder: (String) throws -> SourceFolderSnapshot
     ) throws -> ScheduledTaskHostToolProposalResolution {
+        let (title, prompt) = content
         // An existing-thread schedule posts into a thread that owns its own workspace, so the
         // source thread's is never consulted — it may not even be resolvable.
         if case .existingThread(let targetConversationID) = placement {
@@ -61,12 +64,13 @@ extension ScheduledTaskHostToolService {
             )
         }
 
-        let inherited = try sourceWorkspace(for: source.thread)
+        let needsInheritance = placement?.requestedWorkspace?.requiresInheritedWorkspace ?? true
+        let inherited = needsInheritance ? try sourceWorkspace(for: source.thread) : nil
         let workspace = try resolvedWorkspace(
             requested: placement?.requestedWorkspace,
-            inheritedKind: inherited.kind,
-            inheritedProject: inherited.project,
-            inheritedGrantedRoots: inherited.grantedRoots
+            inheritedProject: inherited?.project,
+            inheritedSnapshot: inherited?.snapshot ?? source.thread.workspaceSnapshot,
+            resolveNewFolder: resolveNewFolder
         )
         let draft = ScheduledTaskProposalDefinitionDraft(
             title: title,
@@ -81,9 +85,13 @@ extension ScheduledTaskHostToolService {
             effort: source.settings.effort,
             permissionMode: source.settings.permissionMode,
             workspaceKind: workspace.kind,
-            workspaceStrategy: inherited.strategy,
+            workspaceStrategy: placement?.requestedWorkspace == nil ? (inherited?.strategy ?? .localCheckout)
+                : (workspace.snapshot.primarySource?.isGitRepository == true ? .worktree : .localCheckout),
             grantedRoots: workspace.grantedRoots,
-            projectPath: workspace.project?.path
+            projectPath: workspace.snapshot.primarySource?.path,
+            projectID: workspace.project?.id,
+            workspaceSnapshot: workspace.snapshot,
+            sectionID: workspace.project == nil ? source.thread.customSection?.id : nil
         )
         return ScheduledTaskHostToolProposalResolution(
             definitionDraft: draft,
@@ -126,7 +134,8 @@ extension ScheduledTaskHostToolService {
     func resolveEditProposal(
         definitionID: String,
         expectedRevision: Int,
-        changes: ScheduledTaskProposalEditChanges
+        changes: ScheduledTaskProposalEditChanges,
+        resolveNewFolder: (String) throws -> SourceFolderSnapshot
     ) throws -> ScheduledTaskHostToolProposalResolution {
         let definition = try resolveTargetDefinition(
             id: definitionID,
@@ -134,7 +143,7 @@ extension ScheduledTaskHostToolService {
         )
         return targetResolution(
             definition,
-            edited: try editedDraft(definition: definition, changes: changes)
+            edited: try editedDraft(definition: definition, changes: changes, resolveNewFolder: resolveNewFolder)
         )
     }
 
@@ -160,7 +169,7 @@ extension ScheduledTaskHostToolService {
         guard let destination = definition.decodedDestination else {
             throw ScheduledTaskHostToolServiceError.invalidStoredSchedule
         }
-        if definition.workspaceKind == .project, definition.project == nil {
+        if definition.workspaceKind == .project, definition.workspaceSnapshot?.primarySource == nil {
             if destination == .existingThread {
                 return targetResolution(definition)
             }
@@ -204,7 +213,8 @@ extension ScheduledTaskHostToolService {
 
     func editedDraft(
         definition: ScheduledTask,
-        changes: ScheduledTaskProposalEditChanges
+        changes: ScheduledTaskProposalEditChanges,
+        resolveNewFolder: (String) throws -> SourceFolderSnapshot
     ) throws -> ScheduledTaskHostToolEditedDraft {
         guard let destination = definition.decodedDestination else {
             throw ScheduledTaskHostToolServiceError.invalidStoredSchedule
@@ -226,7 +236,7 @@ extension ScheduledTaskHostToolService {
         if case .existingThread(let targetConversationID) = changes.placement {
             return try editedExistingThreadDraft(context, targetConversationID: targetConversationID)
         }
-        return try editedNewThreadDraft(context)
+        return try editedNewThreadDraft(context, resolveNewFolder: resolveNewFolder)
     }
 
     func editedExistingThreadDraft(
@@ -254,7 +264,8 @@ extension ScheduledTaskHostToolService {
     }
 
     func editedNewThreadDraft(
-        _ context: ScheduledTaskHostToolEditContext
+        _ context: ScheduledTaskHostToolEditContext,
+        resolveNewFolder: (String) throws -> SourceFolderSnapshot
     ) throws -> ScheduledTaskHostToolEditedDraft {
         let definition = context.definition
         let placement = context.changes.placement
@@ -271,9 +282,9 @@ extension ScheduledTaskHostToolService {
         }
         let workspace = try resolvedWorkspace(
             requested: placement?.requestedWorkspace,
-            inheritedKind: definition.workspaceKind,
             inheritedProject: try inheritedProject(of: definition, for: destination),
-            inheritedGrantedRoots: try ScheduledTaskHostToolSupport.validatedStoredGrantedRoots(definition.grantedRoots)
+            inheritedSnapshot: definition.workspaceSnapshot,
+            resolveNewFolder: resolveNewFolder
         )
         let draft = ScheduledTaskProposalDefinitionDraft(
             title: context.title,
@@ -289,9 +300,13 @@ extension ScheduledTaskHostToolService {
             effort: context.settings.effort,
             permissionMode: context.settings.permissionMode,
             workspaceKind: workspace.kind,
-            workspaceStrategy: definition.workspaceStrategy,
+            workspaceStrategy: placement?.requestedWorkspace == nil ? definition.workspaceStrategy
+                : (workspace.snapshot.primarySource?.isGitRepository == true ? .worktree : .localCheckout),
             grantedRoots: workspace.grantedRoots,
-            projectPath: workspace.project?.path
+            projectPath: workspace.snapshot.primarySource?.path,
+            projectID: workspace.project?.id,
+            workspaceSnapshot: workspace.snapshot,
+            sectionID: workspace.project == nil ? definition.threadSection?.id : nil
         )
         return ScheduledTaskHostToolEditedDraft(
             draft: draft,
@@ -328,59 +343,20 @@ extension ScheduledTaskHostToolService {
         of definition: ScheduledTask,
         for destination: ScheduledTaskDestination
     ) throws -> Project? {
-        guard destination != .existingThread, definition.workspaceKind == .project else {
-            return nil
-        }
-        guard let project = definition.project else {
-            throw ScheduledTaskHostToolServiceError.workspaceUnavailable
-        }
-        try ScheduledTaskHostToolSupport.validateStoredCanonicalPath(project.path)
-        return project
+        destination == .existingThread ? nil : definition.project
     }
 
     func sourceWorkspace(for thread: AgentThread) throws -> ScheduledTaskHostToolSourceWorkspace {
-        switch thread.effectiveMode {
-        case .project:
-            guard let project = thread.project else {
-                throw ScheduledTaskHostToolServiceError.workspaceUnavailable
-            }
-            try ScheduledTaskHostToolSupport.validateStoredCanonicalPath(project.path)
-            return ScheduledTaskHostToolSourceWorkspace(
-                kind: .project,
-                strategy: .worktree,
-                grantedRoots: [],
-                project: project
-            )
-        case .task:
-            guard let descriptor = thread.taskWorkspaceDescriptor else {
-                throw ScheduledTaskHostToolServiceError.workspaceUnavailable
-            }
-            let grantedRoots = try ScheduledTaskHostToolSupport.validatedStoredGrantedRoots(descriptor.grantedRoots)
-            guard let sourceProjectPath = descriptor.sourceProjectPath else {
-                return ScheduledTaskHostToolSourceWorkspace(
-                    kind: .privateWorkspace,
-                    strategy: .worktree,
-                    grantedRoots: grantedRoots,
-                    project: nil
-                )
-            }
-            try ScheduledTaskHostToolSupport.validateStoredCanonicalPath(sourceProjectPath)
-            guard let project = modelContext.resolveProject(path: sourceProjectPath) else {
-                return ScheduledTaskHostToolSourceWorkspace(
-                    kind: .privateWorkspace,
-                    strategy: .worktree,
-                    grantedRoots: grantedRoots,
-                    project: nil
-                )
-            }
-            try ScheduledTaskHostToolSupport.validateStoredCanonicalPath(project.path)
-            return ScheduledTaskHostToolSourceWorkspace(
-                kind: .project,
-                strategy: .worktree,
-                grantedRoots: grantedRoots,
-                project: project
-            )
+        guard let snapshot = thread.workspaceSnapshot, thread.primaryWorkingDirectory != nil else {
+            throw ScheduledTaskHostToolServiceError.workspaceUnavailable
         }
+        for folder in snapshot.sourceFolders { try ScheduledTaskHostToolSupport.validateStoredCanonicalPath(folder.path) }
+        return ScheduledTaskHostToolSourceWorkspace(
+            snapshot: snapshot, kind: snapshot.primarySource == nil ? .privateWorkspace : .project,
+            strategy: (thread.useWorktree || thread.resolvedWorkspaceDescriptor?.ownershipStrategy == .projectWorktreeOwned)
+                && snapshot.primarySource?.isGitRepository == true ? .worktree : .localCheckout,
+            grantedRoots: snapshot.grants.map(\.path), project: thread.project
+        )
     }
 
     func targetResolution(

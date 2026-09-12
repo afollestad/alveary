@@ -231,9 +231,10 @@ private extension PullRequestHostToolCatalog {
                     items: HostToolSchema.strictObject(
                         properties: [
                             "name": HostToolSchema.stringSchema,
-                            "path": HostToolSchema.stringSchema
+                            "project_id": HostToolSchema.stringSchema,
+                            "folders": HostToolSchema.arraySchema(items: HostToolSchema.stringSchema)
                         ],
-                        required: ["name", "path"]
+                        required: ["name", "project_id", "folders"]
                     )
                 ),
                 "counts": HostToolSchema.strictObject(

@@ -105,7 +105,7 @@ extension SidebarViewModel {
     func unarchivedThreadsForOrdering(projectPath: String) throws -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.id == projectPath
             }
         )
         // Mode-agnostic: a Task placed in this project is one of its children for pin purposes.

@@ -50,18 +50,16 @@ final class ScheduledTaskMutationService {
             workspaceKind: edit.destination == .existingThread ? .privateWorkspace : edit.workspaceKind,
             workspaceStrategy: edit.workspaceStrategy,
             grantedRoots: edit.grantedRoots,
-            project: edit.destination != .existingThread && edit.workspaceKind == .project ? edit.project : nil,
+            project: edit.destination != .existingThread ? edit.project : nil,
             nextOccurrenceAt: nextOccurrence,
             createdAt: actionDate,
             modifiedAt: actionDate,
-            targetThread: edit.destination == .existingThread ? edit.targetThread : nil
+            targetThread: edit.destination == .existingThread ? edit.targetThread : nil,
+            workspaceSnapshot: edit.workspaceSnapshot
         )
-        // The model initializer normalizes paths. Restore the validated literal snapshot so a
-        // post-validation symlink swap cannot rewrite the user's authorization boundary.
-        definition.grantedRoots = edit.grantedRoots
         // Only a projectless new-thread schedule places its created threads in a section; a
         // Project-backed thread nests under the Project and an existing target keeps its own row.
-        definition.threadSection = edit.destination != .existingThread && edit.workspaceKind == .privateWorkspace
+        definition.threadSection = edit.destination != .existingThread && edit.project == nil
             ? edit.threadSection
             : nil
         let consumesProposal = proposal != nil
@@ -139,7 +137,7 @@ final class ScheduledTaskMutationService {
             }
             if destination != .existingThread,
                definition.workspaceKind == .project,
-               definition.project == nil {
+               definition.workspaceSnapshot?.primarySource == nil {
                 throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
             }
             if destination == .existingThread,
@@ -203,12 +201,13 @@ final class ScheduledTaskMutationService {
             definition.permissionMode = edit.permissionMode
             definition.workspaceKind = edit.destination == .existingThread ? .privateWorkspace : edit.workspaceKind
             definition.workspaceStrategy = edit.workspaceStrategy
-            definition.grantedRoots = edit.grantedRoots
+            definition.grantedRoots = edit.workspaceSnapshot.grants.map(\.path)
+            definition.workspaceSnapshot = edit.workspaceSnapshot
             definition.destination = edit.destination
-            definition.project = edit.destination != .existingThread && edit.workspaceKind == .project ? edit.project : nil
+            definition.project = edit.destination != .existingThread ? edit.project : nil
             definition.targetThread = edit.destination == .existingThread ? edit.targetThread : nil
             definition.reusedThread = preservesReuseLink ? definition.reusedThread : nil
-            definition.threadSection = edit.destination != .existingThread && edit.workspaceKind == .privateWorkspace
+            definition.threadSection = edit.destination != .existingThread && edit.project == nil
                 ? edit.threadSection
                 : nil
             definition.state = wasPaused ? .paused : (nextOccurrence == nil ? .completed : .active)

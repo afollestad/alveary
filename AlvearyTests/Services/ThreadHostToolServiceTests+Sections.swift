@@ -168,7 +168,8 @@ extension ThreadHostToolServiceTests {
         let content = try object(result.structuredContent)
         XCTAssertEqual(content["status"], .string("created"))
         XCTAssertEqual(content["section"], .string("Research"))
-        XCTAssertEqual(content["workspace_kind"], .string("task"))
+        XCTAssertEqual(content["workspace_kind"], .string("project"))
+        XCTAssertEqual(content["primary_folder_path"], .string(fixture.thread.sourceFolder?.path ?? ""))
         let created = try XCTUnwrap(
             fixture.modelContext.resolveThread(conversationID: try threadID(in: content))
         )

@@ -234,7 +234,7 @@ extension SidebarViewTests {
                 await action.perform(view: view, thread: task)
             }
             await gate.waitUntilEntered()
-            appState.startNewThreadFlow(mode: .task)
+            appState.startNewThreadFlow(destination: .tasks)
             let commandID = appState.pendingCommand?.id
             gate.release()
             await operation.value
@@ -245,7 +245,7 @@ extension SidebarViewTests {
             guard case .newThread(_, let mode) = appState.pendingCommand else {
                 return XCTFail("Expected Task command after \(action.rawValue)")
             }
-            XCTAssertEqual(mode, .task, action.rawValue)
+            XCTAssertEqual(mode, .tasks, action.rawValue)
         }
     }
 }
@@ -343,5 +343,5 @@ private func assertPendingTaskCommand(
     guard case .newThread(_, let mode) = appState.pendingCommand else {
         return XCTFail("Expected Task command after \(action.rawValue)", file: file, line: line)
     }
-    XCTAssertEqual(mode, .task, action.rawValue, file: file, line: line)
+    XCTAssertEqual(mode, .tasks, action.rawValue, file: file, line: line)
 }

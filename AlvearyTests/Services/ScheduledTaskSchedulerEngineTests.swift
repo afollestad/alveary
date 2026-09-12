@@ -233,7 +233,7 @@ final class ScheduledTaskSchedulerEngineTests: XCTestCase {
         XCTAssertEqual(try fixture.runCount(), 0)
     }
 
-    func testProjectWorktreeConfigurationIsRecheckedAfterAsyncPreflight() async throws {
+    func testProjectEditsDuringPreflightKeepTheSavedScheduleConfiguration() async throws {
         let fixture = try ScheduledTaskSchedulerFixture()
         let project = Project(
             path: "/tmp/project-configuration-race",
@@ -256,10 +256,9 @@ final class ScheduledTaskSchedulerEngineTests: XCTestCase {
             at: fixture.date(301)
         )
 
-        guard case .changedDuringPreflight = result else {
-            return XCTFail("Expected Project configuration changes to invalidate preflight")
-        }
-        XCTAssertEqual(try fixture.runCount(), 0)
+        guard case .claimed(let id) = result else { return XCTFail("Expected the frozen schedule to remain claimable") }
+        XCTAssertEqual(try fixture.runCount(), 1)
+        XCTAssertEqual(fixture.run(id: id)?.projectBaseRefSnapshot, "main")
     }
 
     func testActiveRunCoalescesLatestOverlapAndAdvancesCadence() async throws {

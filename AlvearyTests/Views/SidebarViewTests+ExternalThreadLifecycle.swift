@@ -21,7 +21,7 @@ extension SidebarViewTests {
         view.handleThreadLifecycleChanged(threadLifecycleNotification(threadID: thread.persistentModelID))
 
         XCTAssertEqual(appState.selectedSidebarItem, .project(project))
-        XCTAssertEqual(appState.previousSelection, .projectPath(project.path))
+        XCTAssertEqual(appState.previousSelection, .projectID(project.persistentModelID))
     }
 
     func testExternalArchiveOfTheSelectedTaskFallsBackToTheBlankTaskComposer() throws {
@@ -40,7 +40,7 @@ extension SidebarViewTests {
         guard case .newThread(_, let mode)? = appState.pendingCommand else {
             return XCTFail("Expected a blank Task composer request")
         }
-        XCTAssertEqual(mode, .task)
+        XCTAssertEqual(mode, .tasks)
     }
 
     func testExternalArchiveLeavesAnUnrelatedSelectionAlone() throws {

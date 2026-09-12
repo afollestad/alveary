@@ -65,7 +65,7 @@ extension SidebarView {
             return
         }
         // The Task now lives in this project, so a collapsed project would otherwise swallow it.
-        revealProject(path: request.projectPath)
+        revealProject(path: request.projectKey)
     }
 }
 
@@ -92,11 +92,12 @@ func sidebarTaskProjectAccessConfirmationMessage(
         quotedThreadName: "\"\(request.threadName)\"",
         middle: " into ",
         projectName: request.projectName,
-        trailing: " and gives the agent access to that project folder.\n\n",
-        detail: "The task stays a task and keeps its own workspace"
+        trailing: " and gives the agent access to its source folders.\n\n",
+        detail: "The thread keeps its own workspace"
             + (request.restartsAgentProcess
                 ? ", and its conversation continues where it left off."
                 : ".")
+            + (request.folderPaths.isEmpty ? "" : "\n\n" + request.folderPaths.joined(separator: "\n"))
     )
 }
 

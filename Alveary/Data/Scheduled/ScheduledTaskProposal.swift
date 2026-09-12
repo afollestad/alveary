@@ -98,6 +98,8 @@ struct ScheduledTaskProposalReceipt: Codable, Equatable, Sendable {
     let message: String
     let sourceProcessToken: String
     let createdAt: Date
+    var workspaceSnapshot: WorkspaceSnapshot?
+    var projectID: String?
 }
 
 struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
@@ -115,6 +117,9 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
     let workspaceStrategy: ScheduledTaskWorkspaceStrategy
     let grantedRoots: [String]
     let projectPath: String?
+    let projectID: String?
+    let workspaceSnapshot: WorkspaceSnapshot?
+    let sectionID: String?
 
     init(
         title: String,
@@ -130,7 +135,10 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         workspaceKind: ScheduledTaskWorkspaceKind,
         workspaceStrategy: ScheduledTaskWorkspaceStrategy,
         grantedRoots: [String],
-        projectPath: String?
+        projectPath: String?,
+        projectID: String? = nil,
+        workspaceSnapshot: WorkspaceSnapshot? = nil,
+        sectionID: String? = nil
     ) {
         self.title = title
         self.prompt = prompt
@@ -146,6 +154,12 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         self.workspaceStrategy = workspaceStrategy
         self.grantedRoots = grantedRoots
         self.projectPath = projectPath
+        self.projectID = projectID
+        self.workspaceSnapshot = workspaceSnapshot ?? WorkspaceSnapshot(
+            primarySource: projectPath.map { SourceFolderSnapshot(path: $0) },
+            grants: grantedRoots.map { SourceFolderSnapshot(path: $0) }
+        )
+        self.sectionID = sectionID
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -163,6 +177,9 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         case workspaceStrategy
         case grantedRoots
         case projectPath
+        case projectID
+        case workspaceSnapshot
+        case sectionID
     }
 
     init(from decoder: Decoder) throws {
@@ -182,12 +199,15 @@ struct ScheduledTaskProposalDefinitionDraft: Codable, Equatable, Sendable {
         workspaceStrategy = try container.decode(ScheduledTaskWorkspaceStrategy.self, forKey: .workspaceStrategy)
         grantedRoots = try container.decode([String].self, forKey: .grantedRoots)
         projectPath = try container.decodeIfPresent(String.self, forKey: .projectPath)
+        projectID = try container.decodeIfPresent(String.self, forKey: .projectID)
+        workspaceSnapshot = try container.decodeIfPresent(WorkspaceSnapshot.self, forKey: .workspaceSnapshot)
+        sectionID = try container.decodeIfPresent(String.self, forKey: .sectionID)
     }
 }
 
 @Model
 final class ScheduledTaskProposal {
-    static let currentPayloadVersion = 1
+    static let currentPayloadVersion = 2
 
     @Attribute(.unique) var id: String
     @Attribute(.unique) var sourceConversationID: String
@@ -259,14 +279,14 @@ final class ScheduledTaskProposal {
 
 extension ScheduledTaskProposal {
     var action: ScheduledTaskProposalAction? {
-        guard payloadVersion == Self.currentPayloadVersion else {
+        guard (1...Self.currentPayloadVersion).contains(payloadVersion) else {
             return nil
         }
         return ScheduledTaskProposalAction(rawValue: actionRawValue)
     }
 
     var definitionDraft: ScheduledTaskProposalDefinitionDraft? {
-        guard payloadVersion == Self.currentPayloadVersion,
+        guard (1...Self.currentPayloadVersion).contains(payloadVersion),
               let definitionDraftJSON,
               let data = definitionDraftJSON.data(using: .utf8) else {
             return nil
@@ -282,6 +302,10 @@ extension ScheduledTaskProposal {
         }
         let draft = definitionDraft
         let hasValidDraftWorkspace = draft.map { draft in
+            if payloadVersion >= 2, draft.workspaceSnapshot == nil { return false }
+            if let workspace = draft.workspaceSnapshot,
+               workspace.primarySource?.path != draft.projectPath || workspace.grants.map(\.path) != draft.grantedRoots { return false }
+            if draft.projectID != nil, draft.sectionID != nil { return false }
             switch draft.destination {
             case .reusedThread, .newThreadPerRun:
                 guard draft.targetConversationID == nil else { return false }

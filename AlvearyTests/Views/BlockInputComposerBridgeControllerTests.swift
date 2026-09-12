@@ -292,7 +292,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
 
     func testFileCompletionHonorsParentDirectoryReference() async {
         let provider = BlockInputComposerCompletionProvider(
-            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project/current"),
+            location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project/current", workspaceRoots: ["/tmp/project/Shared"]),
             loadFileCompletions: {
                 [
                     "/tmp/project/current/Sources/App.swift",
@@ -317,7 +317,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(suggestions.first?.insertionText, "[../Shared/Config.swift](/tmp/project/Shared/Config.swift) ")
     }
 
-    func testFileCompletionUsesRelativeMarkdownLinksInsideEffectiveDirectory() async {
+    func testFileCompletionUsesAbsoluteMarkdownLinksInsideEffectiveDirectory() async {
         let provider = BlockInputComposerCompletionProvider(
             location: BlockInputComposerLocation(effectiveProjectDirectory: "/tmp/project"),
             loadFileCompletions: {
@@ -332,7 +332,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         ))
 
         XCTAssertEqual(suggestions.first?.title, "Sources/App.swift")
-        XCTAssertEqual(suggestions.first?.insertionText, "[Sources/App.swift](Sources/App.swift) ")
+        XCTAssertEqual(suggestions.first?.insertionText, "[Sources/App.swift](/tmp/project/Sources/App.swift) ")
     }
 
     func testFileCompletionPreservesSubsequenceMatching() async {
@@ -440,7 +440,7 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         )
     }
 
-    private func completionContext(
+    func completionContext(
         trigger: BlockInputCompletionTrigger,
         query: String,
         rawQuery: String,

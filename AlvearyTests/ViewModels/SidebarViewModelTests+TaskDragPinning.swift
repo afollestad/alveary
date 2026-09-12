@@ -162,7 +162,7 @@ extension SidebarViewModelTests {
         let archived = AgentThread(name: "Archived", archivedAt: Date(), mode: .task)
         let draft = AgentThread(name: "Draft", isDraft: true, mode: .task)
         let pinned = AgentThread(name: "Pinned", isPinned: true, pinnedSortOrder: 0, mode: .task)
-        let projectMode = AgentThread(name: "Project Mode")
+        let projectMode = AgentThread(name: "Project Mode", project: Project(path: "/tmp/drag-project", name: "Project"))
         let deleted = AgentThread(name: "Deleted", mode: .task)
         for thread in [archived, draft, pinned, projectMode, deleted] {
             fixture.context.insert(thread)

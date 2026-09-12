@@ -23,10 +23,17 @@ extension ModelContext {
     }
 
     func resolveProject(path: String) -> Project? {
+        let descriptor = FetchDescriptor<ProjectFolder>(predicate: #Predicate { folder in folder.path == path })
+        let projects = (try? fetch(descriptor))?.compactMap(\.project) ?? []
+        let unique = Dictionary(projects.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return unique.count == 1 ? unique.values.first : nil
+    }
+
+    func resolveProject(projectID: String) -> Project? {
         resolve(
             FetchDescriptor<Project>(
                 predicate: #Predicate { project in
-                    project.path == path
+                    project.id == projectID
                 }
             )
         )

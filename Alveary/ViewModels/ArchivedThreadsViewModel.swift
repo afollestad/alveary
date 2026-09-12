@@ -6,7 +6,7 @@ struct ArchivedThreadItem: Identifiable, Equatable {
     let id: PersistentIdentifier
     let title: String
     let archivedAt: Date
-    let projectPath: String?
+    let projectID: String?
     let projectName: String?
     /// Drives the delete confirmation copy, which differs for Task workspaces.
     let isTask: Bool
@@ -23,7 +23,7 @@ struct ArchivedThreadSection: Identifiable, Equatable {
 enum ArchivedProjectFilter: Hashable {
     case all
     case noProject
-    case project(path: String)
+    case project(id: String)
 }
 
 @MainActor
@@ -101,10 +101,10 @@ final class ArchivedThreadsViewModel {
     /// `.all` plus only those buckets that actually hold archived threads.
     var projectFilterOptions: [ArchivedProjectFilter] {
         var options: [ArchivedProjectFilter] = [.all]
-        if items.contains(where: { $0.projectPath == nil }) {
+        if items.contains(where: { $0.projectID == nil }) {
             options.append(.noProject)
         }
-        options.append(contentsOf: Self.orderedProjectBuckets(from: items).map { .project(path: $0.path) })
+        options.append(contentsOf: Self.orderedProjectBuckets(from: items).map { .project(id: $0.id) })
         return options
     }
 
@@ -114,8 +114,8 @@ final class ArchivedThreadsViewModel {
             return "All Projects"
         case .noProject:
             return "No Project"
-        case .project(let path):
-            return items.first { $0.projectPath == path }?.projectName ?? path
+        case .project(let id):
+            return items.first { $0.projectID == id }?.projectName ?? id
         }
     }
 
@@ -215,9 +215,9 @@ private extension ArchivedThreadsViewModel {
         case .all:
             return true
         case .noProject:
-            return item.projectPath == nil
-        case .project(let path):
-            return item.projectPath == path
+            return item.projectID == nil
+        case .project(let id):
+            return item.projectID == id
         }
     }
 
@@ -234,13 +234,13 @@ private extension ArchivedThreadsViewModel {
     /// this runs once per input change rather than once per `body` evaluation.
     static func makeSections(from items: [ArchivedThreadItem]) -> [ArchivedThreadSection] {
         var projectlessItems: [ArchivedThreadItem] = []
-        var itemsByProjectPath: [String: [ArchivedThreadItem]] = [:]
+        var itemsByProjectID: [String: [ArchivedThreadItem]] = [:]
         for item in items {
-            guard let projectPath = item.projectPath else {
+            guard let projectID = item.projectID else {
                 projectlessItems.append(item)
                 continue
             }
-            itemsByProjectPath[projectPath, default: []].append(item)
+            itemsByProjectID[projectID, default: []].append(item)
         }
 
         var sections: [ArchivedThreadSection] = []
@@ -248,33 +248,33 @@ private extension ArchivedThreadsViewModel {
             sections.append(ArchivedThreadSection(id: "no-project", title: nil, items: projectlessItems))
         }
         for bucket in orderedProjectBuckets(from: items) {
-            guard let projectItems = itemsByProjectPath[bucket.path] else {
+            guard let projectItems = itemsByProjectID[bucket.id] else {
                 continue
             }
             sections.append(
-                ArchivedThreadSection(id: "project:\(bucket.path)", title: bucket.name, items: projectItems)
+                ArchivedThreadSection(id: "project:\(bucket.id)", title: bucket.name, items: projectItems)
             )
         }
         return sections
     }
 
-    /// Distinct project buckets ordered the way sidebar project rows are: name, then path.
-    static func orderedProjectBuckets(from items: [ArchivedThreadItem]) -> [(path: String, name: String)] {
+    /// Distinct project buckets ordered the way sidebar project rows are: name, then id.
+    static func orderedProjectBuckets(from items: [ArchivedThreadItem]) -> [(id: String, name: String)] {
         var buckets: [String: String] = [:]
         for item in items {
-            guard let path = item.projectPath else {
+            guard let id = item.projectID else {
                 continue
             }
-            buckets[path] = item.projectName ?? path
+            buckets[id] = item.projectName ?? id
         }
         return buckets
-            .map { (path: $0.key, name: $0.value) }
+            .map { (id: $0.key, name: $0.value) }
             .sorted { left, right in
                 let comparison = left.name.localizedCaseInsensitiveCompare(right.name)
                 if comparison != .orderedSame {
                     return comparison == .orderedAscending
                 }
-                return left.path < right.path
+                return left.id < right.id
             }
     }
 
@@ -286,7 +286,7 @@ private extension ArchivedThreadsViewModel {
             id: thread.persistentModelID,
             title: thread.displayName(),
             archivedAt: archivedAt,
-            projectPath: thread.project?.path,
+            projectID: thread.project?.id,
             projectName: thread.project?.name,
             isTask: thread.effectiveMode == .task
         )

@@ -6,6 +6,28 @@ import XCTest
 
 @MainActor
 final class ThreadActivityRecorderTests: XCTestCase {
+    func testUnplacedSourceThreadParticipatesInStandaloneActivityOrdering() throws {
+        let clock = ManualDateProvider(now: Date(timeIntervalSince1970: 300))
+        let fixture = try ThreadActivityRecorderFixture(clock: clock)
+        let older = fixture.insertThread(name: "Source", modifiedAt: Date(timeIntervalSince1970: 100), conversationIDs: ["source-main"])
+        older.project = nil
+        _ = fixture.insertThread(name: "Private", modifiedAt: Date(timeIntervalSince1970: 200), conversationIDs: ["private-main"], mode: .task)
+        try fixture.save()
+        let payload = NotificationPayloadRecorder()
+        let observer = NotificationCenter.default.addObserver(forName: .threadActivityChanged, object: nil, queue: nil) {
+            if $0.userInfo?[ThreadActivityNotificationKey.conversationID] as? String == "source-main" { payload.record($0.userInfo) }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        fixture.recorder.recordVisibleOutbound(conversationId: "source-main")
+
+        XCTAssertEqual(older.modifiedAt, clock.now)
+        XCTAssertEqual(older.effectiveMode, .project)
+        XCTAssertNotNil(older.workspaceSnapshot?.primarySource)
+        XCTAssertEqual(payload.payload()?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
+        XCTAssertNil(payload.payload()?[ThreadActivityNotificationKey.projectID])
+    }
+
     func testDraftThreadIgnoresVisibleActivity() throws {
         let fixture = try ThreadActivityRecorderFixture()
         let draft = fixture.insertThread(
@@ -48,7 +70,7 @@ final class ThreadActivityRecorderTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 1)
         let payload = notificationPayload.payload()
         XCTAssertEqual(older.modifiedAt, clock.now)
-        XCTAssertEqual(payload?[ThreadActivityNotificationKey.projectPath] as? String, fixture.project.path)
+        XCTAssertEqual(payload?[ThreadActivityNotificationKey.projectID] as? String, fixture.project.id)
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.threadID] as? PersistentIdentifier, older.persistentModelID)
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.conversationID] as? String, "older-main")
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
@@ -158,7 +180,7 @@ final class ThreadActivityRecorderTests: XCTestCase {
         let payload = notificationPayload.payload()
         XCTAssertEqual(older.modifiedAt, clock.now)
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.threadMode] as? String, AgentThreadMode.task.rawValue)
-        XCTAssertNil(payload?[ThreadActivityNotificationKey.projectPath])
+        XCTAssertNil(payload?[ThreadActivityNotificationKey.projectID])
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.didChangeOrder] as? Bool, true)
     }
 
@@ -199,7 +221,7 @@ final class ThreadActivityRecorderTests: XCTestCase {
         // Activity scope follows sidebar placement: this thread has a project, so its activity
         // re-sorts that project's children even though its persisted mode is unknown.
         XCTAssertEqual(payload?[ThreadActivityNotificationKey.threadMode] as? String, AgentThreadMode.project.rawValue)
-        XCTAssertNotNil(payload?[ThreadActivityNotificationKey.projectPath])
+        XCTAssertNotNil(payload?[ThreadActivityNotificationKey.projectID])
     }
 
     func testPinnedTaskActivityUpdatesTimestampWithoutChangingTaskOrder() async throws {

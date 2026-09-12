@@ -58,25 +58,23 @@ private extension ScheduledTaskHostToolRequestParser {
         in parentPath: String
     ) throws -> ScheduledTaskProposalWorkspace {
         let object = StrictHostToolObject(values, path: "\(parentPath).workspace")
-        try object.requireOnly(["kind", "project_path", "granted_roots"])
+        try object.requireOnly(["kind", "project_path", "project_id", "primary_folder_path", "granted_roots"])
         let kind = try object.requiredNonEmptyString("kind")
         let projectPath = try object.optionalNonEmptyString("project_path")
+        let projectID = try object.optionalNonEmptyString("project_id")
+        let primaryPath = try object.optionalNonEmptyString("primary_folder_path")
         let grantedRoots = try grantedRoots(in: object)
-
-        switch kind {
-        case "project":
-            guard let projectPath else {
-                throw invalid("\(object.path).project_path is required for a project workspace.")
-            }
-            return .project(path: projectPath, grantedRoots: grantedRoots)
-        case "private":
-            guard projectPath == nil else {
-                throw invalid("\(object.path).project_path does not apply to a private workspace.")
-            }
-            return .privateWorkspace(grantedRoots: grantedRoots)
-        default:
-            throw invalid("\(object.path).kind must be project or private.")
+        guard projectID == nil || projectPath == nil else { throw invalid("Use project_id or project_path, not both.") }
+        guard kind == "project" || kind == "private" else { throw invalid("\(object.path).kind must be project or private.") }
+        if let key = projectID ?? projectPath {
+            guard kind != "private" || primaryPath == nil else { throw invalid("A private workspace cannot select a primary folder.") }
+            return .project(path: key, grantedRoots: grantedRoots, isID: projectID != nil,
+                            primaryFolderPath: primaryPath, privateWorkspace: kind == "private")
         }
+        guard primaryPath == nil else { throw invalid("primary_folder_path requires project_id.") }
+
+        guard kind == "private" else { throw invalid("\(object.path).project_id is required for a project workspace.") }
+        return .privateWorkspace(grantedRoots: grantedRoots)
     }
 
     func grantedRoots(in object: StrictHostToolObject) throws -> [String]? {
@@ -126,11 +124,13 @@ extension ScheduledTaskHostToolRequestParser {
                 return .object(object)
             }
             var workspaceValues: [String: AgentCLIKit.JSONValue] = [
-                "kind": .string(workspace.kind.rawValue)
+                "kind": .string(workspace.requestsPrivateWorkspace ? "private" : "project")
             ]
             if let projectPath = workspace.projectPath {
                 workspaceValues["project_path"] = .string(projectPath)
             }
+            if let id = workspace.projectID { workspaceValues["project_id"] = .string(id) }
+            if let path = workspace.primaryFolderPath { workspaceValues["primary_folder_path"] = .string(path) }
             if let grantedRoots = workspace.grantedRoots {
                 workspaceValues["granted_roots"] = .array(grantedRoots.sorted().map(AgentCLIKit.JSONValue.string))
             }

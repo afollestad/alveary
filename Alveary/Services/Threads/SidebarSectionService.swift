@@ -217,7 +217,7 @@ final class SidebarSectionService {
                   !thread.isDraft else {
                 throw SidebarViewModelError.threadMissing
             }
-            guard thread.effectiveMode == .task else {
+            guard thread.supportsIndependentSidebarPlacement else {
                 throw SidebarSectionServiceError.threadNotEligible
             }
             let targetSection: SidebarSection?

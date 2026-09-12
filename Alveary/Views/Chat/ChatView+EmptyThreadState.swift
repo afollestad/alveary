@@ -11,22 +11,17 @@ struct EmptyThreadProjectOption {
     }
 }
 
-struct EmptyThreadProjectIdentityPresentation: Equatable {
-    let helpText: String
-    let accessibilityValue: String
-}
-
 @MainActor
 func emptyThreadProjectOptions(
     projects: [Project],
-    selectedProjectPath: String?
+    selectedProjectID: String?
 ) -> [EmptyThreadProjectOption] {
     let sortedProjects = projects.sorted { lhs, rhs in
         let comparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
         if comparison != .orderedSame {
             return comparison == .orderedAscending
         }
-        return lhs.path < rhs.path
+        return lhs.id < rhs.id
     }
 
     return sortedProjects.map { project in
@@ -36,22 +31,9 @@ func emptyThreadProjectOptions(
                 candidate.persistentModelID != project.persistentModelID &&
                     candidate.name.localizedCaseInsensitiveCompare(project.name) == .orderedSame
             },
-            isSelected: project.path == selectedProjectPath
+            isSelected: project.id == selectedProjectID
         )
     }
-}
-
-func emptyThreadProjectIdentityPresentation(
-    name: String,
-    path: String?
-) -> EmptyThreadProjectIdentityPresentation {
-    guard let path else {
-        return EmptyThreadProjectIdentityPresentation(helpText: name, accessibilityValue: name)
-    }
-    return EmptyThreadProjectIdentityPresentation(
-        helpText: "\(name)\n\(path)",
-        accessibilityValue: "\(name), \(path)"
-    )
 }
 
 struct EmptyThreadState: View {
@@ -60,22 +42,28 @@ struct EmptyThreadState: View {
     let thread: AgentThread?
     let projects: [Project]
     let isProjectSelectionDisabled: Bool
-    let onSelectProject: (String) -> Void
+    let onSelectDestination: (ThreadDraftDestination) -> Void
+    let sections: [SidebarSection]
+    let workspaceConfiguration: ChatComposerActionRowView.TaskWorkspaceConfiguration?
 
     init(
         setupPhase: SetupPhase?,
         isCancellingInitialSetup: Bool,
         thread: AgentThread? = nil,
         projects: [Project] = [],
+        sections: [SidebarSection] = [],
         isProjectSelectionDisabled: Bool = false,
-        onSelectProject: @escaping (String) -> Void = { _ in }
+        onSelectDestination: @escaping (ThreadDraftDestination) -> Void = { _ in },
+        workspaceConfiguration: ChatComposerActionRowView.TaskWorkspaceConfiguration? = nil
     ) {
         self.setupPhase = setupPhase
         self.isCancellingInitialSetup = isCancellingInitialSetup
         self.thread = thread
         self.projects = projects
+        self.sections = sections
         self.isProjectSelectionDisabled = isProjectSelectionDisabled
-        self.onSelectProject = onSelectProject
+        self.onSelectDestination = onSelectDestination
+        self.workspaceConfiguration = workspaceConfiguration
     }
 
     var body: some View {
@@ -113,92 +101,30 @@ struct EmptyThreadState: View {
 
 private extension EmptyThreadState {
     var projectOptions: [EmptyThreadProjectOption] {
-        emptyThreadProjectOptions(projects: projects, selectedProjectPath: projectPath)
+        emptyThreadProjectOptions(projects: projects, selectedProjectID: thread?.project?.id)
     }
 
-    var projectName: String {
-        thread?.project?.name ?? "this project"
-    }
-
-    var projectPath: String? {
-        thread?.project?.path
-    }
-
-    var projectIdentityPresentation: EmptyThreadProjectIdentityPresentation {
-        emptyThreadProjectIdentityPresentation(name: projectName, path: projectPath)
+    var destinationName: String {
+        thread?.project?.name ?? thread?.customSection?.name ?? "Tasks"
     }
 
     var newThreadHero: some View {
-        Group {
-            if thread?.effectiveMode == .task {
-                taskThreadHero
-            } else {
-                projectThreadHero
-            }
-        }
-    }
-
-    var projectThreadHero: some View {
         VStack(spacing: 24) {
             Image(systemName: "sparkles")
                 .font(.system(size: 42, weight: .semibold))
                 .foregroundStyle(.tint)
-
             VStack(spacing: 12) {
-                ViewThatFits(in: .horizontal) {
-                    oneLineProjectQuestion
-                        .fixedSize(horizontal: true, vertical: false)
-
-                    twoLineProjectQuestion
-                        .fixedSize(horizontal: true, vertical: false)
-
-                    truncatedTwoLineProjectQuestion
-                }
-                .font(.title.weight(.semibold))
-                .multilineTextAlignment(.center)
-
-                Text(
-                    "Ask your agent to explore the project, make changes, or explain what it finds. " +
-                        "Your first message will start the session."
-                )
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 560)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
-    }
-
-    var taskThreadHero: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "checklist")
-                .font(.system(size: 42, weight: .semibold))
-                .foregroundStyle(.tint)
-
-            VStack(spacing: 12) {
-                Text("What should this task do?")
+                Text("What would you like to work on?")
                     .font(.title.weight(.semibold))
-
-                Text(
-                    "Your first message starts the task in \(taskWorkspaceIntroLocation). " +
-                        "Use Workspace below to grant access to additional folders."
-                )
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 560)
-
-                if let workspace = thread?.taskWorkspaceDescriptor {
-                    Text(taskWorkspaceSummary(workspace))
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                        .help(taskWorkspaceHelp(workspace))
-                        .accessibilityLabel("Task workspace")
-                        .accessibilityValue(taskWorkspaceHelp(workspace))
+                    .multilineTextAlignment(.center)
+                Text("Ask your agent to explore, make changes, or help with a task.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                if thread?.isDraft == true {
+                    draftDestinationControls
+                } else {
+                    destinationPicker
+                    workspaceControl
                 }
             }
         }
@@ -206,126 +132,80 @@ private extension EmptyThreadState {
         .padding(40)
     }
 
-    func taskWorkspaceSummary(_ workspace: TaskWorkspaceDescriptor) -> String {
-        let rootName = URL(fileURLWithPath: workspace.primaryRoot, isDirectory: true).lastPathComponent
-        let workspaceKind: String
-        switch workspace.ownershipStrategy {
-        case .privateOwned:
-            workspaceKind = "Private workspace"
-        case .projectLocal:
-            workspaceKind = "Project workspace"
-        case .projectWorktreeOwned:
-            workspaceKind = "Task worktree"
+    var draftDestinationControls: some View {
+        HStack(spacing: 6) {
+            destinationPicker
+                .padding(.leading, 8)
+            if workspaceConfiguration != nil {
+                Divider().frame(height: 18)
+                workspaceControl
+            }
         }
-        let count = workspace.grantedRoots.count
-        guard count > 0 else {
-            return "\(workspaceKind): \(rootName)"
-        }
-        return "\(workspaceKind): \(rootName) · \(count) additional folder\(count == 1 ? "" : "s")"
-    }
-
-    var taskWorkspaceIntroLocation: String {
-        switch thread?.taskWorkspaceDescriptor?.ownershipStrategy {
-        case .projectLocal:
-            return "the project workspace"
-        case .projectWorktreeOwned:
-            return "a dedicated task worktree"
-        case .privateOwned, nil:
-            return "a private workspace"
-        }
-    }
-
-    func taskWorkspaceHelp(_ workspace: TaskWorkspaceDescriptor) -> String {
-        ([workspace.primaryRoot] + workspace.grantedRoots).joined(separator: "\n")
+        .padding(4)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary, lineWidth: 1).allowsHitTesting(false))
+        .padding(.top, 4)
     }
 
     @ViewBuilder
-    var projectHeading: some View {
-        if thread?.isDraft == true, projectPath != nil {
+    var destinationPicker: some View {
+        if thread?.isDraft == true {
             Menu {
-                ForEach(projectOptions, id: \.project.persistentModelID) { option in
-                    Button {
-                        onSelectProject(option.project.path)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(option.project.name)
-                                if option.showsDisambiguatingPath {
-                                    Text(option.displayPath)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            if option.isSelected {
-                                Image(systemName: "checkmark")
-                            }
+                Button("Tasks") { onSelectDestination(.tasks) }
+                ForEach(sections.filter { $0.kind == .custom }.sorted { $0.name < $1.name }, id: \.id) { section in
+                    Button(section.name) { onSelectDestination(.section(id: section.id)) }
+                }
+                if !projectOptions.isEmpty {
+                    Divider()
+                    ForEach(projectOptions, id: \.project.id) { option in
+                        Button {
+                            onSelectDestination(.project(id: option.project.id))
+                        } label: {
+                            Text(option.showsDisambiguatingPath
+                                 ? "\(option.project.name) — \(option.displayPath)" : option.project.name)
+                            if option.isSelected { Image(systemName: "checkmark") }
                         }
                     }
                 }
             } label: {
-                projectNameLabel(isUnderlined: true)
+                Label(destinationName, systemImage: thread?.project == nil ? "tray" : "folder")
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            .menuIndicator(.hidden)
-            .buttonStyle(.plain)
+            .menuStyle(.borderlessButton)
+            .fixedSize(horizontal: false, vertical: true)
             .disabled(isProjectSelectionDisabled)
-            .help(projectIdentityPresentation.helpText)
-            .accessibilityLabel("Project")
-            .accessibilityValue(projectIdentityPresentation.accessibilityValue)
+            .help("Choose where to place this thread: \(destinationName)")
+            .accessibilityLabel("Thread placement")
+            .accessibilityValue(destinationName)
         } else {
-            projectNameLabel(isUnderlined: false)
-                .help(projectIdentityPresentation.helpText)
-                .accessibilityLabel("Project")
-                .accessibilityValue(projectIdentityPresentation.accessibilityValue)
+            Text(destinationName).foregroundStyle(.secondary)
         }
     }
 
-    var oneLineProjectQuestion: some View {
-        HStack(spacing: 0) {
-            Text("What should we build in")
-            projectHeading
-                .padding(.leading, 8)
-            Text("?")
+    @ViewBuilder
+    var workspaceControl: some View {
+        if let thread, thread.isDraft, let workspaceConfiguration {
+            ChatWorkspaceControl(
+                contextID: "\(thread.id):\(thread.project?.id ?? "tasks"):\(thread.customSection?.id ?? "")",
+                configuration: workspaceConfiguration,
+                isEnabled: !isProjectSelectionDisabled
+            )
+            .fixedSize()
+        } else if thread?.isDraft != true, let source = thread?.sourceFolder {
+            Text(CanonicalPath.abbreviateHomeDirectory(source.path))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(source.path)
+        } else if thread?.isDraft != true {
+            Text("Private workspace")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
-    var twoLineProjectQuestion: some View {
-        VStack(spacing: 2) {
-            Text("What should we build in")
-            HStack(spacing: 0) {
-                projectHeading
-                Text("?")
-            }
-        }
-    }
-
-    var truncatedTwoLineProjectQuestion: some View {
-        VStack(spacing: 2) {
-            Text("What should we build in")
-            HStack(spacing: 0) {
-                projectHeading
-                    .frame(maxWidth: .infinity)
-                Text("?")
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            // The middle pane can be 420 points wide. Its 40-point horizontal
-            // padding leaves a 340-point proposal, so this cap must remain flexible
-            // rather than forcing the full 360-point ideal width.
-            .frame(maxWidth: 360)
-        }
-    }
-
-    func projectNameLabel(isUnderlined: Bool) -> some View {
-        Text(projectName)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .overlay(alignment: .bottom) {
-                if isUnderlined {
-                    Rectangle()
-                        .frame(height: 1)
-                        .offset(y: 2)
-                }
-            }
-    }
 }
 
 private extension EmptyThreadState {

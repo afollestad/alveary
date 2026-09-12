@@ -317,6 +317,7 @@ struct ConversationViewModelTestFixture {
         sessionApprovalEffective: Bool = true,
         worktreeInfo: WorktreeInfo = WorktreeInfo(path: "/tmp/worktree", branch: "alveary/thread"),
         projectIsGitRepository: Bool = true,
+        projectPath: String = "/tmp/alveary-project",
         pausesWorktreeCreate: Bool = false,
         initialAgentIsRunning: Bool? = nil,
         providerId: String = "claude",
@@ -326,10 +327,13 @@ struct ConversationViewModelTestFixture {
         attachmentStore: (any ConversationAttachmentStore)? = nil,
         taskWorkspaceOwnershipService: (any TaskWorkspaceOwnershipService)? = nil,
         threadActivityRecorder: (any ThreadActivityRecording)? = nil,
-        draftMaterializationSaver: (() throws -> Void)? = nil
+        draftMaterializationSaver: (() throws -> Void)? = nil,
+        resolveSourceFolder: @escaping @Sendable (String) async -> SourceFolderSnapshot = {
+            await SourceFolderMetadataResolver().resolve(path: $0)
+        }
     ) throws {
         let (container, context) = try Self.makeInMemoryContainer()
-        let project = Self.makeProject(isGitRepository: projectIsGitRepository)
+        let project = Self.makeProject(isGitRepository: projectIsGitRepository, path: projectPath)
         let thread = AgentThread(
             name: threadName,
             hasCustomName: threadHasCustomName,
@@ -393,7 +397,8 @@ struct ConversationViewModelTestFixture {
             contextWindowCache: contextWindowCache,
             attachmentStore: resolvedAttachmentStore,
             threadActivityRecorder: threadActivityRecorder ?? NoopThreadActivityRecorder(),
-            draftMaterializationSaver: draftMaterializationSaver
+            draftMaterializationSaver: draftMaterializationSaver,
+            resolveSourceFolder: resolveSourceFolder
         )
         if initialAgentIsRunning ?? hasCompletedInitialSetup {
             viewModel.state.liveSessionConfig = try viewModel.makeSpawnConfig()
@@ -426,9 +431,9 @@ struct ConversationViewModelTestFixture {
         )
         return (container, ModelContext(container))
     }
-    private static func makeProject(isGitRepository: Bool) -> Project {
+    private static func makeProject(isGitRepository: Bool, path: String) -> Project {
         Project(
-            path: "/tmp/alveary-project",
+            path: path,
             name: "Alveary",
             remoteName: isGitRepository ? "origin" : nil,
             gitBranch: isGitRepository ? "feature/auth" : nil,

@@ -45,7 +45,7 @@ extension ScheduledTaskSchedulerEngineTests {
         let fixture = try ScheduledTaskSchedulerFixture()
         let project = Project(path: "/tmp/existing-target", name: "Target Project")
         let target = AgentThread(name: "Pinned target", isPinned: true, project: project)
-        target.taskGrantedRoots = ["/tmp/existing-grant"]
+        try target.replaceAdditionalFolders([SourceFolderSnapshot(path: "/tmp/existing-grant")])
         let conversation = Conversation(id: "existing-target-main", provider: "codex", thread: target)
         target.conversations = [conversation]
         project.threads = [target]

@@ -42,7 +42,7 @@ extension PullRequestAgenticThreadService {
         headRefName: String?
     ) -> TaskWorkspaceDescriptor? {
         linkedThreadWorkspaces(identifier: identifier, headRefName: headRefName).first
-            ?? branchThreadWorkspaces(headRefName: headRefName).first
+            ?? branchThreadWorkspaces(identifier: identifier, headRefName: headRefName).first
     }
 
     /// Every rung-1 and rung-2 candidate, in ladder order, so the deferred half can keep asking
@@ -55,7 +55,7 @@ extension PullRequestAgenticThreadService {
         var seenRoots: Set<String> = []
         var candidates: [TaskWorkspaceDescriptor] = []
         for descriptor in linkedThreadWorkspaces(identifier: identifier, headRefName: headRefName)
-            + branchThreadWorkspaces(headRefName: headRefName) where seenRoots.insert(descriptor.primaryRoot).inserted {
+            + branchThreadWorkspaces(identifier: identifier, headRefName: headRefName) where seenRoots.insert(descriptor.primaryRoot).inserted {
             candidates.append(descriptor)
         }
         return candidates
@@ -73,14 +73,17 @@ extension PullRequestAgenticThreadService {
         // and this time every candidate is probed before it is kept.
         for candidate in borrowableWorkspaces(identifier: work.identifier, headRefName: headRefName)
         where candidate != seededBorrow {
+            let snapshot = workspaceSnapshot(for: candidate, identifier: work.identifier)
             guard await isOnHeadBranch(candidate, headRefName: headRefName) else {
                 continue
             }
-            try? lifecycleService.replaceTaskWorkspace(threadID: work.threadID, with: candidate)
+            try? await lifecycleService.replaceTaskWorkspace(
+                threadID: work.threadID, with: candidate, snapshot: snapshot
+            )
             return
         }
         guard let headRefName,
-              let project = resolvedProject(
+              let target = resolvedProjectFolder(
                   for: work.identifier,
                   preferredProjectID: work.preferredProjectID
               ) else {
@@ -95,8 +98,7 @@ extension PullRequestAgenticThreadService {
         }
         await createWorkspace(
             threadID: work.threadID,
-            projectPath: project.path,
-            remoteName: project.remoteName,
+            source: target.folder,
             branch: headRefName,
             threadName: work.threadName
         )
@@ -122,16 +124,16 @@ extension PullRequestAgenticThreadService {
     /// borrow rungs come first: git refuses a second worktree on a branch already checked out.
     private func createWorkspace(
         threadID: PersistentIdentifier,
-        projectPath: String,
-        remoteName: String?,
+        source: SourceFolderSnapshot,
         branch: String,
         threadName: String
     ) async {
+        let projectPath = source.path
         guard let created = try? await worktreeManager.createFromBranch(
             projectPath: projectPath,
             threadName: threadName,
             branch: branch,
-            remoteName: remoteName
+            remoteName: source.remoteName
         ) else {
             return
         }
@@ -141,7 +143,11 @@ extension PullRequestAgenticThreadService {
                 sourceProjectPath: projectPath,
                 grantedRoots: []
             )
-            try lifecycleService.replaceTaskWorkspace(threadID: threadID, with: descriptor)
+            var checkedOutSource = source
+            checkedOutSource.gitBranch = branch
+            try await lifecycleService.replaceTaskWorkspace(
+                threadID: threadID, with: descriptor, snapshot: WorkspaceSnapshot(primarySource: checkedOutSource)
+            )
         } catch {
             // Nothing points at the checkout now, and an unowned worktree in the user's project is
             // worse than no upgrade at all. `branch: nil` removes the worktree and leaves the pull
@@ -152,6 +158,20 @@ extension PullRequestAgenticThreadService {
                 branch: nil
             )
         }
+    }
+
+    /// Capture metadata from the exact borrowed folder before provider discovery can suspend.
+    /// The descriptor carries cleanup provenance; repository controls need the saved source too.
+    func workspaceSnapshot(for descriptor: TaskWorkspaceDescriptor, identifier: PullRequestIdentifier) -> WorkspaceSnapshot {
+        let threads = (try? lifecycleService.modelContext.fetch(FetchDescriptor<AgentThread>())) ?? []
+        let folder = threads.lazy.flatMap(\.workspaceFolderTargets).first {
+            $0.directory == descriptor.primaryRoot && $0.source.path == descriptor.sourceProjectPath
+                && $0.repository?.lowercased() == identifier.nameWithOwner.lowercased()
+        }
+        let source = folder?.source ?? descriptor.sourceProjectPath.map {
+            SourceFolderSnapshot(path: $0, githubRepository: identifier.nameWithOwner)
+        }
+        return WorkspaceSnapshot(primarySource: source)
     }
 
     /// Rung 1. The link is the most precise evidence there is — the linked thread is usually the
@@ -170,13 +190,12 @@ extension PullRequestAgenticThreadService {
                 }
                 return thread
             }
-            .filter { Self.isOnBranch($0, headRefName: headRefName) }
-            .compactMap(borrowableWorkspace(of:))
+            .flatMap { borrowableWorkspaces(of: $0, identifier: identifier, headRefName: headRefName) }
     }
 
     /// Rung 2. No `#Predicate` can reach `branch` alongside the visibility filter cheaply, so this
     /// narrows to sidebar-visible threads and matches in memory, as task-workspace retention does.
-    private func branchThreadWorkspaces(headRefName: String?) -> [TaskWorkspaceDescriptor] {
+    private func branchThreadWorkspaces(identifier: PullRequestIdentifier, headRefName: String?) -> [TaskWorkspaceDescriptor] {
         guard let headRefName else {
             return []
         }
@@ -187,37 +206,26 @@ extension PullRequestAgenticThreadService {
         )
         let threads = (try? lifecycleService.modelContext.fetch(descriptor)) ?? []
         return threads
-            .filter { $0.branch == headRefName }
-            .compactMap(borrowableWorkspace(of:))
+            .flatMap { borrowableWorkspaces(of: $0, identifier: identifier, headRefName: headRefName) }
     }
 
-    /// A thread naming a *different* branch has moved on from the pull request, so its checkout is
-    /// not one of this head. A thread naming none — every Task thread — passes here and is settled
-    /// by the git probe instead; this filter is only the cheap half.
-    private static func isOnBranch(_ thread: AgentThread, headRefName: String?) -> Bool {
-        guard let headRefName, let branch = thread.branch else {
-            return true
+    /// Every matching saved folder is a candidate. A same-named branch in another repository
+    /// is never sufficient evidence to lend that checkout to a pull-request agent.
+    private func borrowableWorkspaces(
+        of thread: AgentThread, identifier: PullRequestIdentifier, headRefName: String?
+    ) -> [TaskWorkspaceDescriptor] {
+        guard thread.sourceFolder != nil || thread.workspaceSnapshot?.grants.isEmpty == false else { return [] }
+        return thread.workspaceFolderTargets.compactMap { folder in
+            guard folder.repository?.lowercased() == identifier.nameWithOwner.lowercased(), directoryExists(folder.directory) else { return nil }
+            // Secondary folders are shared local checkouts. Their import-time branch is not
+            // current state; let the deferred Git probe decide whether they still match the PR.
+            let branch = folder.isPrimary ? thread.branch : nil
+            if let headRefName, let branch, headRefName != branch { return nil }
+            return TaskWorkspaceDescriptor(
+                persistedPrimaryRoot: folder.directory, persistedGrantedRoots: [],
+                ownershipStrategy: .projectLocal, ownershipMarkerID: nil, persistedSourceProjectPath: folder.source.path
+            )
         }
-        return branch == headRefName
-    }
-
-    /// Borrowed, never owned: `.projectLocal` is the strategy whose cleanup does nothing, so
-    /// deleting the address-feedback thread leaves the checkout the lender is still using.
-    private func borrowableWorkspace(of thread: AgentThread) -> TaskWorkspaceDescriptor? {
-        guard let root = thread.primaryWorkingDirectory,
-              // A private workspace has no source project, so it is a scratch directory rather
-              // than a checkout. This is also what stops the new thread from lending to itself
-              // once linking has put it in rung 1's results: until the checkout settles, the only
-              // workspace it has is the private one.
-              let sourceProjectPath = thread.sourceProjectCleanupPath,
-              directoryExists(root) else {
-            return nil
-        }
-        return TaskWorkspaceDescriptor(
-            primaryRoot: root,
-            ownershipStrategy: .projectLocal,
-            sourceProjectPath: sourceProjectPath
-        )
     }
 
     /// The pane's own project, when it has one and holds this repository; otherwise any project
@@ -227,19 +235,28 @@ extension PullRequestAgenticThreadService {
         for identifier: PullRequestIdentifier,
         preferredProjectID: PersistentIdentifier?
     ) -> Project? {
-        let repository = identifier.nameWithOwner.lowercased()
-        let projects = ((try? lifecycleService.modelContext.fetch(FetchDescriptor<Project>())) ?? [])
-            .filter { Self.repository(of: $0)?.lowercased() == repository }
-        if let preferredProjectID,
-           let preferred = projects.first(where: { $0.persistentModelID == preferredProjectID }) {
-            return preferred
-        }
-        return projects.sorted { $0.path < $1.path }.first
+        resolvedProjectFolder(for: identifier, preferredProjectID: preferredProjectID)?.project
     }
 
-    /// `githubRepository` is written once at import and never refreshed, so a project whose remote
-    /// was set afterwards is only reachable through the derived fallback.
-    private static func repository(of project: Project) -> String? {
-        project.githubRepository ?? project.gitRemote.flatMap(Project.parseGitHubRepository(from:))
+    /// Preferred project wins across all its folders. Other matches use source path then UUID,
+    /// so a shared checkout never makes selection depend on fetch order.
+    func resolvedProjectFolder(
+        for identifier: PullRequestIdentifier, preferredProjectID: PersistentIdentifier?
+    ) -> (project: Project, folder: SourceFolderSnapshot)? {
+        let repository = identifier.nameWithOwner.lowercased()
+        let projects = (try? lifecycleService.modelContext.fetch(FetchDescriptor<Project>())) ?? []
+        let matches = projects.flatMap { project in
+            project.orderedFolders.compactMap { folder -> (project: Project, folder: SourceFolderSnapshot)? in
+                let source = folder.snapshot
+                let name = source.githubRepository ?? source.gitRemote.flatMap(Project.parseGitHubRepository(from:))
+                return name?.lowercased() == repository ? (project, source) : nil
+            }
+        }
+        if let preferredProjectID, let preferred = matches.first(where: { $0.project.persistentModelID == preferredProjectID }) {
+            return preferred
+        }
+        return matches.sorted {
+            $0.folder.path == $1.folder.path ? $0.project.id < $1.project.id : $0.folder.path < $1.folder.path
+        }.first
     }
 }

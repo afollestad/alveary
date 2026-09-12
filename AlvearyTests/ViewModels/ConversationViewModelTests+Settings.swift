@@ -400,6 +400,7 @@ extension ConversationViewModelTests {
 
     func testApplyWorktreePreferenceChangePersistsWhenProjectIsGitRepository() async throws {
         let fixture = try ConversationViewModelTestFixture(
+            isDraft: true,
             useWorktree: false,
             hasCompletedInitialSetup: false
         )
@@ -411,6 +412,7 @@ extension ConversationViewModelTests {
 
     func testApplyWorktreePreferenceChangeIgnoresNonGitProjects() async throws {
         let fixture = try ConversationViewModelTestFixture(
+            isDraft: true,
             useWorktree: false,
             hasCompletedInitialSetup: false,
             projectIsGitRepository: false
@@ -466,6 +468,7 @@ extension ConversationViewModelTests {
 
     func testApplyWorktreePreferenceChangeIsRejectedWhileSendingMessage() async throws {
         let fixture = try ConversationViewModelTestFixture(
+            isDraft: true,
             useWorktree: false,
             hasCompletedInitialSetup: false
         )

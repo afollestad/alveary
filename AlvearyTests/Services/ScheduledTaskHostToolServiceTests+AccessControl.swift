@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskHostToolServiceTests {
-    func testAutomatedScheduledRunCannotListOrProposeSchedules() throws {
+    func testAutomatedScheduledRunCannotListOrProposeSchedules() async throws {
         let fixture = try ScheduledTaskHostToolFixture.task(
             descriptor: TaskWorkspaceDescriptor(
                 primaryRoot: "/tmp/automated-task",
@@ -29,11 +29,11 @@ extension ScheduledTaskHostToolServiceTests {
         fixture.thread.scheduledTaskRun = run
         try fixture.modelContext.save()
 
-        let listResult = fixture.service.handle(
+        let listResult = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(name: ScheduledTaskHostToolCatalog.listToolName)
         )
-        let proposalResult = fixture.service.handle(
+        let proposalResult = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -47,13 +47,13 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
     }
 
-    func testListRejectsMismatchedProviderAndProposalRequiresRequestIdentity() throws {
+    func testListRejectsMismatchedProviderAndProposalRequiresRequestIdentity() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
-        let mismatchedList = fixture.service.handle(
+        let mismatchedList = await fixture.service.handle(
             context: fixture.agentContext(providerID: .claude),
             call: AgentCLIKit.AgentHostToolCall(name: ScheduledTaskHostToolCatalog.listToolName)
         )
-        let missingIdentity = fixture.service.handle(
+        let missingIdentity = await fixture.service.handle(
             context: fixture.agentContext(requestID: nil),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,

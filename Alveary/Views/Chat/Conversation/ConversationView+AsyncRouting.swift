@@ -64,28 +64,6 @@ enum ConversationAsyncRouting {
         let snapshot: ComposerProviderStatusSnapshot
     }
 
-    struct DiffSwitchRequest {
-        let threadID: PersistentIdentifier
-        let workingDirectory: String
-        let allowsThreadScopedSwitch: Bool
-
-        init(
-            threadID: PersistentIdentifier,
-            workingDirectory: String,
-            allowsThreadScopedSwitch: Bool = true
-        ) {
-            self.threadID = threadID
-            self.workingDirectory = workingDirectory
-            self.allowsThreadScopedSwitch = allowsThreadScopedSwitch
-        }
-    }
-
-    struct DiffSwitchLiveState {
-        let selectedSidebarItem: @MainActor () -> SidebarItem?
-        let currentWorkingDirectory: @MainActor () -> String?
-        let resolveScope: @MainActor () -> DiffViewerSwitchScope
-    }
-
     @MainActor
     static func loadProviderStatuses(
         request: ProviderStatusRequest,
@@ -122,24 +100,4 @@ enum ConversationAsyncRouting {
         ComposerProviderStatusCache.store(result.snapshot, for: result.requestKey)
     }
 
-    @MainActor
-    static func warmFileCacheForDiffSwitch(
-        request: DiffSwitchRequest,
-        fileListManager: FileListManager,
-        liveState: DiffSwitchLiveState,
-        performSwitch: @escaping @MainActor (DiffViewerSwitchScope) async -> Void
-    ) async {
-        await fileListManager.warmCache(for: request.workingDirectory)
-
-        // Cache warming can finish after navigation or an in-place draft project
-        // reassignment, so claim the diff target only while both inputs still match.
-        guard request.allowsThreadScopedSwitch,
-              !Task.isCancelled,
-              case .thread(let selectedThread) = liveState.selectedSidebarItem(),
-              selectedThread.persistentModelID == request.threadID,
-              liveState.currentWorkingDirectory() == request.workingDirectory else {
-            return
-        }
-        await performSwitch(liveState.resolveScope())
-    }
 }

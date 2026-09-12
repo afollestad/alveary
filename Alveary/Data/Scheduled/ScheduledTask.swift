@@ -56,6 +56,7 @@ final class ScheduledTask {
     var workspaceKindRawValue: String
     var workspaceStrategyRawValue: String
     var grantedRoots: [String]
+    var workspaceSnapshotJSON: String?
     var nextOccurrenceAt: Date?
     var pendingOccurrenceAt: Date?
     var targetWaitStartedAt: Date?
@@ -104,7 +105,7 @@ final class ScheduledTask {
         permissionMode: String = "default",
         workspaceKind: ScheduledTaskWorkspaceKind = .privateWorkspace,
         workspaceStrategy: ScheduledTaskWorkspaceStrategy = .worktree,
-        grantedRoots: [String] = [],
+        grantedRoots: [String]? = nil,
         project: Project? = nil,
         nextOccurrenceAt: Date? = nil,
         pendingOccurrenceAt: Date? = nil,
@@ -114,7 +115,8 @@ final class ScheduledTask {
         createdAt: Date = .now,
         modifiedAt: Date = .now,
         targetThread: AgentThread? = nil,
-        runs: [ScheduledTaskRun] = []
+        runs: [ScheduledTaskRun] = [],
+        workspaceSnapshot: WorkspaceSnapshot? = nil
     ) {
         self.id = id
         self.title = title
@@ -130,8 +132,18 @@ final class ScheduledTask {
         self.permissionMode = permissionMode
         self.workspaceKindRawValue = workspaceKind.rawValue
         self.workspaceStrategyRawValue = workspaceStrategy.rawValue
-        self.grantedRoots = Self.normalizedUniquePaths(grantedRoots)
         self.project = project
+        let defaults = workspaceKind == .project ? project?.workspaceSnapshot() : nil
+        let snapshot = workspaceSnapshot ?? WorkspaceSnapshot(
+            primarySource: defaults?.primarySource,
+            grants: grantedRoots.map { roots in
+                Self.normalizedUniquePaths(roots).map { path in
+                    defaults?.grants.first { $0.path == path } ?? SourceFolderSnapshot(path: path)
+                }
+            } ?? defaults?.grants ?? []
+        )
+        self.grantedRoots = snapshot.grants.map(\.path)
+        self.workspaceSnapshotJSON = snapshot.encoded
         self.nextOccurrenceAt = nextOccurrenceAt
         self.pendingOccurrenceAt = pendingOccurrenceAt
         self.targetWaitStartedAt = targetWaitStartedAt

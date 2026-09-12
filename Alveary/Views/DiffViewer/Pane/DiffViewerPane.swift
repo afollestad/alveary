@@ -45,6 +45,8 @@ struct DiffViewerPane: View {
     let onViewPullRequestRequested: () -> Void
     let onClose: () -> Void
 
+    @State private var pendingDiscardTarget: DiffWorkspaceTarget?
+    @State private var pendingForcePushTarget: DiffWorkspaceTarget?
     @State private var pendingDiscardFiles: [FileStatus] = []
     @State private var isFileListTopDividerVisible = false
     @State private var isPushInFlight = false
@@ -89,30 +91,31 @@ struct DiffViewerPane: View {
                 showsFileActions: mode == .currentChanges,
                 onModeSelected: selectMode,
                 onStageSelectedFiles: {
-                    guard let directory = viewModel.activeDirectory else {
+                    guard let target = viewModel.diffStore.activeTarget else {
                         return
                     }
                     let files = viewModel.selectedFiles.filter { !$0.isStaged }
 
                     Task {
-                        await performGitAction(errorPrefix: "Stage failed") {
-                            try await viewModel.stage(files: files, in: directory)
+                        await performGitAction(errorPrefix: "Stage failed", target: target) {
+                            try await viewModel.stage(files: files, target: target)
                         }
                     }
                 },
                 onUnstageSelectedFiles: {
-                    guard let directory = viewModel.activeDirectory else {
+                    guard let target = viewModel.diffStore.activeTarget else {
                         return
                     }
                     let files = viewModel.selectedFiles.filter(\.isStaged)
 
                     Task {
-                        await performGitAction(errorPrefix: "Unstage failed") {
-                            try await viewModel.unstage(files: files, in: directory)
+                        await performGitAction(errorPrefix: "Unstage failed", target: target) {
+                            try await viewModel.unstage(files: files, target: target)
                         }
                     }
                 },
                 onDiscardSelectedFiles: {
+                    pendingDiscardTarget = viewModel.diffStore.activeTarget
                     pendingDiscardFiles = viewModel.selectedFiles
                 },
                 onClose: onClose
@@ -156,7 +159,11 @@ struct DiffViewerPane: View {
                 viewModel.setCommitModeActive(false)
             }
         }
-        .onChange(of: viewModel.activeDirectory) { _, _ in
+        .onChange(of: viewModel.diffStore.activeTarget) { _, _ in
+            isForcePushConfirmationPresented = false
+            pendingForcePushTarget = nil
+            pendingDiscardFiles = []
+            pendingDiscardTarget = nil
             if mode == .commits {
                 loadCommitsIfNeeded()
             }
@@ -174,11 +181,12 @@ struct DiffViewerPane: View {
         ) {
             Button("Discard", role: .destructive) {
                 let files = pendingDiscardFiles
-                let directory = viewModel.activeDirectory
+                let target = pendingDiscardTarget
                 pendingDiscardFiles = []
+                pendingDiscardTarget = nil
 
                 Task {
-                    await discardPendingFiles(files: files, in: directory)
+                    await discardPendingFiles(files: files, target: target)
                 }
             }
 
@@ -210,7 +218,10 @@ private extension DiffViewerPane {
                     statusTitle: statusTitle,
                     diffPreviewIdentity: diffPreviewIdentity,
                     onPresentGitError: viewModel.presentGitError,
-                    onDiscardFiles: { pendingDiscardFiles = $0 }
+                    onDiscardFiles: {
+                        pendingDiscardTarget = viewModel.diffStore.activeTarget
+                        pendingDiscardFiles = $0
+                    }
                 )
                 .equatable()
             case .commits:
@@ -248,17 +259,20 @@ private extension DiffViewerPane {
     }
 
     func performPush(force: Bool) {
-        guard let directory = viewModel.activeDirectory, !isPushInFlight else {
+        guard let target = force ? pendingForcePushTarget : viewModel.diffStore.activeTarget, !isPushInFlight else {
             return
         }
         isPushInFlight = true
         Task {
             defer { isPushInFlight = false }
             do {
-                try await viewModel.push(force: force, in: directory)
+                try await viewModel.push(force: force, target: target)
             } catch GitError.nonFastForwardPushRequired(_) {
+                guard viewModel.diffStore.activeTarget == target else { return }
+                pendingForcePushTarget = target
                 isForcePushConfirmationPresented = true
             } catch {
+                guard viewModel.diffStore.activeTarget == target else { return }
                 viewModel.presentGitError("Push failed: \(error.localizedDescription)")
             }
         }
@@ -287,14 +301,14 @@ private extension DiffViewerPane {
         }
     }
 
-    func discardPendingFiles(files: [FileStatus], in directory: String?) async {
-        guard let directory,
+    func discardPendingFiles(files: [FileStatus], target: DiffWorkspaceTarget?) async {
+        guard let target,
               !files.isEmpty else {
             return
         }
 
-        await performGitAction(errorPrefix: "Discard failed") {
-            try await viewModel.discard(files: files, in: directory)
+        await performGitAction(errorPrefix: "Discard failed", target: target) {
+            try await viewModel.discard(files: files, target: target)
         }
     }
 
@@ -309,10 +323,11 @@ private extension DiffViewerPane {
         pendingDiscardFiles.count == 1 ? "Discard change?" : "Discard changes?"
     }
 
-    func performGitAction(errorPrefix: String, action: () async throws -> Void) async {
+    func performGitAction(errorPrefix: String, target: DiffWorkspaceTarget, action: () async throws -> Void) async {
         do {
             try await action()
         } catch {
+            guard viewModel.diffStore.activeTarget == target else { return }
             viewModel.presentGitError("\(errorPrefix): \(error.localizedDescription)")
         }
     }

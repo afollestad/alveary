@@ -1,71 +1,66 @@
 import AgentCLIKit
 import Foundation
+import SwiftData
 
 extension ConversationViewModel {
     func createInitialWorkingDirectory(
         for thread: AgentThread,
-        project: Project?,
+        project _: Project?,
         message: String
     ) async throws -> String {
-        if thread.effectiveMode == .task {
-            guard let workingDirectory = thread.primaryWorkingDirectory else {
-                throw AgentError.spawnFailed("Cannot start task: no workspace is available")
-            }
-            return workingDirectory
+        guard let snapshot = thread.workspaceSnapshot,
+              let directory = thread.primaryWorkingDirectory else {
+            throw WorkspaceFolderError.invalidSnapshot
         }
-
-        guard let project else {
-            throw AgentError.spawnFailed("No project associated with this thread")
-        }
-        guard thread.useWorktree else {
-            return project.path
-        }
-
-        guard project.isGitRepository else {
+        guard thread.effectiveMode == .project, thread.useWorktree else { return directory }
+        guard let source = snapshot.primarySource else { throw WorkspaceFolderError.invalidSnapshot }
+        guard source.isGitRepository else {
             thread.useWorktree = false
             try modelContext.save()
-            return project.path
+            return directory
         }
 
-        setupPhase = .creatingWorktree
+        let threadID = thread.persistentModelID
         let worktreeSlug = AgentSessionPreviewGenerator.preview(fromInitialPrompt: message) ?? thread.name
-
+        setupPhase = .creatingWorktree
+        let info = try await worktreeManager.create(
+            projectPath: source.path, threadName: worktreeSlug, baseRef: source.baseRef, remoteName: source.remoteName
+        )
         do {
-            let info = try await worktreeManager.create(
-                projectPath: project.path,
-                threadName: worktreeSlug,
-                baseRef: project.baseRef,
-                remoteName: project.remoteName
-            )
-            thread.worktreePath = info.path
-            thread.branch = info.branch
+            try Task.checkCancellation()
+            guard let liveThread = modelContext.resolveThread(id: threadID), liveThread.workspaceSnapshot == snapshot else {
+                throw AgentError.spawnFailed("The thread workspace changed during setup")
+            }
+            liveThread.worktreePath = info.path
+            liveThread.branch = info.branch
             try modelContext.save()
             return info.path
         } catch {
-            await rollbackFailedWorktreeCreation(for: thread, project: project)
+            await rollbackCreatedWorktree(info, sourcePath: source.path, threadID: threadID)
             setupPhase = nil
             throw error
         }
     }
 
-    private func rollbackFailedWorktreeCreation(for thread: AgentThread, project: Project) async {
-        guard let path = thread.worktreePath else {
-            return
-        }
-
+    private func rollbackCreatedWorktree(_ info: WorktreeInfo, sourcePath: String, threadID: PersistentIdentifier) async {
         do {
-            try await worktreeManager.remove(
-                projectPath: project.path,
-                worktreePath: path,
-                branch: thread.branch
-            )
-            thread.worktreePath = nil
-            thread.branch = nil
-            try modelContext.save()
+            let manager = worktreeManager
+            let cleanup = Task { try await manager.remove(projectPath: sourcePath, worktreePath: info.path, branch: info.branch) }
+            try await cleanup.value
+            if let thread = modelContext.resolveThread(id: threadID), thread.worktreePath == info.path {
+                thread.worktreePath = nil
+                thread.branch = nil
+                try modelContext.save()
+            }
         } catch {
-            state.lastTurnError =
-                "Initial worktree setup failed and rollback cleanup/metadata clear also failed: " +
-                error.localizedDescription
+            // Retain exact provenance when cleanup fails, including cancellation before the first metadata save.
+            if let thread = modelContext.resolveThread(id: threadID), thread.worktreePath == nil || thread.worktreePath == info.path {
+                thread.worktreePath = info.path
+                thread.branch = info.branch
+                preserveWorktreeAfterFailedRollback(cleanupError: error, thread: thread)
+            } else {
+                state.lastTurnError = "Worktree rollback failed at \(info.path): \(error.localizedDescription)"
+            }
         }
     }
 }

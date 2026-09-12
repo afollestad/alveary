@@ -8,7 +8,7 @@ Sidebar drag reordering treats project rows and their expanded children as atomi
 
 ### Sources
 
-- **Limit sources.** Project title/dead space, standalone pinned Project-thread and Task titles, unpinned Task rows in the Tasks section, and nested child rows are the drag sources; folder, New Thread, rename, worktree/status, and cleanup controls keep their existing actions.
+- **Limit sources.** Project title/dead space, standalone pinned thread titles, unpinned rows in Tasks/custom sections, and nested child rows are the drag sources; folder, New Thread, rename, worktree/status, and cleanup controls keep their existing actions.
     - **Every source withholds itself while `SidebarView.isSidebarInlineEditingActive`** — an inline rename must not be draggable out from under its own `TextField` — so a new source carries that guard or delegates to one that does. `Alveary/Views/Sidebar/Rows/AGENTS.md` owns what the flag covers.
     - **A nested row's drag item follows its mode.** A Task drags as `.unpinnedTask`; a Project-mode row drags as `.projectThread`, whose only destination is `Pinned`, because a project's child list has no manual order. Children of pinned projects are not sources at all (`projectThreadDragConfiguration`), backstopped by `resolveUnpinnedProjectThreadForOrdering` and the commit validity check.
 - **A drag source's row needs a zero-distance gesture to claim the mouse-down.** `sidebarDragSource`'s 3pt drag can still fail, so `NSHostingView` forwards the press to `-[NSTableView mouseDown:]`, whose tracking loop then eats every later drag *and* the mouse-up — one update, no end, and the sidebar wedged in a drag nothing can finish.

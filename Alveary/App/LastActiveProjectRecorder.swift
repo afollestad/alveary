@@ -22,10 +22,10 @@ enum LastActiveProjectOwner: Equatable {
 enum LastActiveProjectResolution: Equatable {
     /// The selection carries no project ownership; leave the stored value alone.
     case unowned
-    case path(String?)
+    case projectID(String?)
 }
 
-/// Keeps `AppSettings.lastActiveProjectPath` off the click-to-highlight frame.
+/// Keeps `AppSettings.lastActiveProjectID` off the click-to-highlight frame.
 ///
 /// Skills, MCP, Scheduled, and Settings selections never take a sequence number, and
 /// a job consumes its sequence only when it actually writes. A Task selection can
@@ -60,7 +60,7 @@ final class LastActiveProjectRecorder {
         return Task { @MainActor in
             await suspendBeforeResolving()
             guard sequence > appliedSequence,
-                  case .path(let path) = resolve(owner) else {
+                  case .projectID(let path) = resolve(owner) else {
                 return
             }
             appliedSequence = sequence

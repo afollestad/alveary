@@ -58,8 +58,8 @@ final class PaneHeaderTests: XCTestCase {
     /// filter options from live data — so erasure must not assume a fixed case list.
     func testFilterAcceptsDynamicOptions() {
         let filter = PaneHeaderFilter(
-            options: [ArchivedProjectFilter.all, .noProject, .project(path: "/tmp/demo")],
-            selection: .constant(.project(path: "/tmp/demo")),
+            options: [ArchivedProjectFilter.all, .noProject, .project(id: "/tmp/demo")],
+            selection: .constant(.project(id: "/tmp/demo")),
             title: { filter in
                 switch filter {
                 case .all: "All Projects"

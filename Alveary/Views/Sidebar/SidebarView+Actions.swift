@@ -35,7 +35,7 @@ extension SidebarView {
     }
 
     func forkThread(_ thread: AgentThread, mode: SidebarThreadForkMode) async {
-        let sourceProjectPath = thread.project?.path
+        let sourceProjectPath = thread.project?.id
 
         do {
             let forkedThread: AgentThread
@@ -66,7 +66,7 @@ extension SidebarView {
     }
 
     func archive(_ thread: AgentThread) async {
-        let isTask = thread.effectiveMode == .task
+        let isTask = thread.supportsIndependentSidebarPlacement
         let replacementItem = isTask ? selectionAfterDeletingThread(thread) : thread.project.map(SidebarItem.project)
         let routing = beginThreadRemovalRouting(thread, replacementItem: replacementItem)
 
@@ -99,7 +99,7 @@ extension SidebarView {
               let thread = viewModel.archivedThread(id: threadID) else {
             return
         }
-        let replacementItem = thread.effectiveMode == .task
+        let replacementItem = thread.supportsIndependentSidebarPlacement
             ? selectionAfterDeletingThread(thread)
             : thread.project.map(SidebarItem.project)
         completeThreadRemovalRouting(
@@ -133,7 +133,7 @@ extension SidebarView {
 
     func setThreadPinned(_ thread: AgentThread, isPinned: Bool) {
         let threadID = thread.persistentModelID
-        let sourceProjectPath = thread.project?.path
+        let sourceProjectPath = thread.project?.id
         let shouldRevealUnpinnedSelection: Bool
         if case .thread(let selectedThread) = appState.selectedSidebarItem,
            selectedThread.persistentModelID == threadID,
@@ -161,7 +161,7 @@ extension SidebarView {
     }
 
     func setProjectPinned(_ project: Project, isPinned: Bool) {
-        let projectPath = project.path
+        let projectPath = project.id
 
         do {
             try viewModel.setProjectPinned(project, isPinned: isPinned)
@@ -231,7 +231,8 @@ extension SidebarView {
     }
 
     func confirmDeleteProject(_ project: Project) async {
-        let projectPath = project.path
+        let projectPath = project.id
+        let projectID = project.persistentModelID
         let previousSelectedItem = appState.selectedSidebarItem
         let previousBookmark = appState.previousSelection
         let previousConversationIDs = appState.selectedConversationIDs
@@ -239,7 +240,7 @@ extension SidebarView {
         let threadIDs = liveThreadIDs(in: project)
 
         switch appState.selectedSidebarItem {
-        case .project(let selectedProject) where selectedProject.path == projectPath:
+        case .project(let selectedProject) where selectedProject.persistentModelID == projectID:
             appState.selectedSidebarItem = nil
         case .thread(let selectedThread) where threadIDs.contains(selectedThread.persistentModelID):
             appState.selectedSidebarItem = nil
@@ -248,7 +249,7 @@ extension SidebarView {
         }
 
         switch appState.previousSelection {
-        case .projectPath(let selectedProjectPath) where selectedProjectPath == projectPath:
+        case .projectID(let selectedProjectID) where selectedProjectID == projectID:
             appState.previousSelection = nil
         case .threadId(let threadID) where threadIDs.contains(threadID):
             appState.previousSelection = nil
@@ -287,7 +288,7 @@ extension SidebarView {
             appState.selectedSidebarItem = .thread(task)
             appState.previousSelection = .threadId(task.persistentModelID)
         } else {
-            appState.startNewThreadFlow(mode: .task)
+            appState.startNewThreadFlow(destination: .tasks)
         }
     }
 
@@ -313,7 +314,7 @@ extension SidebarView {
         }
         return ThreadRemovalRoutingContext(
             threadID: threadID,
-            isTask: thread.effectiveMode == .task,
+            isTask: thread.supportsIndependentSidebarPlacement,
             previousSelectedItem: previousSelectedItem,
             previousBookmark: previousBookmark,
             previousSelectedConversationID: previousSelectedConversationID,
@@ -369,14 +370,9 @@ extension SidebarView {
     func selectedSidebarItemBelongs(toProjectPath projectPath: String) -> Bool {
         sidebarItem(
             appState.selectedSidebarItem,
-            belongsToProjectPath: projectPath,
-            resolvedThreadProjectPath: { threadID in
-                guard let thread = uiModelContext.resolveThread(id: threadID),
-                      thread.effectiveMode == .project else {
-                    return nil
-                }
-                return thread.project?.path
-            }
+            belongsToProjectID: projectPath,
+            resolvedProjectID: { viewModel.modelContext.resolveProject(id: $0)?.id },
+            resolvedThreadProjectID: { viewModel.modelContext.resolveThread(id: $0)?.project?.id }
         )
     }
 
@@ -389,10 +385,10 @@ extension SidebarView {
     }
 
     func liveThreadIDs(in project: Project) -> Set<PersistentIdentifier> {
-        let projectPath = project.path
+        let projectPath = project.id
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.project?.path == projectPath
+                thread.project?.id == projectPath
             }
         )
         let threads = ((try? uiModelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .project }
@@ -410,20 +406,18 @@ extension SidebarView {
     }
 }
 
+/// Selection payloads may hold deleted SwiftData tokens; only their persistent IDs are safe to read.
 func sidebarItem(
     _ item: SidebarItem?,
-    belongsToProjectPath projectPath: String,
-    resolvedThreadProjectPath: (PersistentIdentifier) -> String?
+    belongsToProjectID projectID: String,
+    resolvedProjectID: (PersistentIdentifier) -> String? = { _ in nil },
+    resolvedThreadProjectID: (PersistentIdentifier) -> String?
 ) -> Bool {
     switch item {
-    case .project(let selectedProject):
-        return selectedProject.path == projectPath
-    case .thread(let selectedThread):
-        guard selectedThread.effectiveMode == .project else {
-            return false
-        }
-        return selectedThread.project?.path == projectPath ||
-            resolvedThreadProjectPath(selectedThread.persistentModelID) == projectPath
+    case .project(let project):
+        return resolvedProjectID(project.persistentModelID) == projectID
+    case .thread(let thread):
+        return resolvedThreadProjectID(thread.persistentModelID) == projectID
     default:
         return false
     }

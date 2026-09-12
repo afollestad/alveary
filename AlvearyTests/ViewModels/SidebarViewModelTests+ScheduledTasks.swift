@@ -309,7 +309,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(changeRecorder.recorder.count, 0)
     }
 
-    func testProjectDeletedScheduleCannotResumeUntilProjectIsReattached() throws {
+    func testProjectDeletedScheduleCanResumeItsSavedWorkspaceWithoutReattachment() throws {
         let fixture = try SidebarTestFixture()
         let graph = try ScheduledProjectDeletionGraph.insert(into: fixture.context)
         let snapshot = try fixture.viewModel.makeProjectDeletionSnapshot(graph.project)
@@ -319,24 +319,19 @@ extension SidebarViewModelTests {
         )
         let service = ScheduledTaskMutationService(modelContext: fixture.context)
 
-        XCTAssertThrowsError(
-            try service.resume(
-                definitionID: graph.definition.id,
-                expectedRevision: 2,
-                at: Date(timeIntervalSince1970: 2_000)
-            )
-        ) { error in
-            XCTAssertEqual(error as? ScheduledTaskMutationError, .projectWorkspaceRequiresProject)
-        }
-
-        let definition = try XCTUnwrap(
-            fixture.context.resolveScheduledTask(id: graph.definition.id)
+        let saved = graph.definition.workspaceSnapshot
+        try service.resume(
+            definitionID: graph.definition.id,
+            expectedRevision: 2,
+            at: Date(timeIntervalSince1970: 2_000)
         )
-        XCTAssertEqual(definition.state, .paused)
+        let definition = try XCTUnwrap(fixture.context.resolveScheduledTask(id: graph.definition.id))
+        XCTAssertEqual(definition.state, .active)
         XCTAssertNil(definition.project)
-        XCTAssertEqual(definition.pauseReason, ScheduledTask.projectDeletedPauseReason)
-        XCTAssertEqual(definition.revision, 2)
-        XCTAssertEqual(definition.modifiedAt, Date(timeIntervalSince1970: 1_000))
+        XCTAssertNil(definition.pauseReason)
+        XCTAssertEqual(definition.revision, 3)
+        XCTAssertEqual(definition.workspaceSnapshot, saved)
+        XCTAssertEqual(definition.modifiedAt, Date(timeIntervalSince1970: 2_000))
     }
 }
 

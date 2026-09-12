@@ -10,25 +10,7 @@ import Foundation
 enum ScheduledTaskReusedThreadWorkspace {
     /// `nil` — no usable primary root — is a self-heal trigger, never an error.
     @MainActor
-    static func descriptor(thread: AgentThread, run: ScheduledTaskRun) -> TaskWorkspaceDescriptor? {
-        switch thread.effectiveMode {
-        case .task:
-            return thread.taskWorkspaceDescriptor
-        case .project:
-            // `taskWorkspaceDescriptor`'s getter gates on `.task` mode; a project-mode thread
-            // derives its descriptor from the thread's own working directory, with the strategy
-            // the thread was created under rather than a `preparedWorkspace*` column this run
-            // never wrote.
-            guard let primaryRoot = thread.primaryWorkingDirectory else {
-                return nil
-            }
-            return TaskWorkspaceDescriptor(
-                primaryRoot: primaryRoot,
-                grantedRoots: run.grantedRootsSnapshot,
-                ownershipStrategy: thread.useWorktree ? .projectWorktreeOwned : .projectLocal,
-                ownershipMarkerID: thread.taskWorkspaceMarkerID,
-                sourceProjectPath: run.projectPathSnapshot
-            )
-        }
+    static func descriptor(thread: AgentThread) -> TaskWorkspaceDescriptor? {
+        thread.resolvedWorkspaceDescriptor
     }
 }

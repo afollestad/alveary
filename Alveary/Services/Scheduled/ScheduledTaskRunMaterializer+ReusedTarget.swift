@@ -34,7 +34,7 @@ extension DefaultScheduledTaskRunMaterializer {
               }),
               conversation.provider == snapshot.providerID,
               !ScheduledTaskExistingTargetReadiness.hasBlockingPersistedInteraction(in: conversation),
-              let workspace = ScheduledTaskReusedThreadWorkspace.descriptor(thread: thread, run: run) else {
+              let workspace = ScheduledTaskReusedThreadWorkspace.descriptor(thread: thread) else {
             return nil
         }
         guard let workspaceIdentities = snapshot.workspaceIdentities,

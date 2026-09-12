@@ -2,12 +2,13 @@ import SwiftData
 import SwiftUI
 
 enum DiffCommitMessageGenerationRoute: Equatable {
-    case thread
+    case thread(threadID: PersistentIdentifier, conversationID: PersistentIdentifier)
     case project(directory: String)
 }
 
 struct DiffGitCommitTargetSnapshot: Equatable {
     let directory: String
+    let sourceDirectory: String
     let targetName: String
     let baseBranch: String
     let remoteName: String?
@@ -17,87 +18,34 @@ struct DiffGitCommitTargetSnapshot: Equatable {
 @MainActor
 enum DiffGitCommitTargetSnapshotResolver {
     static func resolve(
-        selection: SidebarItem?,
-        modelContext: ModelContext,
-        appState: AppState,
-        activeDirectory: String?
+        selection: SidebarItem?, modelContext: ModelContext, appState: AppState,
+        activeDirectory: String?, activeSourceDirectory: String? = nil,
+        folderSelection: WorkspaceFolderSelection = WorkspaceFolderSelection()
     ) -> DiffGitCommitTargetSnapshot? {
-        guard let activeDirectory else {
+        guard let activeDirectory else { return nil }
+        let folder: WorkspaceFolderTarget?
+        let name: String
+        var generationRoute = DiffCommitMessageGenerationRoute.project(directory: activeDirectory)
+        switch selection?.resolved(in: modelContext) {
+        case .thread(let thread) where thread.archivedAt == nil:
+            folder = folderSelection.selected(in: thread.workspaceFolderTargets, owner: .thread(thread.persistentModelID))
+            name = thread.displayName()
+            if folder?.isPrimary == true, !thread.isDraft,
+               let conversation = selectedConversation(in: thread, modelContext: modelContext, appState: appState) {
+                generationRoute = .thread(threadID: thread.persistentModelID, conversationID: conversation.persistentModelID)
+            }
+        case .project(let project):
+            folder = folderSelection.selected(in: project.workspaceFolderTargets, owner: .project(project.id))
+            name = project.name
+        default:
             return nil
         }
-
-        let snapshot: DiffGitCommitTargetSnapshot?
-        switch selection {
-        case .thread(let selectedThread):
-            snapshot = threadSnapshot(
-                for: selectedThread,
-                modelContext: modelContext,
-                appState: appState
-            )
-        case .project(let selectedProject):
-            snapshot = projectSnapshot(for: selectedProject, modelContext: modelContext)
-        case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
-            snapshot = nil
-        }
-
-        guard let snapshot,
-              CanonicalPath.normalize(snapshot.directory) == CanonicalPath.normalize(activeDirectory) else {
-            return nil
-        }
-
-        return snapshot
-    }
-
-    private static func threadSnapshot(
-        for selectedThread: AgentThread,
-        modelContext: ModelContext,
-        appState: AppState
-    ) -> DiffGitCommitTargetSnapshot? {
-        guard let thread = modelContext.resolveThread(id: selectedThread.persistentModelID),
-              thread.effectiveMode == .project,
-              let project = thread.project else {
-            return nil
-        }
-        if thread.isDraft {
-            return projectSnapshot(for: project, modelContext: modelContext)
-        }
-        guard selectedConversation(in: thread, modelContext: modelContext, appState: appState) != nil else {
-            return nil
-        }
-        let directory = thread.worktreePath ?? project.path
-        guard !directory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-
+        guard let folder, folder.directory == (activeSourceDirectory ?? activeDirectory) else { return nil }
         return DiffGitCommitTargetSnapshot(
-            directory: directory,
-            targetName: thread.displayName(),
-            baseBranch: project.baseRef ?? "main",
-            remoteName: project.remoteName,
-            generationRoute: .thread
-        )
-    }
-
-    private static func projectSnapshot(
-        for selectedProject: Project,
-        modelContext: ModelContext
-    ) -> DiffGitCommitTargetSnapshot? {
-        guard let project = modelContext.resolveProject(id: selectedProject.persistentModelID) else {
-            return nil
-        }
-
-        let directory = project.path
-        guard !directory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-
-        let trimmedName = project.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return DiffGitCommitTargetSnapshot(
-            directory: directory,
-            targetName: trimmedName.isEmpty ? URL(fileURLWithPath: directory).lastPathComponent : trimmedName,
-            baseBranch: project.baseRef ?? "main",
-            remoteName: project.remoteName,
-            generationRoute: .project(directory: directory)
+            directory: activeDirectory,
+            sourceDirectory: folder.directory,
+            targetName: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? folder.source.name : name,
+            baseBranch: folder.baseRef ?? "main", remoteName: folder.remoteName, generationRoute: generationRoute
         )
     }
 }
@@ -106,7 +54,6 @@ extension ContentView {
     func activeDiffActionTarget() -> (thread: AgentThread, conversation: Conversation)? {
         guard case .thread(let selectedThread) = appState.selectedSidebarItem,
               let thread = uiModelContext.resolveThread(id: selectedThread.persistentModelID),
-              thread.effectiveMode == .project,
               !thread.isDraft,
               let conversation = selectedConversation(in: thread, modelContext: uiModelContext, appState: appState) else {
             return nil
@@ -120,8 +67,21 @@ extension ContentView {
             selection: appState.selectedSidebarItem,
             modelContext: uiModelContext,
             appState: appState,
-            activeDirectory: diffViewModel.activeDirectory
+            activeDirectory: diffViewModel.activeDirectory,
+            activeSourceDirectory: diffViewModel.activeSourceDirectory,
+            folderSelection: folderSelection
         )
+    }
+
+    func requireSelectedWorkspaceDirectory() -> Bool {
+        guard let folder = selectedWorkspaceFolder else { return false }
+        do {
+            _ = try folder.requireDirectory()
+            return true
+        } catch {
+            appState.presentUnexpectedError(message: error.localizedDescription)
+            return false
+        }
     }
 
     func presentGitCommitModal() {
@@ -129,11 +89,13 @@ extension ContentView {
             return
         }
 
+        guard requireSelectedWorkspaceDirectory() else { return }
         let context = DiffGitCommitModalContext(
             directory: target.directory,
             targetName: target.targetName,
             baseBranch: target.baseBranch,
-            remoteName: target.remoteName
+            remoteName: target.remoteName,
+            sourceDirectory: target.sourceDirectory
         )
 
         gitCommitModalModel = DiffGitCommitModalModel(
@@ -149,35 +111,18 @@ extension ContentView {
         )
     }
 
-    func requestCommitMessageGeneration(
-        prompt: String,
-        completion: @escaping @MainActor (Result<String, Error>) -> Void
-    ) {
-        guard let (thread, conversation) = activeDiffActionTarget() else {
-            completion(.failure(CommitMessageGenerationError.activeConversationChanged))
-            return
-        }
-
-        appState.requestCommitMessageGeneration(
-            prompt: prompt,
-            threadID: thread.persistentModelID,
-            conversationID: conversation.persistentModelID,
-            completion: completion
-        )
-    }
-
-    func generateCommitMessage(prompt: String) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            requestCommitMessageGeneration(prompt: prompt) { result in
-                continuation.resume(with: result)
-            }
-        }
-    }
-
     func generateCommitMessage(prompt: String, route: DiffCommitMessageGenerationRoute) async throws -> String {
         switch route {
-        case .thread:
-            return try await generateCommitMessage(prompt: prompt)
+        case .thread(let threadID, let conversationID):
+            guard let (thread, conversation) = activeDiffActionTarget(),
+                  thread.persistentModelID == threadID, conversation.persistentModelID == conversationID else {
+                throw CommitMessageGenerationError.activeConversationChanged
+            }
+            return try await withCheckedThrowingContinuation { continuation in
+                appState.requestCommitMessageGeneration(
+                    prompt: prompt, threadID: threadID, conversationID: conversationID
+                ) { continuation.resume(with: $0) }
+            }
         case .project(let directory):
             return try await agentOneShotPromptService.generate(prompt: prompt, workingDirectory: directory)
         }

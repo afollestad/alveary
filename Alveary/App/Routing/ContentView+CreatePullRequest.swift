@@ -12,7 +12,10 @@ extension ContentView {
             DiffCreatePullRequestModal(
                 model: model,
                 onCreated: { identifier in
-                    handleCreatedPullRequest(identifier, owner: model.context.owner)
+                    handleCreatedPullRequest(
+                        identifier, owner: model.context.owner, directory: model.context.directory,
+                        sourceDirectory: model.context.sourceDirectory
+                    )
                 },
                 onClose: { createPullRequestModalModel = nil }
             )
@@ -25,13 +28,15 @@ extension ContentView {
             return
         }
 
+        guard requireSelectedWorkspaceDirectory() else { return }
         createPullRequestModalModel = DiffCreatePullRequestModalModel(
             context: DiffCreatePullRequestModalContext(
                 directory: target.directory,
                 targetName: target.targetName,
                 baseBranch: target.baseBranch,
                 remoteName: target.remoteName,
-                owner: owner
+                owner: owner,
+                sourceDirectory: target.sourceDirectory
             ),
             gitService: gitService,
             pullRequestsService: pullRequestsViewModel.service,
@@ -50,15 +55,16 @@ extension ContentView {
     /// Links the created pull request to its owner — no URL paste, no prompt —
     /// then opens its pane preserving the Diff Viewer request, so the pane's X
     /// brings the Git changes pane back and its footer already reads View PR.
-    func handleCreatedPullRequest(_ identifier: PullRequestIdentifier, owner: PullRequestLinkOwner) {
+    func handleCreatedPullRequest(
+        _ identifier: PullRequestIdentifier, owner: PullRequestLinkOwner, directory: String, sourceDirectory: String? = nil
+    ) {
+        let sourceDirectory = sourceDirectory ?? directory
         createPullRequestModalModel = nil
         Task {
             await pullRequestLinksViewModel.link(identifier, owner: owner)
             // Only open over the selection the flow started from; a changed
             // selection keeps the link but stays where the user went.
-            guard selectedPullRequestLinkOwner == owner else {
-                return
-            }
+            guard selectedPullRequestLinkOwner == owner, selectedWorkspaceFolder?.directory == sourceDirectory else { return }
             guard let row = selectedPullRequestLinks.first(where: { $0.id == identifier }) else {
                 // The create succeeded but the validating link fetch failed;
                 // the pull request exists on GitHub, so say what happened
@@ -69,6 +75,9 @@ extension ContentView {
                 )
                 return
             }
+            await refreshSelectedFolderRepository()
+            guard selectedPullRequestLinkOwner == owner, selectedWorkspaceFolder?.directory == sourceDirectory,
+                  selectedFolderPullRequestLinks.contains(where: { $0.id == identifier }) else { return }
             openLinkedPullRequest(row, preservingDiffViewer: true)
         }
     }
@@ -76,7 +85,7 @@ extension ContentView {
     /// The footer's View PR action: exactly one linked pull request, opened
     /// over the still-requested Diff Viewer so closing it comes back here.
     func openSinglePullRequestFromDiffFooter() {
-        let rows = selectedPullRequestLinks
+        let rows = selectedFolderPullRequestLinks
         guard rows.count == 1, let row = rows.first else {
             return
         }

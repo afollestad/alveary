@@ -182,6 +182,8 @@ final class ScheduledTaskRun {
     var workspaceKindRawValueSnapshot: String
     var workspaceStrategyRawValueSnapshot: String
     var projectPathSnapshot: String?
+    var projectIDSnapshot: String?
+    var workspaceSnapshotJSON: String?
     var projectBaseRefSnapshot: String?
     var projectRemoteNameSnapshot: String?
     var grantedRootsSnapshot: [String]
@@ -276,7 +278,9 @@ final class ScheduledTaskRun {
         requiresFinalizationRecovery: Bool = false,
         scheduledTask: ScheduledTask? = nil,
         thread: AgentThread? = nil,
-        targetThread: AgentThread? = nil
+        targetThread: AgentThread? = nil,
+        projectIDSnapshot: String? = nil,
+        workspaceSnapshot: WorkspaceSnapshot? = nil
     ) {
         self.id = id
         self.occurrenceID = occurrenceID
@@ -332,6 +336,13 @@ final class ScheduledTaskRun {
         self.scheduledTask = scheduledTask
         self.thread = thread
         self.targetThread = targetThread
+        self.projectIDSnapshot = projectIDSnapshot ?? scheduledTask?.project?.id
+        self.workspaceSnapshotJSON = (workspaceSnapshot ?? targetThread?.workspaceSnapshot ?? WorkspaceSnapshot(
+            primarySource: self.projectPathSnapshot.map {
+                SourceFolderSnapshot(path: $0, remoteName: projectRemoteNameSnapshot, baseRef: projectBaseRefSnapshot)
+            },
+            grants: self.grantedRootsSnapshot.map { SourceFolderSnapshot(path: $0) }
+        )).encoded
     }
 }
 
@@ -352,14 +363,15 @@ extension ScheduledTaskRun {
         guard let destination = definition.decodedDestination else {
             preconditionFailure("Cannot snapshot a scheduled task with an unknown destination")
         }
-        // A reused target contributes conversation identity only; unlike `targetSnapshot`, every
-        // agent and workspace setting below still reads from the definition, which created the
-        // thread and stays authoritative for it. The identity check keeps a link that was
-        // re-pointed between claim and snapshotting from silently targeting the wrong thread.
+        // Reuse keeps the created thread's workspace, including its explicitly managed roots,
+        // while agent settings still come from the definition. Revalidate the link before
+        // adopting either conversation identity or workspace from the reused thread.
         let reusedThread: AgentThread? =
             reusedTarget != nil && definition.reusedThread?.persistentModelID == reusedTarget?.threadID
                 ? definition.reusedThread
                 : nil
+        var workspace = targetSnapshot?.workspaceSnapshot ?? reusedThread?.workspaceSnapshot ?? definition.workspaceSnapshot
+        if targetSnapshot == nil, reusedThread == nil { workspace?.rootsExplicitlyManaged = true }
         self.init(
             occurrenceID: occurrenceID,
             triggerID: triggerID,
@@ -386,16 +398,18 @@ extension ScheduledTaskRun {
             speedModeSnapshot: targetSnapshot?.speedMode,
             workspaceKindSnapshot: targetSnapshot?.workspaceKind ?? definition.workspaceKind,
             workspaceStrategySnapshot: targetSnapshot?.workspaceStrategy ?? definition.workspaceStrategy,
-            projectPathSnapshot: targetSnapshot?.projectPath ?? definition.project?.path,
-            projectBaseRefSnapshot: definition.project?.baseRef,
-            projectRemoteNameSnapshot: definition.project?.remoteName,
+            projectPathSnapshot: targetSnapshot == nil ? definition.workspaceSnapshot?.primarySource?.path : targetSnapshot?.projectPath,
+            projectBaseRefSnapshot: definition.workspaceSnapshot?.primarySource?.baseRef,
+            projectRemoteNameSnapshot: definition.workspaceSnapshot?.primarySource?.remoteName,
             grantedRootsSnapshot: targetSnapshot?.grantedRoots ?? definition.grantedRoots,
             workspaceIdentitySnapshot: workspaceIdentitySnapshot,
             scheduledTask: definition,
             thread: thread,
-            targetThread: definition.targetThread ?? reusedThread
+            targetThread: definition.targetThread ?? reusedThread,
+            projectIDSnapshot: definition.project?.id,
+            workspaceSnapshot: workspace
         )
-        projectPathSnapshot = targetSnapshot?.projectPath ?? definition.project?.path
+        projectPathSnapshot = targetSnapshot == nil ? definition.workspaceSnapshot?.primarySource?.path : targetSnapshot?.projectPath
         grantedRootsSnapshot = targetSnapshot?.grantedRoots ?? definition.grantedRoots
     }
 

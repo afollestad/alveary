@@ -28,12 +28,10 @@ extension SidebarView {
         for thread: AgentThread,
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
-        switch thread.effectiveMode {
-        case .project:
-            return pinnedThreadDragConfiguration(for: thread, logicalOrder: logicalOrder)
-        case .task:
+        if thread.supportsIndependentSidebarPlacement {
             return pinnedTaskDragConfiguration(for: thread, logicalOrder: logicalOrder)
         }
+        return pinnedThreadDragConfiguration(for: thread, logicalOrder: logicalOrder)
     }
 
     /// Section headers are drag sources for reordering the sections themselves. Built-ins drag
@@ -62,12 +60,8 @@ extension SidebarView {
     }
 
     func pinnedItemDragGeometryRole(for thread: AgentThread) -> SidebarDragGeometryRole {
-        switch thread.effectiveMode {
-        case .project:
-            return .pinnedThread(thread.persistentModelID)
-        case .task:
-            return .pinnedTask(thread.persistentModelID)
-        }
+        thread.supportsIndependentSidebarPlacement
+            ? .pinnedTask(thread.persistentModelID) : .pinnedThread(thread.persistentModelID)
     }
 
     private func pinnedThreadDragConfiguration(
@@ -102,7 +96,7 @@ extension SidebarView {
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
         guard !isSidebarInlineEditingActive,
-              thread.effectiveMode == .task,
+              thread.supportsIndependentSidebarPlacement,
               thread.isPinned,
               !thread.isDraft,
               thread.archivedAt == nil else {
@@ -171,7 +165,7 @@ extension SidebarView {
         logicalOrder: SidebarDragLogicalOrder
     ) -> SidebarRowDragConfiguration? {
         guard !isSidebarInlineEditingActive,
-              thread.effectiveMode == .task,
+              thread.supportsIndependentSidebarPlacement,
               !thread.isPinned,
               !thread.isDraft,
               thread.archivedAt == nil else {

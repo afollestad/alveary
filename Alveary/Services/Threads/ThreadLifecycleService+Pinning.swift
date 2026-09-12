@@ -20,8 +20,7 @@ extension ThreadLifecycleService {
     func setThreadPinned(threadID: PersistentIdentifier, isPinned: Bool) throws -> ThreadPinOutcome {
         guard let currentThread = modelContext.resolveThread(id: threadID),
               currentThread.archivedAt == nil,
-              !currentThread.isDraft,
-              currentThread.effectiveMode == .task || currentThread.project != nil else {
+              !currentThread.isDraft else {
             throw SidebarViewModelError.threadMissing
         }
         // A pinned project absorbs its children regardless of mode, so pinning one is a no-op.
@@ -36,8 +35,7 @@ extension ThreadLifecycleService {
             // Re-resolve after the flush; it can save, and the row must still qualify.
             guard let dbThread = modelContext.resolveThread(id: threadID),
                   dbThread.archivedAt == nil,
-                  !dbThread.isDraft,
-                  dbThread.effectiveMode == .task || dbThread.project != nil else {
+                  !dbThread.isDraft else {
                 throw SidebarViewModelError.threadMissing
             }
             let wasPinned = dbThread.isPinned

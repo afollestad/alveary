@@ -31,7 +31,7 @@ extension ConversationViewModelTests {
             payload[ThreadDraftNotificationKey.conversationID] as? PersistentIdentifier,
             fixture.conversation.persistentModelID
         )
-        XCTAssertEqual(payload[ThreadDraftNotificationKey.projectPath] as? String, fixture.project.path)
+        XCTAssertEqual(payload[ThreadDraftNotificationKey.projectID] as? String, fixture.project.id)
     }
 
     func testDraftMaterializationSaveFailureRestoresComposerAndPublishesNothing() async throws {
@@ -51,7 +51,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.stagedFileAttachments = [file]
         fixture.viewModel.state.stagedAppShots = [appShot]
         fixture.viewModel.state.appShotProviderSessionTitleFallback = "Existing fallback"
-        let projectPath = fixture.project.path
+        let projectID = fixture.project.id
         fixture.project.name = "Preserved pending project name"
         let notificationRecorder = DraftMaterializationRecorder(
             expectedThreadID: fixture.thread.persistentModelID
@@ -84,7 +84,7 @@ extension ConversationViewModelTests {
         XCTAssertTrue(createCalls.isEmpty)
         let verificationContext = ModelContext(fixture.container)
         let projectDescriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == projectPath
+            project.id == projectID
         })
         XCTAssertEqual(try verificationContext.fetch(projectDescriptor).first?.name, "Preserved pending project name")
     }

@@ -3,6 +3,20 @@ import XCTest
 @testable import Alveary
 
 extension SnapshotTests {
+    func testAddProjectSheetProjectForm() throws {
+        let fixture = try SidebarTestFixture()
+        assertMacSnapshot(
+            AddProjectSheet(
+                viewModel: fixture.viewModel,
+                settingsService: fixture.settingsService,
+                onProjectCreated: { _ in },
+                initialStep: .projectForm
+            ),
+            size: CGSize(width: 520, height: 380),
+            named: "add_project_sheet_project_form"
+        )
+    }
+
     func testAddProjectSheetChooser() throws {
         let fixture = try SidebarTestFixture()
 
@@ -10,7 +24,6 @@ extension SnapshotTests {
             AddProjectSheet(
                 viewModel: fixture.viewModel,
                 settingsService: fixture.settingsService,
-                onChooseFromDisk: {},
                 onProjectCreated: { _ in },
                 initialStep: .chooser
             ),
@@ -31,7 +44,6 @@ extension SnapshotTests {
             AddProjectSheet(
                 viewModel: fixture.viewModel,
                 settingsService: fixture.settingsService,
-                onChooseFromDisk: {},
                 onProjectCreated: { _ in },
                 initialStep: .cloneForm,
                 initialDraft: draft
@@ -52,7 +64,6 @@ extension SnapshotTests {
             AddProjectSheet(
                 viewModel: fixture.viewModel,
                 settingsService: fixture.settingsService,
-                onChooseFromDisk: {},
                 onProjectCreated: { _ in },
                 initialStep: .cloneRunning,
                 initialDraft: draft
@@ -73,7 +84,6 @@ extension SnapshotTests {
             AddProjectSheet(
                 viewModel: fixture.viewModel,
                 settingsService: fixture.settingsService,
-                onChooseFromDisk: {},
                 onProjectCreated: { _ in },
                 initialStep: .cloneFailed("fatal: repository 'https://example.com/missing.git' not found"),
                 initialDraft: draft

@@ -12,6 +12,8 @@ struct ThreadHostToolRequestParser {
         try object.requireOnly([
             "mode",
             "project_path",
+            "project_id",
+            "primary_folder_path",
             "granted_roots",
             "name",
             "provider",
@@ -25,6 +27,8 @@ struct ThreadHostToolRequestParser {
         let fields = ThreadHostToolCreateFields(
             mode: try object.optionalNonEmptyString("mode"),
             projectPath: try object.optionalNonEmptyString("project_path"),
+            projectID: try object.optionalNonEmptyString("project_id"),
+            primaryFolderPath: try object.optionalNonEmptyString("primary_folder_path"),
             grantedRoots: try grantedRoots(in: object),
             name: try object.optionalNonEmptyString("name"),
             provider: try object.optionalNonEmptyString("provider"),
@@ -138,6 +142,8 @@ struct ThreadHostToolRequestParser {
 private struct ThreadHostToolCreateFields {
     let mode: String?
     let projectPath: String?
+    let projectID: String?
+    let primaryFolderPath: String?
     let grantedRoots: [String]?
     let name: String?
     let provider: String?
@@ -159,41 +165,36 @@ private extension ThreadHostToolRequestParser {
         for fields: ThreadHostToolCreateFields,
         in path: String
     ) throws -> ThreadHostToolRequestedWorkspace {
-        if let section = fields.section {
-            guard fields.mode != "project" else {
-                throw invalid("\(path).section applies only to a task thread; a project thread renders under its Project.")
-            }
-            guard fields.projectPath == nil else {
-                throw invalid("\(path).section and \(path).project_path cannot both be set — a thread renders in one place.")
-            }
-            return .task(grantedRoots: fields.grantedRoots ?? [], sectionName: section)
-        }
-        switch fields.mode {
-        case "project", nil:
-            guard let projectPath = fields.projectPath else {
-                guard fields.mode == nil else {
-                    throw invalid("\(path).project_path is required for a project thread.")
-                }
-                return .inherit(grantedRoots: fields.grantedRoots ?? [])
-            }
-            guard fields.grantedRoots == nil else {
-                throw invalid(
-                    "\(path).granted_roots applies only to a task thread; a project thread already works inside " +
-                        "its Project."
-                )
-            }
-            return .project(path: projectPath)
-        case "task":
-            guard fields.projectPath == nil else {
-                throw invalid(
-                    "\(path).project_path does not apply to a task thread. A task thread works in its own private " +
-                        "workspace; use granted_roots to give it access to a folder."
-                )
-            }
-            return .task(grantedRoots: fields.grantedRoots ?? [])
-        default:
+        guard fields.mode == nil || fields.mode == "project" || fields.mode == "task" else {
             throw invalid("\(path).mode must be project or task.")
         }
+        guard fields.projectID == nil || fields.projectPath == nil else {
+            throw invalid("Use project_id or the legacy project_path, not both.")
+        }
+        let projectKey = fields.projectID ?? fields.projectPath
+        if let section = fields.section {
+            guard projectKey == nil, fields.primaryFolderPath == nil, fields.mode != "project" else {
+                throw invalid("section cannot be combined with a project or primary_folder_path.")
+            }
+            return fields.mode == "task"
+                ? .task(grantedRoots: fields.grantedRoots, sectionName: section)
+                : .inherit(grantedRoots: fields.grantedRoots, sectionName: section)
+        }
+        if let projectKey {
+            guard fields.mode != "task" || fields.primaryFolderPath == nil else {
+                throw invalid("A private task workspace cannot select a primary source folder.")
+            }
+            return .project(
+                path: projectKey, primaryFolderPath: fields.primaryFolderPath,
+                grantedRoots: fields.grantedRoots, isID: fields.projectID != nil, privateWorkspace: fields.mode == "task"
+            )
+        }
+        guard fields.primaryFolderPath == nil else {
+            throw invalid("primary_folder_path requires project_id or project_path.")
+        }
+        if fields.mode == "project" { throw invalid("project_id is required for a project selection.") }
+        if fields.mode == "task" { return .task(grantedRoots: fields.grantedRoots) }
+        return .inherit(grantedRoots: fields.grantedRoots)
     }
 
     /// Shape only. Whether a path is an absolute existing folder is host state, so it belongs to
@@ -250,6 +251,8 @@ private extension ThreadHostToolRequestParser {
         let optionalStrings: [String: String?] = [
             "mode": fields.mode,
             "project_path": fields.projectPath,
+            "project_id": fields.projectID,
+            "primary_folder_path": fields.primaryFolderPath,
             "name": fields.name,
             "provider": fields.provider,
             "model": fields.model,

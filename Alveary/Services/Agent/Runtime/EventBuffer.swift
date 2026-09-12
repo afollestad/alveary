@@ -4,6 +4,8 @@ import Foundation
 /// updating live-approval counters does not perform nested dictionary writes.
 final class ManagedEventBuffer: @unchecked Sendable {
     let generation: UUID
+    /// Capture launch roots so background cache invalidation survives project edits and provider restarts.
+    let fileCompletionRoots: [String]
     var allowsReplay: Bool
     var acceptsLiveEvents: Bool
     var hasDeferredToolStop: Bool
@@ -25,6 +27,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
 
     init(
         generation: UUID,
+        fileCompletionRoots: [String] = [],
         allowsReplay: Bool,
         acceptsLiveEvents: Bool,
         hasDeferredToolStop: Bool,
@@ -37,6 +40,7 @@ final class ManagedEventBuffer: @unchecked Sendable {
         buffer: EventBuffer
     ) {
         self.generation = generation
+        self.fileCompletionRoots = fileCompletionRoots
         self.allowsReplay = allowsReplay
         self.acceptsLiveEvents = acceptsLiveEvents
         self.hasDeferredToolStop = hasDeferredToolStop

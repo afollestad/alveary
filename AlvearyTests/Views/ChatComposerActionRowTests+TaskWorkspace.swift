@@ -5,16 +5,36 @@ import XCTest
 
 @MainActor
 extension ChatComposerActionRowTests {
-    func testTaskWorkspaceGrantPresentationUsesCanonicalHomeRelativePath() {
+    func testDraftWorkspaceButtonUpdatesSelectedModeAndKeepsGrantCount() throws {
+        let row = ChatComposerActionRowView()
+        var workspace = ChatComposerActionRowView.TaskWorkspaceConfiguration(
+            primaryRoot: "/tmp/project", grantedRoots: ["/tmp/grant"], ownershipStrategy: .projectLocal,
+            canEdit: true, disabledTooltip: nil, onAddFolders: { _ in }, onRemoveGrant: { _ in },
+            selectedUseWorktree: true
+        )
+        row.configure(makeConfiguration(mode: .idle, showWorktreePicker: false, taskWorkspace: workspace))
+        let button = try XCTUnwrap(row.taskWorkspaceActionRowDescendants(of: ComposerWorktreeLocationButton.self).first)
+        XCTAssertEqual(button.debugTitle, "Worktree +1")
+        XCTAssertEqual(button.debugSymbolName, ChatComposerWorktreeLocationPresentation.selectedOption(usesWorktree: true).symbolName)
+        XCTAssertEqual(button.accessibilityValue() as? String, "New worktree, 1 additional folder")
+
+        workspace.selectedUseWorktree = false
+        row.configure(makeConfiguration(mode: .idle, showWorktreePicker: false, taskWorkspace: workspace))
+        XCTAssertEqual(button.debugTitle, "Local +1")
+        XCTAssertEqual(button.debugSymbolName, "laptopcomputer")
+        XCTAssertEqual(button.accessibilityValue() as? String, "Work locally, 1 additional folder")
+    }
+
+    func testTaskWorkspaceGrantPresentationKeepsStoredPathLiteral() {
         let path = NSHomeDirectory() + "/Development/../Development/alveary"
 
         XCTAssertEqual(
             ComposerTaskWorkspacePresentation.grantDisplayPath(path),
-            "~/Development/alveary"
+            "~/Development/../Development/alveary"
         )
         XCTAssertEqual(
             ComposerTaskWorkspacePresentation.grantRemovalAccessibilityLabel(path),
-            "Remove Access to ~/Development/alveary"
+            "Remove Access to ~/Development/../Development/alveary"
         )
     }
 
@@ -35,7 +55,7 @@ extension ChatComposerActionRowTests {
         ))
 
         let workspaceButton = try XCTUnwrap(row.taskWorkspaceActionRowDescendants(of: ComposerWorktreeLocationButton.self).first)
-        XCTAssertEqual(workspaceButton.accessibilityLabel(), "Task workspace")
+        XCTAssertEqual(workspaceButton.accessibilityLabel(), "Thread workspace")
         XCTAssertEqual(workspaceButton.accessibilityValue() as? String, "Private workspace, 2 additional folders")
     }
 
@@ -58,7 +78,7 @@ extension ChatComposerActionRowTests {
         ))
 
         let workspaceButton = try XCTUnwrap(row.taskWorkspaceActionRowDescendants(of: ComposerWorktreeLocationButton.self).first)
-        XCTAssertEqual(workspaceButton.accessibilityValue() as? String, "Task worktree, 2 additional folders")
+        XCTAssertEqual(workspaceButton.accessibilityValue() as? String, "Thread worktree, 2 additional folders")
         XCTAssertEqual(workspaceButton.toolTip, reason)
         XCTAssertEqual(workspaceButton.accessibilityHelp(), reason)
         XCTAssertEqual(row.taskWorkspaceGrantRemovalTitle("/A/Sources"), "Remove Access to /A/Sources")

@@ -14,8 +14,8 @@ extension ConversationView {
         guard let thread else {
             return nil
         }
-        let path = thread.effectiveMode == .project ? thread.project?.path : thread.primaryWorkingDirectory
-        return path.map { URL(fileURLWithPath: CanonicalPath.normalize($0), isDirectory: true) }
+        let path = thread.sourceFolder?.path ?? thread.primaryWorkingDirectory
+        return path.map { URL(fileURLWithPath: $0, isDirectory: true) }
     }
 
     var activeProviderID: String {

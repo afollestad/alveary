@@ -5,17 +5,23 @@ import SwiftUI
 private let repositoryCardOcticonSize: CGFloat = 14
 
 struct ProjectSettingsRepositoryCard: View {
-    let project: Project
+    let sourceFolder: SourceFolderSnapshot
+
+    init(sourceFolder: SourceFolderSnapshot) { self.sourceFolder = sourceFolder }
+
+    init(project: Project) {
+        sourceFolder = project.primaryFolder?.snapshot ?? SourceFolderSnapshot(path: "")
+    }
 
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                LabeledContent("Base branch", value: project.baseRef ?? "Unknown")
-                LabeledContent("Remote", value: project.remoteName ?? "Local only")
-                LabeledContent("Remote URL", value: project.gitRemote ?? "Not configured")
+                LabeledContent("Base branch", value: sourceFolder.baseRef ?? "Unknown")
+                LabeledContent("Remote", value: sourceFolder.remoteName ?? "Local only")
+                LabeledContent("Remote URL", value: sourceFolder.gitRemote ?? "Not configured")
                 LabeledContent("GitHub repo") {
-                    if let githubRepository = project.githubRepository,
-                       let githubRepositoryURL = project.githubRepositoryURL {
+                    if let githubRepository = sourceFolder.githubRepository,
+                       let githubRepositoryURL = URL(string: "https://github.com/" + githubRepository) {
                         Link(githubRepository, destination: githubRepositoryURL)
                             .foregroundStyle(Color.accentColor)
                             .lineLimit(1)

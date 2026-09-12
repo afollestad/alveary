@@ -178,7 +178,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
             ThreadActivityNotificationKey.didChangeOrder: didChangeOrder
         ]
         if case .project(let projectPath) = scope {
-            userInfo[ThreadActivityNotificationKey.projectPath] = projectPath
+            userInfo[ThreadActivityNotificationKey.projectID] = projectPath
         }
         if let conversationId {
             userInfo[ThreadActivityNotificationKey.conversationID] = conversationId
@@ -188,11 +188,11 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
 
     private func activityScope(for thread: AgentThread) -> ThreadActivityScope? {
         // Scope follows sidebar placement: any thread in a project re-sorts that project's
-        // children, and only a projectless Task re-sorts the `Tasks` section.
-        if let projectPath = thread.project?.path {
+        // children, and every projectless thread re-sorts its standalone section.
+        if let projectPath = thread.project?.id {
             return .project(projectPath)
         }
-        return thread.effectiveMode == .task ? .task : nil
+        return .task
     }
 
     private func orderedThreadIDs(scope: ThreadActivityScope) -> [PersistentIdentifier] {
@@ -206,7 +206,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
                 predicate: #Predicate { thread in
                     thread.archivedAt == nil &&
                         thread.isDraft == false &&
-                        thread.project?.path == projectPath
+                        thread.project?.id == projectPath
                 }
             )
             let threads = (try? modelContext.fetch(descriptor)) ?? []
@@ -222,7 +222,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
                 }
             )
             return ((try? modelContext.fetch(descriptor)) ?? [])
-                .filter { $0.effectiveMode == .task && $0.project == nil }
+                .filter { $0.project == nil }
         }
     }
 
@@ -277,7 +277,7 @@ final class ThreadActivityRecorder: ThreadActivityRecording {
 }
 
 enum ThreadActivityNotificationKey {
-    static let projectPath = "projectPath"
+    static let projectID = "projectID"
     static let threadMode = "threadMode"
     static let threadID = "threadID"
     static let conversationID = "conversationID"

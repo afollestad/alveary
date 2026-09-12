@@ -294,10 +294,15 @@ private extension ScheduledTaskProposalQueueCoordinator {
         if action == .create || action == .edit, definitionDraft == nil {
             return "This proposal's task details cannot be read."
         }
-        if let definitionDraft,
-           definitionDraft.workspaceKind == .project,
-           proposal.project?.path != definitionDraft.projectPath {
-            return "The project selected for this proposal is no longer available."
+        if let draft = definitionDraft {
+            if let id = draft.projectID, proposal.project?.id != id {
+                return "The project selected for this proposal is no longer available."
+            }
+            let usesLegacyProjectIdentity = draft.projectID == nil && proposal.project != nil
+            if usesLegacyProjectIdentity || (draft.workspaceSnapshot == nil && draft.workspaceKind == .project),
+               proposal.project?.orderedFolders.contains(where: { $0.path == draft.projectPath }) != true {
+                return "The project selected for this proposal is no longer available."
+            }
         }
         guard action != .create else {
             return nil

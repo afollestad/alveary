@@ -8,6 +8,16 @@ final class ShellRunnerTests: XCTestCase {
         XCTAssertEqual(ShellRunOptions().standardInput, .inherit)
     }
 
+    func testMissingWorkingDirectoryFailsBeforeLaunchingACommand() async {
+        let missing = "/tmp/missing-workspace-" + UUID().uuidString
+        do {
+            _ = try await DefaultShellRunner().run(executable: "/bin/pwd", args: [], in: missing)
+            XCTFail("A missing directory must not inherit the app's working directory")
+        } catch {
+            XCTAssertEqual(error as? ShellError, .invalidDirectory(missing))
+        }
+    }
+
     func testEnvironmentOverlayMergesIntoInheritedEnvironment() async throws {
         let runner = DefaultShellRunner()
 

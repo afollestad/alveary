@@ -37,8 +37,8 @@ extension ScheduledTaskWorkspaceIdentitySnapshot {
     ) -> Bool {
         matchesConfiguration(
             workspaceKind: target?.workspaceKind ?? definition.workspaceKind,
-            projectPath: target?.projectPath ?? definition.project?.path,
-            grantedRootPaths: target?.grantedRoots ?? definition.grantedRoots
+            projectPath: target == nil ? definition.workspaceSnapshot?.primarySource?.path : target?.projectPath,
+            grantedRootPaths: target?.grantedRoots ?? definition.workspaceSnapshot?.grants.map(\.path) ?? []
         )
     }
 }

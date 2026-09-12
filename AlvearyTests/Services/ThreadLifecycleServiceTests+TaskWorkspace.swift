@@ -73,7 +73,7 @@ extension ThreadLifecycleServiceTests {
 
     /// The upgrade path: the thread was answered with a private workspace so the caller could
     /// navigate, and the real one lands afterwards.
-    func testReplacingTheWorkspaceSwapsTheDescriptorAndReleasesThePrivateOne() throws {
+    func testReplacingTheWorkspaceSwapsTheDescriptorAndReleasesThePrivateOne() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
             seed: makeTaskWorkspaceSeed(workspace: nil)
@@ -81,7 +81,7 @@ extension ThreadLifecycleServiceTests {
         let privateRoot = try XCTUnwrap(thread.taskWorkspaceDescriptor?.primaryRoot)
         let borrowed = try makeBorrowedDirectory()
 
-        try fixture.viewModel.threadLifecycle.replaceTaskWorkspace(
+        try await fixture.viewModel.threadLifecycle.replaceTaskWorkspace(
             threadID: thread.persistentModelID,
             with: TaskWorkspaceDescriptor(primaryRoot: borrowed, ownershipStrategy: .projectLocal)
         )
@@ -96,14 +96,14 @@ extension ThreadLifecycleServiceTests {
 
     /// A Task carries its checkout in the descriptor and nowhere else. A non-nil `branch` here
     /// would offer the pull request's head branch to `branch -D` on permanent deletion.
-    func testReplacingTheWorkspaceLeavesTheProjectThreadFieldsAlone() throws {
+    func testReplacingTheWorkspaceLeavesTheProjectThreadFieldsAlone() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
             seed: makeTaskWorkspaceSeed(workspace: nil)
         )
         let borrowed = try makeBorrowedDirectory()
 
-        try fixture.viewModel.threadLifecycle.replaceTaskWorkspace(
+        try await fixture.viewModel.threadLifecycle.replaceTaskWorkspace(
             threadID: thread.persistentModelID,
             with: TaskWorkspaceDescriptor(
                 primaryRoot: borrowed,
@@ -121,7 +121,7 @@ extension ThreadLifecycleServiceTests {
 
     /// A Project thread's working directory comes from its project and worktree, so a descriptor
     /// on one would be state nothing reads.
-    func testReplacingTheWorkspaceRefusesAProjectThread() throws {
+    func testReplacingTheWorkspaceRefusesAProjectThread() async throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Alveary", path: "/tmp/alveary-project")
         let thread = try fixture.viewModel.threadLifecycle.insertProjectThread(
@@ -136,12 +136,17 @@ extension ThreadLifecycleServiceTests {
         )
         let borrowed = try makeBorrowedDirectory()
 
-        XCTAssertThrowsError(
-            try fixture.viewModel.threadLifecycle.replaceTaskWorkspace(
+        do {
+            try await fixture.viewModel.threadLifecycle.replaceTaskWorkspace(
                 threadID: thread.persistentModelID,
                 with: TaskWorkspaceDescriptor(primaryRoot: borrowed, ownershipStrategy: .projectLocal)
             )
-        )
+            XCTFail("Expected project-workspace replacement to be refused")
+        } catch {
+            guard case SidebarViewModelError.threadMissingTaskWorkspace = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
         XCTAssertNil(thread.taskWorkspaceDescriptor)
     }
 }

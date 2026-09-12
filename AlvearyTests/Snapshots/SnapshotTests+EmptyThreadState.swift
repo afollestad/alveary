@@ -7,28 +7,18 @@ import XCTest
 extension SnapshotTests {
     func testEmptyThreadProjectOptionsSortDisambiguateAndSelect() {
         let beta = Project(path: "/tmp/beta", name: "Beta")
-        let laterDuplicate = Project(path: "/tmp/z-alveary", name: "alveary")
-        let selectedDuplicate = Project(path: "/tmp/a-alveary", name: "Alveary")
+        let laterDuplicate = Project(path: "/tmp/z-alveary", name: "alveary", id: "2")
+        let selectedDuplicate = Project(path: "/tmp/a-alveary", name: "Alveary", id: "1")
 
         let options = emptyThreadProjectOptions(
             projects: [beta, laterDuplicate, selectedDuplicate],
-            selectedProjectPath: selectedDuplicate.path
+            selectedProjectID: selectedDuplicate.id
         )
 
         XCTAssertEqual(options.map(\.project.path), [selectedDuplicate.path, laterDuplicate.path, beta.path])
         XCTAssertEqual(options.map(\.showsDisambiguatingPath), [true, true, false])
         XCTAssertEqual(options.map(\.isSelected), [true, false, false])
         XCTAssertEqual(options.first?.displayPath, selectedDuplicate.path)
-    }
-
-    func testEmptyThreadProjectIdentityPresentationIncludesFullNameAndPath() {
-        let presentation = emptyThreadProjectIdentityPresentation(
-            name: "Alveary",
-            path: "/Users/alice/Development/alveary"
-        )
-
-        XCTAssertEqual(presentation.helpText, "Alveary\n/Users/alice/Development/alveary")
-        XCTAssertEqual(presentation.accessibilityValue, "Alveary, /Users/alice/Development/alveary")
     }
 
     func testEmptyThreadStateHero() throws {
@@ -38,7 +28,8 @@ extension SnapshotTests {
                 setupPhase: nil,
                 isCancellingInitialSetup: false,
                 thread: fixture.thread,
-                projects: fixture.projects
+                projects: fixture.projects,
+                workspaceConfiguration: emptyThreadWorkspaceConfiguration(for: fixture.thread)
             ),
             size: CGSize(width: 900, height: 560),
             named: "empty_thread_hero"
@@ -52,7 +43,8 @@ extension SnapshotTests {
                 setupPhase: nil,
                 isCancellingInitialSetup: false,
                 thread: fixture.thread,
-                projects: fixture.projects
+                projects: fixture.projects,
+                workspaceConfiguration: emptyThreadWorkspaceConfiguration(for: fixture.thread)
             ),
             size: CGSize(width: 900, height: 560),
             named: "empty_thread_hero_dark",
@@ -67,7 +59,8 @@ extension SnapshotTests {
                 setupPhase: nil,
                 isCancellingInitialSetup: false,
                 thread: fixture.thread,
-                projects: fixture.projects
+                projects: fixture.projects,
+                workspaceConfiguration: emptyThreadWorkspaceConfiguration(for: fixture.thread)
             ),
             size: CGSize(width: 420, height: 560),
             named: "empty_thread_hero_narrow_long_project",
@@ -82,7 +75,8 @@ extension SnapshotTests {
                 setupPhase: nil,
                 isCancellingInitialSetup: false,
                 thread: fixture.thread,
-                projects: fixture.projects
+                projects: fixture.projects,
+                workspaceConfiguration: emptyThreadWorkspaceConfiguration(for: fixture.thread)
             ),
             size: CGSize(width: 900, height: 560),
             named: "empty_thread_hero_materialized"
@@ -95,7 +89,8 @@ extension SnapshotTests {
             EmptyThreadState(
                 setupPhase: nil,
                 isCancellingInitialSetup: false,
-                thread: fixture.thread
+                thread: fixture.thread,
+                workspaceConfiguration: emptyThreadWorkspaceConfiguration(for: fixture.thread)
             ),
             size: CGSize(width: 900, height: 560),
             named: "empty_task_hero"
@@ -108,7 +103,8 @@ extension SnapshotTests {
             EmptyThreadState(
                 setupPhase: nil,
                 isCancellingInitialSetup: false,
-                thread: fixture.thread
+                thread: fixture.thread,
+                workspaceConfiguration: emptyThreadWorkspaceConfiguration(for: fixture.thread)
             ),
             size: CGSize(width: 900, height: 560),
             named: "empty_task_hero_dark",
@@ -122,7 +118,8 @@ extension SnapshotTests {
             EmptyThreadState(
                 setupPhase: nil,
                 isCancellingInitialSetup: false,
-                thread: fixture.thread
+                thread: fixture.thread,
+                workspaceConfiguration: emptyThreadWorkspaceConfiguration(for: fixture.thread)
             ),
             size: CGSize(width: 420, height: 560),
             named: "empty_task_hero_narrow"
@@ -212,6 +209,18 @@ extension SnapshotTests {
 
         XCTAssertEqual(prompt.displayProjectPath, "~/Development/af.codes")
         XCTAssertEqual(prompt.canonicalProjectPath, NSHomeDirectory() + "/Development/af.codes")
+    }
+}
+
+extension SnapshotTests {
+    func emptyThreadWorkspaceConfiguration(for thread: AgentThread) -> ChatComposerActionRowView.TaskWorkspaceConfiguration? {
+        guard let workspace = thread.resolvedWorkspaceDescriptor else { return nil }
+        return .init(
+            primaryRoot: workspace.primaryRoot, grantedRoots: workspace.grantedRoots,
+            ownershipStrategy: workspace.ownershipStrategy, canEdit: true, disabledTooltip: nil,
+            onAddFolders: { _ in }, onRemoveGrant: { _ in },
+            selectedUseWorktree: thread.sourceFolder?.isGitRepository == true ? thread.useWorktree : nil
+        )
     }
 }
 

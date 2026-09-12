@@ -71,10 +71,11 @@ extension ThreadHostToolServiceTests {
         XCTAssertFalse(result.isError, result.text)
         let content = try object(result.structuredContent)
         XCTAssertEqual(content["workspace_kind"], .string("task"))
-        XCTAssertEqual(content["project_path"], .string(project.path))
+        XCTAssertNil(content["project_path"])
+        XCTAssertEqual(content["project_id"], .string(project.id))
         XCTAssertEqual(content["granted_roots"], .array([.string(project.path)]))
         XCTAssertNil(content["section"])
-        XCTAssertTrue(result.text.contains("shown under \(project.path)"), result.text)
+        XCTAssertTrue(result.text.contains("shown under \(project.name)"), result.text)
 
         let created = try fixture.createdThread(in: result)
         XCTAssertEqual(created.effectiveMode, .task)
@@ -114,13 +115,13 @@ extension ThreadHostToolServiceTests {
             let created = try fixture.createdThread(in: result)
             XCTAssertEqual(created.customSection?.name, expectedSection, sectionName)
             XCTAssertNil(created.project, sectionName)
-            XCTAssertEqual(created.taskWorkspaceDescriptor?.grantedRoots, [], sectionName)
+            XCTAssertEqual(created.taskWorkspaceDescriptor?.grantedRoots, [CanonicalPath.normalize(folder.path)], sectionName)
         }
     }
 
     /// An inherited default the request never named must not fail the create: a nesting project
     /// whose folder is gone falls back to the plain `Tasks` list, grantless.
-    func testCreateThreadFallsBackToTasksWhenTheInheritedProjectFolderIsMissing() async throws {
+    func testCreateThreadRefusesAMissingInheritedGrantWithoutDroppingIt() async throws {
         let fixture = try ThreadHostToolFixture()
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("alveary-missing-\(UUID().uuidString)", isDirectory: true).path
@@ -128,12 +129,9 @@ extension ThreadHostToolServiceTests {
 
         let result = await fixture.create(arguments: [:])
 
-        XCTAssertFalse(result.isError, result.text)
-        XCTAssertEqual(try object(result.structuredContent)["section"], .string("Tasks"))
-        let created = try fixture.createdThread(in: result)
-        XCTAssertNil(created.project)
-        XCTAssertNil(created.customSection)
-        XCTAssertEqual(created.taskWorkspaceDescriptor?.grantedRoots, [])
+        XCTAssertTrue(result.isError, result.text)
+        XCTAssertTrue(result.text.contains(missingPath), result.text)
+        XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<AgentThread>()), 1)
     }
 
     /// The snapshot predates the defaults resolver's suspension; a section deleted across it
@@ -176,6 +174,11 @@ extension ThreadHostToolFixture {
         let project = Project(path: path, name: name)
         modelContext.insert(project)
         thread.project = project
+        if thread.effectiveMode == .task {
+            try thread.replaceAdditionalFolders(project.orderedFolders.map(\.snapshot))
+        } else {
+            thread.workspaceSnapshot = project.workspaceSnapshot()
+        }
         try modelContext.save()
         return project
     }
@@ -187,6 +190,11 @@ extension ThreadHostToolFixture {
         let project = Project(path: path, name: name)
         modelContext.insert(project)
         thread.project = project
+        if thread.effectiveMode == .task {
+            try thread.replaceAdditionalFolders(project.orderedFolders.map(\.snapshot))
+        } else {
+            thread.workspaceSnapshot = project.workspaceSnapshot()
+        }
         try modelContext.save()
         return project
     }

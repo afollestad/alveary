@@ -5,7 +5,7 @@ extension SidebarView {
     func selectionAfterDeletingThread(_ thread: AgentThread) -> SidebarItem? {
         // Fallback follows placement, not mode: a Task placed in a project prefers its project
         // siblings, and only a projectless Task falls back within the `Tasks` section.
-        if thread.effectiveMode == .task, thread.project == nil {
+        if thread.project == nil {
             return selectionAfterDeletingTask(thread)
         }
 
@@ -64,7 +64,7 @@ extension SidebarView {
 
     func visibleTaskThreadsForSelectionFallback() -> [AgentThread] {
         let pinnedTasks = pinnedItems().compactMap { item -> AgentThread? in
-            guard case .thread(let thread) = item.kind, thread.effectiveMode == .task else {
+            guard case .thread(let thread) = item.kind, thread.supportsIndependentSidebarPlacement else {
                 return nil
             }
             return thread

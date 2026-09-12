@@ -51,11 +51,11 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
     func testABlankProjectPathNamesNoPlacement() throws {
         XCTAssertEqual(
             try parser.parseCreate(arguments: ["project_path": .string("   ")]).workspace,
-            .inherit(grantedRoots: [])
+            .inherit(grantedRoots: nil)
         )
         assertInvalid(
             ["mode": .string("project"), "project_path": .string("   ")],
-            containing: "arguments.project_path is required for a project thread."
+            containing: "project_id is required for a project selection."
         )
     }
 
@@ -64,7 +64,7 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
     func testCreateReadsEachWorkspacePlacement() throws {
         XCTAssertEqual(
             try parser.parseCreate(arguments: ["mode": .string("task")]).workspace,
-            .task(grantedRoots: [])
+            .task(grantedRoots: nil)
         )
         XCTAssertEqual(
             try parser.parseCreate(arguments: [
@@ -73,17 +73,17 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
             ]).workspace,
             .project(path: "/tmp/project")
         )
-        XCTAssertEqual(try parser.parseCreate(arguments: [:]).workspace, .inherit(grantedRoots: []))
+        XCTAssertEqual(try parser.parseCreate(arguments: [:]).workspace, .inherit(grantedRoots: nil))
 
-        assertInvalid(["mode": .string("project")], containing: "arguments.project_path is required")
-        assertInvalid(
-            ["mode": .string("task"), "project_path": .string("/tmp/project")],
-            containing: "arguments.project_path does not apply to a task thread"
+        assertInvalid(["mode": .string("project")], containing: "project_id is required")
+        XCTAssertEqual(
+            try parser.parseCreate(arguments: ["mode": .string("task"), "project_id": .string("project-1")]).workspace,
+            .project(path: "project-1", isID: true, privateWorkspace: true)
         )
         assertInvalid(["mode": .string("worktree")], containing: "arguments.mode must be project or task.")
     }
 
-    func testCreateReadsGrantedRootsForTaskThreadsOnly() throws {
+    func testCreateReadsGrantedRootsForEveryWorkspace() throws {
         XCTAssertEqual(
             try parser.parseCreate(arguments: [
                 "mode": .string("task"),
@@ -91,7 +91,7 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
             ]).workspace,
             .task(grantedRoots: ["/tmp/one", "/tmp/two"])
         )
-        // Grants ride an inherited placement; only the handler knows whether it lands on a Task.
+        // An explicit grant list replaces the saved grants in either execution kind.
         XCTAssertEqual(
             try parser.parseCreate(arguments: [
                 "granted_roots": .array([.string("/tmp/one")])
@@ -99,9 +99,11 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
             .inherit(grantedRoots: ["/tmp/one"])
         )
 
-        assertInvalid(
-            ["project_path": .string("/tmp/project"), "granted_roots": .array([.string("/tmp/one")])],
-            containing: "arguments.granted_roots applies only to a task thread"
+        XCTAssertEqual(
+            try parser.parseCreate(arguments: [
+                "project_path": .string("/tmp/project"), "granted_roots": .array([.string("/tmp/one")])
+            ]).workspace,
+            .project(path: "/tmp/project", grantedRoots: ["/tmp/one"])
         )
         assertInvalid(
             ["mode": .string("task"), "granted_roots": .string("/tmp/one")],
@@ -202,6 +204,21 @@ final class ThreadHostToolRequestParserTests: XCTestCase {
             )
         }
         XCTAssertThrowsError(try parser.parseArchive(arguments: [:]))
+    }
+
+    func testProjectFolderSelectionAndRootRemovalHaveDistinctRetryIdentities() throws {
+        let base: [String: AgentCLIKit.JSONValue] = ["project_id": .string("first")]
+        let original = try parser.parseCreate(arguments: base).canonicalPayloadHash
+        let variants: [[String: AgentCLIKit.JSONValue]] = [
+            ["project_id": .string("second")],
+            base.merging(["primary_folder_path": .string("/tmp/secondary")]) { _, new in new },
+            base.merging(["granted_roots": .array([])]) { _, new in new }
+        ]
+        for arguments in variants {
+            XCTAssertNotEqual(try parser.parseCreate(arguments: arguments).canonicalPayloadHash, original)
+        }
+        assertInvalid(["project_id": .string("first"), "project_path": .string("/tmp/source")], containing: "not both")
+        assertInvalid(["primary_folder_path": .string("/tmp/source")], containing: "requires project_id")
     }
 
     private func assertInvalid(

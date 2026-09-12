@@ -32,6 +32,7 @@ struct AppKitChatComposerBodyConfiguration {
     let hasQueuedMessages: Bool
     let hasTopContent: Bool
     let workingDirectory: String?
+    let workspaceRoots: [String]
     let attachments: [ComposerAttachment]
     let urlOpener: BlockInputURLOpener
     let localCommands: ComposerLocalCommandAvailability
@@ -75,6 +76,7 @@ struct AppKitChatComposerBodyConfiguration {
         hasQueuedMessages: Bool,
         hasTopContent: Bool,
         workingDirectory: String?,
+        workspaceRoots: [String] = [],
         attachments: [ComposerAttachment] = [],
         urlOpener: @escaping BlockInputURLOpener = { NSWorkspace.shared.open($0) },
         localCommands: ComposerLocalCommandAvailability = ComposerLocalCommandAvailability(),
@@ -117,6 +119,7 @@ struct AppKitChatComposerBodyConfiguration {
         self.hasQueuedMessages = hasQueuedMessages
         self.hasTopContent = hasTopContent
         self.workingDirectory = workingDirectory
+        self.workspaceRoots = workspaceRoots
         self.attachments = attachments
         self.urlOpener = urlOpener
         self.localCommands = localCommands

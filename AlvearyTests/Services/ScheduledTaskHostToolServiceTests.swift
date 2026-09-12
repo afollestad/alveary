@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 final class ScheduledTaskHostToolServiceTests: XCTestCase {
-    func testListReturnsStableMetadataWithoutPrompts() throws {
+    func testListReturnsStableMetadataWithoutPrompts() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let definition = fixture.insertDefinition(
             id: "definition-1",
@@ -18,7 +18,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         )
         try fixture.modelContext.save()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(name: ScheduledTaskHostToolCatalog.listToolName)
         )
@@ -39,7 +39,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         XCTAssertFalse(try encoded(result).contains("SECRET PROMPT CONTENT"))
     }
 
-    func testCreateBindsProviderSettingsAndProjectWorkspaceFromSource() throws {
+    func testCreateBindsProviderSettingsAndProjectWorkspaceFromSource() async throws {
         let notificationCenter = NotificationCenter()
         let notificationBox = ScheduledTaskProposalNotificationBox()
         let observer = notificationCenter.addObserver(
@@ -52,7 +52,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         defer { notificationCenter.removeObserver(observer) }
         let fixture = try ScheduledTaskHostToolFixture.project(notificationCenter: notificationCenter)
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -68,7 +68,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         XCTAssertEqual(draft.effort, "high")
         XCTAssertEqual(draft.permissionMode, "workspace-write")
         XCTAssertEqual(draft.workspaceKind, .project)
-        XCTAssertEqual(draft.workspaceStrategy, .worktree)
+        XCTAssertEqual(draft.workspaceStrategy, .localCheckout)
         XCTAssertEqual(draft.projectPath, fixture.project?.path)
         XCTAssertTrue(draft.grantedRoots.isEmpty)
         XCTAssertEqual(proposal.project?.path, fixture.project?.path)
@@ -84,7 +84,7 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         )
     }
 
-    func testTaskWithMissingSourceProjectFallsBackToPrivateWorkspaceAndOnlyExplicitGrants() throws {
+    func testTaskKeepsItsSavedSourceAndGrantsWithoutARegisteredProject() async throws {
         let descriptor = TaskWorkspaceDescriptor(
             primaryRoot: "/tmp/obsolete-worktree",
             grantedRoots: ["/tmp/allowed-grant", "/tmp/obsolete-worktree"],
@@ -93,8 +93,13 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
             sourceProjectPath: "/tmp/missing-source-project"
         )
         let fixture = try ScheduledTaskHostToolFixture.task(descriptor: descriptor)
+        fixture.thread.workspaceSnapshot = WorkspaceSnapshot(
+            primarySource: SourceFolderSnapshot(path: try XCTUnwrap(descriptor.sourceProjectPath), gitBranch: "main"),
+            grants: descriptor.grantedRoots.map { SourceFolderSnapshot(path: $0) }
+        )
+        try fixture.modelContext.save()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -105,11 +110,11 @@ final class ScheduledTaskHostToolServiceTests: XCTestCase {
         XCTAssertFalse(result.isError)
         let proposal = try XCTUnwrap(try fixture.modelContext.fetch(FetchDescriptor<ScheduledTaskProposal>()).first)
         let draft = try XCTUnwrap(proposal.definitionDraft)
-        XCTAssertEqual(draft.workspaceKind, .privateWorkspace)
+        XCTAssertEqual(draft.workspaceKind, .project)
         XCTAssertEqual(draft.workspaceStrategy, .worktree)
-        XCTAssertEqual(draft.grantedRoots, [CanonicalPath.normalize("/tmp/allowed-grant")])
-        XCTAssertFalse(draft.grantedRoots.contains(CanonicalPath.normalize("/tmp/obsolete-worktree")))
-        XCTAssertNil(draft.projectPath)
+        XCTAssertEqual(draft.grantedRoots, descriptor.grantedRoots)
+        XCTAssertEqual(draft.projectPath, descriptor.sourceProjectPath)
+        XCTAssertEqual(draft.workspaceSnapshot, fixture.thread.workspaceSnapshot)
         XCTAssertNil(proposal.project)
     }
 
@@ -278,7 +283,11 @@ final class ScheduledTaskHostToolFixture {
         notificationCenter: NotificationCenter,
         requestParser: ScheduledTaskHostToolRequestParser,
         runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in true },
-        now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) }
+        now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) },
+        resolveSourceFolder: @escaping @MainActor (String) async -> SourceFolderSnapshot = {
+            await SourceFolderMetadataResolver().resolve(path: $0)
+        },
+        saveChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) -> ScheduledTaskHostToolService {
         ScheduledTaskHostToolService(
             modelContext: modelContext,
@@ -291,7 +300,9 @@ final class ScheduledTaskHostToolFixture {
             requestParser: requestParser,
             currentTimeZone: { TimeZone(identifier: "Etc/UTC") ?? .current },
             runNow: runNow,
-            now: now
+            now: now,
+            resolveSourceFolder: resolveSourceFolder,
+            saveChanges: saveChanges
         )
     }
 

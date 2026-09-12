@@ -36,6 +36,7 @@ extension ChatComposerActionRowView {
         let taskWorkspaceGrantedRoots: [String]?
         let taskWorkspaceOwnershipStrategy: TaskWorkspaceOwnershipStrategy?
         let taskWorkspaceCanEdit: Bool?
+        let workspaceUseWorktree: Bool?
         let taskWorkspaceDisabledTooltip: String?
         let voiceInputPhase: ChatVoiceInputPhase?
         let voiceInputIsEnabled: Bool?
@@ -72,6 +73,7 @@ extension ChatComposerActionRowView {
             taskWorkspaceGrantedRoots = configuration.taskWorkspace?.grantedRoots
             taskWorkspaceOwnershipStrategy = configuration.taskWorkspace?.ownershipStrategy
             taskWorkspaceCanEdit = configuration.taskWorkspace?.canEdit
+            workspaceUseWorktree = configuration.taskWorkspace?.selectedUseWorktree
             taskWorkspaceDisabledTooltip = configuration.taskWorkspace?.disabledTooltip
             voiceInputPhase = configuration.voiceInput?.phase
             voiceInputIsEnabled = configuration.voiceInput?.isEnabled

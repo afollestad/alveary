@@ -63,9 +63,9 @@ extension ArchivedThreadsViewModelTests {
 
         viewModel.refresh()
 
-        XCTAssertEqual(viewModel.projectFilterOptions, [.all, .project(path: "/tmp/used")])
+        XCTAssertEqual(viewModel.projectFilterOptions, [.all, .project(id: used.id)])
         XCTAssertEqual(viewModel.projectFilterLabel(.all), "All Projects")
-        XCTAssertEqual(viewModel.projectFilterLabel(.project(path: "/tmp/used")), "Used")
+        XCTAssertEqual(viewModel.projectFilterLabel(.project(id: used.id)), "Used")
     }
 
     func testProjectFilterNarrowsToOneBucketAndFallsBackToAllWhenItEmpties() async throws {
@@ -81,7 +81,7 @@ extension ArchivedThreadsViewModelTests {
         let viewModel = makeViewModel(fixture: fixture).viewModel
         viewModel.refresh()
 
-        viewModel.projectFilter = .project(path: "/tmp/scoped")
+        viewModel.projectFilter = .project(id: project.id)
         XCTAssertEqual(viewModel.sections.map(\.title), ["Scoped"])
         XCTAssertEqual(viewModel.sections.flatMap { $0.items.map(\.id) }, [projectThread.persistentModelID])
 

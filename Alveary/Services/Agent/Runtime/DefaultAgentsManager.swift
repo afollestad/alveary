@@ -10,6 +10,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
     let settingsService: SettingsService
     let keepAwakeService: KeepAwakeService
     let notificationManager: NotificationManager
+    let fileListManager: (any FileListManager)?
     let threadActivityRecorder: any ThreadActivityRecording
     let claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore
     let providerSessionBindingStore: any ProviderSessionBindingStore
@@ -48,6 +49,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         settingsService: SettingsService,
         keepAwakeService: KeepAwakeService,
         notificationManager: NotificationManager,
+        fileListManager: (any FileListManager)? = nil,
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
         claudeApprovalPersistenceStore: any ClaudeApprovalPersistenceStore = DisabledClaudeApprovalPersistenceStore(),
         providerSessionBindingStore: any ProviderSessionBindingStore = NoopProviderSessionBindingStore()
@@ -60,6 +62,7 @@ actor DefaultAgentsManager: AgentsManager, ConversationRuntimeStore {
         self.settingsService = settingsService
         self.keepAwakeService = keepAwakeService
         self.notificationManager = notificationManager
+        self.fileListManager = fileListManager
         self.threadActivityRecorder = threadActivityRecorder
         self.claudeApprovalPersistenceStore = claudeApprovalPersistenceStore
         self.providerSessionBindingStore = providerSessionBindingStore

@@ -18,7 +18,7 @@ extension SidebarViewModel {
             // The pinned row has to be the one the user actually dragged; a child absorbed by a
             // pinned project publishes no standalone pin for this drop to release.
             guard let thread = modelContext.resolveThread(id: id),
-                  thread.effectiveMode == .task,
+                  thread.supportsIndependentSidebarPlacement,
                   isVisiblePinnedSidebarThread(thread) else {
                 return false
             }
@@ -67,7 +67,7 @@ extension SidebarViewModel {
             return false
         }
         guard let thread = modelContext.resolveThread(id: threadID),
-              thread.effectiveMode == mode,
+              thread.supportsIndependentSidebarPlacement == (mode == .task),
               isVisiblePinnedSidebarThread(thread),
               thread.project?.persistentModelID == projectID else {
             return false
@@ -113,22 +113,22 @@ extension SidebarViewModel {
             guard let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.effectiveMode == .project && isVisiblePinnedSidebarThread(thread)
+            return !thread.supportsIndependentSidebarPlacement && isVisiblePinnedSidebarThread(thread)
         case .pinnedTask(let id):
             guard let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.effectiveMode == .task && isVisiblePinnedSidebarThread(thread)
+            return thread.supportsIndependentSidebarPlacement && isVisiblePinnedSidebarThread(thread)
         case .unpinnedTask(let id):
             guard let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.effectiveMode == .task && !thread.isPinned && !thread.isDraft && thread.archivedAt == nil
+            return thread.supportsIndependentSidebarPlacement && !thread.isPinned && !thread.isDraft && thread.archivedAt == nil
         case .projectThread(let id):
             guard let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.effectiveMode == .project && !thread.isPinned && !thread.isDraft && thread.archivedAt == nil
+            return !thread.supportsIndependentSidebarPlacement && !thread.isPinned && !thread.isDraft && thread.archivedAt == nil
         case .section:
             // Section order is validated by `SidebarSectionService`, which owns the rows.
             return false
@@ -147,13 +147,13 @@ extension SidebarViewModel {
                   let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.effectiveMode == .project && isVisiblePinnedSidebarThread(thread)
+            return !thread.supportsIndependentSidebarPlacement && isVisiblePinnedSidebarThread(thread)
         case .pinnedTask(let id):
             guard section == .pinned,
                   let thread = modelContext.resolveThread(id: id) else {
                 return false
             }
-            return thread.effectiveMode == .task && isVisiblePinnedSidebarThread(thread)
+            return thread.supportsIndependentSidebarPlacement && isVisiblePinnedSidebarThread(thread)
         case .unpinnedTask, .projectThread, .section:
             return false
         }
@@ -170,7 +170,7 @@ extension SidebarViewModel {
             return
         }
         let childIDs = Set(
-            try unarchivedThreadsForOrdering(projectPath: project.path)
+            try unarchivedThreadsForOrdering(projectPath: project.id)
                 .filter { $0.isPinned && $0.project?.isPinned != true }
                 .map(\.persistentModelID)
         )
@@ -252,7 +252,7 @@ extension SidebarViewModel {
     }
 
     func clearUnarchivedChildPins(_ project: Project) throws {
-        for child in try unarchivedThreadsForOrdering(projectPath: project.path)
+        for child in try unarchivedThreadsForOrdering(projectPath: project.id)
         where child.isPinned || child.pinnedSortOrder != nil {
             child.isPinned = false
             child.pinnedSortOrder = nil
@@ -268,7 +268,7 @@ extension SidebarViewModel {
 
     func resolvePinnedThreadForOrdering(_ id: PersistentIdentifier, mode: AgentThreadMode) throws -> AgentThread {
         guard let thread = modelContext.resolveThread(id: id),
-              thread.effectiveMode == mode,
+              thread.supportsIndependentSidebarPlacement == (mode == .task),
               isVisiblePinnedSidebarThread(thread) else {
             throw SidebarViewModelError.threadMissing
         }
@@ -277,7 +277,7 @@ extension SidebarViewModel {
 
     func resolveUnpinnedTaskForOrdering(_ id: PersistentIdentifier) throws -> AgentThread {
         guard let thread = modelContext.resolveThread(id: id),
-              thread.effectiveMode == .task,
+              thread.supportsIndependentSidebarPlacement,
               !thread.isPinned,
               !thread.isDraft,
               thread.archivedAt == nil else {
@@ -288,7 +288,7 @@ extension SidebarViewModel {
 
     func resolveUnpinnedProjectThreadForOrdering(_ id: PersistentIdentifier) throws -> AgentThread {
         guard let thread = modelContext.resolveThread(id: id),
-              thread.effectiveMode == .project,
+              !thread.supportsIndependentSidebarPlacement,
               !thread.isPinned,
               !thread.isDraft,
               thread.archivedAt == nil,

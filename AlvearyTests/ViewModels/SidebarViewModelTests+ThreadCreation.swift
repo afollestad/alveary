@@ -22,6 +22,30 @@ extension SidebarViewModelTests {
         XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveThreads(for: project))
     }
 
+    func testReopeningProjectDraftPreservesEditedFolderAccess() async throws {
+        let fixture = try SidebarTestFixture()
+        let primary = SourceFolderSnapshot(path: "/tmp/reopened-project-primary", gitBranch: "main")
+        let defaultGrant = SourceFolderSnapshot(path: "/tmp/reopened-project-default")
+        let customGrant = SourceFolderSnapshot(path: "/tmp/reopened-project-custom")
+        let project = try fixture.viewModel.saveProjectConfiguration(
+            ProjectConfiguration(name: "Project", folders: [primary, defaultGrant])
+        )
+        let draft = try await fixture.viewModel.openDraftThread(project: project)
+        try draft.replaceAdditionalFolders([customGrant])
+        draft.draftHasExplicitGrants = true
+        try fixture.context.save()
+        let savedWorkspace = draft.workspaceSnapshot
+
+        let reopened = try await fixture.viewModel.openDraftThread(project: project)
+
+        XCTAssertEqual(reopened.persistentModelID, draft.persistentModelID)
+        XCTAssertEqual(reopened.workspaceSnapshot, savedWorkspace)
+        XCTAssertEqual(reopened.workspaceSnapshot?.grants, [customGrant])
+        XCTAssertTrue(reopened.draftHasExplicitGrants)
+        let verification = ModelContext(fixture.container)
+        XCTAssertEqual(verification.resolveThread(id: draft.persistentModelID)?.workspaceSnapshot, savedWorkspace)
+    }
+
     func testOpenDraftThreadReusesIdentityAndMovesProjectWithoutClearingSelections() async throws {
         let fixture = try SidebarTestFixture()
         let alpha = try fixture.insertProject(name: "Alpha", path: "/tmp/draft-move-alpha")
@@ -50,9 +74,33 @@ extension SidebarViewModelTests {
         XCTAssertEqual(moved.effort, "high")
         XCTAssertEqual(moved.planModeEnabled, true)
         XCTAssertEqual(moved.speedMode, Alveary.AgentSpeedMode.fast.rawValue)
-        XCTAssertTrue(moved.useWorktree)
+        XCTAssertFalse(moved.useWorktree)
         assertPreservedDraftRuntime(preservedRuntime, conversationID: conversationID)
-        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectPath, beta.path)
+        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectID, beta.id)
+    }
+
+    func testDraftNotificationsDistinguishWorkspaceRefreshFromPlacementChange() async throws {
+        let fixture = try SidebarTestFixture()
+        let alpha = try fixture.insertProject(name: "Alpha", path: "/tmp/draft-notification-alpha")
+        let beta = try fixture.insertProject(name: "Beta", path: "/tmp/draft-notification-beta")
+        let draft = try await fixture.viewModel.openDraftThread(project: alpha)
+        let recorder = DraftProjectChangeNotificationRecorder(expectedThreadID: draft.persistentModelID)
+        let observer = NotificationCenter.default.addObserver(forName: .threadDraftProjectChanged, object: nil, queue: nil) {
+            recorder.recordIfMatching($0.userInfo)
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        _ = try fixture.viewModel.saveProjectConfiguration(
+            ProjectConfiguration(name: alpha.name, folders: [SourceFolderSnapshot(path: "/tmp/draft-notification-replacement")]),
+            projectID: alpha.id
+        )
+        XCTAssertEqual(recorder.placementChanges, [false])
+        XCTAssertEqual(draft.primaryWorkingDirectory, "/tmp/draft-notification-replacement")
+
+        _ = try fixture.viewModel.moveDraftThread(draft, to: .project(id: beta.id))
+        XCTAssertEqual(recorder.placementChanges, [false, true])
+        XCTAssertEqual(draft.project?.id, beta.id)
+        XCTAssertEqual(recorder.count, 2)
     }
 
     func testDraftProjectReassignmentSaveFailureRestoresProjectAndRuntimeState() async throws {
@@ -89,8 +137,8 @@ extension SidebarViewModelTests {
         XCTAssertEqual(restoredDraft.persistentModelID, draftID)
         XCTAssertEqual(restoredDraft.project?.persistentModelID, alpha.persistentModelID)
         XCTAssertEqual(restoredDraft.conversations.first?.id, conversationID)
-        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectPath, alpha.path)
-        XCTAssertEqual(fixture.viewModel.pendingDraftProjectPath, alpha.path)
+        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectID, alpha.id)
+        XCTAssertEqual(fixture.viewModel.pendingDraftProjectID, alpha.id)
         let restoredState = runtimeStore.conversationState(for: conversationID)
         XCTAssertTrue(restoredState === state)
         XCTAssertEqual(restoredState.inputDraft, "Keep this failed move draft")
@@ -116,10 +164,10 @@ extension SidebarViewModelTests {
         let latestOpen = Task { @MainActor in
             try await fixture.viewModel.openDraftThread(project: beta).persistentModelID
         }
-        for _ in 0..<100 where fixture.viewModel.pendingDraftProjectPath != beta.path {
+        for _ in 0..<100 where fixture.viewModel.pendingDraftProjectID != beta.id {
             await Task.yield()
         }
-        XCTAssertEqual(fixture.viewModel.pendingDraftProjectPath, beta.path)
+        XCTAssertEqual(fixture.viewModel.pendingDraftProjectID, beta.id)
         await discovery.resumeProviderStatuses()
 
         let firstDraftID = try await firstOpen.value
@@ -134,7 +182,7 @@ extension SidebarViewModelTests {
         XCTAssertEqual(firstDraftID, latestDraftID)
         XCTAssertEqual(latestDraft.conversations.count, 1)
         XCTAssertEqual(latestDraft.project?.persistentModelID, beta.persistentModelID)
-        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectPath, beta.path)
+        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectID, beta.id)
     }
 
     /// The reported New Thread delay, at the layer that produced it. `SidebarView+Actions` only

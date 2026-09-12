@@ -7,11 +7,11 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskHostToolServiceTests {
-    func testTheReadToolRejectsArgumentsAndNamesItself() throws {
+    func testTheReadToolRejectsArgumentsAndNamesItself() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
 
         let toolName = ScheduledTaskHostToolCatalog.listToolName
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: toolName,
@@ -25,12 +25,12 @@ extension ScheduledTaskHostToolServiceTests {
 
     /// The read tool resolves the calling conversation first, so a caller whose conversation
     /// Alveary cannot resolve reads nothing — not even the task list.
-    func testReadToolsRequireAUsableSourceConversation() throws {
+    func testReadToolsRequireAUsableSourceConversation() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         fixture.thread.archivedAt = Date(timeIntervalSince1970: 10)
         try fixture.modelContext.save()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(name: ScheduledTaskHostToolCatalog.listToolName)
         )

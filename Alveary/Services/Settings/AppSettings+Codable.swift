@@ -81,6 +81,7 @@ extension AppSettings {
         case worktreesBaseDirectory
         case lastAddProjectParentFolder
         case providerConfigs
+        case lastActiveProjectID
         case lastActiveProjectPath
         case lastOpenThreadID
         case lastOpenConversationID
@@ -335,6 +336,7 @@ extension AppSettings {
         lastAddProjectParentFolder = try container.decodeIfPresent(String.self, forKey: .lastAddProjectParentFolder)
         providerConfigs = try container.decodeIfPresent([String: ProviderCustomConfig].self, forKey: .providerConfigs)
             ?? providerConfigs
+        lastActiveProjectID = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectID)
         lastActiveProjectPath = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectPath)
         lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
         lastOpenConversationID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenConversationID)

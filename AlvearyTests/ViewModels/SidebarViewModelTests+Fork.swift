@@ -63,6 +63,25 @@ extension SidebarViewModelTests {
         XCTAssertEqual(forkRequest.mode, .worktree)
     }
 
+    func testForkKeepsSavedSourceAndGrantsAfterProjectFoldersChange() async throws {
+        let setup = try localForkSetup()
+        let fixture = setup.fixture
+        let thread = setup.thread
+        try thread.replaceAdditionalFolders([SourceFolderSnapshot(path: "/tmp/shared-library", baseRef: "develop")])
+        let saved = try XCTUnwrap(thread.workspaceSnapshot)
+        let project = try XCTUnwrap(thread.project)
+        _ = try fixture.viewModel.saveProjectConfiguration(
+            ProjectConfiguration(name: "Changed", folders: [SourceFolderSnapshot(path: "/tmp/replacement")]),
+            projectID: project.id
+        )
+        let fork = try await fixture.viewModel.forkThreadIntoLocal(thread)
+        let calls = await fixture.agentsManager.spawnCalls()
+        let config = try XCTUnwrap(calls.first?.config)
+        XCTAssertEqual(fork.workspaceSnapshot, saved)
+        XCTAssertEqual(fork.primaryWorkingDirectory, saved.primarySource?.path)
+        XCTAssertEqual(config.additionalWorkspaceRoots, [config.workingDirectory, "/tmp/shared-library"])
+    }
+
     func testForkThreadRejectsBusySource() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(

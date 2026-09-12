@@ -87,6 +87,8 @@ enum GitImageBlobSource: Sendable, Hashable {
 }
 
 protocol GitService: Sendable {
+    /// Status and diff paths are repository-relative, even when the granted folder is nested.
+    func repositoryRoot(in directory: String) async throws -> String?
     func status(in directory: String) async throws -> [FileStatus]
     // Pass freshly loaded status rows when available so callers do not run a
     // second porcelain status scan just to include untracked files in stats.

@@ -64,6 +64,55 @@ final class ProjectConfigStoreTests: XCTestCase {
         XCTAssertEqual(store.cached(forProjectPath: "/tmp/project")?.setupScript, "setup-2")
     }
 
+    func testLateReadCannotOverwriteAConfigWrittenByAnotherSurface() async {
+        let started = expectation(description: "Read started")
+        var resumeRead: CheckedContinuation<AlvearyProjectConfig, Never>?
+        let store = ProjectConfigStore { _ in
+            await withCheckedContinuation { continuation in
+                resumeRead = continuation
+                started.fulfill()
+            }
+        }
+        let read = Task { await store.reload(forProjectPath: "/tmp/shared") }
+        await fulfillment(of: [started], timeout: 1)
+        let written = AlvearyProjectConfig(setupScript: "new")
+        store.store(written, forProjectPath: "/tmp/shared")
+        resumeRead?.resume(returning: AlvearyProjectConfig(setupScript: "stale"))
+        let received = await read.value
+        XCTAssertEqual(received, written)
+        XCTAssertEqual(store.cached(forProjectPath: "/tmp/shared"), written)
+    }
+
+    func testSameFolderWritesRemainOrderedAfterTheOlderCallerIsCancelled() async throws {
+        let firstStarted = expectation(description: "First write started")
+        let secondRequested = expectation(description: "Second write requested")
+        var releaseFirst: CheckedContinuation<Void, Never>?
+        var writes: [String] = []
+        let store = ProjectConfigStore(write: { config, _ in
+            if config.setupScript == "first" {
+                await withCheckedContinuation { continuation in
+                    releaseFirst = continuation
+                    firstStarted.fulfill()
+                }
+            }
+            writes.append(config.setupScript ?? "")
+        })
+        let first = Task { try await store.write(AlvearyProjectConfig(setupScript: "first"), forProjectPath: "/tmp/shared") }
+        await fulfillment(of: [firstStarted], timeout: 1)
+        first.cancel()
+        let second = Task {
+            secondRequested.fulfill()
+            try await store.write(AlvearyProjectConfig(setupScript: "second"), forProjectPath: "/tmp/shared")
+        }
+        await fulfillment(of: [secondRequested], timeout: 1)
+        XCTAssertTrue(writes.isEmpty)
+        releaseFirst?.resume()
+        try await first.value
+        try await second.value
+        XCTAssertEqual(writes, ["first", "second"])
+        XCTAssertEqual(store.cached(forProjectPath: "/tmp/shared")?.setupScript, "second")
+    }
+
     func testStoredConfigReplacesTheCachedValueWithoutReading() async {
         let counter = ReadCounter()
         let store = ProjectConfigStore { path in

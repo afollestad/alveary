@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskHostToolServiceTests {
-    func testExactRetryReturnsSameProposalAndRevisedRequestSupersedesIt() throws {
+    func testExactRetryReturnsSameProposalAndRevisedRequestSupersedesIt() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let call = AgentCLIKit.AgentHostToolCall(
             name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -15,9 +15,9 @@ extension ScheduledTaskHostToolServiceTests {
         )
         let context = fixture.agentContext(requestID: "string:retry")
 
-        let first = fixture.service.handle(context: context, call: call)
-        let retry = fixture.service.handle(context: context, call: call)
-        let different = fixture.service.handle(
+        let first = await fixture.service.handle(context: context, call: call)
+        let retry = await fixture.service.handle(context: context, call: call)
+        let different = await fixture.service.handle(
             context: fixture.agentContext(requestID: "string:different"),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -46,7 +46,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(HostToolWidgetOutcomeMarker.title(fromContent: content), "Daily review")
     }
 
-    func testExactRetryAfterProposalRejectionReturnsReceiptWithoutReopeningProposal() throws {
+    func testExactRetryAfterProposalRejectionReturnsReceiptWithoutReopeningProposal() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let call = AgentCLIKit.AgentHostToolCall(
             name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -54,13 +54,13 @@ extension ScheduledTaskHostToolServiceTests {
         )
         let context = fixture.agentContext(requestID: "string:rejected-retry")
 
-        let first = fixture.service.handle(context: context, call: call)
+        let first = await fixture.service.handle(context: context, call: call)
         let firstProposalID = try proposalID(first)
         let proposal = try XCTUnwrap(fixture.modelContext.resolveScheduledTaskProposal(id: firstProposalID))
         fixture.modelContext.delete(proposal)
         try fixture.modelContext.save()
 
-        let retry = fixture.service.handle(context: context, call: call)
+        let retry = await fixture.service.handle(context: context, call: call)
 
         XCTAssertFalse(retry.isError)
         XCTAssertEqual(try proposalID(retry), firstProposalID)
@@ -69,7 +69,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertNotNil(fixture.conversation.scheduledTaskProposalReceiptsJSON)
     }
 
-    func testExactRetryAfterProposalRejectionSurvivesMacTimeZoneChange() throws {
+    func testExactRetryAfterProposalRejectionSurvivesMacTimeZoneChange() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let timeZone = ScheduledTaskHostToolRetryTimeZoneBox("UTC")
         let service = fixture.makeService(
@@ -82,14 +82,14 @@ extension ScheduledTaskHostToolServiceTests {
             arguments: createArgumentsOmittingTimeZone()
         )
         let context = fixture.agentContext(requestID: "string:rejected-cross-zone-retry")
-        let first = service.handle(context: context, call: call)
+        let first = await service.handle(context: context, call: call)
         let firstProposalID = try proposalID(first)
         let proposal = try XCTUnwrap(fixture.modelContext.resolveScheduledTaskProposal(id: firstProposalID))
         fixture.modelContext.delete(proposal)
         try fixture.modelContext.save()
         timeZone.identifier = "America/Chicago"
 
-        let retry = service.handle(context: context, call: call)
+        let retry = await service.handle(context: context, call: call)
 
         XCTAssertFalse(retry.isError)
         XCTAssertEqual(try proposalID(retry), firstProposalID)
@@ -97,7 +97,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTaskProposal>()), 0)
     }
 
-    func testExactRetryAfterProposalConfirmationDoesNotCreateDuplicateDefinitionOrProposal() throws {
+    func testExactRetryAfterProposalConfirmationDoesNotCreateDuplicateDefinitionOrProposal() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let call = AgentCLIKit.AgentHostToolCall(
             name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -105,7 +105,7 @@ extension ScheduledTaskHostToolServiceTests {
         )
         let context = fixture.agentContext(requestID: "string:confirmed-retry")
 
-        let first = fixture.service.handle(context: context, call: call)
+        let first = await fixture.service.handle(context: context, call: call)
         let firstProposalID = try proposalID(first)
         let proposal = try XCTUnwrap(fixture.modelContext.resolveScheduledTaskProposal(id: firstProposalID))
         let draft = try XCTUnwrap(proposal.definitionDraft)
@@ -134,7 +134,7 @@ extension ScheduledTaskHostToolServiceTests {
             consumingProposalID: firstProposalID
         )
 
-        let retry = fixture.service.handle(context: context, call: call)
+        let retry = await fixture.service.handle(context: context, call: call)
 
         XCTAssertFalse(retry.isError)
         XCTAssertEqual(try proposalID(retry), firstProposalID)
@@ -143,7 +143,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTask>()), 1)
     }
 
-    func testExactLegacyRetryAfterProposalConfirmationSurvivesMacTimeZoneChange() throws {
+    func testExactLegacyRetryAfterProposalConfirmationSurvivesMacTimeZoneChange() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let timeZone = ScheduledTaskHostToolRetryTimeZoneBox("UTC")
         let service = fixture.makeService(
@@ -156,7 +156,7 @@ extension ScheduledTaskHostToolServiceTests {
             arguments: createArguments(legacyTimeZoneIdentifier: "UTC")
         )
         let context = fixture.agentContext(requestID: "string:confirmed-legacy-cross-zone-retry")
-        let first = service.handle(context: context, call: call)
+        let first = await service.handle(context: context, call: call)
         let firstProposalID = try proposalID(first)
         let proposal = try XCTUnwrap(fixture.modelContext.resolveScheduledTaskProposal(id: firstProposalID))
         let draft = try XCTUnwrap(proposal.definitionDraft)
@@ -186,7 +186,7 @@ extension ScheduledTaskHostToolServiceTests {
         )
         timeZone.identifier = "America/Chicago"
 
-        let retry = service.handle(context: context, call: call)
+        let retry = await service.handle(context: context, call: call)
 
         XCTAssertFalse(retry.isError)
         XCTAssertEqual(try proposalID(retry), firstProposalID)
@@ -195,7 +195,7 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(try fixture.modelContext.fetchCount(FetchDescriptor<ScheduledTask>()), 1)
     }
 
-    func testExactRetryReceiptSurvivesStoreReopenAfterProposalRejection() throws {
+    func testExactRetryReceiptSurvivesStoreReopenAfterProposalRejection() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScheduledTaskReceiptReopen-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -213,14 +213,14 @@ extension ScheduledTaskHostToolServiceTests {
             name: ScheduledTaskHostToolCatalog.proposeToolName,
             arguments: createArguments()
         )
-        let firstResponse = try persistRejectedProposalReceipt(
+        let firstResponse = try await persistRejectedProposalReceipt(
             configuration: configuration,
             conversationID: conversationID,
             context: context,
             call: call
         )
 
-        try autoreleasepool {
+        do {
             let container = try makeReceiptPersistenceContainer(configuration: configuration)
             let modelContext = container.mainContext
             let service = ScheduledTaskHostToolService(
@@ -230,7 +230,7 @@ extension ScheduledTaskHostToolServiceTests {
                 now: { Date(timeIntervalSince1970: 1_001) }
             )
 
-            let retry = service.handle(context: context, call: call)
+            let retry = await service.handle(context: context, call: call)
 
             XCTAssertFalse(retry.isError)
             XCTAssertEqual(try proposalID(retry), firstResponse.proposalID)
@@ -244,8 +244,8 @@ extension ScheduledTaskHostToolServiceTests {
         conversationID: String,
         context: AgentCLIKit.AgentHostToolCallContext,
         call: AgentCLIKit.AgentHostToolCall
-    ) throws -> ScheduledTaskHostToolStoredResponse {
-        try autoreleasepool {
+    ) async throws -> ScheduledTaskHostToolStoredResponse {
+        do {
             let container = try makeReceiptPersistenceContainer(configuration: configuration)
             let modelContext = container.mainContext
             let project = Project(path: "/tmp/receipt-reopen-project", name: "Receipt Reopen")
@@ -262,7 +262,7 @@ extension ScheduledTaskHostToolServiceTests {
                 now: { Date(timeIntervalSince1970: 1_000) }
             )
 
-            let result = service.handle(context: context, call: call)
+            let result = await service.handle(context: context, call: call)
             let proposalID = try proposalID(result)
             let proposal = try XCTUnwrap(modelContext.resolveScheduledTaskProposal(id: proposalID))
             modelContext.delete(proposal)

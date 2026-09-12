@@ -4,6 +4,41 @@ import XCTest
 
 @MainActor
 final class DiffGitCommitModalModelTests: XCTestCase {
+    func testSourceFolderRemovedDuringGenerationBlocksCommitAndForcePush() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let source = root.appendingPathComponent("source", isDirectory: true)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let gitService = DiffGitCommitModalMockGitService(statusResults: [])
+        let model = DiffGitCommitModalModel(
+            context: DiffGitCommitModalContext(
+                directory: root.path, targetName: "Test", baseBranch: "main", remoteName: "origin", sourceDirectory: source.path
+            ),
+            gitService: gitService, settingsService: InMemorySettingsService(),
+            generateCommitMessage: { _ in
+                try FileManager.default.removeItem(at: source)
+                return "Generated commit"
+            }, refreshAfterMutation: {}
+        )
+        await model.load()
+        model.selectNewBranch()
+
+        let committed = await model.perform(commitAndPush: true)
+        model.forcePushRequired = true
+        let pushed = await model.performForcePush()
+
+        XCTAssertFalse(committed)
+        XCTAssertFalse(pushed)
+        XCTAssertTrue(model.errorMessage?.contains(source.path) == true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
+        let checkouts = await gitService.checkoutNewBranchCalls()
+        let commits = await gitService.commitCalls()
+        let pushes = await gitService.forcePushCalls()
+        XCTAssertTrue(checkouts.isEmpty)
+        XCTAssertTrue(commits.isEmpty)
+        XCTAssertTrue(pushes.isEmpty)
+    }
+
     func testIncludeUnstagedTogglePersistsImmediately() {
         var settings = AppSettings()
         settings.gitCommitIncludeUnstagedChanges = true

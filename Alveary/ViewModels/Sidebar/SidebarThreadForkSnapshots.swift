@@ -3,8 +3,9 @@ import SwiftData
 
 struct ThreadForkSourceSnapshot {
     let threadID: PersistentIdentifier
-    let projectID: PersistentIdentifier
+    let projectID: PersistentIdentifier?
     let projectPath: String
+    let workspaceSnapshot: WorkspaceSnapshot
     let projectBaseRef: String?
     let projectRemoteName: String?
     let isGitRepository: Bool

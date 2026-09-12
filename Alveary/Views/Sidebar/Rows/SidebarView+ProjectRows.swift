@@ -76,7 +76,7 @@ extension SidebarView {
         let configuration = SidebarProjectGroupConfiguration(
             project: project,
             section: dropSection,
-            isExpanded: expandedProjects.contains(project.path),
+            isExpanded: expandedProjects.contains(project.id),
             isSelected: isProjectSelected(project),
             // A row fades for its own drag or its whole section's; the section fade reaches
             // children and placeholders through the same `configuration.opacity` the row uses.
@@ -102,7 +102,7 @@ extension SidebarView {
             projectName: configuration.project.name,
             isExpanded: configuration.isExpanded,
             isSelected: configuration.isSelected,
-            hiddenActivity: context.projectHiddenActivity(path: configuration.project.path),
+            hiddenActivity: context.projectHiddenActivity(path: configuration.project.id),
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
             dragConfiguration: projectDragConfiguration(
                 for: configuration.project,
@@ -129,6 +129,8 @@ extension SidebarView {
 
     @ViewBuilder
     func projectContextMenu(for project: Project) -> some View {
+        let folders = project.workspaceFolderTargets
+
         Button("New Thread") {
             Task { await createThread(in: project) }
         }
@@ -137,13 +139,32 @@ extension SidebarView {
             setProjectPinned(project, isPinned: !project.isPinned)
         }
 
-        Button("Reveal in Finder...") {
-            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path, isDirectory: true)])
+        if folders.count == 1, let folder = folders.first {
+            Button("Reveal in Finder") {
+                revealProjectFolderInFinder(folder)
+            }
+            .help(folder.source.path)
+        } else if !folders.isEmpty {
+            Menu("Reveal in Finder") {
+                ForEach(folders) { folder in
+                    Button(folder.source.name) {
+                        revealProjectFolderInFinder(folder)
+                    }
+                    .help(folder.source.path)
+                }
+            }
         }
 
         Button("Remove Project...", role: .destructive) {
             pendingDeleteProject = SidebarPendingProjectRemoval(project: project)
         }
+    }
+
+    private func revealProjectFolderInFinder(_ folder: WorkspaceFolderTarget) {
+        do {
+            let url = try folder.requireDirectory()
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch { viewModel.presentSidebarError(error) }
     }
 
     @ViewBuilder
@@ -202,7 +223,7 @@ extension SidebarView {
         guard !isSidebarDragInteractionInFlight else {
             return
         }
-        toggleExpansion(for: project.path, in: &expandedProjects)
+        toggleExpansion(for: project.id, in: &expandedProjects)
         claimSidebarFocus()
     }
 

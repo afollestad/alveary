@@ -57,7 +57,8 @@ struct AgentSpawnConfig: Sendable, Equatable {
         self.initialPrompt = initialPrompt
         self.initialPromptAttachments = initialPromptAttachments
         self.initialPromptMetadata = initialPromptMetadata
-        self.additionalWorkspaceRoots = additionalWorkspaceRoots.map(CanonicalPath.normalize)
+        // The workspace resolver supplies stored canonical paths; following symlinks again would change the saved grant.
+        self.additionalWorkspaceRoots = additionalWorkspaceRoots
         self.allowedDirectories = allowedDirectories.map(CanonicalPath.normalize)
         self.hostToolServer = hostToolServer
         self.hostTools = hostTools

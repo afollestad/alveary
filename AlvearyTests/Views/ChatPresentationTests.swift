@@ -157,6 +157,7 @@ final class ChatPresentationTests: XCTestCase {
             effort: "high",
             model: "opus",
             useWorktree: true,
+            isDraft: true,
             project: project
         )
 
@@ -293,7 +294,7 @@ final class ChatPresentationTests: XCTestCase {
         let presentation = ChatThreadPresentation(thread: thread, providerID: "claude")
 
         XCTAssertEqual(presentation.mode, .project)
-        XCTAssertTrue(presentation.showWorktreePicker)
+        XCTAssertFalse(presentation.showWorktreePicker)
     }
 
     func testLinkedPrivateScheduledRunUsesTaskPresentationWhenPersistedModeIsUnknown() {

@@ -73,32 +73,33 @@ final class AppShotCaptureControllerTests: XCTestCase {
 
     func testNoThreadRouteUsesStaleLastActiveFallbackAndRewritesIt() async throws {
         var settings = AppSettings()
-        settings.lastActiveProjectPath = "/tmp/deleted"
+        settings.lastActiveProjectID = "/tmp/deleted"
         let fixture = try AppShotCaptureControllerFixture(settings: settings)
         _ = try fixture.insertProject(name: "Beta", path: "/tmp/beta")
-        let fallback = try fixture.insertProject(name: "alveary", path: "/tmp/z-alveary")
-        let deterministicFirst = try fixture.insertProject(name: "Alveary", path: "/tmp/a-alveary")
+        let fallback = try fixture.insertProject(name: "alveary", path: "/tmp/z-alveary", id: "00000000-0000-0000-0000-000000000002")
+        let deterministicFirst = try fixture.insertProject(name: "Alveary", path: "/tmp/a-alveary", id: "00000000-0000-0000-0000-000000000001")
 
         await fixture.runCapture()
 
         XCTAssertNotEqual(fallback.persistentModelID, deterministicFirst.persistentModelID)
         XCTAssertEqual(fixture.draftOpener.lastProjectID, deterministicFirst.persistentModelID)
-        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectPath, deterministicFirst.path)
+        XCTAssertEqual(fixture.settingsService.current.lastActiveProjectID, deterministicFirst.id)
     }
 
-    func testNoProjectsShortCircuitsBeforePermissionsOrPreparation() async throws {
+    func testNoProjectsCapturesIntoAPrivateDraft() async throws {
         let fixture = try AppShotCaptureControllerFixture()
 
         await fixture.runCapture()
 
         let preparationCount = await fixture.prepareGate.count()
         let storedConversationIDs = await fixture.attachmentStore.storedConversationIDs
-        XCTAssertEqual(preparationCount, 0)
-        XCTAssertEqual(fixture.draftOpener.openCount, 0)
-        XCTAssertTrue(storedConversationIDs.isEmpty)
+        XCTAssertEqual(preparationCount, 1)
+        XCTAssertEqual(fixture.draftOpener.openCount, 1)
+        XCTAssertEqual(storedConversationIDs.count, 1)
+        XCTAssertNil(fixture.draftOpener.lastProjectID)
         XCTAssertEqual(fixture.feedback.activationCount, 1)
         XCTAssertTrue(fixture.feedback.permissions.isEmpty)
-        XCTAssertEqual(fixture.appState.unexpectedErrorToasts.map(\.message), [AppShotCaptureController.noProjectMessage])
+        XCTAssertTrue(fixture.appState.unexpectedErrorToasts.isEmpty)
     }
 
     func testUnavailableSelectedDestinationUsesAppToastBeforePreparation() async throws {

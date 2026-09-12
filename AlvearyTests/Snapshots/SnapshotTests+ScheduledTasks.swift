@@ -333,9 +333,16 @@ extension SnapshotTests {
     func testScheduledTaskEditorProjectWorkspace() throws {
         let fixture = try ScheduledTasksSnapshotFixture()
         var draft = fixture.viewModel.makeNewDraft()
+        let project = try XCTUnwrap(fixture.viewModel.projects.first)
+        var workspace = project.workspaceSnapshot
+        workspace.primarySource?.gitBranch = "main"
+        workspace.grants = [SourceFolderSnapshot(path: "/tmp/AgentCLIKit", gitBranch: "main")]
         draft.workspaceKind = .project
         draft.workspaceStrategy = .worktree
-        draft.projectPath = fixture.viewModel.projects.first?.path
+        draft.projectID = project.id
+        draft.projectPath = workspace.primarySource?.path
+        draft.workspaceSnapshot = workspace
+        draft.grantedRoots = workspace.grants.map(\.path)
 
         assertMacSnapshot(
             ScheduledTaskEditorWorkspaceSection(
@@ -346,7 +353,7 @@ extension SnapshotTests {
                 onOpenReusedThread: { _ in }
             )
             .padding(24),
-            size: CGSize(width: 760, height: 390),
+            size: CGSize(width: 760, height: 470),
             named: "scheduled_task_editor_project_workspace"
         )
     }

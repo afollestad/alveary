@@ -82,6 +82,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         hiddenActivity: SidebarHiddenActivity? = nil,
         suppressHoverAffordances: Bool = false,
         initialRowHover: Bool = false,
+        editing: SidebarSectionHeaderEditing? = nil,
         onAction: @escaping @MainActor () -> Void
     ) {
         self.title = title
@@ -93,7 +94,7 @@ struct SidebarSectionHeaderRow: View, Equatable {
         self.disclosure = disclosure
         self.hiddenActivity = hiddenActivity
         self.suppressHoverAffordances = suppressHoverAffordances
-        editing = nil
+        self.editing = editing
         _isHoveringRow = State(initialValue: initialRowHover)
     }
 

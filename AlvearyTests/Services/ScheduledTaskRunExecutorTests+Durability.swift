@@ -424,9 +424,9 @@ private extension ScheduledTaskRunExecutorTests {
         fixture: ConversationViewModelTestFixture
     ) throws {
         let context = ModelContext(fixture.container)
-        let path = fixture.project.path
+        let id = fixture.project.id
         let project = try context.fetch(
-            FetchDescriptor<Project>(predicate: #Predicate { $0.path == path })
+            FetchDescriptor<Project>(predicate: #Predicate { $0.id == id })
         ).first
         XCTAssertEqual(project?.name, expectedName)
     }

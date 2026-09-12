@@ -6,7 +6,10 @@ import SwiftData
 /// coordinator so interruption logic and descriptor rebuilding stay separately readable.
 extension ScheduledTaskRunRecoveryCoordinator {
     func recoveredWorkspaceDescriptor(for run: ScheduledTaskRun) -> TaskWorkspaceDescriptor? {
-        guard let workspaceKind = run.workspaceKindSnapshot,
+        guard let snapshot = run.workspaceSnapshot,
+              snapshot.primarySource?.path == run.projectPathSnapshot,
+              snapshot.grants.map(\.path) == run.grantedRootsSnapshot,
+              let workspaceKind = run.workspaceKindSnapshot,
               run.workspaceStrategySnapshot != nil,
               let root = canonicalAbsolutePath(run.preparedWorkspaceRoot),
               let expectedOwnershipStrategy = expectedOwnershipStrategy(for: run),

@@ -26,7 +26,7 @@ extension ConversationViewModelTests {
         let spawnCall = try XCTUnwrap(spawnCalls.first)
         XCTAssertNil(try fixture.dbThread().project)
         XCTAssertEqual(spawnCall.config.workingDirectory, descriptor.primaryRoot)
-        XCTAssertEqual(spawnCall.config.additionalWorkspaceRoots, descriptor.grantedRoots)
+        XCTAssertEqual(spawnCall.config.additionalWorkspaceRoots, [descriptor.primaryRoot] + descriptor.grantedRoots)
         XCTAssertTrue(spawnCall.config.allowedDirectories.isEmpty)
         XCTAssertTrue(createCalls.isEmpty)
         XCTAssertEqual(
@@ -54,7 +54,7 @@ extension ConversationViewModelTests {
         XCTAssertFalse(try fixture.dbThread().isDraft)
         XCTAssertTrue(try fixture.dbThread().hasCompletedInitialSetup)
         XCTAssertEqual(spawnCall.config.workingDirectory, descriptor.primaryRoot)
-        XCTAssertEqual(spawnCall.config.additionalWorkspaceRoots, descriptor.grantedRoots)
+        XCTAssertEqual(spawnCall.config.additionalWorkspaceRoots, [descriptor.primaryRoot] + descriptor.grantedRoots)
     }
 
     func testTaskFirstMessageMaterializationPersistsModifiedAt() async throws {
@@ -168,7 +168,7 @@ extension ConversationViewModelTests {
         let expectedGrants = descriptor.grantedRoots + [addedGrant.path]
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(try fixture.dbThread().taskWorkspaceDescriptor?.grantedRoots, expectedGrants)
-        XCTAssertEqual(reconfigureCalls.first?.config.additionalWorkspaceRoots, expectedGrants)
+        XCTAssertEqual(reconfigureCalls.first?.config.additionalWorkspaceRoots, [descriptor.primaryRoot] + expectedGrants)
     }
 
     func testIdleTaskGrantRemovalPersistsAndReconfiguresTrackedRuntime() async throws {
@@ -190,7 +190,7 @@ extension ConversationViewModelTests {
         let expectedGrants = Array(descriptor.grantedRoots.dropFirst())
         XCTAssertEqual(try fixture.dbThread().taskWorkspaceDescriptor?.grantedRoots, expectedGrants)
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
-        XCTAssertEqual(reconfigureCalls.first?.config.additionalWorkspaceRoots, expectedGrants)
+        XCTAssertEqual(reconfigureCalls.first?.config.additionalWorkspaceRoots, [descriptor.primaryRoot] + expectedGrants)
     }
 
     func testMissingTaskGrantsCanBeRemovedIndependently() async throws {
@@ -316,8 +316,8 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().taskWorkspaceDescriptor, descriptor)
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertEqual(reconfigureCalls.count, 2)
-        XCTAssertEqual(reconfigureCalls[0].config.additionalWorkspaceRoots, descriptor.grantedRoots + [addedGrant.path])
-        XCTAssertEqual(reconfigureCalls[1].config.additionalWorkspaceRoots, descriptor.grantedRoots)
+        XCTAssertEqual(reconfigureCalls[0].config.additionalWorkspaceRoots, [descriptor.primaryRoot] + descriptor.grantedRoots + [addedGrant.path])
+        XCTAssertEqual(reconfigureCalls[1].config.additionalWorkspaceRoots, [descriptor.primaryRoot] + descriptor.grantedRoots)
     }
 
     func testFailedTaskGrantReplacementSurfacesRollbackFailure() async throws {
@@ -393,14 +393,14 @@ extension ConversationViewModelTests {
         XCTAssertFalse(fixture.viewModel.canEditTaskWorkspaceConfiguration)
         XCTAssertEqual(
             fixture.viewModel.taskWorkspaceConfigurationDisabledReason,
-            "Folder access can only be changed while the task has one conversation."
+            "Folder access can only be changed while the thread has one conversation."
         )
         fixture.viewModel.addTaskWorkspaceGrants([addedGrant])
 
         XCTAssertEqual(try fixture.dbThread().taskWorkspaceDescriptor, descriptor)
         XCTAssertEqual(
             fixture.viewModel.state.lastTurnError,
-            "Folder access can only be changed while the task has one conversation."
+            "Folder access can only be changed while the thread has one conversation."
         )
     }
 
@@ -436,7 +436,7 @@ extension ConversationViewModelTests {
     }
 }
 
-private final class TaskWorkspaceTestEnvironment {
+final class TaskWorkspaceTestEnvironment {
     let root: URL
     let service: DefaultTaskWorkspaceOwnershipService
 

@@ -96,12 +96,15 @@ extension ScheduledTaskHostToolRequestParserTests {
         assertInvalid(
             workspaceArguments(["kind": .string("project")]),
             parser: parser,
-            containing: "project_path is required"
+            containing: "project_id is required"
         )
         assertInvalid(
-            workspaceArguments(["kind": .string("private"), "project_path": .string("/tmp/alveary")]),
+            workspaceArguments([
+                "kind": .string("private"), "project_id": .string("project-1"),
+                "primary_folder_path": .string("/tmp/alveary")
+            ]),
             parser: parser,
-            containing: "project_path does not apply"
+            containing: "private workspace cannot select a primary folder"
         )
         assertInvalid(
             workspaceArguments(["kind": .string("elsewhere")]),
@@ -159,7 +162,7 @@ extension ScheduledTaskHostToolRequestParserTests {
             "changes": .object(["workspace": .object(["kind": .string("project")])])
         ]
 
-        assertInvalid(arguments, parser: parser, containing: "arguments.changes.workspace.project_path")
+        assertInvalid(arguments, parser: parser, containing: "arguments.changes.workspace.project_id")
     }
 
     /// Two proposals that differ only in where the task would run must not dedup into one

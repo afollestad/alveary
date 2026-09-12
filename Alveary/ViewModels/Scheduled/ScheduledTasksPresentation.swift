@@ -12,7 +12,15 @@ struct ScheduledTaskProjectOption: Identifiable, Equatable {
     let path: String
     let name: String
 
-    var id: String { path }
+    let id: String
+    let workspaceSnapshot: WorkspaceSnapshot
+
+    init(path: String, name: String, id: String? = nil, workspaceSnapshot: WorkspaceSnapshot? = nil) {
+        self.path = path
+        self.name = name
+        self.id = id ?? path
+        self.workspaceSnapshot = workspaceSnapshot ?? WorkspaceSnapshot(primarySource: SourceFolderSnapshot(path: path))
+    }
 }
 
 struct ScheduledTaskThreadOption: Identifiable, Equatable {
@@ -133,9 +141,51 @@ struct ScheduledTaskEditorDraft: Identifiable, Equatable {
     var workspaceStrategy: ScheduledTaskWorkspaceStrategy
     var projectPath: String?
     var grantedRoots: [String]
+    var projectID: String?
+    var workspaceSnapshot: WorkspaceSnapshot?
+    var isResolvingFolders = false
 
     var isEditing: Bool {
         definitionID != nil
+    }
+
+    /// Resolve new selections only; re-resolving a saved grant can silently follow a changed symlink.
+    func resolvedGrantPaths(preservingAllPaths: Bool) -> [String] {
+        if preservingAllPaths { return grantedRoots }
+        let savedPaths = Set(workspaceSnapshot?.sourceFolders.map(\.path) ?? [])
+        var seen = Set<String>()
+        return grantedRoots.compactMap { path in
+            let resolved = savedPaths.contains(path) ? path : CanonicalPath.normalize(path)
+            return seen.insert(resolved).inserted ? resolved : nil
+        }
+    }
+
+    mutating func addFolderGrants(_ paths: [String]) {
+        var seen = Set(grantedRoots)
+        grantedRoots += ScheduledTask.normalizedUniquePaths(paths).filter { seen.insert($0).inserted }
+    }
+
+    /// Add metadata with its exact selected grant path; retained snapshots remain authoritative.
+    mutating func addFolderGrants(_ folders: [SourceFolderSnapshot]) {
+        let saved = workspaceSnapshot ?? WorkspaceSnapshot(primarySource: nil)
+        var seen = Set(grantedRoots + [saved.primarySource?.path].compactMap { $0 })
+        grantedRoots += folders.map(\.path).filter { seen.insert($0).inserted }
+        workspaceSnapshot = WorkspaceSnapshot(primarySource: saved.primarySource, grants: grantedRoots.map { path in
+            saved.sourceFolders.first { $0.path == path } ?? folders.first { $0.path == path } ?? SourceFolderSnapshot(path: path)
+        })
+    }
+
+    mutating func selectPrimaryFolder(path: String) {
+        guard let saved = workspaceSnapshot else { return }
+        let folders = [saved.primarySource].compactMap { $0 } + grantedRoots.map { path in
+            saved.grants.first { $0.path == path } ?? SourceFolderSnapshot(path: path)
+        }
+        guard let primary = folders.first(where: { $0.path == path }) else { return }
+        let updated = WorkspaceSnapshot(primarySource: primary, grants: folders.filter { $0.path != path })
+        workspaceSnapshot = updated
+        projectPath = primary.path
+        grantedRoots = updated.grants.map(\.path)
+        if !primary.isGitRepository { workspaceStrategy = .localCheckout }
     }
 
     var hasUnresolvedDestination: Bool {

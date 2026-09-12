@@ -200,7 +200,7 @@ extension SnapshotTests {
             SidebarView(
                 viewModel: sidebar.fixture.viewModel,
                 appState: AppState(),
-                initialExpandedProjects: [sidebar.project.path],
+                initialExpandedProjects: [sidebar.project.id],
                 initialCollapsedSections: [.projects]
             )
         }
@@ -237,7 +237,7 @@ extension SnapshotTests {
             SidebarView(
                 viewModel: sidebar.fixture.viewModel,
                 appState: AppState(),
-                initialExpandedProjects: [sidebar.pinnedProject.path],
+                initialExpandedProjects: [sidebar.pinnedProject.id],
                 initialCollapsedSections: [.projects]
             )
         }

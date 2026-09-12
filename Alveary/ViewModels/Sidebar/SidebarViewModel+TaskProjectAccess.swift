@@ -8,7 +8,8 @@ struct SidebarTaskProjectAccessRequest: Equatable {
     let projectID: PersistentIdentifier
     let threadName: String
     let projectName: String
-    let projectPath: String
+    let projectKey: String
+    var folderPaths: [String] = []
     /// False when the running agent picks the folder up only on its next turn, because its process
     /// was launched without it.
     let restartsAgentProcess: Bool
@@ -30,9 +31,9 @@ extension SidebarViewModel {
         guard let project = modelContext.resolveProject(id: projectID) else {
             throw SidebarViewModelError.projectMissing
         }
-        guard thread.effectiveMode == .task else {
+        guard thread.supportsIndependentSidebarPlacement else {
             throw SidebarViewModelError.taskProjectAccessUnavailable(
-                "Only Tasks can be given access to a project folder"
+                "Only independently placed threads can move into a project"
             )
         }
         guard !thread.isDraft, !thread.isForkBootstrapPending, thread.archivedAt == nil else {
@@ -40,7 +41,7 @@ extension SidebarViewModel {
                 "This Task cannot be given folder access right now"
             )
         }
-        guard let workspace = thread.taskWorkspaceDescriptor else {
+        guard let workspace = thread.resolvedWorkspaceDescriptor else {
             throw SidebarViewModelError.threadMissingTaskWorkspace
         }
         // Each conversation launches its own provider process, so a multi-conversation Task would
@@ -57,15 +58,20 @@ extension SidebarViewModel {
             )
         }
         try requireTaskProjectAccessIsIdle(thread)
+        let grantsNewAccess = project.orderedFolders.contains { !alreadyGrants(workspace: workspace, projectPath: $0.path) }
+        if grantsNewAccess, let definition = thread.blockingWorkspaceGrantScheduledTask {
+            throw SidebarViewModelError.scheduledTaskAttachment(definition.title)
+        }
 
         return SidebarTaskProjectAccessRequest(
             threadID: threadID,
             projectID: projectID,
             threadName: thread.displayName(),
             projectName: project.name,
-            projectPath: project.path,
+            projectKey: project.id,
+            folderPaths: project.orderedFolders.map(\.path),
             restartsAgentProcess: thread.hasCompletedInitialSetup,
-            grantsNewAccess: !alreadyGrants(workspace: workspace, projectPath: project.path)
+            grantsNewAccess: grantsNewAccess
         )
     }
 
@@ -82,33 +88,24 @@ extension SidebarViewModel {
         let request = try validateTaskProjectAccess(threadID: threadID, projectID: projectID)
         guard let thread = modelContext.resolveThread(id: threadID),
               let project = modelContext.resolveProject(id: projectID),
-              let workspace = thread.taskWorkspaceDescriptor else {
+              let workspace = thread.resolvedWorkspaceDescriptor else {
             throw SidebarViewModelError.threadMissingTaskWorkspace
         }
 
-        let grantedRoots: [String]
-        do {
-            grantedRoots = try taskWorkspaceOwnershipService.canonicalizeGrants(
-                workspace.grantedRoots + [request.projectPath],
-                excludingPrimaryRoot: workspace.primaryRoot
-            )
-        } catch {
-            throw SidebarViewModelError.taskProjectAccessUnavailable(
-                "\(request.projectName) could not be granted: \(error.localizedDescription)"
-            )
+        guard let snapshot = thread.workspaceSnapshot else { throw WorkspaceFolderError.invalidSnapshot }
+        let additionalFolders = project.orderedFolders.map(\.snapshot).filter { $0.path != workspace.primaryRoot }
+        for folder in additionalFolders where !workspace.grantedRoots.contains(folder.path) {
+            _ = try WorkspaceFolderTarget(directory: folder.path, source: folder, isPrimary: false).requireDirectory()
         }
+        let conversationIDs = thread.conversations.map(\.id)
 
         try flushPendingChangesBeforeTaskProjectAccess()
         do {
-            thread.taskWorkspaceDescriptor = TaskWorkspaceDescriptor(
-                primaryRoot: workspace.primaryRoot,
-                grantedRoots: grantedRoots,
-                ownershipStrategy: workspace.ownershipStrategy,
-                ownershipMarkerID: workspace.ownershipMarkerID,
-                sourceProjectPath: workspace.sourceProjectPath
+            try thread.replaceAdditionalFolders(
+                snapshot.grants + additionalFolders,
+                rootsExplicitlyManaged: request.grantsNewAccess || snapshot.rootsExplicitlyManaged
             )
-            // Placement only. Mode stays `.task`, so the working directory, cleanup, and diff
-            // routing all keep reading the Task's own workspace.
+            // Only placement changes; execution and cleanup retain the saved workspace.
             thread.project = project
             // The project owns where its children render, so the drop clears any standalone pin.
             // Keeping it would leave the Task a project child that still draws its own row under
@@ -126,31 +123,20 @@ extension SidebarViewModel {
             modelContext.rollback()
             throw error
         }
+        NotificationCenter.default.post(name: .workspaceConfigurationChanged, object: nil)
         refreshThreadOrder(animated: true)
 
         // A live process was launched without the new root, so retire it non-destructively. Suspend
         // preserves the provider session and binding, letting the next turn resume with history.
-        for conversationID in thread.conversations.map(\.id) {
+        for conversationID in conversationIDs {
             await agentsManager.suspendRuntime(conversationId: conversationID)
         }
     }
 }
 
 private extension SidebarViewModel {
-    /// A path already reachable from the workspace needs no new grant. Canonicalization can fail
-    /// for a missing folder; the move itself rejects that case with a clearer message.
     func alreadyGrants(workspace: TaskWorkspaceDescriptor, projectPath: String) -> Bool {
-        guard let canonical = try? taskWorkspaceOwnershipService.canonicalizeGrants(
-            [projectPath],
-            excludingPrimaryRoot: workspace.primaryRoot
-        ) else {
-            return false
-        }
-        // An empty result means the path resolved to the workspace's own root, already reachable.
-        guard let target = canonical.first else {
-            return true
-        }
-        return workspace.grantedRoots.contains(target)
+        workspace.primaryRoot == projectPath || workspace.grantedRoots.contains(projectPath)
     }
 
     func requireTaskProjectAccessIsIdle(_ thread: AgentThread) throws {

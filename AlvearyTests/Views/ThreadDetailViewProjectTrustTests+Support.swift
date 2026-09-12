@@ -224,7 +224,7 @@ struct ThreadDetailProjectTrustFixture {
             voiceInputService: voiceInputService,
             voiceInputLifecycleController: VoiceInputLifecycleController(service: voiceInputService),
             availableProjects: thread.project.map { [$0] } ?? [],
-            selectDraftProject: { _, _ in },
+            availableSections: [], selectDraftDestination: { _, _ in },
             deleteThread: { thread in
                 try await recorder.delete(thread)
             },

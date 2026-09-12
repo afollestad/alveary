@@ -23,10 +23,26 @@ extension SidebarViewModelTests {
         XCTAssertEqual(reused.persistentModelID, savedDraft.persistentModelID)
     }
 
-    func testProjectAndTaskDraftsKeepIndependentIdentities() async throws {
+    func testReopeningTaskDraftPreservesEditedFolderAccessAndPrivateWorkspace() async throws {
+        let fixture = try SidebarTestFixture()
+        let draft = try await fixture.viewModel.openTaskDraft()
+        let customGrant = SourceFolderSnapshot(path: "/tmp/reopened-task-grant")
+        try draft.replaceAdditionalFolders([customGrant])
+        draft.draftHasExplicitGrants = true
+        try fixture.context.save()
+        let savedWorkspace = draft.taskWorkspaceDescriptor
+
+        let reopened = try await fixture.viewModel.openTaskDraft()
+
+        XCTAssertEqual(reopened.persistentModelID, draft.persistentModelID)
+        XCTAssertEqual(reopened.taskWorkspaceDescriptor, savedWorkspace)
+        XCTAssertEqual(reopened.workspaceSnapshot?.grants, [customGrant])
+        XCTAssertTrue(reopened.draftHasExplicitGrants)
+    }
+
+    func testProjectAndTaskDraftsShareIdentityAndLatestDestination() async throws {
         let fixture = try SidebarTestFixture()
         let project = try fixture.insertProject(name: "Alpha", path: "/tmp/draft-mode-alpha")
-
         let projectOpen = Task { @MainActor in
             try await fixture.viewModel.openDraftThread(project: project).persistentModelID
         }
@@ -35,23 +51,69 @@ extension SidebarViewModelTests {
         }
         let projectDraftID = try await projectOpen.value
         let taskDraftID = try await taskOpen.value
-        let createdProjectDraft = try XCTUnwrap(fixture.context.resolveThread(id: projectDraftID))
-        let createdTaskDraft = try XCTUnwrap(fixture.context.resolveThread(id: taskDraftID))
+        XCTAssertEqual(projectDraftID, taskDraftID)
+        let draft = try XCTUnwrap(fixture.context.resolveThread(id: taskDraftID))
+        XCTAssertEqual(draft.mode, .task)
+        XCTAssertNil(draft.project)
+        let conversationID = try XCTUnwrap(draft.conversations.first?.id)
+        let privateRoot = try XCTUnwrap(draft.primaryWorkingDirectory)
 
-        XCTAssertNotEqual(createdProjectDraft.persistentModelID, createdTaskDraft.persistentModelID)
-        XCTAssertEqual(createdProjectDraft.mode, .project)
-        XCTAssertEqual(createdTaskDraft.mode, .task)
-        XCTAssertEqual(createdProjectDraft.project?.path, project.path)
-        XCTAssertNil(createdTaskDraft.project)
+        let moved = try await fixture.viewModel.openDraftThread(project: project)
+        XCTAssertEqual(moved.persistentModelID, taskDraftID)
+        XCTAssertEqual(moved.conversations.first?.id, conversationID)
+        XCTAssertEqual(moved.primaryWorkingDirectory, project.path)
+        XCTAssertEqual(moved.workspaceSnapshot?.rootsExplicitlyManaged, true)
+        for _ in 0..<100 where FileManager.default.fileExists(atPath: privateRoot) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: privateRoot))
 
-        createdTaskDraft.isDraft = false
+        moved.isDraft = false
         try fixture.context.save()
-        fixture.viewModel.noteDraftMaterialized(mode: .task)
+        fixture.viewModel.noteDraftMaterialized(mode: moved.mode)
+        let replacement = try await fixture.viewModel.openTaskDraft()
+        XCTAssertNotEqual(replacement.persistentModelID, taskDraftID)
+    }
 
-        let reusedProjectDraft = try await fixture.viewModel.openDraftThread(project: project)
-        let replacementTaskDraft = try await fixture.viewModel.openTaskDraft()
-        XCTAssertEqual(reusedProjectDraft.persistentModelID, createdProjectDraft.persistentModelID)
-        XCTAssertNotEqual(replacementTaskDraft.persistentModelID, createdTaskDraft.persistentModelID)
+    func testEmptyProjectAndTasksReusePrivateDraftWorkspace() async throws {
+        let fixture = try SidebarTestFixture()
+        let empty = Project(name: "Empty")
+        fixture.context.insert(empty)
+        try fixture.context.save()
+        let draft = try await fixture.viewModel.openDraftThread(project: empty)
+        let threadID = draft.persistentModelID
+        let root = try XCTUnwrap(draft.primaryWorkingDirectory)
+        let conversationID = draft.conversations.first?.id
+        XCTAssertEqual(draft.project?.id, empty.id)
+        XCTAssertEqual(draft.mode, .task)
+        XCTAssertFalse(draft.useWorktree)
+        XCTAssertEqual(draft.workspaceSnapshot?.sourceFolders, [])
+
+        let moved = try await fixture.viewModel.openTaskDraft()
+        XCTAssertEqual(moved.persistentModelID, threadID)
+        XCTAssertEqual(moved.conversations.first?.id, conversationID)
+        XCTAssertEqual(moved.primaryWorkingDirectory, root)
+        XCTAssertNil(moved.project)
+        let returned = try await fixture.viewModel.openDraftThread(project: empty)
+        XCTAssertEqual(returned.primaryWorkingDirectory, root)
+        XCTAssertEqual(returned.project?.id, empty.id)
+    }
+
+    func testFailedMoveFromPrivateDraftPreservesWorkspaceAndConversation() async throws {
+        let fixture = try SidebarTestFixture(saveDraftProjectMove: { _ in throw TaskDraftCreationSaveError.forced })
+        let project = try fixture.insertProject(name: "Source", path: "/tmp/draft-rollback-source")
+        let draft = try await fixture.viewModel.openTaskDraft()
+        let root = try XCTUnwrap(draft.primaryWorkingDirectory)
+        let conversationID = draft.conversations.first?.id
+        do {
+            _ = try await fixture.viewModel.openDraftThread(project: project)
+            XCTFail("Expected the destination save to fail")
+        } catch TaskDraftCreationSaveError.forced { }
+        XCTAssertEqual(draft.primaryWorkingDirectory, root)
+        XCTAssertEqual(draft.conversations.first?.id, conversationID)
+        XCTAssertEqual(draft.mode, .task)
+        XCTAssertNil(draft.project)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root))
     }
 
     func testTaskDraftSaveFailureRemovesNewOwnedWorkspace() async throws {

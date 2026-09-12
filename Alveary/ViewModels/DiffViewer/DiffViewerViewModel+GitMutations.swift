@@ -8,6 +8,21 @@ extension DiffViewerViewModel {
 
     func presentGitError(_ message: String) { diffStore.presentGitError(message) }
 
+    func stage(files: [FileStatus], target: DiffWorkspaceTarget) async throws {
+        try target.requireSourceDirectory()
+        try await stage(files: files, in: target.directory)
+    }
+
+    func unstage(files: [FileStatus], target: DiffWorkspaceTarget) async throws {
+        try target.requireSourceDirectory()
+        try await unstage(files: files, in: target.directory)
+    }
+
+    func discard(files: [FileStatus], target: DiffWorkspaceTarget) async throws {
+        try target.requireSourceDirectory()
+        try await discard(files: files, in: target.directory)
+    }
+
     func stage(files: [FileStatus], in directory: String) async throws {
         try await stage(paths: DiffViewerPathSupport.uniquePaths(files.map(\.path)), in: directory)
     }
@@ -92,7 +107,17 @@ extension DiffViewerViewModel {
     /// button on to its next action. `GitError.nonFastForwardPushRequired`
     /// propagates so the pane can offer a force push.
     func push(force: Bool, in directory: String) async throws {
-        let remoteName = diffStore.activeTarget?.remoteName
+        guard let target = diffStore.activeTarget, target.directory == directory else {
+            throw WorkspaceFolderError.staleSelection
+        }
+        try await push(force: force, target: target)
+    }
+
+    /// Capture this target before scheduling a task or presenting a force-push confirmation.
+    func push(force: Bool, target: DiffWorkspaceTarget) async throws {
+        try target.requireSourceDirectory()
+        let directory = target.directory
+        let remoteName = target.remoteName
         if force {
             try await gitService.forcePushCurrentBranch(remoteName: remoteName, in: directory)
         } else {

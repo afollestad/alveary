@@ -5,9 +5,9 @@ extension DefaultAgentsManager {
     private func installAgentCLIKitBuffer(
         conversationId: String,
         agentGeneration: Int,
+        context: AgentCLIKitBufferLaunchContext,
         hasImmediateTurn: Bool,
-        initialTurnActivityVisibility: AgentTurnActivityVisibility,
-        defersScheduledTerminalNotifications: Bool
+        initialTurnActivityVisibility: AgentTurnActivityVisibility
     ) -> UUID {
         let generation = UUID()
         eventBuffers[conversationId]?.buffer.finishAll()
@@ -17,6 +17,7 @@ extension DefaultAgentsManager {
         cancelledInteractionsByConversation.removeValue(forKey: conversationId)
         let managedBuffer = ManagedEventBuffer(
             generation: generation,
+            fileCompletionRoots: context.fileCompletionRoots,
             allowsReplay: true,
             acceptsLiveEvents: true,
             hasDeferredToolStop: false,
@@ -25,7 +26,7 @@ extension DefaultAgentsManager {
             resolvedLiveToolApprovals: [],
             deferredToolStopSessionId: nil,
             deferredToolStopToolUseId: nil,
-            defersScheduledTerminalNotifications: defersScheduledTerminalNotifications,
+            defersScheduledTerminalNotifications: context.defersScheduledTerminalNotifications,
             buffer: EventBuffer()
         )
         if hasImmediateTurn {
@@ -56,7 +57,8 @@ extension DefaultAgentsManager {
         subscription: AgentCLIKit.AgentEventSubscription,
         dropsPreStartTerminalLifecycle: Bool = false,
         hasImmediateTurn: Bool? = nil,
-        initialTurnActivityVisibility: AgentTurnActivityVisibility? = nil
+        initialTurnActivityVisibility: AgentTurnActivityVisibility? = nil,
+        fileCompletionRoots: [String]? = nil
     ) {
         let resolvedHasImmediateTurn = hasImmediateTurn ?? !(config.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         let resolvedInitialTurnActivityVisibility = initialTurnActivityVisibility ??
@@ -64,9 +66,12 @@ extension DefaultAgentsManager {
         let bufferGeneration = installAgentCLIKitBuffer(
             conversationId: conversationId,
             agentGeneration: subscription.generation,
+            context: AgentCLIKitBufferLaunchContext(
+                fileCompletionRoots: fileCompletionRoots ?? ([config.workingDirectory] + config.additionalWorkspaceRoots),
+                defersScheduledTerminalNotifications: config.isAutomatedScheduledTurn
+            ),
             hasImmediateTurn: resolvedHasImmediateTurn,
-            initialTurnActivityVisibility: resolvedInitialTurnActivityVisibility,
-            defersScheduledTerminalNotifications: config.isAutomatedScheduledTurn
+            initialTurnActivityVisibility: resolvedInitialTurnActivityVisibility
         )
         startAgentCLIKitEventTask(
             conversationId: conversationId,
@@ -197,15 +202,17 @@ extension DefaultAgentsManager {
     }
 
     private func currentAgentCLIKitGenerationUUID(conversationId: String, agentGeneration: Int) -> UUID {
-        let defersScheduledTerminalNotifications = eventBuffers[conversationId]?
-            .defersScheduledTerminalNotifications ?? false
+        let context = AgentCLIKitBufferLaunchContext(
+            fileCompletionRoots: eventBuffers[conversationId]?.fileCompletionRoots ?? [],
+            defersScheduledTerminalNotifications: eventBuffers[conversationId]?.defersScheduledTerminalNotifications ?? false
+        )
         if agentCLIKitGenerationByConversation[conversationId] != agentGeneration {
             return installAgentCLIKitBuffer(
                 conversationId: conversationId,
                 agentGeneration: agentGeneration,
+                context: context,
                 hasImmediateTurn: false,
-                initialTurnActivityVisibility: .hidden,
-                defersScheduledTerminalNotifications: defersScheduledTerminalNotifications
+                initialTurnActivityVisibility: .hidden
             )
         }
         if let existing = agentCLIKitGenerationUUIDs[conversationId]?[agentGeneration] {
@@ -214,9 +221,15 @@ extension DefaultAgentsManager {
         return installAgentCLIKitBuffer(
             conversationId: conversationId,
             agentGeneration: agentGeneration,
+            context: context,
             hasImmediateTurn: false,
-            initialTurnActivityVisibility: .hidden,
-            defersScheduledTerminalNotifications: defersScheduledTerminalNotifications
+            initialTurnActivityVisibility: .hidden
         )
     }
+}
+
+/// Subscription replacements preserve launch-owned state without consulting mutable project defaults.
+private struct AgentCLIKitBufferLaunchContext {
+    let fileCompletionRoots: [String]
+    let defersScheduledTerminalNotifications: Bool
 }

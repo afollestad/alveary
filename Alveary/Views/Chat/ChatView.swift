@@ -25,7 +25,8 @@ struct ChatView: View {
     let settingsService: SettingsService?
     let transcriptTypography: TranscriptTypography
     let availableProjects: [Project]
-    let onSelectDraftProject: (String) -> Void
+    let availableSections: [SidebarSection]
+    let onSelectDraftDestination: (ThreadDraftDestination) -> Void
     @Bindable var appState: AppState
 
     /// Optional so hosts that mount `ChatView` without the app root, such as snapshot tests,
@@ -136,7 +137,8 @@ struct ChatView: View {
         voiceInputLifecycleController: VoiceInputLifecycleController? = nil,
         transcriptTypography: TranscriptTypography,
         availableProjects: [Project] = [],
-        onSelectDraftProject: @escaping (String) -> Void = { _ in },
+        availableSections: [SidebarSection] = [],
+        onSelectDraftDestination: @escaping (ThreadDraftDestination) -> Void = { _ in },
         appState: AppState,
         initialAskUserQuestionOverlayStates: [String: AskUserQuestionOverlayState] = [:]
     ) {
@@ -160,7 +162,8 @@ struct ChatView: View {
         self.settingsService = settingsService
         self.transcriptTypography = transcriptTypography
         self.availableProjects = availableProjects
-        self.onSelectDraftProject = onSelectDraftProject
+        self.availableSections = availableSections
+        self.onSelectDraftDestination = onSelectDraftDestination
         self.appState = appState
         _askUserQuestionOverlayStates = State(initialValue: initialAskUserQuestionOverlayStates)
         let resolvedVoiceService = voiceInputService ?? DisabledVoiceInputService()
@@ -284,6 +287,15 @@ struct ChatView: View {
 }
 
 extension ChatView {
+    var showsWorkspaceInEmptyState: Bool {
+        ChatPresentation.showsWorkspaceInEmptyState(
+            isDraft: conversation.thread?.isDraft == true,
+            contentMode: displayedContentMode ?? targetContentMode,
+            hasSetupPhase: viewModel.setupPhase != nil,
+            isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup
+        )
+    }
+
     var targetContentMode: ChatContentMode {
         ChatContentMode.resolve(
             projectTrustPrompt: projectTrustPrompt,
@@ -312,12 +324,14 @@ extension ChatView {
                 isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
                 thread: conversation.thread,
                 projects: availableProjects,
+                sections: availableSections,
                 isProjectSelectionDisabled: voiceInputCoordinator.isDraftInteractionLocked,
-                onSelectProject: { path in
+                onSelectDestination: { path in
                     guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
                     voiceInputCoordinator.invalidatePendingActivationIntent()
-                    onSelectDraftProject(path)
-                }
+                    onSelectDraftDestination(path)
+                },
+                workspaceConfiguration: showsWorkspaceInEmptyState ? composerTaskWorkspaceConfiguration : nil
             )
             .transition(.opacity)
         case .transcript:
@@ -341,7 +355,9 @@ extension ChatView {
             bodyConfiguration: composerBodyConfiguration,
             topContentConfiguration: composerTopContentConfiguration,
             queuedMessagesConfiguration: composerQueuedMessagesConfiguration,
-            actionRowConfiguration: composerActionRowConfiguration(usageSummary: usageSummary),
+            actionRowConfiguration: composerActionRowConfiguration(
+                usageSummary: usageSummary, showsWorkspaceInEmptyState: showsWorkspaceInEmptyState
+            ),
             interactionOverlayConfiguration: composerInteractionOverlayConfiguration,
             showsTopDivider: hasVisibleChatContent && !isFollowing,
             layout: AppKitChatComposerPanelView.Layout(
@@ -374,6 +390,7 @@ extension ChatView {
             hasQueuedMessages: !viewModel.messageQueue.pending.isEmpty,
             hasTopContent: !composerTopContentConfiguration.items.isEmpty,
             workingDirectory: workingDirectory,
+            workspaceRoots: conversation.thread?.workspaceSnapshot?.grants.map(\.path) ?? [],
             attachments: stagedComposerAttachments,
             urlOpener: openComposerEditorURL(_:),
             localCommands: localCommandAvailability,

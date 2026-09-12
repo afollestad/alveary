@@ -100,7 +100,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
 
         XCTAssertEqual(
             snapshot.pinnedItems.map(\.id),
-            ["project:\(pinnedProject.path)", "thread:\(String(describing: standalonePin.persistentModelID))"]
+            ["project:\(pinnedProject.id)", "thread:\(String(describing: standalonePin.persistentModelID))"]
         )
         XCTAssertEqual(
             snapshot.activeThreads(for: pinnedProject).map(\.persistentModelID),
@@ -158,7 +158,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         try fixture.context.save()
 
         let legacySnapshot = try fixture.renderSnapshot()
-        XCTAssertEqual(legacySnapshot.pinnedItems.map(\.stableID), [fresh.path, stale.path])
+        XCTAssertEqual(legacySnapshot.pinnedItems.map(\.stableID), [fresh.id, stale.id])
 
         // A manual order wins over activity, and later activity must not move the item.
         stale.pinnedSortOrder = 0
@@ -166,7 +166,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         try fixture.context.save()
 
         let manualSnapshot = try fixture.renderSnapshot()
-        XCTAssertEqual(manualSnapshot.pinnedItems.map(\.stableID), [stale.path, fresh.path])
+        XCTAssertEqual(manualSnapshot.pinnedItems.map(\.stableID), [stale.id, fresh.id])
     }
 
     func testSnapshotRebuildsAfterProjectReassignmentAndModeChange() throws {
@@ -223,9 +223,9 @@ final class SidebarRenderSnapshotTests: XCTestCase {
 
         // Collapsed: one standalone pinned row plus one Task row.
         XCTAssertEqual(snapshot.expandedThreadCount(expandedProjects: []), 2)
-        XCTAssertEqual(snapshot.expandedThreadCount(expandedProjects: [pinnedProject.path]), 3)
+        XCTAssertEqual(snapshot.expandedThreadCount(expandedProjects: [pinnedProject.id]), 3)
         XCTAssertEqual(
-            snapshot.expandedThreadCount(expandedProjects: [pinnedProject.path, regularProject.path]),
+            snapshot.expandedThreadCount(expandedProjects: [pinnedProject.id, regularProject.id]),
             5
         )
     }
@@ -245,7 +245,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         try fixture.context.save()
 
         let snapshot = try fixture.renderSnapshot()
-        let expandedProjects: Set<String> = [pinnedProject.path, regularProject.path]
+        let expandedProjects: Set<String> = [pinnedProject.id, regularProject.id]
 
         XCTAssertEqual(snapshot.expandedThreadCount(expandedProjects: expandedProjects), 3)
         XCTAssertEqual(
@@ -279,7 +279,7 @@ final class SidebarRenderSnapshotTests: XCTestCase {
         let items = buildNavigableItems(
             pinnedItems: snapshot.pinnedItems,
             projects: snapshot.regularProjects,
-            expandedProjects: [pinnedProject.path, regularProject.path],
+            expandedProjects: [pinnedProject.id, regularProject.id],
             activeThreads: snapshot.activeThreads(for:),
             activeTasks: snapshot.activeTaskThreads
         )

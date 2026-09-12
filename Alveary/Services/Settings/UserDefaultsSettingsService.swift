@@ -80,13 +80,21 @@ final class UserDefaultsSettingsService: SettingsService {
         persist(updated, notify: false)
     }
 
+    func updateLastActiveProjectID(_ id: String?) {
+        guard current.lastActiveProjectID != id || current.lastActiveProjectPath != nil else { return }
+        var updated = current
+        updated.lastActiveProjectID = id
+        updated.lastActiveProjectPath = nil
+        persist(updated.normalized(), notify: false)
+    }
+
     func updateLastActiveProjectPath(_ path: String?) {
         guard current.lastActiveProjectPath != path else {
             return
         }
 
         var updated = current
-        updated.lastActiveProjectPath = path
+        updated.lastActiveProjectPath = path.map { CanonicalPath.normalize($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         persist(updated.normalized(), notify: false)
     }
 

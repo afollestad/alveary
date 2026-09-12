@@ -10,6 +10,14 @@ extension SidebarViewModel {
         let baseRef: String?
         let githubRepository: String?
         let githubConnected: Bool
+
+        var sourceFolder: SourceFolderSnapshot {
+            SourceFolderSnapshot(
+                path: path, gitRemote: remoteURL, remoteName: remoteName, gitBranch: gitBranch,
+                baseRef: baseRef, githubRepository: githubRepository, githubConnected: githubConnected
+            )
+        }
+
     }
 
     func createProject(path: String) async throws -> Project {
@@ -19,33 +27,20 @@ extension SidebarViewModel {
         // reuse the same parse path, and so the first selection of the new project renders
         // from cache. Invalid JSON intentionally degrades to defaults.
         await ProjectConfigStore.shared.reload(forProjectPath: projectDetails.path)
-        _ = try initializeSidebarOrderingForMutation()
-        let sidebarSortOrder = try currentRegularProjectAppendOrder()
-
-        let project = Project(
-            path: projectDetails.path,
+        return try saveProjectConfiguration(ProjectConfiguration(
             name: URL(fileURLWithPath: projectDetails.path).lastPathComponent,
-            gitRemote: projectDetails.remoteURL,
-            remoteName: projectDetails.remoteName,
-            gitBranch: projectDetails.gitBranch,
-            baseRef: projectDetails.baseRef,
-            githubRepository: projectDetails.githubRepository,
-            githubConnected: projectDetails.githubConnected,
-            sidebarSortOrder: sidebarSortOrder
-        )
-        modelContext.insert(project)
-        try modelContext.save()
-        return project
+            folders: [projectDetails.sourceFolder]
+        ))
     }
 
     func resolveProjectDetails(for path: String) async throws -> ProjectImportDetails {
         let selectedPath = CanonicalPath.normalize(path)
 
         do {
-            let projectPath = try await gitOutput(
+            let projectPath = CanonicalPath.normalize(try await gitOutput(
                 args: ["rev-parse", "--show-toplevel"],
-                in: path
-            )
+                in: selectedPath
+            ))
             let currentBranch = try await gitOutput(
                 args: ["rev-parse", "--abbrev-ref", "HEAD"],
                 in: projectPath

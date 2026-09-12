@@ -101,7 +101,7 @@ extension SnapshotTests {
     }
 
     func testPrimaryToolbarButtonGroupProjectAction() {
-        let thread = AgentThread(name: "Toolbar Action")
+        let thread = AgentThread(name: "Toolbar Action", project: Project(path: "/tmp/toolbar-project", name: "Toolbar"))
 
         assertMacSnapshot(
             primaryToolbarButtonGroup(
@@ -143,7 +143,7 @@ extension SnapshotTests {
     }
 
     func testPrimaryToolbarButtonGroupProjectActionEmptyDiff() {
-        let thread = AgentThread(name: "Toolbar Action")
+        let thread = AgentThread(name: "Toolbar Action", project: Project(path: "/tmp/toolbar-project", name: "Toolbar"))
 
         assertMacSnapshot(
             primaryToolbarButtonGroup(
@@ -164,7 +164,7 @@ extension SnapshotTests {
     }
 
     func testPrimaryToolbarButtonGroupProjectActionLoadingDiff() {
-        let thread = AgentThread(name: "Toolbar Action")
+        let thread = AgentThread(name: "Toolbar Action", project: Project(path: "/tmp/toolbar-project", name: "Toolbar"))
 
         assertMacSnapshot(
             primaryToolbarButtonGroup(
@@ -186,7 +186,7 @@ extension SnapshotTests {
     }
 
     func testPrimaryToolbarButtonGroupMultipleProjectActions() {
-        let thread = AgentThread(name: "Toolbar Actions")
+        let thread = AgentThread(name: "Toolbar Actions", project: Project(path: "/tmp/toolbar-project", name: "Toolbar"))
 
         assertMacSnapshot(
             primaryToolbarButtonGroup(

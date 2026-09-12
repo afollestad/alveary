@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 extension ScheduledTaskHostToolServiceTests {
-    func testEditCapturesRevisionAndPreservesDefinitionOwnedSettings() throws {
+    func testEditCapturesRevisionAndPreservesDefinitionOwnedSettings() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let target = fixture.insertDefinition(
             id: "definition-edit",
@@ -23,7 +23,7 @@ extension ScheduledTaskHostToolServiceTests {
         )
         try fixture.modelContext.save()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -60,12 +60,12 @@ extension ScheduledTaskHostToolServiceTests {
         XCTAssertEqual(draft.grantedRoots, [CanonicalPath.normalize("/tmp/target-grant")])
     }
 
-    func testStaleRevisionDoesNotPersistProposal() throws {
+    func testStaleRevisionDoesNotPersistProposal() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let target = fixture.insertDefinition(id: "stale", revision: 3)
         try fixture.modelContext.save()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -79,12 +79,12 @@ extension ScheduledTaskHostToolServiceTests {
     }
 
     /// Deletion is irreversible, so it still opens a proposal and changes nothing.
-    func testDeleteOpensAProposalWithoutChangingTheDefinition() throws {
+    func testDeleteOpensAProposalWithoutChangingTheDefinition() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let target = fixture.insertDefinition(id: "target-delete", revision: 5)
         try fixture.modelContext.save()
 
-        let result = fixture.service.handle(
+        let result = await fixture.service.handle(
             context: fixture.agentContext(requestID: "string:delete"),
             call: AgentCLIKit.AgentHostToolCall(
                 name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -103,7 +103,7 @@ extension ScheduledTaskHostToolServiceTests {
     }
 
     /// Pause and resume are reversible and revision-checked, so they skip confirmation.
-    func testPauseAndResumeApplyImmediatelyWithoutAProposal() throws {
+    func testPauseAndResumeApplyImmediatelyWithoutAProposal() async throws {
         struct StateChangeCase {
             let action: ScheduledTaskProposalAction
             let initialState: ScheduledTaskState
@@ -123,7 +123,7 @@ extension ScheduledTaskHostToolServiceTests {
             target.state = initialState
             try fixture.modelContext.save()
 
-            let result = fixture.service.handle(
+            let result = await fixture.service.handle(
                 context: fixture.agentContext(requestID: "string:\(action.rawValue)"),
                 call: AgentCLIKit.AgentHostToolCall(
                     name: ScheduledTaskHostToolCatalog.proposeToolName,
@@ -149,7 +149,7 @@ extension ScheduledTaskHostToolServiceTests {
     }
 
     /// A retried run-now replays its receipt instead of launching a second run.
-    func testRunNowAppliesImmediatelyAndRetryDoesNotStartASecondRun() throws {
+    func testRunNowAppliesImmediatelyAndRetryDoesNotStartASecondRun() async throws {
         let fixture = try ScheduledTaskHostToolFixture.project()
         let target = fixture.insertDefinition(id: "target-run-now", revision: 5)
         try fixture.modelContext.save()
@@ -159,8 +159,8 @@ extension ScheduledTaskHostToolServiceTests {
         )
         let context = fixture.agentContext(requestID: "string:run-now")
 
-        let first = fixture.service.handle(context: context, call: call)
-        let retry = fixture.service.handle(context: context, call: call)
+        let first = await fixture.service.handle(context: context, call: call)
+        let retry = await fixture.service.handle(context: context, call: call)
 
         XCTAssertFalse(first.isError)
         XCTAssertEqual(try status(first), "applied")

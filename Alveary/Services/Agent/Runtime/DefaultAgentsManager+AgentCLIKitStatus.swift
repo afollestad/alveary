@@ -6,7 +6,7 @@ extension DefaultAgentsManager {
         guard let status = await services.runtime.status(conversationId: services.hostAdapter.conversationId(conversationId)) else {
             return
         }
-        applyAgentCLIKitStatus(status, conversationId: conversationId)
+        await applyAgentCLIKitStatus(status, conversationId: conversationId)
     }
 
     func startAgentCLIKitStatusTask(conversationId: String, services: AgentCLIKitHostServices) {
@@ -24,15 +24,16 @@ extension DefaultAgentsManager {
     func refreshStatus(conversationId: String) async -> ActivitySignal {
         let runtimeConversationId = agentCLIKitServices.hostAdapter.conversationId(conversationId)
         if let status = await agentCLIKitServices.runtime.status(conversationId: runtimeConversationId) {
-            applyAgentCLIKitStatus(status, conversationId: conversationId)
+            await applyAgentCLIKitStatus(status, conversationId: conversationId)
         }
         return self.status(for: conversationId)
     }
 
-    private func applyAgentCLIKitStatus(_ status: AgentCLIKit.AgentRuntimeStatus, conversationId: String) {
+    func applyAgentCLIKitStatus(_ status: AgentCLIKit.AgentRuntimeStatus, conversationId: String) async {
         guard shouldApplyAgentCLIKitStatus(status, conversationId: conversationId) else {
             return
         }
+        let previousStatus = agentCLIKitStatuses[conversationId]
         let ignoresStaleActiveStatus = shouldIgnoreStaleActiveStatus(status, conversationId: conversationId)
         agentCLIKitStatuses[conversationId] = status
         if ignoresStaleActiveStatus {
@@ -45,17 +46,22 @@ extension DefaultAgentsManager {
         syncRuntimeBackgroundTaskStatus(status.liveBackgroundTaskCount, conversationId: conversationId)
         processSnapshot.withLock { $0 = [] }
         publishManagedProcessesChanged()
-        if suppressCancelledInteractionStatusIfNeeded(status, conversationId: conversationId) {
-            return
+        if !suppressCancelledInteractionStatusIfNeeded(status, conversationId: conversationId),
+           let signal = agentCLIKitActivitySignal(
+               for: status,
+               conversationId: conversationId,
+               ignoresStaleActiveStatus: ignoresStaleActiveStatus
+           ) {
+            updateStatus(signal, for: conversationId)
         }
-        guard let signal = agentCLIKitActivitySignal(
-            for: status,
-            conversationId: conversationId,
-            ignoresStaleActiveStatus: ignoresStaleActiveStatus
-        ) else {
-            return
+        // Status can settle without a transcript terminal event, including a background task exit.
+        if agentCLIKitGenerationByConversation[conversationId] == status.generation,
+           previousStatus?.generation == status.generation,
+           (previousStatus?.isTurnActive == true && !status.isTurnActive) ||
+            (previousStatus?.liveBackgroundTaskCount ?? 0) > status.liveBackgroundTaskCount {
+            let roots = eventBuffers[conversationId]?.fileCompletionRoots ?? []
+            await invalidateWorkspaceFileCompletions(roots: roots)
         }
-        updateStatus(signal, for: conversationId)
     }
 
     private func agentCLIKitActivitySignal(

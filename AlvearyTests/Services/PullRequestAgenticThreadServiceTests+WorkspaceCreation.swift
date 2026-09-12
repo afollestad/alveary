@@ -55,7 +55,7 @@ extension PullRequestAgenticThreadServiceTests {
             path: sourceProjectPath,
             name: "lender",
             remoteName: "origin",
-            githubRepository: githubRepository
+            githubRepository: githubRepository ?? identifier.nameWithOwner
         )
         let thread = AgentThread(
             name: "Lender",

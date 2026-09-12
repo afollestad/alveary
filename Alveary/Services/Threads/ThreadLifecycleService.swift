@@ -12,6 +12,9 @@ struct ProjectThreadSeed {
     let isDraft: Bool
     let name: String?
     let pinned: Bool
+    let workspaceSnapshot: WorkspaceSnapshot?
+    let useWorktree: Bool?
+    let sectionID: String?
 
     init(
         provider: String,
@@ -20,7 +23,10 @@ struct ProjectThreadSeed {
         effort: String,
         isDraft: Bool,
         name: String? = nil,
-        pinned: Bool = false
+        pinned: Bool = false,
+        workspaceSnapshot: WorkspaceSnapshot? = nil,
+        useWorktree: Bool? = nil,
+        sectionID: String? = nil
     ) {
         self.provider = provider
         self.permissionMode = permissionMode
@@ -29,6 +35,9 @@ struct ProjectThreadSeed {
         self.isDraft = isDraft
         self.name = name
         self.pinned = pinned
+        self.workspaceSnapshot = workspaceSnapshot
+        self.useWorktree = useWorktree
+        self.sectionID = sectionID
     }
 }
 
@@ -41,9 +50,9 @@ enum TaskThreadSidebarPlacement: Equatable {
     case tasks
     /// `SidebarSection.id` of the custom section the new thread starts in.
     case section(id: String)
-    /// `Project.path` (its unique attribute) of the project the new thread nests under. Placement
+    /// Stable `Project.id` of the project the new thread nests under. Placement
     /// only: the thread keeps its own private workspace and `.task` mode.
-    case project(path: String)
+    case project(id: String)
 }
 
 /// Settings a new Task thread starts with. A Task owns a private workspace instead of a Project,
@@ -66,6 +75,7 @@ struct TaskThreadSeed {
     /// the insert rather than half-applying. A `.project` placement does not grant its folder —
     /// the caller decides that through `grantedRoots`.
     let placement: TaskThreadSidebarPlacement
+    let workspaceSnapshot: WorkspaceSnapshot?
 
     init(
         provider: String,
@@ -77,7 +87,8 @@ struct TaskThreadSeed {
         pinned: Bool = false,
         grantedRoots: [String] = [],
         workspace: TaskWorkspaceDescriptor? = nil,
-        placement: TaskThreadSidebarPlacement = .tasks
+        placement: TaskThreadSidebarPlacement = .tasks,
+        workspaceSnapshot: WorkspaceSnapshot? = nil
     ) {
         self.provider = provider
         self.permissionMode = permissionMode
@@ -89,6 +100,7 @@ struct TaskThreadSeed {
         self.grantedRoots = grantedRoots
         self.workspace = workspace
         self.placement = placement
+        self.workspaceSnapshot = workspaceSnapshot
     }
 }
 
@@ -109,7 +121,7 @@ final class ThreadLifecycleService {
     // Reached from `ThreadLifecycleService+Archive.swift`.
     let providerSessionActionService: any ProviderSessionActionService
     let notificationManager: any NotificationManager
-    private let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
+    let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     private let invalidateConversationController: @MainActor (String) -> Void
     // Internal rather than private: the `+ScheduledAttachments` companion awaits it.
     let stopAndWaitForScheduledTaskRun: ScheduledTaskRunQuiescence
@@ -150,16 +162,32 @@ final class ThreadLifecycleService {
     }
 
     func insertProjectThread(projectPath: String, seed: ProjectThreadSeed) throws -> AgentThread {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == projectPath
-        })
-        guard let project = try modelContext.fetch(descriptor).first else {
+        guard let project = modelContext.resolveProject(path: projectPath) else {
             throw SidebarViewModelError.projectMissing
         }
         return try insertProjectThread(project: project, seed: seed)
     }
 
+    func insertProjectThread(projectID: String, seed: ProjectThreadSeed) throws -> AgentThread {
+        guard let project = modelContext.resolveProject(projectID: projectID) else { throw SidebarViewModelError.projectMissing }
+        return try insertProjectThread(project: project, seed: seed)
+    }
+
     func insertProjectThread(project: Project, seed: ProjectThreadSeed) throws -> AgentThread {
+        try insertSourceThread(project: project, seed: seed)
+    }
+
+    /// An inherited source can outlive its sidebar project. Its frozen folders still seed an
+    /// independent local/worktree thread; sidebar placement cannot change execution kind.
+    func insertSourceThread(project: Project?, seed: ProjectThreadSeed) throws -> AgentThread {
+        let snapshot = seed.workspaceSnapshot ?? project?.workspaceSnapshot() ?? WorkspaceSnapshot(primarySource: nil)
+        guard let primary = snapshot.primarySource else {
+            return try insertTaskThread(seed: TaskThreadSeed(
+                provider: seed.provider, permissionMode: seed.permissionMode, model: seed.model, effort: seed.effort,
+                isDraft: seed.isDraft, name: seed.name, pinned: seed.pinned, grantedRoots: snapshot.grants.map(\.path),
+                placement: project.map { .project(id: $0.id) } ?? .tasks, workspaceSnapshot: snapshot
+            ))
+        }
         // Unrelated pending edits must reach the store before a failed insert rolls the context back.
         if modelContext.hasChanges {
             try modelContext.save()
@@ -170,11 +198,12 @@ final class ThreadLifecycleService {
             permissionMode: seed.permissionMode,
             effort: seed.effort,
             model: seed.model,
-            useWorktree: settingsService.current.createWorktreeByDefault && project.isGitRepository,
+            useWorktree: (seed.useWorktree ?? settingsService.current.createWorktreeByDefault) && primary.isGitRepository,
             isDraft: seed.isDraft,
             project: project
         )
         thread.mode = .project
+        thread.workspaceSnapshot = snapshot
         let conversation = Conversation(
             provider: seed.provider,
             isMain: true,
@@ -187,7 +216,8 @@ final class ThreadLifecycleService {
         do {
             // A pinned project already absorbs its children, so the pin would be invisible and
             // normalization would clear it in the same commit.
-            if seed.pinned, !project.isPinned {
+            if project == nil, let sectionID = seed.sectionID { thread.customSection = try resolvedSeedSection(id: sectionID) }
+            if seed.pinned, project?.isPinned != true {
                 try SidebarPinOrdering.pin(thread, in: modelContext)
             }
             try saveThreadCreation(modelContext)
@@ -221,7 +251,7 @@ final class ThreadLifecycleService {
             mintedWorkspace = created
         }
         let thread = AgentThread(
-            name: seed.name ?? "New task",
+            name: seed.name ?? AgentThread.untitledName,
             hasCustomName: seed.name != nil,
             permissionMode: seed.permissionMode,
             effort: seed.effort,
@@ -232,6 +262,7 @@ final class ThreadLifecycleService {
             taskWorkspaceDescriptor: grantedWorkspace(workspace, grantedRoots: seed.grantedRoots),
             project: nil
         )
+        if let snapshot = seed.workspaceSnapshot { thread.workspaceSnapshot = snapshot }
         let conversation = Conversation(
             provider: seed.provider,
             isMain: true,
@@ -252,30 +283,6 @@ final class ThreadLifecycleService {
             throw error
         }
         return thread
-    }
-
-    /// Moves a Task thread onto a workspace resolved after it was created, for a caller that had
-    /// to answer before the real one existed — the pull request pane's address-feedback route
-    /// answers on the click and settles its checkout behind that return.
-    ///
-    /// Deliberately does not touch `branch`, `worktreePath`, or `useWorktree`. Those are the
-    /// Project-thread field family; a Task carries its checkout in the descriptor alone, and a
-    /// non-nil `branch` here would offer the user's live pull request head to `branch -D` on
-    /// permanent deletion.
-    func replaceTaskWorkspace(threadID: PersistentIdentifier, with descriptor: TaskWorkspaceDescriptor) throws {
-        let thread = try requireThread(id: threadID)
-        guard thread.effectiveMode == .task else {
-            throw SidebarViewModelError.threadMissingTaskWorkspace
-        }
-        let replaced = thread.taskWorkspaceDescriptor
-        thread.taskWorkspaceDescriptor = descriptor
-        try modelContext.save()
-        // Only after the save: the thread must never be left pointing at a directory that is
-        // already gone. A private workspace whose thread no longer names it is orphaned, and the
-        // next launch's sweep removes it, so a failure here costs disk rather than correctness.
-        if let replaced, replaced.ownershipStrategy == .privateOwned, replaced != descriptor {
-            try? taskWorkspaceOwnershipService.removeOwnedWorkspace(replaced)
-        }
     }
 
     func requireThread(id: PersistentIdentifier) throws -> AgentThread {
@@ -433,10 +440,10 @@ final class ThreadLifecycleService {
     /// absorbs its children's pins. Vanishing since the caller validated it fails the whole
     /// insert, mirroring `resolvedSeedSection`; nil just means a non-project placement.
     private func resolvedSeedProject(for placement: TaskThreadSidebarPlacement) throws -> Project? {
-        guard case .project(let path) = placement else {
+        guard case .project(let id) = placement else {
             return nil
         }
-        guard let project = modelContext.resolveProject(path: path) else {
+        guard let project = modelContext.resolveProject(projectID: id) else {
             throw SidebarViewModelError.projectMissing
         }
         return project

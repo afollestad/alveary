@@ -14,14 +14,14 @@ final class AppStateTests: XCTestCase {
         guard case .newThread(_, let projectMode) = state.pendingCommand else {
             return XCTFail("Expected a Project-mode new-thread command")
         }
-        XCTAssertEqual(projectMode, .project)
+        XCTAssertNil(projectMode)
 
-        state.startNewThreadFlow(mode: .task)
+        state.startNewThreadFlow(destination: .tasks)
 
         guard case .newThread(_, let taskMode) = state.pendingCommand else {
             return XCTFail("Expected a Task-mode new-thread command")
         }
-        XCTAssertEqual(taskMode, .task)
+        XCTAssertEqual(taskMode, .tasks)
     }
 
     func testOpenSettingsPreservesPreviousSelectionUntilLeavingSettings() throws {

@@ -50,7 +50,9 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertEqual(snapshot?.targetName, "Toolbar Action")
         XCTAssertEqual(snapshot?.baseBranch, "develop")
         XCTAssertEqual(snapshot?.remoteName, "upstream")
-        XCTAssertEqual(snapshot?.generationRoute, .thread)
+        XCTAssertEqual(snapshot?.generationRoute, .thread(
+            threadID: fixture.thread.persistentModelID, conversationID: fixture.conversation.persistentModelID
+        ))
     }
 
     func testDiffCommitTargetResolverResolvesProjectTargetWithNameFallback() throws {
@@ -142,7 +144,9 @@ final class ContentViewProjectActionsTests: XCTestCase {
         let thread = AgentThread(name: "Toolbar Action", worktreePath: "/tmp/worktree", project: project)
         let action = AlvearyProjectConfig.ProjectAction(icon: "hammer", name: "Build", command: "./scripts/build.sh")
 
-        let context = try XCTUnwrap(ProjectActionExecutionContext(thread: thread, action: action))
+        let context = ProjectActionExecutionContext(
+            folder: try XCTUnwrap(thread.workspaceFolderTargets.first), thread: thread, action: action
+        )
 
         XCTAssertEqual(context.title, "Build")
         XCTAssertEqual(context.threadID, thread.persistentModelID)
@@ -151,21 +155,16 @@ final class ContentViewProjectActionsTests: XCTestCase {
         XCTAssertEqual(context.command, "./scripts/build.sh")
     }
 
-    func testProjectActionExecutionContextFallsBackToProjectPath() {
+    func testProjectActionExecutionContextUsesLocalSourceDirectory() throws {
         let project = Project(path: "/tmp/project", name: "Alveary")
         let thread = AgentThread(name: "Toolbar Action", project: project)
         let action = AlvearyProjectConfig.ProjectAction(name: "Test", command: "./scripts/test.sh")
 
-        let context = ProjectActionExecutionContext(thread: thread, action: action)
+        let context = ProjectActionExecutionContext(
+            folder: try XCTUnwrap(thread.workspaceFolderTargets.first), thread: thread, action: action
+        )
 
-        XCTAssertEqual(context?.currentDirectory, "/tmp/project")
-    }
-
-    func testProjectActionExecutionContextReturnsNilWithoutRunnableDirectory() {
-        let thread = AgentThread(name: "Toolbar Action")
-        let action = AlvearyProjectConfig.ProjectAction(name: "Test", command: "./scripts/test.sh")
-
-        XCTAssertNil(ProjectActionExecutionContext(thread: thread, action: action))
+        XCTAssertEqual(context.currentDirectory, "/tmp/project")
     }
 
     func testResolvedLastOpenThreadSelectionReturnsMatchingThreadAndConversation() throws {
@@ -324,7 +323,9 @@ final class ContentViewProjectActionsTests: XCTestCase {
         let project = Project(path: "/tmp/project", name: "Alveary")
         let thread = AgentThread(name: "Toolbar Action", worktreePath: "/tmp/worktree", project: project)
         let action = AlvearyProjectConfig.ProjectAction(name: "Build", command: "./scripts/build.sh")
-        let context = try XCTUnwrap(ProjectActionExecutionContext(thread: thread, action: action))
+        let context = ProjectActionExecutionContext(
+            folder: try XCTUnwrap(thread.workspaceFolderTargets.first), thread: thread, action: action
+        )
         var builder = TerminalLaunchBuilder()
         builder.environment = {
             ["SHELL": "/bin/zsh"]

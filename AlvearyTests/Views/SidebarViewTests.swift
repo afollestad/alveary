@@ -120,7 +120,7 @@ final class SidebarViewTests: XCTestCase {
         await view.confirmDeleteThread(thread)
 
         XCTAssertEqual(appState.selectedSidebarItem, .project(project))
-        XCTAssertEqual(appState.previousSelection, .projectPath(project.path))
+        XCTAssertEqual(appState.previousSelection, .projectID(project.persistentModelID))
         XCTAssertFalse(try fixture.threadExists(thread))
     }
 
@@ -403,13 +403,13 @@ final class SidebarViewTests: XCTestCase {
         XCTAssertTrue(
             sidebarItem(
                 appState.selectedSidebarItem,
-                belongsToProjectPath: project.path,
-                resolvedThreadProjectPath: { _ in nil }
+                belongsToProjectID: project.id,
+                resolvedThreadProjectID: { fixture.context.resolveThread(id: $0)?.project?.id }
             )
         )
         XCTAssertEqual(
-            view.expandedProjectsPreservingVisibleSelection(afterMovingProject: project.path),
-            [project.path]
+            view.expandedProjectsPreservingVisibleSelection(afterMovingProject: project.id),
+            [project.id]
         )
     }
 

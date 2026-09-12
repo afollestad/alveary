@@ -151,7 +151,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(thread.name, "New task")
+        XCTAssertEqual(thread.name, "New thread")
         XCTAssertFalse(thread.hasCustomName)
         XCTAssertEqual(thread.effectiveMode, .task)
         XCTAssertNil(thread.project)
@@ -190,7 +190,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
         let project = try fixture.insertProject(name: "Alveary", path: "/tmp/alveary-project")
 
         let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
-            seed: makeTaskSeed(placement: .project(path: project.path))
+            seed: makeTaskSeed(placement: .project(id: project.id))
         )
 
         XCTAssertEqual(thread.project?.path, project.path)
@@ -206,7 +206,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
         try fixture.context.save()
 
         let thread = try fixture.viewModel.threadLifecycle.insertTaskThread(
-            seed: makeTaskSeed(pinned: true, placement: .project(path: project.path))
+            seed: makeTaskSeed(pinned: true, placement: .project(id: project.id))
         )
 
         // A pinned project absorbs its children, so the pin would be invisible and normalization
@@ -221,7 +221,7 @@ final class ThreadLifecycleServiceTests: XCTestCase {
 
         XCTAssertThrowsError(
             try fixture.viewModel.threadLifecycle.insertTaskThread(
-                seed: makeTaskSeed(placement: .project(path: "/tmp/missing-project"))
+                seed: makeTaskSeed(placement: .project(id: "missing-project"))
             )
         ) { error in
             guard case .projectMissing = error as? SidebarViewModelError else {

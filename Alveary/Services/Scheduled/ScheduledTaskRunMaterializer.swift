@@ -296,7 +296,7 @@ extension DefaultScheduledTaskRunMaterializer {
     ) -> AgentThread {
         let workspace = preparedWorkspace?.descriptor
         let isProjectThread = snapshot.workspaceKind == .project
-        return AgentThread(
+        let thread = AgentThread(
             name: snapshot.title,
             hasCustomName: true,
             branch: preparedWorkspace?.branch,
@@ -309,10 +309,12 @@ extension DefaultScheduledTaskRunMaterializer {
             useWorktree: workspace?.ownershipStrategy == .projectWorktreeOwned,
             modifiedAt: now(),
             mode: isProjectThread ? .project : .task,
-            taskWorkspaceDescriptor: isProjectThread ? nil : workspace,
-            project: snapshot.projectPath.flatMap(modelContext.resolveProject(path:)),
+            taskWorkspaceDescriptor: workspace,
+            project: snapshot.projectID.flatMap(modelContext.resolveProject(projectID:)),
             scheduledTaskRun: run
         )
+        thread.workspaceSnapshot = snapshot.workspaceSnapshot
+        return thread
     }
 
     /// Seeds a created thread's sidebar section from the run snapshot, re-resolved inside the
@@ -322,10 +324,10 @@ extension DefaultScheduledTaskRunMaterializer {
     /// degrades to `Tasks` rather than throwing: that call answers a user who just asked for the
     /// section and can retry, while this one runs unattended hours later — failing the whole run
     /// over a cosmetic placement would turn a removed section into a permanently broken schedule.
-    /// Project-backed runs get no membership; `SidebarRenderSnapshot.groupThreads` renders section
-    /// membership only for projectless task-mode threads.
+    /// Project-placed runs get no section membership; projectless runs may use a custom section
+    /// regardless of whether they execute in a source folder or private workspace.
     func resolvedRunSection(_ snapshot: ScheduledTaskRunSnapshot) -> SidebarSection? {
-        guard snapshot.workspaceKind == .privateWorkspace,
+        guard snapshot.projectID.flatMap(modelContext.resolveProject(projectID:)) == nil,
               let id = snapshot.threadSectionID,
               let section = modelContext.resolveSidebarSection(id: id),
               section.kind == .custom else {

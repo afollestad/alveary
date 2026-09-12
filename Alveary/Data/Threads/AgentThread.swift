@@ -18,6 +18,9 @@ final class AgentThread {
     var isPinned: Bool = false
     var pinnedSortOrder: Int?
     var isDraft: Bool = false
+    /// Drafts are process-local; explicit picker choices must survive project-default edits until materialization.
+    @Transient var draftHasExplicitGrants: Bool = false
+    @Transient var draftWorktreePreference: Bool?
     var isForkBootstrapPending: Bool = false
     var modifiedAt: Date?
     var archivedAt: Date?
@@ -27,6 +30,7 @@ final class AgentThread {
     var taskWorkspaceOwnershipStrategyRawValue: String?
     var taskWorkspaceMarkerID: String?
     var taskSourceProjectPath: String?
+    var workspaceSnapshotJSON: String?
     /// JSON-encoded `LinkedPullRequest` list; see `AgentThread+PullRequestLinks.swift`.
     /// Optional so pre-field stores migrate, and deliberately absent from `init`
     /// so a forked thread starts with no links.
@@ -110,6 +114,20 @@ final class AgentThread {
         self.taskWorkspaceOwnershipStrategyRawValue = taskWorkspaceDescriptor?.ownershipStrategy.rawValue
         self.taskWorkspaceMarkerID = taskWorkspaceDescriptor?.ownershipMarkerID
         self.taskSourceProjectPath = taskWorkspaceDescriptor?.sourceProjectPath
+        if mode == .project {
+            self.workspaceSnapshotJSON = project?.workspaceSnapshot().encoded
+        } else {
+            var source = taskWorkspaceDescriptor?.sourceProjectPath.map { path in
+                project?.orderedFolders.first { $0.path == path }?.snapshot ?? SourceFolderSnapshot(path: path)
+            }
+            if taskWorkspaceDescriptor?.ownershipStrategy == .projectWorktreeOwned, source?.isGitRepository == false {
+                source?.gitRepositoryDetected = true
+            }
+            self.workspaceSnapshotJSON = WorkspaceSnapshot(
+                primarySource: source,
+                grants: (taskWorkspaceDescriptor?.grantedRoots ?? []).map { SourceFolderSnapshot(path: $0) }
+            ).encoded
+        }
         self.project = project
         self.scheduledTaskRun = scheduledTaskRun
         self.conversations = conversations
@@ -117,9 +135,10 @@ final class AgentThread {
 }
 
 enum ThreadDraftNotificationKey {
+    static let placementChanged = "placementChanged"
     static let threadID = "threadID"
     static let conversationID = "conversationID"
-    static let projectPath = "projectPath"
+    static let projectID = "projectID"
     static let mode = "mode"
 }
 
@@ -200,13 +219,22 @@ extension AgentThread {
             taskWorkspaceOwnershipStrategyRawValue = newValue?.ownershipStrategy.rawValue
             taskWorkspaceMarkerID = newValue?.ownershipMarkerID
             taskSourceProjectPath = newValue?.sourceProjectPath
+            if var snapshot = workspaceSnapshot {
+                snapshot.grants = (newValue?.grantedRoots ?? []).map { path in
+                    snapshot.grants.first { $0.path == path } ?? SourceFolderSnapshot(path: path)
+                }
+                if snapshot.primarySource?.path != newValue?.sourceProjectPath {
+                    snapshot.primarySource = newValue?.sourceProjectPath.map { SourceFolderSnapshot(path: $0) }
+                }
+                workspaceSnapshot = snapshot
+            }
         }
     }
 
     var primaryWorkingDirectory: String? {
         switch effectiveMode {
         case .project:
-            worktreePath ?? project?.path
+            worktreePath ?? workspaceSnapshot?.primarySource?.path
         case .task:
             taskWorkspaceDescriptor?.primaryRoot
         }
@@ -215,7 +243,7 @@ extension AgentThread {
     var sourceProjectCleanupPath: String? {
         switch effectiveMode {
         case .project:
-            project?.path
+            workspaceSnapshot?.primarySource?.path
         case .task:
             taskWorkspaceDescriptor?.sourceProjectPath
         }

@@ -379,6 +379,7 @@ extension AgentsManagerTests {
         basePath: String,
         replayLimit: Int = 500,
         notificationManager: any NotificationManager = StubNotificationManager(),
+        fileListManager: (any FileListManager)? = nil,
         providerSessionBindingStore: any ProviderSessionBindingStore = NoopProviderSessionBindingStore(),
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder()
     ) -> AgentCLIKitManagerFixture {
@@ -413,6 +414,7 @@ extension AgentsManagerTests {
             settingsService: makeSettings(),
             keepAwakeService: RecordingKeepAwakeService(),
             notificationManager: notificationManager,
+            fileListManager: fileListManager,
             threadActivityRecorder: threadActivityRecorder,
             providerSessionBindingStore: providerSessionBindingStore
         )
@@ -426,7 +428,6 @@ extension AgentsManagerTests {
             services: services
         )
     }
-
     func spawnConfig(providerId: String = "claude", workingDirectory: String, model: String? = nil) -> Alveary.AgentSpawnConfig {
         Alveary.AgentSpawnConfig(
             providerId: providerId,

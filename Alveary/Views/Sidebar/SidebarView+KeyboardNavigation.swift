@@ -105,7 +105,7 @@ extension SidebarView {
             guard case .project(let project) = selection else {
                 return .ignored
             }
-            expandedProjects.remove(project.path)
+            expandedProjects.remove(project.id)
             return .handled
         case .rightArrow:
             if shouldNavigateDownOnRightArrow(
@@ -118,7 +118,7 @@ extension SidebarView {
             guard case .project(let project) = selection else {
                 return .ignored
             }
-            expandedProjects.insert(project.path)
+            expandedProjects.insert(project.id)
             return .handled
         default:
             return .ignored
@@ -131,8 +131,7 @@ func effectiveSidebarSelection(_ selection: SidebarItem?) -> SidebarItem? {
           thread.isDraft else {
         return selection
     }
-    guard thread.effectiveMode == .project,
-          let project = thread.project else {
+    guard let project = thread.project else {
         return nil
     }
     return .project(project)
@@ -148,7 +147,7 @@ func shouldNavigateUpOnLeftArrow(
     case .thread:
         return true
     case .project(let project):
-        return !expandedProjects.contains(project.path)
+        return !expandedProjects.contains(project.id)
     default:
         return false
     }
@@ -164,7 +163,7 @@ func shouldNavigateDownOnRightArrow(
     case .thread:
         return true
     case .project(let project):
-        return expandedProjects.contains(project.path)
+        return expandedProjects.contains(project.id)
     default:
         return false
     }
@@ -241,14 +240,14 @@ func buildNavigableItems(
             for pinnedItem in pinnedItems {
                 items.append(pinnedItem.sidebarItem)
                 if case .project(let project) = pinnedItem.kind,
-                   expandedProjects.contains(project.path) {
+                   expandedProjects.contains(project.id) {
                     items.append(contentsOf: activeThreads(project).map(SidebarItem.thread))
                 }
             }
         case .projects:
             for project in projects {
                 items.append(.project(project))
-                if expandedProjects.contains(project.path) {
+                if expandedProjects.contains(project.id) {
                     items.append(contentsOf: activeThreads(project).map(SidebarItem.thread))
                 }
             }

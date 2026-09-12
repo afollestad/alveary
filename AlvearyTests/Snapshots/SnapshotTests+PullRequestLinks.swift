@@ -40,7 +40,7 @@ extension SnapshotTests {
     /// Symbols and octicons. This is the baseline to measure inter-glyph gaps
     /// against when tuning `PrimaryToolbarOpticalSpacing`.
     func testPrimaryToolbarButtonGroupProjectActionWithPullRequest() {
-        let thread = AgentThread(name: "Toolbar Action")
+        let thread = AgentThread(name: "Toolbar Action", project: Project(path: "/tmp/toolbar-project", name: "Toolbar"))
 
         assertMacSnapshot(
             primaryToolbarButtonGroup(
@@ -65,7 +65,7 @@ extension SnapshotTests {
     /// so inter-glyph gaps must be measured here too rather than inferred from the
     /// light baseline.
     func testPrimaryToolbarButtonGroupProjectActionWithPullRequestDark() {
-        let thread = AgentThread(name: "Toolbar Action")
+        let thread = AgentThread(name: "Toolbar Action", project: Project(path: "/tmp/toolbar-project", name: "Toolbar"))
 
         assertMacSnapshot(
             primaryToolbarButtonGroup(

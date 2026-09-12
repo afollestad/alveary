@@ -60,6 +60,28 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
 
     // MARK: - Preflight
 
+    func testSourceFolderRemovedDuringGenerationBlocksPullRequestMutations() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let source = root.appendingPathComponent("source", isDirectory: true)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let harness = try Harness(currentBranch: "main", sourceDirectory: source.path, beforeGeneration: {
+            try FileManager.default.removeItem(at: source)
+        })
+        await harness.model.load()
+
+        let identifier = await harness.model.submit()
+
+        XCTAssertNil(identifier)
+        XCTAssertTrue(harness.model.errorMessage?.contains(source.path) == true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
+        let checkouts = await harness.gitService.checkoutNewBranchCalls()
+        let pushes = await harness.gitService.pushCalls()
+        XCTAssertTrue(checkouts.isEmpty)
+        XCTAssertTrue(pushes.isEmpty)
+        XCTAssertTrue(harness.service.createdPullRequests.isEmpty)
+    }
+
     func testNoCommitsAheadBlocksSubmission() async throws {
         let harness = try Harness(currentBranch: "alveary/feature", commitsAhead: 0)
 
@@ -228,7 +250,9 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
             commitsAhead: Int = 1,
             pushResults: [Result<Void, Error>] = [.success(())],
             generatedText: String = "Generated title\n\nGenerated body.",
-            defaultBranch: String? = nil
+            defaultBranch: String? = nil,
+            sourceDirectory: String? = nil,
+            beforeGeneration: @escaping @MainActor () throws -> Void = {}
         ) throws {
             gitService = Self.makeGitService(
                 currentBranch: currentBranch,
@@ -246,13 +270,15 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
                     targetName: "Test Thread",
                     baseBranch: "main",
                     remoteName: "origin",
-                    owner: .thread(try Self.makeThreadIdentifier())
+                    owner: .thread(try Self.makeThreadIdentifier()),
+                    sourceDirectory: sourceDirectory
                 ),
                 gitService: gitService,
                 pullRequestsService: service,
                 settingsService: InMemorySettingsService(),
                 generateText: { prompt in
                     recordPrompt?(prompt)
+                    try beforeGeneration()
                     return generatedText
                 },
                 refreshAfterMutation: {

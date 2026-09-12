@@ -76,6 +76,10 @@ actor DefaultProviderDetectionService: ProviderDetectionService {
                 return
             } catch let error as ShellError {
                 switch error {
+                case .invalidDirectory:
+                    statuses[provider.id] = .error(error.localizedDescription)
+                    resolvedPaths[provider.id] = path
+                    return
                 case .timeout:
                     if attempt < 3 {
                         try? await Task.sleep(for: .seconds(1.5))

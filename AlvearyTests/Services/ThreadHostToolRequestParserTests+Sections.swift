@@ -45,10 +45,10 @@ extension ThreadHostToolRequestParserTests {
 
     // MARK: - create_thread's section
 
-    func testCreateReadsASectionAsATaskPlacement() throws {
+    func testCreateReadsASectionWithoutChangingTheInheritedWorkspace() throws {
         let request = try sectionParser.parseCreate(arguments: ["section": .string("Research")])
 
-        XCTAssertEqual(request.workspace, .task(grantedRoots: [], sectionName: "Research"))
+        XCTAssertEqual(request.workspace, .inherit(grantedRoots: nil, sectionName: "Research"))
     }
 
     func testCreateAcceptsASectionAlongsideTaskModeAndGrants() throws {

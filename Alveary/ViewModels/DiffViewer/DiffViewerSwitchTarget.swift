@@ -7,6 +7,7 @@ struct DiffViewerSwitchTarget: Equatable {
     let baseRef: String
     let remoteName: String?
     let conversationIds: Set<String>
+    var sourceDirectory: String?
 
     var path: String { directory }
 
@@ -16,60 +17,55 @@ struct DiffViewerSwitchTarget: Equatable {
             worktreePath: worktreePath,
             directory: directory,
             baseRef: baseRef,
-            remoteName: remoteName
+            remoteName: remoteName,
+            sourceDirectory: sourceDirectory
         )
     }
 }
 
 extension DiffViewerSwitchTarget {
     static func forThread(_ thread: AgentThread, candidateConversationIDs: Set<String>? = nil) -> DiffViewerSwitchTarget? {
-        guard let directory = thread.primaryWorkingDirectory else {
-            return nil
-        }
-        let projectPath = thread.sourceProjectCleanupPath ?? directory
-        let taskWorktreePath = thread.taskWorkspaceDescriptor?.ownershipStrategy == .projectWorktreeOwned
-            ? thread.taskWorkspaceDescriptor?.primaryRoot
-            : nil
-        let resolvedWorktreePath = thread.effectiveMode == .project ? thread.worktreePath : taskWorktreePath
-        let worktreePath = resolvedWorktreePath == projectPath ? nil : resolvedWorktreePath
-        return DiffViewerSwitchTarget(
-            projectPath: projectPath,
-            worktreePath: worktreePath,
-            directory: directory,
-            baseRef: thread.project?.baseRef ?? "main",
-            remoteName: thread.project?.remoteName,
-            conversationIds: candidateConversationIDs ?? Set(thread.conversations.map(\.id))
+        guard let folder = thread.workspaceFolderTargets.first(where: \.isPrimary) else { return nil }
+        return forFolder(folder, conversationIDs: candidateConversationIDs ?? Set(thread.conversations.map(\.id)))
+    }
+
+    static func forFolder(_ folder: WorkspaceFolderTarget, conversationIDs: Set<String> = []) -> DiffViewerSwitchTarget {
+        DiffViewerSwitchTarget(
+            projectPath: folder.source.path,
+            worktreePath: folder.directory == folder.source.path ? nil : folder.directory,
+            directory: folder.directory,
+            baseRef: folder.baseRef ?? "main",
+            remoteName: folder.remoteName,
+            conversationIds: conversationIDs
         )
     }
 
-    // Only threads operating directly on the project path — i.e. those without
-    // a worktree — mutate the project directory on disk, so scope agent-status
-    // refreshes to their conversations. Filesystem changes coming from other
-    // sources (worktree merges, external git commands) are still picked up by
-    // the diff viewer's FSEvents path.
     static func forProject(
         _ project: Project,
         candidateThreads: [AgentThread]? = nil,
         candidateConversationIDs: Set<String>? = nil
-    ) -> DiffViewerSwitchTarget {
+    ) -> DiffViewerSwitchTarget? {
+        guard let folder = project.workspaceFolderTargets.first(where: \.isPrimary) else { return nil }
         let threads = candidateThreads ?? project.threads
-        let conversationIds = candidateConversationIDs ?? Set(
-            threads
-                .filter {
-                    $0.effectiveMode == .project &&
-                        $0.archivedAt == nil &&
-                        ($0.worktreePath == nil || $0.worktreePath == project.path)
-                }
-                .flatMap(\.conversations)
-                .map(\.id)
-        )
+        let conversationIDs = candidateConversationIDs ?? Set(threads.filter {
+            $0.archivedAt == nil && $0.workspaceFolderTargets.contains { $0.directory == folder.directory }
+        }.flatMap { $0.conversations.map(\.id) })
+        return forFolder(folder, conversationIDs: conversationIDs)
+    }
+}
+
+/// Git works from the repository root while grants, settings, and terminals keep their literal folder.
+extension DiffViewerSwitchTarget {
+    func resolvingRepositoryDirectory(using gitService: GitService) async throws -> DiffViewerSwitchTarget {
+        let root = try await gitService.repositoryRoot(in: directory) ?? directory
         return DiffViewerSwitchTarget(
-            projectPath: project.path,
-            worktreePath: nil,
-            directory: project.path,
-            baseRef: project.baseRef ?? "main",
-            remoteName: project.remoteName,
-            conversationIds: conversationIds
+            projectPath: projectPath,
+            worktreePath: worktreePath,
+            directory: root,
+            baseRef: baseRef,
+            remoteName: remoteName,
+            conversationIds: conversationIds,
+            sourceDirectory: sourceDirectory ?? (root == directory ? nil : directory)
         )
     }
 }

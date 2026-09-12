@@ -31,11 +31,16 @@ final class InMemorySettingsService: SettingsService {
         current = current.normalized()
     }
 
+    func updateLastActiveProjectID(_ id: String?) {
+        current.lastActiveProjectID = id
+        current.lastActiveProjectPath = nil
+    }
+
     func updateLastActiveProjectPath(_ path: String?) {
         guard current.lastActiveProjectPath != path else {
             return
         }
-        current.lastActiveProjectPath = path
+        current.lastActiveProjectPath = path.map { CanonicalPath.normalize($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         current = current.normalized()
     }
 }

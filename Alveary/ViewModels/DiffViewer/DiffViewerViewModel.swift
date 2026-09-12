@@ -25,6 +25,7 @@ final class DiffViewerViewModel {
     private(set) var workingState: DiffViewerWorkingState = .none
     var gitError: String? { diffStore.gitError }
     var activeDirectory: String? { diffStore.activeDirectory }
+    var activeSourceDirectory: String? { diffStore.activeTarget?.sourceDirectory ?? activeDirectory }
     var isGitRepository: Bool { diffStore.isGitRepository }
     var aheadCommits: [CommitInfo] = []
     var selectedCommit: CommitInfo?

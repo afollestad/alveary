@@ -15,7 +15,7 @@ extension ContentViewProjectActionsTests {
         )
         XCTAssertEqual(
             ToolbarProjectActionsSelection(selection: .project(project)),
-            .project("/tmp/project")
+            .project(project.persistentModelID)
         )
         XCTAssertEqual(ToolbarProjectActionsSelection(selection: .settings), .none)
         XCTAssertEqual(ToolbarProjectActionsSelection(selection: .skills), .none)
@@ -31,36 +31,18 @@ extension ContentViewProjectActionsTests {
         XCTAssertFalse(ToolbarProjectActionsSelection(selection: .settings).isProjectActionCapable)
     }
 
-    func testChangedProjectConfigOnlyRefreshesTheSelectedProjectRow() {
-        let project = Project(path: "/tmp/project", name: "Alveary")
-        let thread = AgentThread(name: "Thread", project: project)
-
-        let projectSelection = ToolbarProjectActionsSelection(selection: .project(project))
-        XCTAssertTrue(projectSelection.matchesChangedProjectConfig(atPath: "/tmp/project"))
-        XCTAssertFalse(projectSelection.matchesChangedProjectConfig(atPath: "/tmp/other"))
-
-        // A thread selection has no settings editor on screen, so its config
-        // writes refresh through the selection task instead.
-        XCTAssertFalse(
-            ToolbarProjectActionsSelection(selection: .thread(thread))
-                .matchesChangedProjectConfig(atPath: "/tmp/project")
-        )
-        XCTAssertFalse(
-            ToolbarProjectActionsSelection(selection: .settings)
-                .matchesChangedProjectConfig(atPath: "/tmp/project")
-        )
-    }
-
-    func testToolbarProjectActionsTargetResolverResolvesProjectRowWithoutResolvingModels() throws {
+    func testToolbarProjectActionsTargetResolverResolvesProjectRowByIdentity() throws {
         let fixture = try makeToolbarProjectActionsFixture()
 
         let target = ToolbarProjectActionsTargetResolver.resolve(
-            key: .project("/tmp/toolbar-owner-project"),
+            key: .project(fixture.project.persistentModelID),
             modelContext: fixture.context
         )
 
         XCTAssertEqual(target?.projectPath, "/tmp/toolbar-owner-project")
-        XCTAssertEqual(target?.owner, .project("/tmp/toolbar-owner-project"))
+        XCTAssertEqual(target?.owner, .folder(
+            .project(fixture.project.id), try XCTUnwrap(fixture.project.workspaceFolderTargets.first)
+        ))
     }
 
     func testToolbarProjectActionsTargetResolverResolvesMaterializedThreadToThreadOwner() throws {
@@ -72,7 +54,9 @@ extension ContentViewProjectActionsTests {
         )
 
         XCTAssertEqual(target?.projectPath, "/tmp/toolbar-owner-project")
-        XCTAssertEqual(target?.owner, .thread(fixture.thread.persistentModelID))
+        XCTAssertEqual(target?.owner, .folder(
+            .thread(fixture.thread.persistentModelID), try XCTUnwrap(fixture.thread.workspaceFolderTargets.first)
+        ))
     }
 
     func testToolbarProjectActionsTargetResolverResolvesDraftThreadToProjectOwner() throws {
@@ -87,7 +71,9 @@ extension ContentViewProjectActionsTests {
 
         // A draft has no worktree yet, so its actions run at the project root.
         XCTAssertEqual(target?.projectPath, "/tmp/toolbar-owner-project")
-        XCTAssertEqual(target?.owner, .project("/tmp/toolbar-owner-project"))
+        XCTAssertEqual(target?.owner, .folder(
+            .thread(fixture.thread.persistentModelID), try XCTUnwrap(fixture.thread.workspaceFolderTargets.first)
+        ))
     }
 
     func testToolbarProjectActionsTargetResolverRejectsArchivedTaskModeAndProjectlessThreads() throws {
@@ -122,7 +108,10 @@ extension ContentViewProjectActionsTests {
     func testProjectActionExecutionContextForProjectRowRunsAtProjectRootWithoutThread() {
         let action = AlvearyProjectConfig.ProjectAction(icon: "hammer", name: "Build", command: "./scripts/build.sh")
 
-        let context = ProjectActionExecutionContext(projectPath: "/tmp/project", action: action)
+        let context = ProjectActionExecutionContext(
+            folder: WorkspaceFolderTarget(directory: "/tmp/project", source: SourceFolderSnapshot(path: "/tmp/project"), isPrimary: true),
+            thread: nil, action: action
+        )
 
         XCTAssertEqual(context.title, "Build")
         XCTAssertNil(context.threadID)
@@ -133,7 +122,10 @@ extension ContentViewProjectActionsTests {
 
     func testProjectActionLaunchConfigurationForProjectRowUsesProjectRoot() {
         let action = AlvearyProjectConfig.ProjectAction(name: "Build", command: "./scripts/build.sh")
-        let context = ProjectActionExecutionContext(projectPath: "/tmp/project", action: action)
+        let context = ProjectActionExecutionContext(
+            folder: WorkspaceFolderTarget(directory: "/tmp/project", source: SourceFolderSnapshot(path: "/tmp/project"), isPrimary: true),
+            thread: nil, action: action
+        )
 
         let configuration = TerminalLaunchBuilder().projectAction(
             command: context.command,
@@ -153,7 +145,9 @@ extension ContentViewProjectActionsTests {
             PrimaryToolbarButtonGroup.projectActionSymbols(
                 isSelectionProjectActionCapable: true,
                 projectActions: actions,
-                projectActionsOwner: .project("/tmp/project")
+                projectActionsOwner: .folder(.project("project"), WorkspaceFolderTarget(
+                    directory: "/tmp/project", source: SourceFolderSnapshot(path: "/tmp/project"), isPrimary: true
+                ))
             ),
             ["hammer", PrimaryToolbarButtonGroup.defaultProjectActionSymbol]
         )
@@ -164,7 +158,9 @@ extension ContentViewProjectActionsTests {
             PrimaryToolbarButtonGroup.projectActionSymbols(
                 isSelectionProjectActionCapable: false,
                 projectActions: actions,
-                projectActionsOwner: .project("/tmp/project")
+                projectActionsOwner: .folder(.project("project"), WorkspaceFolderTarget(
+                    directory: "/tmp/project", source: SourceFolderSnapshot(path: "/tmp/project"), isPrimary: true
+                ))
             ),
             []
         )
@@ -175,7 +171,9 @@ extension ContentViewProjectActionsTests {
             PrimaryToolbarButtonGroup.projectActionSymbols(
                 isSelectionProjectActionCapable: true,
                 projectActions: actions,
-                projectActionsOwner: .project("/tmp/previously-loaded-project")
+                projectActionsOwner: .folder(.project("previous"), WorkspaceFolderTarget(
+                    directory: "/tmp/previously-loaded-project", source: SourceFolderSnapshot(path: "/tmp/previously-loaded-project"), isPrimary: true
+                ))
             ).count,
             2
         )

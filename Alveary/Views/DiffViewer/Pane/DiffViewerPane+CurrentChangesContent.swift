@@ -143,28 +143,30 @@ struct DiffViewerCurrentChangesContent: View, Equatable {
     }
 
     private func stageFiles(_ files: [FileStatus]) {
-        guard let directory = viewModel.activeDirectory else {
+        guard let target = viewModel.diffStore.activeTarget else {
             return
         }
 
         Task { @MainActor in
             do {
-                try await viewModel.stage(files: files.filter { !$0.isStaged }, in: directory)
+                try await viewModel.stage(files: files.filter { !$0.isStaged }, target: target)
             } catch {
+                guard viewModel.diffStore.activeTarget == target else { return }
                 onPresentGitError("Stage failed: \(error.localizedDescription)")
             }
         }
     }
 
     private func unstageFiles(_ files: [FileStatus]) {
-        guard let directory = viewModel.activeDirectory else {
+        guard let target = viewModel.diffStore.activeTarget else {
             return
         }
 
         Task { @MainActor in
             do {
-                try await viewModel.unstage(files: files.filter(\.isStaged), in: directory)
+                try await viewModel.unstage(files: files.filter(\.isStaged), target: target)
             } catch {
+                guard viewModel.diffStore.activeTarget == target else { return }
                 onPresentGitError("Unstage failed: \(error.localizedDescription)")
             }
         }

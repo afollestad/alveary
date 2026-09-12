@@ -55,18 +55,33 @@ extension ThreadHostToolService {
     ) throws -> AgentCLIKit.AgentHostToolResult {
         try requireNoArguments(arguments, toolName: ThreadHostToolCatalog.listProjectsToolName)
         _ = try resolveSource(context: context)
-        let projects = try fetchAll(Project.self, sortBy: [SortDescriptor(\Project.path)])
+        let projects = try fetchAll(Project.self, sortBy: [SortDescriptor(\Project.name), SortDescriptor(\Project.id)])
 
         let rows = projects.map { project in
-            AgentCLIKit.JSONValue.object([
-                "path": .string(project.path),
-                "name": .string(project.name)
-            ])
+            var row: [String: AgentCLIKit.JSONValue] = [
+                "project_id": .string(project.id), "name": .string(project.name),
+                "folders": .array(project.orderedFolders.map { folder in
+                    .object([
+                        "path": .string(folder.path),
+                        "name": .string(folder.snapshot.name),
+                        "is_primary": .bool(folder.id == project.primaryFolderID),
+                        "is_git_repository": .bool(folder.snapshot.isGitRepository)
+                    ])
+                })
+            ]
+            if let path = project.primaryFolder?.path {
+                row["path"] = .string(path)
+                row["primary_folder_path"] = .string(path)
+            }
+            return AgentCLIKit.JSONValue.object(row)
         }
         return AgentCLIKit.AgentHostToolResult(
             text: listText(
                 header: "Found \(count(projects.count, singular: "Project"))",
-                rows: projects.map { "- \($0.name) (\($0.path))" }
+                rows: projects.map {
+                    "- \($0.name) (project_id: \($0.id), primary: \($0.primaryFolder?.path ?? "private workspace"), " +
+                        "folders: \($0.orderedFolders.map(\.path).joined(separator: ", ")))"
+                }
             ),
             structuredContent: .object(["projects": .array(rows)])
         )
@@ -95,9 +110,13 @@ private struct ThreadHostToolListing {
         if let sectionName {
             row["section"] = .string(sectionName)
         }
-        if let projectPath = thread.project?.path {
-            row["project_path"] = .string(projectPath)
+        if let id = thread.project?.id { row["project_id"] = .string(id) }
+        if let path = thread.sourceFolder?.path {
+            row["primary_folder_path"] = .string(path)
+            row["project_path"] = .string(path)
         }
+        if let cwd = thread.primaryWorkingDirectory { row["working_directory"] = .string(cwd) }
+        row["granted_roots"] = .array((thread.workspaceSnapshot?.grants ?? []).map { .string($0.path) })
         if let modifiedAt = thread.modifiedAt {
             row["modified_at"] = .string(ThreadHostToolDates.canonical(modifiedAt))
         }
@@ -127,7 +146,7 @@ private struct ThreadHostToolListing {
     /// when `is_pinned` says it currently sits under `Pinned`. Nil for a Project-placed thread,
     /// which renders under its Project rather than in any section.
     private var sectionName: String? {
-        guard thread.project == nil, thread.effectiveMode == .task else {
+        guard thread.project == nil else {
             return nil
         }
         return thread.customSection?.name

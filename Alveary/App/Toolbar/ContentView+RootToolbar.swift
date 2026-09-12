@@ -7,13 +7,17 @@ extension ContentView {
     @ToolbarContentBuilder
     var rootToolbarContent: some ToolbarContent {
         ToolbarItem(id: MainWindowToolbarItemID.header, placement: .navigation) {
-            MainPaneToolbarHeaderItem(
-                presentation: MainPaneHeaderPresentation(
-                    selection: appState.selectedSidebarItem,
-                    modelContext: uiModelContext
-                ),
-                voiceInputLifecycleController: voiceInputLifecycleController
-            )
+            // Folder changes update one stable native item instead of rebuilding the toolbar's navigation slots.
+            HStack(spacing: 8) {
+                MainPaneToolbarHeaderItem(
+                    presentation: MainPaneHeaderPresentation(
+                        selection: appState.selectedSidebarItem,
+                        modelContext: uiModelContext
+                    ),
+                    voiceInputLifecycleController: voiceInputLifecycleController
+                )
+                workspaceFolderMenu
+            }
             .padding(.leading, MainPaneToolbarLayout.leadingPadding)
         }
         .sharedBackgroundVisibility(.hidden)

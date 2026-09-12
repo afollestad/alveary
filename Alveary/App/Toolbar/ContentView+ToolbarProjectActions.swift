@@ -12,14 +12,14 @@ import SwiftUI
 enum ToolbarProjectActionsSelection: Equatable {
     case none
     case thread(PersistentIdentifier)
-    case project(String)
+    case project(PersistentIdentifier)
 
     init(selection: SidebarItem?) {
         switch selection {
         case .thread(let thread):
             self = .thread(thread.persistentModelID)
         case .project(let project):
-            self = .project(project.path)
+            self = .project(project.persistentModelID)
         case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
             self = .none
         }
@@ -28,22 +28,13 @@ enum ToolbarProjectActionsSelection: Equatable {
     var isProjectActionCapable: Bool {
         self != .none
     }
-
-    /// Only a selected project row puts the settings editor on screen, so only that
-    /// selection's own config write refreshes the toolbar in place. A thread
-    /// selection's actions refresh when the selection itself changes.
-    func matchesChangedProjectConfig(atPath path: String) -> Bool {
-        self == .project(path)
-    }
 }
 
 /// What a rendered action button runs against.
 ///
-/// A thread owner runs in the thread's worktree; a project owner — a selected
-/// project row, or a draft thread that has no worktree yet — runs at the project root.
+/// Capture the selected folder when actions load so a later selection cannot redirect a click.
 enum ToolbarProjectActionsOwner: Equatable {
-    case thread(PersistentIdentifier)
-    case project(String)
+    case folder(WorkspaceFolderOwner, WorkspaceFolderTarget)
 }
 
 /// Resolves a selection key to the project whose actions load, plus the owner the
@@ -55,27 +46,26 @@ enum ToolbarProjectActionsTargetResolver {
         let owner: ToolbarProjectActionsOwner
     }
 
-    static func resolve(key: ToolbarProjectActionsSelection, modelContext: ModelContext) -> Target? {
+    static func resolve(
+        key: ToolbarProjectActionsSelection, modelContext: ModelContext,
+        folderSelection: WorkspaceFolderSelection = WorkspaceFolderSelection()
+    ) -> Target? {
+        let owner: WorkspaceFolderOwner
+        let folders: [WorkspaceFolderTarget]
         switch key {
         case .none:
             return nil
-        case .project(let path):
-            // A project row names its own path, so this branch reads no SwiftData.
-            return Target(projectPath: path, owner: .project(path))
+        case .project(let id):
+            guard let project = modelContext.resolveProject(id: id) else { return nil }
+            owner = .project(project.id)
+            folders = project.workspaceFolderTargets
         case .thread(let threadID):
-            guard let thread = modelContext.resolveThread(id: threadID),
-                  thread.archivedAt == nil,
-                  thread.effectiveMode == .project,
-                  let projectPath = thread.project?.path else {
-                return nil
-            }
-
-            // A draft has no worktree to run in yet, so it runs at the project root.
-            let owner: ToolbarProjectActionsOwner = thread.isDraft
-                ? .project(projectPath)
-                : .thread(threadID)
-            return Target(projectPath: projectPath, owner: owner)
+            guard let thread = modelContext.resolveThread(id: threadID), thread.archivedAt == nil else { return nil }
+            owner = .thread(threadID)
+            folders = thread.workspaceFolderTargets
         }
+        guard let folder = folderSelection.selected(in: folders, owner: owner) else { return nil }
+        return Target(projectPath: folder.source.path, owner: .folder(owner, folder))
     }
 }
 
@@ -92,19 +82,12 @@ extension ContentView {
             return
         }
 
-        // A project row names its own path, so an already-loaded config can render its
-        // actions on this frame — an in-memory lookup, no fetch and no read. A thread
-        // key cannot take this path: finding its project needs a SwiftData resolve,
-        // which stays behind the yield.
-        if case .project(let path) = key,
-           let cached = ProjectConfigStore.shared.cached(forProjectPath: path) {
-            applyToolbarProjectActions(cached.actions ?? [], owner: .project(path))
-        }
+        let revision = folderSelection.revision
 
         // Let the new selection paint before any SwiftData or config read starts.
         await Task.yield()
 
-        guard toolbarProjectActionsSelection == key else {
+        guard !Task.isCancelled, toolbarProjectActionsSelection == key, folderSelection.revision == revision else {
             return
         }
 
@@ -112,7 +95,8 @@ extension ContentView {
         // newer selection's already-loaded actions.
         guard let target = ToolbarProjectActionsTargetResolver.resolve(
             key: key,
-            modelContext: uiModelContext
+            modelContext: uiModelContext,
+            folderSelection: folderSelection
         ) else {
             clearToolbarProjectActions()
             return
@@ -120,10 +104,13 @@ extension ContentView {
 
         let config = await ProjectConfigStore.shared.config(forProjectPath: target.projectPath)
 
-        guard toolbarProjectActionsSelection == key else {
+        guard !Task.isCancelled, toolbarProjectActionsSelection == key, folderSelection.revision == revision else {
             return
         }
 
+        guard ToolbarProjectActionsTargetResolver.resolve(
+            key: key, modelContext: uiModelContext, folderSelection: folderSelection
+        ) == target else { return }
         applyToolbarProjectActions(config.actions ?? [], owner: target.owner)
     }
 
@@ -143,7 +130,7 @@ extension ContentView {
 
     func refreshToolbarProjectActionsIfConfigChanged(_ notification: Notification) {
         guard let path = ProjectConfigChangeNotifier.changedProjectPath(in: notification),
-              toolbarProjectActionsSelection.matchesChangedProjectConfig(atPath: path) else {
+              selectedWorkspaceFolder?.source.path == path else {
             return
         }
 

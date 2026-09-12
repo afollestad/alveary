@@ -120,6 +120,8 @@ struct AppSettings: Codable, Sendable, Equatable {
     var worktreesBaseDirectory = "~/Documents/worktrees"
     var lastAddProjectParentFolder: String?
     var providerConfigs: [String: ProviderCustomConfig] = [:]
+    var lastActiveProjectID: String?
+    /// Legacy selection, retained until it resolves to an unambiguous membership.
     var lastActiveProjectPath: String?
     var lastOpenThreadID: PersistentIdentifier?
     var lastOpenConversationID: PersistentIdentifier?

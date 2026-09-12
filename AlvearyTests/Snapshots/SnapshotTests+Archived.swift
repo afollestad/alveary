@@ -51,7 +51,8 @@ extension SnapshotTests {
     /// search field off the pane.
     func testArchivedScreenPopulatedSqueezed() throws {
         let fixture = try ArchivedSnapshotFixture(includeLongNamedProject: true)
-        fixture.viewModel.projectFilter = .project(path: ArchivedSnapshotFixture.longNamedProjectPath)
+        let project = try XCTUnwrap(fixture.sidebarFixture.context.resolveProject(path: ArchivedSnapshotFixture.longNamedProjectPath))
+        fixture.viewModel.projectFilter = .project(id: project.id)
 
         assertMacSnapshot(
             ArchivedScreen(viewModel: fixture.viewModel),
@@ -64,7 +65,8 @@ extension SnapshotTests {
     /// push the search field off the pane even in the regular arrangement.
     func testArchivedHeaderLongProjectName() throws {
         let fixture = try ArchivedSnapshotFixture(includeLongNamedProject: true)
-        fixture.viewModel.projectFilter = .project(path: ArchivedSnapshotFixture.longNamedProjectPath)
+        let project = try XCTUnwrap(fixture.sidebarFixture.context.resolveProject(path: ArchivedSnapshotFixture.longNamedProjectPath))
+        fixture.viewModel.projectFilter = .project(id: project.id)
 
         assertMacSnapshot(
             ArchivedScreenHeader(

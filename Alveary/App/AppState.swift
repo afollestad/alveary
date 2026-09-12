@@ -44,8 +44,8 @@ final class AppState {
         pendingSettingsTargetPage = nil
     }
 
-    func startNewThreadFlow(mode: AgentThreadMode = .project) {
-        pendingCommand = .newThread(UUID(), mode: mode)
+    func startNewThreadFlow(destination: ThreadDraftDestination? = nil) {
+        pendingCommand = .newThread(UUID(), destination: destination)
     }
 
     func requestComposerFocus() {
@@ -222,7 +222,7 @@ final class AppState {
         case scheduled
         case pullRequests
         case archived
-        case projectPath(String)
+        case projectID(PersistentIdentifier)
         case threadId(PersistentIdentifier)
 
         init?(_ item: SidebarItem) {
@@ -238,7 +238,7 @@ final class AppState {
             case .archived:
                 self = .archived
             case .project(let project):
-                self = .projectPath(project.path)
+                self = .projectID(project.persistentModelID)
             case .thread(let thread):
                 self = .threadId(thread.persistentModelID)
             case .settings:
@@ -248,7 +248,7 @@ final class AppState {
     }
 
     enum CommandRequest: Equatable {
-        case newThread(UUID, mode: AgentThreadMode)
+        case newThread(UUID, destination: ThreadDraftDestination?)
         case newProject(UUID)
 
         var id: UUID {
@@ -325,8 +325,8 @@ enum SidebarItem: Hashable {
         switch self {
         case .project:
             return true
-        case .thread(let thread):
-            return thread.effectiveMode == .project
+        case .thread:
+            return true
         case .skills, .mcp, .scheduled, .pullRequests, .archived, .settings:
             return false
         }
@@ -367,7 +367,7 @@ enum SidebarItem: Hashable {
             hasher.combine("settings")
         // Both cases hash identity, never a persisted property: SwiftUI invokes `Hashable` on its
         // own schedule, including on a selection whose row a delete already removed, and a
-        // persisted read there traps. `Project.path` is `@Attribute(.unique)`, so keying on the
+        // persisted read there traps. `Project.id` is `@Attribute(.unique)`, so keying on the
         // identifier instead is the same equivalence for any saved row.
         case .project(let project):
             hasher.combine(project.persistentModelID)

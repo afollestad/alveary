@@ -56,7 +56,7 @@ private struct SidebarTaskAccessDialogTextSnapshot: View {
                 projectID: placeholderID,
                 threadName: "New task",
                 projectName: projectName,
-                projectPath: "/tmp/\(projectName)",
+                projectKey: "project-id",
                 restartsAgentProcess: true,
                 grantsNewAccess: true
             )

@@ -104,7 +104,8 @@ extension DefaultAgentsManager {
             conversationId: conversationId,
             config: config,
             subscription: subscription,
-            hasImmediateTurn: false
+            hasImmediateTurn: false,
+            fileCompletionRoots: eventBuffers[conversationId]?.fileCompletionRoots
         )
     }
 }

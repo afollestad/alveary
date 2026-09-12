@@ -28,6 +28,7 @@ final class ConversationViewModel {
     let threadModelID: PersistentIdentifier?
     let settingsService: SettingsService
     let worktreeManager: WorktreeManager
+    let resolveSourceFolder: @Sendable (String) async -> SourceFolderSnapshot
     let taskWorkspaceOwnershipService: any TaskWorkspaceOwnershipService
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
@@ -150,7 +151,8 @@ final class ConversationViewModel {
         contextWindowCache: any ContextWindowCache,
         attachmentStore: any ConversationAttachmentStore = DefaultConversationAttachmentStore(),
         threadActivityRecorder: any ThreadActivityRecording = NoopThreadActivityRecorder(),
-        draftMaterializationSaver: (() throws -> Void)? = nil
+        draftMaterializationSaver: (() throws -> Void)? = nil,
+        resolveSourceFolder: @escaping @Sendable (String) async -> SourceFolderSnapshot = { await SourceFolderMetadataResolver().resolve(path: $0) }
     ) {
         self.conversation = conversation
         self.agentsManager = agentsManager
@@ -162,6 +164,7 @@ final class ConversationViewModel {
         self.threadModelID = conversation.thread?.persistentModelID
         self.settingsService = settingsService
         self.worktreeManager = worktreeManager
+        self.resolveSourceFolder = resolveSourceFolder
         self.taskWorkspaceOwnershipService = taskWorkspaceOwnershipService
         self.providerSetup = providerSetup
         self.contextWindowCache = contextWindowCache

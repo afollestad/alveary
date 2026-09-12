@@ -64,10 +64,13 @@ extension ContentView {
             },
             prepareCapture: { try await appShotCoordinator.prepareCapture() },
             openDraft: { projectID in
-                guard let project = modelContext.resolveProject(id: projectID) else {
-                    throw SidebarViewModelError.projectMissing
+                if let projectID {
+                    guard let project = modelContext.resolveProject(id: projectID) else {
+                        throw SidebarViewModelError.projectMissing
+                    }
+                    return try await sidebarViewModel.openDraftThread(project: project).persistentModelID
                 }
-                return try await sidebarViewModel.openDraftThread(project: project).persistentModelID
+                return try await sidebarViewModel.openDraft(destination: .tasks).persistentModelID
             },
             activateAlveary: { [presenter = dependencies.mainWindowPresenter] in presenter.activate() }
         )
@@ -290,7 +293,7 @@ extension ContentView {
                 resolveLastActiveProject(owner, modelContext: modelContext)
             },
             persist: { path in
-                settingsService.updateLastActiveProjectPath(path)
+                settingsService.updateLastActiveProjectID(path)
             }
         )
     }
@@ -301,13 +304,12 @@ extension ContentView {
     ) -> LastActiveProjectResolution {
         switch owner {
         case .project(let projectID):
-            return .path(modelContext.resolveProject(id: projectID)?.path)
+            return .projectID(modelContext.resolveProject(id: projectID)?.id)
         case .thread(let threadID):
-            guard let thread = modelContext.resolveThread(id: threadID),
-                  thread.effectiveMode == .project else {
+            guard let thread = modelContext.resolveThread(id: threadID), thread.project != nil else {
                 return .unowned
             }
-            return .path(thread.project?.path)
+            return .projectID(thread.project?.id)
         }
     }
 }

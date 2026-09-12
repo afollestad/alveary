@@ -141,6 +141,7 @@ final class ThreadDetailViewProjectTrustTests: XCTestCase {
         let replacementProject = Project(path: replacementPath, name: "Reassigned")
         fixture.context.insert(replacementProject)
         fixture.thread.project = replacementProject
+        fixture.thread.workspaceSnapshot = replacementProject.workspaceSnapshot()
         try fixture.context.save()
 
         await fixture.view.refreshProjectTrustPrompt(for: fixture.conversation)

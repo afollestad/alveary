@@ -1,11 +1,9 @@
 import Foundation
 
 extension ConversationViewModel {
-    func scheduledAdditionalWorkspaceRoots(in thread: AgentThread?) -> [String] {
-        guard let thread else { return [] }
-        return thread.mode == .task
-            ? thread.taskWorkspaceDescriptor?.grantedRoots ?? []
-            : thread.taskGrantedRoots
+    func effectiveAdditionalWorkspaceRoots(in thread: AgentThread?, workingDirectory: String) throws -> [String] {
+        guard let snapshot = thread?.workspaceSnapshot else { throw WorkspaceFolderError.invalidSnapshot }
+        return snapshot.additionalWorkspaceRoots(workingDirectory: workingDirectory)
     }
 
     func mergedAllowedDirectories(configured: [String], additional: [String]) -> [String] {

@@ -71,7 +71,7 @@ extension SidebarViewModelTests {
         XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
     }
 
-    func testScheduledProjectRunsAndUnknownProjectSnapshotsStayOutOfTasks() throws {
+    func testProjectlessSourceThreadsRemainVisibleAlongsideTasks() throws {
         let fixture = try SidebarTestFixture()
         let (projectModeTask, _) = try insertScheduledTaskThread(
             fixture: fixture,
@@ -91,14 +91,13 @@ extension SidebarViewModelTests {
 
         let activeTasks = fixture.viewModel.activeTaskThreads()
 
-        XCTAssertTrue(activeTasks.isEmpty)
+        XCTAssertEqual(activeTasks.map(\.persistentModelID), [projectModeTask.persistentModelID, unknownModeTask.persistentModelID])
         XCTAssertEqual(unknownModeTask.effectiveMode, .project)
-        XCTAssertFalse(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
-        // Neither thread counts as a Task anymore, so the section is empty in the strong sense.
-        XCTAssertEqual(sidebarTasksPlaceholderLabel(
+        XCTAssertTrue(try fixture.renderSnapshot().hasAnyActiveTaskThreads)
+        XCTAssertNil(sidebarTasksPlaceholderLabel(
             activeTaskThreads: activeTasks,
             hasAnyActiveTaskThreads: try fixture.renderSnapshot().hasAnyActiveTaskThreads
-        ), "No tasks")
+        ))
     }
 
     func testPinnedProjectAbsorbsPinnedTaskChildren() throws {

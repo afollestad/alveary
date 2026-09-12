@@ -228,12 +228,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         let projectRoot = try fixture.createDirectory(named: "Project")
         let worktreeRoot = try fixture.createDirectory(named: "Worktree")
         let grant = try fixture.createDirectory(named: "Grant")
-        let project = Project(
-            path: projectRoot.path,
-            name: "Source",
-            remoteName: "upstream",
-            baseRef: "main"
-        )
+        let project = Project(path: projectRoot.path, name: "Source", remoteName: "upstream", baseRef: "main")
         fixture.context.insert(project)
         try fixture.context.save()
         await fixture.worktreeManager.setCreateResult(
@@ -247,7 +242,7 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
             projectPath: projectRoot.path,
             projectBaseRef: "main",
             projectRemoteName: "upstream",
-            grantedRoots: [grant.path]
+            grantedRoots: [projectRoot.path, grant.path]
         )
         project.baseRef = "develop"
         project.remoteName = "origin"
@@ -264,10 +259,13 @@ final class ScheduledTaskRunMaterializerTests: XCTestCase {
         XCTAssertEqual(result.workspace.ownershipStrategy, .projectWorktreeOwned)
         XCTAssertEqual(result.workspace.primaryRoot, CanonicalPath.normalize(worktreeRoot.path))
         XCTAssertEqual(result.workspace.sourceProjectPath, CanonicalPath.normalize(projectRoot.path))
-        XCTAssertEqual(result.workspace.grantedRoots, [CanonicalPath.normalize(grant.path)])
+        XCTAssertEqual(result.workspace.grantedRoots, [projectRoot.path, grant.path].map(CanonicalPath.normalize))
         XCTAssertEqual(thread.taskGrantedRoots, result.workspace.grantedRoots)
         XCTAssertNotNil(result.workspace.ownershipMarkerID)
         try fixture.workspaceOwnershipService.validateOwnedWorkspace(result.workspace)
+        XCTAssertNoThrow(try ScheduledTaskAutomatedWorkspaceValidator(
+            workspaceOwnershipService: fixture.workspaceOwnershipService
+        ).validate(thread: thread))
         XCTAssertNil(run.pendingWorktreeCleanup)
         try assertScheduledWorktreeCleanupProvenance(run, thread, result.workspace, projectRoot, worktreeRoot)
         await assertWorktreeCreationUsesSnapshot(

@@ -5,6 +5,14 @@ import XCTest
 @testable import Alveary
 
 final class ScheduledTaskPreflightValidatorTests: XCTestCase {
+    func testWorktreeScheduleCanExplicitlyGrantItsSourceCheckout() async {
+        let snapshot = makeSnapshot(grantedRoots: ["/tmp/project", "/tmp/grant"])
+
+        let outcome = await makeValidator().validate(snapshot)
+
+        XCTAssertEqual(outcome, .ready(expectedIdentities(for: snapshot)))
+    }
+
     func testReadyProjectWorktreeValidatesProviderWorkspaceAndRepository() async {
         let recorder = PreflightValidationRecorder()
         let validator = makeValidator(recorder: recorder)

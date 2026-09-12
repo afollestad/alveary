@@ -16,7 +16,7 @@ extension PullRequestAgenticThreadServiceTests {
         projectPath: String,
         worktreePath: String,
         branch: String?,
-        githubRepository: String? = nil
+        githubRepository: String? = "octo/alpha"
     ) -> AgentThread {
         let project = Project(path: projectPath, name: "alpha", githubRepository: githubRepository)
         let thread = AgentThread(
@@ -255,4 +255,62 @@ extension PullRequestAgenticThreadServiceTests {
         let createCalls = await start.fixture.worktreeManager.createFromBranchCalls()
         XCTAssertTrue(createCalls.isEmpty)
     }
+    func testMatchingASecondaryFolderHonorsPreferredProjectAndRemote() throws {
+        let fixture = try SidebarTestFixture()
+        let start = try makeStartFixture(fixture: fixture)
+        let first = SourceFolderSnapshot(path: "/tmp/first", githubRepository: "other/repo")
+        let match = SourceFolderSnapshot(
+            path: "/tmp/shared", remoteName: "upstream", baseRef: "develop", githubRepository: start.identifier.nameWithOwner
+        )
+        let preferred = Project(name: "Preferred", folders: [first, match])
+        let other = Project(name: "Other", folders: [match])
+        fixture.context.insert(preferred)
+        fixture.context.insert(other)
+        try fixture.context.save()
+        let target = try XCTUnwrap(start.service.resolvedProjectFolder(
+            for: start.identifier, preferredProjectID: preferred.persistentModelID
+        ))
+        XCTAssertEqual(target.project.id, preferred.id)
+        XCTAssertEqual(target.folder, match)
+    }
+
+    func testSecondaryThreadFolderCanLendAfterSwitchingBranchesAndKeepsMetadata() async throws {
+        let fixture = try SidebarTestFixture()
+        let directory = CanonicalPath.normalize(NSTemporaryDirectory() + "alveary-secondary-lender")
+        let start = try makeStartFixture(
+            fixture: fixture, existingDirectories: [directory], branchesByRoot: [directory: "feat/change"]
+        )
+        let source = SourceFolderSnapshot(
+            path: directory, remoteName: "upstream", gitBranch: "main", baseRef: "develop",
+            githubRepository: start.identifier.nameWithOwner
+        )
+        let project = Project(name: "Many", folders: [
+            SourceFolderSnapshot(path: "/tmp/other", githubRepository: "other/repo"), source
+        ])
+        let lender = AgentThread(name: "Lender", worktreePath: "/tmp/other-worktree", project: project)
+        fixture.context.insert(lender)
+        try fixture.context.save()
+        let started = try await start.service.start(
+            kind: .addressFeedback, identifier: start.identifier, url: start.url,
+            knownDetail: makePullRequestDetail(id: start.identifier, status: .open)
+        )
+        let created = try XCTUnwrap(fixture.context.resolveThread(conversationID: started.conversationID))
+        XCTAssertEqual(created.primaryWorkingDirectory, directory)
+        XCTAssertEqual(created.sourceFolder, source)
+        XCTAssertEqual(created.taskWorkspaceDescriptor?.ownershipStrategy, .projectLocal)
+        _ = try await started.dispatch.value
+        XCTAssertEqual(created.primaryWorkingDirectory, directory)
+        let worktreeCreations = await fixture.worktreeManager.createFromBranchCalls()
+        XCTAssertTrue(worktreeCreations.isEmpty)
+    }
+
+    func testSameBranchInAnotherRepositoryCannotLendACheckout() throws {
+        let fixture = try SidebarTestFixture()
+        let directory = CanonicalPath.normalize(NSTemporaryDirectory() + "alveary-unrelated-lender")
+        let start = try makeStartFixture(fixture: fixture, existingDirectories: [directory])
+        makeLender(in: fixture, projectPath: "/tmp/unrelated", worktreePath: directory,
+                   branch: "feat/change", githubRepository: "another/repo")
+        XCTAssertNil(start.service.borrowedWorkspace(identifier: start.identifier, headRefName: "feat/change"))
+    }
+
 }

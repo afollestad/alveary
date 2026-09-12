@@ -176,6 +176,11 @@ private extension ScheduledTaskRunRecoveryCoordinator {
         status: ScheduledTaskRunStatus,
         externalCheck: ResumeSafetyCheck
     ) -> Bool {
+        guard let workspace = run.workspaceSnapshot,
+              workspace.grants.map(\.path) == run.grantedRootsSnapshot,
+              run.decodedDestinationSnapshot == .existingThread || workspace.primarySource?.path == run.projectPathSnapshot else {
+            return false
+        }
         let targetIsValid: Bool
         switch run.decodedDestinationSnapshot {
         case .newThreadPerRun:
@@ -253,8 +258,8 @@ private extension ScheduledTaskRunRecoveryCoordinator {
             workspace = recoveredWorkspaceDescriptor(for: run)
         }
         let isWorktree = workspace?.ownershipStrategy == .projectWorktreeOwned
-        let project = run.projectPathSnapshot.flatMap(modelContext.resolveProject(path:))
-        let isProjectThread = run.workspaceKindSnapshot == .project && project != nil
+        let project = run.projectIDSnapshot.flatMap(modelContext.resolveProject(projectID:))
+        let isProjectThread = run.workspaceKindSnapshot == .project && workspace != nil
         let thread = AgentThread(
             name: run.titleSnapshot,
             hasCustomName: true,
@@ -267,17 +272,16 @@ private extension ScheduledTaskRunRecoveryCoordinator {
             useWorktree: isWorktree,
             modifiedAt: actionDate,
             mode: isProjectThread ? .project : .task,
-            taskWorkspaceDescriptor: !isProjectThread || isWorktree ? workspace : nil,
+            taskWorkspaceDescriptor: workspace,
             project: project,
             scheduledTaskRun: run
         )
-        if isProjectThread && !isWorktree {
-            thread.taskGrantedRoots = workspace?.grantedRoots ?? []
-        }
+        // A sanitized failure shell must not expose invalid roots to an agent.
+        thread.workspaceSnapshot = workspace == nil ? nil : run.workspaceSnapshot
         // Same fail-open seeding as the materializer's `resolvedRunSection`: a crash-recovered
         // shell still lands in the section the claim promised, and a vanished or non-custom
         // section degrades to `Tasks` rather than blocking recovery.
-        if !isProjectThread,
+        if project == nil,
            let sectionID = run.threadSectionIDSnapshot,
            let section = modelContext.resolveSidebarSection(id: sectionID),
            section.kind == .custom {

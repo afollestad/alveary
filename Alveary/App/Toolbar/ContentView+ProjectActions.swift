@@ -10,25 +10,12 @@ struct ProjectActionExecutionContext: Equatable {
     let currentDirectory: String
     let command: String
 
-    init?(thread: AgentThread, action: AlvearyProjectConfig.ProjectAction) {
-        guard thread.effectiveMode == .project,
-              let currentDirectory = thread.primaryWorkingDirectory else {
-            return nil
-        }
-
-        self.title = action.name
-        self.threadID = thread.persistentModelID
-        self.threadName = thread.name
-        self.currentDirectory = currentDirectory
-        self.command = action.command
-    }
-
-    init(projectPath: String, action: AlvearyProjectConfig.ProjectAction) {
-        self.title = action.name
-        self.threadID = nil
-        self.threadName = nil
-        self.currentDirectory = projectPath
-        self.command = action.command
+    init(folder: WorkspaceFolderTarget, thread: AgentThread?, action: AlvearyProjectConfig.ProjectAction) {
+        title = action.name
+        threadID = thread?.isDraft == false ? thread?.persistentModelID : nil
+        threadName = threadID == nil ? nil : thread?.name
+        currentDirectory = folder.directory
+        command = action.command
     }
 }
 
@@ -64,9 +51,7 @@ enum TerminalDefaultShellContextResolver {
             }
 
             if thread.isDraft {
-                let draftDirectory = thread.effectiveMode == .task
-                    ? thread.primaryWorkingDirectory
-                    : thread.project?.path
+                let draftDirectory = thread.primaryWorkingDirectory
                 return TerminalDefaultShellContext(
                     currentDirectory: builder.defaultShellDirectory(
                         threadWorktreePath: nil,
@@ -86,7 +71,7 @@ enum TerminalDefaultShellContextResolver {
                 )
             )
         case .project(let selectedProject):
-            let projectPath = modelContext.resolveProject(id: selectedProject.persistentModelID)?.path
+            let projectPath = modelContext.resolveProject(id: selectedProject.persistentModelID)?.primaryFolder?.path
             return TerminalDefaultShellContext(
                 currentDirectory: builder.defaultShellDirectory(
                     threadWorktreePath: nil,
@@ -142,17 +127,23 @@ extension ContentView {
         action: AlvearyProjectConfig.ProjectAction
     ) -> ProjectActionExecutionContext? {
         switch owner {
-        case .thread(let threadID):
-            guard let thread = uiModelContext.resolveThread(id: threadID),
-                  thread.archivedAt == nil else {
+        case .folder(let owner, let folder):
+            let thread: AgentThread?
+            switch owner {
+            case .thread(let id):
+                guard let live = uiModelContext.resolveThread(id: id), live.archivedAt == nil,
+                      live.workspaceFolderTargets.contains(folder) else { return nil }
+                thread = live
+            case .project(let id):
+                guard let live = uiModelContext.resolveProject(projectID: id),
+                      live.workspaceFolderTargets.contains(folder) else { return nil }
+                thread = nil
+            }
+            do { _ = try folder.requireDirectory() } catch {
+                appState.presentUnexpectedError(message: error.localizedDescription)
                 return nil
             }
-            return ProjectActionExecutionContext(thread: thread, action: action)
-        case .project(let path):
-            guard let project = uiModelContext.resolveProject(path: path) else {
-                return nil
-            }
-            return ProjectActionExecutionContext(projectPath: project.path, action: action)
+            return ProjectActionExecutionContext(folder: folder, thread: thread, action: action)
         }
     }
 
@@ -169,10 +160,21 @@ extension ContentView {
     }
 
     func createTerminalShellSession(focus: Bool) {
-        let context = TerminalDefaultShellContextResolver.resolve(
+        if case .thread = appState.selectedSidebarItem, selectedWorkspaceFolder == nil {
+            appState.presentUnexpectedError(message: WorkspaceFolderError.invalidSnapshot.localizedDescription)
+            return
+        }
+        var context = TerminalDefaultShellContextResolver.resolve(
             selection: appState.selectedSidebarItem,
             modelContext: uiModelContext
         )
+        if let folder = selectedWorkspaceFolder {
+            do { _ = try folder.requireDirectory() } catch {
+                appState.presentUnexpectedError(message: error.localizedDescription)
+                return
+            }
+            context.currentDirectory = folder.directory
+        }
         let launchConfiguration = TerminalLaunchBuilder().shell(currentDirectory: context.currentDirectory)
         terminalManager.createSession(
             kind: .shell,

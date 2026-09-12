@@ -58,7 +58,7 @@ enum SidebarOrderNormalization {
         var latestActivityByProjectPath: [String: Date] = [:]
         if needsActivityFallback {
             for thread in threads where thread.archivedAt == nil && !thread.isDraft {
-                guard let path = thread.project?.path, let modifiedAt = thread.modifiedAt else {
+                guard let path = thread.project?.id, let modifiedAt = thread.modifiedAt else {
                     continue
                 }
                 latestActivityByProjectPath[path] = max(latestActivityByProjectPath[path] ?? modifiedAt, modifiedAt)
@@ -69,7 +69,7 @@ enum SidebarOrderNormalization {
             .map { project in
                 SidebarPinnedItem(
                     project: project,
-                    activityDate: project.pinnedSortOrder == nil ? latestActivityByProjectPath[project.path] : nil
+                    activityDate: project.pinnedSortOrder == nil ? latestActivityByProjectPath[project.id] : nil
                 )
             }
         let threadItems = threads
@@ -84,14 +84,8 @@ enum SidebarOrderNormalization {
               thread.isPinned else {
             return false
         }
-        // A pinned thread is absorbed by a pinned project regardless of mode; a projectless Task
-        // has nothing to be absorbed by.
-        switch thread.effectiveMode {
-        case .project:
-            return thread.project != nil && thread.project?.isPinned != true
-        case .task:
-            return thread.project?.isPinned != true
-        }
+        // Project placement absorbs child pins; workspace ownership has no bearing on visibility.
+        return thread.project?.isPinned != true
     }
 
     static func compareRegularProjects(_ lhs: Project, _ rhs: Project) -> Bool {
@@ -115,7 +109,7 @@ enum SidebarOrderNormalization {
         if nameComparison != .orderedSame {
             return nameComparison == .orderedAscending
         }
-        return lhs.path < rhs.path
+        return lhs.id < rhs.id
     }
 
     static func comparePinnedThreads(_ lhs: AgentThread, _ rhs: AgentThread) -> Bool {
@@ -201,14 +195,14 @@ enum SidebarOrderNormalization {
         return didChange
     }
 
-    /// Custom-section membership is an overlay on the `Tasks` population, so a thread that is
-    /// project-placed or Project-mode cannot carry it; archived threads keep theirs so a restore
+    /// Custom-section membership is independent of workspace mode; only project placement
+    /// excludes it. Archived threads keep theirs so a restore
     /// returns them to their section. Deliberately no seeding here — inserting rows would change
     /// what existing lifecycle call sites commit.
     private static func clearInvalidCustomSectionMemberships(_ threads: [AgentThread]) -> Bool {
         var didChange = false
         for thread in threads where thread.customSection != nil {
-            if thread.project != nil || thread.effectiveMode == .project {
+            if thread.project != nil {
                 thread.customSection = nil
                 didChange = true
             }

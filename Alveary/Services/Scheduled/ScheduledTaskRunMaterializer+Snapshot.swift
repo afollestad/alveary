@@ -22,6 +22,8 @@ struct ScheduledTaskRunSnapshot {
     let projectRemoteName: String?
     let grantedRoots: [String]
     let workspaceIdentities: ScheduledTaskWorkspaceIdentitySnapshot?
+    var projectID: String?
+    var workspaceSnapshot: WorkspaceSnapshot?
 }
 
 extension DefaultScheduledTaskRunMaterializer {
@@ -54,6 +56,11 @@ extension DefaultScheduledTaskRunMaterializer {
                 kind: run.workspaceKindRawValueSnapshot,
                 strategy: run.workspaceStrategyRawValueSnapshot
             )
+        }
+        guard let workspace = run.workspaceSnapshot,
+              workspace.grants.map(\.path) == run.grantedRootsSnapshot,
+              destination == .existingThread || workspace.primarySource?.path == run.projectPathSnapshot else {
+            throw ScheduledTaskRunMaterializationError.workspaceRootsChanged
         }
         return makeSnapshot(
             run,
@@ -91,7 +98,9 @@ extension DefaultScheduledTaskRunMaterializer {
             projectBaseRef: run.projectBaseRefSnapshot,
             projectRemoteName: run.projectRemoteNameSnapshot,
             grantedRoots: run.grantedRootsSnapshot,
-            workspaceIdentities: run.workspaceIdentitySnapshot
+            workspaceIdentities: run.workspaceIdentitySnapshot,
+            projectID: run.projectIDSnapshot,
+            workspaceSnapshot: run.workspaceSnapshot
         )
     }
 

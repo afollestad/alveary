@@ -67,7 +67,7 @@ final class DataComponentTests: XCTestCase {
         XCTAssertEqual(persistedProposal.project?.path, project.path)
     }
 
-    func testProjectPathIsUnique() throws {
+    func testSourceFolderCanBelongToMultipleProjects() throws {
         let component = makeComponent()
         let context = component.modelContext
 
@@ -77,7 +77,7 @@ final class DataComponentTests: XCTestCase {
         context.insert(Project(path: "/tmp/../tmp/alveary-project", name: "Two"))
         try context.save()
 
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Project>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Project>()), 2)
     }
 
     func testSidebarOrderFieldsPersistAndAllowNilDefaults() throws {

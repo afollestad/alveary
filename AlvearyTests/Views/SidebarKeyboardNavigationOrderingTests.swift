@@ -32,7 +32,7 @@ final class SidebarKeyboardNavigationOrderingTests: XCTestCase {
         let items = buildNavigableItems(
             pinnedItems: fixture.viewModel.pinnedItems(projects: [pinnedProject, regularProject, trailingProject]),
             projects: fixture.viewModel.regularProjects(from: [trailingProject, regularProject, pinnedProject]),
-            expandedProjects: [pinnedProject.path, regularProject.path],
+            expandedProjects: [pinnedProject.id, regularProject.id],
             activeThreads: fixture.viewModel.activeThreads(for:)
         )
 

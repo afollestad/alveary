@@ -191,9 +191,6 @@ final class PullRequestAgenticThreadService {
     ) async throws -> PullRequestAgenticThreadStart {
         let settings = settingsService.current
         if kind == .review, settings.pullRequestReviewMode == .reviewTeam {
-            guard let reviewTeamCoordinator else {
-                throw ReviewTeamError.invalidOutput("Review team is unavailable. Check Pull requests settings.")
-            }
             let work = CollectiveReviewWork(
                 identifier: identifier, url: url, knownDetail: knownDetail, knownSummary: knownSummary, settings: settings
             )
@@ -219,6 +216,7 @@ final class PullRequestAgenticThreadService {
            resolvedProject(for: identifier, preferredProjectID: preferredProjectID) == nil {
             throw StartError.projectMissing(repository: identifier.nameWithOwner)
         }
+        let borrowedSnapshot = borrowed.map { workspaceSnapshot(for: $0, identifier: identifier) }
         let seed = try await resolvedSeedSettings(settings: settings, kind: kind)
 
         let thread = try lifecycleService.insertTaskThread(
@@ -226,6 +224,7 @@ final class PullRequestAgenticThreadService {
                 seed,
                 name: threadName,
                 workspace: borrowed,
+                workspaceSnapshot: borrowedSnapshot,
                 placement: resolvedPlacement(for: kind, settings: settings)
             )
         )
@@ -302,6 +301,7 @@ final class PullRequestAgenticThreadService {
         _ seed: SeedSettings,
         name: String,
         workspace: TaskWorkspaceDescriptor?,
+        workspaceSnapshot: WorkspaceSnapshot?,
         placement: TaskThreadSidebarPlacement
     ) -> TaskThreadSeed {
         TaskThreadSeed(
@@ -313,7 +313,8 @@ final class PullRequestAgenticThreadService {
             name: name,
             grantedRoots: [],
             workspace: workspace,
-            placement: placement
+            placement: placement,
+            workspaceSnapshot: workspaceSnapshot
         )
     }
 

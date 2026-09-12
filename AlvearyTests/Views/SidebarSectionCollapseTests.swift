@@ -14,13 +14,13 @@ final class SidebarSectionCollapseTests: XCTestCase {
 
         let expanded = buildNavigableItems(
             projects: [project],
-            expandedProjects: [project.path],
+            expandedProjects: [project.id],
             activeThreads: { _ in [child] },
             collapsedSections: []
         )
         let collapsed = buildNavigableItems(
             projects: [project],
-            expandedProjects: [project.path],
+            expandedProjects: [project.id],
             activeThreads: { _ in [child] },
             collapsedSections: [.projects]
         )
@@ -51,7 +51,7 @@ final class SidebarSectionCollapseTests: XCTestCase {
         let items = buildNavigableItems(
             pinnedItems: [SidebarPinnedItem(project: pinnedProject, activityDate: nil)],
             projects: [],
-            expandedProjects: [pinnedProject.path],
+            expandedProjects: [pinnedProject.id],
             activeThreads: { _ in [pinnedChild] },
             collapsedSections: [.projects, .tasks]
         )
@@ -64,6 +64,39 @@ final class SidebarSectionCollapseTests: XCTestCase {
             .project(pinnedProject),
             .thread(pinnedChild)
         ])
+    }
+
+    func testDraftWorkspaceRefreshDoesNotReorderSidebar() throws {
+        let fixture = try SidebarTestFixture()
+        let project = try fixture.insertProject(name: "Project", path: "/tmp/draft-sidebar-workspace-refresh")
+        let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
+        let orderVersion = fixture.viewModel.threadOrderVersion
+
+        view.handleDraftProjectChanged(Notification(name: .threadDraftProjectChanged, userInfo: [
+            ThreadDraftNotificationKey.projectID: project.id,
+            ThreadDraftNotificationKey.placementChanged: false
+        ]))
+
+        XCTAssertEqual(fixture.viewModel.threadOrderVersion, orderVersion)
+    }
+
+    func testDraftProjectHighlightFollowsPlacementForEmptyAndPopulatedProjects() throws {
+        let fixture = try SidebarTestFixture()
+        let empty = Project(name: "Empty")
+        let populated = Project(path: "/tmp/draft-highlight-populated", name: "Populated")
+        let unrelated = Project(name: "Other")
+        let appState = AppState()
+        let view = SidebarView(viewModel: fixture.viewModel, appState: appState)
+        let destinations: [(Project, AgentThreadMode)] = [(empty, .task), (populated, .project)]
+
+        for (project, mode) in destinations {
+            let draft = AgentThread(name: "New thread", isDraft: true, mode: mode, project: project)
+            appState.selectedSidebarItem = .thread(draft)
+            XCTAssertTrue(view.isProjectSelected(project))
+            XCTAssertFalse(view.isProjectSelected(unrelated))
+            draft.isDraft = false
+            XCTAssertFalse(view.isProjectSelected(project))
+        }
     }
 
     // MARK: - Selection reveal

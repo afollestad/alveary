@@ -135,11 +135,14 @@ extension ShellRunner {
 enum ShellError: Error, Sendable, Equatable {
     case timeout(executable: String, timeout: Duration)
     case ioDrainTimedOut(executable: String)
+    case invalidDirectory(String)
 }
 
 extension ShellError: LocalizedError {
     var errorDescription: String? {
         switch self {
+        case .invalidDirectory(let directory):
+            return "The working directory is unavailable: \(directory)"
         case .timeout(let executable, let timeout):
             return "\(executable) timed out after \(timeout.components.seconds) seconds"
         case .ioDrainTimedOut(let executable):

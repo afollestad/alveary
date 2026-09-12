@@ -49,13 +49,19 @@ enum ScheduledTaskNewThreadFlavor: Equatable, Sendable {
 
 /// A requested workspace for a new-thread schedule.
 ///
-/// Run location is deliberately absent: a local-checkout schedule would mutate the user's real
-/// working copy unattended, so it stays host-bound to a worktree.
+/// Run location is host-bound: explicit Git folders use worktrees, ordinary folders use Local,
+/// and omitted workspace requests preserve the saved strategy.
 enum ScheduledTaskProposalWorkspace: Equatable, Sendable {
     /// The path must name a Project already registered in Alveary; an arbitrary path is refused
     /// rather than registered on the fly.
-    case project(path: String, grantedRoots: [String]?)
+    case project(path: String, grantedRoots: [String]?, isID: Bool = false, primaryFolderPath: String? = nil, privateWorkspace: Bool = false)
     case privateWorkspace(grantedRoots: [String]?)
+
+    /// A complete replacement can repair an unreadable saved workspace without inheriting it.
+    var requiresInheritedWorkspace: Bool {
+        if case .privateWorkspace(grantedRoots: nil) = self { return true }
+        return false
+    }
 
     var kind: ScheduledTaskWorkspaceKind {
         switch self {
@@ -68,10 +74,27 @@ enum ScheduledTaskProposalWorkspace: Equatable, Sendable {
 
     var projectPath: String? {
         switch self {
-        case .project(let path, _):
-            path
+        case .project(let path, _, let isID, _, _):
+            isID ? nil : path
         case .privateWorkspace:
             nil
+        }
+    }
+
+    var projectID: String? {
+        if case let .project(key, _, isID, _, _) = self, isID { return key }
+        return nil
+    }
+
+    var primaryFolderPath: String? {
+        if case let .project(_, _, _, path, _) = self { return path }
+        return nil
+    }
+
+    var requestsPrivateWorkspace: Bool {
+        switch self {
+        case .project(_, _, _, _, let value): value
+        case .privateWorkspace: true
         }
     }
 
@@ -80,7 +103,7 @@ enum ScheduledTaskProposalWorkspace: Equatable, Sendable {
     /// confirms.
     var grantedRoots: [String]? {
         switch self {
-        case let .project(_, grantedRoots),
+        case let .project(_, grantedRoots, _, _, _),
              let .privateWorkspace(grantedRoots):
             grantedRoots
         }

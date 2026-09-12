@@ -22,7 +22,7 @@ extension SidebarViewModel {
     }
 
     func requireThreadLifecycleIsUnblocked(in project: Project) throws {
-        for thread in liveThreads(forProjectPath: project.path) {
+        for thread in liveThreads(forProjectID: project.id) {
             try requireThreadLifecycleIsUnblocked(thread)
         }
     }

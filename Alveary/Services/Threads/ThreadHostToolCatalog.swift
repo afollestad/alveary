@@ -29,7 +29,7 @@ enum ThreadHostToolCatalog {
     static let instructionsFragment = """
     These tools manage Alveary's own threads — the workspaces in its sidebar — not files, branches, or anything in the \
     user's project. Use them only when the user explicitly asks to list, create, or archive an Alveary thread, or to send \
-    one a prompt; wanting a task done is not a request for a new thread. Call list_projects for a Project path, and \
+    one a prompt; wanting a task done is not a request for a new thread. Call list_projects for a project_id, and \
     list_threads for a real thread ID. Leaving create_thread's placement unset puts the new thread wherever this \
     conversation's thread already works and shows it beside this thread in the sidebar, so name a Project, a private \
     workspace, or a section only when the user asks for one. create_thread applies immediately, and an initial prompt \
@@ -88,10 +88,9 @@ private extension ThreadHostToolCatalog {
         name: listProjectsToolName,
         title: "List Alveary Projects",
         description: """
-        List the Alveary Projects registered on this Mac. Returns each Project's name and root path. Call it to find the \
-        project_path for create_thread, or when a scheduled task should run in a Project other than this conversation's; a \
-        scheduled task otherwise inherits this conversation's workspace. Not a directory listing, and not a substitute for \
-        reading the file system.
+        List registered projects with stable project_id, primary_folder_path, and ordered folders. Projects may have no \
+        folders or share folders. Use project_id with create_thread or propose_scheduled_task; legacy project_path only \
+        works when it identifies one project unambiguously.
         """,
         inputSchema: HostToolSchema.strictObject(properties: [:], required: []),
         outputSchema: HostToolSchema.strictObject(
@@ -99,10 +98,16 @@ private extension ThreadHostToolCatalog {
                 "projects": HostToolSchema.arraySchema(
                     items: HostToolSchema.strictObject(
                         properties: [
+                            "project_id": HostToolSchema.stringSchema,
                             "path": HostToolSchema.stringSchema,
-                            "name": HostToolSchema.stringSchema
+                            "primary_folder_path": HostToolSchema.stringSchema,
+                            "name": HostToolSchema.stringSchema,
+                            "folders": HostToolSchema.arraySchema(items: HostToolSchema.strictObject(properties: [
+                                "path": HostToolSchema.stringSchema, "name": HostToolSchema.stringSchema,
+                                "is_primary": HostToolSchema.booleanSchema, "is_git_repository": HostToolSchema.booleanSchema
+                            ], required: ["path", "name", "is_primary", "is_git_repository"]))
                         ],
-                        required: ["path", "name"]
+                        required: ["project_id", "name", "folders"]
                     )
                 )
             ],
@@ -131,8 +136,12 @@ private extension ThreadHostToolCatalog {
                             "id": HostToolSchema.stringSchema,
                             "name": HostToolSchema.stringSchema,
                             "workspace": HostToolSchema.stringSchema,
+                            "working_directory": HostToolSchema.stringSchema,
+                            "granted_roots": HostToolSchema.arraySchema(items: HostToolSchema.stringSchema),
                             "workspace_kind": HostToolSchema.enumSchema(AgentThreadMode.allCases.map(\.rawValue)),
                             "project_path": HostToolSchema.stringSchema,
+                            "project_id": HostToolSchema.stringSchema,
+                            "primary_folder_path": HostToolSchema.stringSchema,
                             "provider": HostToolSchema.stringSchema,
                             "model": HostToolSchema.stringSchema,
                             "effort": HostToolSchema.stringSchema,
@@ -166,24 +175,20 @@ private extension ThreadHostToolCatalog {
         name: createThreadToolName,
         title: "Create an Alveary thread",
         description: """
-        Create a new Alveary thread, after the user explicitly asks for one. Applies immediately; there is no confirmation \
-        step and no tool here deletes a thread. A thread lives in one of two places: pass project_path from list_projects \
-        for a thread that works in that Project, or mode "task" for one that works in its own private empty workspace. \
-        Naming neither puts it where this conversation's thread already works, which is usually what the user means. \
-        granted_roots gives a task thread access to folders outside its workspace — absolute paths to folders that already \
-        exist, and not accepted for a Project thread. An omitted section keeps a task thread beside this conversation's \
-        thread in the sidebar — nested under the same project, with that folder granted, or in the same section; pass \
-        section to place it elsewhere, "Tasks" meaning the plain Tasks list. An omitted provider, model, or effort \
-        inherits this conversation's thread's settings, so there is no need to pass them to match it. Everything else \
-        falls back to the user's Alveary defaults: name (otherwise Alveary names the thread from its first turn), \
-        permission_mode, and pinned. An initial_prompt starts that thread working in the background immediately, and its \
-        output goes there rather than here, so do not wait for a result or describe what it found. Report the returned \
-        thread_id and settings rather than restating what you requested.
+        Create a thread when the user explicitly asks. project_id uses that project's current folders; primary_folder_path \
+        optionally selects one as primary. Empty projects create a private workspace. Omitted placement inherits this \
+        conversation's saved source, grants, and sidebar placement. mode "task" requests a fresh private workspace. \
+        granted_roots explicitly replaces additional folders, including [] to remove all; omission preserves defaults. \
+        section names an existing section, or Tasks, independently of folder access. Legacy project_path must identify \
+        one project unambiguously. Provider, model, and effort inherit this conversation unless specified. initial_prompt \
+        dispatches background work to the new thread. Report its returned thread_id; do not wait for the work's outcome.
         """,
         inputSchema: HostToolSchema.strictObject(
             properties: [
                 "mode": HostToolSchema.enumSchema(AgentThreadMode.allCases.map(\.rawValue)),
                 "project_path": HostToolSchema.nonEmptyStringSchema,
+                "project_id": HostToolSchema.nonEmptyStringSchema,
+                "primary_folder_path": HostToolSchema.nonEmptyStringSchema,
                 "granted_roots": HostToolSchema.arraySchema(items: HostToolSchema.nonEmptyStringSchema),
                 "name": HostToolSchema.nonEmptyStringSchema,
                 "provider": HostToolSchema.enumSchema(AppSettings.supportedProviderIDs),
@@ -203,6 +208,8 @@ private extension ThreadHostToolCatalog {
                 "name": HostToolSchema.stringSchema,
                 "workspace_kind": HostToolSchema.enumSchema(AgentThreadMode.allCases.map(\.rawValue)),
                 "project_path": HostToolSchema.stringSchema,
+                "project_id": HostToolSchema.stringSchema,
+                "primary_folder_path": HostToolSchema.stringSchema,
                 "granted_roots": HostToolSchema.arraySchema(items: HostToolSchema.stringSchema),
                 "provider": HostToolSchema.stringSchema,
                 "model": HostToolSchema.stringSchema,

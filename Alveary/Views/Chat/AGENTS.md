@@ -74,4 +74,4 @@ Session handoff is a between-turn hidden flow. Its steering, countdowns, and pro
     - **Persist real threads before setup** — `deliverMessageReserved` inserts the user row before initial setup starts.
     - **Keep failures on the transcript.** A setup, spawn, or send failure marks that row retryable instead of returning to a centered empty retry state.
     - **Treat cancellation as reset.** `ConversationViewModel.cancel()` restores draft and staged context, deletes the attempted row, and clears `hasCompletedInitialSetup`; `sendDraft` swallows `CancellationError`.
-- **The empty-thread hero's project menu is interactive only for a provisional draft.** Preserve the label's intrinsic width, draw its underline explicitly, and middle-truncate only unusually long names; a materialized transcript-empty thread renders the same larger copy with a static project name.
+- **Place draft placement and workspace controls together in the empty state.** Project settings determine the primary folder; drafts may choose Local/Worktree and additional grants. Materialized threads retain the composer workspace menu for idle grant editing.

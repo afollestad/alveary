@@ -168,13 +168,13 @@ extension ContentView {
         settingsService.current.pullRequestsEnabled
             && appState.selectedSidebarItem?.canCommitDiffChanges == true
             && selectedPullRequestLinkOwner != nil
-            && selectedPullRequestLinks.isEmpty
+            && selectedFolderPullRequestLinks.isEmpty
     }
 
     private var canViewPullRequestFromDiffFooter: Bool {
         settingsService.current.pullRequestsEnabled
             && selectedPullRequestLinkOwner != nil
-            && selectedPullRequestLinks.count == 1
+            && selectedFolderPullRequestLinks.count == 1
     }
 
     var isDiffViewerRendered: Bool {

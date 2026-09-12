@@ -23,10 +23,10 @@ extension ScheduledTaskSchedulerEngine {
             permissionMode: target?.permissionMode ?? definition.permissionMode,
             workspaceKind: target?.workspaceKind ?? definition.workspaceKind,
             workspaceStrategy: target?.workspaceStrategy ?? definition.workspaceStrategy,
-            projectPath: target?.projectPath ?? definition.project?.path,
-            projectBaseRef: definition.project?.baseRef,
-            projectRemoteName: definition.project?.remoteName,
-            grantedRoots: target?.grantedRoots ?? definition.grantedRoots,
+            projectPath: target == nil ? definition.workspaceSnapshot?.primarySource?.path : target?.projectPath,
+            projectBaseRef: definition.workspaceSnapshot?.primarySource?.baseRef,
+            projectRemoteName: definition.workspaceSnapshot?.primarySource?.remoteName,
+            grantedRoots: target?.grantedRoots ?? definition.workspaceSnapshot?.grants.map(\.path) ?? [],
             destination: destination,
             target: target,
             reusedTarget: reusedTarget(for: definition)
@@ -70,22 +70,8 @@ extension ScheduledTaskSchedulerEngine {
             return nil
         }
 
-        let workspace: ScheduledTaskTargetWorkspace
-        switch thread.effectiveMode {
-        case .project:
-            workspace = ScheduledTaskTargetWorkspace(
-                projectPath: thread.primaryWorkingDirectory,
-                grantedRoots: thread.taskGrantedRoots
-            )
-        case .task:
-            guard let descriptor = thread.taskWorkspaceDescriptor else {
-                return nil
-            }
-            workspace = ScheduledTaskTargetWorkspace(
-                projectPath: descriptor.primaryRoot,
-                grantedRoots: descriptor.grantedRoots
-            )
-        }
+        guard let descriptor = thread.resolvedWorkspaceDescriptor,
+              let snapshot = thread.workspaceSnapshot else { return nil }
         return ScheduledTaskTargetSnapshot(
             conversationID: conversation.id,
             threadName: thread.name,
@@ -97,8 +83,9 @@ extension ScheduledTaskSchedulerEngine {
             speedMode: thread.normalizedSpeedMode.rawValue,
             workspaceKind: .project,
             workspaceStrategy: .localCheckout,
-            projectPath: workspace.projectPath,
-            grantedRoots: workspace.grantedRoots
+            projectPath: descriptor.primaryRoot,
+            grantedRoots: snapshot.grants.map(\.path),
+            workspaceSnapshot: snapshot
         )
     }
 
@@ -128,9 +115,4 @@ extension ScheduledTaskSchedulerEngine {
         let instantBits = occurrenceAt.timeIntervalSinceReferenceDate.bitPattern
         return "scheduled:\(definitionID):\(String(instantBits, radix: 16))"
     }
-}
-
-private struct ScheduledTaskTargetWorkspace {
-    let projectPath: String?
-    let grantedRoots: [String]
 }

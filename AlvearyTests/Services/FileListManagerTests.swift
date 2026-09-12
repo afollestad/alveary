@@ -19,6 +19,33 @@ final class FileListManagerTests: XCTestCase {
         XCTAssertEqual(callCount, 2)
     }
 
+    func testOrdinaryFolderEnumeratesNestedFilesWithoutGitStorage() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("nested"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try Data("visible".utf8).write(to: root.appendingPathComponent("nested/note.txt"))
+        try Data("index".utf8).write(to: root.appendingPathComponent(".git/index"))
+        let manager = GitFileListManager(gitService: MockGitService(listFilesError: GitError.notARepository))
+        let files = await manager.files(for: root.path)
+        XCTAssertEqual(files, ["nested/note.txt"])
+    }
+
+    func testMutationInvalidatesOverlappingRootsButKeepsUnrelatedCaches() async {
+        let git = MockGitService(listFilesResults: [["parent-old"], ["child-old"], ["unrelated"], ["parent-new"], ["child-new"]])
+        let manager = GitFileListManager(gitService: git)
+        _ = await manager.files(for: "/tmp/project")
+        _ = await manager.files(for: "/tmp/project/child")
+        _ = await manager.files(for: "/tmp/elsewhere")
+        await manager.invalidateCache(for: "/tmp/project/child")
+        let parent = await manager.files(for: "/tmp/project")
+        let child = await manager.files(for: "/tmp/project/child")
+        let unrelated = await manager.files(for: "/tmp/elsewhere")
+        XCTAssertEqual(parent, ["parent-new"])
+        XCTAssertEqual(child, ["child-new"])
+        XCTAssertEqual(unrelated, ["unrelated"])
+    }
+
     func testFilesReturnsEmptyArrayWhenGitLookupFails() async {
         let gitService = MockGitService(listFilesError: GitError.notARepository)
         let manager = GitFileListManager(gitService: gitService)
@@ -43,6 +70,8 @@ final class FileListManagerTests: XCTestCase {
 }
 
 private actor MockGitService: GitService {
+    func repositoryRoot(in directory: String) async throws -> String? { directory }
+
     private let listFilesError: Error?
     private var listFilesErrors: [Error?]
     private var listFilesResults: [[String]]

@@ -7,6 +7,7 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
     case projectNotFound
     case existingThreadRequired
     case existingThreadUnavailable
+    case foldersStillResolving
     case destinationNotRecognized
     case sectionNotFound
     case runNowRejected
@@ -25,6 +26,8 @@ enum ScheduledTasksViewModelError: Error, LocalizedError {
             "Choose a thread for this scheduled task."
         case .existingThreadUnavailable:
             "The selected thread is no longer available."
+        case .foldersStillResolving:
+            "Wait for the selected folders to finish resolving."
         case .destinationNotRecognized:
             """
             This task's destination was written by a newer version of Alveary. \

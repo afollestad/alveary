@@ -15,6 +15,14 @@ extension DefaultAgentsManager {
               managedBuffer.acceptsLiveEvents || allowAfterDeferredStop else {
             return
         }
+        let isToolResult = if case .toolResult = event { true } else { false }
+        if isToolResult || isTerminalRuntimeBoundary(event) {
+            await invalidateWorkspaceFileCompletions(roots: managedBuffer.fileCompletionRoots)
+            guard eventBuffers[conversationId] === managedBuffer,
+                  managedBuffer.acceptsLiveEvents || allowAfterDeferredStop else {
+                return
+            }
+        }
         let event = strippingExpectedExitMessage(from: event, managedBuffer: managedBuffer)
         managedBuffer.buffer.push(event)
         managedBuffer.observedEventCount += 1

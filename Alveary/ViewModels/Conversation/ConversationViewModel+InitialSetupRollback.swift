@@ -1,6 +1,26 @@
 import Foundation
 
 extension ConversationViewModel {
+    func rollbackFailedInitialSetup(
+        error: Error,
+        project: Project?,
+        thread: AgentThread,
+        snapshot: ConversationInitialSetupSnapshot,
+        restoresDraft: Bool
+    ) async throws {
+        cancelPendingRuntimeTasks()
+        let threadID = thread.persistentModelID
+        try await destroyRuntimeAfterFailedInitialSetup(originalError: error)
+        guard let thread = modelContext.resolveThread(id: threadID) else { setupPhase = nil; return }
+        restoreStateAfterFailedInitialSetup(
+            snapshot: snapshot,
+            thread: thread,
+            restoresDraft: restoresDraft
+        )
+        await finishFailedInitialSetupRollback(project: project, thread: thread)
+        setupPhase = nil
+    }
+
     func cancelPendingRuntimeTasks() {
         subscriptionTask?.cancel()
         subscriptionTask = nil
@@ -72,26 +92,30 @@ extension ConversationViewModel {
         thread.hasCompletedInitialSetup = false
     }
 
-    func finishFailedInitialSetupRollback(project: Project?, thread: AgentThread) async {
+    func finishFailedInitialSetupRollback(project _: Project?, thread: AgentThread) async {
         guard thread.effectiveMode == .project,
               thread.useWorktree,
-              let project,
+              let source = thread.sourceFolder,
               let path = thread.worktreePath else {
             persistRollbackMetadataReset()
             return
         }
 
+        let threadID = thread.persistentModelID
+        let branch = thread.branch
         do {
-            try await worktreeManager.remove(
-                projectPath: project.path,
-                worktreePath: path,
-                branch: thread.branch
-            )
-            thread.worktreePath = nil
-            thread.branch = nil
-            try modelContext.save()
+            let manager = worktreeManager
+            let cleanup = Task { try await manager.remove(projectPath: source.path, worktreePath: path, branch: branch) }
+            try await cleanup.value
+            if let liveThread = modelContext.resolveThread(id: threadID), liveThread.worktreePath == path {
+                liveThread.worktreePath = nil
+                liveThread.branch = nil
+                try modelContext.save()
+            }
         } catch let cleanupError {
-            preserveWorktreeAfterFailedRollback(cleanupError: cleanupError, thread: thread)
+            if let liveThread = modelContext.resolveThread(id: threadID), liveThread.worktreePath == path {
+                preserveWorktreeAfterFailedRollback(cleanupError: cleanupError, thread: liveThread)
+            }
         }
     }
 

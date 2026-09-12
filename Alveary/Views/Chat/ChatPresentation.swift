@@ -43,6 +43,15 @@ enum ChatContentMode: Equatable {
 }
 
 enum ChatPresentation {
+    static func showsWorkspaceInEmptyState(
+        isDraft: Bool,
+        contentMode: ChatContentMode,
+        hasSetupPhase: Bool,
+        isCancellingInitialSetup: Bool
+    ) -> Bool {
+        isDraft && contentMode == .emptyThread && !hasSetupPhase && !isCancellingInitialSetup
+    }
+
     static func hasVisibleChatContent(
         hasEvents: Bool,
         hasGroupedItems: Bool,
@@ -136,8 +145,8 @@ struct ChatThreadPresentation: Equatable, Sendable {
 
         if let thread,
            thread.effectiveMode == .project,
-           let project = thread.project,
-           project.isGitRepository,
+           thread.isDraft,
+           thread.sourceFolder?.isGitRepository == true,
            !thread.hasCompletedInitialSetup {
             showWorktreePicker = true
         } else {

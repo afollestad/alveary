@@ -6,8 +6,8 @@ extension SidebarViewModel {
         settingsService.current.defaultThreadCleanupAction
     }
 
-    var pendingDraftProjectPath: String? {
-        pendingDraftProjectPaths[.project]
+    var pendingDraftProjectID: String? {
+        pendingDraftDestination?.projectID
     }
 
     /// `nonisolated` so the off-main cleanup path (`cleanupThread` and the owned-worktree helpers

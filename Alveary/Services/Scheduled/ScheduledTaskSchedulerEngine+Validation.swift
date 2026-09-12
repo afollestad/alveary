@@ -67,11 +67,11 @@ extension ScheduledTaskSchedulerEngine {
     func projectConfigurationSnapshot(
         for definition: ScheduledTask
     ) -> ScheduledProjectConfigSnapshot? {
-        definition.project.map { project in
+        definition.workspaceSnapshot?.primarySource.map { source in
             ScheduledProjectConfigSnapshot(
-                path: project.path,
-                baseRef: project.baseRef,
-                remoteName: project.remoteName
+                path: source.path,
+                baseRef: source.baseRef,
+                remoteName: source.remoteName
             )
         }
     }
@@ -106,6 +106,11 @@ extension ScheduledTaskSchedulerEngine {
         }
         guard ScheduledTaskWorkspaceStrategy(rawValue: definition.workspaceStrategyRawValue) != nil else {
             return "Scheduled task workspace strategy is invalid."
+        }
+        guard let workspace = definition.workspaceSnapshot,
+              destination == .existingThread || (workspace.grants.map(\.path) == definition.grantedRoots
+                && (definition.workspaceKind == .project) == (workspace.primarySource != nil)) else {
+            return "The saved scheduled workspace could not be read. Edit the schedule to restore its folders."
         }
         if definition.state == .active,
            definition.nextOccurrenceAt == nil,

@@ -29,142 +29,97 @@ extension SidebarViewModel {
     }
 
     func openDraftThread(project: Project) async throws -> AgentThread {
-        let requestedProjectID = project.persistentModelID
-        guard let requestedProject = modelContext.resolveProject(id: requestedProjectID) else {
+        guard let project = modelContext.resolveProject(id: project.persistentModelID) else {
             throw SidebarViewModelError.projectMissing
         }
-        let requestedProjectPath = requestedProject.path
-        pendingDraftProjectPaths[.project] = requestedProjectPath
-
-        if let draft = resolveCachedOrPersistedDraftThread(mode: .project) {
-            return try moveDraftThread(draft, toProjectPath: requestedProjectPath)
-        }
-
-        let task = activeDraftCreationTask(mode: .project, requestedProjectPath: requestedProjectPath)
-
-        let taskID = draftCreationTaskIDs[.project]
-        defer {
-            if draftCreationTaskIDs[.project] == taskID {
-                draftCreationTasks[.project] = nil
-                draftCreationTaskIDs[.project] = nil
-            }
-        }
-
-        let threadID = try await task.value
-        guard let draft = modelContext.resolveThread(id: threadID),
-              draft.isDraft,
-              draft.mode == .project else {
-            throw SidebarViewModelError.threadMissing
-        }
-        let destinationPath = pendingDraftProjectPaths[.project] ?? requestedProjectPath
-        return try moveDraftThread(draft, toProjectPath: destinationPath)
+        return try await openDraft(destination: .project(id: project.id))
     }
 
     func openTaskDraft() async throws -> AgentThread {
-        if let draft = resolveCachedOrPersistedDraftThread(mode: .task) {
-            return draft
-        }
+        try await openDraft(destination: .tasks)
+    }
 
-        let task = activeDraftCreationTask(mode: .task, requestedProjectPath: nil)
-        let taskID = draftCreationTaskIDs[.task]
+    func openDraft(destination: ThreadDraftDestination) async throws -> AgentThread {
+        pendingDraftDestination = destination
+        if let draft = resolveCachedOrPersistedDraftThread() {
+            return try moveDraftThread(draft, to: destination)
+        }
+        let task = activeDraftCreationTask()
+        let taskID = draftCreationTaskID
         defer {
-            if draftCreationTaskIDs[.task] == taskID {
-                draftCreationTasks[.task] = nil
-                draftCreationTaskIDs[.task] = nil
+            if draftCreationTaskID == taskID {
+                draftCreationTask = nil
+                draftCreationTaskID = nil
             }
         }
-
         let threadID = try await task.value
-        guard let draft = modelContext.resolveThread(id: threadID),
-              draft.isDraft,
-              draft.mode == .task else {
+        guard let draft = modelContext.resolveThread(id: threadID), draft.isDraft else {
             throw SidebarViewModelError.threadMissing
         }
-        return draft
+        // Concurrent open requests share one insert; the latest destination wins after discovery returns.
+        return try moveDraftThread(draft, to: pendingDraftDestination ?? destination)
     }
 
-    func moveDraftThread(id: PersistentIdentifier, toProjectPath projectPath: String) throws -> AgentThread {
-        guard let draft = modelContext.resolveThread(id: id),
-              draft.isDraft,
-              draft.mode == .project else {
+    func moveDraftThread(id: PersistentIdentifier, to destination: ThreadDraftDestination) throws -> AgentThread {
+        guard let draft = modelContext.resolveThread(id: id), draft.isDraft else {
             throw SidebarViewModelError.threadMissing
         }
-        return try moveDraftThread(draft, toProjectPath: projectPath)
+        return try moveDraftThread(draft, to: destination)
     }
 
-    func noteDraftMaterialized(mode: AgentThreadMode) {
-        cachedDraftThreadIDs[mode] = nil
-        pendingDraftProjectPaths[mode] = nil
+    func noteDraftMaterialized(mode _: AgentThreadMode) {
+        cachedDraftThreadID = nil
+        pendingDraftDestination = nil
         threadOrderVersion += 1
     }
 
     func invalidateDraftThreadIfNeeded(threadID: PersistentIdentifier) {
-        for mode in AgentThreadMode.allCases where cachedDraftThreadIDs[mode] == threadID {
-            cachedDraftThreadIDs[mode] = nil
-            pendingDraftProjectPaths[mode] = nil
-        }
+        invalidateDraftThreadIfNeeded(threadIDs: [threadID])
     }
 
     func invalidateDraftThreadIfNeeded(threadIDs: Set<PersistentIdentifier>) {
-        for mode in AgentThreadMode.allCases {
-            guard let cachedID = cachedDraftThreadIDs[mode], threadIDs.contains(cachedID) else {
-                continue
-            }
-            cachedDraftThreadIDs[mode] = nil
-            pendingDraftProjectPaths[mode] = nil
-        }
+        guard let cachedDraftThreadID, threadIDs.contains(cachedDraftThreadID) else { return }
+        self.cachedDraftThreadID = nil
+        pendingDraftDestination = nil
     }
 }
 
 private extension SidebarViewModel {
-    func activeDraftCreationTask(
-        mode: AgentThreadMode,
-        requestedProjectPath: String?
-    ) -> Task<PersistentIdentifier, Error> {
-        if let draftCreationTask = draftCreationTasks[mode] {
-            return draftCreationTask
-        }
-
-        draftCreationTaskIDs[mode] = UUID()
+    func activeDraftCreationTask() -> Task<PersistentIdentifier, Error> {
+        if let draftCreationTask { return draftCreationTask }
+        draftCreationTaskID = UUID()
         let task = Task { @MainActor [weak self] in
-            guard let self else {
-                throw SidebarViewModelError.threadMissing
-            }
+            guard let self else { throw SidebarViewModelError.threadMissing }
             let resolution = await resolvedThreadDefaults()
             guard let providerID = resolution.providerID else {
                 throw SidebarViewModelError.noReadyThreadDefaultProvider
             }
             let draft: AgentThread
-            switch mode {
-            case .project:
-                guard let destinationPath = pendingDraftProjectPaths[.project] ?? requestedProjectPath else {
+            switch pendingDraftDestination ?? .tasks {
+            case .project(let projectID):
+                guard let project = modelContext.resolveProject(projectID: projectID) else {
                     throw SidebarViewModelError.projectMissing
                 }
                 draft = try threadLifecycle.insertProjectThread(
-                    projectPath: destinationPath,
+                    project: project,
                     seed: ProjectThreadSeed(
-                        provider: providerID,
-                        permissionMode: resolution.permissionMode,
-                        model: resolution.storedThreadModel,
-                        effort: resolution.effort,
-                        isDraft: true
+                        provider: providerID, permissionMode: resolution.permissionMode,
+                        model: resolution.storedThreadModel, effort: resolution.effort, isDraft: true,
+                        workspaceSnapshot: project.workspaceSnapshot()
                     )
                 )
-            case .task:
-                draft = try threadLifecycle.insertTaskThread(
-                    seed: TaskThreadSeed(
-                        provider: providerID,
-                        permissionMode: resolution.permissionMode,
-                        model: resolution.storedThreadModel,
-                        effort: resolution.effort,
-                        isDraft: true
-                    )
-                )
+            case .tasks, .section:
+                let placement: TaskThreadSidebarPlacement
+                if case .section(let id) = pendingDraftDestination { placement = .section(id: id) } else { placement = .tasks }
+                draft = try threadLifecycle.insertTaskThread(seed: TaskThreadSeed(
+                    provider: providerID, permissionMode: resolution.permissionMode,
+                    model: resolution.storedThreadModel, effort: resolution.effort, isDraft: true, placement: placement
+                ))
             }
-            cachedDraftThreadIDs[mode] = draft.persistentModelID
+            cachedDraftThreadID = draft.persistentModelID
             return draft.persistentModelID
         }
-        draftCreationTasks[mode] = task
+        draftCreationTask = task
         return task
     }
 
@@ -188,60 +143,15 @@ private extension SidebarViewModel {
         )
     }
 
-    func resolveCachedOrPersistedDraftThread(mode: AgentThreadMode) -> AgentThread? {
-        if let cachedDraftThreadID = cachedDraftThreadIDs[mode],
-           let draft = modelContext.resolveThread(id: cachedDraftThreadID),
-           draft.isDraft,
-           draft.mode == mode {
+    func resolveCachedOrPersistedDraftThread() -> AgentThread? {
+        if let cachedDraftThreadID, let draft = modelContext.resolveThread(id: cachedDraftThreadID), draft.isDraft {
             return draft
         }
-
-        let descriptor = FetchDescriptor<AgentThread>(predicate: #Predicate { thread in
-            thread.isDraft == true
-        })
-        guard let draft = try? modelContext.fetch(descriptor).first(where: { $0.mode == mode }) else {
-            cachedDraftThreadIDs[mode] = nil
-            return nil
-        }
-        cachedDraftThreadIDs[mode] = draft.persistentModelID
-        return draft
-    }
-
-    func moveDraftThread(_ draft: AgentThread, toProjectPath projectPath: String) throws -> AgentThread {
-        guard draft.isDraft, draft.mode == .project else {
-            throw SidebarViewModelError.threadMissing
-        }
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == projectPath
-        })
-        guard let project = try modelContext.fetch(descriptor).first else {
-            throw SidebarViewModelError.projectMissing
-        }
-
-        if draft.project?.persistentModelID == project.persistentModelID {
-            settingsService.updateLastActiveProjectPath(project.path)
-            return draft
-        }
-
-        let previousProject = draft.project
-        draft.project = project
-        do {
-            try persistDraftProjectMove()
-        } catch {
-            draft.project = previousProject
-            pendingDraftProjectPaths[.project] = previousProject?.path
-            throw error
-        }
-        settingsService.updateLastActiveProjectPath(project.path)
-        NotificationCenter.default.post(
-            name: .threadDraftProjectChanged,
-            object: nil,
-            userInfo: [
-                ThreadDraftNotificationKey.threadID: draft.persistentModelID,
-                ThreadDraftNotificationKey.projectPath: project.path,
-                ThreadDraftNotificationKey.mode: AgentThreadMode.project.rawValue
-            ]
+        let descriptor = FetchDescriptor<AgentThread>(
+            predicate: #Predicate { $0.isDraft == true }, sortBy: [SortDescriptor(\AgentThread.modifiedAt, order: .reverse)]
         )
+        let draft = try? modelContext.fetch(descriptor).first
+        cachedDraftThreadID = draft?.persistentModelID
         return draft
     }
 

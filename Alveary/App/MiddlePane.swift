@@ -8,6 +8,7 @@ import SwiftUI
 /// right-pane resize drag — rebuilt this whole subtree.
 struct MiddlePane: View, Equatable {
     @Bindable var appState: AppState
+    let selectedProjectFolder: WorkspaceFolderTarget?
     let modelContext: ModelContext
     let gitHubCLI: GitHubCLIService
     let agentsManager: any AgentsManager
@@ -37,12 +38,14 @@ struct MiddlePane: View, Equatable {
 
     @Environment(\.modelContext) private var uiModelContext
     @Query private var projects: [Project]
+    @Query private var sections: [SidebarSection]
 
     // Match the new-thread hero's optical center within the root selection pane.
     private let selectionEmptyStateVerticalOffset: CGFloat = -86
 
-    /// `targetSettingsPage` is the only stored input that varies; everything the body
-    /// renders otherwise comes from `appState`, the `@Query`, and the environment, all of
+    /// The settings destination and selected project folder are captured values; both must
+    /// participate in equality so the editor cannot retain another folder's configuration.
+    /// Everything the body renders otherwise comes from `appState`, the `@Query`, and the environment, all of
     /// which invalidate this view directly. The services are dependency handles
     /// `ContentView` injects once per window, and the three closures read through those
     /// same references and `@State` boxes rather than a captured copy's stored values, so
@@ -50,7 +53,9 @@ struct MiddlePane: View, Equatable {
     /// omitted only because a `nonisolated` `==` cannot read them; they are injected once
     /// per window like the rest.
     nonisolated static func == (lhs: MiddlePane, rhs: MiddlePane) -> Bool {
-        lhs.targetSettingsPage == rhs.targetSettingsPage && sameViewModels(lhs, rhs)
+        lhs.targetSettingsPage == rhs.targetSettingsPage
+            && lhs.selectedProjectFolder == rhs.selectedProjectFolder
+            && sameViewModels(lhs, rhs)
     }
 
     private nonisolated static func sameViewModels(_ lhs: MiddlePane, _ rhs: MiddlePane) -> Bool {
@@ -84,17 +89,19 @@ struct MiddlePane: View, Equatable {
             // A selection is a token, not proof of liveness (`SidebarItem.resolved(in:)`'s
             // contract): reading `path` off a deleted row traps inside SwiftData, so re-resolve
             // first and render a gone row as no selection.
-            if case .project(let liveProject)? = SidebarItem.project(project).resolved(in: modelContext) {
+            if case .project(let liveProject)? = SidebarItem.project(project).resolved(in: uiModelContext) {
                 // `.id` gives each project a fresh editor, so a revisited project would
                 // start empty and fill in a beat later; the cached config (an in-memory
                 // lookup, no I/O) lets it render populated on this frame instead.
+                let folder = selectedProjectFolder
                 ProjectSettingsView(
                     project: liveProject,
                     appState: appState,
                     sidebarViewModel: sidebarViewModel,
-                    initialConfig: ProjectConfigStore.shared.cached(forProjectPath: liveProject.path) ?? .empty
+                    initialConfig: folder.flatMap { ProjectConfigStore.shared.cached(forProjectPath: $0.source.path) } ?? .empty,
+                    sourceFolder: folder?.source
                 )
-                    .id(liveProject.path)
+                    .id(liveProject.id + ":" + (folder?.id ?? "empty"))
             } else {
                 noSelectionPane
             }
@@ -115,12 +122,13 @@ struct MiddlePane: View, Equatable {
                 voiceInputService: voiceInputService,
                 voiceInputLifecycleController: voiceInputLifecycleController,
                 availableProjects: projects,
-                selectDraftProject: { threadID, projectPath in
+                availableSections: sections,
+                selectDraftDestination: { threadID, projectPath in
                     do {
                         guard let draft = try performDraftProjectMoveIfVoiceInputUnlocked(
                             lifecycleController: voiceInputLifecycleController,
                             operation: {
-                                try sidebarViewModel.moveDraftThread(id: threadID, toProjectPath: projectPath)
+                                try sidebarViewModel.moveDraftThread(id: threadID, to: projectPath)
                             }
                         ) else {
                             return
@@ -213,11 +221,8 @@ func resolveSidebarSelectionBookmark(
         return .pullRequests
     case .archived:
         return .archived
-    case .projectPath(let path):
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == path
-        })
-        guard let project = try? modelContext.fetch(descriptor).first else {
+    case .projectID(let id):
+        guard let project = modelContext.resolveProject(id: id) else {
             return nil
         }
         return .project(project)

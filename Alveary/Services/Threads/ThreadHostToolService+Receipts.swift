@@ -18,7 +18,7 @@ extension ThreadHostToolService {
                 at: requestDate
             )
             if modelContext.hasChanges {
-                try modelContext.save()
+                try saveChanges(modelContext)
             }
             return receipt
         } catch {
@@ -35,7 +35,7 @@ extension ThreadHostToolService {
     ) throws {
         do {
             try sourceConversation.recordThreadHostToolReceipt(receipt)
-            try modelContext.save()
+            try saveChanges(modelContext)
         } catch {
             modelContext.rollback()
             throw ThreadHostToolServiceError.persistenceFailure

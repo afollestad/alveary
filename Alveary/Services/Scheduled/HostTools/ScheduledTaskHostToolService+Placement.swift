@@ -15,6 +15,7 @@ extension ScheduledTaskHostToolService {
         let kind: ScheduledTaskWorkspaceKind
         let project: Project?
         let grantedRoots: [String]
+        let snapshot: WorkspaceSnapshot
     }
 
     /// Resolves a `target_thread_id` from `list_threads` into a thread a schedule may post into.
@@ -39,33 +40,44 @@ extension ScheduledTaskHostToolService {
     /// pane allows; every grant is disclosed in the placement summary and the confirmation pane.
     func resolvedWorkspace(
         requested: ScheduledTaskProposalWorkspace?,
-        inheritedKind: ScheduledTaskWorkspaceKind,
         inheritedProject: Project?,
-        inheritedGrantedRoots: [String]
+        inheritedSnapshot: WorkspaceSnapshot?,
+        resolveNewFolder: (String) throws -> SourceFolderSnapshot
     ) throws -> ResolvedWorkspace {
-        guard let requested else {
-            return ResolvedWorkspace(
-                kind: inheritedKind,
-                project: inheritedProject,
-                grantedRoots: inheritedGrantedRoots
-            )
-        }
-
         let project: Project?
+        var snapshot: WorkspaceSnapshot
         switch requested {
-        case .project(let path, _):
-            project = try resolveRegisteredProject(path: path)
-        case .privateWorkspace:
+        case let .project(key, _, isID, primaryPath, privateWorkspace):
+            project = isID ? modelContext.resolveProject(projectID: key) : try resolveRegisteredProject(path: key)
+            guard let project else { throw ScheduledTaskHostToolServiceError.projectNotRegistered(path: key) }
+            if let primaryPath, !project.orderedFolders.contains(where: { $0.path == primaryPath }) {
+                throw ScheduledTaskHostToolServiceError.grantRootUnavailable(path: primaryPath)
+            }
+            let defaults = project.workspaceSnapshot(primaryPath: primaryPath)
+            snapshot = privateWorkspace ? WorkspaceSnapshot(primarySource: nil, grants: defaults.sourceFolders) : defaults
+        case .privateWorkspace(let grantedRoots):
+            if grantedRoots == nil, inheritedSnapshot == nil {
+                throw ScheduledTaskHostToolServiceError.workspaceUnavailable
+            }
             project = nil
+            snapshot = WorkspaceSnapshot(primarySource: nil, grants: inheritedSnapshot?.grants ?? [])
+        case nil:
+            guard let inheritedSnapshot else { throw ScheduledTaskHostToolServiceError.workspaceUnavailable }
+            project = inheritedProject
+            snapshot = inheritedSnapshot
         }
-
+        let roots = try resolvedGrantedRoots(requested: requested?.grantedRoots, inherited: snapshot.grants.map(\.path))
+        snapshot = WorkspaceSnapshot(
+            primarySource: snapshot.primarySource,
+            grants: try roots.map { path in
+                try snapshot.sourceFolders.first { $0.path == path } ?? resolveNewFolder(path)
+            },
+            rootsExplicitlyManaged: requested == nil ? snapshot.rootsExplicitlyManaged : true
+        )
+        for folder in snapshot.sourceFolders { try ScheduledTaskHostToolSupport.validateStoredCanonicalPath(folder.path) }
         return ResolvedWorkspace(
-            kind: requested.kind,
-            project: project,
-            grantedRoots: try resolvedGrantedRoots(
-                requested: requested.grantedRoots,
-                inherited: inheritedGrantedRoots
-            )
+            kind: snapshot.primarySource == nil ? .privateWorkspace : .project,
+            project: project, grantedRoots: roots, snapshot: snapshot
         )
     }
 
@@ -166,7 +178,6 @@ private extension ScheduledTaskHostToolService {
         guard let project = candidates.lazy.compactMap({ self.modelContext.resolveProject(path: $0) }).first else {
             throw ScheduledTaskHostToolServiceError.projectNotRegistered(path: path)
         }
-        try ScheduledTaskHostToolSupport.validateStoredCanonicalPath(project.path)
         return project
     }
 
@@ -196,6 +207,7 @@ private extension ScheduledTaskHostToolService {
             }
             return normalized
         }
-        return ScheduledTask.normalizedUniquePaths(resolved)
+        var seen = Set<String>()
+        return resolved.filter { seen.insert($0).inserted }
     }
 }

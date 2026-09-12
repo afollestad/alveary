@@ -8,14 +8,15 @@ extension ChatView {
     /// Non-optional on purpose: a `nil` summary tells `Configuration` to hide the context indicator,
     /// and `ChatView` has no such case — its derivation falls back to `.unreported`.
     func composerActionRowConfiguration(
-        usageSummary: ConversationUsageSummary
+        usageSummary: ConversationUsageSummary,
+        showsWorkspaceInEmptyState: Bool = false
     ) -> ChatComposerActionRowView.Configuration {
         let presentation = composerPresentation
         return ChatComposerActionRowView.Configuration(
             reasoning: reasoningConfiguration,
             supportedPermissionModes: supportedPermissionModeOptions,
             selectedPermissionMode: selectedPermissionModeBinding.wrappedValue,
-            showWorktreePicker: showWorktreePicker,
+            showWorktreePicker: showWorktreePicker && !showsWorkspaceInEmptyState,
             selectedUseWorktree: selectedUseWorktreeBinding.wrappedValue,
             isPlanModeEnabled: selectedPlanModeBinding.wrappedValue,
             isPlanModeToggleEnabled: isPlanModeToggleEnabled,
@@ -40,7 +41,7 @@ extension ChatView {
             onGoalModeChipDismiss: {
                 dismissGoalModeFromComposerChip()
             },
-            taskWorkspace: composerTaskWorkspaceConfiguration,
+            taskWorkspace: showsWorkspaceInEmptyState ? nil : composerTaskWorkspaceConfiguration,
             voiceInput: voiceInputButtonConfiguration,
             reasoningMenuPresentationRequest: reasoningMenuRequestState.pendingRequest,
             onReasoningMenuRequestConsumed: { consumedRequestID in
@@ -55,7 +56,7 @@ extension ChatView {
     }
 }
 
-private extension ChatView {
+extension ChatView {
     var supportedPermissionModeOptions: [ChatComposerActionRowView.PermissionOptionPresentation] {
         ChatComposerPermissionPresentation.options(
             providerID: reasoningConfiguration.selection.providerID,
@@ -64,7 +65,7 @@ private extension ChatView {
     }
 
     var composerTaskWorkspaceConfiguration: ChatComposerActionRowView.TaskWorkspaceConfiguration? {
-        conversation.thread?.taskWorkspaceDescriptor.map { workspace in
+        conversation.thread?.resolvedWorkspaceDescriptor.map { workspace in
             ChatComposerActionRowView.TaskWorkspaceConfiguration(
                 primaryRoot: workspace.primaryRoot,
                 grantedRoots: workspace.grantedRoots,
@@ -78,7 +79,9 @@ private extension ChatView {
                 onRemoveGrant: { folder in
                     guard !voiceInputCoordinator.isDraftInteractionLocked else { return }
                     viewModel.removeTaskWorkspaceGrant(folder)
-                }
+                },
+                selectedUseWorktree: showWorktreePicker ? selectedUseWorktreeBinding.wrappedValue : nil,
+                onUseWorktreeChange: { selectedUseWorktreeBinding.wrappedValue = $0 }
             )
         }
     }

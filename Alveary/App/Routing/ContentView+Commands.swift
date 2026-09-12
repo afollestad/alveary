@@ -2,17 +2,13 @@ import AppKit
 import SwiftData
 import SwiftUI
 
-enum NewThreadCommandPresentation {
-    static let noProjectMessage = "Add a project before starting a new thread."
-}
-
 struct NewThreadProjectResolution {
     let project: Project?
-    let lastActiveProjectPath: String?
+    let lastActiveProjectID: String?
 
     init(project: Project?) {
         self.project = project
-        self.lastActiveProjectPath = project?.path
+        self.lastActiveProjectID = project?.id
     }
 }
 
@@ -21,7 +17,8 @@ enum NewThreadProjectResolver {
     static func resolve(
         selection: SidebarItem?,
         previousSelection: AppState.SidebarBookmark?,
-        lastActiveProjectPath: String?,
+        lastActiveProjectID: String?,
+        legacyProjectPath: String? = nil,
         modelContext: ModelContext
     ) -> NewThreadProjectResolution {
         if let current = currentProject(
@@ -32,9 +29,13 @@ enum NewThreadProjectResolver {
             return NewThreadProjectResolution(project: current)
         }
 
-        if let lastActiveProjectPath,
-           let lastActive = project(path: lastActiveProjectPath, modelContext: modelContext) {
+        if let lastActiveProjectID,
+           let lastActive = modelContext.resolveProject(projectID: lastActiveProjectID) {
             return NewThreadProjectResolution(project: lastActive)
+        }
+
+        if let legacyProjectPath, let legacy = modelContext.resolveProject(path: legacyProjectPath) {
+            return NewThreadProjectResolution(project: legacy)
         }
 
         let descriptor = FetchDescriptor<Project>()
@@ -51,8 +52,7 @@ enum NewThreadProjectResolver {
         case .project(let project):
             return modelContext.resolveProject(id: project.persistentModelID)
         case .thread(let thread):
-            guard let thread = modelContext.resolveThread(id: thread.persistentModelID),
-                  thread.effectiveMode == .project else {
+            guard let thread = modelContext.resolveThread(id: thread.persistentModelID) else {
                 return nil
             }
             return thread.project
@@ -62,11 +62,10 @@ enum NewThreadProjectResolver {
             }
 
             switch previousSelection {
-            case .projectPath(let path):
-                return project(path: path, modelContext: modelContext)
+            case .projectID(let id):
+                return modelContext.resolveProject(id: id)
             case .threadId(let id):
-                guard let thread = modelContext.resolveThread(id: id),
-                      thread.effectiveMode == .project else {
+                guard let thread = modelContext.resolveThread(id: id) else {
                     return nil
                 }
                 return thread.project
@@ -78,12 +77,6 @@ enum NewThreadProjectResolver {
         }
     }
 
-    private static func project(path: String, modelContext: ModelContext) -> Project? {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == path
-        })
-        return try? modelContext.fetch(descriptor).first
-    }
 }
 
 extension ContentView {
@@ -116,19 +109,9 @@ extension ContentView {
                 isAddProjectSheetPresented = true
                 shouldClearCommand = true
 
-            case .newThread(_, let mode):
-                shouldClearCommand = await handleNewThreadCommand(commandID: commandID, mode: mode)
+            case .newThread(_, let destination):
+                shouldClearCommand = await handleNewThreadCommand(commandID: commandID, destination: destination)
             }
-        }
-    }
-
-    func handleAddProjectSheetDismiss() {
-        guard pendingDiskImportAfterDismiss else {
-            return
-        }
-        pendingDiskImportAfterDismiss = false
-        Task { @MainActor in
-            await importProjectFromDisk()
         }
     }
 
@@ -137,13 +120,9 @@ extension ContentView {
         AddProjectSheet(
             viewModel: sidebarViewModel,
             settingsService: settingsService,
-            onChooseFromDisk: {
-                pendingDiskImportAfterDismiss = true
-                isAddProjectSheetPresented = false
-            },
             onProjectCreated: { project in
                 isAddProjectSheetPresented = false
-                appState.selectedSidebarItem = resolveProject(path: project.path)
+                appState.selectedSidebarItem = resolveProject(projectID: project.id)
                     .map(SidebarItem.project)
             }
         )
@@ -172,27 +151,14 @@ func pendingCommandCanProceed(
 }
 
 extension ContentView {
-    func resolveProject(path: String) -> Project? {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == path
-        })
-        return try? uiModelContext.fetch(descriptor).first
+    func resolveProject(projectID: String) -> Project? {
+        uiModelContext.resolveProject(projectID: projectID)
     }
 
     @discardableResult
-    func handleNewThreadCommand(commandID: UUID, mode: AgentThreadMode) async -> Bool {
+    func handleNewThreadCommand(commandID: UUID, destination: ThreadDraftDestination?) async -> Bool {
         do {
-            let createdThread: AgentThread
-            switch mode {
-            case .project:
-                guard let project = resolvedNewThreadProject() else {
-                    appState.presentUnexpectedError(message: NewThreadCommandPresentation.noProjectMessage)
-                    return true
-                }
-                createdThread = try await sidebarViewModel.openDraftThread(project: project)
-            case .task:
-                createdThread = try await sidebarViewModel.openTaskDraft()
-            }
+            let createdThread = try await sidebarViewModel.openDraft(destination: destination ?? resolvedNewThreadDestination())
             guard pendingCommandCanProceed(
                 commandID: commandID,
                 currentCommandID: appState.pendingCommand?.id,
@@ -217,14 +183,26 @@ extension ContentView {
         }
     }
 
+    func resolvedNewThreadDestination() -> ThreadDraftDestination {
+        // A selected standalone thread keeps its placement; a previous project is only a fallback on other screens.
+        if case .thread(let selected) = appState.selectedSidebarItem,
+           let thread = uiModelContext.resolveThread(id: selected.persistentModelID) {
+            if let project = thread.project { return .project(id: project.id) }
+            if let section = thread.customSection { return .section(id: section.id) }
+            return .tasks
+        }
+        return resolvedNewThreadProject().map { .project(id: $0.id) } ?? .tasks
+    }
+
     func resolvedNewThreadProject() -> Project? {
         let resolution = NewThreadProjectResolver.resolve(
             selection: appState.selectedSidebarItem,
             previousSelection: appState.previousSelection,
-            lastActiveProjectPath: settingsService.current.lastActiveProjectPath,
+            lastActiveProjectID: settingsService.current.lastActiveProjectID,
+            legacyProjectPath: settingsService.current.lastActiveProjectPath,
             modelContext: uiModelContext
         )
-        settingsService.updateLastActiveProjectPath(resolution.lastActiveProjectPath)
+        settingsService.updateLastActiveProjectID(resolution.lastActiveProjectID)
         return resolution.project
     }
 
@@ -232,26 +210,4 @@ extension ContentView {
         lastActiveProjectRecorder.record(for: selection)
     }
 
-    func importProjectFromDisk() async {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-
-        guard panel.runModal() == .OK, let url = panel.url else {
-            return
-        }
-
-        do {
-            let createdProject = try await sidebarViewModel.createProject(path: url.path)
-            performAppNavigationIfModelPreparationModalAbsent(
-                lifecycleController: voiceInputLifecycleController
-            ) {
-                appState.selectedSidebarItem = resolveProject(path: createdProject.path)
-                    .map(SidebarItem.project)
-            }
-        } catch {
-            sidebarViewModel.presentSidebarError(error)
-        }
-    }
 }

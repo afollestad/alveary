@@ -38,6 +38,8 @@ extension ScheduledTasksViewModel {
         // own `@Query`, so a section created mid-session — including by the windowless
         // `create_section` host tool — reaches the Section picker only through this.
         sectionObservationTask = reloadObservationTask(named: .sidebarSectionsChanged)
+        // Refresh available defaults without replacing an editor's already captured workspace.
+        workspaceObservationTask = reloadObservationTask(named: .workspaceConfigurationChanged)
     }
 
     /// One subscription that answers every posting of `name` with a full `reload()`.
@@ -61,6 +63,7 @@ extension ScheduledTasksViewModel {
         guard !draft.hasUnresolvedDestination else {
             throw ScheduledTasksViewModelError.destinationNotRecognized
         }
+        guard !draft.isResolvingFolders else { throw ScheduledTasksViewModelError.foldersStillResolving }
         let text = try validatedText(in: draft)
         let destination = try resolvedDestination(in: draft)
         let threadSection = try resolvedThreadSection(in: draft)
@@ -70,6 +73,21 @@ extension ScheduledTasksViewModel {
             matching: draft.modelSelection
         )
         let normalizedModel = storedModel == AppSettings.defaultModelValue ? nil : storedModel
+        let roots = draft.destination == .existingThread ? []
+            : draft.resolvedGrantPaths(preservingAllPaths: preservesTrustedGrantSnapshot)
+        let source = draft.destination != .existingThread && draft.workspaceKind == .project
+            ? draft.workspaceSnapshot?.primarySource ?? destination.project?.orderedFolders.first { $0.path == draft.projectPath }?.snapshot : nil
+        let workspace = WorkspaceSnapshot(
+            primarySource: source,
+            grants: roots.map { path in
+                draft.workspaceSnapshot?.grants.first { $0.path == path }
+                    ?? destination.project?.orderedFolders.first { $0.path == path }?.snapshot
+                    ?? SourceFolderSnapshot(path: path)
+            },
+            // Text-only edits retain legacy native roots and the existing reuse link.
+            rootsExplicitlyManaged: !draft.isEditing || draft.workspaceSnapshot?.rootsExplicitlyManaged != false
+                || source != draft.workspaceSnapshot?.primarySource || roots != draft.workspaceSnapshot?.grants.map(\.path)
+        )
         return ScheduledTaskDefinitionEdit(
             title: text.title,
             prompt: text.prompt,
@@ -84,14 +102,13 @@ extension ScheduledTasksViewModel {
                 selectedModel: normalizedModel
             ),
             permissionMode: draft.permissionMode,
-            workspaceKind: draft.workspaceKind,
+            workspaceKind: draft.destination == .existingThread ? .privateWorkspace : draft.workspaceKind,
             workspaceStrategy: draft.workspaceStrategy,
-            grantedRoots: preservesTrustedGrantSnapshot
-                ? draft.grantedRoots
-                : ScheduledTask.normalizedUniquePaths(draft.grantedRoots),
+            grantedRoots: roots,
             project: destination.project,
             targetThread: destination.thread,
-            threadSection: threadSection
+            threadSection: threadSection,
+            workspaceSnapshot: workspace
         )
     }
 
@@ -100,7 +117,7 @@ extension ScheduledTasksViewModel {
     /// destination or workspace cannot carry a section, so a hidden stale pick never round-trips.
     private func resolvedThreadSection(in draft: ScheduledTaskEditorDraft) throws -> SidebarSection? {
         guard draft.destination != .existingThread,
-              draft.workspaceKind == .privateWorkspace,
+              draft.projectID == nil, draft.workspaceSnapshot != nil || draft.projectPath == nil,
               let sectionID = draft.sectionID else {
             return nil
         }
@@ -112,10 +129,7 @@ extension ScheduledTasksViewModel {
     }
 
     func resolveProject(path: String) -> Project? {
-        let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == path
-        })
-        return try? modelContext.fetch(descriptor).first
+        modelContext.resolveProject(path: path)
     }
 
     /// Custom sections in persisted sidebar order, for the editor's Section picker; `Tasks` is
@@ -228,6 +242,12 @@ private extension ScheduledTasksViewModel {
             }
             return (nil, thread)
         }
+        if let id = draft.projectID {
+            guard let project = modelContext.resolveProject(projectID: id) else { throw ScheduledTasksViewModelError.projectNotFound }
+            return (project, nil)
+        }
+        // An edited detached definition retains its execution source independently of placement.
+        if draft.workspaceSnapshot != nil { return (nil, nil) }
         guard draft.workspaceKind == .project else { return (nil, nil) }
         guard let projectPath = draft.projectPath else { throw ScheduledTasksViewModelError.projectRequired }
         guard let project = resolveProject(path: projectPath) else { throw ScheduledTasksViewModelError.projectNotFound }

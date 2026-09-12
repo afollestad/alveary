@@ -15,9 +15,11 @@ These instructions cover `Alveary/Data/Threads/` — the `AgentThread` row, its 
 ### Identity And Lifecycle
 
 - **`AgentThread.isDraft` marks the one process-local provisional new-thread row.** Its stored default stays `false` so pre-field stores migrate existing threads as real. A draft owns one persisted main conversation but no provider session, runtime, worktree, branch, setup completion, or visible events.
-- **`AgentThread.modeRawValue` is the persisted Project-versus-Task identity**, defaulting old stores to Project. Never derive mode from `project != nil`: a Task's `project` is sidebar placement only, and its workspace and source-project paths live in the flat fields plus `taskWorkspaceDescriptor`.
+- Keep execution mode independent of project placement. `workspaceSnapshot` owns the saved source and grants; `resolvedWorkspaceDescriptor` owns working directory and cleanup provenance. A source-backed thread can outlive its project, and an empty project can contain private Task workspaces.
     - Project deletion detaches Task children instead of cascading into their history.
 - **`AgentThread.pinnedSortOrder` shares one dense order with `Project`**, whose rules `Alveary/Data/AGENTS.md` owns.
+
+- Preserve `WorkspaceSnapshot.rootsExplicitlyManaged` across resumes and lifecycle changes. New workspaces pass `[actualWorkingDirectory] + grants` to the SDK; migrated grantless sessions preserve native provider roots until explicitly edited.
 
 ### Picker State
 

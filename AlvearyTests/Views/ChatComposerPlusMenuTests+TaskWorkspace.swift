@@ -5,6 +5,28 @@ import XCTest
 
 @MainActor
 extension ChatComposerPlusMenuTests {
+    func testWorkspaceMenuCombinesLocationChoiceWithFolderAccess() throws {
+        var selected: Bool?
+        var closeCount = 0
+        var configuration = makeTaskWorkspaceConfiguration()
+        configuration.selectedUseWorktree = false
+        configuration.onUseWorktreeChange = { selected = $0 }
+        let controller = ComposerTaskWorkspaceMenuViewController(
+            configuration: configuration, onAddFolders: {}, onRemoveGrant: { _ in },
+            onRequestClose: { closeCount += 1 }
+        )
+        controller.loadViewIfNeeded()
+        controller.view.layoutSubtreeIfNeeded()
+        let rows = controller.view.taskWorkspaceDescendants(of: ComposerReasoningMenuRowView.self)
+        let local = try XCTUnwrap(rows.first { $0.accessibilityLabel() == "Local" })
+        let worktree = try XCTUnwrap(rows.first { $0.accessibilityLabel() == "Worktree" })
+        XCTAssertEqual(local.accessibilityValue() as? String, "Selected")
+        XCTAssertNotNil(rows.first { $0.accessibilityLabel() == "Add folder access" })
+        XCTAssertTrue(worktree.accessibilityPerformPress())
+        XCTAssertEqual(selected, true)
+        XCTAssertEqual(closeCount, 1)
+    }
+
     func testTaskWorkspaceMenuUsesSharedComposerPopoverChrome() throws {
         let homeGrant = NSHomeDirectory() + "/Development/grant-a"
         let controller = ComposerTaskWorkspaceMenuViewController(

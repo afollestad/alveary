@@ -27,7 +27,11 @@ extension ContentView {
     /// token is resolved first; the tracked read then happens on the resolved instance and still
     /// republishes on every link change.
     var selectedPullRequestLinks: [OwnedPullRequestLink] {
-        switch appState.selectedSidebarItem?.resolved(in: uiModelContext) {
+        Self.pullRequestLinks(for: appState.selectedSidebarItem, modelContext: uiModelContext)
+    }
+
+    static func pullRequestLinks(for selection: SidebarItem?, modelContext: ModelContext) -> [OwnedPullRequestLink] {
+        switch selection?.resolved(in: modelContext) {
         case .thread(let thread) where !thread.isDraft:
             let owner = PullRequestLinkOwner.thread(thread.persistentModelID)
             return thread.linkedPullRequests.map {
@@ -37,6 +41,28 @@ extension ContentView {
             return project.aggregatedPullRequestLinks
         default:
             return []
+        }
+    }
+
+    /// The Git footer belongs to the selected repository; the toolbar keeps the complete owner's links.
+    var selectedFolderPullRequestLinks: [OwnedPullRequestLink] {
+        guard let folder = selectedWorkspaceFolder,
+              let repository = folderSelection.repository(for: folder) else { return [] }
+        return selectedPullRequestLinks.filter { $0.id.nameWithOwner.caseInsensitiveCompare(repository) == .orderedSame }
+    }
+
+    var folderRepositoryDiscoveryKey: FolderRepositoryDiscoveryKey {
+        FolderRepositoryDiscoveryKey.resolve(
+            selection: appState.selectedSidebarItem, folder: selectedWorkspaceFolder,
+            modelContext: uiModelContext, diffViewModel: diffViewModel
+        )
+    }
+
+    func refreshSelectedFolderRepository() async {
+        guard let folder = selectedWorkspaceFolder else { return }
+        await folderSelection.refreshRepository(for: folder) { directory in
+            let source = await SourceFolderMetadataResolver().resolve(path: directory)
+            return source.githubRepository
         }
     }
 
@@ -170,5 +196,33 @@ extension ContentView {
                 onEditURL: pullRequestLinksViewModel.clearLinkError
             )
         }
+    }
+}
+
+/// Git initialization can follow an existing PR link without changing the folder or link identity.
+/// Retry discovery after completed Git refreshes only for the matching folder with missing repository metadata.
+struct FolderRepositoryDiscoveryKey: Equatable {
+    let folder: WorkspaceFolderTarget?
+    let linkedPullRequestIDs: Set<PullRequestIdentifier>
+    let workspaceRefreshRevision: UInt64?
+
+    @MainActor
+    static func resolve(
+        selection: SidebarItem?, folder: WorkspaceFolderTarget?, modelContext: ModelContext,
+        diffViewModel: DiffViewerViewModel? = nil
+    ) -> Self {
+        let links = Set(ContentView.pullRequestLinks(for: selection, modelContext: modelContext).map(\.id))
+        let refreshRevision: UInt64?
+        if let folder, folder.repository == nil, !links.isEmpty,
+           let diffViewModel, diffViewModel.activeSourceDirectory == folder.directory {
+            refreshRevision = diffViewModel.workspaceRefreshRevision
+        } else {
+            refreshRevision = nil
+        }
+        return Self(
+            folder: folder,
+            linkedPullRequestIDs: links,
+            workspaceRefreshRevision: refreshRevision
+        )
     }
 }

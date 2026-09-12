@@ -1,35 +1,29 @@
 import Foundation
 
-/// Where a requested thread will live. A Project thread works inside a registered Project; a Task
-/// thread gets its own private workspace, so folder grants are the only way it reaches anything
-/// else — which is why grants belong to this case alone.
-enum ThreadHostToolCreateWorkspace: Equatable {
-    case project(path: String)
-    /// `placement` is already resolved against host state; a `.project` placement is sidebar
-    /// nesting only, and its folder grant — the request's own roots plus the nested project's
-    /// folder — rides in `grantedRoots`.
-    case task(grantedRoots: [String], placement: TaskThreadSidebarPlacement = .tasks)
+/// Execution folders and sidebar placement are independent. Only this frozen value crosses
+/// provider discovery; changing the caller's project later must not retarget an inherited launch.
+struct ThreadHostToolCreateWorkspace: Equatable {
+    let snapshot: WorkspaceSnapshot
+    let placement: TaskThreadSidebarPlacement
+    var useWorktree: Bool?
 
-    var kind: AgentThreadMode {
-        switch self {
-        case .project:
-            .project
-        case .task:
-            .task
-        }
+    var kind: AgentThreadMode { snapshot.primarySource == nil ? .task : .project }
+    var sectionID: String? {
+        if case .section(let id) = placement { return id }
+        return nil
+    }
+
+    var projectID: String? {
+        if case .project(let id) = placement { return id }
+        return nil
     }
 }
 
-/// The placement a `create_thread` request asked for, before host state resolves it. `inherit` is
-/// what a request naming neither `mode` nor `project_path` means: wherever the calling thread
-/// already works. Grants ride along with it because the parser cannot know which placement it
-/// resolves to.
+/// Optional grants distinguish inheritance from an explicit replacement, including removal of all grants.
 enum ThreadHostToolRequestedWorkspace: Equatable {
-    case project(path: String)
-    /// `sectionName` is the name the request asked for, unresolved — whether a section by that
-    /// name exists is host state, so `ThreadHostToolService+Create.swift` decides.
-    case task(grantedRoots: [String], sectionName: String? = nil)
-    case inherit(grantedRoots: [String])
+    case project(path: String, primaryFolderPath: String? = nil, grantedRoots: [String]? = nil, isID: Bool = false, privateWorkspace: Bool = false)
+    case task(grantedRoots: [String]?, sectionName: String? = nil)
+    case inherit(grantedRoots: [String]?, sectionName: String? = nil)
 }
 
 /// A `move_thread_to_section` request. Both fields are required — the tool never guesses which
@@ -46,7 +40,9 @@ struct ThreadHostToolSourcePlacement: Equatable {
     let mode: AgentThreadMode
     /// The caller's Project for a project-mode thread, or its sidebar-nesting project for a Task —
     /// either way the project a task-mode spawn naming no `section` nests under.
-    let projectPath: String?
+    let projectID: String?
+    let snapshot: WorkspaceSnapshot?
+    let useWorktree: Bool
     /// The caller's custom-section membership as a `SidebarSection.id` — what a task-mode spawn
     /// naming no `section` inherits. Mutually exclusive with `projectPath` on a Task.
     let sectionID: String?
@@ -54,7 +50,9 @@ struct ThreadHostToolSourcePlacement: Equatable {
     /// A Task's `project` is sidebar placement, not a workspace, so the mode decides alone.
     init(thread: AgentThread) {
         mode = thread.effectiveMode
-        projectPath = thread.project?.path
+        projectID = thread.project?.id
+        snapshot = thread.workspaceSnapshot
+        useWorktree = thread.useWorktree || thread.resolvedWorkspaceDescriptor?.ownershipStrategy == .projectWorktreeOwned
         sectionID = thread.customSection?.id
     }
 }
@@ -167,7 +165,6 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
     case sourceProviderMismatch
     case projectNotRegistered(path: String)
     case grantedRootUnavailable(path: String)
-    case grantsRequireTaskThread
     case sourcePlacementUnavailable
     case noReadyProvider
     case providerNotReady(providerID: String, ready: [String])
@@ -203,16 +200,13 @@ enum ThreadHostToolServiceError: LocalizedError, Equatable {
         case .sourceProviderMismatch:
             "The thread request provider does not match its source conversation."
         case .projectNotRegistered(let path):
-            "\(path) is not a Project in Alveary. Call list_projects and use one of its paths."
+            "\(path) is not a Project in Alveary. Call list_projects and use its project_id. Shared folder paths require an explicit project_id."
         case .grantedRootUnavailable(let path):
             "\(path) cannot be granted to the new thread. Each granted_roots entry must be an " +
                 "absolute path to a folder that already exists."
-        case .grantsRequireTaskThread:
-            "granted_roots applies only to a task thread, and this conversation's thread works in a Project, which " +
-                "the new thread inherits. Pass mode \"task\" to create a thread with its own private workspace instead."
         case .sourcePlacementUnavailable:
             "Alveary cannot tell where this conversation's thread works, so the new thread's placement has to be " +
-                "named: pass project_path, or mode \"task\"."
+                "named: pass project_id, or mode \"task\"."
         case .noReadyProvider:
             "No Alveary provider is installed, enabled, and ready, so a new thread cannot be created."
         case let .providerNotReady(providerID, ready):

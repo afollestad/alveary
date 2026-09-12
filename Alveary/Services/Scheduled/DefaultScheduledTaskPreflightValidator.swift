@@ -173,7 +173,9 @@ private extension DefaultScheduledTaskPreflightValidator {
             }
         }
 
-        let canonicalGrants = try canonicalizeRoots(snapshot.grantedRoots, projectPath)
+        // A worktree runs elsewhere, so its source checkout can be an intentional additional grant.
+        let primaryRoot = snapshot.workspaceStrategy == .worktree ? nil : projectPath
+        let canonicalGrants = try canonicalizeRoots(snapshot.grantedRoots, primaryRoot)
         guard canonicalGrants == snapshot.grantedRoots else {
             throw ScheduledTaskPreflightValidationError.invalidFolderGrants
         }

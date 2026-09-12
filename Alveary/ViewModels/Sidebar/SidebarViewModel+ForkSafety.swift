@@ -51,7 +51,7 @@ extension SidebarViewModel {
         }
     }
 
-    private func removeForkWorktreeIfUnclaimed(
+    func removeForkWorktreeIfUnclaimed(
         _ worktree: ForkCreatedWorktree?,
         projectPath: String
     ) async throws {

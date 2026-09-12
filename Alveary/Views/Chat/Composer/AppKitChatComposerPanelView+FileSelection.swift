@@ -17,7 +17,9 @@ extension AppKitChatComposerPanelView {
             onAddFolders: { [weak self] _ in
                 self?.presentTaskWorkspaceFolderPicker(onSelect: workspace.onAddFolders)
             },
-            onRemoveGrant: workspace.onRemoveGrant
+            onRemoveGrant: workspace.onRemoveGrant,
+            selectedUseWorktree: workspace.selectedUseWorktree,
+            onUseWorktreeChange: workspace.onUseWorktreeChange
         )
     }
 
@@ -25,13 +27,7 @@ extension AppKitChatComposerPanelView {
         guard configuration?.bodyConfiguration.isVoiceInteractionLocked != true else {
             return
         }
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = true
-        panel.resolvesAliases = true
-        panel.prompt = "Grant Access"
-        panel.message = "Choose folders this task may access in addition to its private workspace."
+        let panel = makeTaskWorkspaceFolderPicker()
 
         guard let window else {
             guard panel.runModal() == .OK else {
@@ -101,4 +97,16 @@ extension AppKitChatComposerPanelView {
         }
         editorController.view?.focusEditor()
     }
+}
+
+@MainActor
+func makeTaskWorkspaceFolderPicker() -> NSOpenPanel {
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.allowsMultipleSelection = true
+    panel.resolvesAliases = true
+    panel.prompt = "Grant Access"
+    panel.message = "Choose additional folders this thread may access."
+    return panel
 }

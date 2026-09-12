@@ -15,6 +15,8 @@ final class ScheduledTaskHostToolService {
     let mutationService: ScheduledTaskMutationService
     let runNowAction: @MainActor (ScheduledTaskRunNowRequest) -> Bool
     private let now: () -> Date
+    let resolveSourceFolder: @MainActor (String) async -> SourceFolderSnapshot
+    let saveChanges: @MainActor (ModelContext) throws -> Void
 
     init(
         modelContext: ModelContext,
@@ -24,7 +26,11 @@ final class ScheduledTaskHostToolService {
         recurrenceCalculator: ScheduledTaskRecurrenceCalculator = ScheduledTaskRecurrenceCalculator(),
         currentTimeZone: @escaping @MainActor () -> TimeZone = { .autoupdatingCurrent },
         runNow: @escaping @MainActor (ScheduledTaskRunNowRequest) -> Bool = { _ in false },
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        resolveSourceFolder: @escaping @MainActor (String) async -> SourceFolderSnapshot = {
+            await SourceFolderMetadataResolver().resolve(path: $0)
+        },
+        saveChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.modelContext = modelContext
         self.mutationService = mutationService
@@ -34,18 +40,20 @@ final class ScheduledTaskHostToolService {
         self.currentTimeZone = currentTimeZone
         runNowAction = runNow
         self.now = now
+        self.resolveSourceFolder = resolveSourceFolder
+        self.saveChanges = saveChanges
     }
 
     func handle(
         context: AgentCLIKit.AgentHostToolCallContext,
         call: AgentCLIKit.AgentHostToolCall
-    ) -> AgentCLIKit.AgentHostToolResult {
+    ) async -> AgentCLIKit.AgentHostToolResult {
         do {
             switch call.name {
             case ScheduledTaskHostToolCatalog.listToolName:
                 return try listScheduledTasks(context: context, arguments: call.arguments)
             case ScheduledTaskHostToolCatalog.proposeToolName:
-                return try proposeScheduledTask(context: context, arguments: call.arguments)
+                return try await proposeScheduledTask(context: context, arguments: call.arguments)
             default:
                 throw ScheduledTaskHostToolServiceError.unsupportedTool
             }
@@ -70,7 +78,7 @@ private extension ScheduledTaskHostToolService {
     func proposeScheduledTask(
         context: AgentCLIKit.AgentHostToolCallContext,
         arguments: [String: AgentCLIKit.JSONValue]
-    ) throws -> AgentCLIKit.AgentHostToolResult {
+    ) async throws -> AgentCLIKit.AgentHostToolResult {
         guard let requestID = context.requestId?.trimmingCharacters(in: .whitespacesAndNewlines),
               !requestID.isEmpty else {
             throw ScheduledTaskHostToolServiceError.missingRequestIdentity
@@ -123,7 +131,7 @@ private extension ScheduledTaskHostToolService {
             return existingResult
         }
 
-        return try openProposal(
+        return try await openProposal(
             context: context,
             source: source,
             identity: identity,
@@ -166,7 +174,8 @@ private extension ScheduledTaskHostToolService {
         deduplicationKey: String,
         sourceProcessToken: UUID,
         createdAt: Date,
-        supersedingRequest: ScheduledTaskProposalRequest
+        supersedingRequest: ScheduledTaskProposalRequest,
+        allowsSuperseding: Bool = true
     ) throws -> AgentCLIKit.AgentHostToolResult? {
         guard let existingProposal = modelContext.resolveScheduledTaskProposal(
             sourceConversationID: sourceConversation.id
@@ -176,7 +185,7 @@ private extension ScheduledTaskHostToolService {
         // A follow-up prompt that revises the same target replaces the unconfirmed
         // proposal rather than being refused; the superseded widget records a rejection
         // so the transcript never keeps two live confirmations for one task.
-        if existingProposal.deduplicationKey != deduplicationKey,
+        if allowsSuperseding, existingProposal.deduplicationKey != deduplicationKey,
            targetsSameDefinition(existingProposal, as: supersedingRequest) {
             try rejectSupersededProposal(existingProposal, at: createdAt)
             return nil
@@ -216,7 +225,7 @@ private extension ScheduledTaskHostToolService {
         let outcomeTarget = ScheduledTaskProposalOutcomeTarget(proposal: proposal)
         do {
             modelContext.delete(proposal)
-            try modelContext.save()
+            try saveChanges(modelContext)
         } catch {
             modelContext.rollback()
             throw ScheduledTaskHostToolServiceError.persistenceFailure
@@ -235,15 +244,58 @@ private extension ScheduledTaskHostToolService {
         source: ScheduledTaskHostToolSource,
         identity: ScheduledTaskHostToolProposalIdentity,
         parsedRequest: ScheduledTaskParsedProposalRequest
-    ) throws -> AgentCLIKit.AgentHostToolResult {
+    ) async throws -> AgentCLIKit.AgentHostToolResult {
+        let prepared = try await prepareGrantMetadata(
+            request: parsedRequest.request, sourceThread: source.thread, providerID: context.providerId.rawValue
+        )
+        // Discovery suspends: revalidate the caller, target revision, and exact retry before
+        // persisting anything. Retained folders are never probed or rewritten.
+        try Task.checkCancellation()
+        // Discovery can admit unrelated edits into the shared context. Preserve them before receipt saves may roll back.
+        try flushPendingChanges()
+        let liveSource = try resolveSource(context: context)
+        if let receipt = try replayedReceipt(
+            on: liveSource.conversation, deduplicationKey: identity.deduplicationKey,
+            processToken: context.processToken, at: identity.createdAt
+        ) { return pendingResult(receipt: receipt) }
+        if let pending = try pendingResultForExistingProposal(
+            sourceConversation: liveSource.conversation, deduplicationKey: identity.deduplicationKey,
+            sourceProcessToken: context.processToken, createdAt: identity.createdAt,
+            supersedingRequest: parsedRequest.request, allowsSuperseding: false
+        ) { return pending }
         let resolution = try resolveProposal(
             parsedRequest.request,
-            sourceThread: source.thread,
-            sourceProviderID: context.providerId.rawValue
+            sourceThread: liveSource.thread,
+            sourceProviderID: context.providerId.rawValue,
+            resolveNewFolder: { path in
+                guard let folder = prepared.folders[path], folder.path == path else {
+                    throw ScheduledTaskHostToolServiceError.grantRootUnavailable(path: path)
+                }
+                return folder
+            }
         )
+        var expectedWorkspace = prepared.workspace
+        expectedWorkspace?.grants = prepared.workspace?.grants.map { prepared.folders[$0.path] ?? $0 } ?? []
+        guard resolution.definitionDraft?.workspaceSnapshot == expectedWorkspace,
+              resolution.project?.id == prepared.projectID else {
+            throw ScheduledTaskHostToolServiceError.workspaceUnavailable
+        }
+        return try persistNewProposal(
+            context: context, sourceConversation: liveSource.conversation, identity: identity,
+            parsedRequest: parsedRequest, resolution: resolution
+        )
+    }
+
+    func persistNewProposal(
+        context: AgentCLIKit.AgentHostToolCallContext,
+        sourceConversation: Conversation,
+        identity: ScheduledTaskHostToolProposalIdentity,
+        parsedRequest: ScheduledTaskParsedProposalRequest,
+        resolution: ScheduledTaskHostToolProposalResolution
+    ) throws -> AgentCLIKit.AgentHostToolResult {
         let proposal = try makeProposal(
             context: context,
-            sourceConversation: source.conversation,
+            sourceConversation: sourceConversation,
             identity: identity,
             parsedRequest: parsedRequest,
             resolution: resolution
@@ -257,13 +309,37 @@ private extension ScheduledTaskHostToolService {
             sourceProcessToken: context.processToken,
             createdAt: identity.createdAt
         )
-        try persist(proposal, receipt: receipt, on: source.conversation)
+        try persist(proposal, receipt: receipt, on: sourceConversation)
         notificationCenter.postScheduledTaskProposalsChanged(
             object: self,
             proposalID: proposal.id,
-            sourceConversationID: source.conversation.id
+            sourceConversationID: sourceConversation.id
         )
         return pendingResult(receipt: receipt)
+    }
+
+    /// Probe only new grants. Capture values before discovery so no model is read across its suspension.
+    func prepareGrantMetadata(
+        request: ScheduledTaskProposalRequest,
+        sourceThread: AgentThread,
+        providerID: String
+    ) async throws -> PreparedScheduledTaskGrantMetadata {
+        var newPaths = Set<String>()
+        let prepared = try resolveProposal(
+            request, sourceThread: sourceThread, sourceProviderID: providerID,
+            resolveNewFolder: { path in
+                newPaths.insert(path)
+                return SourceFolderSnapshot(path: path)
+            }
+        )
+        let workspace = prepared.definitionDraft?.workspaceSnapshot
+        let projectID = prepared.project?.id
+        var metadata: [String: SourceFolderSnapshot] = [:]
+        for path in newPaths.sorted() {
+            metadata[path] = await resolveSourceFolder(path)
+            try Task.checkCancellation()
+        }
+        return PreparedScheduledTaskGrantMetadata(workspace: workspace, projectID: projectID, folders: metadata)
     }
 
     func makeProposal(
@@ -299,7 +375,7 @@ private extension ScheduledTaskHostToolService {
             return
         }
         do {
-            try modelContext.save()
+            try saveChanges(modelContext)
         } catch {
             throw ScheduledTaskHostToolServiceError.persistenceFailure
         }
@@ -319,4 +395,11 @@ private extension ScheduledTaskHostToolService {
         return highestOrdinal + 1
     }
 
+}
+
+/// Value-only state retained while new grants are inspected and live proposal targets are revalidated.
+private struct PreparedScheduledTaskGrantMetadata {
+    let workspace: WorkspaceSnapshot?
+    let projectID: String?
+    let folders: [String: SourceFolderSnapshot]
 }

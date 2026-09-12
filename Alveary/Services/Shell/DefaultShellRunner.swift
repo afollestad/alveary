@@ -22,12 +22,23 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         self.processTracker = processTracker
     }
 
+    private func validateDirectory(_ directory: String) throws {
+        var isDirectory: ObjCBool = false
+        guard !directory.isEmpty, FileManager.default.fileExists(atPath: directory, isDirectory: &isDirectory),
+              isDirectory.boolValue, FileManager.default.isExecutableFile(atPath: directory) else {
+            throw ShellError.invalidDirectory(directory)
+        }
+    }
+
     func run(
         executable: String,
         args: [String],
         in directory: String?,
         options: ShellRunOptions = ShellRunOptions()
     ) async throws -> ShellResult {
+        if let directory {
+            try validateDirectory(directory)
+        }
         let process = makeProcess(
             executable: executable,
             arguments: args,

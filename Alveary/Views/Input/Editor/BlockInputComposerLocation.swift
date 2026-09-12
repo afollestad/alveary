@@ -3,6 +3,7 @@ import Foundation
 struct BlockInputComposerLocation: Equatable, Sendable {
     var projectPath: String?
     var worktreePath: String?
+    var workspaceRoots: [String] = []
 
     var effectiveProjectDirectory: String? {
         normalizedNonEmptyPath(worktreePath) ?? normalizedNonEmptyPath(projectPath)
@@ -21,8 +22,14 @@ struct BlockInputComposerLocation: Equatable, Sendable {
         self.worktreePath = worktreePath
     }
 
-    init(effectiveProjectDirectory: String?) {
+    init(effectiveProjectDirectory: String?, workspaceRoots: [String] = []) {
         self.init(projectPath: effectiveProjectDirectory)
+        self.workspaceRoots = workspaceRoots
+    }
+
+    var effectiveWorkspaceRoots: [String] {
+        var seen = Set<String>()
+        return ((effectiveProjectDirectory.map { [$0] } ?? []) + workspaceRoots).filter { seen.insert($0).inserted }
     }
 
     private var baseURL: URL? {
@@ -34,6 +41,6 @@ struct BlockInputComposerLocation: Equatable, Sendable {
               !path.isEmpty else {
             return nil
         }
-        return CanonicalPath.normalize(path)
+        return URL(fileURLWithPath: path).standardizedFileURL.path
     }
 }

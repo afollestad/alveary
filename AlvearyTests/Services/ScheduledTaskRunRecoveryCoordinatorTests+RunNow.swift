@@ -251,6 +251,8 @@ extension ScheduledTaskRunRecoveryCoordinatorTests {
         run.workspaceStrategyRawValueSnapshot = ScheduledTaskWorkspaceStrategy.localCheckout.rawValue
         run.projectPathSnapshot = projectPath
         run.grantedRootsSnapshot = [grantPath]
+        run.projectIDSnapshot = project.id
+        run.workspaceSnapshot = WorkspaceSnapshot(primarySource: project.primaryFolder?.snapshot, grants: [SourceFolderSnapshot(path: grantPath)])
         run.preparedWorkspaceRoot = projectPath
         run.preparedWorkspaceOwnershipStrategy = .projectLocal
         let projectIdentity = TaskWorkspaceFileSystemIdentity(systemNumber: 2, fileNumber: 40)

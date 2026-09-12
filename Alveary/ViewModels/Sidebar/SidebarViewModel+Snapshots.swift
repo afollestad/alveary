@@ -26,7 +26,6 @@ struct ThreadCleanupSnapshot {
 
 struct ProjectDeletionSnapshot {
     let projectID: PersistentIdentifier
-    let projectPath: String
     let scheduledTaskIDs: [String]
     let detachedTaskThreadIDs: [PersistentIdentifier]
     let conversationIDs: [String]
@@ -42,7 +41,6 @@ enum ThreadLifecyclePersistenceState {
 enum SidebarViewModelError: LocalizedError {
     case projectMissing
     case threadMissing
-    case threadMissingParentProject
     case threadMissingTaskWorkspace
     case threadMissingDeletionMetadata
     case scheduledTaskRunStillActive
@@ -66,8 +64,6 @@ enum SidebarViewModelError: LocalizedError {
             return "Project no longer exists"
         case .threadMissing:
             return "Thread no longer exists"
-        case .threadMissingParentProject:
-            return "Thread is missing its parent project"
         case .threadMissingTaskWorkspace:
             return "Task is missing its workspace metadata"
         case .threadMissingDeletionMetadata:
@@ -107,7 +103,7 @@ enum SidebarViewModelError: LocalizedError {
         switch self {
         case .archiveCleanupFailed, .threadDeleteCleanupFailed, .projectDeleteCleanupFailed:
             return true
-        case .projectMissing, .threadMissing, .threadMissingParentProject, .threadMissingTaskWorkspace, .threadMissingDeletionMetadata,
+        case .projectMissing, .threadMissing, .threadMissingTaskWorkspace, .threadMissingDeletionMetadata,
              .scheduledTaskRunStillActive, .scheduledTaskAttachment, .activeScheduledTaskRunAttachment,
              .activeReviewSubmission,
              .threadForkUnavailable, .threadForkFailed, .forkRollbackBlockedBySchedule, .threadForkRollbackFailed,
@@ -119,14 +115,7 @@ enum SidebarViewModelError: LocalizedError {
 
 extension SidebarViewModel {
     func requireProject(_ project: Project) throws -> Project {
-        let path = project.path
-        let descriptor = FetchDescriptor<Project>(
-            predicate: #Predicate { candidate in
-                candidate.path == path
-            }
-        )
-
-        guard let dbProject = try modelContext.fetch(descriptor).first else {
+        guard let dbProject = modelContext.resolveProject(projectID: project.id) else {
             throw SidebarViewModelError.projectMissing
         }
         return dbProject
@@ -161,10 +150,7 @@ extension SidebarViewModel {
         let scheduledWorktreeCleanup: ScheduledWorktreeCleanupProvenance?
         switch cleanupMode {
         case .project:
-            guard let projectPath = thread.project?.path else {
-                throw SidebarViewModelError.threadMissingParentProject
-            }
-            sourceProjectPath = projectPath
+            sourceProjectPath = try projectThreadCleanupSource(thread)
             let scheduledCleanup = try scheduledProjectThreadCleanupMetadata(thread)
             taskWorkspace = nil
             scheduledTaskRunID = scheduledCleanup?.runID
@@ -200,8 +186,7 @@ extension SidebarViewModel {
     func makeProjectDeletionSnapshot(_ project: Project) throws -> ProjectDeletionSnapshot {
         let dbProject = try requireProject(project)
         try requireThreadLifecycleIsUnblocked(in: dbProject)
-        let projectPath = dbProject.path
-        let attachedThreads = liveThreads(forProjectPath: projectPath)
+        let attachedThreads = liveThreads(forProjectID: dbProject.id)
         let taskThreads = attachedThreads.filter {
             $0.effectiveMode == .task
         }
@@ -211,7 +196,6 @@ extension SidebarViewModel {
             .map(makeThreadCleanupSnapshot(from:))
         return ProjectDeletionSnapshot(
             projectID: dbProject.persistentModelID,
-            projectPath: projectPath,
             scheduledTaskIDs: dbProject.scheduledTasks.map(\.id),
             detachedTaskThreadIDs: taskThreads.map(\.persistentModelID),
             conversationIDs: threadSnapshots.flatMap(\.conversationIDs),
@@ -219,13 +203,27 @@ extension SidebarViewModel {
         )
     }
 
-    func liveThreads(forProjectPath projectPath: String) -> [AgentThread] {
+    func liveThreads(forProjectID projectID: String) -> [AgentThread] {
         let descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.project?.path == projectPath
+                thread.project?.id == projectID
             }
         )
         return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    /// Older standalone history can have Project mode without a source or owned workspace.
+    /// Only those rows may bypass source resolution; unresolved ownership must block before deletion commits.
+    private func projectThreadCleanupSource(_ thread: AgentThread) throws -> String? {
+        if let path = thread.sourceFolder?.path { return path }
+        guard !thread.useWorktree, thread.worktreePath == nil, thread.branch == nil,
+              thread.pendingCleanupBranches.isEmpty,
+              thread.taskPrimaryRoot == nil, thread.taskWorkspaceOwnershipStrategyRawValue == nil,
+              thread.taskWorkspaceMarkerID == nil, thread.taskSourceProjectPath == nil,
+              thread.scheduledTaskRun == nil else {
+            throw SidebarViewModelError.threadMissingDeletionMetadata
+        }
+        return nil
     }
 
     private func taskThreadCleanupMetadata(_ thread: AgentThread) throws -> TaskThreadCleanupMetadata {
@@ -286,7 +284,7 @@ extension SidebarViewModel {
             throw SidebarViewModelError.threadMissingDeletionMetadata
         }
         return TaskThreadCleanupMetadata(
-            sourceProjectPath: thread.project?.path,
+            sourceProjectPath: thread.sourceFolder?.path,
             workspace: nil,
             runID: run.persistentModelID,
             pendingWorktreeCleanup: pendingCleanup,

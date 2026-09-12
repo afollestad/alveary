@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 extension ThreadHostToolServiceTests {
-    func testListProjectsReturnsRegisteredProjectsSortedByPath() async throws {
+    func testListProjectsReturnsStableIDsAndAllFoldersInNameOrder() async throws {
         let fixture = try ThreadHostToolFixture()
         fixture.modelContext.insert(Project(path: "/tmp/zulu", name: "Zulu"))
         fixture.modelContext.insert(Project(path: "/tmp/alpha", name: "Alpha"))
@@ -20,17 +20,13 @@ extension ThreadHostToolServiceTests {
 
         XCTAssertFalse(result.isError)
         // The rows ride in the text too — a plain-text-fallback provider sees nothing else.
-        XCTAssertEqual(
-            result.text,
-            "Found 3 Projects:\n" +
-                "- Alpha (/tmp/alpha)\n" +
-                "- Source Project (/tmp/source-project)\n" +
-                "- Zulu (/tmp/zulu)"
-        )
+        XCTAssertTrue(result.text.contains("Found 3 Projects:"))
+        XCTAssertTrue(result.text.contains("project_id: \(fixture.project.id)"))
+        XCTAssertTrue(result.text.contains(fixture.project.path))
         let projects = try array(try object(result.structuredContent)["projects"])
         XCTAssertEqual(
             try projects.map { try object($0)["path"] },
-            [.string("/tmp/alpha"), .string("/tmp/source-project"), .string("/tmp/zulu")]
+            [.string("/tmp/alpha"), .string(fixture.project.path), .string("/tmp/zulu")]
         )
     }
 
@@ -77,7 +73,7 @@ extension ThreadHostToolServiceTests {
         let source = try object(threads[2])
         XCTAssertEqual(source["workspace"], .string("project: Source Project"))
         XCTAssertEqual(source["workspace_kind"], .string("project"))
-        XCTAssertEqual(source["project_path"], .string("/tmp/source-project"))
+        XCTAssertEqual(source["project_path"], .string(fixture.project.path))
         XCTAssertNil(source["modified_at"])
 
         XCTAssertTrue(

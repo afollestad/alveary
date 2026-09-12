@@ -18,13 +18,27 @@ extension ConversationView {
 
     static func makeFileCompletionLoader(
         fileListManager: FileListManager,
-        workingDirectory: String?
+        workingDirectory: String?,
+        additionalRoots: [String] = []
     ) -> @Sendable () async -> [String] {
         {
             guard let workingDirectory else {
                 return []
             }
-            return await fileListManager.files(for: workingDirectory)
+            var seenRoots = Set<String>()
+            var seenFiles = Set<String>()
+            var result: [String] = []
+            for root in ([workingDirectory] + additionalRoots) where seenRoots.insert(root).inserted {
+                guard !Task.isCancelled else { return [] }
+                let files = await fileListManager.files(for: root)
+                let base = URL(fileURLWithPath: root, isDirectory: true)
+                for file in files {
+                    let url = file.hasPrefix("/") ? URL(fileURLWithPath: file) : base.appendingPathComponent(file)
+                    let path = url.standardizedFileURL.path
+                    if seenFiles.insert(path).inserted { result.append(path) }
+                }
+            }
+            return result
         }
     }
 }

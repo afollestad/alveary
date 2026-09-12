@@ -158,6 +158,7 @@ final class DraftProjectChangeNotificationRecorder: @unchecked Sendable {
     private let expectedThreadID: PersistentIdentifier
     private let lock = NSLock()
     private var recordedCount = 0
+    private var recordedPlacementChanges: [Bool] = []
 
     init(expectedThreadID: PersistentIdentifier) {
         self.expectedThreadID = expectedThreadID
@@ -167,10 +168,19 @@ final class DraftProjectChangeNotificationRecorder: @unchecked Sendable {
         lock.withLock { recordedCount }
     }
 
+    var placementChanges: [Bool] {
+        lock.withLock { recordedPlacementChanges }
+    }
+
     func recordIfMatching(_ payload: [AnyHashable: Any]?) {
         guard payload?[ThreadDraftNotificationKey.threadID] as? PersistentIdentifier == expectedThreadID else {
             return
         }
-        lock.withLock { recordedCount += 1 }
+        lock.withLock {
+            recordedCount += 1
+            if let placementChanged = payload?[ThreadDraftNotificationKey.placementChanged] as? Bool {
+                recordedPlacementChanges.append(placementChanged)
+            }
+        }
     }
 }

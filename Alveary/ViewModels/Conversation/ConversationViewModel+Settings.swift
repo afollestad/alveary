@@ -326,7 +326,8 @@ extension ConversationViewModel {
     func applyWorktreePreferenceChange(_ newValue: Bool) {
         guard canApplyPreStartupSettingChange,
               let dbThread = activeSettingsThread(),
-              dbThread.project?.isGitRepository == true,
+              dbThread.isDraft,
+              dbThread.sourceFolder?.isGitRepository == true,
               !dbThread.hasCompletedInitialSetup else {
             return
         }
@@ -337,6 +338,7 @@ extension ConversationViewModel {
         dbThread.useWorktree = newValue
         do {
             try modelContext.save()
+            dbThread.draftWorktreePreference = newValue
         } catch {
             dbThread.useWorktree = previousValue
             state.lastTurnError = error.localizedDescription

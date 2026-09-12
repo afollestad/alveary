@@ -29,7 +29,9 @@ extension AppKitChatComposerEditorController {
             editorVerticalInset: Self.editorVerticalPadding,
             editorRoundedCorners: (configuration.hasQueuedMessages || hasAttachmentStrip) ? .bottom : .all,
             editorStrokedEdges: hasAttachmentStrip ? [.left, .bottom, .right] : .all,
-            location: BlockInputComposerLocation(effectiveProjectDirectory: configuration.workingDirectory),
+            location: BlockInputComposerLocation(
+                effectiveProjectDirectory: configuration.workingDirectory, workspaceRoots: configuration.workspaceRoots
+            ),
             urlOpener: configuration.urlOpener,
             localCommands: configuration.localCommands,
             passthroughSlashCommands: configuration.passthroughSlashCommands,

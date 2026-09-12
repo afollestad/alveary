@@ -22,7 +22,7 @@ func areProjectsOrdered(_ lhs: Project, _ rhs: Project) -> Bool {
     if comparison != .orderedSame {
         return comparison == .orderedAscending
     }
-    return lhs.path < rhs.path
+    return lhs.id < rhs.id
 }
 
 extension SidebarView {
@@ -48,16 +48,17 @@ extension SidebarView {
     func isProjectSelected(_ project: Project) -> Bool {
         switch appState.selectedSidebarItem {
         case .project(let selectedProject):
-            return selectedProject.path == project.path
+            return selectedProject.persistentModelID == project.persistentModelID
         case .thread(let thread):
-            return thread.effectiveMode == .project && thread.isDraft && thread.project?.path == project.path
+            return thread.isDraft && thread.project?.id == project.id
         default:
             return false
         }
     }
 
     func handleDraftProjectChanged(_ notification: Notification) {
-        guard let projectPath = notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String else {
+        guard notification.userInfo?[ThreadDraftNotificationKey.placementChanged] as? Bool == true,
+              let projectPath = notification.userInfo?[ThreadDraftNotificationKey.projectID] as? String else {
             return
         }
         revealProject(path: projectPath)
@@ -77,7 +78,7 @@ extension SidebarView {
     /// the group whether or not the project itself is expanded, so both have to give way; a pinned
     /// project renders under `Pinned`, which never collapses.
     func revealProject(_ project: Project) {
-        expandedProjects.insert(project.path)
+        expandedProjects.insert(project.id)
         if !project.isPinned {
             collapsedSections.remove(.projects)
         }
@@ -221,7 +222,7 @@ extension SidebarView {
     func activateProject(_ project: Project) {
         let item = SidebarItem.project(project)
         if appState.selectedSidebarItem == item {
-            toggleExpansion(for: project.path, in: &expandedProjects)
+            toggleExpansion(for: project.id, in: &expandedProjects)
         } else {
             appState.selectedSidebarItem = item
             // Selection alone no longer expands (see `sidebarProjectPathToExpand`), so activating
@@ -291,10 +292,7 @@ func sidebarDraftMaterializedMode(_ notification: Notification) -> AgentThreadMo
 }
 
 func sidebarProjectPathToExpandAfterDraftMaterialization(_ notification: Notification) -> String? {
-    guard sidebarDraftMaterializedMode(notification) == .project else {
-        return nil
-    }
-    return notification.userInfo?[ThreadDraftNotificationKey.projectPath] as? String
+    return notification.userInfo?[ThreadDraftNotificationKey.projectID] as? String
 }
 
 /// The project a selection must reveal, or nil when the selection implies no expansion.
@@ -315,7 +313,7 @@ func sidebarProjectPathToExpand(
               !resolvedThread.isPinned || resolvedThread.project?.isPinned == true else {
             return nil
         }
-        return resolvedThread.project?.path
+        return resolvedThread.project?.id
     case .project, .skills, .mcp, .scheduled, .pullRequests, .archived, .settings, nil:
         return nil
     }
@@ -342,7 +340,7 @@ func sidebarSectionToExpand(
         }
         guard let project = resolvedThread.project else {
             // A projectless Task heads its own section; a pinned one renders above it instead.
-            guard resolvedThread.effectiveMode == .task, !resolvedThread.isPinned else {
+            guard !resolvedThread.isPinned else {
                 return nil
             }
             // A member renders under its custom section rather than `Tasks`.

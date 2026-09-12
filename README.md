@@ -20,6 +20,16 @@ After downloading:
 
 The public backlog and roadmap are tracked in the [Alveary project board](https://github.com/users/afollestad/projects/3).
 
+## Projects and source folders
+
+A project groups zero or more source folders. Folders can be ordinary directories or Git repositories, and the same folder can belong to multiple projects. Create or edit a project to add folders and choose its primary folder. Removing a folder from a project does not delete it from disk.
+
+**New thread** opens one draft. Choose a project, Tasks, or a custom section without losing your composer content, then configure its workspace using the adjacent control. Git folders show the selected Local or Worktree mode. A project supplies its current primary folder and grants access to its other folders; change the primary folder in project settings. Each thread has at most one primary worktree. Empty projects and standalone threads receive a private workspace.
+
+Once a thread starts, its workspace is saved independently. Later project edits seed new threads; they do not change existing sessions or scheduled runs. Additional folder grants can be edited while a thread's sole conversation is idle and no schedule owns its workspace.
+
+The toolbar's folder picker chooses the repository for diffs, commits, pushes, pull requests, project actions, and new terminals. A thread's primary folder maps to its worktree; secondary folders use their local checkout. Each source folder keeps its own `.alveary.json`. File completion searches every granted folder and inserts absolute file references, with folder labels when names overlap.
+
 ## Development
 
 Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockInputKit, FluidAudio, and SwiftTerm. AgentCLIKit owns provider processes and resumable sessions; Alveary owns provider-neutral scheduled-task persistence, execution, and recovery. Alveary's app-scoped conversation controllers share each conversation's subscription and persistence path across visible and background work. BlockInputKit provides the markdown editors. FluidAudio provides English speech recognition for on-device voice input on Apple silicon. Primer Octicons supplies the pull-request status glyphs. The embedded terminal runs local PTYs, and project actions are injected into the user's interactive zsh so their real prompt and startup environment apply. The app target intentionally remains unsandboxed while keeping hardened runtime enabled. Run setup once per clone:
@@ -27,6 +37,10 @@ Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockI
 ```sh
 ./scripts/setup.sh
 ```
+
+The AgentCLIKit pin includes explicit-root overrides on Codex resume, including launches without host tools. `swift-custom-dump` is pinned to a release using the current IssueReporting package identity to keep package resolution compatible with snapshot testing.
+
+Project upgrades migrate a copy of the database before installing it. The original database and SQLite companions remain available beside the store. A failed upgrade shows recovery details with Retry and Quit; it never substitutes an empty database.
 
 Provider-session cleanup borrows the runtime's AgentCLIKit adapters so Codex archive and delete requests reach the server holding each thread's writer lock. Approval continuations explicitly resume runtime activity so the transcript and task indicators stay synchronized.
 

@@ -160,7 +160,8 @@ extension DefaultScheduledTaskRunMaterializer {
         try requireSnapshotRoots(roots, equal: [projectPath])
         let canonicalGrants = try workspaceOwnershipService.canonicalizeGrants(
             snapshot.grantedRoots,
-            excludingPrimaryRoot: canonicalProjectPath
+            // The source is not the new worktree's working directory; preserve explicitly granted access to it.
+            excludingPrimaryRoot: nil
         )
         try requireSnapshotRoots(canonicalGrants, equal: snapshot.grantedRoots)
         try requireCurrentWorkspaceIdentities(workspaceIdentities)

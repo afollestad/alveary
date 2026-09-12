@@ -216,6 +216,7 @@ extension SidebarViewTests {
         task.name = "Fallback scheduled task"
         task.modeRawValue = "future-mode"
         task.project = project
+        task.workspaceSnapshot = project.workspaceSnapshot()
         task.isPinned = true
         try fixture.context.save()
         let view = SidebarView(viewModel: fixture.viewModel, appState: AppState())
@@ -231,7 +232,7 @@ extension SidebarViewTests {
         )
         XCTAssertNotNil(view.pinnedItemDragConfiguration(for: task, logicalOrder: emptySidebarDragLogicalOrder))
         XCTAssertEqual(view.pinnedItemDragGeometryRole(for: task), .pinnedThread(task.persistentModelID))
-        XCTAssertTrue(sidebarItem(.thread(task), belongsToProjectPath: project.path) { _ in project.path })
+        XCTAssertTrue(sidebarItem(.thread(task), belongsToProjectID: project.id) { _ in project.id })
     }
 
     func testDeletingLastSelectedTaskRequestsBlankTaskComposerAfterSuccess() async throws {
@@ -311,7 +312,7 @@ extension SidebarViewTests {
         guard case .newThread(_, let mode)? = appState.pendingCommand else {
             return XCTFail("Expected a blank Task composer request")
         }
-        XCTAssertEqual(mode, .task)
+        XCTAssertEqual(mode, .tasks)
         XCTAssertFalse(try fixture.threadExists(task))
     }
 
@@ -391,7 +392,7 @@ extension SidebarViewTests {
         guard case .newThread(_, let mode)? = appState.pendingCommand else {
             return XCTFail("Expected a blank Task composer request")
         }
-        XCTAssertEqual(mode, .task)
+        XCTAssertEqual(mode, .tasks)
         XCTAssertNotNil(try fixture.requireThread(task).archivedAt)
     }
 
@@ -406,6 +407,7 @@ extension SidebarViewTests {
         )
         task.modeRawValue = "future-mode"
         task.project = project
+        task.workspaceSnapshot = project.workspaceSnapshot()
         try fixture.context.save()
         try await fixture.viewModel.deleteProject(project)
 
@@ -423,7 +425,7 @@ private func assertPendingTaskComposerRequest(
     guard case .newThread(_, let mode)? = appState.pendingCommand else {
         return XCTFail("Expected a blank Task composer request", file: file, line: line)
     }
-    XCTAssertEqual(mode, .task, file: file, line: line)
+    XCTAssertEqual(mode, .tasks, file: file, line: line)
 }
 
 @MainActor

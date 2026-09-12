@@ -48,6 +48,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         switch context.trigger {
         case .mention:
             let files = await state.loadFileCompletions()
+            guard !Task.isCancelled, stateSnapshot().location == state.location else { return [] }
             return fileSuggestions(for: context, location: state.location, files: files)
         case .slashCommand:
             guard !state.localCommands.suppressesSlashCommandSuggestions else {
@@ -92,22 +93,23 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
 
         let scope = completionScope(for: context, effectiveDirectory: effectiveDirectory)
         let query = scope.query.lowercased()
+        let isScoped = scope.usesAbsoluteLabels || scope.fileQuery?.directoryReference != nil
+        let roots = location.effectiveWorkspaceRoots.map { URL(fileURLWithPath: $0, isDirectory: true).standardizedFileURL }
+        var seen = Set<String>()
         let candidates = files
             .map { fileURL(for: $0, relativeTo: effectiveDirectory) }
-            .filter { isFileURL($0, under: scope.baseDirectory) }
+            .filter { seen.insert($0.path).inserted }
             .compactMap { url -> ComposerFileCompletionCandidate? in
-                let labelRelativePath = relativePath(for: url, under: scope.baseDirectory)
-                guard !labelRelativePath.isEmpty else {
-                    return nil
-                }
-                let insertionDestination = markdownDestination(for: url, relativeTo: effectiveDirectory)
-                let candidate = ComposerFileCompletionCandidate(
-                    url: url,
-                    labelRelativePath: labelRelativePath,
-                    insertionDestination: insertionDestination
+                guard let root = roots.filter({ isFileURL(url, under: $0) }).max(by: { $0.path.count < $1.path.count }),
+                      !isScoped || isFileURL(url, under: scope.baseDirectory) else { return nil }
+                let labelRelativePath = relativePath(for: url, under: isScoped ? scope.baseDirectory : root)
+                guard !labelRelativePath.isEmpty else { return nil }
+                return ComposerFileCompletionCandidate(
+                    url: url, labelRelativePath: labelRelativePath, insertionDestination: url.path, root: root
                 )
-                return candidate
             }
+        let ambiguousPaths = Dictionary(grouping: candidates, by: \.labelRelativePath).filter { $0.value.count > 1 }
+        let ambiguousFolderNames = Dictionary(grouping: roots, by: \.lastPathComponent).filter { $0.value.count > 1 }
 
         let matches = scoredMatches(candidates: candidates, query: query) { candidate, normalizedQuery in
             let fileName = candidate.url.lastPathComponent
@@ -124,7 +126,12 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         return matches
             .prefix(limit)
             .map { candidate in
-                let label = label(for: candidate, scope: scope)
+                var label = label(for: candidate, scope: scope)
+                if !isScoped, ambiguousPaths[candidate.labelRelativePath] != nil {
+                    let folderLabel = ambiguousFolderNames[candidate.root.lastPathComponent] == nil
+                        ? candidate.root.lastPathComponent : candidate.root.path
+                    label = folderLabel + "/" + label
+                }
                 return BlockInputCompletionSuggestion(
                     id: candidate.url.path,
                     title: label,
@@ -264,7 +271,7 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
             return candidate.url.path
         }
         guard let reference = scope.fileQuery?.directoryReference else {
-            return candidate.insertionDestination
+            return candidate.labelRelativePath
         }
         switch reference {
         case .current:
@@ -294,19 +301,6 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
         return path.replacingPrefix(basePath + "/", with: "")
     }
 
-    private func markdownDestination(for url: URL, relativeTo directory: String) -> String {
-        let basePath = URL(fileURLWithPath: directory, isDirectory: true).standardizedFileURL.path
-        let path = url.standardizedFileURL.path
-        guard path != basePath else {
-            return "."
-        }
-        let prefix = basePath.hasSuffix("/") ? basePath : basePath + "/"
-        if path.hasPrefix(prefix) {
-            return String(path.dropFirst(prefix.count))
-        }
-        return url.path
-    }
-
     private func markdownLink(label: String, destination: String) -> String {
         "[\(escapedMarkdownLinkLabel(label))](\(escapedMarkdownLinkDestination(destination)))"
     }
@@ -323,10 +317,14 @@ final class BlockInputComposerCompletionProvider: BlockInputCompletionProvider, 
     }
 
     private func escapedMarkdownLinkDestination(_ destination: String) -> String {
-        destination
+        let escaped = destination
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "(", with: "\\(")
             .replacingOccurrences(of: ")", with: "\\)")
+            .replacingOccurrences(of: "<", with: "\\<")
+            .replacingOccurrences(of: ">", with: "\\>")
+        // The composer accepts raw spaces, but transcript Markdown needs an angle-delimited destination.
+        return destination.contains(where: \.isWhitespace) ? "<\(escaped)>" : escaped
     }
 
     private func scoredMatches<Candidate>(
@@ -452,6 +450,7 @@ private struct ComposerFileCompletionCandidate {
     var url: URL
     var labelRelativePath: String
     var insertionDestination: String
+    var root: URL
 }
 private extension String {
     func replacingPrefix(_ prefix: String, with replacement: String) -> String {

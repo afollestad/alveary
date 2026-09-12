@@ -85,7 +85,7 @@ final class ComposerTaskWorkspaceMenuViewController: NSViewController {
         self.onRequestClose = onRequestClose
         super.init(nibName: nil, bundle: nil)
         preferredContentSize = ComposerTaskWorkspaceMenuMetrics.contentSize(
-            grantCount: configuration.grantedRoots.count
+            grantCount: configuration.grantedRoots.count, includesWorktreeOptions: configuration.selectedUseWorktree != nil
         )
     }
 
@@ -107,7 +107,7 @@ final class ComposerTaskWorkspaceMenuViewController: NSViewController {
     func update(configuration: ChatComposerActionRowView.TaskWorkspaceConfiguration) {
         self.configuration = configuration
         let size = ComposerTaskWorkspaceMenuMetrics.contentSize(
-            grantCount: configuration.grantedRoots.count
+            grantCount: configuration.grantedRoots.count, includesWorktreeOptions: configuration.selectedUseWorktree != nil
         )
         preferredContentSize = size
         menuView?.update(configuration: configuration)
@@ -139,7 +139,9 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
         self.onCancel = onCancel
         super.init(frame: NSRect(
             origin: .zero,
-            size: ComposerTaskWorkspaceMenuMetrics.contentSize(grantCount: configuration.grantedRoots.count)
+            size: ComposerTaskWorkspaceMenuMetrics.contentSize(
+                grantCount: configuration.grantedRoots.count, includesWorktreeOptions: configuration.selectedUseWorktree != nil
+            )
         ))
         setup()
         rebuildRows()
@@ -152,7 +154,7 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
     func update(configuration: ChatComposerActionRowView.TaskWorkspaceConfiguration) {
         self.configuration = configuration
         frame.size = ComposerTaskWorkspaceMenuMetrics.contentSize(
-            grantCount: configuration.grantedRoots.count
+            grantCount: configuration.grantedRoots.count, includesWorktreeOptions: configuration.selectedUseWorktree != nil
         )
         rebuildRows()
         needsLayout = true
@@ -167,7 +169,9 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
             width: bounds.width,
             height: max(
                 bounds.height,
-                ComposerTaskWorkspaceMenuMetrics.documentHeight(grantCount: configuration.grantedRoots.count)
+                ComposerTaskWorkspaceMenuMetrics.documentHeight(
+                    grantCount: configuration.grantedRoots.count, includesWorktreeOptions: configuration.selectedUseWorktree != nil
+                )
             )
         )
         var nextY = ComposerTaskWorkspaceMenuMetrics.verticalInset
@@ -188,9 +192,10 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
             )
             nextY += ComposerTaskWorkspaceMenuMetrics.rowHeight
 
-            if index == 0 {
+            let primaryRowCount = configuration.selectedUseWorktree == nil ? 1 : 3
+            if index == primaryRowCount - 1 {
                 nextY = layoutDivider(primaryDivider, from: nextY)
-            } else if index == 1, !configuration.grantedRoots.isEmpty {
+            } else if index == primaryRowCount, !configuration.grantedRoots.isEmpty {
                 nextY = layoutDivider(grantsDivider, from: nextY)
             }
         }
@@ -219,7 +224,9 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
 
     private func rebuildRows() {
         rows.forEach { $0.removeFromSuperview() }
-        rows = [makePrimaryRow(), makeAddFoldersRow()] + configuration.grantedRoots.map(makeGrantRemovalRow)
+        rows = [makePrimaryRow()]
+        if configuration.selectedUseWorktree != nil { rows += [makeLocationRow(useWorktree: false), makeLocationRow(useWorktree: true)] }
+        rows += [makeAddFoldersRow()] + configuration.grantedRoots.map(makeGrantRemovalRow)
         for row in rows {
             documentView.addSubview(row)
         }
@@ -240,6 +247,26 @@ private final class ComposerTaskWorkspaceMenuView: AppKitComposerPopoverSurfaceV
             isSelected: false,
             isEnabled: false,
             action: {},
+            cancelAction: onCancel
+        ))
+        return row
+    }
+
+    private func makeLocationRow(useWorktree: Bool) -> ComposerReasoningMenuRowView {
+        let row = ComposerReasoningMenuRowView()
+        let title = useWorktree ? "Worktree" : "Local"
+        row.configure(.init(
+            title: title,
+            subtitle: useWorktree ? "Create an isolated working directory" : "Work in the source folder",
+            iconName: useWorktree ? "arrow.triangle.branch" : "folder",
+            trailingIconName: configuration.selectedUseWorktree == useWorktree ? "checkmark" : nil,
+            accessibilityLabel: title,
+            isSelected: configuration.selectedUseWorktree == useWorktree,
+            isEnabled: configuration.canEdit,
+            action: { [weak self] in
+                self?.configuration.onUseWorktreeChange(useWorktree)
+                self?.onCancel()
+            },
             cancelAction: onCancel
         ))
         return row
@@ -301,16 +328,16 @@ enum ComposerTaskWorkspaceMenuMetrics {
     static let dividerSpacing: CGFloat = ComposerReasoningMenuMetrics.dividerSpacing
 
     @MainActor
-    static func contentSize(grantCount: Int) -> NSSize {
+    static func contentSize(grantCount: Int, includesWorktreeOptions: Bool = false) -> NSSize {
         NSSize(
             width: width,
-            height: min(maxHeight, documentHeight(grantCount: grantCount))
+            height: min(maxHeight, documentHeight(grantCount: grantCount, includesWorktreeOptions: includesWorktreeOptions))
         )
     }
 
     @MainActor
-    static func documentHeight(grantCount: Int) -> CGFloat {
-        let rowCount = 2 + grantCount
+    static func documentHeight(grantCount: Int, includesWorktreeOptions: Bool = false) -> CGFloat {
+        let rowCount = 2 + grantCount + (includesWorktreeOptions ? 2 : 0)
         let dividerCount = grantCount == 0 ? 1 : 2
         return verticalInset * 2 +
             headerHeight +

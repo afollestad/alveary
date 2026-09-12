@@ -454,6 +454,9 @@ extension ConversationViewModel {
         stagedContext: String?,
         existingLocalUserMessageID: String?
     ) throws {
+        guard let thread = modelContext.resolveThread(id: thread.persistentModelID) else {
+            throw AgentError.spawnFailed("The thread was removed during setup")
+        }
         thread.hasCompletedInitialSetup = true
         try modelContext.save()
         state.lastTurnInterrupted = false
@@ -470,23 +473,6 @@ extension ConversationViewModel {
         state.respawnAttempts = 0
     }
 
-    func rollbackFailedInitialSetup(
-        error: Error,
-        project: Project?,
-        thread: AgentThread,
-        snapshot: ConversationInitialSetupSnapshot,
-        restoresDraft: Bool
-    ) async throws {
-        cancelPendingRuntimeTasks()
-        try await destroyRuntimeAfterFailedInitialSetup(originalError: error)
-        restoreStateAfterFailedInitialSetup(
-            snapshot: snapshot,
-            thread: thread,
-            restoresDraft: restoresDraft
-        )
-        await finishFailedInitialSetupRollback(project: project, thread: thread)
-        setupPhase = nil
-    }
 }
 
 private struct InitialSetupReservedPayload {

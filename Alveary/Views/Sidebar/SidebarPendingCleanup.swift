@@ -15,18 +15,17 @@ struct SidebarPendingThreadCleanup: Equatable {
     init(thread: AgentThread) {
         threadID = thread.persistentModelID
         title = thread.displayName()
-        isTask = thread.effectiveMode == .task
+        isTask = thread.supportsIndependentSidebarPlacement
     }
 }
 
-/// The project a sidebar removal confirmation is armed against. Keyed by path rather than
-/// `PersistentIdentifier` because every project route in the sidebar already resolves by path.
+/// A stable project identity survives membership edits while a removal dialog is open.
 struct SidebarPendingProjectRemoval: Equatable {
-    let projectPath: String
+    let projectID: String
     let name: String
 
     init(project: Project) {
-        projectPath = project.path
+        projectID = project.id
         name = project.name
     }
 }

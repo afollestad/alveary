@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 /// What a `create_thread` or `send_prompt_to_thread` call produced, kept so an exact retry replays
@@ -15,6 +16,7 @@ struct ThreadHostToolReceipt: Codable, Equatable, Sendable {
     let message: String
     let sourceProcessToken: String
     let createdAt: Date
+    var structuredResult: AgentCLIKit.JSONValue?
 }
 
 extension Conversation {

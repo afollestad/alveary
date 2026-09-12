@@ -20,8 +20,8 @@ extension ScheduledTaskMutationService {
             && edit.providerID == definition.providerID
             && edit.workspaceKind == definition.workspaceKind
             && edit.workspaceStrategy == definition.workspaceStrategy
-            && edit.project?.path == definition.project?.path
-            && edit.grantedRoots == definition.grantedRoots
+            && edit.project?.id == definition.project?.id
+            && edit.workspaceSnapshot == definition.workspaceSnapshot
     }
 
     func validate(
@@ -30,7 +30,7 @@ extension ScheduledTaskMutationService {
     ) throws {
         switch edit.destination {
         case .reusedThread, .newThreadPerRun:
-            if edit.workspaceKind == .project, edit.project == nil {
+            if edit.workspaceKind == .project, edit.workspaceSnapshot.primarySource == nil {
                 throw ScheduledTaskMutationError.projectWorkspaceRequiresProject
             }
             guard edit.targetThread == nil else {
@@ -46,7 +46,9 @@ extension ScheduledTaskMutationService {
                 throw ScheduledTaskMutationError.existingThreadRequiresAvailableThread
             }
         }
-        guard ScheduledTask.normalizedUniquePaths(edit.grantedRoots) == edit.grantedRoots else {
+        let roots = edit.workspaceSnapshot.grants.map(\.path)
+        guard roots == edit.grantedRoots, ScheduledTask.normalizedUniquePaths(roots) == roots,
+              (edit.workspaceKind == .project) == (edit.workspaceSnapshot.primarySource != nil) else {
             throw ScheduledTaskMutationError.workspaceRootsChanged
         }
         // Only custom sections may be named: `Tasks` is the nil sentinel, and a built-in row
@@ -56,7 +58,7 @@ extension ScheduledTaskMutationService {
         }
         if edit.destination != .existingThread,
            edit.workspaceKind == .project,
-           let projectPath = edit.project?.path,
+           let projectPath = edit.workspaceSnapshot.primarySource?.path,
            CanonicalPath.normalize(projectPath) != projectPath {
             throw ScheduledTaskMutationError.workspaceRootsChanged
         }

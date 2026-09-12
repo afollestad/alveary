@@ -63,6 +63,9 @@ private extension ConversationViewModel {
     }
 
     func completeHiddenInitialSetup(thread: AgentThread) throws {
+        guard let thread = modelContext.resolveThread(id: thread.persistentModelID) else {
+            throw AgentError.spawnFailed("The thread was removed during setup")
+        }
         thread.hasCompletedInitialSetup = true
         try modelContext.save()
         state.lastTurnInterrupted = false

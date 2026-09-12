@@ -4,7 +4,6 @@ import SwiftUI
 struct AddProjectSheet: View {
     let viewModel: SidebarViewModel
     let settingsService: SettingsService
-    let onChooseFromDisk: () -> Void
     let onProjectCreated: (Project) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -15,14 +14,12 @@ struct AddProjectSheet: View {
     init(
         viewModel: SidebarViewModel,
         settingsService: SettingsService,
-        onChooseFromDisk: @escaping () -> Void,
         onProjectCreated: @escaping (Project) -> Void,
         initialStep: Step = .chooser,
         initialDraft: CloneDraft? = nil
     ) {
         self.viewModel = viewModel
         self.settingsService = settingsService
-        self.onChooseFromDisk = onChooseFromDisk
         self.onProjectCreated = onProjectCreated
         _step = State(initialValue: initialStep)
 
@@ -38,6 +35,7 @@ struct AddProjectSheet: View {
 
     enum Step: Equatable {
         case chooser
+        case projectForm
         case cloneForm
         case cloneRunning
         case cloneFailed(String)
@@ -83,6 +81,8 @@ private extension AddProjectSheet {
         switch step {
         case .chooser:
             return "Add Project"
+        case .projectForm:
+            return "Create project"
         case .cloneForm, .cloneRunning, .cloneFailed:
             return "Clone from Git"
         }
@@ -93,6 +93,8 @@ private extension AddProjectSheet {
         switch step {
         case .chooser:
             chooserStep
+        case .projectForm:
+            ProjectEditorForm(viewModel: viewModel, onCancel: { dismiss() }, onSaved: onProjectCreated)
         case .cloneForm:
             cloneFormStep
         case .cloneRunning:
@@ -105,12 +107,12 @@ private extension AddProjectSheet {
     var chooserStep: some View {
         VStack(alignment: .leading, spacing: 12) {
             Button {
-                onChooseFromDisk()
+                step = .projectForm
             } label: {
                 chooserLabel(
                     icon: "folder",
-                    title: "Add From Disk",
-                    subtitle: "Pick a folder that already exists on your Mac."
+                    title: "Create project",
+                    subtitle: "Choose a name and add source folders, or start with an empty project."
                 )
             }
             .buttonStyle(AddProjectOptionCardButtonStyle())

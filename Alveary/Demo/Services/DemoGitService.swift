@@ -8,6 +8,8 @@ import Foundation
 /// `final class` holding only `let` state, matching `CLIGitService`: the toolbar reads stats on a
 /// `Task.detached`, so the decorator has to be `Sendable` without `@unchecked`.
 final class DemoGitService: GitService {
+    func repositoryRoot(in directory: String) async throws -> String? { directory }
+
     private let wrapped: GitService
 
     init(wrapping wrapped: GitService) {

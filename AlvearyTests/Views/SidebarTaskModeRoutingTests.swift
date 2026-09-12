@@ -4,23 +4,23 @@ import XCTest
 
 @MainActor
 final class SidebarTaskModeRoutingTests: XCTestCase {
-    func testTaskMaterializationDoesNotExpandAttachedProject() {
+    func testTaskMaterializationExpandsAttachedProject() {
         let notification = Notification(
             name: .threadDraftMaterialized,
             userInfo: [
                 ThreadDraftNotificationKey.mode: AgentThreadMode.task.rawValue,
-                ThreadDraftNotificationKey.projectPath: "/tmp/attached-task-materialization"
+                ThreadDraftNotificationKey.projectID: "attached-project-id"
             ]
         )
 
         XCTAssertEqual(sidebarDraftMaterializedMode(notification), .task)
-        XCTAssertNil(sidebarProjectPathToExpandAfterDraftMaterialization(notification))
+        XCTAssertEqual(sidebarProjectPathToExpandAfterDraftMaterialization(notification), "attached-project-id")
     }
 
     func testLegacyProjectMaterializationStillExpandsProject() {
         let notification = Notification(
             name: .threadDraftMaterialized,
-            userInfo: [ThreadDraftNotificationKey.projectPath: "/tmp/legacy-project-materialization"]
+            userInfo: [ThreadDraftNotificationKey.projectID: "/tmp/legacy-project-materialization"]
         )
 
         XCTAssertEqual(sidebarDraftMaterializedMode(notification), .project)

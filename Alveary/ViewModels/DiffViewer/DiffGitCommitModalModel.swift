@@ -7,6 +7,26 @@ struct DiffGitCommitModalContext: Identifiable, Equatable {
     let targetName: String
     let baseBranch: String
     let remoteName: String?
+    /// Literal selected folder; the Git directory may be its parent repository root.
+    let sourceDirectory: String?
+
+    init(
+        directory: String, targetName: String, baseBranch: String, remoteName: String?,
+        sourceDirectory: String? = nil
+    ) {
+        self.directory = directory
+        self.targetName = targetName
+        self.baseBranch = baseBranch
+        self.remoteName = remoteName
+        self.sourceDirectory = sourceDirectory
+    }
+
+    func requireSourceDirectory() throws {
+        guard let sourceDirectory else { return }
+        _ = try WorkspaceFolderTarget(
+            directory: sourceDirectory, source: SourceFolderSnapshot(path: sourceDirectory), isPrimary: true
+        ).requireDirectory()
+    }
 }
 
 @MainActor
@@ -199,6 +219,7 @@ final class DiffGitCommitModalModel: Identifiable {
         defer { isLoadingInitialState = false }
 
         do {
+            try context.requireSourceDirectory()
             // Resolve the base first: the on-base check below and every later
             // read would otherwise be decided against the stale hint.
             resolvedBaseBranch = await gitService.defaultBranch(
@@ -243,11 +264,13 @@ final class DiffGitCommitModalModel: Identifiable {
 
             if branchSelection == .new, currentBranch != trimmedNewBranchName {
                 phase = .committing
+                try context.requireSourceDirectory()
                 try await gitService.checkoutNewBranch(trimmedNewBranchName, in: context.directory)
                 currentBranch = trimmedNewBranchName
             }
 
             phase = .committing
+            try context.requireSourceDirectory()
             try await gitService.commit(
                 message: resolvedMessage,
                 includeUnstagedChanges: includeUnstagedChanges,
@@ -258,6 +281,7 @@ final class DiffGitCommitModalModel: Identifiable {
             if commitAndPush {
                 phase = .pushing
                 do {
+                    try context.requireSourceDirectory()
                     try await gitService.pushCurrentBranch(remoteName: context.remoteName, in: context.directory)
                 } catch GitError.nonFastForwardPushRequired(_) {
                     forcePushRequired = true
@@ -298,6 +322,7 @@ final class DiffGitCommitModalModel: Identifiable {
         errorMessage = nil
         phase = .pushing
         do {
+            try context.requireSourceDirectory()
             try await gitService.forcePushCurrentBranch(remoteName: context.remoteName, in: context.directory)
             forcePushRequired = false
             phase = .idle
@@ -348,6 +373,7 @@ private extension DiffGitCommitModalModel {
     }
 
     func validatePreflight() async throws {
+        try context.requireSourceDirectory()
         if currentBranch == nil {
             currentBranch = try await gitService.currentBranch(in: context.directory)
         }

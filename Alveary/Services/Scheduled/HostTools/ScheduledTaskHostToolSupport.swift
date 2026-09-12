@@ -173,6 +173,7 @@ struct ScheduledTaskHostToolProposalResolution {
 }
 
 struct ScheduledTaskHostToolSourceWorkspace {
+    let snapshot: WorkspaceSnapshot
     let kind: ScheduledTaskWorkspaceKind
     let strategy: ScheduledTaskWorkspaceStrategy
     let grantedRoots: [String]

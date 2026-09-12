@@ -26,6 +26,8 @@ final class ThreadHostToolService {
     let deliverPrompt: @MainActor (Conversation, OutboundMessageText) async throws -> RelayedPromptDelivery
     private let requestParser: ThreadHostToolRequestParser
     private let now: () -> Date
+    let resolveSourceFolder: @MainActor (String) async -> SourceFolderSnapshot
+    let saveChanges: @MainActor (ModelContext) throws -> Void
 
     init(
         modelContext: ModelContext,
@@ -38,7 +40,11 @@ final class ThreadHostToolService {
         startInitialPrompt: @escaping @MainActor (Conversation, String) -> Void = { _, _ in },
         deliverPrompt: @escaping @MainActor (Conversation, OutboundMessageText) async throws -> RelayedPromptDelivery,
         requestParser: ThreadHostToolRequestParser = ThreadHostToolRequestParser(),
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        resolveSourceFolder: @escaping @MainActor (String) async -> SourceFolderSnapshot = {
+            await SourceFolderMetadataResolver().resolve(path: $0)
+        },
+        saveChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.modelContext = modelContext
         self.lifecycleService = lifecycleService
@@ -51,6 +57,8 @@ final class ThreadHostToolService {
         self.deliverPrompt = deliverPrompt
         self.requestParser = requestParser
         self.now = now
+        self.resolveSourceFolder = resolveSourceFolder
+        self.saveChanges = saveChanges
     }
 
     func handle(
@@ -213,7 +221,7 @@ final class ThreadHostToolService {
             return
         }
         do {
-            try modelContext.save()
+            try saveChanges(modelContext)
         } catch {
             throw ThreadHostToolServiceError.persistenceFailure
         }
@@ -239,6 +247,8 @@ final class ThreadHostToolService {
             message = requestError.localizedDescription
         case let serviceError as ThreadHostToolServiceError:
             message = serviceError.localizedDescription
+        case let workspaceError as WorkspaceFolderError:
+            message = workspaceError.localizedDescription
         case let sidebarError as SidebarViewModelError:
             message = sidebarError.localizedDescription
         case let sectionError as SidebarSectionServiceError:

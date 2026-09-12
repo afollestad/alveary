@@ -268,7 +268,7 @@ final class SidebarSectionServiceTests: XCTestCase {
         XCTAssertEqual(try service.moveThread(threadID: task.persistentModelID, to: .tasks), .alreadyThere)
     }
 
-    func testMoveThreadRefusesIneligibleThreads() throws {
+    func testMoveThreadAllowsProjectlessSourceThreadsAndRefusesArchivedThreads() throws {
         let fixture = try SidebarTestFixture()
         let service = SidebarSectionService(modelContext: fixture.context)
         let sectionID = try createdCustomID(service.createSection(name: "Research"))
@@ -279,9 +279,9 @@ final class SidebarSectionServiceTests: XCTestCase {
         fixture.context.insert(projectThread)
         try fixture.context.save()
 
-        XCTAssertThrowsError(try service.moveThread(threadID: projectThread.persistentModelID, to: target)) { error in
-            XCTAssertEqual(error as? SidebarSectionServiceError, .threadNotEligible)
-        }
+        XCTAssertEqual(try service.moveThread(threadID: projectThread.persistentModelID, to: target), .moved)
+        XCTAssertEqual(projectThread.customSection?.id, sectionID)
+        XCTAssertEqual(projectThread.effectiveMode, .project)
         XCTAssertThrowsError(try service.moveThread(threadID: archived.persistentModelID, to: target)) { error in
             guard case .threadMissing? = error as? SidebarViewModelError else {
                 return XCTFail("Expected threadMissing, got \(error)")
@@ -350,12 +350,12 @@ final class SidebarSectionServiceTests: XCTestCase {
         let section = try XCTUnwrap(fixture.context.resolveSidebarSection(id: sectionID))
         let project = try fixture.insertProject(name: "Home", path: "/tmp/normalize-membership")
         let placed = AgentThread(name: "Placed", mode: .task, project: project)
-        let wrongMode = AgentThread(name: "Wrong mode", mode: .project)
+        let sourceThread = AgentThread(name: "Source workspace", mode: .project)
         let archivedMember = makeTask(name: "Archived member", archivedAt: Date(), in: fixture)
         fixture.context.insert(placed)
-        fixture.context.insert(wrongMode)
+        fixture.context.insert(sourceThread)
         placed.customSection = section
-        wrongMode.customSection = section
+        sourceThread.customSection = section
         archivedMember.customSection = section
         try fixture.context.save()
 
@@ -363,7 +363,7 @@ final class SidebarSectionServiceTests: XCTestCase {
         try fixture.context.save()
 
         XCTAssertNil(placed.customSection)
-        XCTAssertNil(wrongMode.customSection)
+        XCTAssertEqual(sourceThread.customSection?.id, sectionID)
         // Archived projectless Tasks keep membership so a restore returns them to their section.
         XCTAssertEqual(archivedMember.customSection?.id, sectionID)
     }

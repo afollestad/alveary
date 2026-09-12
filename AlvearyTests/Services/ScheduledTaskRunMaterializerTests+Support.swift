@@ -102,7 +102,8 @@ struct ScheduledTaskRunMaterializerFixture {
             projectRemoteNameSnapshot: projectRemoteName,
             grantedRootsSnapshot: canonicalGrantedRoots,
             workspaceIdentitySnapshot: workspaceIdentities,
-            targetThread: targetThread
+            targetThread: targetThread,
+            projectIDSnapshot: canonicalProjectPath.flatMap { context.resolveProject(path: $0)?.id }
         )
         context.insert(run)
         try context.save()

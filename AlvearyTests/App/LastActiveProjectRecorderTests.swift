@@ -20,7 +20,7 @@ final class LastActiveProjectRecorderTests: XCTestCase {
         gate.open()
         await job?.value
 
-        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.path])
+        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.id])
     }
 
     func testRapidProjectSelectionsLeaveTheFinalProjectPersisted() async throws {
@@ -36,7 +36,7 @@ final class LastActiveProjectRecorderTests: XCTestCase {
         await second?.value
         await third?.value
 
-        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.path, fixture.beta.path, fixture.gamma.path])
+        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.id, fixture.beta.id, fixture.gamma.id])
     }
 
     func testAStaleJobCannotOverwriteANewerProjectWrite() async throws {
@@ -54,7 +54,7 @@ final class LastActiveProjectRecorderTests: XCTestCase {
         gate.release(0)
         await stale?.value
 
-        XCTAssertEqual(fixture.persistedPaths, [fixture.beta.path])
+        XCTAssertEqual(fixture.persistedPaths, [fixture.beta.id])
     }
 
     func testGlobalSelectionsNeverScheduleAWrite() async throws {
@@ -80,7 +80,7 @@ final class LastActiveProjectRecorderTests: XCTestCase {
         await projectJob?.value
         await taskJob?.value
 
-        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.path])
+        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.id])
     }
 
     func testAProjectThreadSelectionPersistsItsOwningProject() async throws {
@@ -89,7 +89,7 @@ final class LastActiveProjectRecorderTests: XCTestCase {
 
         await recorder.record(for: .thread(fixture.alphaThread))?.value
 
-        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.path])
+        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.id])
     }
 
     func testResolutionReadsLiveRowsThroughTheModelContext() throws {
@@ -100,14 +100,14 @@ final class LastActiveProjectRecorderTests: XCTestCase {
                 .project(fixture.alpha.persistentModelID),
                 modelContext: fixture.context
             ),
-            .path(fixture.alpha.path)
+            .projectID(fixture.alpha.id)
         )
         XCTAssertEqual(
             ContentView.resolveLastActiveProject(
                 .thread(fixture.alphaThread.persistentModelID),
                 modelContext: fixture.context
             ),
-            .path(fixture.alpha.path)
+            .projectID(fixture.alpha.id)
         )
         XCTAssertEqual(
             ContentView.resolveLastActiveProject(

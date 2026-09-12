@@ -149,6 +149,15 @@ struct DiffWorkspaceTarget: Equatable, Hashable {
     let directory: String
     let baseRef: String
     let remoteName: String?
+    /// Retain a nested grant after resolving the Git cwd so a removed folder cannot redirect a mutation.
+    var sourceDirectory: String?
+
+    func requireSourceDirectory() throws {
+        guard let sourceDirectory else { return }
+        _ = try WorkspaceFolderTarget(
+            directory: sourceDirectory, source: SourceFolderSnapshot(path: sourceDirectory), isPrimary: true
+        ).requireDirectory()
+    }
 
     var statsCacheKey: DiffWorkspaceStatsCacheKey {
         DiffWorkspaceStatsCacheKey(

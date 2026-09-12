@@ -318,7 +318,7 @@ extension SidebarDragInteractionTests {
         XCTAssertEqual(message.quotedThreadName, "\"New task\"")
         XCTAssertEqual(message.projectName, "af.codes")
         XCTAssertTrue(message.leading.hasPrefix("Moves"))
-        XCTAssertTrue(message.detail.contains("stays a task and keeps its own workspace"))
+        XCTAssertTrue(message.detail.contains("keeps its own workspace"))
         XCTAssertTrue(message.detail.contains("continues where it left off"))
         // A pinned Task sits under Pinned, so the copy must never claim a specific section.
         let full = message.leading + message.quotedThreadName + message.middle

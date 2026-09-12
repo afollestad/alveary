@@ -150,9 +150,7 @@ extension ThreadHostToolServiceTests {
         XCTAssertEqual(try fixture.threadCount(), 2)
     }
 
-    /// A Project thread already works inside its Project, so grants that came along with an
-    /// inherited placement are refused rather than dropped.
-    func testCreateThreadRefusesGrantsWhenItInheritsAProject() async throws {
+    func testCreateThreadAppliesGrantsWhenItInheritsAProject() async throws {
         let fixture = try ThreadHostToolFixture()
         let granted = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: granted) }
@@ -161,9 +159,11 @@ extension ThreadHostToolServiceTests {
             "granted_roots": .array([.string(granted.path)])
         ])
 
-        XCTAssertTrue(result.isError)
-        XCTAssertEqual(result.text, ThreadHostToolServiceError.grantsRequireTaskThread.localizedDescription)
-        XCTAssertEqual(try fixture.threadCount(), 1)
+        XCTAssertFalse(result.isError, result.text)
+        let created = try fixture.createdThread(in: result)
+        XCTAssertEqual(created.workspaceSnapshot?.primarySource?.path, fixture.project.path)
+        XCTAssertEqual(created.workspaceSnapshot?.grants.map(\.path), [CanonicalPath.normalize(granted.path)])
+        XCTAssertEqual(try fixture.threadCount(), 2)
     }
 
     func testCreateThreadMakesAProjectlessTaskThread() async throws {

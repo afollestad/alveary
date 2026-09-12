@@ -45,9 +45,9 @@ extension SidebarViewModelTests {
 
         XCTAssertNotNil(fixture.context.resolveThread(id: thread.persistentModelID))
         let verificationContext = ModelContext(fixture.container)
-        let unrelatedPath = unrelatedProject.path
+        let unrelatedID = unrelatedProject.id
         let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == unrelatedPath
+            project.id == unrelatedID
         })
         XCTAssertEqual(try verificationContext.fetch(descriptor).first?.name, "Persisted pending name")
         let removedConversationIDs = await fixture.attachmentStore.removedConversationIDs

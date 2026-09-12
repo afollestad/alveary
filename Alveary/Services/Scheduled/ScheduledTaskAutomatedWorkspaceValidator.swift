@@ -72,26 +72,12 @@ struct ScheduledTaskAutomatedWorkspaceValidator {
             throw ScheduledTurnWorkspaceValidationError.workspaceDoesNotMatchRun
         }
 
-        let workspace: TaskWorkspaceDescriptor
-        switch thread.effectiveMode {
-        case .project:
-            guard let primaryRoot = thread.primaryWorkingDirectory else {
-                throw ScheduledTurnWorkspaceValidationError.missingWorkspace
-            }
-            workspace = TaskWorkspaceDescriptor(
-                primaryRoot: primaryRoot,
-                grantedRoots: thread.taskGrantedRoots,
-                ownershipStrategy: .projectLocal,
-                sourceProjectPath: primaryRoot
-            )
-        case .task:
-            guard let descriptor = thread.taskWorkspaceDescriptor else {
-                throw ScheduledTurnWorkspaceValidationError.missingWorkspace
-            }
-            workspace = descriptor
-            if descriptor.ownershipStrategy != .projectLocal {
-                try workspaceOwnershipService.validateOwnedWorkspace(descriptor)
-            }
+        guard let workspace = thread.resolvedWorkspaceDescriptor,
+              thread.workspaceSnapshot == run.workspaceSnapshot else {
+            throw ScheduledTurnWorkspaceValidationError.workspaceDoesNotMatchRun
+        }
+        if thread.effectiveMode == .task, workspace.ownershipStrategy != .projectLocal {
+            try workspaceOwnershipService.validateOwnedWorkspace(workspace)
         }
 
         guard workspace.primaryRoot == run.projectPathSnapshot,
@@ -123,7 +109,8 @@ struct ScheduledTaskAutomatedWorkspaceValidator {
               ) else {
             throw ScheduledTurnWorkspaceValidationError.workspaceDoesNotMatchRun
         }
-        guard let workspace = ScheduledTaskReusedThreadWorkspace.descriptor(thread: thread, run: run) else {
+        guard thread.workspaceSnapshot == run.workspaceSnapshot,
+              let workspace = ScheduledTaskReusedThreadWorkspace.descriptor(thread: thread) else {
             throw ScheduledTurnWorkspaceValidationError.missingWorkspace
         }
         // The per-kind validators own the ownership-marker checks, so nothing repeats here.
@@ -141,7 +128,7 @@ private extension ScheduledTaskAutomatedWorkspaceValidator {
         }
         return TaskWorkspaceDescriptor(
             primaryRoot: primaryRoot,
-            grantedRoots: run.grantedRootsSnapshot,
+            grantedRoots: thread.workspaceSnapshot?.grants.map(\.path) ?? [],
             ownershipStrategy: ownershipStrategy,
             ownershipMarkerID: run.preparedWorkspaceMarkerID,
             sourceProjectPath: run.projectPathSnapshot

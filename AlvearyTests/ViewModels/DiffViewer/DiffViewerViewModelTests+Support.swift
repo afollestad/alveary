@@ -39,6 +39,8 @@ struct DiffViewerTestFixture {
 }
 
 actor DiffViewerMockGitService: GitService {
+    func repositoryRoot(in directory: String) async throws -> String? { directory }
+
     struct DiffCall: Equatable {
         let paths: [String]
         let scope: DiffScope

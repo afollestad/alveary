@@ -18,7 +18,7 @@ These instructions apply to Diff Viewer coordination and state under `Alveary/Vi
 - `DiffWorkspaceStore` is the single source of truth for Diff Viewer files, stats, selected diff content, loading state, and per-project/worktree stats caching.
     - **Keep multi-selection separate.** `selectedFileKeys` owns batch selection, while `selectedFile` remains the single preview anchor. Reconcile keys after status refreshes and Git mutations.
 - `DiffViewerSwitchTarget` is the pure sidebar-to-diff target factory.
-    - **Resolve paths from the thread's own workspace.** `directory` comes from `thread.primaryWorkingDirectory` and `projectPath` from `sourceProjectCleanupPath ?? directory`; Task mode prefers `taskWorkspaceDescriptor.primaryRoot`, Project mode `thread.worktreePath`. It never reads `project.path` directly.
+    - **Resolve operations from the captured `WorkspaceFolderTarget`.** Only the primary source maps to the thread's actual workspace; secondary folders stay local. Project membership must never retarget an existing thread's diffs or Git mutations.
 
 ## Image Previews
 

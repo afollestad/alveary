@@ -10,7 +10,7 @@ struct ProjectSettingsActionsCard: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
                 if actions.isEmpty {
-                    Text("Add actions that appear in the toolbar whenever one of this project's threads is selected.")
+                    Text("Add actions that appear in the toolbar when this source folder is selected.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {

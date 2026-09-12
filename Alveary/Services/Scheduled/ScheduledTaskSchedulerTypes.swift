@@ -93,6 +93,7 @@ struct ScheduledTaskTargetSnapshot: Equatable, Sendable {
     let workspaceStrategy: ScheduledTaskWorkspaceStrategy
     let projectPath: String?
     let grantedRoots: [String]
+    var workspaceSnapshot: WorkspaceSnapshot?
 }
 
 struct ScheduledTaskRootIdentitySnapshot: Codable, Equatable, Sendable {

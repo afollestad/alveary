@@ -157,7 +157,7 @@ extension ThreadDetailView {
         guard let thread = conversation.thread,
               thread.effectiveMode == .project,
               !thread.hasCompletedInitialSetup,
-              let project = thread.project else {
+              let source = thread.sourceFolder else {
             return nil
         }
 
@@ -165,8 +165,8 @@ extension ThreadDetailView {
 
         return ProjectTrustPrompt(
             threadID: thread.persistentModelID,
-            canonicalProjectPath: CanonicalPath.normalize(project.path),
-            projectName: project.name,
+            canonicalProjectPath: source.path,
+            projectName: thread.project?.name ?? source.name,
             providerID: providerID
         )
     }

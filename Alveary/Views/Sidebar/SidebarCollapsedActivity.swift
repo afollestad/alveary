@@ -21,7 +21,7 @@ struct SidebarCollapsedActivity: Equatable {
     static let none = SidebarCollapsedActivity(sections: [:], projectPaths: [:])
 
     let sections: [SidebarCollapsibleSection: SidebarHiddenActivity]
-    /// Keyed by `Project.path`, matching `SidebarView.expandedProjects`.
+    /// Keyed by `Project.id`, matching `SidebarView.expandedProjects`.
     let projectPaths: [String: SidebarHiddenActivity]
 
     /// `nil` for `Pinned`, which has no collapse of its own.
@@ -54,9 +54,9 @@ func sidebarCollapsedActivity(
     var projectPaths: [String: SidebarHiddenActivity] = [:]
     // `orderedProjects` rather than `regularProjects`: `Pinned` never collapses, but the project
     // rows inside it are ordinary collapsible groups and hide their children just the same.
-    for project in snapshot.orderedProjects where !expandedProjects.contains(project.path) {
+    for project in snapshot.orderedProjects where !expandedProjects.contains(project.id) {
         if let activity = hiddenActivity(in: snapshot.activeThreads(for: project), statusFor: statusFor) {
-            projectPaths[project.path] = activity
+            projectPaths[project.id] = activity
         }
     }
 

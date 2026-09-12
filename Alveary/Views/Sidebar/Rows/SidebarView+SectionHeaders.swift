@@ -79,8 +79,8 @@ extension SidebarView {
         SidebarSectionHeaderRow(
             title: "Tasks", showsTopDivider: true,
             actionSystemImage: "plus",
-            actionAccessibilityLabel: "New task",
-            actionHelp: "New task",
+            actionAccessibilityLabel: "New thread",
+            actionHelp: "New thread",
             disclosure: sectionDisclosure(.tasks),
             hiddenActivity: hiddenActivity,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
@@ -96,6 +96,9 @@ extension SidebarView {
         SidebarSectionHeaderRow(
             title: name,
             showsTopDivider: true,
+            actionSystemImage: "plus",
+            actionAccessibilityLabel: "New thread",
+            actionHelp: "New thread",
             disclosure: sectionDisclosure(.custom(sectionID)),
             hiddenActivity: hiddenActivity,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
@@ -105,7 +108,8 @@ extension SidebarView {
                     commitSectionRename(sectionID: sectionID, currentName: name, submitted: submitted)
                 },
                 onCancel: { cancelSectionRename() }
-            )
+            ),
+            onAction: { appState.startNewThreadFlow(destination: .section(id: sectionID)) }
         )
         .sidebarDragGeometry(
             .customSectionHeader(sectionID),

@@ -18,7 +18,8 @@ struct ThreadDetailView: View {
     let voiceInputService: any VoiceInputService
     let voiceInputLifecycleController: VoiceInputLifecycleController
     let availableProjects: [Project]
-    let selectDraftProject: @MainActor (PersistentIdentifier, String) async -> Void
+    let availableSections: [SidebarSection]
+    let selectDraftDestination: @MainActor (PersistentIdentifier, ThreadDraftDestination) -> Void
     let deleteThread: @MainActor (AgentThread) async throws -> Void
     let loadSkillCompletions: @Sendable () async -> [Skill]
     let diffViewModel: DiffViewerViewModel
@@ -131,8 +132,9 @@ struct ThreadDetailView: View {
                         diffViewModel: diffViewModel,
                         diffViewerSwitchScope: diffViewerSwitchScope,
                         availableProjects: availableProjects,
-                        onSelectDraftProject: { projectPath in
-                            Task { await selectDraftProject(thread.persistentModelID, projectPath) }
+            availableSections: availableSections,
+                        onSelectDraftDestination: { projectPath in
+                            selectDraftDestination(thread.persistentModelID, projectPath)
                         },
                         appState: appState
                     )
@@ -358,13 +360,7 @@ private extension ThreadDetailView {
 
             appState.selectConversation(conversation, in: dbThread)
 
-            let conversationIds = Set(existingConversations.map(\.id)).union([conversation.id])
-            if let diffTarget = DiffViewerSwitchTarget.forThread(
-                dbThread,
-                candidateConversationIDs: conversationIds
-            ) {
-                await diffViewModel.switchToTarget(diffTarget, scope: diffViewerSwitchScope())
-            }
+            NotificationCenter.default.post(name: .workspaceConfigurationChanged, object: nil)
         } catch {
             conversationActionError = "Couldn't create conversation: \(error.localizedDescription)"
         }
@@ -451,16 +447,8 @@ private extension ThreadDetailView {
         )
     }
 
-    func refreshDiffAfterRemovingConversation(from thread: AgentThread, excluding conversationIDString: String) async {
-        let conversationIds = Set(conversations.map(\.id).filter { $0 != conversationIDString })
-        guard let diffTarget = DiffViewerSwitchTarget.forThread(
-            thread,
-            candidateConversationIDs: conversationIds
-        ) else {
-            return
-        }
-
-        await diffViewModel.switchToTarget(diffTarget, scope: diffViewerSwitchScope())
+    func refreshDiffAfterRemovingConversation(from _: AgentThread, excluding _: String) async {
+        NotificationCenter.default.post(name: .workspaceConfigurationChanged, object: nil)
     }
 
 }

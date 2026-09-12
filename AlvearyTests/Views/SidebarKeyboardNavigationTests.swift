@@ -71,7 +71,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
         let items = buildNavigableItems(
             projects: [project],
-            expandedProjects: ["/tmp/alpha"],
+            expandedProjects: [project.id],
             activeThreads: { project in
                 project.threads.filter { $0.archivedAt == nil }
             }
@@ -89,7 +89,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         let items = buildNavigableItems(
             pinnedItems: [SidebarPinnedItem(thread: pinned)],
             projects: [project],
-            expandedProjects: ["/tmp/alpha"],
+            expandedProjects: [project.id],
             activeThreads: { project in
                 project.threads.filter { $0.archivedAt == nil && !$0.isPinned }
             }
@@ -108,7 +108,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         let items = buildNavigableItems(
             pinnedItems: [SidebarPinnedItem(project: pinnedProject, activityDate: nil)],
             projects: [regularProject],
-            expandedProjects: ["/tmp/pinned", "/tmp/regular"],
+            expandedProjects: [pinnedProject.id, regularProject.id],
             activeThreads: { project in
                 project.threads.filter { $0.archivedAt == nil && !$0.isPinned }
             }
@@ -134,7 +134,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
         let items = buildNavigableItems(
             projects: [project],
-            expandedProjects: ["/tmp/alpha"],
+            expandedProjects: [project.id],
             activeThreads: { project in
                 project.threads.filter { $0.archivedAt == nil }
             }
@@ -152,7 +152,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
         let items = buildNavigableItems(
             projects: [projectA, projectB],
-            expandedProjects: ["/tmp/alpha"],
+            expandedProjects: [projectA.id],
             activeThreads: { project in
                 project.threads.filter { $0.archivedAt == nil }
             }
@@ -265,7 +265,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
         let result = shouldNavigateUpOnLeftArrow(
             selection: .project(project),
-            expandedProjects: [project.path]
+            expandedProjects: [project.id]
         )
 
         XCTAssertFalse(result)
@@ -307,7 +307,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
         let result = shouldNavigateDownOnRightArrow(
             selection: .project(project),
-            expandedProjects: [project.path]
+            expandedProjects: [project.id]
         )
 
         XCTAssertTrue(result)
@@ -385,6 +385,19 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
 
         XCTAssertNil(effectiveSidebarSelection(.thread(thread)))
         XCTAssertNil(renameThreadID(for: .thread(thread), editingThreadID: nil))
+    }
+
+    func testEmptyProjectDraftNavigatesFromItsHighlightedProject() {
+        let project = Project(name: "Empty")
+        let draft = AgentThread(name: "Draft", isDraft: true, mode: .task, project: project)
+        let selection = effectiveSidebarSelection(.thread(draft))
+        let items: [SidebarItem] = [.skills, .project(project), .scheduled]
+
+        XCTAssertEqual(selection, .project(project))
+        XCTAssertEqual(navigateVertically(in: items, from: selection, forward: true), .scheduled)
+        XCTAssertEqual(navigateVertically(in: items, from: selection, forward: false), .skills)
+        XCTAssertFalse(shouldNavigateUpOnLeftArrow(selection: selection, expandedProjects: [project.id]))
+        XCTAssertFalse(shouldNavigateDownOnRightArrow(selection: selection, expandedProjects: []))
     }
 
     func testRenameThreadIDReturnsNilForNonThreadSelection() throws {

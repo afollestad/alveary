@@ -8,6 +8,65 @@ import XCTest
 /// the schedule then mints a replacement rather than blocking.
 @MainActor
 extension ScheduledTasksViewModelTests {
+    func testEditingScheduleRejectsRetargetedSavedGrantWithoutChangingItsReuseThread() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let grant = root.appendingPathComponent("Grant", isDirectory: true)
+        let replacement = root.appendingPathComponent("Replacement", isDirectory: true)
+        try FileManager.default.createDirectory(at: grant, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: replacement, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fixture = try ScheduledTasksViewModelFixture()
+        let thread = try fixture.insertReusedThreadDefinition(id: "changed-grant")
+        let definition = try XCTUnwrap(try fixture.context.fetch(FetchDescriptor<ScheduledTask>()).first)
+        let workspace = WorkspaceSnapshot(primarySource: nil, grants: [SourceFolderSnapshot(path: CanonicalPath.normalize(grant.path))])
+        definition.workspaceSnapshot = workspace
+        definition.grantedRoots = workspace.grants.map(\.path)
+        try thread.replaceAdditionalFolders(workspace.grants)
+        try fixture.context.save()
+        let originalTitle = definition.title
+        let originalRevision = definition.revision
+        var draft = try XCTUnwrap(fixture.viewModel.makeEditDraft(definitionID: definition.id))
+        draft.title = "Renamed schedule"
+        try FileManager.default.removeItem(at: grant)
+        try FileManager.default.createSymbolicLink(at: grant, withDestinationURL: replacement)
+
+        // Both saving unrelated edits and adding another grant must retain the saved literal.
+        for addingFolder in [false, true] {
+            if addingFolder { draft.addFolderGrants([replacement.path, replacement.path]) }
+            XCTAssertEqual(draft.grantedRoots.first, workspace.grants.first?.path)
+            XCTAssertFalse(fixture.viewModel.save(draft))
+            XCTAssertEqual(fixture.viewModel.editorErrorMessage, ScheduledTaskMutationError.workspaceRootsChanged.localizedDescription)
+            XCTAssertEqual(definition.workspaceSnapshot, workspace)
+            XCTAssertEqual(definition.title, originalTitle)
+            XCTAssertEqual(definition.revision, originalRevision)
+            XCTAssertEqual(definition.reusedThread?.persistentModelID, thread.persistentModelID)
+        }
+        XCTAssertEqual(draft.grantedRoots.count, 2)
+    }
+
+    func testTextOnlyEditPreservesLegacyRootsAndReusedThreadUntilGrantsChange() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let thread = try fixture.insertReusedThreadDefinition(id: "legacy-roots")
+        let definition = try XCTUnwrap(try fixture.context.fetch(FetchDescriptor<ScheduledTask>()).first)
+        let legacy = WorkspaceSnapshot(primarySource: nil, rootsExplicitlyManaged: false)
+        definition.workspaceSnapshot = legacy
+        thread.workspaceSnapshot = legacy
+        try fixture.context.save()
+        var draft = try XCTUnwrap(fixture.viewModel.makeEditDraft(definitionID: definition.id))
+        draft.title = "Renamed schedule"
+
+        XCTAssertTrue(fixture.viewModel.save(draft))
+        XCTAssertEqual(definition.workspaceSnapshot, legacy)
+        XCTAssertEqual(definition.reusedThread?.persistentModelID, thread.persistentModelID)
+
+        draft = try XCTUnwrap(fixture.viewModel.makeEditDraft(definitionID: definition.id))
+        draft.grantedRoots = ["/tmp/new-grant"]
+        XCTAssertTrue(fixture.viewModel.save(draft))
+        XCTAssertEqual(definition.workspaceSnapshot?.rootsExplicitlyManaged, true)
+        XCTAssertNil(definition.reusedThread)
+    }
+
     func testReusedThreadScheduleNamesItsCreatedThreadOnTheCardAndInTheEditor() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         let thread = try fixture.insertReusedThreadDefinition(id: "reuse", threadName: "Morning triage")

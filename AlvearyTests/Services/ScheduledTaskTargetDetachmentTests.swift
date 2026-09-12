@@ -38,6 +38,28 @@ final class ScheduledTaskTargetDetachmentTests: XCTestCase {
         XCTAssertEqual(definition.modifiedAt, Date(timeIntervalSince1970: 5_000))
     }
 
+    func testProjectTargetDetachmentKeepsFrozenFoldersAfterMembershipChanges() throws {
+        let context = try makeContext()
+        let project = Project(name: "Many", folders: [
+            SourceFolderSnapshot(path: "/tmp/original", remoteName: "origin", baseRef: "main"),
+            SourceFolderSnapshot(path: "/tmp/secondary", remoteName: "upstream", baseRef: "develop")
+        ])
+        let thread = AgentThread(name: "Started", worktreePath: "/tmp/worktree", useWorktree: true, project: project)
+        let saved = thread.workspaceSnapshot
+        let definition = makeDefinition(targetThread: thread)
+        context.insert(thread)
+        context.insert(definition)
+        try context.save()
+        project.primaryFolderID = project.orderedFolders.last?.id
+        ScheduledTaskTargetDetachment.detachTargets(of: thread, continuation: .pauseForProjectDeletion)
+        XCTAssertNil(definition.project)
+        XCTAssertEqual(definition.workspaceSnapshot, saved)
+        XCTAssertEqual(definition.grantedRoots, ["/tmp/secondary"])
+        XCTAssertEqual(definition.workspaceSnapshot?.primarySource?.path, "/tmp/original")
+        XCTAssertEqual(definition.state, .paused)
+        XCTAssertEqual(definition.workspaceStrategy, .worktree)
+    }
+
     func testProjectModeTargetWithoutAWorktreeHandsOverALocalCheckout() throws {
         let context = try makeContext()
         let project = Project(path: "/tmp/detach-local", name: "Local")
@@ -135,7 +157,7 @@ final class ScheduledTaskTargetDetachmentTests: XCTestCase {
         XCTAssertEqual(definition.grantedRoots, [])
     }
 
-    func testProjectDeletionPausesInsteadOfInheritingTheDoomedProject() throws {
+    func testProjectDeletionPausesAndPreservesAllGrantedFolders() throws {
         let context = try makeContext()
         let project = Project(path: "/tmp/detach-doomed", name: "Doomed")
         let thread = AgentThread(
@@ -156,7 +178,7 @@ final class ScheduledTaskTargetDetachmentTests: XCTestCase {
 
         ScheduledTaskTargetDetachment.detachTargets(
             of: thread,
-            continuation: .pauseForProjectDeletion(projectPath: "/tmp/detach-doomed"),
+            continuation: .pauseForProjectDeletion,
             at: Date(timeIntervalSince1970: 6_000)
         )
 
@@ -165,7 +187,7 @@ final class ScheduledTaskTargetDetachmentTests: XCTestCase {
         XCTAssertEqual(definition.pauseReason, ScheduledTask.projectDeletedPauseReason)
         XCTAssertNil(definition.project)
         XCTAssertNil(definition.nextOccurrenceAt)
-        XCTAssertEqual(definition.grantedRoots, ["/tmp/detach-survivor"])
+        XCTAssertEqual(definition.grantedRoots, ["/tmp/detach-doomed", "/tmp/detach-survivor"])
         XCTAssertEqual(definition.modifiedAt, Date(timeIntervalSince1970: 6_000))
     }
 

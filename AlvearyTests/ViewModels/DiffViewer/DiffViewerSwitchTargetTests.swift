@@ -139,11 +139,11 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
 
         let target = DiffViewerSwitchTarget.forProject(project)
 
-        XCTAssertEqual(target.path, "/tmp/alveary-project")
-        XCTAssertEqual(target.projectPath, "/tmp/alveary-project")
-        XCTAssertNil(target.worktreePath)
-        XCTAssertEqual(target.directory, "/tmp/alveary-project")
-        XCTAssertEqual(target.conversationIds, ["project-thread-conv"])
+        XCTAssertEqual(target?.path, "/tmp/alveary-project")
+        XCTAssertEqual(target?.projectPath, "/tmp/alveary-project")
+        XCTAssertNil(target?.worktreePath)
+        XCTAssertEqual(target?.directory, "/tmp/alveary-project")
+        XCTAssertEqual(target?.conversationIds, ["project-thread-conv"])
     }
 
     func testForProjectIncludesThreadWhoseWorktreeMatchesProjectPath() throws {
@@ -157,7 +157,7 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
 
         let target = DiffViewerSwitchTarget.forProject(project)
 
-        XCTAssertEqual(target.conversationIds, ["self-worktree-conv"])
+        XCTAssertEqual(target?.conversationIds, ["self-worktree-conv"])
     }
 
     func testForProjectUsesWorkspaceSnapshotForLinkedRunsWithFallbackMode() throws {
@@ -180,7 +180,7 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
 
         let target = DiffViewerSwitchTarget.forProject(project)
 
-        XCTAssertEqual(target.conversationIds, ["project-conversation", "project-fallback-conversation"])
+        XCTAssertEqual(target?.conversationIds, ["project-conversation", "project-fallback-conversation"])
     }
 
     func testForProjectUsesCandidateConversationIDsWhenProvided() throws {
@@ -197,7 +197,7 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
             candidateConversationIDs: ["fetched-conv"]
         )
 
-        XCTAssertEqual(target.conversationIds, ["fetched-conv"])
+        XCTAssertEqual(target?.conversationIds, ["fetched-conv"])
     }
 
     func testForProjectCarriesRemoteAndBaseRefFromProject() throws {
@@ -210,8 +210,8 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
 
         let target = DiffViewerSwitchTarget.forProject(project)
 
-        XCTAssertEqual(target.baseRef, "develop")
-        XCTAssertEqual(target.remoteName, "upstream")
+        XCTAssertEqual(target?.baseRef, "develop")
+        XCTAssertEqual(target?.remoteName, "upstream")
     }
 
     func testForProjectDefaultsBaseRefToMainWhenProjectHasNone() throws {
@@ -220,7 +220,7 @@ final class DiffViewerSwitchTargetTests: XCTestCase {
 
         let target = DiffViewerSwitchTarget.forProject(project)
 
-        XCTAssertEqual(target.baseRef, "main")
+        XCTAssertEqual(target?.baseRef, "main")
     }
 }
 

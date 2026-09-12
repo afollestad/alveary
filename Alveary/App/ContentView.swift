@@ -38,7 +38,6 @@ struct ContentView: View {
 
     @State private var splitVisibility: NavigationSplitViewVisibility = .all
     @State var isAddProjectSheetPresented = false
-    @State var pendingDiskImportAfterDismiss = false
     @State private var viewModelContext: ModelContext
     @State var sidebarViewModel: SidebarViewModel
     @State var diffViewModel: DiffViewerViewModel
@@ -66,6 +65,7 @@ struct ContentView: View {
     @State var toolbarProjectActions: [AlvearyProjectConfig.ProjectAction] = []
     @State var toolbarProjectActionsOwner: ToolbarProjectActionsOwner?
     @State var diffViewerDraftRefreshRevision: UInt64 = 0
+    @State var folderSelection = WorkspaceFolderSelection()
     @State var isPullRequestPopoverPresented = false
     @State var lastActiveProjectRecorder: LastActiveProjectRecorder
     @State var gitCommitModalModel: DiffGitCommitModalModel?
@@ -142,6 +142,9 @@ struct ContentView: View {
         // bullets in `Alveary/Views/AGENTS.md`.
         reviewTeamDetailsSheetHost(rootSheetHost(rootActivityObservers(rootSelectionObservers(rootWindowView))))
             .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
+            .task(id: folderRepositoryDiscoveryKey) {
+                await refreshSelectedFolderRepository()
+            }
             .task(id: toolbarProjectActionsSelection) {
                 await refreshToolbarProjectActions()
             }
@@ -160,7 +163,6 @@ struct ContentView: View {
                 startThreadActivityBackfillIfNeeded()
                 restoreLastOpenThreadSelectionIfNeeded()
                 replayModelPreparationDeferredRoutingIfAvailable()
-                reportRecoveredModelStoreIfNeeded()
                 // Mark-read of the active conversation is handled by `ThreadDetailView` once
                 // the restored selection mounts; just sync the dock badge on launch.
                 notificationManager.refreshBadgeCount()
@@ -185,6 +187,7 @@ private extension ContentView {
     var middlePane: MiddlePane {
         MiddlePane(
             appState: appState,
+            selectedProjectFolder: selectedProjectWorkspaceFolder,
             modelContext: viewModelContext,
             gitHubCLI: gitHubCLI,
             agentsManager: agentsManager,
@@ -369,6 +372,13 @@ private extension ContentView {
         let diffRoutingKey = diffViewerRoutingKey
 
         return content
+        .onReceive(NotificationCenter.default.publisher(for: .workspaceConfigurationChanged)) { _ in
+            diffViewerDraftRefreshRevision &+= 1
+            Task { await refreshToolbarProjectActions() }
+        }
+        .onChange(of: folderSelection.revision) { _, _ in
+            Task { await refreshToolbarProjectActions() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .threadDraftProjectChanged)) { _ in
             diffViewerDraftRefreshRevision &+= 1
             Task { await refreshToolbarProjectActions() }
@@ -453,10 +463,6 @@ private extension ContentView {
             content
             .sheet(
                 isPresented: $isAddProjectSheetPresented,
-                // Wait for the sheet's dismissal to finish before opening the
-                // `NSOpenPanel`, otherwise the modal pops on top of the still-animating
-                // sheet and stutters the UI.
-                onDismiss: handleAddProjectSheetDismiss,
                 content: addProjectSheetContent
             )
             .sheet(item: $gitCommitModalModel) { model in

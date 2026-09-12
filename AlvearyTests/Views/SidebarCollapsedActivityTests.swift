@@ -75,7 +75,7 @@ final class SidebarCollapsedActivityTests: XCTestCase {
         let activity = try fold(
             fixture,
             collapsedSections: [.projects],
-            expandedProjects: [project.path],
+            expandedProjects: [project.id],
             waiting: [child]
         )
 
@@ -105,7 +105,7 @@ final class SidebarCollapsedActivityTests: XCTestCase {
 
         let activity = try fold(fixture, collapsedSections: [], waiting: [child])
 
-        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .waitingForUser)
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.id), .waitingForUser)
         // The section is open, so only the row it hid carries the dot.
         XCTAssertNil(activity.hiddenActivity(inSection: .projects))
     }
@@ -119,7 +119,7 @@ final class SidebarCollapsedActivityTests: XCTestCase {
         let activity = try fold(
             fixture,
             collapsedSections: [],
-            expandedProjects: [project.path],
+            expandedProjects: [project.id],
             waiting: [child]
         )
 
@@ -137,7 +137,7 @@ final class SidebarCollapsedActivityTests: XCTestCase {
 
         let activity = try fold(fixture, collapsedSections: [], waiting: [child])
 
-        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .waitingForUser)
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.id), .waitingForUser)
     }
 
     // MARK: - Working
@@ -160,7 +160,7 @@ final class SidebarCollapsedActivityTests: XCTestCase {
 
         let activity = try fold(fixture, collapsedSections: [], working: [child])
 
-        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .working)
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.id), .working)
     }
 
     // Deliberately inverts `ThreadStatus.folded`, where `.busy` outranks `.waitingForUser` for a
@@ -196,7 +196,7 @@ final class SidebarCollapsedActivityTests: XCTestCase {
 
         let activity = try fold(fixture, collapsedSections: [], failed: [child])
 
-        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.path), .failed)
+        XCTAssertEqual(activity.hiddenActivity(inProjectAt: project.id), .failed)
     }
 
     // A failed turn is settled and stays that way; a waiting thread is stalled until answered.

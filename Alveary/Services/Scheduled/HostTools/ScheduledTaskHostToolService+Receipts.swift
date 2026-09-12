@@ -20,6 +20,11 @@ extension ScheduledTaskHostToolService {
         if let title = receipt.title {
             structuredContent["title"] = .string(title)
         }
+        if let workspace = receipt.workspaceSnapshot {
+            if let path = workspace.primarySource?.path { structuredContent["primary_folder_path"] = .string(path) }
+            structuredContent["granted_roots"] = .array(workspace.grants.map { .string($0.path) })
+        }
+        if let id = receipt.projectID { structuredContent["project_id"] = .string(id) }
         return AgentCLIKit.AgentHostToolResult(
             text: receipt.message,
             structuredContent: .object(structuredContent)
@@ -60,7 +65,9 @@ extension ScheduledTaskHostToolService {
             title: proposal.targetTitleSnapshot ?? proposal.definitionDraft?.title,
             message: message,
             sourceProcessToken: sourceProcessToken.uuidString.lowercased(),
-            createdAt: createdAt
+            createdAt: createdAt,
+            workspaceSnapshot: proposal.definitionDraft?.workspaceSnapshot,
+            projectID: proposal.definitionDraft?.projectID
         )
     }
 
@@ -69,7 +76,7 @@ extension ScheduledTaskHostToolService {
             return
         }
         do {
-            try modelContext.save()
+            try saveChanges(modelContext)
         } catch {
             modelContext.rollback()
             throw ScheduledTaskHostToolServiceError.persistenceFailure
@@ -87,7 +94,7 @@ extension ScheduledTaskHostToolService {
             // unread badge is what leads the user back to it from elsewhere in the app.
             sourceConversation.isUnread = true
             try sourceConversation.recordScheduledTaskProposalReceipt(receipt)
-            try modelContext.save()
+            try saveChanges(modelContext)
         } catch {
             modelContext.rollback()
             throw ScheduledTaskHostToolServiceError.persistenceFailure
@@ -100,7 +107,7 @@ extension ScheduledTaskHostToolService {
     ) throws {
         do {
             try sourceConversation.recordScheduledTaskProposalReceipt(receipt)
-            try modelContext.save()
+            try saveChanges(modelContext)
         } catch {
             modelContext.rollback()
             throw ScheduledTaskHostToolServiceError.persistenceFailure

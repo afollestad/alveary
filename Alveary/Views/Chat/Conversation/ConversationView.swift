@@ -21,7 +21,8 @@ struct ConversationView: View {
     let diffViewModel: DiffViewerViewModel
     let diffViewerSwitchScope: @MainActor () -> DiffViewerSwitchScope
     let availableProjects: [Project]
-    let onSelectDraftProject: (String) -> Void
+    let availableSections: [SidebarSection]
+    let onSelectDraftDestination: (ThreadDraftDestination) -> Void
     @Bindable var appState: AppState
     @Environment(PullRequestReviewTeamCoordinator.self) var reviewTeamCoordinator: PullRequestReviewTeamCoordinator?
 
@@ -76,7 +77,8 @@ struct ConversationView: View {
         diffViewModel: DiffViewerViewModel,
         diffViewerSwitchScope: @escaping @MainActor () -> DiffViewerSwitchScope,
         availableProjects: [Project] = [],
-        onSelectDraftProject: @escaping (String) -> Void = { _ in },
+        availableSections: [SidebarSection] = [],
+        onSelectDraftDestination: @escaping (ThreadDraftDestination) -> Void = { _ in },
         appState: AppState
     ) {
         self.conversation = conversation
@@ -97,7 +99,8 @@ struct ConversationView: View {
         self.diffViewModel = diffViewModel
         self.diffViewerSwitchScope = diffViewerSwitchScope
         self.availableProjects = availableProjects
-        self.onSelectDraftProject = onSelectDraftProject
+        self.availableSections = availableSections
+        self.onSelectDraftDestination = onSelectDraftDestination
         self.appState = appState
         let providerStatusCacheKey = Self.composerProviderStatusCacheKey(
             projectURL: Self.providerDiscoveryURL(for: conversation.thread),
@@ -143,7 +146,8 @@ struct ConversationView: View {
             onDenyProjectTrust: onDenyProjectTrust,
             loadFileCompletions: Self.makeFileCompletionLoader(
                 fileListManager: fileListManager,
-                workingDirectory: activeWorkingDirectory
+                workingDirectory: activeWorkingDirectory,
+                additionalRoots: conversation.thread?.workspaceSnapshot?.grants.map(\.path) ?? []
             ),
             loadSkillCompletions: loadSkillCompletions,
             settingsService: settingsService,
@@ -151,7 +155,8 @@ struct ConversationView: View {
             voiceInputLifecycleController: voiceInputLifecycleController,
             transcriptTypography: transcriptTypography,
             availableProjects: availableProjects,
-            onSelectDraftProject: onSelectDraftProject,
+            availableSections: availableSections,
+            onSelectDraftDestination: onSelectDraftDestination,
             appState: appState
         )
         .task {
@@ -178,54 +183,15 @@ struct ConversationView: View {
             viewModel.scheduleQueueDrainIfNeeded()
         }
         .onChange(of: activeWorkingDirectory) { _, newPath in
-            guard let newPath,
-                  case .thread(let selectedThread) = appState.selectedSidebarItem,
-                  selectedThread.persistentModelID == conversation.thread?.persistentModelID,
-                  let thread = conversation.thread else {
-                return
-            }
-
-            let threadID = thread.persistentModelID
-            let allowsThreadScopedDiffSwitch = !thread.isDraft
-            let conversationIds = allowsThreadScopedDiffSwitch ? liveConversationIDs(for: threadID) : []
-            guard let diffTarget = DiffViewerSwitchTarget.forThread(
-                thread,
-                candidateConversationIDs: conversationIds
-            ), diffTarget.directory == newPath else {
-                return
-            }
-
-            Task {
-                await ConversationAsyncRouting.warmFileCacheForDiffSwitch(
-                    request: .init(
-                        threadID: threadID,
-                        workingDirectory: newPath,
-                        allowsThreadScopedSwitch: allowsThreadScopedDiffSwitch
-                    ),
-                    fileListManager: fileListManager,
-                    liveState: .init(
-                        selectedSidebarItem: { appState.selectedSidebarItem },
-                        currentWorkingDirectory: { activeWorkingDirectory },
-                        resolveScope: diffViewerSwitchScope
-                    ),
-                    performSwitch: { scope in
-                        await diffViewModel.switchToTarget(diffTarget, scope: scope)
-                    }
-                )
-            }
+            NotificationCenter.default.post(name: .workspaceConfigurationChanged, object: nil)
+            if let newPath { Task { await fileListManager.warmCache(for: newPath) } }
+        }
+        .onChange(of: conversation.thread?.workspaceSnapshotJSON) { _, _ in
+            NotificationCenter.default.post(name: .workspaceConfigurationChanged, object: nil)
         }
         .task(id: appState.pendingCommitMessageGenerationRequest?.id) {
             await handlePendingCommitMessageGenerationRequest()
         }
-    }
-
-    func liveConversationIDs(for threadID: PersistentIdentifier) -> Set<String> {
-        let descriptor = FetchDescriptor<Conversation>(
-            predicate: #Predicate { conversation in
-                conversation.thread?.persistentModelID == threadID
-            }
-        )
-        return Set(((try? modelContext.fetch(descriptor)) ?? []).map(\.id))
     }
 }
 

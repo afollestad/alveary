@@ -424,7 +424,7 @@ struct SidebarView: View, Equatable {
 
 @MainActor
 func startNewTaskFlowFromSidebar(appState: AppState) {
-    appState.startNewThreadFlow(mode: .task)
+    appState.startNewThreadFlow(destination: .tasks)
 }
 
 func shouldShowNoThreadsPlaceholder(

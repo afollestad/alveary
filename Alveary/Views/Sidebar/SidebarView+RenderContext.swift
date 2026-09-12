@@ -187,7 +187,7 @@ extension SidebarView {
         var ids: Set<PersistentIdentifier> = []
         for item in snapshot.pinnedItems {
             guard case .thread(let thread) = item.kind,
-                  thread.effectiveMode == .task else {
+                  thread.supportsIndependentSidebarPlacement else {
                 continue
             }
             ids.insert(thread.persistentModelID)
@@ -200,13 +200,13 @@ extension SidebarView {
     func projectIDByTaskID(in snapshot: SidebarRenderSnapshot) -> [PersistentIdentifier: PersistentIdentifier] {
         var map: [PersistentIdentifier: PersistentIdentifier] = [:]
         for project in snapshot.orderedProjects {
-            for thread in snapshot.activeThreads(for: project) where thread.effectiveMode == .task {
+            for thread in snapshot.activeThreads(for: project) where thread.supportsIndependentSidebarPlacement {
                 map[thread.persistentModelID] = project.persistentModelID
             }
         }
         for item in snapshot.pinnedItems {
             guard case .thread(let thread) = item.kind,
-                  thread.effectiveMode == .task,
+                  thread.supportsIndependentSidebarPlacement,
                   let projectID = thread.project?.persistentModelID else {
                 continue
             }

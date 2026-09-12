@@ -90,10 +90,10 @@ private extension ScheduledTaskHostToolCatalog {
         title, prompt, the complete schedule, or where the task runs. Omit destination and workspace to inherit this conversation's; \
         send destination reused_thread to create one thread on the first run and post every later run into it (the default for new \
         tasks), new_thread for a fresh thread on every run, or existing_thread with a target_thread_id from list_threads to post \
-        results into an existing thread. A workspace with a project_path from list_projects runs in a different Project. \
+        results into an existing thread. A workspace with a project_id from list_projects uses that project's current folders. \
         granted_roots replaces the folder grants \
-        the task would otherwise inherit; entries must be absolute paths to existing folders, may combine with a project_path, and \
-        every grant is shown to the user for confirmation. Provider, model, effort, permissions, and run location are bound by \
+        the task would otherwise inherit. Entries must be existing absolute folder paths and can combine with project_id and \
+        primary_folder_path. Every grant is shown to the user for confirmation. Provider, model, effort, permissions, and run location are bound by \
         Alveary and are intentionally not accepted. After it returns, report the `status` \
         it gave back: `applied` means the change is already in effect, and `pending_confirmation` means a proposal was opened and \
         nothing has changed yet.
@@ -106,6 +106,9 @@ private extension ScheduledTaskHostToolCatalog {
             properties: [
                 "status": HostToolSchema.enumSchema(["pending_confirmation", "applied", "error"]),
                 "proposal_id": HostToolSchema.stringSchema,
+                "project_id": HostToolSchema.stringSchema,
+                "primary_folder_path": HostToolSchema.stringSchema,
+                "granted_roots": HostToolSchema.arraySchema(items: HostToolSchema.stringSchema),
                 "action": HostToolSchema.enumSchema(ScheduledTaskProposalAction.allCases.map(\.rawValue)),
                 "title": HostToolSchema.stringSchema,
                 "message": HostToolSchema.stringSchema
@@ -146,6 +149,8 @@ private extension ScheduledTaskHostToolCatalog {
         properties: [
             "kind": HostToolSchema.enumSchema(["project", "private"]),
             "project_path": HostToolSchema.nonEmptyStringSchema,
+            "project_id": HostToolSchema.nonEmptyStringSchema,
+            "primary_folder_path": HostToolSchema.nonEmptyStringSchema,
             "granted_roots": .object([
                 "type": .string("array"),
                 "items": HostToolSchema.nonEmptyStringSchema,

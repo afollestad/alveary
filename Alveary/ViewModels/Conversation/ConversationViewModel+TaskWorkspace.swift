@@ -66,8 +66,14 @@ extension ConversationViewModel {
     }
 
     var taskWorkspaceConfigurationDisabledReason: String? {
-        guard let thread = dbThread(), thread.mode == .task else {
+        guard let thread = dbThread(), thread.resolvedWorkspaceDescriptor != nil else {
             return TaskWorkspaceGrantChangeError.notIdle.localizedDescription
+        }
+        if let definition = thread.blockingWorkspaceGrantScheduledTask {
+            return SidebarViewModelError.scheduledTaskAttachment(definition.title).localizedDescription
+        }
+        if thread.hasBlockingScheduledTaskRunAttachment {
+            return SidebarViewModelError.activeScheduledTaskRunAttachment.localizedDescription
         }
         guard thread.conversations.count == 1 else {
             return TaskWorkspaceGrantChangeError.multipleConversations.localizedDescription
@@ -83,39 +89,29 @@ extension ConversationViewModel {
 
     func addTaskWorkspaceGrants(_ urls: [URL]) {
         guard !urls.isEmpty,
-              beginTaskWorkspaceGrantChange() else {
+              let target = beginTaskWorkspaceGrantChange() else {
             return
         }
-        let conversationID = conversation.id
         let paths = urls.map(\.path)
         Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
             defer { isUpdatingTaskWorkspaceConfiguration = false }
-            guard dbThread()?.taskWorkspaceDescriptor != nil else {
-                state.lastTurnError = TaskWorkspaceGrantChangeError.notIdle.localizedDescription
-                return
-            }
-            await updateTaskWorkspaceGrants(.add(paths), conversationID: conversationID)
+            await updateTaskWorkspaceGrants(.add(paths), target: target)
         }
     }
 
     func removeTaskWorkspaceGrant(_ path: String) {
-        guard beginTaskWorkspaceGrantChange() else {
+        guard let target = beginTaskWorkspaceGrantChange() else {
             return
         }
-        let conversationID = conversation.id
         Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
             defer { isUpdatingTaskWorkspaceConfiguration = false }
-            guard dbThread()?.taskWorkspaceDescriptor != nil else {
-                state.lastTurnError = TaskWorkspaceGrantChangeError.notIdle.localizedDescription
-                return
-            }
-            await updateTaskWorkspaceGrants(.remove(path), conversationID: conversationID)
+            await updateTaskWorkspaceGrants(.remove(path), target: target)
         }
     }
 }
@@ -127,7 +123,9 @@ private extension ConversationViewModel {
 
     func isTaskWorkspaceIdleForGrantChange(conversationID: String) -> Bool {
         guard let thread = dbThread(),
-              thread.mode == .task,
+              thread.workspaceSnapshot != nil,
+              thread.blockingWorkspaceGrantScheduledTask == nil,
+              !thread.hasBlockingScheduledTaskRunAttachment,
               thread.conversations.count == 1,
               canApplyPreStartupSettingChange,
               messageQueue.pending.isEmpty,
@@ -145,23 +143,36 @@ private extension ConversationViewModel {
         }
     }
 
-    func beginTaskWorkspaceGrantChange() -> Bool {
-        guard canEditTaskWorkspaceConfiguration else {
-            state.lastTurnError = taskWorkspaceConfigurationDisabledReason
-            return false
+    func beginTaskWorkspaceGrantChange() -> TaskWorkspaceGrantChangeTarget? {
+        guard canEditTaskWorkspaceConfiguration, let target = taskWorkspaceGrantChangeTarget() else {
+            state.lastTurnError = taskWorkspaceConfigurationDisabledReason ?? TaskWorkspaceGrantChangeError.notIdle.localizedDescription
+            return nil
         }
         isUpdatingTaskWorkspaceConfiguration = true
-        return true
+        return target
     }
 
-    func updateTaskWorkspaceGrants(_ mutation: TaskWorkspaceGrantMutation, conversationID: String) async {
-        let hasTrackedRuntime = await agentsManager.hasTrackedProcess(conversationId: conversationID)
-        guard isTaskWorkspaceIdleForGrantChange(conversationID: conversationID),
-              let thread = dbThread(),
-              let original = thread.taskWorkspaceDescriptor else {
+    func taskWorkspaceGrantChangeTarget() -> TaskWorkspaceGrantChangeTarget? {
+        guard let conversation = dbConversation(), let thread = conversation.thread,
+              let descriptor = thread.resolvedWorkspaceDescriptor, let workspace = thread.workspaceSnapshot else { return nil }
+        return TaskWorkspaceGrantChangeTarget(
+            conversationID: conversation.id, threadID: thread.persistentModelID,
+            projectID: thread.project?.id, sectionID: thread.customSection?.id, workspace: workspace, descriptor: descriptor,
+            isDraft: thread.isDraft, hasCompletedInitialSetup: thread.hasCompletedInitialSetup, useWorktree: thread.useWorktree
+        )
+    }
+
+    func updateTaskWorkspaceGrants(_ mutation: TaskWorkspaceGrantMutation, target: TaskWorkspaceGrantChangeTarget) async {
+        // A shared draft can move without changing its conversation or thread identity.
+        guard !Task.isCancelled, taskWorkspaceGrantChangeTarget() == target else { return }
+        let hasTrackedRuntime = await agentsManager.hasTrackedProcess(conversationId: target.conversationID)
+        guard !Task.isCancelled, taskWorkspaceGrantChangeTarget() == target else { return }
+        guard isTaskWorkspaceIdleForGrantChange(conversationID: target.conversationID) else {
             state.lastTurnError = TaskWorkspaceGrantChangeError.notIdle.localizedDescription
             return
         }
+        let original = target.descriptor
+        let originalSnapshot = target.workspace
 
         let updatedGrants: [String]
         do {
@@ -174,21 +185,30 @@ private extension ConversationViewModel {
             return
         }
 
-        let updated = TaskWorkspaceDescriptor(
-            primaryRoot: original.primaryRoot,
-            grantedRoots: updatedGrants,
-            ownershipStrategy: original.ownershipStrategy,
-            ownershipMarkerID: original.ownershipMarkerID,
-            sourceProjectPath: original.sourceProjectPath
-        )
-        let threadID = thread.persistentModelID
-        let hasCompletedInitialSetup = thread.hasCompletedInitialSetup
-        thread.taskWorkspaceDescriptor = updated
-        state.lastTurnError = nil
+        let folders = await taskWorkspaceFolderSnapshots(paths: updatedGrants, original: originalSnapshot)
+        await applyTaskWorkspaceGrants(folders, target: target, hasTrackedRuntime: hasTrackedRuntime)
+    }
 
+    func applyTaskWorkspaceGrants(
+        _ folders: [SourceFolderSnapshot], target: TaskWorkspaceGrantChangeTarget, hasTrackedRuntime: Bool
+    ) async {
+        guard !Task.isCancelled, taskWorkspaceGrantChangeTarget() == target else { return }
+        guard isTaskWorkspaceIdleForGrantChange(conversationID: target.conversationID),
+              let liveThread = modelContext.resolveThread(id: target.threadID) else {
+            state.lastTurnError = TaskWorkspaceGrantChangeError.notIdle.localizedDescription
+            return
+        }
+        state.lastTurnError = nil
+        defer { NotificationCenter.default.post(name: .workspaceConfigurationChanged, object: nil) }
+
+        var rollbackTarget = target
         do {
+            if modelContext.hasChanges { try modelContext.save() }
+            try liveThread.replaceAdditionalFolders(folders)
+            rollbackTarget = taskWorkspaceGrantChangeTarget() ?? target
             try modelContext.save()
-            guard hasTrackedRuntime, hasCompletedInitialSetup else {
+            if liveThread.isDraft { liveThread.draftHasExplicitGrants = true }
+            guard hasTrackedRuntime, target.hasCompletedInitialSetup else {
                 return
             }
 
@@ -197,13 +217,25 @@ private extension ConversationViewModel {
                 throw TaskWorkspaceGrantChangeError.runtimeReplacementDeferred
             }
         } catch {
+            guard taskWorkspaceGrantChangeTarget() == rollbackTarget else { return }
             await rollbackTaskWorkspaceGrantChange(
-                original: original,
-                threadID: threadID,
+                target: target,
                 hasTrackedRuntime: hasTrackedRuntime,
                 error: error
             )
         }
+    }
+
+    func taskWorkspaceFolderSnapshots(paths: [String], original: WorkspaceSnapshot) async -> [SourceFolderSnapshot] {
+        var folders: [SourceFolderSnapshot] = []
+        for path in paths {
+            if let existing = original.grants.first(where: { $0.path == path }) {
+                folders.append(existing)
+            } else {
+                folders.append(await resolveSourceFolder(path))
+            }
+        }
+        return folders
     }
 
     func taskWorkspaceGrants(
@@ -219,34 +251,33 @@ private extension ConversationViewModel {
             )
             requestedGrants = original.grantedRoots + canonicalAdditions
         case .remove(let path):
-            let canonicalPath = CanonicalPath.normalize(path)
-            requestedGrants = original.grantedRoots.filter { CanonicalPath.normalize($0) != canonicalPath }
+            requestedGrants = original.grantedRoots.filter { $0 != path }
         }
         return TaskWorkspaceDescriptor(
-            primaryRoot: original.primaryRoot,
-            grantedRoots: requestedGrants,
+            persistedPrimaryRoot: original.primaryRoot,
+            persistedGrantedRoots: requestedGrants,
             ownershipStrategy: original.ownershipStrategy,
             ownershipMarkerID: original.ownershipMarkerID,
-            sourceProjectPath: original.sourceProjectPath
+            persistedSourceProjectPath: original.sourceProjectPath
         ).grantedRoots
     }
 
     func rollbackTaskWorkspaceGrantChange(
-        original: TaskWorkspaceDescriptor,
-        threadID: PersistentIdentifier,
+        target: TaskWorkspaceGrantChangeTarget,
         hasTrackedRuntime: Bool,
         error: Error
     ) async {
         var rollbackFailures: [String] = []
-        if let liveThread = modelContext.resolveThread(id: threadID) {
-            liveThread.taskWorkspaceDescriptor = original
+        if let liveThread = modelContext.resolveThread(id: target.threadID) {
+            if liveThread.mode == .task { liveThread.taskWorkspaceDescriptor = target.descriptor }
+            liveThread.workspaceSnapshot = target.workspace
             do {
                 try modelContext.save()
             } catch {
                 rollbackFailures.append("saving the original folder access failed: \(error.localizedDescription)")
             }
         } else {
-            rollbackFailures.append("the task no longer exists")
+            rollbackFailures.append("the thread no longer exists")
         }
 
         if hasTrackedRuntime {
@@ -261,6 +292,7 @@ private extension ConversationViewModel {
             }
         }
 
+        guard taskWorkspaceGrantChangeTarget() == target else { return }
         if rollbackFailures.isEmpty {
             state.lastTurnError = error.localizedDescription
         } else {
@@ -270,6 +302,18 @@ private extension ConversationViewModel {
             ).localizedDescription
         }
     }
+}
+
+private struct TaskWorkspaceGrantChangeTarget: Equatable {
+    let conversationID: String
+    let threadID: PersistentIdentifier
+    let projectID: String?
+    let sectionID: String?
+    let workspace: WorkspaceSnapshot
+    let descriptor: TaskWorkspaceDescriptor
+    let isDraft: Bool
+    let hasCompletedInitialSetup: Bool
+    let useWorktree: Bool
 }
 
 private enum TaskWorkspaceGrantMutation {
@@ -287,15 +331,15 @@ private enum TaskWorkspaceGrantChangeError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .multipleConversations:
-            "Folder access can only be changed while the task has one conversation."
+            "Folder access can only be changed while the thread has one conversation."
         case .notIdle:
-            "Wait for the task to become fully idle before changing folder access."
+            "Wait for the thread to become fully idle before changing folder access."
         case let .rollbackFailed(original, rollback):
             "Folder access could not be applied (\(original)), and rollback was incomplete: \(rollback)."
         case .runtimeReplacementDeferred:
-            "Folder access could not be applied to the current session. Try again when the task is idle."
+            "Folder access could not be applied to the current session. Try again when the thread is idle."
         case .updateInProgress:
-            "Task folder access is still being applied."
+            "Folder access is still being applied."
         }
     }
 }

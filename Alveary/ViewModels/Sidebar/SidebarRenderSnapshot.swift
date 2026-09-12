@@ -98,26 +98,24 @@ struct SidebarRenderSnapshot {
     ) -> ThreadGrouping {
         var grouping = ThreadGrouping()
         for thread in visibleThreads {
-            if thread.effectiveMode == .task {
+            if thread.project == nil || thread.effectiveMode == .task {
                 grouping.hasAnyTask = true
             }
             // A Task placed in a project renders as one of its children while staying a Task; a
             // projectless Task belongs to the `Tasks` section, or to its custom section when it
             // is a member of one that still exists.
             guard let projectID = thread.project?.persistentModelID else {
-                if thread.effectiveMode == .task {
-                    let memberSectionID = thread.customSection.flatMap { section in
-                        customSectionIDs.contains(section.id) ? section.id : nil
-                    }
+                let memberSectionID = thread.customSection.flatMap { section in
+                    customSectionIDs.contains(section.id) ? section.id : nil
+                }
+                if let memberSectionID {
+                    grouping.customSectionByThreadID[thread.persistentModelID] = memberSectionID
+                }
+                if !thread.isPinned {
                     if let memberSectionID {
-                        grouping.customSectionByThreadID[thread.persistentModelID] = memberSectionID
-                    }
-                    if !thread.isPinned {
-                        if let memberSectionID {
-                            grouping.customSectionThreads[memberSectionID, default: []].append(thread)
-                        } else {
-                            grouping.unpinnedTasks.append(thread)
-                        }
+                        grouping.customSectionThreads[memberSectionID, default: []].append(thread)
+                    } else {
+                        grouping.unpinnedTasks.append(thread)
                     }
                 }
                 continue
@@ -164,7 +162,7 @@ struct SidebarRenderSnapshot {
             case .thread:
                 return count + 1
             case .project(let project):
-                guard expandedProjects.contains(project.path) else {
+                guard expandedProjects.contains(project.id) else {
                     return count
                 }
                 return count + activeThreads(for: project).count
@@ -174,7 +172,7 @@ struct SidebarRenderSnapshot {
         let projectThreadCount = collapsedSections.contains(.projects)
             ? 0
             : regularProjects.reduce(0) { count, project in
-                guard expandedProjects.contains(project.path) else {
+                guard expandedProjects.contains(project.id) else {
                     return count
                 }
                 return count + activeThreads(for: project).count

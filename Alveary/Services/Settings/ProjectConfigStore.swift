@@ -14,16 +14,42 @@ import Foundation
 final class ProjectConfigStore {
     static let shared = ProjectConfigStore()
 
+    private var writeRevisions: [String: UInt64] = [:]
     private var configs: [String: AlvearyProjectConfig] = [:]
     private var inFlightLoads: [String: Task<AlvearyProjectConfig, Never>] = [:]
+    private var pendingWrites: [String: (id: UUID, task: Task<Void, Error>)] = [:]
+    private let writeConfig: (AlvearyProjectConfig, String) async throws -> Void
     private let read: (String) async -> AlvearyProjectConfig
 
+    convenience init(read: @escaping (String) async -> AlvearyProjectConfig = { path in
+        await AlvearyProjectConfig(projectPath: path)
+    }) {
+        self.init(write: { config, path in try await config.write(projectPath: path) }, read: read)
+    }
+
     init(
-        read: @escaping (String) async -> AlvearyProjectConfig = { projectPath in
-            await AlvearyProjectConfig(projectPath: projectPath)
+        write: @escaping (AlvearyProjectConfig, String) async throws -> Void,
+        read: @escaping (String) async -> AlvearyProjectConfig = { path in
+            await AlvearyProjectConfig(projectPath: path)
         }
     ) {
         self.read = read
+        self.writeConfig = write
+    }
+
+    /// Serializes same-folder writes across windows. Cancelling a view's debounce cannot let an
+    /// older atomic disk write finish after a newer one and replace the user's latest changes.
+    func write(_ config: AlvearyProjectConfig, forProjectPath path: String) async throws {
+        let predecessor = pendingWrites[path]?.task
+        let id = UUID()
+        let task = Task { @MainActor in
+            _ = try? await predecessor?.value
+            try await writeConfig(config, path)
+            store(config, forProjectPath: path)
+        }
+        pendingWrites[path] = (id, task)
+        defer { if pendingWrites[path]?.id == id { pendingWrites[path] = nil } }
+        try await task.value
     }
 
     /// An already-loaded config, without touching the filesystem. Seed a view's initial
@@ -49,11 +75,15 @@ final class ProjectConfigStore {
             return await inFlight.value
         }
 
+        let revision = writeRevisions[path, default: 0]
         let task = Task { @MainActor in
             let config = await read(path)
             // Cleared before the value is published so a caller resuming on the change
             // notification starts a fresh read rather than joining this finished one.
             inFlightLoads[path] = nil
+            guard writeRevisions[path, default: 0] == revision else {
+                return configs[path] ?? config
+            }
             apply(config, forProjectPath: path)
             return config
         }
@@ -63,6 +93,7 @@ final class ProjectConfigStore {
 
     /// Records a config the app just wrote, so nothing re-reads what it already has.
     func store(_ config: AlvearyProjectConfig, forProjectPath path: String) {
+        writeRevisions[path, default: 0] &+= 1
         apply(config, forProjectPath: path)
     }
 

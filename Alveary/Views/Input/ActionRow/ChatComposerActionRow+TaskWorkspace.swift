@@ -9,6 +9,8 @@ extension ChatComposerActionRowView {
         let disabledTooltip: String?
         let onAddFolders: ([URL]) -> Void
         let onRemoveGrant: (String) -> Void
+        var selectedUseWorktree: Bool?
+        var onUseWorktreeChange: (Bool) -> Void = { _ in }
     }
 }
 
@@ -24,31 +26,10 @@ extension ChatComposerActionRowView {
             return
         }
 
-        let grantCount = workspace.grantedRoots.count
-        let option = WorktreeLocationOptionPresentation(
-            value: "taskWorkspace",
-            title: grantCount == 0 ? "Workspace" : "Workspace +\(grantCount)",
-            symbolName: "folder.badge.gearshape",
-            iconRotationRadians: 0
+        ComposerTaskWorkspacePresentation.configureButton(
+            worktreeButton, workspace: workspace, isEnabled: !configuration.areControlsDisabled,
+            action: { [weak self] in self?.toggleTaskWorkspaceMenu() }
         )
-        worktreeButton.configure(
-            option: option,
-            height: Self.defaultSettingsControlHeight,
-            isEnabled: !configuration.areControlsDisabled,
-            actionHandler: { [weak self] in
-                self?.toggleTaskWorkspaceMenu()
-            }
-        )
-        worktreeButton.setAccessibilityLabel("Task workspace")
-        let workspaceKind = workspaceKindName(workspace.ownershipStrategy)
-        worktreeButton.setAccessibilityValue(
-            grantCount == 0
-                ? "\(workspaceKind), no additional folders"
-                : "\(workspaceKind), \(grantCount) additional folder\(grantCount == 1 ? "" : "s")"
-        )
-        let disabledReason = workspace.canEdit ? nil : workspace.disabledTooltip
-        worktreeButton.toolTip = disabledReason
-        worktreeButton.setAccessibilityHelp(disabledReason)
         taskWorkspaceMenuController?.update(configuration: workspace)
     }
 
@@ -108,12 +89,48 @@ extension ChatComposerActionRowView {
 }
 
 enum ComposerTaskWorkspacePresentation {
+    @MainActor
+    static func configureButton(
+        _ worktreeButton: ComposerWorktreeLocationButton,
+        workspace: ChatComposerActionRowView.TaskWorkspaceConfiguration,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) {
+        let grantCount = workspace.grantedRoots.count
+        let modeOption = workspace.selectedUseWorktree.map {
+            ChatComposerWorktreeLocationPresentation.selectedOption(usesWorktree: $0)
+        }
+        let title = workspace.selectedUseWorktree.map { $0 ? "Worktree" : "Local" } ?? "Workspace"
+        let option = ChatComposerActionRowView.WorktreeLocationOptionPresentation(
+            value: "taskWorkspace",
+            title: grantCount == 0 ? title : "\(title) +\(grantCount)",
+            symbolName: modeOption?.symbolName ?? "folder.badge.gearshape",
+            iconRotationRadians: modeOption?.iconRotationRadians ?? 0
+        )
+        worktreeButton.configure(
+            option: option,
+            height: ChatComposerActionRowView.defaultSettingsControlHeight,
+            isEnabled: isEnabled,
+            actionHandler: action
+        )
+        worktreeButton.setAccessibilityLabel("Thread workspace")
+        let workspaceKind = modeOption?.title ?? workspaceKindName(workspace.ownershipStrategy)
+        worktreeButton.setAccessibilityValue(
+            grantCount == 0
+                ? "\(workspaceKind), no additional folders"
+                : "\(workspaceKind), \(grantCount) additional folder\(grantCount == 1 ? "" : "s")"
+        )
+        let disabledReason = workspace.canEdit ? nil : workspace.disabledTooltip
+        worktreeButton.toolTip = disabledReason
+        worktreeButton.setAccessibilityHelp(disabledReason)
+    }
+
     static func grantRemovalAccessibilityLabel(_ path: String) -> String {
         "Remove Access to \(grantDisplayPath(path))"
     }
 
     static func grantDisplayPath(_ path: String) -> String {
-        CanonicalPath.abbreviateHomeDirectory(CanonicalPath.normalize(path))
+        CanonicalPath.abbreviateHomeDirectory(path)
     }
 
     static func workspaceKindName(_ strategy: TaskWorkspaceOwnershipStrategy) -> String {
@@ -123,7 +140,7 @@ enum ComposerTaskWorkspacePresentation {
         case .projectLocal:
             return "Project workspace"
         case .projectWorktreeOwned:
-            return "Task worktree"
+            return "Thread worktree"
         }
     }
 }

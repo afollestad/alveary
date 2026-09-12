@@ -92,7 +92,7 @@ extension SidebarView {
             ) { pending in
                 Button("Remove Project", role: .destructive) {
                     pendingDeleteProject = nil
-                    guard let project = uiModelContext.resolveProject(path: pending.projectPath) else {
+                    guard let project = uiModelContext.resolveProject(projectID: pending.projectID) else {
                         return
                     }
                     Task { await confirmDeleteProject(project) }

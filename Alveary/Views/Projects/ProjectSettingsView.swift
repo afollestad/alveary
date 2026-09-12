@@ -54,25 +54,25 @@ struct ProjectSettingsActionDraft: Identifiable, Equatable {
 
 struct ProjectSettingsView: View {
     let project: Project
+    let sourceFolder: SourceFolderSnapshot?
     @Bindable var appState: AppState
 
     private let loadConfig: @MainActor (String) async -> AlvearyProjectConfig
     private let sidebarViewModel: SidebarViewModel
 
     @Environment(\.modelContext) private var modelContext
-    @State private var config: AlvearyProjectConfig
-    @State private var setupScript: String
-    @State private var teardownScript: String
-    @State private var preservePatterns: [String]
-    @State private var actions: [ProjectSettingsActionDraft]
+    @State private var editorState: ProjectSettingsEditorState
+    @State private var saveRevision: UInt64 = 0
     @State private var pendingSaveTask: Task<Void, Never>?
     @State private var screenError: String?
+    @State private var projectEditor: ProjectEditorPresentation?
 
     init(
         project: Project,
         appState: AppState,
         sidebarViewModel: SidebarViewModel,
         initialConfig: AlvearyProjectConfig = .empty,
+        sourceFolder: SourceFolderSnapshot? = nil,
         // The editor is the surface that must see an edit made outside the app, so it
         // reloads rather than accepting whatever the store already holds.
         loadConfig: @escaping @MainActor (String) async -> AlvearyProjectConfig = { projectPath in
@@ -80,31 +80,25 @@ struct ProjectSettingsView: View {
         }
     ) {
         self.project = project
+        self.sourceFolder = sourceFolder ?? project.primaryFolder?.snapshot
         self.appState = appState
         self.sidebarViewModel = sidebarViewModel
         self.loadConfig = loadConfig
 
-        let editorState = ProjectSettingsEditorState(config: initialConfig)
-        _config = State(initialValue: initialConfig)
-        _setupScript = State(initialValue: editorState.setupScript)
-        _teardownScript = State(initialValue: editorState.teardownScript)
-        _preservePatterns = State(initialValue: editorState.preservePatterns)
-        _actions = State(initialValue: editorState.actions)
+        _editorState = State(initialValue: ProjectSettingsEditorState(config: initialConfig))
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                ProjectSettingsHeader(
-                    projectPath: project.path,
-                    projectName: Binding(
-                        get: { project.name },
-                        set: { newValue in
-                            project.name = newValue
-                            saveProject()
-                        }
-                    )
-                )
+                HStack {
+                    Text(project.name).font(.largeTitle.weight(.semibold))
+                    Spacer()
+                    Button("Name and folders…") {
+                        projectEditor = ProjectEditorPresentation(project: project)
+                    }
+                    .secondaryActionButtonStyle()
+                }
 
                 if let screenError {
                     InlineBanner(
@@ -115,42 +109,81 @@ struct ProjectSettingsView: View {
                     )
                 }
 
-                if project.isGitRepository {
-                    ProjectSettingsRepositoryCard(project: project)
+                if let sourceFolder {
+                    if project.folders.count > 1 {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label(
+                                sourceFolder.name + (sourceFolder.path == project.primaryFolder?.path ? " (Primary)" : ""),
+                                systemImage: "folder"
+                            )
+                            .font(.headline)
+                            Text(CanonicalPath.abbreviateHomeDirectory(sourceFolder.path))
+                                .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                                .help(sourceFolder.path)
+                        }
+                    }
+                    if sourceFolder.isGitRepository {
+                        ProjectSettingsRepositoryCard(sourceFolder: sourceFolder)
+                    }
+
+                    ProjectSettingsScriptsCard(
+                        setupScript: setupScriptBinding,
+                        teardownScript: teardownScriptBinding
+                    )
+
+                    ProjectSettingsPreservePatternsCard(
+                        patterns: editorState.preservePatterns,
+                        bindingForPattern: bindingForPattern,
+                        onRemovePattern: removePattern
+                    )
+
+                    ProjectSettingsActionsCard(
+                        actions: editorState.actions,
+                        onUpdateAction: updateAction,
+                        onAddAction: addAction,
+                        onRemoveAction: removeAction
+                    )
+                } else {
+                    Text("This project has no source folders. New threads use a private workspace.")
+                        .foregroundStyle(.secondary)
                 }
-
-                ProjectSettingsScriptsCard(
-                    setupScript: setupScriptBinding,
-                    teardownScript: teardownScriptBinding
-                )
-
-                ProjectSettingsPreservePatternsCard(
-                    patterns: preservePatterns,
-                    bindingForPattern: bindingForPattern,
-                    onRemovePattern: removePattern
-                )
-
-                ProjectSettingsActionsCard(
-                    actions: actions,
-                    onUpdateAction: updateAction,
-                    onAddAction: addAction,
-                    onRemoveAction: removeAction
-                )
             }
             .padding(28)
         }
-        .task(id: project.path) {
+        .task(id: sourceFolder?.path) {
             await loadState()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .projectConfigDidChange)) { notification in
+            guard let path = sourceFolder?.path,
+                  ProjectConfigChangeNotifier.changedProjectPath(in: notification) == path,
+                  pendingSaveTask == nil,
+                  let loaded = ProjectConfigStore.shared.cached(forProjectPath: path) else { return }
+            applyLoadedConfig(loaded)
+        }
+        .sheet(item: $projectEditor) { editor in
+            ProjectEditorSheet(projectID: editor.id, configuration: editor.configuration, viewModel: sidebarViewModel)
+        }
+    }
+}
+
+/// Capture the destination and initial draft together so the first presentation cannot use an empty or stale configuration.
+private struct ProjectEditorPresentation: Identifiable {
+    let id: String
+    let configuration: ProjectConfiguration
+
+    @MainActor
+    init(project: Project) {
+        id = project.id
+        configuration = ProjectConfiguration(project: project)
     }
 }
 
 private extension ProjectSettingsView {
     var setupScriptBinding: Binding<String> {
         Binding(
-            get: { setupScript },
+            get: { editorState.setupScript },
             set: { newValue in
-                setupScript = newValue
+                editorState.setupScript = newValue
                 scheduleConfigSave()
             }
         )
@@ -158,39 +191,42 @@ private extension ProjectSettingsView {
 
     var teardownScriptBinding: Binding<String> {
         Binding(
-            get: { teardownScript },
+            get: { editorState.teardownScript },
             set: { newValue in
-                teardownScript = newValue
+                editorState.teardownScript = newValue
                 scheduleConfigSave()
             }
         )
     }
 
     func loadState() async {
-        let loadedConfig = await loadConfig(project.path)
-        let editorState = ProjectSettingsEditorState(config: loadedConfig)
+        let projectID = project.id
+        let revision = saveRevision
+        guard let path = sourceFolder?.path else { return }
+        let loadedConfig = await loadConfig(path)
+        guard !Task.isCancelled, saveRevision == revision,
+              modelContext.resolveProject(projectID: projectID)?.orderedFolders.contains(where: { $0.path == path }) == true else { return }
+        applyLoadedConfig(loadedConfig)
+    }
 
-        config = loadedConfig
-        setupScript = editorState.setupScript
-        teardownScript = editorState.teardownScript
-        preservePatterns = editorState.preservePatterns
-        actions = editorState.actions
+    func applyLoadedConfig(_ loadedConfig: AlvearyProjectConfig) {
+        editorState.applyLoadedConfig(loadedConfig)
     }
 
     func bindingForPattern(_ index: Int) -> Binding<String> {
         Binding(
             get: {
-                guard preservePatterns.indices.contains(index) else {
+                guard editorState.preservePatterns.indices.contains(index) else {
                     return ""
                 }
-                return preservePatterns[index]
+                return editorState.preservePatterns[index]
             },
             set: { newValue in
-                guard preservePatterns.indices.contains(index) else {
+                guard editorState.preservePatterns.indices.contains(index) else {
                     return
                 }
 
-                preservePatterns[index] = newValue
+                editorState.preservePatterns[index] = newValue
                 ensureTrailingBlankPatternRow()
                 scheduleConfigSave()
             }
@@ -198,113 +234,112 @@ private extension ProjectSettingsView {
     }
 
     func removePattern(_ index: Int) {
-        guard preservePatterns.indices.contains(index) else {
+        guard editorState.preservePatterns.indices.contains(index) else {
             return
         }
 
-        preservePatterns.remove(at: index)
+        editorState.preservePatterns.remove(at: index)
         ensureTrailingBlankPatternRow()
         scheduleConfigSave()
     }
 
     func updateAction(_ index: Int, _ updatedAction: ProjectSettingsActionDraft) {
-        guard actions.indices.contains(index) else {
+        guard editorState.actions.indices.contains(index) else {
             return
         }
 
-        actions[index] = updatedAction
+        editorState.actions[index] = updatedAction
         scheduleConfigSave()
     }
 
     func addAction() {
-        actions.append(ProjectSettingsActionDraft())
+        editorState.actions.append(ProjectSettingsActionDraft())
     }
 
     func removeAction(_ index: Int) {
-        guard actions.indices.contains(index) else {
+        guard editorState.actions.indices.contains(index) else {
             return
         }
 
-        actions.remove(at: index)
+        editorState.actions.remove(at: index)
         scheduleConfigSave()
     }
 
     func ensureTrailingBlankPatternRow() {
-        if preservePatterns.isEmpty {
-            preservePatterns = [""]
+        if editorState.preservePatterns.isEmpty {
+            editorState.preservePatterns = [""]
             return
         }
 
-        guard preservePatterns.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+        guard editorState.preservePatterns.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
             return
         }
 
-        preservePatterns.append("")
+        editorState.preservePatterns.append("")
     }
 
     func scheduleConfigSave() {
-        let updatedConfig = currentEditableConfig()
-        config = updatedConfig
+        guard let path = sourceFolder?.path else { return }
+        let updatedConfig = editorState.prepareConfigForSave()
         pendingSaveTask?.cancel()
+        saveRevision &+= 1
+        let revision = saveRevision
         pendingSaveTask = Task { @MainActor in
             do {
                 try await Task.sleep(for: .milliseconds(300))
-                try await updatedConfig.write(projectPath: project.path)
-                recordWrittenConfig(updatedConfig)
+                try await ProjectConfigStore.shared.write(updatedConfig, forProjectPath: path)
+                guard saveRevision == revision else { return }
+                pendingSaveTask = nil
+                if let latest = ProjectConfigStore.shared.cached(forProjectPath: path) { applyLoadedConfig(latest) }
             } catch is CancellationError {
                 return
             } catch {
+                guard saveRevision == revision else { return }
+                pendingSaveTask = nil
                 screenError = error.localizedDescription
             }
         }
     }
 
     func persistConfigImmediately() async throws {
-        let updatedConfig = currentEditableConfig()
-        config = updatedConfig
+        guard let path = sourceFolder?.path else { return }
+        let updatedConfig = editorState.prepareConfigForSave()
         pendingSaveTask?.cancel()
+        saveRevision &+= 1
         pendingSaveTask = nil
-        try await updatedConfig.write(projectPath: project.path)
-        recordWrittenConfig(updatedConfig)
-    }
-
-    /// Handing the written config to the store rather than only announcing the write
-    /// keeps other surfaces from re-reading a file this view already has, and the store
-    /// posts the change notification for us. Takes what was written rather than
-    /// re-deriving it, because the editor's state can move while the write runs.
-    func recordWrittenConfig(_ config: AlvearyProjectConfig) {
-        ProjectConfigStore.shared.store(config, forProjectPath: project.path)
-    }
-
-    func currentEditableConfig() -> AlvearyProjectConfig {
-        config.updatingEditableFields(
-            setupScript: setupScript,
-            teardownScript: teardownScript,
-            preservePatterns: preservePatterns,
-            actions: actions.compactMap(\.resolvedAction)
-        )
-    }
-
-    func saveProject() {
-        do {
-            try modelContext.save()
-        } catch {
-            screenError = error.localizedDescription
-        }
+        try await ProjectConfigStore.shared.write(updatedConfig, forProjectPath: path)
     }
 
 }
 
-private struct ProjectSettingsEditorState {
-    let setupScript: String
-    let teardownScript: String
-    let preservePatterns: [String]
-    let actions: [ProjectSettingsActionDraft]
+/// Keep incomplete rows and their identity separate from the normalized configuration written to disk.
+struct ProjectSettingsEditorState {
+    private var config: AlvearyProjectConfig
+    var setupScript: String
+    var teardownScript: String
+    var preservePatterns: [String]
+    var actions: [ProjectSettingsActionDraft]
 
     init(config: AlvearyProjectConfig) {
+        self.config = config
         setupScript = config.setupScript ?? ""
         teardownScript = config.teardownScript ?? ""
         preservePatterns = (config.preservePatterns ?? []) + [""]
         actions = (config.actions ?? []).map(ProjectSettingsActionDraft.init)
+    }
+
+    mutating func prepareConfigForSave() -> AlvearyProjectConfig {
+        config = config.updatingEditableFields(
+            setupScript: setupScript, teardownScript: teardownScript,
+            preservePatterns: preservePatterns, actions: actions.compactMap(\.resolvedAction)
+        )
+        return config
+    }
+
+    mutating func applyLoadedConfig(_ loadedConfig: AlvearyProjectConfig) {
+        // Both write completion and the store's notification can echo our own save. Rebuilding
+        // from that value would erase unfinished actions and replace every focused row's identity.
+        guard loadedConfig != config else { return }
+        self = Self(config: loadedConfig)
     }
 }

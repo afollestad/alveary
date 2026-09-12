@@ -161,7 +161,8 @@ private extension PullRequestHostToolService {
             }
             return .object([
                 "name": .string(project.name),
-                "path": .string(project.path)
+                "project_id": .string(project.id),
+                "folders": .array(project.orderedFolders.map { .string($0.path) })
             ])
         }
     }

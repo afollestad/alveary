@@ -4,7 +4,7 @@
 - Route create, edit, pause, resume, delete, and Run now preparation through `ScheduledTaskMutationService`; never mutate `ScheduledTask` rows from a view.
 - Treat edits and deletion as future-definition changes. Active runs continue from their immutable snapshots.
 - **Saving a schedule never changes its target's placement**, and the option list carries no pin note: everything `AgentThread.isEligibleScheduledTaskTarget` offers already renders somewhere openable, a pinned project's child included. Archiving or deleting it switches the schedule to `Same thread each time` (`Alveary/Data/Scheduled/AGENTS.md`).
-- The Section row renders only for the two new-thread destinations with no Project (`workspaceKind == .privateWorkspace`) and only while custom sections exist — a Project-backed thread nests under its Project and `AgentThread.customSection` renders solely for projectless task-mode threads. It seeds creation and never moves an existing thread.
+- Show Section for new-thread destinations with no project placement and available custom sections, independently of execution mode. It seeds creation and never moves an existing thread.
 - Keep recurrence fields structured and hide timezone input. Treat the persisted IANA identifier as a derived cache of the Mac's current zone, and rebase future wall-clock occurrences when the system zone changes.
 - Scheduled editor menu controls wrap their selected value at normal widths and compress with tail truncation inside narrow panes. Date fields inherit the host view's timezone so production follows the Mac while snapshots can inject a deterministic timezone.
 - Keep folder grants as native folder selections and display their full paths in accessibility help.

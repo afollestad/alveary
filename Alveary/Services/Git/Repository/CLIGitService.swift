@@ -8,6 +8,23 @@ final class CLIGitService: GitService {
     init(shell: ShellRunner) {
         self.shell = shell
     }
+    func repositoryRoot(in directory: String) async throws -> String? {
+        let result = try await shell.run(
+            executable: "/usr/bin/git", args: ["rev-parse", "--show-toplevel"], in: directory
+        )
+        guard result.succeeded else {
+            let error = Self.makeError(from: result)
+            if case .notARepository = error { return nil }
+            throw error
+        }
+        // Remove only Git's trailing newline: spaces can be part of the directory name.
+        let path = result.stdout.hasSuffix("\n") ? String(result.stdout.dropLast()) : result.stdout
+        guard !result.stdoutWasTruncated, path.hasPrefix("/") else {
+            throw GitError.commandFailed("Git returned an invalid repository directory")
+        }
+        return path
+    }
+
     func status(in directory: String) async throws -> [FileStatus] {
         let result = try await shell.run(
             executable: "/usr/bin/git",

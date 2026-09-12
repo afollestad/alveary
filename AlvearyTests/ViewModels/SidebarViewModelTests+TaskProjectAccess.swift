@@ -37,6 +37,26 @@ extension SidebarViewModelTests {
         XCTAssertTrue(destroyed.isEmpty)
     }
 
+    func testMoveTaskIntoMultiFolderProjectGrantsEveryFolderWithoutChangingOwnership() async throws {
+        let fixture = try SidebarTestFixture()
+        let first = try fixture.makeTemporaryDirectory(named: "first-source")
+        let second = try fixture.makeTemporaryDirectory(named: "second-source")
+        let project = try fixture.viewModel.saveProjectConfiguration(ProjectConfiguration(name: "Multiple", folders: [
+            SourceFolderSnapshot(path: first, baseRef: "main"),
+            SourceFolderSnapshot(path: second, remoteName: "upstream", baseRef: "develop")
+        ]))
+        let task = try await fixture.materializedTask(named: "Private thread")
+        let original = try XCTUnwrap(task.resolvedWorkspaceDescriptor)
+        try await fixture.viewModel.moveTaskIntoProject(task.persistentModelID, projectID: project.persistentModelID)
+        let saved = try XCTUnwrap(task.resolvedWorkspaceDescriptor)
+        XCTAssertEqual(saved.primaryRoot, original.primaryRoot)
+        XCTAssertEqual(saved.ownershipMarkerID, original.ownershipMarkerID)
+        XCTAssertEqual(saved.ownershipStrategy, original.ownershipStrategy)
+        XCTAssertEqual(saved.grantedRoots, [first, second])
+        XCTAssertEqual(task.workspaceSnapshot?.grants.last?.remoteName, "upstream")
+        XCTAssertEqual(task.workspaceSnapshot?.rootsExplicitlyManaged, true)
+    }
+
     func testMoveTaskIntoProjectPreservesExistingGrants() async throws {
         let fixture = try SidebarTestFixture()
         let existingPath = try fixture.makeTemporaryDirectory(named: "grant-existing")
@@ -169,6 +189,47 @@ extension SidebarViewModelTests {
             )
         }
         XCTAssertTrue(try fixture.requireThread(task.persistentModelID).taskGrantedRoots.isEmpty)
+    }
+
+    func testReusedScheduledTaskCanMoveProjectsOnlyWithoutChangingGrants() async throws {
+        let fixture = try SidebarTestFixture()
+        let grantedPath = try fixture.makeTemporaryDirectory(named: "reused-existing-grant")
+        let newPath = try fixture.makeTemporaryDirectory(named: "reused-new-grant")
+        let grantedProject = try fixture.insertProject(name: "Already granted", path: grantedPath)
+        let newProject = try fixture.insertProject(name: "New access", path: newPath)
+        let task = try await fixture.materializedTask(named: "Rolling thread")
+        try task.replaceAdditionalFolders([SourceFolderSnapshot(path: grantedPath)])
+        let originalWorkspace = task.workspaceSnapshot
+        let schedule = ScheduledTask(
+            title: "Rolling schedule", prompt: "Continue here", destination: .reusedThread,
+            recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", providerID: "codex",
+            workspaceSnapshot: originalWorkspace
+        )
+        schedule.reusedThread = task
+        fixture.context.insert(schedule)
+        try fixture.context.save()
+        let taskID = task.persistentModelID
+        let newProjectID = newProject.persistentModelID
+        XCTAssertThrowsError(try fixture.viewModel.validateTaskProjectAccess(threadID: taskID, projectID: newProjectID)) { error in
+            XCTAssertEqual(error.localizedDescription, SidebarViewModelError.scheduledTaskAttachment(schedule.title).localizedDescription)
+        }
+        await XCTAssertThrowsErrorAsync {
+            try await fixture.viewModel.moveTaskIntoProject(taskID, projectID: newProjectID)
+        }
+        XCTAssertNil(try fixture.requireThread(taskID).project)
+        XCTAssertEqual(try fixture.requireThread(taskID).workspaceSnapshot, originalWorkspace)
+        XCTAssertEqual(schedule.workspaceSnapshot, originalWorkspace)
+
+        let request = try fixture.viewModel.validateTaskProjectAccess(threadID: taskID, projectID: grantedProject.persistentModelID)
+        XCTAssertFalse(request.grantsNewAccess)
+        try await fixture.viewModel.moveTaskIntoProject(taskID, projectID: grantedProject.persistentModelID)
+
+        let moved = try fixture.requireThread(taskID)
+        XCTAssertEqual(moved.project?.id, grantedProject.id)
+        XCTAssertEqual(moved.workspaceSnapshot, originalWorkspace)
+        XCTAssertEqual(schedule.workspaceSnapshot, originalWorkspace)
+        XCTAssertEqual(schedule.grantedRoots, [grantedPath])
+        XCTAssertEqual(schedule.reusedThread?.persistentModelID, taskID)
     }
 
     func testMoveTaskIntoProjectRejectsAMissingProjectFolder() async throws {

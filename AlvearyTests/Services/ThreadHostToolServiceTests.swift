@@ -70,7 +70,10 @@ final class ThreadHostToolServiceTests: XCTestCase {
             let arguments = automated.minimalArguments(for: tool.name)
             let call = AgentCLIKit.AgentHostToolCall(name: tool.name, arguments: arguments)
             let fromRun = await automated.service.handle(context: automated.agentContext(), call: call)
-            let fromPerson = await interactive.service.handle(context: interactive.agentContext(), call: call)
+            let fromPerson = await interactive.service.handle(
+                context: interactive.agentContext(),
+                call: AgentCLIKit.AgentHostToolCall(name: tool.name, arguments: interactive.minimalArguments(for: tool.name))
+            )
 
             XCTAssertEqual(fromRun.isError, fromPerson.isError, tool.name)
             // A success carries the created thread's generated id, so only failures compare by text.
@@ -307,6 +310,7 @@ final class ThreadHostToolRelayedPromptRecorder {
 
 @MainActor
 final class ThreadHostToolFixture {
+    let directory: URL
     let sidebar: SidebarTestFixture
     let service: ThreadHostToolService
     let pullRequests: StubPullRequestsService
@@ -324,13 +328,20 @@ final class ThreadHostToolFixture {
         providerDiscovery: (any AgentCLIKit.AgentProviderDiscoveryService)? = nil,
         providerSessionActions: RecordingProviderSessionActionService = RecordingProviderSessionActionService(),
         saveThreadCreation: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
-        now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) }
+        now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) },
+        resolveSourceFolder: @escaping @MainActor (String) async -> SourceFolderSnapshot = {
+            await SourceFolderMetadataResolver().resolve(path: $0)
+        },
+        saveChanges: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) throws {
         sidebar = try SidebarTestFixture(
             providerSessionActions: providerSessionActions,
             saveThreadCreation: saveThreadCreation
         )
-        let sourceProject = Project(path: "/tmp/source-project", name: "Source Project")
+        directory = FileManager.default.temporaryDirectory.appendingPathComponent("alveary-host-\(UUID().uuidString)", isDirectory: true)
+        let sourceDirectory = directory.appendingPathComponent("source-project", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        let sourceProject = Project(path: sourceDirectory.path, name: "Source Project")
         project = sourceProject
         let sourceThread = AgentThread(
             name: "Source thread",
@@ -370,9 +381,13 @@ final class ThreadHostToolFixture {
             deliverPrompt: { conversation, outbound in
                 try relayedRecorder.deliver(conversationID: conversation.id, outbound: outbound)
             },
-            now: now
+            now: now,
+            resolveSourceFolder: resolveSourceFolder,
+            saveChanges: saveChanges
         )
     }
+
+    deinit { try? FileManager.default.removeItem(at: directory) }
 
     func agentContext(
         requestID: String? = "request-1",
@@ -404,8 +419,12 @@ final class ThreadHostToolFixture {
     /// Makes the calling conversation's thread a Task. Only its mode decides an inherited
     /// placement, so this leaves the workspace fields alone.
     func makeSourceThreadATask() throws {
+        let root = directory.appendingPathComponent("source-task", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         thread.mode = .task
         thread.project = nil
+        thread.taskWorkspaceDescriptor = TaskWorkspaceDescriptor(primaryRoot: root.path, ownershipStrategy: .privateOwned)
+        thread.workspaceSnapshot = WorkspaceSnapshot(primarySource: nil)
         try modelContext.save()
     }
 

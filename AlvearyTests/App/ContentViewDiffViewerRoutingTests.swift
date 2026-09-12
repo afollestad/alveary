@@ -6,6 +6,10 @@ import XCTest
 
 @MainActor
 final class ContentViewDiffViewerRoutingTests: XCTestCase {
+    private let first = Project(path: "/tmp/a", name: "A").persistentModelID
+    private let second = Project(path: "/tmp/b", name: "B").persistentModelID
+    private let third = Project(path: "/tmp/c", name: "C").persistentModelID
+
     func testSettingsNormalizesToItsPreservedBookmarkRoute() throws {
         let fixture = try DiffRoutingFixture()
 
@@ -15,7 +19,7 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         )
         let settingsSelection = DiffViewerRoutingSelection(
             selection: .settings,
-            previousSelection: .projectPath(fixture.project.path)
+            previousSelection: .projectID(fixture.project.persistentModelID)
         )
         let threadSelection = DiffViewerRoutingSelection(
             selection: .thread(fixture.thread),
@@ -28,6 +32,22 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
 
         XCTAssertEqual(projectSelection, settingsSelection)
         XCTAssertEqual(threadSelection, settingsThreadSelection)
+    }
+
+    func testDeletedProjectTokensRemainSafeForRoutingAndBookmarks() throws {
+        let fixture = try DiffRoutingFixture()
+        let project = fixture.project
+        let id = project.persistentModelID
+        // Load memberships before cascade deletion, matching the production transaction.
+        for folder in project.folders { fixture.context.delete(folder) }
+        fixture.context.delete(project)
+        try fixture.context.save()
+
+        XCTAssertEqual(AppState.SidebarBookmark(.project(project)), .projectID(id))
+        XCTAssertEqual(DiffViewerRoutingSelection(selection: .project(project), previousSelection: nil), .project(id))
+        XCTAssertEqual(ToolbarProjectActionsSelection(selection: .project(project)), .project(id))
+        XCTAssertNil(fixture.context.resolveProject(id: id))
+        XCTAssertNil(ToolbarProjectActionsTargetResolver.resolve(key: .project(id), modelContext: fixture.context))
     }
 
     func testNonRoutableSelectionsResolveToNoRoute() throws {
@@ -54,10 +74,10 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
 
         // Locks in the thread fetch the project route gathers conversations through. A
         // nested `conversation.thread?.project?.path` predicate traps the store instead.
-        let projectPath = fixture.project.path
+        let projectID = fixture.project.id
         var descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false && thread.project?.id == projectID
             }
         )
         descriptor.relationshipKeyPathsForPrefetching = [\.conversations]
@@ -69,7 +89,7 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
     func testResolutionAndPaneWorkStartOnlyAfterTheSuspensionGate() async throws {
         let recorder = DiffRoutingRecorder()
         let gate = DiffRoutingGate()
-        let key = DiffViewerRoutingKey(selection: .project("/tmp/a"), scope: .full, draftRevision: 0)
+        let key = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0)
         let runner = recorder.makeRunner(currentKey: key, gate: gate)
 
         let routing = Task { await runner.run(key: key) }
@@ -81,7 +101,7 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         gate.open()
         await routing.value
 
-        XCTAssertEqual(recorder.resolvedSelections, [.project("/tmp/a")])
+        XCTAssertEqual(recorder.resolvedSelections, [.project(first)])
         XCTAssertEqual(recorder.appliedTargets.map(\.scope), [.full])
         XCTAssertEqual(recorder.clearCount, 0)
     }
@@ -89,9 +109,9 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
     func testOnlyTheNewestKeyOfARapidSelectionBurstIsApplied() async {
         let recorder = DiffRoutingRecorder()
         let gate = DiffRoutingGate()
-        let currentKey = DiffViewerRoutingKey(selection: .project("/tmp/c"), scope: .full, draftRevision: 0)
-        let stale = DiffViewerRoutingKey(selection: .project("/tmp/a"), scope: .full, draftRevision: 0)
-        let superseded = DiffViewerRoutingKey(selection: .project("/tmp/b"), scope: .full, draftRevision: 0)
+        let currentKey = DiffViewerRoutingKey(selection: .project(third), scope: .full, draftRevision: 0)
+        let stale = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0)
+        let superseded = DiffViewerRoutingKey(selection: .project(second), scope: .full, draftRevision: 0)
         let runner = recorder.makeRunner(currentKey: { currentKey }, gate: gate)
 
         let routing = Task {
@@ -102,15 +122,15 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         gate.open()
         await routing.value
 
-        XCTAssertEqual(recorder.resolvedSelections, [.project("/tmp/c")])
-        XCTAssertEqual(recorder.appliedTargets.map(\.target.projectPath), ["/tmp/c"])
+        XCTAssertEqual(recorder.resolvedSelections, [.project(third)])
+        XCTAssertEqual(recorder.appliedTargets.count, 1)
     }
 
     func testAStaleRouteThatLosesItsTargetDoesNotClearTheNewerPane() async {
         let recorder = DiffRoutingRecorder()
         recorder.target = nil
         let gate = DiffRoutingGate(isOpen: true)
-        let current = DiffViewerRoutingKey(selection: .project("/tmp/current"), scope: .full, draftRevision: 0)
+        let current = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0)
         let stale = DiffViewerRoutingKey(selection: .none, scope: .full, draftRevision: 0)
         let runner = recorder.makeRunner(currentKey: current, gate: gate)
 
@@ -137,11 +157,11 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         let recorder = DiffRoutingRecorder()
         let gate = DiffRoutingGate(isOpen: true)
         let hidden = DiffViewerRoutingKey(
-            selection: .project("/tmp/scope"),
+            selection: .project(first),
             scope: .toolbarStatsOnly,
             draftRevision: 0
         )
-        let visible = DiffViewerRoutingKey(selection: .project("/tmp/scope"), scope: .full, draftRevision: 0)
+        let visible = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0)
         var currentKey = hidden
         let runner = recorder.makeRunner(currentKey: { currentKey }, gate: gate)
 
@@ -152,17 +172,64 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         XCTAssertEqual(recorder.appliedTargets.map(\.scope), [.toolbarStatsOnly, .full])
     }
 
-    func testKeyDistinguishesScopeAndDraftRevisionForTheSameSelection() {
-        let base = DiffViewerRoutingKey(selection: .project("/tmp/key"), scope: .full, draftRevision: 0)
+    func testFolderChangeDuringRepositoryResolutionDropsStaleResultsAndErrors() async throws {
+        for preparationFails in [false, true] {
+            let recorder = DiffRoutingRecorder()
+            let preparationGate = DiffRoutingGate()
+            let original = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0, folderRevision: 1)
+            var current = original
+            var didStartPreparing = false
+            var errors: [String] = []
+            let runner = recorder.makeRunner(
+                currentKey: { current },
+                gate: DiffRoutingGate(isOpen: true),
+                prepareTarget: { target in
+                    didStartPreparing = true
+                    await preparationGate.wait()
+                    if preparationFails { throw GitError.commandFailed("Old folder disappeared") }
+                    return target
+                },
+                presentError: { errors.append($0) }
+            )
+            let routing = Task { await runner.run(key: original) }
+            try await waitUntil("expected repository resolution to start") { didStartPreparing }
+            current = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0, folderRevision: 2)
+            preparationGate.open()
+            await routing.value
 
-        XCTAssertEqual(base, DiffViewerRoutingKey(selection: .project("/tmp/key"), scope: .full, draftRevision: 0))
+            XCTAssertTrue(recorder.appliedTargets.isEmpty)
+            XCTAssertEqual(recorder.clearCount, 0)
+            XCTAssertTrue(errors.isEmpty)
+        }
+    }
+
+    func testCurrentRepositoryResolutionFailureClearsPaneAndSurfacesError() async {
+        let recorder = DiffRoutingRecorder()
+        let key = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0)
+        var errors: [String] = []
+        let runner = recorder.makeRunner(
+            currentKey: { key }, gate: DiffRoutingGate(isOpen: true),
+            prepareTarget: { _ in throw GitError.commandFailed("Source folder is unavailable") },
+            presentError: { errors.append($0) }
+        )
+        await runner.run(key: key)
+
+        XCTAssertTrue(recorder.appliedTargets.isEmpty)
+        XCTAssertEqual(recorder.clearCount, 1)
+        XCTAssertEqual(errors, ["Source folder is unavailable"])
+    }
+
+    func testKeyDistinguishesScopeAndDraftRevisionForTheSameSelection() {
+        let base = DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0)
+
+        XCTAssertEqual(base, DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 0))
         XCTAssertNotEqual(
             base,
-            DiffViewerRoutingKey(selection: .project("/tmp/key"), scope: .toolbarStatsOnly, draftRevision: 0)
+            DiffViewerRoutingKey(selection: .project(first), scope: .toolbarStatsOnly, draftRevision: 0)
         )
         XCTAssertNotEqual(
             base,
-            DiffViewerRoutingKey(selection: .project("/tmp/key"), scope: .full, draftRevision: 1)
+            DiffViewerRoutingKey(selection: .project(first), scope: .full, draftRevision: 1)
         )
     }
 }
@@ -187,7 +254,9 @@ private final class DiffRoutingRecorder {
 
     func makeRunner(
         currentKey: @escaping @MainActor () -> DiffViewerRoutingKey,
-        gate: DiffRoutingGate
+        gate: DiffRoutingGate,
+        prepareTarget: @escaping @MainActor (DiffViewerSwitchTarget) async throws -> DiffViewerSwitchTarget = { $0 },
+        presentError: @escaping @MainActor (String) -> Void = { _ in }
     ) -> DiffViewerRouteRunner {
         DiffViewerRouteRunner(
             isCurrent: { key in key == currentKey() },
@@ -196,25 +265,15 @@ private final class DiffRoutingRecorder {
                     return nil
                 }
                 resolvedSelections.append(selection)
-                guard case .project(let path) = selection else {
-                    return target
-                }
-                return target.map {
-                    DiffViewerSwitchTarget(
-                        projectPath: path,
-                        worktreePath: $0.worktreePath,
-                        directory: path,
-                        baseRef: $0.baseRef,
-                        remoteName: $0.remoteName,
-                        conversationIds: $0.conversationIds
-                    )
-                }
+                return target
             },
             clear: { [weak self] in self?.clearCount += 1 },
             applyTarget: { [weak self] target, scope in
                 self?.appliedTargets.append((target, scope))
             },
-            suspendBeforeResolving: { await gate.wait() }
+            suspendBeforeResolving: { await gate.wait() },
+            prepareTarget: prepareTarget,
+            presentError: presentError
         )
     }
 }

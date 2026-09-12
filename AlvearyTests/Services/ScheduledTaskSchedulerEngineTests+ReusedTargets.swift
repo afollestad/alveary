@@ -22,6 +22,8 @@ extension ScheduledTaskSchedulerEngineTests {
         let definition = try fixture.insertDefinition(nextOccurrenceAt: fixture.date(300))
         definition.destination = .reusedThread
         definition.reusedThread = thread
+        // The first run upgraded this legacy definition's created thread to explicitly managed roots.
+        definition.workspaceSnapshot = WorkspaceSnapshot(primarySource: nil, rootsExplicitlyManaged: false)
         try fixture.context.save()
         let engine = fixture.makeEngine(preflight: { snapshot in
             // Unlike an existing target, the definition stays authoritative for settings —
@@ -42,6 +44,8 @@ extension ScheduledTaskSchedulerEngineTests {
         XCTAssertEqual(run.targetThread?.persistentModelID, thread.persistentModelID)
         XCTAssertEqual(run.targetConversationIDSnapshot, conversation.id)
         XCTAssertEqual(run.modelSnapshot, "gpt-5")
+        XCTAssertEqual(run.workspaceSnapshot, thread.workspaceSnapshot)
+        XCTAssertTrue(try XCTUnwrap(run.workspaceSnapshot).rootsExplicitlyManaged)
     }
 
     func testReuseClaimFallsBackToCreatingWhenTheLinkedThreadIsUnhealthy() async throws {

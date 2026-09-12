@@ -77,8 +77,8 @@ final class AppShotCaptureControllerFixture {
     }
 
     @discardableResult
-    func insertProject(name: String, path: String) throws -> Project {
-        let project = Project(path: path, name: name)
+    func insertProject(name: String, path: String, id: String = UUID().uuidString) throws -> Project {
+        let project = Project(path: path, name: name, id: id)
         context.insert(project)
         try context.save()
         return project
@@ -225,19 +225,18 @@ final class AppShotRoutingDraftOpener {
         self.pausesAfterCreation = pausesAfterCreation
     }
 
-    func open(projectID: PersistentIdentifier) async throws -> PersistentIdentifier {
+    func open(projectID: PersistentIdentifier?) async throws -> PersistentIdentifier {
         openCount += 1
         lastProjectID = projectID
         if let error {
             throw error
         }
-        guard let project = context.resolveProject(id: projectID) else {
-            throw AppShotRoutingTestError.draftCreationFailed
-        }
-        let thread = AgentThread(name: "New thread", isDraft: true, project: project)
+        let project = projectID.flatMap(context.resolveProject(id:))
+        if projectID != nil, project == nil { throw AppShotRoutingTestError.draftCreationFailed }
+        let thread = AgentThread(name: "New thread", isDraft: true, mode: project == nil ? .task : .project, project: project)
         let conversation = Conversation(id: "draft-\(UUID().uuidString)", provider: "claude", thread: thread)
         thread.conversations = [conversation]
-        project.threads.append(thread)
+        project?.threads.append(thread)
         context.insert(thread)
         context.insert(conversation)
         try context.save()

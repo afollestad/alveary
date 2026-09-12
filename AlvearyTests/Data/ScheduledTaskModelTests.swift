@@ -123,37 +123,6 @@ final class ScheduledTaskModelTests: XCTestCase {
         assertSnapshotRun(fetchedRun, occurrence: occurrence, workspaceIdentities: workspaceIdentities)
     }
 
-    func testRunSnapshotPreservesPersistedWorkspacePathSpelling() {
-        let project = Project(path: "/tmp/snapshot-project", name: "Snapshot Project")
-        let task = makeTask(project: project)
-        let persistedProjectPath = "/tmp/persisted-root/../snapshot-project"
-        let persistedGrantPath = "/tmp/persisted-root/../snapshot-grant"
-        project.path = persistedProjectPath
-        task.grantedRoots = [persistedGrantPath]
-        let workspaceIdentities = ScheduledTaskWorkspaceIdentitySnapshot(
-            projectRoot: ScheduledTaskRootIdentitySnapshot(
-                path: persistedProjectPath,
-                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 2)
-            ),
-            grantedRoots: [ScheduledTaskRootIdentitySnapshot(
-                path: persistedGrantPath,
-                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 3)
-            )]
-        )
-
-        let run = ScheduledTaskRun(
-            snapshotting: task,
-            occurrenceID: "literal-path-occurrence",
-            occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
-            triggerKind: .scheduled,
-            workspaceIdentitySnapshot: workspaceIdentities
-        )
-
-        XCTAssertEqual(run.projectPathSnapshot, persistedProjectPath)
-        XCTAssertEqual(run.grantedRootsSnapshot, [persistedGrantPath])
-        XCTAssertTrue(run.hasValidWorkspaceIdentityProvenance)
-    }
-
     func testPendingCleanupPersistsExplicitBranchOwnership() throws {
         let container = try makeContainer()
         let context = ModelContext(container)
@@ -446,5 +415,42 @@ final class ScheduledTaskModelTests: XCTestCase {
             scheduledTask: task,
             thread: thread
         )
+    }
+}
+
+@MainActor
+extension ScheduledTaskModelTests {
+    func testRunSnapshotPreservesPersistedWorkspacePathSpelling() {
+        let project = Project(path: "/tmp/snapshot-project", name: "Snapshot Project")
+        let task = makeTask(project: project)
+        let persistedProjectPath = "/tmp/persisted-root/../snapshot-project"
+        let persistedGrantPath = "/tmp/persisted-root/../snapshot-grant"
+        project.primaryFolder?.path = persistedProjectPath
+        task.grantedRoots = [persistedGrantPath]
+        task.workspaceSnapshot = WorkspaceSnapshot(
+            primarySource: SourceFolderSnapshot(path: persistedProjectPath), grants: [SourceFolderSnapshot(path: persistedGrantPath)]
+        )
+        let workspaceIdentities = ScheduledTaskWorkspaceIdentitySnapshot(
+            projectRoot: ScheduledTaskRootIdentitySnapshot(
+                path: persistedProjectPath,
+                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 2)
+            ),
+            grantedRoots: [ScheduledTaskRootIdentitySnapshot(
+                path: persistedGrantPath,
+                identity: TaskWorkspaceFileSystemIdentity(systemNumber: 1, fileNumber: 3)
+            )]
+        )
+
+        let run = ScheduledTaskRun(
+            snapshotting: task,
+            occurrenceID: "literal-path-occurrence",
+            occurrenceAt: Date(timeIntervalSince1970: 1_800_000_000),
+            triggerKind: .scheduled,
+            workspaceIdentitySnapshot: workspaceIdentities
+        )
+
+        XCTAssertEqual(run.projectPathSnapshot, persistedProjectPath)
+        XCTAssertEqual(run.grantedRootsSnapshot, [persistedGrantPath])
+        XCTAssertTrue(run.hasValidWorkspaceIdentityProvenance)
     }
 }

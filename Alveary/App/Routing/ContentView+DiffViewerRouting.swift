@@ -10,20 +10,20 @@ import SwiftData
 enum DiffViewerRoutingSelection: Equatable {
     case none
     case thread(PersistentIdentifier)
-    case project(String)
+    case project(PersistentIdentifier)
 
     init(selection: SidebarItem?, previousSelection: AppState.SidebarBookmark?) {
         switch selection {
         case .thread(let thread):
             self = .thread(thread.persistentModelID)
         case .project(let project):
-            self = .project(project.path)
+            self = .project(project.persistentModelID)
         case .settings:
             switch previousSelection {
             case .threadId(let threadID):
                 self = .thread(threadID)
-            case .projectPath(let path):
-                self = .project(path)
+            case .projectID(let id):
+                self = .project(id)
             case .skills, .mcp, .scheduled, .pullRequests, .archived, nil:
                 self = .none
             }
@@ -38,6 +38,7 @@ struct DiffViewerRoutingKey: Equatable {
     let selection: DiffViewerRoutingSelection
     let scope: DiffViewerSwitchScope
     let draftRevision: UInt64
+    var folderRevision: UInt64 = 0
 }
 
 /// Runs one Diff Viewer route with an injected suspension gate.
@@ -52,6 +53,8 @@ struct DiffViewerRouteRunner {
     let clear: @MainActor () -> Void
     let applyTarget: @MainActor (DiffViewerSwitchTarget, DiffViewerSwitchScope) async -> Void
     let suspendBeforeResolving: @MainActor () async -> Void
+    var prepareTarget: @MainActor (DiffViewerSwitchTarget) async throws -> DiffViewerSwitchTarget = { $0 }
+    var presentError: @MainActor (String) -> Void = { _ in }
 
     func run(key: DiffViewerRoutingKey) async {
         await suspendBeforeResolving()
@@ -70,7 +73,15 @@ struct DiffViewerRouteRunner {
             return
         }
 
-        await applyTarget(target, key.scope)
+        do {
+            let preparedTarget = try await prepareTarget(target)
+            guard isCurrent(key) else { return }
+            await applyTarget(preparedTarget, key.scope)
+        } catch {
+            guard isCurrent(key) else { return }
+            clear()
+            presentError(error.localizedDescription)
+        }
     }
 }
 
@@ -92,7 +103,8 @@ extension ContentView {
         DiffViewerRoutingKey(
             selection: diffViewerRoutingSelection,
             scope: diffViewerSwitchScope,
-            draftRevision: diffViewerDraftRefreshRevision
+            draftRevision: diffViewerDraftRefreshRevision,
+            folderRevision: folderSelection.revision
         )
     }
 
@@ -105,7 +117,9 @@ extension ContentView {
                 await diffViewModel.switchToTarget(target, scope: scope)
             },
             // Let the new selection paint before any SwiftData or Git work starts.
-            suspendBeforeResolving: { await Task.yield() }
+            suspendBeforeResolving: { await Task.yield() },
+            prepareTarget: { try await $0.resolvingRepositoryDirectory(using: diffViewModel.gitService) },
+            presentError: { diffViewModel.presentGitError($0) }
         ).run(key: key)
     }
 
@@ -117,6 +131,7 @@ extension ContentView {
             return false
         }
         return key.selection == diffViewerRoutingSelection && key.scope == diffViewerSwitchScope
+            && key.folderRevision == folderSelection.revision
     }
 
     func resolvedDiffViewerTarget(for selection: DiffViewerRoutingSelection) -> DiffViewerSwitchTarget? {
@@ -128,41 +143,42 @@ extension ContentView {
                   thread.archivedAt == nil else {
                 return nil
             }
-            if thread.effectiveMode == .project, thread.isDraft, let project = thread.project {
-                return diffViewerTarget(for: project)
-            }
-            return DiffViewerSwitchTarget.forThread(
-                thread,
-                candidateConversationIDs: liveDiffViewerConversationIDs(for: thread)
+            guard let folder = folderSelection.selected(
+                in: thread.workspaceFolderTargets, owner: .thread(threadID)
+            ) else { return nil }
+            return DiffViewerSwitchTarget.forFolder(
+                folder, conversationIDs: liveDiffViewerConversationIDs(for: thread)
             )
-        case .project(let path):
-            guard let project = resolveProject(path: path) else {
+        case .project(let id):
+            guard let project = uiModelContext.resolveProject(id: id) else {
                 return nil
             }
             return diffViewerTarget(for: project)
         }
     }
 
-    private func diffViewerTarget(for project: Project) -> DiffViewerSwitchTarget {
-        let threads = liveDiffViewerThreads(for: project)
-        return DiffViewerSwitchTarget.forProject(
-            project,
-            candidateThreads: threads,
-            candidateConversationIDs: liveDiffViewerConversationIDs(for: project, threads: threads)
+    private func diffViewerTarget(for project: Project) -> DiffViewerSwitchTarget? {
+        guard let folder = folderSelection.selected(
+            in: project.workspaceFolderTargets, owner: .project(project.id)
+        ) else { return nil }
+        let threads = liveDiffViewerThreads().filter {
+            $0.workspaceFolderTargets.contains { $0.directory == folder.directory }
+        }
+        return DiffViewerSwitchTarget.forFolder(
+            folder, conversationIDs: Set(threads.flatMap { $0.conversations.map(\.id) })
         )
     }
 
-    private func liveDiffViewerThreads(for project: Project) -> [AgentThread] {
-        let projectPath = project.path
+    private func liveDiffViewerThreads() -> [AgentThread] {
         var descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.path == projectPath
+                thread.archivedAt == nil && thread.isDraft == false
             }
         )
         // The project route reads every candidate thread's conversations right after this
         // fetch, so prefetching keeps that batched instead of one fault per thread.
         descriptor.relationshipKeyPathsForPrefetching = [\.conversations]
-        return ((try? uiModelContext.fetch(descriptor)) ?? []).filter { $0.effectiveMode == .project }
+        return (try? uiModelContext.fetch(descriptor)) ?? []
     }
 
     private func liveDiffViewerConversationIDs(for thread: AgentThread) -> Set<String> {
@@ -175,16 +191,4 @@ extension ContentView {
         return Set(((try? uiModelContext.fetch(descriptor)) ?? []).map(\.id))
     }
 
-    /// Reads the relationship prefetched by `liveDiffViewerThreads(for:)` instead of running
-    /// a conversation fetch per candidate thread. A project-scoped conversation predicate
-    /// cannot replace it: `conversation.thread?.project?.path` is a nested relationship
-    /// keypath the store cannot translate, and it traps the fetch at runtime.
-    private func liveDiffViewerConversationIDs(for project: Project, threads: [AgentThread]) -> Set<String> {
-        let projectPath = project.path
-        return Set(
-            threads
-                .filter { $0.worktreePath == nil || $0.worktreePath == projectPath }
-                .flatMap { $0.conversations.map(\.id) }
-        )
-    }
 }

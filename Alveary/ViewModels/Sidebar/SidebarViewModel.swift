@@ -39,10 +39,10 @@ final class SidebarViewModel {
     var statusVersion = 0
     var threadOrderVersion = 0
     var activeForkSourceThreadIDs: Set<PersistentIdentifier> = []
-    var draftCreationTasks: [AgentThreadMode: Task<PersistentIdentifier, Error>] = [:]
-    var draftCreationTaskIDs: [AgentThreadMode: UUID] = [:]
-    var pendingDraftProjectPaths: [AgentThreadMode: String] = [:]
-    var cachedDraftThreadIDs: [AgentThreadMode: PersistentIdentifier] = [:]
+    var draftCreationTask: Task<PersistentIdentifier, Error>?
+    var draftCreationTaskID: UUID?
+    var pendingDraftDestination: ThreadDraftDestination?
+    var cachedDraftThreadID: PersistentIdentifier?
     var activeScheduledCleanupRunIDs: Set<PersistentIdentifier> = []
     init(
         agentsManager: any AgentsManager,
@@ -227,7 +227,6 @@ final class SidebarViewModel {
 
     func deleteProject(_ project: Project) async throws {
         let snapshot = try makeProjectDeletionSnapshot(project)
-        let projectDirectoryExists = directoryExists(at: snapshot.projectPath)
         // Child drafts must disappear atomically before teardown yields to other UI work.
         try commitProjectDeletion(snapshot)
         for conversationID in snapshot.conversationIDs {
@@ -250,7 +249,6 @@ final class SidebarViewModel {
         do {
             try await cleanupProjectResources(
                 snapshot,
-                projectDirectoryExists: projectDirectoryExists,
                 waitForRuntime: false
             )
         } catch {
@@ -260,7 +258,6 @@ final class SidebarViewModel {
 
     private func cleanupProjectResources(
         _ snapshot: ProjectDeletionSnapshot,
-        projectDirectoryExists: Bool,
         waitForRuntime: Bool = true
     ) async throws {
         if waitForRuntime {
@@ -270,7 +267,7 @@ final class SidebarViewModel {
         for thread in snapshot.threadSnapshots {
             try await cleanupThread(
                 thread,
-                skipGitWhenProjectMissing: !projectDirectoryExists,
+                skipGitWhenProjectMissing: true,
                 waitForRuntime: false
             )
         }
@@ -296,9 +293,8 @@ final class SidebarViewModel {
             return
         }
 
-        guard let projectPath = snapshot.sourceProjectPath else {
-            throw SidebarViewModelError.threadMissingParentProject
-        }
+        // Source-less legacy history passed the pre-commit ownership checks and owns nothing on disk.
+        guard let projectPath = snapshot.sourceProjectPath else { return }
 
         if skipGitWhenProjectMissing, !directoryExists(at: projectPath) {
             return

@@ -7,6 +7,8 @@ struct ScheduledTaskEditorWorkspaceSection: View {
     let sections: [ScheduledTaskSectionOption]
     @Binding var draft: ScheduledTaskEditorDraft
     let onOpenReusedThread: (String) -> Void
+    @State private var folderResolutionTask: Task<Void, Never>?
+    @State private var folderResolutionID: UUID?
 
     var body: some View {
         SettingsFormSection("Workspace") {
@@ -37,6 +39,13 @@ struct ScheduledTaskEditorWorkspaceSection: View {
             if !draft.hasUnresolvedDestination {
                 destinationDependentRows
             }
+        }
+        .disabled(draft.isResolvingFolders)
+        .onDisappear {
+            folderResolutionTask?.cancel()
+            folderResolutionTask = nil
+            folderResolutionID = nil
+            draft.isResolvingFolders = false
         }
     }
 
@@ -72,17 +81,15 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                         accessibilityLabel: "Project",
                         selection: projectSelection,
                         options: [.init(value: String?.none, label: "None")] + projects.map {
-                            .init(value: Optional($0.path), label: $0.name)
+                            .init(value: Optional($0.id), label: $0.name)
                         }
                     )
                 }
             }
 
-            // Gated on the kind, not `projectPath == nil`: a legacy `.project` row whose
-            // Project vanished must hide this alongside Run location rather than offer a
-            // section its `.project`-mode thread could never render in. Hidden entirely
-            // without custom sections — a picker whose only option is `Tasks` is no choice.
-            if draft.workspaceKind == .privateWorkspace, !sections.isEmpty {
+            // Sidebar placement is independent of execution kind; an unplaced source workspace
+            // can use a custom section too. Hide the picker when Tasks would be its only choice.
+            if draft.projectID == nil, !sections.isEmpty {
                 SettingsFormRow {
                     SettingsResponsiveControlRow("Section", horizontalControlSizing: .selectedContent) {
                         ScheduledTaskMenuPicker(
@@ -96,7 +103,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                 }
             }
 
-            if draft.projectPath != nil {
+            if draft.workspaceSnapshot?.primarySource?.isGitRepository == true {
                 SettingsFormRow {
                     SettingsResponsiveControlRow("Run location", horizontalControlSizing: .intrinsic) {
                         Picker("Run location", selection: $draft.workspaceStrategy) {
@@ -109,6 +116,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                 }
             }
 
+            primaryFolderRow
             folderGrantsRow
         case .existingThread:
             if threads.isEmpty {
@@ -139,18 +147,47 @@ struct ScheduledTaskEditorWorkspaceSection: View {
 
     private var projectSelection: Binding<String?> {
         Binding(
-            get: { draft.projectPath },
-            set: { path in
-                draft.projectPath = path
-                draft.workspaceKind = path == nil ? .privateWorkspace : .project
-                // A Project placement makes the created thread `.project` mode, which nests
-                // under the Project and never renders in a section; clearing here keeps a
-                // now-hidden pick from round-tripping invisibly.
-                if path != nil {
-                    draft.sectionID = nil
-                }
+            get: {
+                if draft.workspaceSnapshot != nil { return draft.projectID }
+                return draft.projectID ?? projects.first { $0.path == draft.projectPath }?.id
+            },
+            set: { id in
+                let workspace = projects.first { $0.id == id }?.workspaceSnapshot ?? WorkspaceSnapshot(primarySource: nil)
+                draft.projectID = id
+                draft.workspaceSnapshot = workspace
+                draft.projectPath = workspace.primarySource?.path
+                draft.grantedRoots = workspace.grants.map(\.path)
+                draft.workspaceKind = workspace.primarySource == nil ? .privateWorkspace : .project
+                if workspace.primarySource?.isGitRepository != true { draft.workspaceStrategy = .localCheckout }
+                if id != nil { draft.sectionID = nil }
             }
         )
+    }
+
+    /// Grant controls edit the path list independently; a primary switch must use that current list.
+    private var effectiveWorkspace: WorkspaceSnapshot? {
+        guard let saved = draft.workspaceSnapshot else { return nil }
+        return WorkspaceSnapshot(primarySource: saved.primarySource, grants: draft.grantedRoots.map { path in
+            saved.grants.first { $0.path == path } ?? SourceFolderSnapshot(path: path)
+        })
+    }
+
+    @ViewBuilder
+    private var primaryFolderRow: some View {
+        if let workspace = effectiveWorkspace, let source = workspace.primarySource {
+            SettingsFormRow {
+                SettingsResponsiveControlRow("Primary folder", horizontalControlSizing: .selectedContent) {
+                    ScheduledTaskMenuPicker(
+                        accessibilityLabel: "Primary folder",
+                        selection: Binding(
+                            get: { source.path },
+                            set: { draft.selectPrimaryFolder(path: $0) }
+                        ),
+                        options: workspace.sourceFolders.map { .init(value: $0.path, label: $0.name) }
+                    )
+                }
+            }
+        }
     }
 
     private var folderGrantsRow: some View {
@@ -169,7 +206,7 @@ struct ScheduledTaskEditorWorkspaceSection: View {
                     Button(action: chooseFolders) {
                         HStack(spacing: 6) {
                             Image(systemName: "folder.badge.plus")
-                            Text("Add folders")
+                            Text(draft.isResolvingFolders ? "Resolving folders…" : "Add folders")
                         }
                     }
                     .secondaryActionButtonStyle()
@@ -218,9 +255,31 @@ struct ScheduledTaskEditorWorkspaceSection: View {
         guard panel.runModal() == .OK else {
             return
         }
-        draft.grantedRoots = ScheduledTask.normalizedUniquePaths(
-            draft.grantedRoots + panel.urls.map(\.path)
-        )
+        let captured = draft
+        let paths = ScheduledTask.normalizedUniquePaths(panel.urls.map(\.path))
+        let resolutionID = UUID()
+        folderResolutionID = resolutionID
+        draft.isResolvingFolders = true
+        folderResolutionTask = Task { @MainActor in
+            defer {
+                if folderResolutionID == resolutionID, draft.id == captured.id { draft.isResolvingFolders = false }
+            }
+            var folders: [SourceFolderSnapshot] = []
+            for path in paths {
+                let folder: SourceFolderSnapshot
+                if let saved = captured.workspaceSnapshot?.sourceFolders.first(where: { $0.path == path }) {
+                    folder = saved
+                } else {
+                    folder = await SourceFolderMetadataResolver().resolve(path: path)
+                }
+                guard !Task.isCancelled else { return }
+                folders.append(folder)
+            }
+            guard folderResolutionID == resolutionID, draft.id == captured.id, draft.destination == captured.destination,
+                  draft.workspaceSnapshot == captured.workspaceSnapshot, draft.projectID == captured.projectID,
+                  draft.grantedRoots == captured.grantedRoots, draft.projectPath == captured.projectPath else { return }
+            draft.addFolderGrants(folders)
+        }
     }
 }
 

@@ -12,12 +12,12 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         let resolution = NewThreadProjectResolver.resolve(
             selection: nil,
             previousSelection: nil,
-            lastActiveProjectPath: fixture.persistedProject.path,
+            lastActiveProjectID: fixture.persistedProject.id,
             modelContext: fixture.context
         )
 
         XCTAssertEqual(resolution.project?.persistentModelID, fixture.persistedProject.persistentModelID)
-        XCTAssertEqual(resolution.lastActiveProjectPath, fixture.persistedProject.path)
+        XCTAssertEqual(resolution.lastActiveProjectID, fixture.persistedProject.id)
     }
 
     func testNewThreadProjectResolverPrefersCurrentProjectAndThreadOverPersistedProject() throws {
@@ -26,20 +26,20 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         let projectResolution = NewThreadProjectResolver.resolve(
             selection: .project(fixture.selectedProject),
             previousSelection: nil,
-            lastActiveProjectPath: fixture.persistedProject.path,
+            lastActiveProjectID: fixture.persistedProject.id,
             modelContext: fixture.context
         )
         let threadResolution = NewThreadProjectResolver.resolve(
             selection: .thread(fixture.selectedThread),
             previousSelection: nil,
-            lastActiveProjectPath: fixture.persistedProject.path,
+            lastActiveProjectID: fixture.persistedProject.id,
             modelContext: fixture.context
         )
 
         XCTAssertEqual(projectResolution.project?.persistentModelID, fixture.selectedProject.persistentModelID)
-        XCTAssertEqual(projectResolution.lastActiveProjectPath, fixture.selectedProject.path)
+        XCTAssertEqual(projectResolution.lastActiveProjectID, fixture.selectedProject.id)
         XCTAssertEqual(threadResolution.project?.persistentModelID, fixture.selectedProject.persistentModelID)
-        XCTAssertEqual(threadResolution.lastActiveProjectPath, fixture.selectedProject.path)
+        XCTAssertEqual(threadResolution.lastActiveProjectID, fixture.selectedProject.id)
     }
 
     func testNewThreadProjectResolverUsesSettingsBookmarkContext() throws {
@@ -47,14 +47,14 @@ final class ContentViewDraftRoutingTests: XCTestCase {
 
         let projectResolution = NewThreadProjectResolver.resolve(
             selection: .settings,
-            previousSelection: .projectPath(fixture.selectedProject.path),
-            lastActiveProjectPath: fixture.persistedProject.path,
+            previousSelection: .projectID(fixture.selectedProject.persistentModelID),
+            lastActiveProjectID: fixture.persistedProject.id,
             modelContext: fixture.context
         )
         let threadResolution = NewThreadProjectResolver.resolve(
             selection: .settings,
             previousSelection: .threadId(fixture.selectedThread.persistentModelID),
-            lastActiveProjectPath: fixture.persistedProject.path,
+            lastActiveProjectID: fixture.persistedProject.id,
             modelContext: fixture.context
         )
 
@@ -62,7 +62,7 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         XCTAssertEqual(threadResolution.project?.persistentModelID, fixture.selectedProject.persistentModelID)
     }
 
-    func testTaskModeSelectionAndBookmarkDoNotChooseAttachedProject() throws {
+    func testPrivateWorkspaceThreadSelectionUsesItsProjectPlacement() throws {
         let fixture = try DraftRoutingFixture()
         let task = AgentThread(
             name: "Attached task",
@@ -81,24 +81,24 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         let selectedResolution = NewThreadProjectResolver.resolve(
             selection: .thread(task),
             previousSelection: nil,
-            lastActiveProjectPath: fixture.persistedProject.path,
+            lastActiveProjectID: fixture.persistedProject.id,
             modelContext: fixture.context
         )
         let bookmarkResolution = NewThreadProjectResolver.resolve(
             selection: .settings,
             previousSelection: .threadId(task.persistentModelID),
-            lastActiveProjectPath: fixture.persistedProject.path,
+            lastActiveProjectID: fixture.persistedProject.id,
             modelContext: fixture.context
         )
 
-        XCTAssertEqual(selectedResolution.project?.persistentModelID, fixture.persistedProject.persistentModelID)
-        XCTAssertEqual(bookmarkResolution.project?.persistentModelID, fixture.persistedProject.persistentModelID)
+        XCTAssertEqual(selectedResolution.project?.persistentModelID, fixture.selectedProject.persistentModelID)
+        XCTAssertEqual(bookmarkResolution.project?.persistentModelID, fixture.selectedProject.persistentModelID)
     }
 
     func testNewThreadProjectResolverRewritesStalePathToDeterministicFallback() throws {
         let (container, context) = try makeProjectSelectionContainer()
-        let laterPath = Project(path: "/tmp/z-alveary", name: "alveary")
-        let earlierPath = Project(path: "/tmp/a-alveary", name: "Alveary")
+        let laterPath = Project(path: "/tmp/z-alveary", name: "alveary", id: "2")
+        let earlierPath = Project(path: "/tmp/a-alveary", name: "Alveary", id: "1")
         let laterName = Project(path: "/tmp/beta", name: "Beta")
         context.insert(laterPath)
         context.insert(earlierPath)
@@ -108,13 +108,13 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         let resolution = NewThreadProjectResolver.resolve(
             selection: nil,
             previousSelection: nil,
-            lastActiveProjectPath: "/tmp/deleted-project",
+            lastActiveProjectID: "/tmp/deleted-project",
             modelContext: context
         )
 
         withExtendedLifetime(container) {
             XCTAssertEqual(resolution.project?.persistentModelID, earlierPath.persistentModelID)
-            XCTAssertEqual(resolution.lastActiveProjectPath, "/tmp/a-alveary")
+            XCTAssertEqual(resolution.lastActiveProjectID, earlierPath.id)
         }
     }
 
@@ -124,19 +124,15 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         let resolution = NewThreadProjectResolver.resolve(
             selection: nil,
             previousSelection: nil,
-            lastActiveProjectPath: "/tmp/deleted-project",
+            lastActiveProjectID: "/tmp/deleted-project",
             modelContext: context
         )
 
         let threads = try context.fetch(FetchDescriptor<AgentThread>())
         withExtendedLifetime(container) {
             XCTAssertNil(resolution.project)
-            XCTAssertNil(resolution.lastActiveProjectPath)
+            XCTAssertNil(resolution.lastActiveProjectID)
             XCTAssertTrue(threads.isEmpty)
-            XCTAssertEqual(
-                NewThreadCommandPresentation.noProjectMessage,
-                "Add a project before starting a new thread."
-            )
         }
     }
 
@@ -144,15 +140,15 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         let missing = try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8)).normalized()
         let whitespace = try JSONDecoder().decode(
             AppSettings.self,
-            from: Data(#"{"lastActiveProjectPath":"   "}"#.utf8)
+            from: Data(#"{"lastActiveProjectID":"   "}"#.utf8)
         ).normalized()
 
-        XCTAssertNil(missing.lastActiveProjectPath)
-        XCTAssertNil(whitespace.lastActiveProjectPath)
+        XCTAssertNil(missing.lastActiveProjectID)
+        XCTAssertNil(whitespace.lastActiveProjectID)
     }
 
     func testDiffCommitTargetResolverRoutesDraftThreadThroughProject() throws {
-        let fixture = try DraftRoutingFixture(isDraft: true, worktreePath: "/tmp/worktree")
+        let fixture = try DraftRoutingFixture(isDraft: true)
         fixture.appState.selectedSidebarItem = .thread(fixture.selectedThread)
 
         let snapshot = DiffGitCommitTargetSnapshotResolver.resolve(
@@ -163,14 +159,14 @@ final class ContentViewDraftRoutingTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshot?.directory, fixture.selectedProject.path)
-        XCTAssertEqual(snapshot?.targetName, fixture.selectedProject.name)
+        XCTAssertEqual(snapshot?.targetName, fixture.selectedThread.name)
         XCTAssertEqual(snapshot?.baseBranch, "develop")
         XCTAssertEqual(snapshot?.remoteName, "upstream")
         XCTAssertEqual(snapshot?.generationRoute, .project(directory: fixture.selectedProject.path))
     }
 
     func testDefaultShellContextRoutesDraftThroughProjectWithoutThreadMetadata() throws {
-        let fixture = try DraftRoutingFixture(isDraft: true, worktreePath: "/tmp/worktree")
+        let fixture = try DraftRoutingFixture(isDraft: true)
 
         let context = TerminalDefaultShellContextResolver.resolve(
             selection: .thread(fixture.selectedThread),

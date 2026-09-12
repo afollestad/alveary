@@ -76,7 +76,7 @@ extension ConversationViewModelTests {
             hasCompletedInitialSetup: false,
             draftMaterializationSaver: { throw DraftLifecycleTestError.saveFailed }
         )
-        let projectPath = fixture.project.path
+        let projectID = fixture.project.id
         fixture.project.name = "Persist this pending project edit"
         let recorder = DraftLifecycleMaterializationRecorder(threadID: fixture.thread.persistentModelID)
         let observer = recorder.start()
@@ -100,7 +100,7 @@ extension ConversationViewModelTests {
 
         let verificationContext = ModelContext(fixture.container)
         let descriptor = FetchDescriptor<Project>(predicate: #Predicate { project in
-            project.path == projectPath
+            project.id == projectID
         })
         XCTAssertEqual(try verificationContext.fetch(descriptor).first?.name, "Persist this pending project edit")
     }

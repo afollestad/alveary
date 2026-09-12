@@ -11,7 +11,9 @@ extension ContentViewProjectActionsTests {
         let action = AlvearyProjectConfig.ProjectAction(name: "Build", command: "./scripts/build.sh")
         let projectWorktreePath = try XCTUnwrap(projectFixture.thread.worktreePath)
 
-        let projectActionContext = try XCTUnwrap(ProjectActionExecutionContext(thread: projectFixture.thread, action: action))
+        let projectActionContext = ProjectActionExecutionContext(
+            folder: try XCTUnwrap(projectFixture.thread.workspaceFolderTargets.first), thread: projectFixture.thread, action: action
+        )
         XCTAssertEqual(projectActionContext.currentDirectory, projectWorktreePath)
         XCTAssertTrue(SidebarItem.thread(projectFixture.thread).canCommitDiffChanges)
         let projectCommitTarget = try XCTUnwrap(DiffGitCommitTargetSnapshotResolver.resolve(
@@ -21,10 +23,13 @@ extension ContentViewProjectActionsTests {
             activeDirectory: projectWorktreePath
         ))
         XCTAssertEqual(projectCommitTarget.directory, projectWorktreePath)
-        XCTAssertEqual(projectCommitTarget.generationRoute, .thread)
+        XCTAssertEqual(projectCommitTarget.generationRoute, .thread(
+            threadID: projectFixture.thread.persistentModelID,
+            conversationID: try XCTUnwrap(projectFixture.thread.conversations.first).persistentModelID
+        ))
 
-        XCTAssertNil(ProjectActionExecutionContext(thread: privateFixture.thread, action: action))
-        XCTAssertFalse(SidebarItem.thread(privateFixture.thread).canCommitDiffChanges)
+        XCTAssertTrue(privateFixture.thread.workspaceFolderTargets.isEmpty)
+        XCTAssertTrue(SidebarItem.thread(privateFixture.thread).canCommitDiffChanges)
         XCTAssertNil(DiffGitCommitTargetSnapshotResolver.resolve(
             selection: .thread(privateFixture.thread),
             modelContext: privateFixture.context,
@@ -67,7 +72,7 @@ extension ContentViewProjectActionsTests {
             modelContext: privateFixture.context,
             builder: privateFixture.builder
         )
-        XCTAssertEqual(projectDraftShellContext.currentDirectory, projectFixture.project.path)
+        XCTAssertEqual(projectDraftShellContext.currentDirectory, projectWorktreePath)
         XCTAssertEqual(privateDraftShellContext.currentDirectory, "/Users/alice")
     }
 }
