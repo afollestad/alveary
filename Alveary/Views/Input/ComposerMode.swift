@@ -8,11 +8,12 @@ enum ComposerMode: Equatable, Sendable {
         case cancellingInitialSetup
         case reconfiguringSession
         case sessionHandoff
+        case reviewTeam
         case toolApproval(DeferredToolComposerStatusText)
 
         var canStop: Bool {
             switch self {
-            case .initialSetup: return true
+            case .initialSetup, .reviewTeam: return true
             case .cancellingInitialSetup, .reconfiguringSession, .sessionHandoff, .toolApproval: return false
             }
         }

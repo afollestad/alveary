@@ -57,6 +57,35 @@ final class ShellRunnerTests: XCTestCase {
         XCTAssertEqual(result.stdout, "eof")
     }
 
+    func testTextStandardInputWritesTextAndClosesThePipe() async throws {
+        let runner = DefaultShellRunner()
+
+        let result = try await runner.run(
+            executable: "/bin/cat",
+            args: [],
+            standardInput: .text("review packet prompt")
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(result.stdout, "review packet prompt")
+    }
+
+    func testReplacementEnvironmentDoesNotInheritParentValues() async throws {
+        let runner = DefaultShellRunner()
+
+        let result = try await runner.run(
+            executable: "/usr/bin/env",
+            args: [],
+            environment: ["REVIEW_WORKER_TEST": "present"],
+            environmentPolicy: .replace,
+            standardInput: .nullDevice
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertTrue(result.stdout.contains("REVIEW_WORKER_TEST=present"))
+        XCTAssertFalse(result.stdout.contains("HOME="))
+    }
+
     func testNonZeroExitCapturesStderrAndExitCode() async throws {
         let runner = DefaultShellRunner()
 
@@ -192,4 +221,206 @@ final class ShellRunnerTests: XCTestCase {
             XCTAssertLessThan(start.duration(to: clock.now), .seconds(3))
         }
     }
+
+    func testProcessGroupKillsTermIgnoringChildThatRetainsOutputAfterParentExit() async throws {
+        let runner = DefaultShellRunner()
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        let result = try await runner.run(
+            executable: "/usr/bin/perl",
+            args: ["-e", Self.termIgnoringChildScript(parentExits: true)],
+            processGroupPolicy: .create,
+            timeout: .seconds(5)
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertTrue(result.stdout.contains("parent\n"))
+        XCTAssertTrue(result.stdout.contains("child\n"))
+        XCTAssertLessThan(start.duration(to: clock.now), .seconds(4))
+    }
+
+    func testProcessGroupKeepsClosedPipeDescendantRegisteredThroughForceKill() async throws {
+        let registry = PullRequestReviewWorkerProcessRegistry()
+        let tracker = registry.tracker(for: .init(runID: "run", generation: 1, executionID: "closed-pipes"))
+        let runner = DefaultShellRunner(processTracker: tracker)
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        let result = try await runner.run(
+            executable: "/usr/bin/perl",
+            args: ["-e", Self.closedPipeChildScript],
+            processGroupPolicy: .create,
+            timeout: .seconds(5)
+        )
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(result.stdout, "parent\n")
+        XCTAssertGreaterThan(start.duration(to: clock.now), .seconds(1))
+        XCTAssertLessThan(start.duration(to: clock.now), .seconds(4))
+        XCTAssertFalse(registry.hasLiveProcesses)
+    }
+
+    func testProcessGroupTimeoutKillsTermIgnoringDescendants() async throws {
+        let runner = DefaultShellRunner()
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        do {
+            _ = try await runner.run(
+                executable: "/usr/bin/perl",
+                args: ["-e", Self.termIgnoringChildScript(parentExits: false)],
+                processGroupPolicy: .create,
+                timeout: .milliseconds(100)
+            )
+            XCTFail("Expected timeout")
+        } catch let ShellError.timeout(executable, timeout) {
+            XCTAssertEqual(executable, "/usr/bin/perl")
+            XCTAssertEqual(timeout, .milliseconds(100))
+            XCTAssertLessThan(start.duration(to: clock.now), .seconds(4))
+        }
+    }
+
+    func testProcessGroupFailsClosedWhenChildClosesStandardInputEarly() async throws {
+        let runner = DefaultShellRunner()
+        let clock = ContinuousClock()
+        let start = clock.now
+
+        do {
+            _ = try await runner.run(
+                executable: "/usr/bin/perl",
+                args: ["-e", "close STDIN; print qq(done\\n); select undef, undef, undef, 0.1;"],
+                processGroupPolicy: .create,
+                timeout: .seconds(5),
+                standardInput: .text(String(repeating: "x", count: 4 * 1024 * 1024))
+            )
+            XCTFail("Expected incomplete standard input")
+        } catch let ShellError.ioDrainTimedOut(executable) {
+            XCTAssertEqual(executable, "/usr/bin/perl")
+            XCTAssertLessThan(start.duration(to: clock.now), .seconds(4))
+        }
+    }
+
+    func testProcessGroupCancellationKillsTermIgnoringDescendants() async throws {
+        let registry = PullRequestReviewWorkerProcessRegistry()
+        let script = Self.termIgnoringChildScript(parentExits: false)
+        let task = Task.detached { [registry] in
+            let tracker = registry.tracker(for: .init(runID: "run", generation: 1, executionID: "cancel"))
+            let runner = DefaultShellRunner(processTracker: tracker)
+            return try await runner.run(
+                executable: "/usr/bin/perl",
+                args: ["-e", script],
+                processGroupPolicy: .create
+            )
+        }
+        try await waitForLiveProcess(in: registry)
+
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            XCTAssertFalse(registry.hasLiveProcesses)
+        }
+    }
+
+    func testProcessGroupShutdownKillsTermIgnoringDescendants() async throws {
+        let registry = PullRequestReviewWorkerProcessRegistry()
+        let script = Self.termIgnoringChildScript(parentExits: false)
+        let task = Task.detached { [registry] in
+            let tracker = registry.tracker(for: .init(runID: "run", generation: 1, executionID: "shutdown"))
+            let runner = DefaultShellRunner(processTracker: tracker)
+            return try await runner.run(
+                executable: "/usr/bin/perl",
+                args: ["-e", script],
+                processGroupPolicy: .create
+            )
+        }
+        try await waitForLiveProcess(in: registry)
+
+        registry.terminateAllSynchronously(grace: 0.05)
+        XCTAssertFalse(registry.hasLiveProcesses)
+        let result = try await task.value
+
+        XCTAssertFalse(result.succeeded)
+    }
+
+    func testProcessGroupShutdownFindsDescendantAfterParentAndPipesExit() async throws {
+        let registry = PullRequestReviewWorkerProcessRegistry()
+        let script = Self.closedPipeChildScript
+        let task = Task.detached { [registry] in
+            let tracker = registry.tracker(for: .init(runID: "run", generation: 1, executionID: "orphan-shutdown"))
+            let runner = DefaultShellRunner(processTracker: tracker)
+            return try await runner.run(
+                executable: "/usr/bin/perl",
+                args: ["-e", script],
+                processGroupPolicy: .create
+            )
+        }
+        try await waitForTrackedLeaderExit(in: registry)
+        XCTAssertTrue(registry.hasLiveProcesses)
+
+        let clock = ContinuousClock()
+        let start = clock.now
+        registry.terminateAllSynchronously(grace: 0.05)
+        XCTAssertFalse(registry.hasLiveProcesses)
+        let result = try await task.value
+
+        XCTAssertTrue(result.succeeded)
+        XCTAssertLessThan(start.duration(to: clock.now), .seconds(1))
+    }
+
+    private func waitForLiveProcess(in registry: PullRequestReviewWorkerProcessRegistry) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(2))
+        while !registry.hasLiveProcesses {
+            guard clock.now < deadline else {
+                XCTFail("Timed out waiting for the process to launch")
+                return
+            }
+            await Task.yield()
+        }
+    }
+
+    private func waitForTrackedLeaderExit(in registry: PullRequestReviewWorkerProcessRegistry) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(2))
+        while registry.allProcessesSnapshot.first?.isRunning != false {
+            guard clock.now < deadline else {
+                XCTFail("Timed out waiting for the parent process to exit")
+                return
+            }
+            await Task.yield()
+        }
+    }
+
+    private static func termIgnoringChildScript(parentExits: Bool) -> String {
+        """
+        $SIG{TERM}=sub{};
+        $|=1;
+        print "parent\\n";
+        my $child=fork();
+        die "fork failed" unless defined $child;
+        if ($child == 0) {
+            print "child\\n";
+            while (1) { select undef, undef, undef, 0.01; }
+        }
+        \(parentExits ? "exit 0;" : "while (1) { select undef, undef, undef, 0.01; }")
+        """
+    }
+
+    private static let closedPipeChildScript = """
+    $SIG{TERM}=sub{};
+    $|=1;
+    print "parent\\n";
+    my $child=fork();
+    die "fork failed" unless defined $child;
+    if ($child == 0) {
+        close STDOUT;
+        close STDERR;
+        while (1) { select undef, undef, undef, 0.01; }
+    }
+    exit 0;
+    """
 }

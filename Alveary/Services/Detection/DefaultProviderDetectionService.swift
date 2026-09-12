@@ -85,6 +85,10 @@ actor DefaultProviderDetectionService: ProviderDetectionService {
                     statuses[provider.id] = .error("Version check timed out after \(attempt) attempts")
                     resolvedPaths[provider.id] = path
                     return
+                case .ioDrainTimedOut:
+                    statuses[provider.id] = .error(error.localizedDescription)
+                    resolvedPaths[provider.id] = path
+                    return
                 }
             } catch {
                 statuses[provider.id] = .error(error.localizedDescription)

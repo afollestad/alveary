@@ -15,7 +15,8 @@ extension ThreadDetailView {
             approvals: unresolvedApprovalRegistry,
             scheduledProposals: scheduledTaskProposalQueueCoordinator,
             reviewProposals: pullRequestReviewProposalCoordinator,
-            settings: settingsService.current
+            settings: settingsService.current,
+            reviewTeams: pullRequestReviewTeamCoordinator
         )
     }
 
@@ -25,6 +26,6 @@ extension ThreadDetailView {
     /// Read from `body` for the same reason as `decisionAttention` above, and for one more that
     /// `ConversationWorkActivity` owns: this read *is* the chip's repaint signal.
     var workActivity: ConversationWorkActivity {
-        ConversationWorkActivity(reviewProposals: pullRequestReviewProposalCoordinator)
+        ConversationWorkActivity(reviewProposals: pullRequestReviewProposalCoordinator, reviewTeams: pullRequestReviewTeamCoordinator)
     }
 }

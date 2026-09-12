@@ -47,10 +47,7 @@ extension ChatView {
                 reasoningMenuRequestState.consume(consumedRequestID)
             },
             onSubmit: { submitDraftFromComposer(presentation: presentation) },
-            onStop: {
-                isStopConfirmationArmed = false
-                Task { await viewModel.cancel() }
-            },
+            onStop: stopActiveWork,
             appShotAttachment: composerAppShotAttachment,
             // Only raises the trigger; the app root observes it and owns capture routing.
             onAttachAppShot: { appShotCoordinator?.requestCapture() }

@@ -13,6 +13,7 @@ extension PullRequestReviewProposalCoordinator {
     /// would either freeze a card or wedge a thread as permanently unarchivable.
     func beginSubmitting(_ proposalID: String, conversationID: String) {
         submittingConversationIDsByProposalID[proposalID] = conversationID
+        PullRequestReviewProposalEditState.beginSubmission(proposalID: proposalID)
         PullRequestReviewSubmissionActivity.post(
             conversationID: conversationID,
             isSubmitting: true,
@@ -24,6 +25,7 @@ extension PullRequestReviewProposalCoordinator {
     /// failure path too.
     func endSubmitting(_ proposalID: String, conversationID: String) {
         submittingConversationIDsByProposalID[proposalID] = nil
+        PullRequestReviewProposalEditState.endSubmission(proposalID: proposalID)
         PullRequestReviewSubmissionActivity.post(
             conversationID: conversationID,
             isSubmitting: false,

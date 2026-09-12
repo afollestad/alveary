@@ -42,6 +42,8 @@ struct SplitActionButton<Option: Hashable>: View {
     /// **The caret dims with the pill but stays clickable.** It is the only way to put a different
     /// option on the face, so killing it would strand the user behind whichever one is running.
     var isBusy = false
+    /// Disables only the primary action, leaving the options menu available as a recovery route.
+    var isPrimaryActionEnabled = true
     let selectedOption: Option
     let options: [Option]
     let optionTitle: (Option) -> String
@@ -132,13 +134,13 @@ struct SplitActionButton<Option: Hashable>: View {
 
     /// Busy blocks the primary click; only `.disabled(...)` blocks the caret with it.
     private var isActionEnabled: Bool {
-        isEnabled && !isBusy
+        isEnabled && isPrimaryActionEnabled && !isBusy
     }
 
     /// Disabled and busy paint the same, because they mean the same thing to the person looking at
     /// it: this button is not going to do anything if you press it.
     private var isDimmed: Bool {
-        !isEnabled || isBusy
+        !isEnabled || !isPrimaryActionEnabled || isBusy
     }
 
     private var showsHoverOverlay: Bool {

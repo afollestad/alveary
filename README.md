@@ -72,6 +72,18 @@ The same tab has **Launch at startup**, which registers Alveary as a macOS login
 
 ## Pull Request Reviews
 
+Single-agent review is the default. In **Settings → Git → Pull requests**, choose **Review team** to configure one team of 2–5 distinct models. Reviewers inspect independently, cross-check findings, and propose comments supported by a fixed majority. The lead also consolidates findings. One task shows progress, failures, votes, cancellation, and retry controls; nothing is submitted without confirmation.
+
+**Manage** edits the lead and peers together. Single-agent review shows its agent controls inline; **Address feedback** has independent agent and permission settings.
+
+**Run details** exposes per-reviewer attempts, exact app prompts and final responses, pinned input files, candidate consolidation, and vote decisions. History stays local to the task, survives proposal handling, and is deleted with the task. Older runs retain validated results but may lack exact execution history.
+
+If a reviewer fails, the review pauses before proposing feedback. Retry only the failed reviewers, or explicitly continue with the available majority. Paused runs stay paused after relaunch; insufficient quorum cannot continue.
+
+Team workers use sessionless, read-only CLI configurations without user hooks, plugins, MCP servers, or extra arguments. Their app-owned packets contain the complete diff and published feedback. This is not an OS-level packet-only read boundary or a guarantee of network isolation. Unsupported CLI capabilities or unavailable model pins block launch; availability checks do not send paid prompts.
+
+Review-team worker process groups use the system `/usr/bin/perl` launcher and fail preflight when it is unavailable.
+
 Large pull-request reviews automatically fall back to a temporary bare Git repository when GitHub refuses the full diff. Alveary uses your existing GitHub CLI sign-in, then serves the complete textual diff in resumable pages. Preparation may take several minutes; review tasks do not need a project checkout.
 
 ## GitHub Attachments

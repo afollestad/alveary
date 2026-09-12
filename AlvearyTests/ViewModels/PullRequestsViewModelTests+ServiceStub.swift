@@ -16,6 +16,8 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var listGate: PullRequestsServiceGate?
     var detailResult: Result<PullRequestDetail, PullRequestsServiceError> = .failure(.transport("unused"))
     var diffResult: Result<String, PullRequestsServiceError> = .failure(.transport("unused"))
+    var diffSnapshotResult: Result<PullRequestDiffSnapshot, PullRequestsServiceError>?
+    var reviewFeedbackResult: Result<Data, PullRequestsServiceError> = .success(Data("{}".utf8))
     var submitResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
     var updateCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
     var deleteCommentResult: Result<Void, PullRequestsServiceError> = .failure(.transport("unused"))
@@ -183,6 +185,15 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
         await diffGate?.wait()
         try Task.checkCancellation()
         return try diffResult.get()
+    }
+
+    func fetchDiffSnapshot(_ id: PullRequestIdentifier) async throws -> PullRequestDiffSnapshot {
+        if let diffSnapshotResult { return try diffSnapshotResult.get() }
+        return try await PullRequestDiffSnapshot.make(text: fetchDiff(id))
+    }
+
+    func fetchReviewFeedback(_ id: PullRequestIdentifier) async throws -> Data {
+        try reviewFeedbackResult.get()
     }
 
     func submitReview(_ id: PullRequestIdentifier, event: PullRequestReviewEvent, body: String) async throws {

@@ -19,6 +19,8 @@ enum HostToolWidgetSummary {
             pullRequestListText(content, entry: entry)
         case .threadAction(let content):
             threadActionText(content, entry: entry)
+        case .collectiveReviewRun(let run):
+            run.phase.title
         }
     }
 
@@ -33,7 +35,7 @@ enum HostToolWidgetSummary {
             content.identifier?.displayKey
         case .pullRequestReviewInstructions(let content):
             content.identifier?.displayKey
-        case .scheduledTaskProposal, .pullRequestList, .threadAction:
+        case .scheduledTaskProposal, .pullRequestList, .threadAction, .collectiveReviewRun:
             nil
         }
     }
@@ -63,11 +65,30 @@ enum HostToolWidgetSummary {
             // Only a created Project thread has a path to show; the rest say everything in
             // the summary, and a refusal puts its reason here.
             return content.status == .failed ? content.message : content.projectPath
+        case .collectiveReviewRun(let run):
+            return collectiveReviewDetail(run)
         }
     }
 }
 
 private extension HostToolWidgetSummary {
+    static func collectiveReviewDetail(_ run: ReviewTeamRun) -> String? {
+        if run.phase == .awaitingDecision {
+            let count = run.pausedPhase == .crossChecking ? run.voteReports.count : run.inspections.count
+            return "\(count) of \(run.team.count) reviewers completed · \(run.requiredVotes) required to continue"
+        }
+        if let error = run.error, run.phase == .failed || run.phase == .interrupted || run.phase == .cancelled {
+            return error
+        }
+        if run.phase == .inspecting {
+            return "\(run.inspections.count) of \(run.team.count) reviewers finished"
+        }
+        if run.phase == .crossChecking {
+            return "\(run.voteReports.count) of \(run.team.count) reviewers cross-checked"
+        }
+        return nil
+    }
+
     /// The link tools apply immediately, so there is no pending or rejected voice here — a
     /// landed call is past tense, and `already_linked` / `not_linked` say the state was
     /// already what was asked for rather than that the request did nothing useful.

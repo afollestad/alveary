@@ -70,7 +70,10 @@ struct AppDelegateTestFixture {
         scheduledTaskLifecycle: AppDelegateScheduledTaskLifecycleSpy? = nil,
         cleanupRuntimePreferences: @escaping @MainActor () -> Void = {},
         disableSuddenTermination: @escaping () -> Void = {},
-        enableSuddenTermination: @escaping () -> Void = {}
+        enableSuddenTermination: @escaping () -> Void = {},
+        recoverCollectiveReviews: @escaping @MainActor () -> Void = {},
+        prepareCollectiveReviewsForTermination: @escaping @MainActor () -> Void = {},
+        hasCollectiveReviewWork: @escaping @MainActor () -> Bool = { false }
     ) -> AppDelegate {
         AppDelegate(
             dependencies: .init(
@@ -113,7 +116,10 @@ struct AppDelegateTestFixture {
                 wakeRefreshDelay: wakeRefreshDelay,
                 shutdownPersistTimeout: shutdownPersistTimeout,
                 shutdownProcessGrace: 0.05,
-                orphanCleanupGrace: 0.05
+                orphanCleanupGrace: 0.05,
+                recoverCollectiveReviews: recoverCollectiveReviews,
+                prepareCollectiveReviewsForTermination: prepareCollectiveReviewsForTermination,
+                hasCollectiveReviewWork: hasCollectiveReviewWork
             )
         )
     }

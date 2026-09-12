@@ -127,9 +127,12 @@ extension SidebarView {
             approvals: unresolvedApprovalRegistry,
             scheduledProposals: scheduledTaskProposalQueueCoordinator,
             reviewProposals: pullRequestReviewProposalCoordinator,
-            settings: settings
+            settings: settings,
+            reviewTeams: pullRequestReviewTeamCoordinator
         )
-        let workActivity = ConversationWorkActivity(reviewProposals: pullRequestReviewProposalCoordinator)
+        let workActivity = ConversationWorkActivity(
+            reviewProposals: pullRequestReviewProposalCoordinator, reviewTeams: pullRequestReviewTeamCoordinator
+        )
         var statuses: [PersistentIdentifier: [ConversationStatusSnapshot]] = [:]
         for conversation in queriedStatusFoldConversations.filter(\.isLiveForRender) {
             guard let thread = conversation.thread, thread.isLiveForRender else {

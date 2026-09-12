@@ -54,12 +54,14 @@ struct PullRequestPaneActivitySection: View {
             // same card, badged "Proposed". They land last because the timeline is chronological
             // and a proposal is the newest thing about the pull request — the same place a
             // pending draft thread sits.
-            ForEach(Array(proposedThreads.enumerated()), id: \.offset) { _, thread in
+            let proposed = proposedContent
+            ForEach(Array(proposed.threads.enumerated()), id: \.offset) { _, thread in
                 PullRequestReviewThreadView(
                     thread: thread,
                     session: session,
                     viewModel: viewModel,
-                    onOpenFiles: onOpenFiles
+                    onOpenFiles: onOpenFiles,
+                    voteEvidenceByProposedIndex: proposed.evidence
                 )
             }
         }
@@ -67,11 +69,11 @@ struct PullRequestPaneActivitySection: View {
 
     /// Synthesized per render from the proposal envelope — never from `detail.reviewThreads`,
     /// which is GitHub's record.
-    private var proposedThreads: [PullRequestReviewThread] {
+    private var proposedContent: (threads: [PullRequestReviewThread], evidence: [Int: PullRequestReviewVotePresentation]) {
         guard let proposal = viewModel.pendingReviewProposal(for: .details(detail.id)) else {
-            return []
+            return ([], [:])
         }
-        return PullRequestReviewProposalCoordinator.stagedThreads(
+        let threads = PullRequestReviewProposalCoordinator.stagedThreads(
             proposal.comments,
             viewerLogin: detail.viewerLogin,
             viewerAvatarURL: detail.viewerAvatarURL,
@@ -79,6 +81,7 @@ struct PullRequestPaneActivitySection: View {
             // written, which is what the timestamp beside every other comment means.
             createdAt: proposal.createdAt
         )
+        return (threads, proposal.voteEvidenceByProposedIndex)
     }
 
     private var hasOpenComposer: Bool {

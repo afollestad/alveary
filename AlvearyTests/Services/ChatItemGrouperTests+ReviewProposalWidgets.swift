@@ -4,6 +4,96 @@ import XCTest
 
 @MainActor
 extension ChatItemGrouperTests {
+    func testAnAppSynthesizedCollectiveProposalUsesTheExistingReviewCard() throws {
+        let grouper = ChatItemGrouper()
+        let payload = ReviewProposalTranscriptPayload(
+            payloadVersion: 1,
+            runID: "run-1",
+            proposalID: "review-collective",
+            resultHash: "hash",
+            identifier: PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
+            event: "request_changes",
+            body: "Please address the agreed findings.",
+            commentCount: 2,
+            pendingCommentCount: 1,
+            supersededProposalIDs: []
+        )
+        let event = ConversationEventRecord(
+            id: "collective-review-proposal:review-collective",
+            conversationId: Self.reviewWidgetConversationID,
+            type: ConversationEventRecord.pullRequestReviewProposalType,
+            content: String(bytes: try ReviewTeamDigest.encode(payload), encoding: .utf8),
+            toolId: "review-collective"
+        )
+
+        grouper.update(events: [event])
+
+        let entry = try XCTUnwrap(grouper.items.first?.hostToolWidgetEntry)
+        XCTAssertEqual(entry.reviewProposalID, "review-collective")
+        XCTAssertEqual(entry.isUnresolvedReviewProposal, true)
+        guard case .pullRequestReviewProposal(let content) = entry.content else {
+            return XCTFail("Expected a review proposal widget")
+        }
+        XCTAssertEqual(content.event, .requestChanges)
+        XCTAssertEqual(content.commentCount, 2)
+        XCTAssertEqual(content.pendingCommentCount, 1)
+    }
+
+    func testACollectiveRunEventRendersItsLatestPersistedPhase() throws {
+        let grouper = ChatItemGrouper()
+        let worker = ReviewWorkerConfiguration(
+            id: "worker-1",
+            providerID: "codex",
+            modelOptionID: "gpt-5",
+            launchModel: "gpt-5",
+            effort: "high",
+            executablePath: "/usr/bin/codex"
+        )
+        let run = ReviewTeamRun(
+            payloadVersion: 1,
+            id: "run-1",
+            proposalID: "proposal-1",
+            conversationID: Self.reviewWidgetConversationID,
+            identifier: PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7),
+            url: try XCTUnwrap(URL(string: "https://github.com/octo/alpha/pull/7")),
+            team: [worker],
+            criteria: "Review the diff.",
+            priorProposal: PullRequestCollectiveReviewStagingSnapshot(
+                proposalOwnerConversationID: nil,
+                proposalID: nil,
+                proposalContentHash: nil,
+                editState: nil
+            ),
+            createdAt: Date(timeIntervalSince1970: 1_000),
+            generation: 0,
+            phase: .inspecting,
+            inspections: [:],
+            voteReports: [:],
+            accepted: [],
+            attempts: [:],
+            failures: [:],
+            supersededProposalIDs: []
+        )
+        let content = try XCTUnwrap(String(bytes: ReviewTeamDigest.encode(run), encoding: .utf8))
+        let event = ConversationEventRecord(
+            id: "collective-review-run:run-1",
+            conversationId: Self.reviewWidgetConversationID,
+            type: ConversationEventRecord.collectiveReviewRunType,
+            content: content
+        )
+
+        grouper.update(events: [event])
+
+        let entry = try XCTUnwrap(grouper.items.first?.hostToolWidgetEntry)
+        guard case .collectiveReviewRun(let decoded) = entry.content else {
+            return XCTFail("Expected collective review progress")
+        }
+        XCTAssertEqual(decoded.phase, .inspecting)
+        XCTAssertEqual(HostToolWidgetSummary.text(for: entry), "Reviewing with team")
+        XCTAssertFalse(entry.isComplete)
+        assertFutureRunIsHidden(content: content)
+    }
+
     func testReviewProposalRendersAsAWidgetAndResolvesOnItsMarker() {
         let grouper = ChatItemGrouper()
         let call = reviewProposalCall()
@@ -195,6 +285,17 @@ private extension ChatItemGrouperTests {
     /// This file's own conversation id and scheduling fixtures: the companion holding the
     /// originals keeps them fileprivate.
     static var reviewWidgetConversationID: String { "conversation-widget" }
+
+    func assertFutureRunIsHidden(content: String) {
+        let grouper = ChatItemGrouper()
+        grouper.update(events: [ConversationEventRecord(
+            id: "collective-review-run:future",
+            conversationId: Self.reviewWidgetConversationID,
+            type: ConversationEventRecord.collectiveReviewRunType,
+            content: content.replacingOccurrences(of: #""payloadVersion":1"#, with: #""payloadVersion":2"#)
+        )])
+        XCTAssertTrue(grouper.items.isEmpty)
+    }
 
     func schedulingProposalCall() -> ConversationEventRecord {
         ConversationEventRecord(

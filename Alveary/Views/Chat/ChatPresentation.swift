@@ -52,6 +52,9 @@ enum ChatPresentation {
     }
 
     static func composerMode(for state: ChatComposerModeState) -> ComposerMode {
+        if state.isReviewTeamWorking {
+            return .progressOnly(.reviewTeam)
+        }
         if state.isCancellingInitialSetup {
             return .progressOnly(.cancellingInitialSetup)
         }
@@ -94,6 +97,7 @@ struct ChatComposerModeState: Equatable, Sendable {
     let isTurnActive: Bool
     let runtimeStatus: ActivitySignal
     let isSendingMessage: Bool
+    var isReviewTeamWorking = false
 }
 
 // Reads SwiftData-backed thread fields into value state that SwiftUI and native

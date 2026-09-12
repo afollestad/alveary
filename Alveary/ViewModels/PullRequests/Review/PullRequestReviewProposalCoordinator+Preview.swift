@@ -43,6 +43,19 @@ struct PullRequestReviewProposalPreview: Equatable {
         let proposedIndex: Int
         let path: String
         let bodyMarkdown: String
+        let evidence: PullRequestReviewProposalRecord.CommentEvidence?
+
+        init(
+            proposedIndex: Int,
+            path: String,
+            bodyMarkdown: String,
+            evidence: PullRequestReviewProposalRecord.CommentEvidence? = nil
+        ) {
+            self.proposedIndex = proposedIndex
+            self.path = path
+            self.bodyMarkdown = bodyMarkdown
+            self.evidence = evidence
+        }
     }
 }
 
@@ -122,7 +135,7 @@ extension PullRequestReviewProposalCoordinator {
         var stale: [PullRequestReviewProposalPreview.StaleComment] = []
         let annotations = Self.annotations(
             threads: pendingThreads,
-            staged: presentation.comments,
+            presentation: presentation,
             detail: detail,
             files: parsed,
             stale: &stale
@@ -182,7 +195,8 @@ extension PullRequestReviewProposalCoordinator {
             to: &annotations,
             resolvedAgainst: entry.files,
             viewerLogin: entry.viewerLogin,
-            viewerAvatarURL: entry.viewerAvatarURL
+            viewerAvatarURL: entry.viewerAvatarURL,
+            reviewers: presentation.reviewers
         )
         return PullRequestReviewProposalPreview(
             files: commentedFiles(in: entry.files, anchors: Array(annotations.threads.keys)),
@@ -275,7 +289,8 @@ extension PullRequestReviewProposalCoordinator {
         to annotations: inout DiffCommentAnnotations,
         resolvedAgainst files: [DiffFile],
         viewerLogin: String?,
-        viewerAvatarURL: URL?
+        viewerAvatarURL: URL?,
+        reviewers: [PullRequestReviewProposalRecord.Reviewer] = []
     ) -> [PullRequestReviewProposalPreview.StaleComment] {
         var stale: [PullRequestReviewProposalPreview.StaleComment] = []
         let lines = ReviewProposalAnchorResolution.resolvedLines(staged, against: files)
@@ -286,7 +301,8 @@ extension PullRequestReviewProposalCoordinator {
                     PullRequestReviewProposalPreview.StaleComment(
                         proposedIndex: index,
                         path: comment.path,
-                        bodyMarkdown: body
+                        bodyMarkdown: body,
+                        evidence: comment.evidence
                     )
                 )
                 continue
@@ -301,7 +317,8 @@ extension PullRequestReviewProposalCoordinator {
                 bodyMarkdown: body,
                 isPending: false,
                 avatarURL: viewerAvatarURL,
-                proposedIndex: index
+                proposedIndex: index,
+                voteEvidence: comment.evidence.map { PullRequestReviewVotePresentation(evidence: $0, reviewers: reviewers) }
             )
             if var existing = annotations.threads[anchor] {
                 existing.comments.append(lineComment)
@@ -377,7 +394,8 @@ private extension PullRequestReviewProposalCoordinator {
                     ? comment.proposedIndex - 1
                     : comment.proposedIndex,
                 path: comment.path,
-                bodyMarkdown: comment.bodyMarkdown
+                bodyMarkdown: comment.bodyMarkdown,
+                evidence: comment.evidence
             )
         }
     }
@@ -420,7 +438,7 @@ private extension PullRequestReviewProposalCoordinator {
     /// already-drafted line appends to that thread rather than opening a second card on the line.
     static func annotations(
         threads: [PullRequestReviewThread],
-        staged: [PullRequestReviewProposalRecord.Comment],
+        presentation: PullRequestReviewProposalPresentation,
         detail: PullRequestDetail,
         files: [DiffFile],
         stale: inout [PullRequestReviewProposalPreview.StaleComment]
@@ -455,11 +473,12 @@ private extension PullRequestReviewProposalCoordinator {
             )
         }
         stale = appendStagedComments(
-            staged,
+            presentation.comments,
             to: &annotations,
             resolvedAgainst: files,
             viewerLogin: detail.viewerLogin,
-            viewerAvatarURL: detail.viewerAvatarURL
+            viewerAvatarURL: detail.viewerAvatarURL,
+            reviewers: presentation.reviewers
         )
         return annotations
     }

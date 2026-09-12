@@ -40,17 +40,78 @@ final class PullRequestReviewPromptBuilderTests: XCTestCase {
         XCTAssertTrue(missing.contains("`octo/alveary#42`"))
     }
 
-    /// The workflow is the whole point of the packaged prompt: without it the agent has no
-    /// reason to finish by proposing a review the user can confirm.
-    func testDefaultPromptNamesEveryToolItsWorkflowDependsOn() {
-        let prompt = AppSettings.defaultPullRequestReviewPrompt
+    func testSingleAgentInstructionsScopeSavedTextBelowTheFixedWorkflow() {
+        var settings = AppSettings()
+        settings.pullRequestReviewPrompt = "Use my exact custom criteria."
+
+        let prompt = PullRequestReviewPromptBuilder.reviewInstructions(
+            settings: settings,
+            url: url,
+            identifier: identifier,
+            title: nil
+        )
+
+        let workflowRange = prompt.range(of: "## Review workflow")
+        let criteriaRange = prompt.range(of: "## Saved review criteria")
+        XCTAssertNotNil(workflowRange)
+        XCTAssertNotNil(criteriaRange)
+        XCTAssertLessThan(workflowRange?.lowerBound ?? prompt.endIndex, criteriaRange?.lowerBound ?? prompt.startIndex)
+        XCTAssertTrue(prompt.contains("Use my exact custom criteria."))
+        XCTAssertTrue(prompt.contains("exactly one `propose_pr_review` call"))
+        XCTAssertTrue(prompt.contains("Follow every `next_cursor` with `cursor`, including while the diff is preparing"))
+    }
+
+    func testSingleAgentInstructionsRetainVerdictAndSummaryPolicy() {
+        let prompt = PullRequestReviewPromptBuilder.reviewInstructions(
+            settings: AppSettings(),
+            url: url,
+            identifier: identifier,
+            title: nil
+        )
+
+        XCTAssertTrue(prompt.contains("propose `comment` when there is feedback to stage"))
+        XCTAssertTrue(prompt.contains("propose `request_changes` when P0 or P1 findings remain"))
+        XCTAssertTrue(prompt.contains("`approve` when nothing blocking remains"))
+        XCTAssertTrue(prompt.contains("a single sentence naming the finding itself"))
+        XCTAssertTrue(prompt.contains("do not publish it or wait for an outcome"))
+    }
+
+    func testTeamCriteriaPreserveCustomTextUnderTheReadOnlyContract() {
+        var settings = AppSettings()
+        settings.pullRequestReviewPrompt = "Use my exact custom criteria."
+
+        let prompt = PullRequestReviewPromptBuilder.teamCriteria(settings: settings)
+
+        XCTAssertTrue(prompt.contains("Use my exact custom criteria."))
+        XCTAssertTrue(prompt.contains("Do not call host tools"))
+        XCTAssertTrue(prompt.contains("## Saved review criteria"))
+        XCTAssertFalse(prompt.contains("## Pull request"))
+    }
+
+    func testSingleAgentWrapperNamesEveryToolItsWorkflowDependsOn() {
+        let prompt = PullRequestReviewPromptBuilder.reviewInstructions(
+            settings: AppSettings(),
+            url: url,
+            identifier: identifier,
+            title: nil
+        )
 
         for tool in Self.workflowToolNames {
-            XCTAssertTrue(prompt.contains(tool), "The default review prompt no longer mentions \(tool)")
+            XCTAssertTrue(prompt.contains(tool), "The fixed review wrapper no longer mentions \(tool)")
         }
     }
 
-    /// The prompt names its tools in prose rather than resolving them from the catalog, so a
+    func testDefaultReviewCriteriaContainNoHostWorkflowDirections() {
+        let criteria = AppSettings.defaultPullRequestReviewPrompt
+
+        for tool in Self.workflowToolNames {
+            XCTAssertFalse(criteria.contains(tool), "Review criteria unexpectedly direct the workflow through \(tool)")
+        }
+        XCTAssertTrue(criteria.contains("Check correctness, security, performance, readability, and maintainability."))
+        XCTAssertTrue(criteria.contains("**[P1]**"))
+    }
+
+    /// The fixed wrapper names its tools in prose rather than resolving them from the catalog, so a
     /// rename would leave it pointing at tools that no longer exist and the review would fall
     /// back to whatever the agent improvises.
     func testEveryToolTheDefaultPromptNamesIsInTheHostCatalog() {
@@ -65,6 +126,7 @@ final class PullRequestReviewPromptBuilderTests: XCTestCase {
         PullRequestHostToolCatalog.detailToolName,
         PullRequestHostToolCatalog.timelineToolName,
         PullRequestHostToolCatalog.diffToolName,
+        PullRequestHostToolCatalog.reviewProposalToolName,
         PullRequestHostToolCatalog.proposeReviewToolName
     ]
 }

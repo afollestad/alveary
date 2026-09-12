@@ -33,6 +33,15 @@ final class ConversationDecisionAttentionTests: XCTestCase {
         XCTAssertTrue(attention.awaitsDecision(seeded.conversation))
     }
 
+    func testPausedReviewTeamAwaitsUserWithoutClaimingRuntimeWork() throws {
+        let seeded = try seed()
+        var attention = ConversationDecisionAttention.none
+        attention.collectiveReviewConversationIDs = [seeded.conversation.id]
+
+        XCTAssertTrue(attention.awaitsDecision(seeded.conversation))
+        XCTAssertFalse(ConversationWorkActivity.none.isWorking(seeded.conversation.id))
+    }
+
     func testPullRequestLinkPromptFlipsIt() throws {
         let seeded = try seed(withLinkPromptForConversation: true)
         let attention = makeAttention(showsPullRequestLinkPrompts: true)

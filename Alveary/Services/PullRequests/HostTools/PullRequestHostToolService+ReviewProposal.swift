@@ -122,39 +122,9 @@ private extension PullRequestHostToolService {
         target: ValidatedProposalTarget,
         at date: Date
     ) async {
-        guard let cache = reviewProposalPreviewCache,
-              let identifier = record.identifier else {
-            return
-        }
-        let files: [DiffFile]
-        let hiddenFileCount: Int
-        if let diffFiles = target.diffFiles {
-            let narrowed = ReviewProposalDiffNarrowing.narrowed(
-                files: diffFiles,
-                linesByPath: ReviewProposalDiffNarrowing.linesByPath(for: record.stagedComments)
-            )
-            files = Array(narrowed.prefix(ReviewProposalDiffNarrowing.maximumFiles))
-            hiddenFileCount = narrowed.count - files.count
-        } else {
-            // No staged comments. Seeding empty is only right when the user holds no draft of their
-            // own either, because those threads are server state this call never fetched — the card
-            // would paint "summary only" over comments the refresh is about to reveal.
-            guard target.detail.pendingCommentCount == 0 else {
-                return
-            }
-            files = []
-            hiddenFileCount = 0
-        }
-        let entry = PullRequestReviewProposalPreviewCache.Entry(
-            identifier: identifier,
-            files: files,
-            hiddenFileCount: hiddenFileCount,
-            viewerLogin: target.detail.viewerLogin,
-            viewerAvatarURL: target.detail.viewerAvatarURL,
-            viewerIsAuthor: target.detail.viewerLogin.map { $0 == target.detail.authorLogin } ?? false,
-            fetchedAt: date
+        await PullRequestReviewProposalPreparation.seedPreview(
+            cache: reviewProposalPreviewCache, record: record, detail: target.detail, files: target.diffFiles, at: date
         )
-        await cache.save(entry, forProposalID: record.id)
     }
 
     /// The stored envelope: everything the card renders and the confirmed submission publishes,
@@ -201,6 +171,9 @@ private extension PullRequestHostToolService {
             sourceProviderID: providerID,
             sourceProcessToken: identity.processToken.uuidString.lowercased(),
             sourceRequestID: requestID,
+            sourceKind: .hostTool,
+            reviewedBaseOID: detail.baseRefOid,
+            reviewedHeadOID: detail.headRefOid,
             createdAt: identity.requestDate
         )
     }
@@ -368,22 +341,31 @@ private extension PullRequestHostToolService {
         storingRecord: Bool = false
     ) throws -> AgentCLIKit.AgentHostToolResult {
         let message = Self.pendingMessage(record: record, pendingCommentCount: pendingCommentCount)
+        let priorProposalJSON = source.conversation.pullRequestReviewProposalJSON
+        let priorReceiptsJSON = source.conversation.pullRequestHostToolReceiptsJSON
         do {
-            if storingRecord {
-                try source.conversation.storePullRequestReviewProposal(record)
-            }
-            try source.conversation.recordPullRequestHostToolReceipt(
-                makeReceipt(
-                    identity: identity,
-                    toolName: PullRequestHostToolCatalog.proposeReviewToolName,
-                    status: "pending_confirmation",
-                    message: message,
-                    handle: .proposal(record.id)
-                )
+            try PullRequestReviewProposalPreparation.commit(
+                in: modelContext,
+                restoringOnFailure: {
+                    source.conversation.pullRequestReviewProposalJSON = priorProposalJSON
+                    source.conversation.pullRequestHostToolReceiptsJSON = priorReceiptsJSON
+                },
+                changes: {
+                    if storingRecord {
+                        try source.conversation.storePullRequestReviewProposal(record)
+                    }
+                    try source.conversation.recordPullRequestHostToolReceipt(
+                        makeReceipt(
+                            identity: identity,
+                            toolName: PullRequestHostToolCatalog.proposeReviewToolName,
+                            status: "pending_confirmation",
+                            message: message,
+                            handle: .proposal(record.id)
+                        )
+                    )
+                }
             )
-            try modelContext.save()
         } catch {
-            modelContext.rollback()
             throw PullRequestHostToolServiceError.persistenceFailure
         }
         if storingRecord {

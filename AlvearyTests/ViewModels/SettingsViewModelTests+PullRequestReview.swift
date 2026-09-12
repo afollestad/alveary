@@ -100,6 +100,55 @@ extension SettingsViewModelTests {
         XCTAssertEqual(settingsService.updateCount, initialUpdateCount + 1)
     }
 
+    func testFeedbackAgentEditsLeaveReviewPinsUntouched() async {
+        var settings = AppSettings()
+        settings.pullRequestReviewAgent = PullRequestAgentSettings(
+            provider: "codex", model: "gpt-5.5", effort: "high", permissionMode: "never"
+        )
+        let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+
+        viewModel.setAddressFeedbackProvider("claude")
+        viewModel.setAddressFeedbackModel("haiku")
+        viewModel.setAddressFeedbackEffort("low")
+        viewModel.setAddressFeedbackPermission("acceptEdits")
+
+        XCTAssertEqual(settingsService.current.pullRequestReviewAgent, settings.pullRequestReviewAgent)
+        XCTAssertEqual(
+            settingsService.current.pullRequestAddressFeedbackAgent,
+            PullRequestAgentSettings(provider: "claude", model: "haiku", effort: "low", permissionMode: "acceptEdits")
+        )
+        XCTAssertEqual(viewModel.addressFeedbackEffectiveProviderID, "claude")
+        XCTAssertEqual(viewModel.addressFeedbackModelSelection, "haiku")
+        XCTAssertEqual(viewModel.addressFeedbackEffortSelection, "low")
+        XCTAssertEqual(viewModel.addressFeedbackPermissionSelection, "acceptEdits")
+
+        viewModel.setPullRequestReviewProvider("claude")
+
+        XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackModel, "haiku")
+        XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackPermissionMode, "acceptEdits")
+    }
+
+    func testFeedbackProviderChangeClearsOnlyItsDependentPins() async {
+        var settings = AppSettings()
+        settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(
+            provider: "claude", model: "sonnet", effort: "high", permissionMode: "acceptEdits"
+        )
+        let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+        let beforeUpdates = settingsService.updateCount
+
+        viewModel.setAddressFeedbackProvider("codex")
+
+        XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackAgent, PullRequestAgentSettings(provider: "codex"))
+        XCTAssertEqual(settingsService.updateCount, beforeUpdates + 1)
+        XCTAssertTrue(viewModel.addressFeedbackModelOptions.contains("gpt-5.5"))
+        XCTAssertFalse(viewModel.addressFeedbackModelOptions.contains("sonnet"))
+
+        viewModel.setAddressFeedbackProvider(SettingsViewModel.pullRequestReviewInheritValue)
+
+        XCTAssertEqual(settingsService.current.pullRequestAddressFeedbackAgent, PullRequestAgentSettings())
+        XCTAssertEqual(viewModel.addressFeedbackProviderSelection, SettingsViewModel.pullRequestReviewInheritValue)
+    }
+
     func testPinningAModelPersistsItAndTheEffortRowFollowsThatModel() async {
         let (viewModel, settingsService) = await reviewViewModel()
 
@@ -198,6 +247,124 @@ extension SettingsViewModelTests {
 
         XCTAssertEqual(settingsService.current.pullRequestReviewPrompt, "Only look at the tests.")
         XCTAssertEqual(viewModel.pullRequestReviewPrompt, "Only look at the tests.")
+    }
+
+    func testReviewModeDefaultsToSingleAndPersistsTeam() async {
+        let (viewModel, settingsService) = await reviewViewModel()
+
+        XCTAssertEqual(viewModel.pullRequestReviewMode, .singleAgent)
+
+        viewModel.setPullRequestReviewMode(.reviewTeam)
+
+        XCTAssertEqual(settingsService.current.pullRequestReviewMode, .reviewTeam)
+    }
+
+    func testPeerSeedingUsesTheStrictResolvedLeadModel() async {
+        var settings = AppSettings()
+        settings.defaultProvider = "claude"
+        settings.defaultModel = "fable"
+        settings.pullRequestReviewProvider = "codex"
+        let (viewModel, _) = await reviewViewModel(settings: settings)
+
+        XCTAssertEqual(
+            viewModel.defaultPullRequestReviewPeer(providerID: "codex", excluding: [])?.model,
+            "gpt-5.4-mini"
+        )
+    }
+
+    func testReviewTeamRefreshPreservesAnUnavailableInheritedProvider() async {
+        var settings = AppSettings()
+        settings.pullRequestReviewMode = .reviewTeam
+        settings.defaultProvider = "codex"
+        settings.defaultModel = "gpt-5.5"
+        settings.pullRequestReviewPeers = [
+            PullRequestReviewPeer(id: "peer-1", providerID: "claude", model: "sonnet", effort: "high")
+        ]
+        let settingsService = InMemorySettingsService(current: settings)
+        let viewModel = SettingsViewModel(
+            settingsService: settingsService,
+            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
+                .claude: Self.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+                .codex: Self.providerStatus(
+                    for: .codex,
+                    installation: .missing,
+                    modelOptions: AgentModelOptionTestFixtures.codexModelOptions
+                )
+            ])
+        )
+
+        await viewModel.refreshProviderStatuses()
+
+        XCTAssertEqual(settingsService.current.defaultProvider, "codex")
+        XCTAssertEqual(settingsService.current.defaultModel, "gpt-5.5")
+        XCTAssertEqual(
+            viewModel.pullRequestReviewTeamSettingsStatus,
+            .needsAttention("Lead uses codex, which is not ready.")
+        )
+    }
+
+    func testReviewTeamRefreshPreservesAStaleInheritedModel() async {
+        var settings = AppSettings()
+        settings.pullRequestReviewMode = .reviewTeam
+        settings.defaultProvider = "claude"
+        settings.defaultModel = "retired-model"
+        settings.pullRequestReviewPeers = [
+            PullRequestReviewPeer(id: "peer-1", providerID: "codex", model: "gpt-5.5", effort: "medium")
+        ]
+        let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+
+        XCTAssertEqual(settingsService.current.defaultModel, "retired-model")
+        XCTAssertEqual(
+            viewModel.pullRequestReviewTeamSettingsStatus,
+            .needsAttention("Lead uses retired-model, which is not a concrete available model.")
+        )
+    }
+
+    func testReviewTeamPeerOptionsDoNotUseStaticCatalogFallbacks() async {
+        var settings = AppSettings()
+        settings.defaultProvider = "codex"
+        settings.defaultModel = "gpt-5.5"
+        let viewModel = SettingsViewModel(
+            settingsService: InMemorySettingsService(current: settings),
+            providerDiscovery: RecordingProviderDiscoveryService(statuses: [
+                .claude: Self.providerStatus(for: .claude, modelOptions: []),
+                .codex: Self.providerStatus(
+                    for: .codex,
+                    modelOptions: AgentModelOptionTestFixtures.codexModelOptions
+                )
+            ])
+        )
+        await viewModel.refreshProviderStatuses()
+        let stalePeer = PullRequestReviewPeer(
+            id: "peer-1",
+            providerID: "claude",
+            model: "sonnet",
+            effort: "high"
+        )
+
+        XCTAssertNil(viewModel.defaultPullRequestReviewPeer(providerID: "claude", excluding: []))
+        XCTAssertEqual(viewModel.pullRequestReviewPeerModelOptions(stalePeer), ["sonnet"])
+        guard case .needsAttention = viewModel.pullRequestReviewTeamSettingsStatus(peers: [stalePeer]) else {
+            return XCTFail("Expected the absent live catalog to need attention")
+        }
+    }
+
+    func testInvalidPeerPinsRemainSavedAndReportNeedsAttention() async {
+        var settings = AppSettings()
+        let stalePeer = PullRequestReviewPeer(
+            id: "peer-1",
+            providerID: "codex",
+            model: "retired-model",
+            effort: "medium"
+        )
+        settings.pullRequestReviewPeers = [stalePeer]
+        let (viewModel, settingsService) = await reviewViewModel(settings: settings)
+
+        guard case .needsAttention = viewModel.pullRequestReviewTeamSettingsStatus else {
+            return XCTFail("Expected an invalid model pin to need attention")
+        }
+        XCTAssertEqual(settingsService.current.pullRequestReviewPeers, [stalePeer])
+        XCTAssertTrue(viewModel.pullRequestReviewPeerModelOptions(stalePeer).contains("retired-model"))
     }
 
     func testAPinnedProviderSuppliesModelAndPermissionOptions() async {

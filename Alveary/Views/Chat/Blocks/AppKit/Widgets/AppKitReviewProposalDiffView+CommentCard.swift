@@ -75,6 +75,7 @@ final class AppKitReviewProposalCommentCardView: NSView {
     private let actionsMenu = AppKitReviewProposalCommentMenuButton()
     private let jumpButton = AppKitReviewProposalCommentJumpButton()
     private let bodyView = AppKitMarkdownView(document: AppMarkdownDocument(content: AttributedString()))
+    private let evidenceView = AppKitReviewProposalVoteEvidenceView()
     private var metrics = AppKitDiffCodeBlockMetrics.empty
     private var wash = AppKitReviewProposalCommentWash(top: .context, bottom: .context)
     /// The configured comment's position in the review's stored `comments` array; nil for a comment
@@ -92,6 +93,9 @@ final class AppKitReviewProposalCommentCardView: NSView {
         setupCard()
         setupContent()
         bodyView.onHeightInvalidated = { [weak self] in
+            self?.onHeightInvalidated?()
+        }
+        evidenceView.onHeightInvalidated = { [weak self] in
             self?.onHeightInvalidated?()
         }
         actionsMenu.onDelete = { [weak self] in
@@ -154,6 +158,11 @@ final class AppKitReviewProposalCommentCardView: NSView {
         jumpButton.isHidden = !(context.allowsJumping && comment.isProposed)
         jumpButton.configure(fontSize: captionSize)
         configureBody(markdown: comment.bodyMarkdown, typography: context.typography)
+        evidenceView.configure(
+            evidence: comment.proposedIndex.flatMap { context.evidenceByProposedIndex[$0] },
+            reviewers: context.reviewers,
+            typography: context.typography
+        )
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Comments on line \(anchor.line) of \(anchor.path)")
@@ -200,17 +209,23 @@ struct AppKitReviewProposalCommentContext {
     /// False where there is nothing to jump to — snapshots and previews, and a card rendered in a
     /// conversation that did not open the proposal, which is read-only.
     let allowsJumping: Bool
+    let evidenceByProposedIndex: [Int: PullRequestReviewProposalRecord.CommentEvidence]
+    let reviewers: [PullRequestReviewProposalRecord.Reviewer]
 
     init(
         typography: TranscriptTypography,
         avatarLoader: GitHubAvatarLoader? = nil,
         allowsRemoval: Bool = false,
-        allowsJumping: Bool = false
+        allowsJumping: Bool = false,
+        evidenceByProposedIndex: [Int: PullRequestReviewProposalRecord.CommentEvidence] = [:],
+        reviewers: [PullRequestReviewProposalRecord.Reviewer] = []
     ) {
         self.typography = typography
         self.avatarLoader = avatarLoader
         self.allowsRemoval = allowsRemoval
         self.allowsJumping = allowsJumping
+        self.evidenceByProposedIndex = evidenceByProposedIndex
+        self.reviewers = reviewers
     }
 }
 
@@ -237,6 +252,7 @@ private extension AppKitReviewProposalCommentCardView {
         contentStack.spacing = 8
         contentStack.addFullWidthArrangedSubview(authorRow)
         contentStack.addFullWidthArrangedSubview(bodyView)
+        contentStack.addFullWidthArrangedSubview(evidenceView)
         card.addSubview(contentStack)
         NSLayoutConstraint.activate([
             contentStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: Self.interiorPadding),

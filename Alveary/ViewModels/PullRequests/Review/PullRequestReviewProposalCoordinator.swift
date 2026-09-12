@@ -41,17 +41,8 @@ final class PullRequestReviewProposalCoordinator {
     }
 
     /// The conversation each in-flight submission publishes from, keyed by proposal id.
-    ///
-    /// Internal rather than `private(set)` because `+Submission.swift`'s `beginSubmitting` and
-    /// `endSubmitting` own both of its transitions; Swift cannot scope a setter to two files, and
-    /// pairing them there is what keeps this map and the app-scoped announcement from drifting.
-    /// Nothing outside this type's own files may write it.
-    ///
-    /// It stores the conversation rather than re-deriving it from `presentations`, because
-    /// `reload()` can empty that dictionary mid-flight — another window rejecting the proposal, an
-    /// archive clearing the envelope, a thread delete announcing — while this submit is still
-    /// inside GitHub. A derived read would drop the working ring there while the archive guard
-    /// still refuses the thread.
+    /// Kept when `reload()` clears a presentation so activity remains visible through submission.
+    /// Its setter is internal only for the paired transitions in `+Submission.swift`.
     var submittingConversationIDsByProposalID: [String: String] = [:]
 
     /// Every conversation inside `confirm`'s network span. Thread status reads this to raise the
@@ -142,10 +133,12 @@ final class PullRequestReviewProposalCoordinator {
         ) else {
             return
         }
+        let conversationsByID = Dictionary(uniqueKeysWithValues: conversations.map { ($0.id, $0) })
         for owner in PullRequestReviewProposalLookup.proposals(in: conversations) {
+            guard let conversation = conversationsByID[owner.conversationID] else { continue }
             guard let presentation = Self.presentation(
                 for: owner.record,
-                conversationID: owner.conversationID
+                conversation: conversation
             ) else {
                 continue
             }
@@ -272,8 +265,8 @@ final class PullRequestReviewProposalCoordinator {
     }
 
     /// Drops one of the review's staged comments before it is submitted. `index` is the comment's
-    /// position in `PullRequestReviewProposalPresentation.comments`, which is the only identity a
-    /// staged comment has.
+    /// position in `PullRequestReviewProposalPresentation.comments`, which is the UI removal
+    /// address even when collective evidence carries a durable comment id.
     ///
     /// Local by construction: a staged comment exists nowhere on GitHub until the user confirms, so
     /// this rewrites the stored envelope and prunes the loaded preview rather than calling anything.
@@ -290,6 +283,7 @@ final class PullRequestReviewProposalCoordinator {
             return false
         }
         apply(updated, for: presentation)
+        PullRequestReviewProposalEditState.recordEdit(proposalID: proposalID)
         if case .loaded(let preview)? = previews[proposalID] {
             previews[proposalID] = .loaded(Self.preview(preview, removingProposedCommentAt: index))
         }
@@ -331,6 +325,7 @@ final class PullRequestReviewProposalCoordinator {
             return false
         }
         apply(updated, for: presentation)
+        PullRequestReviewProposalEditState.recordEdit(proposalID: proposalID)
         // Unlike a removal, this cannot narrow the loaded preview in place: removal only subtracts,
         // while an addition may need a file or hunk the preview deliberately dropped. Reloaded at
         // once rather than on the card's next render — the user is composing in the pane, so the
@@ -355,7 +350,11 @@ final class PullRequestReviewProposalCoordinator {
         guard presentations[proposalID] != nil else {
             return
         }
+        guard selectedEvent(forProposalID: proposalID) != event else {
+            return
+        }
         selectedEvents[proposalID] = event
+        PullRequestReviewProposalEditState.recordEdit(proposalID: proposalID)
         errorMessages[proposalID] = nil
         notifyChanged()
     }
@@ -387,27 +386,6 @@ final class PullRequestReviewProposalCoordinator {
 }
 
 private extension PullRequestReviewProposalCoordinator {
-    static func presentation(
-        for record: PullRequestReviewProposalRecord,
-        conversationID: String
-    ) -> PullRequestReviewProposalPresentation? {
-        guard let identifier = record.identifier,
-              let event = PullRequestHostToolRequestParser.reviewEvent(from: record.event) else {
-            return nil
-        }
-        return PullRequestReviewProposalPresentation(
-            id: record.id,
-            sourceConversationID: conversationID,
-            identifier: identifier,
-            title: record.titleSnapshot,
-            proposedEvent: event,
-            body: record.body,
-            comments: record.stagedComments,
-            pendingCommentCount: record.pendingCommentCountSnapshot,
-            createdAt: record.createdAt
-        )
-    }
-
     /// Re-reads the envelope before editing it — the proposal may have been resolved or superseded
     /// since the surface that asked for the edit rendered — and returns the stored replacement.
     /// `edit` returns nil to refuse.
@@ -440,9 +418,10 @@ private extension PullRequestReviewProposalCoordinator {
         _ updated: PullRequestReviewProposalRecord,
         for presentation: PullRequestReviewProposalPresentation
     ) {
-        guard let refreshed = Self.presentation(
+        guard let conversation = modelContext.resolveConversation(conversationID: presentation.sourceConversationID),
+              let refreshed = Self.presentation(
             for: updated,
-            conversationID: presentation.sourceConversationID
+            conversation: conversation
         ) else {
             return
         }

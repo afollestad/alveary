@@ -17,6 +17,7 @@ enum HostToolWidgetContent: Equatable {
     case pullRequestReviewInstructions(ReviewInstructionsWidgetContent)
     case pullRequestList(PullRequestListWidgetContent)
     case threadAction(ThreadActionWidgetContent)
+    case collectiveReviewRun(ReviewTeamRun)
 }
 
 /// What a settled widget's card opens when clicked, and therefore whether it is a control at
@@ -131,6 +132,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             content.status == .listed || content.status == .listedWithoutRows
         case .threadAction(let content):
             content.isSettled
+        case .collectiveReviewRun(let run):
+            !run.phase.isWorking && run.phase != .awaitingDecision
         }
     }
 
@@ -157,6 +160,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             nil
         case .threadAction(let content):
             content.isSettled ? content.threadID.map(HostToolWidgetTarget.thread) : nil
+        case .collectiveReviewRun:
+            nil
         }
     }
 

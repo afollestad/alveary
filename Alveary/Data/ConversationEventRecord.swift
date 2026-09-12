@@ -25,6 +25,7 @@ final class ConversationEventRecord {
     static let hostToolOutcomeType = "host_tool_outcome"
     static let taskListType = "task_list"
     static let steeredConversationType = "steered_conversation"
+    static let pullRequestReviewProposalType = "pull_request_review_proposal"
 
     static let userRole = "user"
     static let assistantRole = "assistant"

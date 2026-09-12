@@ -19,6 +19,9 @@ extension ReviewProposalCoordinatorTests {
         fixture.coordinator.ensurePreview(proposalID: ReviewProposalFixture.proposalID)
         try await fixture.waitForPreview()
         let detailCallsBeforeRemoval = fixture.service.detailCallCount
+        let editRevision = PullRequestReviewProposalEditState.current(
+            proposalID: ReviewProposalFixture.proposalID
+        )?.revision ?? 0
 
         XCTAssertTrue(fixture.coordinator.removeStagedComment(proposalID: ReviewProposalFixture.proposalID, at: 0))
 
@@ -30,6 +33,10 @@ extension ReviewProposalCoordinatorTests {
         XCTAssertEqual(preview.proposedCommentCount, 1)
         XCTAssertEqual(preview.files.map(\.path), ["File1.swift"])
         XCTAssertEqual(preview.annotations.threads.count, 1)
+        XCTAssertGreaterThan(
+            PullRequestReviewProposalEditState.current(proposalID: ReviewProposalFixture.proposalID)?.revision ?? 0,
+            editRevision
+        )
         // No refetch: the click must not cost a detail plus diff round trip.
         XCTAssertEqual(fixture.service.detailCallCount, detailCallsBeforeRemoval)
     }
@@ -101,10 +108,18 @@ extension ReviewProposalCoordinatorTests {
         try await fixture.waitForSubmission()
 
         XCTAssertFalse(fixture.coordinator.removeStagedComment(proposalID: ReviewProposalFixture.proposalID, at: 0))
+        XCTAssertEqual(
+            PullRequestReviewProposalEditState.current(proposalID: ReviewProposalFixture.proposalID)?.isSubmitting,
+            true
+        )
 
         detailGate.open()
         let didSubmit = await submission.value
         XCTAssertTrue(didSubmit)
+        XCTAssertEqual(
+            PullRequestReviewProposalEditState.current(proposalID: ReviewProposalFixture.proposalID)?.isSubmitting,
+            false
+        )
         XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["First", "Second"])
     }
 

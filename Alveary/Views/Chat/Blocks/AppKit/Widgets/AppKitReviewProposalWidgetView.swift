@@ -66,6 +66,7 @@ final class AppKitReviewProposalWidgetView: NSView {
         diffView.onHeightInvalidated = { [weak self] in
             self?.onHeightInvalidated?()
         }
+        staleCommentsView.onHeightInvalidated = { [weak self] in self?.onHeightInvalidated?() }
         diffView.onOpenLink = { [weak self] url in
             self?.onOpenMarkdownLink?(url)
         }
@@ -232,10 +233,20 @@ private extension AppKitReviewProposalWidgetView {
         }
 
         addPendingCommentSummary(configuration)
+        addCollectiveCompletionWarning(configuration)
         addDiffPreview(configuration)
         addStaleComments(configuration)
         addBanners(configuration)
         addActionRow(configuration)
+    }
+
+    func addCollectiveCompletionWarning(_ configuration: Configuration) {
+        guard let warning = configuration.presentation?.collectiveCompletionWarning else { return }
+        let label = AppKitTranscriptWidgetLabelFactory.label(
+            warning, level: .caption, color: .labelColor, typography: configuration.typography, wraps: true
+        )
+        label.setAccessibilityLabel(warning)
+        stack.addFullWidthArrangedSubview(label)
     }
 
     /// Under the diff, because these are the comments it could not draw. Confirm refuses while any
@@ -248,6 +259,7 @@ private extension AppKitReviewProposalWidgetView {
             AppKitReviewProposalStaleCommentsView.Configuration(
                 comments: preview.staleComments,
                 allowsRemoval: !configuration.isSubmitting,
+                reviewers: configuration.presentation?.reviewers ?? [],
                 typography: configuration.typography
             )
         )
@@ -288,34 +300,6 @@ private extension AppKitReviewProposalWidgetView {
         )
     }
 
-    /// One total first — confirming publishes staged and already-pending comments alike — with
-    /// the pending share broken out only when both sources are present.
-    static func loadedCommentSummary(_ preview: PullRequestReviewProposalPreview) -> String {
-        let total = preview.proposedCommentCount + preview.pendingCommentCount
-        guard total > 0 else {
-            return "Publishes the review summary only — no inline comments are staged or pending."
-        }
-        var summary = "Publishes \(total) review comment\(total == 1 ? "" : "s")"
-        if preview.proposedCommentCount > 0, preview.pendingCommentCount > 0 {
-            summary += ", including \(preview.pendingCommentCount) already-pending draft comment" +
-                "\(preview.pendingCommentCount == 1 ? "" : "s")"
-        }
-        summary += "."
-        if preview.hiddenFileCount > 0 {
-            summary += " \(preview.hiddenFileCount) more file" +
-                "\(preview.hiddenFileCount == 1 ? "" : "s") not shown; open the pull request to read them all."
-        }
-        return summary
-    }
-
-    /// Without a loaded preview the counts come from the presentation, then the call snapshot.
-    static func fallbackCommentTotal(_ configuration: Configuration) -> Int {
-        if let presentation = configuration.presentation {
-            return presentation.comments.count + presentation.pendingCommentCount
-        }
-        return (configuration.content.commentCount ?? 0) + (configuration.content.pendingCommentCount ?? 0)
-    }
-
     /// The pending comments on the lines they were written against. The only control on them is
     /// Remove, which edits the stored envelope — nothing here can post to GitHub before the user
     /// confirms. A submission in flight is already publishing what it was handed, so it withdraws
@@ -328,15 +312,21 @@ private extension AppKitReviewProposalWidgetView {
         }
         // Before `configure`, which skips an unchanged preview and would leave the cards without it.
         diffView.avatarLoader = avatarLoader
-        diffView.configure(
+        diffView.configure(.init(
             preview: preview,
             typography: configuration.typography,
             allowsRemoval: !configuration.isSubmitting,
             // A preview only loads for the conversation that opened the proposal — another
             // conversation's copy renders read-only with no presentation and no diff — so
             // reaching here means there is a proposal to jump into.
-            allowsJumping: true
-        )
+            allowsJumping: true,
+            evidenceByProposedIndex: Dictionary(
+                uniqueKeysWithValues: (configuration.presentation?.comments ?? []).enumerated().compactMap { index, comment in
+                    comment.evidence.map { (index, $0) }
+                }
+            ),
+            reviewers: configuration.presentation?.reviewers ?? []
+        ))
         stack.addFullWidthArrangedSubview(diffView)
     }
 

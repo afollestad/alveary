@@ -31,6 +31,8 @@ struct ShellResult: Sendable, Equatable {
 
 struct ShellRunOptions: Sendable, Equatable {
     let environment: [String: String]?
+    let environmentPolicy: ShellEnvironmentPolicy
+    let processGroupPolicy: ShellProcessGroupPolicy
     let timeout: Duration?
     let stdoutLimitBytes: Int?
     let stderrLimitBytes: Int?
@@ -38,12 +40,16 @@ struct ShellRunOptions: Sendable, Equatable {
 
     init(
         environment: [String: String]? = nil,
+        environmentPolicy: ShellEnvironmentPolicy = .inherit,
+        processGroupPolicy: ShellProcessGroupPolicy = .inherit,
         timeout: Duration? = nil,
         stdoutLimitBytes: Int? = nil,
         stderrLimitBytes: Int? = nil,
         standardInput: ShellStandardInput = .inherit
     ) {
         self.environment = environment
+        self.environmentPolicy = environmentPolicy
+        self.processGroupPolicy = processGroupPolicy
         self.timeout = timeout
         self.stdoutLimitBytes = stdoutLimitBytes
         self.stderrLimitBytes = stderrLimitBytes
@@ -51,9 +57,26 @@ struct ShellRunOptions: Sendable, Equatable {
     }
 }
 
+enum ShellEnvironmentPolicy: Sendable, Equatable {
+    case inherit
+    case replace
+}
+
+enum ShellProcessGroupPolicy: Sendable, Equatable {
+    case inherit
+    case create
+}
+
 enum ShellStandardInput: Sendable, Equatable {
     case inherit
     case nullDevice
+    case text(String)
+}
+
+protocol ShellProcessTracking: Sendable {
+    /// Returns false when the process was launched after its owning work was cancelled.
+    func register(_ process: Process, processGroupID: Int32?) -> Bool
+    func unregister(_ process: Process)
 }
 
 protocol ShellRunner: Sendable {
@@ -85,6 +108,8 @@ extension ShellRunner {
         args: [String],
         in directory: String? = nil,
         environment: [String: String]? = nil,
+        environmentPolicy: ShellEnvironmentPolicy = .inherit,
+        processGroupPolicy: ShellProcessGroupPolicy = .inherit,
         timeout: Duration? = nil,
         stdoutLimitBytes: Int? = nil,
         stderrLimitBytes: Int? = nil,
@@ -96,6 +121,8 @@ extension ShellRunner {
             in: directory,
             options: ShellRunOptions(
                 environment: environment,
+                environmentPolicy: environmentPolicy,
+                processGroupPolicy: processGroupPolicy,
                 timeout: timeout,
                 stdoutLimitBytes: stdoutLimitBytes,
                 stderrLimitBytes: stderrLimitBytes,
@@ -107,6 +134,7 @@ extension ShellRunner {
 
 enum ShellError: Error, Sendable, Equatable {
     case timeout(executable: String, timeout: Duration)
+    case ioDrainTimedOut(executable: String)
 }
 
 extension ShellError: LocalizedError {
@@ -114,6 +142,8 @@ extension ShellError: LocalizedError {
         switch self {
         case .timeout(let executable, let timeout):
             return "\(executable) timed out after \(timeout.components.seconds) seconds"
+        case .ioDrainTimedOut(let executable):
+            return "\(executable) did not close its standard I/O after exiting"
         }
     }
 }

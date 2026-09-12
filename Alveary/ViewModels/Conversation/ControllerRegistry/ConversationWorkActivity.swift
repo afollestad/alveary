@@ -13,6 +13,7 @@ import Foundation
 struct ConversationWorkActivity: Equatable {
     /// From `PullRequestReviewProposalCoordinator.submittingSourceConversationIDs`.
     let publishingReviewConversationIDs: Set<String>
+    var collectiveReviewConversationIDs: Set<String> = []
 
     static let none = ConversationWorkActivity(publishingReviewConversationIDs: [])
 
@@ -20,7 +21,7 @@ struct ConversationWorkActivity: Equatable {
     /// Nothing here reads a persisted property or walks a relationship, so this carries none of that
     /// function's known-live-row contract; keep it that way rather than harmonizing the signatures.
     func isWorking(_ conversationID: String) -> Bool {
-        publishingReviewConversationIDs.contains(conversationID)
+        publishingReviewConversationIDs.contains(conversationID) || collectiveReviewConversationIDs.contains(conversationID)
     }
 }
 
@@ -40,9 +41,10 @@ extension ConversationWorkActivity {
     ///
     /// Declared in an extension so the memberwise initializer above survives for tests.
     @MainActor
-    init(reviewProposals: PullRequestReviewProposalCoordinator?) {
+    init(reviewProposals: PullRequestReviewProposalCoordinator?, reviewTeams: PullRequestReviewTeamCoordinator? = nil) {
         self.init(
-            publishingReviewConversationIDs: reviewProposals?.submittingSourceConversationIDs ?? []
+            publishingReviewConversationIDs: reviewProposals?.submittingSourceConversationIDs ?? [],
+            collectiveReviewConversationIDs: reviewTeams?.workingConversationIDs ?? []
         )
     }
 }

@@ -19,6 +19,15 @@ import AppKit
 /// in the transcript. Nothing about those blocks changes here — this adopts their treatment.
 @MainActor
 final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
+    struct Configuration: Equatable {
+        let preview: PullRequestReviewProposalPreview
+        let typography: TranscriptTypography
+        let allowsRemoval: Bool
+        let allowsJumping: Bool
+        let evidenceByProposedIndex: [Int: PullRequestReviewProposalRecord.CommentEvidence]
+        let reviewers: [PullRequestReviewProposalRecord.Reviewer]
+    }
+
     /// A comment card's markdown body can grow after an inline image loads, so the card's height
     /// change has to reach the transcript row that measured it.
     var onHeightInvalidated: (() -> Void)?
@@ -32,10 +41,7 @@ final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
     var onJumpToProposedComment: ((DiffCommentAnchor) -> Void)?
 
     private let stack = NSStackView()
-    private var renderedPreview: PullRequestReviewProposalPreview?
-    private var renderedTypography: TranscriptTypography?
-    private var renderedAllowsRemoval = false
-    private var renderedAllowsJumping = false
+    private var renderedConfiguration: Configuration?
     /// Rebuilt views are reused rather than reconstructed. The chat font-size setting is a live
     /// slider, so every step reconfigures this view; rebuilding from scratch would recreate a
     /// markdown body and refire an avatar load per comment on each one.
@@ -80,28 +86,12 @@ final class AppKitReviewProposalDiffView: AppKitDynamicColorView {
         !stack.arrangedSubviews.isEmpty
     }
 
-    func configure(
-        preview: PullRequestReviewProposalPreview,
-        typography: TranscriptTypography,
-        allowsRemoval: Bool,
-        allowsJumping: Bool
-    ) {
-        guard renderedPreview != preview
-            || renderedTypography != typography
-            || renderedAllowsRemoval != allowsRemoval
-            || renderedAllowsJumping != allowsJumping else {
+    func configure(_ configuration: Configuration) {
+        guard renderedConfiguration != configuration else {
             return
         }
-        renderedPreview = preview
-        renderedTypography = typography
-        renderedAllowsRemoval = allowsRemoval
-        renderedAllowsJumping = allowsJumping
-        rebuild(
-            preview: preview,
-            typography: typography,
-            allowsRemoval: allowsRemoval,
-            allowsJumping: allowsJumping
-        )
+        renderedConfiguration = configuration
+        rebuild(configuration)
     }
 
     /// The widest rendered row, so the card can size to its content like every other widget body.
@@ -118,12 +108,7 @@ private extension AppKitReviewProposalDiffView {
         case comment(DiffLineComment, DiffCommentAnchor, anchoredKind: DiffCodeHighlighting.LineKind)
     }
 
-    func rebuild(
-        preview: PullRequestReviewProposalPreview,
-        typography: TranscriptTypography,
-        allowsRemoval: Bool,
-        allowsJumping: Bool
-    ) {
+    func rebuild(_ configuration: Configuration) {
         // Detached, not discarded: the pools below hand the same views back, so a rebuild costs
         // reconfiguration instead of reconstruction. Removing from the superview is what retires
         // each view's full-width constraint, which `addFullWidthArrangedSubview` makes anew.
@@ -131,15 +116,20 @@ private extension AppKitReviewProposalDiffView {
             stack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
-        let items = items(in: preview)
-        let font = NSFont.monospacedSystemFont(ofSize: typography.size(for: .caption), weight: .regular)
+        let items = items(in: configuration.preview)
+        let font = NSFont.monospacedSystemFont(
+            ofSize: configuration.typography.size(for: .caption),
+            weight: .regular
+        )
         // One metrics value for the whole preview, so every file's gutter lines up.
         let metrics = AppKitDiffCodeBlockMetrics(rows: items.compactMap(\.row), font: font)
         let context = AppKitReviewProposalCommentContext(
-            typography: typography,
+            typography: configuration.typography,
             avatarLoader: avatarLoader,
-            allowsRemoval: allowsRemoval,
-            allowsJumping: allowsJumping
+            allowsRemoval: configuration.allowsRemoval,
+            allowsJumping: configuration.allowsJumping,
+            evidenceByProposedIndex: configuration.evidenceByProposedIndex,
+            reviewers: configuration.reviewers
         )
         mount(items, metrics: metrics, font: font, context: context)
     }

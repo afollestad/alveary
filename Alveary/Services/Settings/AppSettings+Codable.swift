@@ -64,10 +64,17 @@ extension AppSettings {
         case pullRequestGenerationPrompt
         case pullRequestReviewPrompt
         case pullRequestAddressFeedbackPrompt
+        case pullRequestReviewMode
+        case pullRequestReviewPeers
         case pullRequestReviewProvider
         case pullRequestReviewModel
         case pullRequestReviewEffort
         case pullRequestReviewPermissionMode
+        case pullRequestAddressFeedbackProvider
+        case pullRequestAddressFeedbackModel
+        case pullRequestAddressFeedbackEffort
+        case pullRequestAddressFeedbackPermissionMode
+        case pullRequestAgentSettingsVersion
         case pullRequestAddressFeedbackSectionID
         case pullRequestReviewSectionID
         case gitCommitIncludeUnstagedChanges
@@ -316,26 +323,7 @@ extension AppSettings {
             String.self,
             forKey: .pullRequestGenerationPrompt
         ) ?? pullRequestGenerationPrompt
-        pullRequestReviewPrompt = try container.decodeIfPresent(
-            String.self,
-            forKey: .pullRequestReviewPrompt
-        ) ?? pullRequestReviewPrompt
-        pullRequestAddressFeedbackPrompt = try container.decodeIfPresent(
-            String.self,
-            forKey: .pullRequestAddressFeedbackPrompt
-        ) ?? pullRequestAddressFeedbackPrompt
-        // Absent means "follow the Threads defaults", so these stay nil rather than
-        // falling back to the packaged value the way the prompts do.
-        pullRequestReviewProvider = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewProvider)
-        pullRequestReviewModel = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewModel)
-        pullRequestReviewEffort = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewEffort)
-        pullRequestReviewPermissionMode = try? container.decodeIfPresent(String.self, forKey: .pullRequestReviewPermissionMode)
-        // Same for an absent section: nil is the `Tasks` list, not a value worth defaulting.
-        pullRequestAddressFeedbackSectionID = try container.decodeIfPresent(
-            String.self,
-            forKey: .pullRequestAddressFeedbackSectionID
-        )
-        pullRequestReviewSectionID = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewSectionID)
+        try decodePullRequestReviewStorage(from: container)
         gitCommitIncludeUnstagedChanges = try container.decodeIfPresent(
             Bool.self,
             forKey: .gitCommitIncludeUnstagedChanges
@@ -350,6 +338,56 @@ extension AppSettings {
         lastActiveProjectPath = try container.decodeIfPresent(String.self, forKey: .lastActiveProjectPath)
         lastOpenThreadID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenThreadID)
         lastOpenConversationID = try? container.decodeIfPresent(PersistentIdentifier.self, forKey: .lastOpenConversationID)
+    }
+
+    private mutating func decodePullRequestReviewStorage(
+        from container: KeyedDecodingContainer<CodingKeys>
+    ) throws {
+        let decodedPullRequestReviewPrompt = try container.decodeIfPresent(
+            String.self,
+            forKey: .pullRequestReviewPrompt
+        ) ?? pullRequestReviewPrompt
+        pullRequestReviewPrompt = decodedPullRequestReviewPrompt == PullRequestReviewPromptDefaults.legacyDefaultPrompt
+            ? Self.defaultPullRequestReviewPrompt
+            : decodedPullRequestReviewPrompt
+        pullRequestAddressFeedbackPrompt = try container.decodeIfPresent(
+            String.self,
+            forKey: .pullRequestAddressFeedbackPrompt
+        ) ?? pullRequestAddressFeedbackPrompt
+        if let mode = try? container.decodeIfPresent(PullRequestReviewMode.self, forKey: .pullRequestReviewMode) {
+            pullRequestReviewMode = mode
+        }
+        pullRequestReviewPeers = (try? container.decodeIfPresent(
+            [PullRequestReviewPeer].self,
+            forKey: .pullRequestReviewPeers
+        )) ?? pullRequestReviewPeers
+        // Absent means "follow the Threads defaults", so these stay nil rather than
+        // falling back to the packaged value the way the prompts do.
+        pullRequestReviewProvider = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewProvider)
+        pullRequestReviewModel = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewModel)
+        pullRequestReviewEffort = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewEffort)
+        pullRequestReviewPermissionMode = try? container.decodeIfPresent(String.self, forKey: .pullRequestReviewPermissionMode)
+        decodePullRequestAddressFeedbackAgent(from: container)
+        // Same for an absent section: nil is the `Tasks` list, not a value worth defaulting.
+        pullRequestAddressFeedbackSectionID = try container.decodeIfPresent(
+            String.self,
+            forKey: .pullRequestAddressFeedbackSectionID
+        )
+        pullRequestReviewSectionID = try container.decodeIfPresent(String.self, forKey: .pullRequestReviewSectionID)
+    }
+
+    private mutating func decodePullRequestAddressFeedbackAgent(from container: KeyedDecodingContainer<CodingKeys>) {
+        let migratesSharedPins = !container.contains(.pullRequestAgentSettingsVersion)
+        func pin(_ key: CodingKeys, legacy: String?) -> String? {
+            if container.contains(key) {
+                return try? container.decodeIfPresent(String.self, forKey: key)
+            }
+            return migratesSharedPins ? legacy : nil
+        }
+        pullRequestAddressFeedbackProvider = pin(.pullRequestAddressFeedbackProvider, legacy: pullRequestReviewProvider)
+        pullRequestAddressFeedbackModel = pin(.pullRequestAddressFeedbackModel, legacy: pullRequestReviewModel)
+        pullRequestAddressFeedbackEffort = pin(.pullRequestAddressFeedbackEffort, legacy: pullRequestReviewEffort)
+        pullRequestAddressFeedbackPermissionMode = pin(.pullRequestAddressFeedbackPermissionMode, legacy: pullRequestReviewPermissionMode)
     }
 
     private static func migratedBranchPrefix(_ branchPrefix: String, storedSchemaVersion: Int) -> String {

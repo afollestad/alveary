@@ -78,6 +78,7 @@ extension ChatItemGrouper {
         todoWriteToolIds = []
         hostToolWidgetToolIds = []
         hostToolWidgetInputsByToolId = [:]
+        collectiveReviewRunContentsByEventID = [:]
         pendingHostToolOutcomesByKey = [:]
         promptToolIds = []
         transcriptNoteToolKinds = [:]

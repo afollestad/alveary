@@ -87,6 +87,20 @@ extension SidebarViewModelTests {
         XCTAssertEqual(spawnCalls, [])
     }
 
+    func testForkTranscriptPolicyExcludesCollectiveRunButKeepsReviewProposal() {
+        let collectiveRun = ConversationEventRecord(
+            conversationId: "source",
+            type: ConversationEventRecord.collectiveReviewRunType
+        )
+        let reviewProposal = ConversationEventRecord(
+            conversationId: "source",
+            type: ConversationEventRecord.pullRequestReviewProposalType
+        )
+
+        XCTAssertFalse(ConversationForkTranscriptPolicy.shouldCopy(collectiveRun))
+        XCTAssertTrue(ConversationForkTranscriptPolicy.shouldCopy(reviewProposal))
+    }
+
     func testForkThreadRejectsUnresolvedApproval() async throws {
         let fixture = try SidebarTestFixture()
         let thread = try fixture.insertThread(

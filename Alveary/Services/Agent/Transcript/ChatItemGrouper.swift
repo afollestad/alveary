@@ -25,6 +25,7 @@ final class ChatItemGrouper {
     var todoWriteToolIds: Set<String> = []
     var hostToolWidgetToolIds: Set<String> = []
     var hostToolWidgetInputsByToolId: [String: String] = [:]
+    var collectiveReviewRunContentsByEventID: [String: String] = [:]
     var pendingHostToolOutcomesByKey: [String: PendingHostToolOutcome] = [:]
     var promptToolIds: Set<String> = []
     var transcriptNoteToolKinds: [String: TranscriptNoteKind] = [:]
@@ -54,6 +55,7 @@ final class ChatItemGrouper {
 
         removeTrailingPendingBlocksIfNeeded()
 
+        refreshCollectiveReviewRuns(in: events.prefix(processedCount))
         for event in events[processedCount...] {
             if routeSubAgentEventIfNeeded(event) {
                 continue
@@ -95,6 +97,7 @@ final class ChatItemGrouper {
         todoWriteToolIds = []
         hostToolWidgetToolIds = []
         hostToolWidgetInputsByToolId = [:]
+        collectiveReviewRunContentsByEventID = [:]
         pendingHostToolOutcomesByKey = [:]
         promptToolIds = []
         transcriptNoteToolKinds = [:]

@@ -158,6 +158,8 @@ enum ChatComposerTextSupport {
             return "Applying session changes..."
         case .sessionHandoff:
             return "Handing off session..."
+        case .reviewTeam:
+            return "Reviewing with team..."
         case .toolApproval(let statusText):
             return statusText.progressLabel
         }
@@ -173,6 +175,8 @@ enum ChatComposerTextSupport {
             return "Applying session changes..."
         case .sessionHandoff:
             return "Context window at its limit, handing off the session..."
+        case .reviewTeam:
+            return "Reviewing with team. Follow progress in the review card..."
         case .toolApproval(let statusText):
             return statusText.placeholder
         }

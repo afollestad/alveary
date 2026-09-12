@@ -419,8 +419,11 @@ private extension SidebarViewModel {
 enum ConversationForkTranscriptPolicy {
     static func shouldCopy(_ record: ConversationEventRecord) -> Bool {
         switch record.type {
-        case ConversationEventRecord.sessionInitType, ConversationEventRecord.contextWindowInvalidatedType,
-             ConversationEventRecord.goalType, ConversationEventRecord.scheduledTaskNoteType:
+        case ConversationEventRecord.sessionInitType,
+             ConversationEventRecord.contextWindowInvalidatedType,
+             ConversationEventRecord.goalType,
+             ConversationEventRecord.scheduledTaskNoteType,
+             ConversationEventRecord.collectiveReviewRunType:
             return false
         case ConversationEventRecord.stopType where ConversationSessionFork.isDisplayMessage(record.content):
             return false

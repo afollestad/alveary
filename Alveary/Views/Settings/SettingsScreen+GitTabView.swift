@@ -21,6 +21,8 @@ struct GitSettingsTabView: View {
     @State private var isGitHubAuthenticating = false
     @State private var gitHubDeviceCode: GitHubDeviceCode?
     @State private var screenError: String?
+    @State private var isReviewTeamEditorPresented = false
+    @State private var reviewTeamDraftSettings = AppSettings()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -103,18 +105,45 @@ struct GitSettingsTabView: View {
                             get: { viewModel.pullRequestAddressFeedbackSection },
                             set: { viewModel.setPullRequestAddressFeedbackSection($0) }
                         ),
-                        showsDivider: false
+                        showsDivider: true
                     )
+
+                    PullRequestAgentSettingsRows(viewModel: viewModel, route: .addressFeedback)
 
                     SettingsFormSubsectionHeader("Agentic review")
 
                     SettingsPromptEditorRow(
-                        "Agentic review instructions",
+                        "Review criteria",
                         helpText: GitSettingsHelp.pullRequestReviewPrompt,
                         prompt: $pullRequestReviewPrompt,
                         defaultPrompt: AppSettings.defaultPullRequestReviewPrompt,
-                        placeholder: "Write the instructions the agent follows when reviewing a pull request."
+                        placeholder: "Write the criteria agents use when reviewing a pull request."
                     )
+
+                    SettingsFormRow {
+                        SettingsResponsiveControlRow(
+                            "Review mode",
+                            helpText: GitSettingsHelp.pullRequestReviewMode,
+                            horizontalControlSizing: .intrinsic
+                        ) {
+                            SettingsTwoButtonToggle(
+                                "Review mode",
+                                selection: Binding(
+                                    get: { viewModel.pullRequestReviewMode },
+                                    set: { viewModel.setPullRequestReviewMode($0) }
+                                ),
+                                first: .singleAgent,
+                                second: .reviewTeam,
+                                label: { $0 == .singleAgent ? "Single agent" : "Review team" }
+                            )
+                        }
+                    }
+
+                    if viewModel.pullRequestReviewMode == .reviewTeam {
+                        reviewTeamRow
+                    } else {
+                        PullRequestAgentSettingsRows(viewModel: viewModel, route: .review, showsFinalDivider: true)
+                    }
 
                     sidebarSectionRow(
                         accessibilityLabel: "Agentic review sidebar section",
@@ -125,10 +154,6 @@ struct GitSettingsTabView: View {
                         ),
                         showsDivider: false
                     )
-
-                    SettingsFormSubsectionHeader("Agent")
-
-                    agenticAgentRows
                 }
 
                 SettingsFormSection("Worktrees") {
@@ -152,12 +177,62 @@ struct GitSettingsTabView: View {
             // The agent pickers below need the same provider catalog the Threads tab loads.
             await viewModel.refreshProviderStatusesIfNeeded()
         }
+        .sheet(isPresented: $isReviewTeamEditorPresented) {
+            PullRequestReviewTeamEditorSheet(
+                viewModel: viewModel,
+                draft: reviewTeamDraftSettings,
+                onCancel: { isReviewTeamEditorPresented = false },
+                onSave: { draft in
+                    viewModel.setPullRequestReviewTeam(draft)
+                    isReviewTeamEditorPresented = false
+                }
+            )
+        }
     }
 }
 
 private extension GitSettingsTabView {
-    /// Where one agentic route's spawned thread lands in the sidebar. Both routes get their own,
-    /// unlike the agent pickers they share. The row stays visible with no custom sections rather
+    var reviewTeamRow: some View {
+        SettingsFormRow {
+            SettingsResponsiveControlRow(
+                "Review team",
+                helpText: GitSettingsHelp.pullRequestReviewTeam,
+                horizontalControlSizing: .selectedContent
+            ) {
+                HStack(spacing: 10) {
+                    Text(reviewTeamSummary)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Button("Manage", action: presentReviewTeamEditor)
+                        .secondaryActionButtonStyle()
+                        .disabled(viewModel.isCheckingThreadDefaultProviders)
+                }
+            }
+        }
+    }
+
+    var reviewTeamSummary: String {
+        let summary = viewModel.pullRequestReviewTeamSummary
+        guard viewModel.pullRequestReviewMode == .reviewTeam || !viewModel.pullRequestReviewPeers.isEmpty else {
+            return summary
+        }
+        switch viewModel.pullRequestReviewTeamSettingsStatus {
+        case .checking:
+            return "\(summary) · Checking"
+        case .ready:
+            return summary
+        case .needsAttention:
+            return "\(summary) · Needs attention"
+        }
+    }
+
+    func presentReviewTeamEditor() {
+        reviewTeamDraftSettings = viewModel.reviewTeamEditorSettings()
+        isReviewTeamEditorPresented = true
+    }
+
+    /// Where one agentic route's spawned thread lands in the sidebar. The row stays visible with no custom sections rather
     /// than disappearing, so the setting is discoverable before there is anything to pick — but
     /// disabled, because `Tasks` alone is no choice. `SettingsMenuPicker` disables itself only on
     /// an empty option list, and `Tasks` is always in this one.
@@ -185,79 +260,6 @@ private extension GitSettingsTabView {
                     options: viewModel.pullRequestSectionOptions,
                     isDisabled: viewModel.sidebarSectionOptions.isEmpty,
                     label: { viewModel.pullRequestSectionLabel(for: $0) }
-                )
-            }
-        }
-    }
-
-    /// Which agent runs either agentic route — reviewing or addressing feedback. Each
-    /// picker's first row follows the Threads tab's own default; effort hides
-    /// entirely when the model reports no options.
-    @ViewBuilder
-    var agenticAgentRows: some View {
-        SettingsFormRow {
-            SettingsResponsiveControlRow(
-                "Agent",
-                helpText: GitSettingsHelp.pullRequestAgent,
-                horizontalControlSizing: .intrinsic
-            ) {
-                SettingsMenuPicker(
-                    "Agent",
-                    selection: Binding(
-                        get: { viewModel.pullRequestReviewProviderSelection },
-                        set: { viewModel.setPullRequestReviewProvider($0) }
-                    ),
-                    options: viewModel.pullRequestReviewProviderOptions,
-                    label: { viewModel.pullRequestReviewLabel(forProvider: $0) }
-                )
-            }
-        }
-
-        let effortOptions = viewModel.pullRequestReviewEffortOptions
-        SettingsFormRow {
-            SettingsResponsiveControlRow("Model", horizontalControlSizing: .intrinsic) {
-                SettingsMenuPicker(
-                    "Model",
-                    selection: Binding(
-                        get: { viewModel.pullRequestReviewModelSelection },
-                        set: { viewModel.setPullRequestReviewModel($0) }
-                    ),
-                    options: viewModel.pullRequestReviewModelOptions,
-                    label: { viewModel.pullRequestReviewLabel(forModel: $0) }
-                )
-            }
-        }
-
-        if !effortOptions.isEmpty {
-            SettingsFormRow {
-                SettingsResponsiveControlRow("Effort", horizontalControlSizing: .intrinsic) {
-                    SettingsMenuPicker(
-                        "Effort",
-                        selection: Binding(
-                            get: { viewModel.pullRequestReviewEffortSelection },
-                            set: { viewModel.setPullRequestReviewEffort($0) }
-                        ),
-                        options: [SettingsViewModel.pullRequestReviewInheritValue] + effortOptions.map(\.value),
-                        label: { viewModel.pullRequestReviewLabel(forEffort: $0) }
-                    )
-                }
-            }
-        }
-
-        SettingsFormRow(showsDivider: false) {
-            SettingsResponsiveControlRow(
-                "Permission mode",
-                helpText: GitSettingsHelp.pullRequestPermissions,
-                horizontalControlSizing: .intrinsic
-            ) {
-                SettingsMenuPicker(
-                    "Permission mode",
-                    selection: Binding(
-                        get: { viewModel.pullRequestReviewPermissionSelection },
-                        set: { viewModel.setPullRequestReviewPermission($0) }
-                    ),
-                    options: viewModel.pullRequestReviewPermissionOptions,
-                    label: { viewModel.pullRequestReviewLabel(forPermission: $0) }
                 )
             }
         }
@@ -374,18 +376,15 @@ private enum GitSettingsHelp {
     static let pullRequestGenerationPrompt =
         "Prompt sent to the agent when generating a pull request title or description left blank in the create pull request modal."
     static let pullRequestReviewPrompt =
-        "Instructions the agent follows when reviewing a pull request — one started by \"Agentic review\" "
-        + "in a pull request's footer, or any thread you ask for a review. "
-        + "It reviews the diff, then proposes a review for you to confirm."
+        "Criteria every reviewer uses to evaluate a pull request and write feedback. Alveary owns the review workflow and proposal staging."
+    static let pullRequestReviewMode =
+        "Single uses the lead agent. Team runs the lead and saved peers independently, then proposes only feedback a strict majority supports."
+    static let pullRequestReviewTeam =
+        "One saved team of 2–5 distinct agent and concrete-model pairs. Settings changes apply to the next review."
     static let pullRequestAddressFeedbackPrompt =
         "Instructions the agent follows when addressing feedback on a pull request — one started by "
         + "\"Address feedback\" in a pull request's footer, or any thread you ask to address feedback. "
         + "It reads the feedback, changes the code where the feedback holds up, then replies and resolves the threads."
-    static let pullRequestAgent =
-        "Which agent runs \"Agentic review\" and \"Address feedback\". Default follows the Threads tab."
-    static let pullRequestPermissions =
-        "Permissions for new \"Agentic review\" and \"Address feedback\" threads. "
-        + "\"Use thread default\" follows the Threads tab when using the same agent, or the selected agent's default otherwise."
     static let pullRequestAddressFeedbackSection =
         "Sidebar section the thread \"Address feedback\" creates lands in. It seeds that new thread only — "
         + "moving a thread afterwards is a drag in the sidebar."

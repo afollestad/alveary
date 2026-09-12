@@ -36,6 +36,8 @@ extension AppKitTranscriptHostToolWidgetRowView {
             return content.status == .failed ? nil : PullRequestStatusGlyph.octicon16(for: .open)
         case .pullRequestReviewProposal:
             return awaitsReviewDecision(entry) ? PullRequestStatusGlyph.octicon16(for: .open) : nil
+        case .collectiveReviewRun(let run):
+            return run.phase == .failed ? nil : .codeReview16
         case .scheduledTaskProposal, .pullRequestLink, .threadAction:
             return nil
         }
@@ -63,6 +65,9 @@ extension AppKitTranscriptHostToolWidgetRowView {
     func statusSymbol(for entry: HostToolWidgetEntry) -> (name: String, tint: NSColor) {
         if entry.isError {
             return ("exclamationmark.triangle", .systemRed)
+        }
+        if case .collectiveReviewRun(let run) = entry.content, run.phase == .cancelled || run.phase == .interrupted {
+            return ("xmark.circle", .secondaryLabelColor)
         }
         switch entry.outcome {
         case .confirmed:

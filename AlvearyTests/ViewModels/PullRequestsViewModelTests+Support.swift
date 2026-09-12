@@ -16,6 +16,8 @@ func makePullRequestsViewModel(
     agenticThreadStarter: (
         @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )? = nil,
+    reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
+    openGitSettings: @escaping @MainActor () -> Void = {},
     agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
     imageBlobFetcher: (any DiffImageBlobFetching)? = nil,
@@ -42,6 +44,8 @@ func makePullRequestsViewModel(
         presentToast: presentToast,
         warmAgentProviderDiscovery: warmAgentProviderDiscovery,
         agenticThreadStarter: agenticThreadStarter,
+        reviewTeamSettingsValidator: reviewTeamSettingsValidator,
+        openGitSettings: openGitSettings,
         agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,
         imageBlobFetcher: imageBlobFetcher,

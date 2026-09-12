@@ -35,6 +35,9 @@ extension AppDelegate {
         let shutdownPersistTimeout: TimeInterval
         let shutdownProcessGrace: TimeInterval
         let orphanCleanupGrace: TimeInterval
+        var recoverCollectiveReviews: @MainActor () -> Void = {}
+        var prepareCollectiveReviewsForTermination: @MainActor () -> Void = {}
+        var hasCollectiveReviewWork: @MainActor () -> Bool = { false }
 
         @MainActor
         static func live() -> Dependencies {
@@ -80,7 +83,13 @@ extension AppDelegate {
                 wakeRefreshDelay: .seconds(2),
                 shutdownPersistTimeout: 0.5,
                 shutdownProcessGrace: 1.5,
-                orphanCleanupGrace: 1.0
+                orphanCleanupGrace: 1.0,
+                recoverCollectiveReviews: { component.pullRequestReviewTeamCoordinator.recover() },
+                prepareCollectiveReviewsForTermination: { component.prepareReviewTeamForTermination() },
+                hasCollectiveReviewWork: {
+                    component.pullRequestReviewWorkerProcessRegistry.hasLiveProcesses ||
+                        !component.pullRequestReviewTeamCoordinator.workingConversationIDs.isEmpty
+                }
             )
         }
 

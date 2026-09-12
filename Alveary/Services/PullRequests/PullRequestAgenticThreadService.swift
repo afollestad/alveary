@@ -28,23 +28,13 @@ struct PullRequestAgenticDispatchOutcome: Equatable {
     let linkFailure: String?
 }
 
-/// Starts the agentic threads the pull request pane's footer offers: a Task thread whose first
-/// prompt asks for the work the way the user would. The agent picks the workflow up from the
-/// `alveary_host` tools — an instructions tool first, and the matching writer last.
-///
-/// The two kinds differ in four places and nowhere else: the thread's name, its first prompt,
-/// whether it needs a checkout — which is also what lets `.addressFeedback` refuse when no
-/// checkout is possible — and which sidebar section it lands in. Everything below — seed
-/// resolution and its degrade-never-refuse rules, answering as soon as the thread exists,
-/// link-then-dispatch ordering — is shared, which is why a second caller uses this service
-/// rather than copying it.
+/// Creates the footer's review and Address feedback tasks. Ordinary agent turns fetch workflow
+/// instructions through host tools; collective reviews hand the same visible task to their coordinator.
 @MainActor
 final class PullRequestAgenticThreadService {
     /// Which half of a pull request's life the thread is for.
     enum Kind: Hashable, CaseIterable {
-        /// Read the pull request and propose a review. Project-less on purpose: every step runs
-        /// through host tools against GitHub, and a project worktree would have the agent
-        /// reviewing whatever is checked out there rather than the pull request.
+        /// Review the pull request without a checkout: host tools or collective packets supply the pinned diff.
         case review
         /// Answer the feedback the pull request already received, which means editing files,
         /// running checks, and pushing — so this one wants the head branch checked out.
@@ -77,15 +67,12 @@ final class PullRequestAgenticThreadService {
             }
         }
 
-        /// Each route has its own section setting — a review thread and a feedback thread are
-        /// different work — unlike the provider, model, effort, and permission mode they share.
         func sectionID(in settings: AppSettings) -> String? {
-            switch self {
-            case .review:
-                settings.pullRequestReviewSectionID
-            case .addressFeedback:
-                settings.pullRequestAddressFeedbackSectionID
-            }
+            self == .review ? settings.pullRequestReviewSectionID : settings.pullRequestAddressFeedbackSectionID
+        }
+
+        func agentSettings(in settings: AppSettings) -> PullRequestAgentSettings {
+            self == .review ? settings.pullRequestReviewAgent : settings.pullRequestAddressFeedbackAgent
         }
     }
 
@@ -124,6 +111,14 @@ final class PullRequestAgenticThreadService {
         let preferredProjectID: PersistentIdentifier?
     }
 
+    struct CollectiveReviewWork {
+        let identifier: PullRequestIdentifier
+        let url: URL
+        let knownDetail: PullRequestDetail?
+        let knownSummary: PullRequestSummary?
+        let settings: AppSettings
+    }
+
     /// The validated settings a spawned thread is seeded with.
     struct SeedSettings: Equatable {
         let provider: String
@@ -140,11 +135,12 @@ final class PullRequestAgenticThreadService {
     /// `GitService`, whose 38 members would dwarf a test stub for this one probe — the same seam
     /// `directoryExists` already is.
     let currentBranch: @MainActor (String) async -> String?
-    private let linkService: PullRequestLinkService
+    let linkService: PullRequestLinkService
     private let pullRequestsService: any PullRequestsService
     private let settingsService: any SettingsService
     private let providerDiscovery: (any AgentProviderDiscoveryService)?
     private let startInitialPrompt: @MainActor (Conversation, String) -> Void
+    private let reviewTeamCoordinator: PullRequestReviewTeamCoordinator?
 
     init(
         lifecycleService: ThreadLifecycleService,
@@ -160,6 +156,7 @@ final class PullRequestAgenticThreadService {
             return exists && isDirectory.boolValue
         },
         currentBranch: @escaping @MainActor (String) async -> String? = { _ in nil },
+        reviewTeamCoordinator: PullRequestReviewTeamCoordinator? = nil,
         startInitialPrompt: @escaping @MainActor (Conversation, String) -> Void
     ) {
         self.lifecycleService = lifecycleService
@@ -172,6 +169,7 @@ final class PullRequestAgenticThreadService {
         self.directoryExists = directoryExists
         self.currentBranch = currentBranch
         self.startInitialPrompt = startInitialPrompt
+        self.reviewTeamCoordinator = reviewTeamCoordinator
     }
 
     /// Creates the thread and answers the moment it exists, so the caller's spinner is backed by a
@@ -192,6 +190,15 @@ final class PullRequestAgenticThreadService {
         preferredProjectID: PersistentIdentifier? = nil
     ) async throws -> PullRequestAgenticThreadStart {
         let settings = settingsService.current
+        if kind == .review, settings.pullRequestReviewMode == .reviewTeam {
+            guard let reviewTeamCoordinator else {
+                throw ReviewTeamError.invalidOutput("Review team is unavailable. Check Pull requests settings.")
+            }
+            let work = CollectiveReviewWork(
+                identifier: identifier, url: url, knownDetail: knownDetail, knownSummary: knownSummary, settings: settings
+            )
+            return try await startCollectiveReview(work, coordinator: reviewTeamCoordinator)
+        }
         let threadName = kind.threadName(for: identifier)
         // The link ignores a detail naming a different pull request and fetches its own; the
         // ladder must not trust one either, or the checkout lands on that other pull request's
@@ -212,7 +219,7 @@ final class PullRequestAgenticThreadService {
            resolvedProject(for: identifier, preferredProjectID: preferredProjectID) == nil {
             throw StartError.projectMissing(repository: identifier.nameWithOwner)
         }
-        let seed = try await resolvedSeedSettings(settings: settings)
+        let seed = try await resolvedSeedSettings(settings: settings, kind: kind)
 
         let thread = try lifecycleService.insertTaskThread(
             seed: Self.threadSeed(
@@ -290,9 +297,8 @@ final class PullRequestAgenticThreadService {
         return PullRequestAgenticDispatchOutcome(linkFailure: linkFailure)
     }
 
-    /// The workspace's own root is the only grant either kind needs: a review reaches GitHub
-    /// through host tools, and addressing feedback works inside its checkout.
-    private static func threadSeed(
+    /// Review workers use host tools or private packets; addressing feedback works inside its checkout.
+    static func threadSeed(
         _ seed: SeedSettings,
         name: String,
         workspace: TaskWorkspaceDescriptor?,
@@ -321,7 +327,7 @@ final class PullRequestAgenticThreadService {
     /// Never `.project`: a `.review` thread is project-less by design, and an `.addressFeedback`
     /// thread carries its checkout in the workspace descriptor, so both stay projectless — which
     /// is exactly what makes a custom section render for them.
-    private func resolvedPlacement(for kind: Kind, settings: AppSettings) -> TaskThreadSidebarPlacement {
+    func resolvedPlacement(for kind: Kind, settings: AppSettings) -> TaskThreadSidebarPlacement {
         guard let sectionID = kind.sectionID(in: settings),
               let section = lifecycleService.modelContext.resolveSidebarSection(id: sectionID),
               section.kind == .custom else {
@@ -348,15 +354,16 @@ final class PullRequestAgenticThreadService {
         return try? await pullRequestsService.fetchDetail(identifier)
     }
 
-    private func resolvedSeedSettings(settings: AppSettings) async throws -> SeedSettings {
+    private func resolvedSeedSettings(settings: AppSettings, kind: Kind) async throws -> SeedSettings {
         let resolution = await resolvedThreadDefaults(settings: settings)
-        let provider = try resolvedProvider(settings: settings, resolution: resolution)
+        let provider = try resolvedProvider(agent: kind.agentSettings(in: settings), resolution: resolution)
         let options = await modelOptions(for: provider, resolution: resolution)
         return Self.resolveSeedSettings(
             settings: settings,
             resolution: resolution,
             provider: provider,
-            modelOptions: options
+            modelOptions: options,
+            kind: kind
         )
     }
 
@@ -368,24 +375,26 @@ final class PullRequestAgenticThreadService {
         settings: AppSettings,
         resolution: ThreadDefaultResolution,
         provider: String,
-        modelOptions: [AgentModelOption]
+        modelOptions: [AgentModelOption],
+        kind: Kind = .review
     ) -> SeedSettings {
+        let agent = kind.agentSettings(in: settings)
         let inheritsResolution = provider == resolution.providerID
         let model = resolvedModel(
-            settings: settings,
+            agent: agent,
             resolution: resolution,
             options: modelOptions,
             inheritsResolution: inheritsResolution
         )
         let effort = resolvedEffort(
-            settings: settings,
+            agent: agent,
             resolution: resolution,
             options: modelOptions,
             model: model,
             inheritsResolution: inheritsResolution
         )
         let permissionMode = resolvedPermissionMode(
-            settings: settings,
+            agent: agent,
             resolution: resolution,
             provider: provider,
             inheritsResolution: inheritsResolution
@@ -394,12 +403,12 @@ final class PullRequestAgenticThreadService {
     }
 
     private static func resolvedPermissionMode(
-        settings: AppSettings,
+        agent: PullRequestAgentSettings,
         resolution: ThreadDefaultResolution,
         provider: String,
         inheritsResolution: Bool
     ) -> String {
-        if let requested = settings.pullRequestReviewPermissionMode,
+        if let requested = agent.permissionMode,
            AppSettings.supportedPermissionModes(forProvider: provider).contains(requested) {
             return requested
         }
@@ -407,13 +416,13 @@ final class PullRequestAgenticThreadService {
     }
 
     private static func resolvedModel(
-        settings: AppSettings,
+        agent: PullRequestAgentSettings,
         resolution: ThreadDefaultResolution,
         options: [AgentModelOption],
         inheritsResolution: Bool
     ) -> String? {
         let inherited = inheritsResolution ? resolution.storedThreadModel : nil
-        guard let requested = settings.pullRequestReviewModel,
+        guard let requested = agent.model,
               let option = AgentModelOptionSelection.option(in: options, matching: requested) else {
             return inherited
         }
@@ -422,14 +431,14 @@ final class PullRequestAgenticThreadService {
     }
 
     private static func resolvedEffort(
-        settings: AppSettings,
+        agent: PullRequestAgentSettings,
         resolution: ThreadDefaultResolution,
         options: [AgentModelOption],
         model: String?,
         inheritsResolution: Bool
     ) -> String {
         let inherited = inheritsResolution ? resolution.effort : AppSettings.defaultEffortLevel
-        guard let requested = settings.pullRequestReviewEffort else {
+        guard let requested = agent.effort else {
             return AgentModelOptionSelection.normalizedEffort(inherited, options: options, selectedModel: model)
         }
         // An empty supported list means the provider reports no effort catalog, which is not the
@@ -443,8 +452,8 @@ final class PullRequestAgenticThreadService {
 
     /// The pinned provider only applies while it is actually ready; otherwise the thread follows
     /// the Threads defaults, like every other setting here.
-    private func resolvedProvider(settings: AppSettings, resolution: ThreadDefaultResolution) throws -> String {
-        if let requested = settings.pullRequestReviewProvider,
+    private func resolvedProvider(agent: PullRequestAgentSettings, resolution: ThreadDefaultResolution) throws -> String {
+        if let requested = agent.provider,
            resolution.readyProviderIDs.contains(requested) {
             return requested
         }

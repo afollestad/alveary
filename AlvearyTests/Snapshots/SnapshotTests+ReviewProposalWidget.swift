@@ -234,7 +234,9 @@ enum ReviewProposalSnapshotFixture {
         commentBody: String = "This retries forever when the server keeps answering 503.",
         commentIsBot: Bool = false,
         commentIsProposed: Bool = false,
-        commentLine: Int = 2
+        commentLine: Int = 2,
+        evidence: PullRequestReviewProposalRecord.CommentEvidence? = nil,
+        reviewers: [PullRequestReviewProposalRecord.Reviewer] = []
     ) -> AppKitTranscriptHostToolWidgetRowView {
         let entry = HostToolWidgetEntry(
             id: "tool-review-proposal",
@@ -252,8 +254,9 @@ enum ReviewProposalSnapshotFixture {
                 reviewProposal: ReviewProposalWidgetState(
                     presentation: presentation(
                         stagedComments: commentIsProposed
-                            ? [stagedComment(body: commentBody, line: commentLine)]
-                            : []
+                            ? [stagedComment(body: commentBody, line: commentLine, evidence: evidence)]
+                            : [],
+                        reviewers: reviewers
                     ),
                     preview: preview ?? .loaded(
                         loadedPreview(
@@ -291,17 +294,24 @@ enum ReviewProposalSnapshotFixture {
     }
 
     /// Takes the same line the preview anchors, so the envelope and the rendered card agree.
-    static func stagedComment(body: String, line: Int = 2) -> PullRequestReviewProposalRecord.Comment {
+    static func stagedComment(
+        body: String,
+        line: Int = 2,
+        evidence: PullRequestReviewProposalRecord.CommentEvidence? = nil
+    ) -> PullRequestReviewProposalRecord.Comment {
         PullRequestReviewProposalRecord.Comment(
             path: "Sources/Retry.swift",
             line: line,
             side: "RIGHT",
-            body: body
+            body: body,
+            evidence: evidence
         )
     }
 
     static func presentation(
-        stagedComments: [PullRequestReviewProposalRecord.Comment] = []
+        stagedComments: [PullRequestReviewProposalRecord.Comment] = [],
+        reviewers: [PullRequestReviewProposalRecord.Reviewer] = [],
+        collectiveCompletionWarning: String? = nil
     ) -> PullRequestReviewProposalPresentation {
         PullRequestReviewProposalPresentation(
             id: proposalID,
@@ -312,8 +322,114 @@ enum ReviewProposalSnapshotFixture {
             body: "Only the retry loop still worries me.",
             comments: stagedComments,
             pendingCommentCount: stagedComments.isEmpty ? 2 : 0,
+            reviewers: reviewers,
+            collectiveCompletionWarning: collectiveCompletionWarning,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
+    }
+
+    static func partialApprovalWidgetRow() -> AppKitTranscriptHostToolWidgetRowView {
+        let warning = "Partial team review: 2/3 cross-checks completed. The proposal uses a fixed majority, not unanimous agreement."
+        let presentation = PullRequestReviewProposalPresentation(
+            id: proposalID, sourceConversationID: "source-conversation", identifier: identifier,
+            title: "Retry transient GitHub failures", proposedEvent: .approve, body: nil, comments: [], pendingCommentCount: 0,
+            reviewers: collectiveReviewers, collectiveCompletionWarning: warning, createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let content = PullRequestReviewProposalWidgetContent(
+            event: .approve, identifier: identifier, body: nil, commentCount: 0, pendingCommentCount: 0,
+            proposalID: proposalID, message: nil, status: .pendingConfirmation
+        )
+        let view = AppKitTranscriptHostToolWidgetRowView()
+        view.configure(.init(
+            entry: HostToolWidgetEntry(
+                id: "partial-approval", toolName: PullRequestHostToolCatalog.proposeReviewToolName,
+                content: .pullRequestReviewProposal(content), isComplete: true
+            ),
+            reviewProposal: ReviewProposalWidgetState(
+                presentation: presentation,
+                preview: .loaded(PullRequestReviewProposalPreview(
+                    files: [], annotations: DiffCommentAnnotations(), pendingCommentCount: 0, proposedCommentCount: 0,
+                    hiddenFileCount: 0, staleComments: [], viewerIsAuthor: false
+                )), selectedEvent: .approve, canSubmit: true, isSubmitting: false, errorMessage: nil
+            ),
+            isProposalInteractive: true, bubbleMaxWidth: 640
+        ))
+        return view
+    }
+
+    static let collectiveReviewers = [
+        PullRequestReviewProposalRecord.Reviewer(id: "lead", providerID: "codex", modelOptionID: "gpt-5.6-sol"),
+        PullRequestReviewProposalRecord.Reviewer(id: "peer-1", providerID: "codex", modelOptionID: "gpt-6-astra"),
+        PullRequestReviewProposalRecord.Reviewer(id: "peer-2", providerID: "claude", modelOptionID: "claude-fable-5-1")
+    ]
+
+    static let collectiveEvidence = PullRequestReviewProposalRecord.CommentEvidence(
+        findingID: "finding-1",
+        sourceCandidateIDs: ["lead:1", "peer-1:2"],
+        priority: 2,
+        votes: [
+            ReviewTeamVote(
+                voterID: "lead",
+                findingID: "finding-1",
+                decision: .agree,
+                priority: 2,
+                rationale: "The `retry()` path has no terminal bound after repeated **503** responses."
+            ),
+            ReviewTeamVote(
+                voterID: "peer-1",
+                findingID: "finding-1",
+                decision: .agree,
+                priority: 2,
+                rationale: "Confirmed that the error branch never increments `attemptCount`."
+            )
+        ],
+        reviewers: collectiveReviewers
+    )
+
+    static func expandedCollectiveWidgetRow() -> AppKitTranscriptHostToolWidgetRowView {
+        let row = widgetRow(
+            commentBody: "**[P2]** This retries forever when the server keeps answering 503.",
+            commentIsProposed: true,
+            evidence: collectiveEvidence,
+            reviewers: collectiveReviewers
+        )
+        firstButton(in: row, titled: "2/3 agreed")?.performClick(nil)
+        return row
+    }
+
+    static func mixedVoteEvidenceView() -> AppKitReviewProposalVoteEvidenceView {
+        let reviewers = collectiveReviewers + [
+            PullRequestReviewProposalRecord.Reviewer(id: "peer-3", providerID: "claude", modelOptionID: "claude-opus-5")
+        ]
+        let view = AppKitReviewProposalVoteEvidenceView()
+        view.configure(
+            findingID: "finding-1",
+            votes: [
+                ReviewTeamVote(
+                    voterID: "lead", findingID: "finding-1", decision: .agree, priority: 2,
+                    rationale: "The `retry()` path continues after **cancellation**, leaving the request alive."
+                ),
+                ReviewTeamVote(
+                    voterID: "peer-1", findingID: "finding-1", decision: .disagree, priority: nil,
+                    rationale: "The caller checks `Task.isCancelled` before the next attempt."
+                ),
+                ReviewTeamVote(
+                    voterID: "peer-2", findingID: "finding-1", decision: .abstain, priority: nil,
+                    rationale: "The packet does not include the caller needed to verify `retry()` ownership."
+                )
+            ],
+            reviewers: reviewers,
+            typography: TranscriptTypography(),
+            initiallyExpanded: true
+        )
+        return view
+    }
+
+    private static func firstButton(in view: NSView, titled title: String) -> NSButton? {
+        if let button = view as? NSButton, button.title == title {
+            return button
+        }
+        return view.subviews.lazy.compactMap { firstButton(in: $0, titled: title) }.first
     }
 
     /// One commented hunk, which is what the card is for: the review's comments on their lines.

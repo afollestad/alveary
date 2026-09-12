@@ -52,6 +52,8 @@ struct ContentView: View {
     @State var scheduledTasksViewModel: ScheduledTasksViewModel
     @State var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator
     @State var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator
+    let pullRequestReviewTeamCoordinator: PullRequestReviewTeamCoordinator?
+    @State var reviewTeamDetailsRequest: ReviewTeamDetailsRequest?
     @State var unresolvedApprovalRegistry: UnresolvedApprovalRegistry
     @State var pullRequestsViewModel: PullRequestsViewModel
     @State var pullRequestLinksViewModel: PullRequestLinksViewModel
@@ -78,6 +80,8 @@ struct ContentView: View {
         self.init(dependencies: ContentViewDependencies.resolve(component), appState: appState)
     }
 
+    // One-to-one dependency and State assignments must remain in the initializer.
+    // swiftlint:disable:next function_body_length
     init(dependencies: ContentViewDependencies, appState: AppState) {
         self.appState = appState
         self.settingsService = dependencies.settingsService
@@ -105,6 +109,7 @@ struct ContentView: View {
         self.gitHubAttachmentImageURLResolver = dependencies.gitHubAttachmentImageURLResolver
         self.voiceInputService = dependencies.voiceInputService
         self.voiceInputLifecycleController = dependencies.voiceInputLifecycleController
+        self.pullRequestReviewTeamCoordinator = dependencies.pullRequestReviewTeamCoordinator
         _appUpdateManager = State(initialValue: dependencies.appUpdateManager)
         let settings = dependencies.settingsService.current
         // Keep UI mutations on the main context so sidebar `@Query` reads and view-model saves stay in sync.
@@ -135,7 +140,7 @@ struct ContentView: View {
     var body: some View {
         // Every group below is its own type-check scope; see the type-check budget
         // bullets in `Alveary/Views/AGENTS.md`.
-        rootSheetHost(rootActivityObservers(rootSelectionObservers(rootWindowView)))
+        reviewTeamDetailsSheetHost(rootSheetHost(rootActivityObservers(rootSelectionObservers(rootWindowView))))
             .preferredColorScheme(colorScheme(for: settingsViewModel.theme))
             .task(id: toolbarProjectActionsSelection) {
                 await refreshToolbarProjectActions()
@@ -285,6 +290,7 @@ private extension ContentView {
         .environment(scheduledTasksViewModel)
         // Review submissions are confirmed inside transcript widgets too.
         .environment(pullRequestReviewProposalCoordinator)
+        .environment(pullRequestReviewTeamCoordinator)
         // Sidebar rows and conversation-tab chips read this for the waiting dot.
         .environment(unresolvedApprovalRegistry)
         .task {

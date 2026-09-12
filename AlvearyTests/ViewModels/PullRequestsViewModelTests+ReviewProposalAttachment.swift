@@ -308,7 +308,12 @@ final class ReviewProposalAttachmentFixture {
     /// `proposalNumber` defaults to the pane's own pull request; pass another to cover a
     /// proposal that cannot describe this pane. `proposalEvent` is the verdict the model asked
     /// for, which the pane's footer seeds its picker from.
-    init(fileCount: Int = 2, proposalNumber: Int? = nil, proposalEvent: String = "comment") throws {
+    init(
+        fileCount: Int = 2,
+        proposalNumber: Int? = nil,
+        proposalEvent: String = "comment",
+        commentEvidence: PullRequestReviewProposalRecord.CommentEvidence? = nil
+    ) throws {
         let container = try ModelContainer(
             for: Project.self,
             AgentThread.self,
@@ -331,7 +336,8 @@ final class ReviewProposalAttachmentFixture {
             Self.record(
                 nameWithOwner: summary.id.nameWithOwner,
                 number: proposalNumber ?? summary.id.number,
-                event: proposalEvent
+                event: proposalEvent,
+                commentEvidence: commentEvidence
             )
         )
         try context.save()
@@ -409,7 +415,8 @@ final class ReviewProposalAttachmentFixture {
     private static func record(
         nameWithOwner: String,
         number: Int,
-        event: String
+        event: String,
+        commentEvidence: PullRequestReviewProposalRecord.CommentEvidence?
     ) -> PullRequestReviewProposalRecord {
         PullRequestReviewProposalRecord(
             payloadVersion: PullRequestReviewProposalRecord.currentPayloadVersion,
@@ -424,7 +431,8 @@ final class ReviewProposalAttachmentFixture {
                     path: "File0.swift",
                     line: 1,
                     side: "RIGHT",
-                    body: "Staged remark"
+                    body: "Staged remark",
+                    evidence: commentEvidence
                 )
             ],
             titleSnapshot: "Detail title",

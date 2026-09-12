@@ -7,20 +7,58 @@ import Foundation
 /// registered in every `ModelContainer` the app and its tests build. It cascades with the
 /// conversation for free. The transcript widget and the pull request pane both read and edit it.
 struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
-    /// Version 2 added `comments`; version 3 added each comment's anchor fingerprint. Decode
+    /// Version 2 added `comments`; version 3 added each comment's anchor fingerprint; version 4
+    /// added stable comment identity, collective-review evidence, and app provenance. Decode
     /// accepts older versions — a v1 envelope simply carries no comments, a v2 one no fingerprints
     /// — but each field's presence still demands the bump: an envelope read as an older version
     /// would confirm-submit something other than what the card showed, so an older build must
     /// refuse it outright.
-    static let currentPayloadVersion = 3
+    static let currentPayloadVersion = 4
+
+    enum SourceKind: String, Codable, Equatable, Sendable {
+        case hostTool
+        case collectiveReview
+    }
+
+    struct Reviewer: Codable, Equatable, Sendable {
+        let id: String
+        let providerID: String
+        let modelOptionID: String
+    }
+
+    struct CommentEvidence: Codable, Equatable, Sendable {
+        let findingID: String
+        let sourceCandidateIDs: [String]
+        let priority: Int
+        let votes: [ReviewTeamVote]
+        /// Embedded per comment so carried evidence keeps the team that produced it.
+        let reviewers: [Reviewer]?
+
+        init(
+            findingID: String,
+            sourceCandidateIDs: [String],
+            priority: Int,
+            votes: [ReviewTeamVote],
+            reviewers: [Reviewer]? = nil
+        ) {
+            self.findingID = findingID
+            self.sourceCandidateIDs = sourceCandidateIDs
+            self.priority = priority
+            self.votes = votes
+            self.reviewers = reviewers
+        }
+    }
 
     /// One staged inline comment, published only when the user confirms. `side` stores the
     /// wire value (`RIGHT`/`LEFT`) so the envelope does not depend on an app enum's cases.
     struct Comment: Codable, Equatable, Sendable {
+        /// Stable only for collective findings; host and manual comments keep positional identity.
+        let id: String?
         let path: String
         let line: Int
         let side: String
         let body: String
+        let evidence: CommentEvidence?
         /// The anchored line's exact text as the diff read at propose time, and a symmetric window
         /// of the lines around it.
         ///
@@ -37,17 +75,21 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
         let anchorContext: [String]?
 
         init(
+            id: String? = nil,
             path: String,
             line: Int,
             side: String,
             body: String,
+            evidence: CommentEvidence? = nil,
             anchorContent: String? = nil,
             anchorContext: [String]? = nil
         ) {
+            self.id = id
             self.path = path
             self.line = line
             self.side = side
             self.body = body
+            self.evidence = evidence
             self.anchorContent = anchorContent
             self.anchorContext = anchorContext
         }
@@ -70,9 +112,59 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
     let titleSnapshot: String
     let pendingCommentCountSnapshot: Int
     let sourceProviderID: String?
-    let sourceProcessToken: String
-    let sourceRequestID: String
+    let sourceProcessToken: String?
+    let sourceRequestID: String?
+    let sourceKind: SourceKind?
+    let sourceRunID: String?
+    let sourceResultHash: String?
+    let reviewedBaseOID: String?
+    let reviewedHeadOID: String?
+    let reviewers: [Reviewer]?
     let createdAt: Date
+
+    init(
+        payloadVersion: Int,
+        id: String,
+        deduplicationKey: String,
+        repositoryNameWithOwner: String,
+        number: Int,
+        event: String,
+        body: String?,
+        comments: [Comment]?,
+        titleSnapshot: String,
+        pendingCommentCountSnapshot: Int,
+        sourceProviderID: String?,
+        sourceProcessToken: String?,
+        sourceRequestID: String?,
+        sourceKind: SourceKind? = nil,
+        sourceRunID: String? = nil,
+        sourceResultHash: String? = nil,
+        reviewedBaseOID: String? = nil,
+        reviewedHeadOID: String? = nil,
+        reviewers: [Reviewer]? = nil,
+        createdAt: Date
+    ) {
+        self.payloadVersion = payloadVersion
+        self.id = id
+        self.deduplicationKey = deduplicationKey
+        self.repositoryNameWithOwner = repositoryNameWithOwner
+        self.number = number
+        self.event = event
+        self.body = body
+        self.comments = comments
+        self.titleSnapshot = titleSnapshot
+        self.pendingCommentCountSnapshot = pendingCommentCountSnapshot
+        self.sourceProviderID = sourceProviderID
+        self.sourceProcessToken = sourceProcessToken
+        self.sourceRequestID = sourceRequestID
+        self.sourceKind = sourceKind
+        self.sourceRunID = sourceRunID
+        self.sourceResultHash = sourceResultHash
+        self.reviewedBaseOID = reviewedBaseOID
+        self.reviewedHeadOID = reviewedHeadOID
+        self.reviewers = reviewers
+        self.createdAt = createdAt
+    }
 
     var identifier: PullRequestIdentifier? {
         PullRequestIdentifier(nameWithOwner: repositoryNameWithOwner, number: number)
@@ -100,7 +192,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
     /// The envelope with one more staged comment, for a comment composed in the pull request pane
     /// while this proposal is pending. Appending rather than inserting keeps every existing
     /// position stable, which is what lets a rendered card's Remove keep addressing the comment it
-    /// shows — position is the only identity a staged comment has.
+    /// shows. Collective comments additionally carry durable identity for evidence mapping.
     func appendingComment(_ comment: Comment) -> PullRequestReviewProposalRecord {
         replacingComments(stagedComments + [comment])
     }
@@ -124,9 +216,31 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
             sourceProviderID: sourceProviderID,
             sourceProcessToken: sourceProcessToken,
             sourceRequestID: sourceRequestID,
+            sourceKind: sourceKind,
+            sourceRunID: sourceRunID,
+            sourceResultHash: sourceResultHash,
+            reviewedBaseOID: reviewedBaseOID,
+            reviewedHeadOID: reviewedHeadOID,
+            reviewers: reviewers,
             createdAt: createdAt
         )
     }
+}
+
+/// Durable content for an app-synthesized collective review proposal card.
+struct ReviewProposalTranscriptPayload: Codable, Equatable, Sendable {
+    static let currentVersion = 1
+
+    let payloadVersion: Int
+    let runID: String
+    let proposalID: String
+    let resultHash: String
+    let identifier: PullRequestIdentifier
+    let event: String
+    let body: String?
+    let commentCount: Int
+    let pendingCommentCount: Int
+    let supersededProposalIDs: [String]
 }
 
 extension Notification.Name {

@@ -31,6 +31,8 @@ struct ThreadDetailView: View {
     var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator?
     @Environment(PullRequestReviewProposalCoordinator.self)
     var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator?
+    @Environment(PullRequestReviewTeamCoordinator.self)
+    var pullRequestReviewTeamCoordinator: PullRequestReviewTeamCoordinator?
     @State var conversationActionError: String?
     @State private var editingConversationID: PersistentIdentifier?
     // Internal (not `private`) so the tab-presentation companion can arm it.

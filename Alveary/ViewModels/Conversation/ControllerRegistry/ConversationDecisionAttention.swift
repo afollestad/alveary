@@ -18,6 +18,7 @@ struct ConversationDecisionAttention: Equatable {
     let reviewProposalConversationIDs: Set<String>
     /// `AppSettings.pullRequestsEnabled && !suppressPullRequestLinkPrompts`.
     let showsPullRequestLinkPrompts: Bool
+    var collectiveReviewConversationIDs: Set<String> = []
 
     static let none = ConversationDecisionAttention(
         unresolvedApprovalConversationIDs: [],
@@ -37,7 +38,8 @@ struct ConversationDecisionAttention: Equatable {
         let conversationID = conversation.id
         if unresolvedApprovalConversationIDs.contains(conversationID) ||
             scheduledProposalConversationIDs.contains(conversationID) ||
-            reviewProposalConversationIDs.contains(conversationID) {
+            reviewProposalConversationIDs.contains(conversationID) ||
+            collectiveReviewConversationIDs.contains(conversationID) {
             return true
         }
         guard showsPullRequestLinkPrompts else {
@@ -59,13 +61,16 @@ extension ConversationDecisionAttention {
         approvals: UnresolvedApprovalRegistry?,
         scheduledProposals: ScheduledTaskProposalQueueCoordinator?,
         reviewProposals: PullRequestReviewProposalCoordinator?,
-        settings: AppSettings
+        settings: AppSettings,
+        reviewTeams: PullRequestReviewTeamCoordinator? = nil
     ) {
+        let paused = reviewTeams?.runs.values.filter { $0.phase == .awaitingDecision }.map(\.conversationID) ?? []
         self.init(
             unresolvedApprovalConversationIDs: approvals?.conversationIDs ?? [],
             scheduledProposalConversationIDs: scheduledProposals?.pendingSourceConversationIDs ?? [],
             reviewProposalConversationIDs: reviewProposals?.pendingSourceConversationIDs ?? [],
-            showsPullRequestLinkPrompts: settings.pullRequestsEnabled && !settings.suppressPullRequestLinkPrompts
+            showsPullRequestLinkPrompts: settings.pullRequestsEnabled && !settings.suppressPullRequestLinkPrompts,
+            collectiveReviewConversationIDs: Set(paused)
         )
     }
 }

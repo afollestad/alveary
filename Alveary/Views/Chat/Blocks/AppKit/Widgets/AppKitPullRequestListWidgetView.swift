@@ -89,7 +89,7 @@ private extension AppKitPullRequestListWidgetView {
         // The first row takes a rule too, separating the list from the card's own header rather
         // than letting the topmost row read as a continuation of the summary line.
         for row in visible {
-            stack.addFullWidthArrangedSubview(divider())
+            stack.addFullWidthArrangedSubview(AppKitHostToolWidgetDividerView())
             stack.addFullWidthArrangedSubview(rowView(row, configuration: configuration))
         }
         // The toggle stays once the list is long enough to fold, in both states, so expanding is
@@ -97,7 +97,7 @@ private extension AppKitPullRequestListWidgetView {
         guard allRows.count > Self.collapsedRowLimit else {
             return
         }
-        stack.addFullWidthArrangedSubview(divider())
+        stack.addFullWidthArrangedSubview(AppKitHostToolWidgetDividerView())
         stack.addFullWidthArrangedSubview(
             expansionToggleRow(
                 remaining: allRows.count - Self.collapsedRowLimit,
@@ -167,18 +167,6 @@ private extension AppKitPullRequestListWidgetView {
         )?.withSymbolConfiguration(.init(pointSize: size, weight: .semibold))
         view.setDynamicContentTintColor(.secondaryLabelColor)
         return view
-    }
-
-    /// A hairline between rows, so the stack reads as a list rather than one run-on block. Tinted
-    /// like the card's own fill rather than `separatorColor`, which is drawn for window chrome and
-    /// reads as a hard rule against the bubble.
-    func divider() -> NSView {
-        let line = AppKitFlippedDynamicColorView()
-        line.translatesAutoresizingMaskIntoConstraints = false
-        line.wantsLayer = true
-        line.setLayerFillColor(.secondaryLabelColor, alpha: 0.18)
-        line.heightAnchor.constraint(equalToConstant: 1).isActive = true
-        return line
     }
 
     func rowView(

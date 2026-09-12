@@ -48,6 +48,8 @@ struct DiffLineComment: Hashable, Sendable {
     /// what survives — the one mutable field here, so that renumbering cannot silently drop a
     /// sibling. Additions append for the same reason: an insert would move a rendered card's index.
     var proposedIndex: Int?
+    /// Local proposal metadata, never part of a GitHub comment or payload.
+    let voteEvidence: PullRequestReviewVotePresentation?
 
     var isProposed: Bool {
         proposedIndex != nil
@@ -66,7 +68,8 @@ struct DiffLineComment: Hashable, Sendable {
         isBot: Bool = false,
         relativeAge: String? = nil,
         absoluteTimestamp: String? = nil,
-        proposedIndex: Int? = nil
+        proposedIndex: Int? = nil,
+        voteEvidence: PullRequestReviewVotePresentation? = nil
     ) {
         self.author = author
         self.bodyMarkdown = bodyMarkdown
@@ -81,6 +84,7 @@ struct DiffLineComment: Hashable, Sendable {
         self.relativeAge = relativeAge
         self.absoluteTimestamp = absoluteTimestamp
         self.proposedIndex = proposedIndex
+        self.voteEvidence = voteEvidence
     }
 }
 

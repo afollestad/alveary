@@ -64,6 +64,28 @@ final class PullRequestAgenticThreadServiceTests: XCTestCase {
         XCTAssertEqual(resolved.effort, "low")
     }
 
+    func testFeedbackUsesItsOwnPinsAndNeverFallsBackToReviewPins() {
+        var settings = AppSettings()
+        settings.pullRequestReviewAgent = PullRequestAgentSettings(model: "haiku", effort: "low", permissionMode: "bypassPermissions")
+        settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(model: "sonnet", effort: "high", permissionMode: "acceptEdits")
+        let defaults = resolution(storedThreadModel: "opus", permissionMode: "default", effort: "medium")
+
+        let pinned = PullRequestAgenticThreadService.resolveSeedSettings(
+            settings: settings, resolution: defaults, provider: "claude",
+            modelOptions: AgentModelOptionTestFixtures.claudeModelOptions, kind: .addressFeedback
+        )
+
+        XCTAssertEqual(pinned, .init(provider: "claude", model: "sonnet", effort: "high", permissionMode: "acceptEdits"))
+
+        settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(model: "retired", effort: "invalid", permissionMode: "never")
+        let fallback = PullRequestAgenticThreadService.resolveSeedSettings(
+            settings: settings, resolution: defaults, provider: "claude",
+            modelOptions: AgentModelOptionTestFixtures.claudeModelOptions, kind: .addressFeedback
+        )
+
+        XCTAssertEqual(fallback, .init(provider: "claude", model: "opus", effort: "medium", permissionMode: "default"))
+    }
+
     func testAPinnedPermissionModeWinsOverTheThreadDefault() {
         var settings = AppSettings()
         settings.pullRequestReviewPermissionMode = "default"

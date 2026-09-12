@@ -67,7 +67,7 @@ final class AppMarkdownEditorReplacementTests: XCTestCase {
             await host.settle()
 
             let index = try XCTUnwrap(editor.document.blocks.firstIndex {
-                $0.text.hasPrefix("Only include actionable findings")
+                $0.text.hasPrefix("Include only actionable findings")
             })
             collection.scrollToItems(at: [IndexPath(item: index, section: 0)], scrollPosition: .top)
             await host.settle()

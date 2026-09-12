@@ -360,6 +360,8 @@ protocol PullRequestsService: Sendable {
         options: PullRequestListOptions
     ) async throws -> PullRequestListResult
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail
+    /// A complete, paginated snapshot of published feedback for independent reviewers.
+    func fetchReviewFeedback(_ id: PullRequestIdentifier) async throws -> Data
     /// Returns the raw unified diff for the pull request.
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String
     func fetchDiffSnapshot(_ id: PullRequestIdentifier) async throws -> PullRequestDiffSnapshot
@@ -443,4 +445,10 @@ protocol PullRequestsService: Sendable {
         title: String,
         body: String
     ) async throws -> PullRequestIdentifier
+}
+
+extension PullRequestsService {
+    func fetchReviewFeedback(_ id: PullRequestIdentifier) async throws -> Data {
+        throw PullRequestsServiceError.transport("This provider cannot fetch complete review feedback.")
+    }
 }

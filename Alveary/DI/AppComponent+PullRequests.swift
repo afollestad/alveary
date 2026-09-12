@@ -28,6 +28,7 @@ extension AppComponent {
                 currentBranch: { [gitService] path in
                     try? await gitService.currentBranch(in: path)
                 },
+                reviewTeamCoordinator: pullRequestReviewTeamCoordinator,
                 startInitialPrompt: { conversation, prompt in
                     self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)
                 }

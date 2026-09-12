@@ -16,11 +16,25 @@ final class AppKitReviewProposalStaleCommentsView: NSView {
         let comments: [PullRequestReviewProposalPreview.StaleComment]
         /// A submission in flight is already publishing what it was handed, so Remove withdraws.
         let allowsRemoval: Bool
+        let reviewers: [PullRequestReviewProposalRecord.Reviewer]
         let typography: TranscriptTypography
+
+        init(
+            comments: [PullRequestReviewProposalPreview.StaleComment],
+            allowsRemoval: Bool,
+            reviewers: [PullRequestReviewProposalRecord.Reviewer] = [],
+            typography: TranscriptTypography
+        ) {
+            self.comments = comments
+            self.allowsRemoval = allowsRemoval
+            self.reviewers = reviewers
+            self.typography = typography
+        }
     }
 
     /// Drops one staged comment by its position in the stored envelope.
     var onRemoveComment: ((Int) -> Void)?
+    var onHeightInvalidated: (() -> Void)?
 
     private let stack = NSStackView()
     private var configuration: Configuration?
@@ -31,7 +45,7 @@ final class AppKitReviewProposalStaleCommentsView: NSView {
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 6
+        stack.spacing = 8
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -72,6 +86,7 @@ final class AppKitReviewProposalStaleCommentsView: NSView {
         }
         stack.addFullWidthArrangedSubview(Self.caption(configuration))
         for comment in configuration.comments {
+            stack.addFullWidthArrangedSubview(AppKitHostToolWidgetDividerView())
             stack.addFullWidthArrangedSubview(row(for: comment, configuration: configuration))
         }
     }
@@ -103,7 +118,21 @@ private extension AppKitReviewProposalStaleCommentsView {
         container.alignment = .leading
         container.spacing = 2
         container.addFullWidthArrangedSubview(header(for: comment, configuration: configuration))
-        container.addFullWidthArrangedSubview(body(for: comment, configuration: configuration))
+        let body = body(for: comment, configuration: configuration)
+        container.addFullWidthArrangedSubview(body)
+        if comment.evidence != nil {
+            container.setCustomSpacing(8, after: body)
+        }
+        let evidence = AppKitReviewProposalVoteEvidenceView()
+        evidence.onHeightInvalidated = { [weak self] in
+            self?.onHeightInvalidated?()
+        }
+        evidence.configure(
+            evidence: comment.evidence,
+            reviewers: configuration.reviewers,
+            typography: configuration.typography
+        )
+        container.addFullWidthArrangedSubview(evidence)
         container.setAccessibilityElement(true)
         container.setAccessibilityRole(.group)
         // No line to name — that is the whole point — so the label says the file and the reason.

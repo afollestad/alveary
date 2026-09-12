@@ -20,6 +20,8 @@ final class Conversation {
     /// The one review submission awaiting this conversation's confirmation; see
     /// `Conversation+PullRequestReviewProposal.swift`. Optional so pre-field stores migrate.
     var pullRequestReviewProposalJSON: String?
+    /// Collective computation history is separate from the proposal handed to the confirmation UI.
+    var pullRequestReviewRunJSON: String?
     /// When this conversation's last visible turn ended in failure, `nil` once any turn starts or
     /// ends any other way. The durable half of `ThreadStatus.error`: the runtime's own `.error`
     /// lives only in `DefaultAgentsManager.statusSnapshot` and dies with the app session, so

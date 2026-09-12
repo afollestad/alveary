@@ -44,6 +44,8 @@ struct SidebarView: View, Equatable {
     var scheduledTaskProposalQueueCoordinator: ScheduledTaskProposalQueueCoordinator?
     @Environment(PullRequestReviewProposalCoordinator.self)
     var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator?
+    @Environment(PullRequestReviewTeamCoordinator.self)
+    var pullRequestReviewTeamCoordinator: PullRequestReviewTeamCoordinator?
     @Query var queriedProjects: [Project]
     // One observation-backed query feeds the whole render pass. Drafts are included so
     // draft-driven refreshes stay tracked; `SidebarRenderSnapshot` filters them out.

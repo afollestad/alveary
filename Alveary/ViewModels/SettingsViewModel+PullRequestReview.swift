@@ -1,11 +1,7 @@
 import AgentCLIKit
 import SwiftUI
 
-/// The Git tab's agentic pull-request settings, shared by both routes the footer offers.
-/// Each picker offers a leading row that follows the Threads tab, persisted as nil;
-/// only an explicit pick pins an agent setting. The
-/// `pullRequestReview` names are historical — the pins have never been review-only since
-/// address-feedback shipped.
+/// Review settings also seed the team lead. Each agent picker inherits Threads defaults until explicitly pinned.
 extension SettingsViewModel {
     /// Distinct from `AppSettings.defaultModelValue`, which means "the provider's default
     /// model" — a narrower claim than "follow the Threads defaults".
@@ -21,141 +17,184 @@ extension SettingsViewModel {
         set { settingsService.update { $0.pullRequestAddressFeedbackPrompt = newValue } }
     }
 
-    /// The provider the review's model and effort options are read from: the pinned one while
-    /// it is ready, otherwise whatever the Threads defaults resolve to.
-    var pullRequestReviewEffectiveProviderID: String {
-        guard let pinned = settingsService.current.pullRequestReviewProvider,
-              threadDefaultProviderIDs.contains(pinned) else {
-            return threadDefaultProviderSelection
+    var pullRequestReviewMode: PullRequestReviewMode {
+        settingsService.current.pullRequestReviewMode
+    }
+
+    func setPullRequestReviewMode(_ mode: PullRequestReviewMode) {
+        settingsService.update { $0.pullRequestReviewMode = mode }
+    }
+
+    var pullRequestReviewPeers: [PullRequestReviewPeer] {
+        settingsService.current.pullRequestReviewPeers
+    }
+
+    func setPullRequestReviewPeers(_ peers: [PullRequestReviewPeer]) {
+        settingsService.update { $0.pullRequestReviewPeers = peers }
+    }
+
+    var pullRequestReviewTeamSummary: String {
+        let count = pullRequestReviewPeers.count + 1
+        guard count > 1 else {
+            return "Not configured"
         }
-        return pinned
+        return "\(count) reviewers · \(ReviewTeamConsensus.requiredVotes(teamSize: count)) required"
     }
 
-    var pullRequestReviewProviderSelection: String {
-        settingsService.current.pullRequestReviewProvider ?? Self.pullRequestReviewInheritValue
+    var pullRequestReviewTeamSettingsStatus: PullRequestReviewTeamSettingsStatus {
+        pullRequestReviewTeamSettingsStatus(peers: pullRequestReviewPeers)
     }
 
-    var pullRequestReviewProviderOptions: [String] {
-        [Self.pullRequestReviewInheritValue] + threadDefaultProviderIDs
-    }
-
-    /// Model, effort, and permissions are provider-scoped, so changing providers clears their pins.
-    func setPullRequestReviewProvider(_ value: String) {
-        settingsService.update { settings in
-            settings.pullRequestReviewProvider = value == Self.pullRequestReviewInheritValue ? nil : value
-            settings.pullRequestReviewModel = nil
-            settings.pullRequestReviewEffort = nil
-            settings.pullRequestReviewPermissionMode = nil
+    func pullRequestReviewTeamSettingsStatus(
+        peers: [PullRequestReviewPeer],
+        settings draftSettings: AppSettings? = nil
+    ) -> PullRequestReviewTeamSettingsStatus {
+        if providerDiscovery != nil, !hasLoadedProviderStatuses {
+            return .checking
         }
-    }
-
-    var pullRequestReviewModelSelection: String {
-        guard let stored = settingsService.current.pullRequestReviewModel else {
-            return Self.pullRequestReviewInheritValue
-        }
-        return AgentModelOptionSelection.pickerValue(
-            in: modelOptions(for: pullRequestReviewEffectiveProviderID),
-            matching: stored
-        )
-    }
-
-    var pullRequestReviewModelOptions: [String] {
-        let values = modelOptionValues(for: pullRequestReviewEffectiveProviderID)
-        // The filter keeps the sentinel unique in the picker. The sentinel is `alveary.inherit`
-        // rather than `default` because providers offer `default` as a real catalog row meaning
-        // their own default model — a different claim than "follow the Threads defaults".
-        return [Self.pullRequestReviewInheritValue] + values.filter { $0 != Self.pullRequestReviewInheritValue }
-    }
-
-    func setPullRequestReviewModel(_ value: String) {
-        guard value != Self.pullRequestReviewInheritValue else {
-            settingsService.update { settings in
-                settings.pullRequestReviewModel = nil
-                settings.pullRequestReviewEffort = nil
-            }
-            return
-        }
-        let options = modelOptions(for: pullRequestReviewEffectiveProviderID)
-        let storedModel = AgentModelOptionSelection.storedModelValue(in: options, matching: value)
-        settingsService.update { settings in
-            settings.pullRequestReviewModel = storedModel
-            // An effort the new model does not support would silently degrade at spawn time;
-            // clearing it here makes the picker show what will actually be used.
-            let supported = AgentModelOptionSelection.effortOptions(in: options, selectedModel: storedModel)
-            if let effort = settings.pullRequestReviewEffort,
-               !supported.isEmpty,
-               !supported.contains(where: { $0.value == effort }) {
-                settings.pullRequestReviewEffort = nil
-            }
+        var settings = draftSettings ?? settingsService.current
+        settings.pullRequestReviewPeers = peers
+        do {
+            _ = try PullRequestReviewTeamResolver.resolve(
+                settings: settings,
+                providerStatuses: typedProviderStatuses,
+                providerOrdering: providerOrdering
+            )
+            return .ready
+        } catch {
+            return .needsAttention(error.localizedDescription)
         }
     }
 
-    var pullRequestReviewEffortSelection: String {
-        settingsService.current.pullRequestReviewEffort ?? Self.pullRequestReviewInheritValue
-    }
+    /// Suggests the entire first team in a local draft; unavailable exact pins stay visible for repair.
+    func reviewTeamEditorSettings() -> AppSettings {
+        var draft = settingsService.current
+        guard draft.pullRequestReviewPeers.isEmpty else { return draft }
 
-    var pullRequestReviewEffortOptions: [AgentProviderOption] {
-        AgentModelOptionSelection.effortOptions(
-            in: modelOptions(for: pullRequestReviewEffectiveProviderID),
-            selectedModel: settingsService.current.pullRequestReviewModel
-        )
-    }
-
-    func setPullRequestReviewEffort(_ value: String) {
-        settingsService.update { settings in
-            settings.pullRequestReviewEffort = value == Self.pullRequestReviewInheritValue ? nil : value
+        draft.pullRequestReviewProvider = "codex"
+        draft.pullRequestReviewModel = "gpt-5.6-sol"
+        draft.pullRequestReviewEffort = "high"
+        if resolvedPullRequestReviewLead(settings: draft) == nil {
+            draft.pullRequestReviewProvider = "claude"
+            draft.pullRequestReviewModel = "claude-opus-5"
         }
+        draft.pullRequestReviewPeers = suggestedPullRequestReviewPeers()
+        return draft
     }
 
-    /// Unsupported pins display the inherited choice without mutating settings during a read.
-    var pullRequestReviewPermissionSelection: String {
-        guard let stored = settingsService.current.pullRequestReviewPermissionMode,
-              pullRequestReviewPermissionOptions.contains(stored) else {
-            return Self.pullRequestReviewInheritValue
+    func pullRequestReviewPeerProviderOptions(including providerID: String) -> [String] {
+        var values = threadDefaultProviderIDs
+        if !providerID.isEmpty, !values.contains(providerID) {
+            values.append(providerID)
         }
-        return stored
+        return values
     }
 
-    var pullRequestReviewPermissionOptions: [String] {
-        [Self.pullRequestReviewInheritValue] + permissionModeOptions(for: pullRequestReviewEffectiveProviderID)
+    func pullRequestReviewPeerModelSelection(_ peer: PullRequestReviewPeer) -> String {
+        concreteModelOption(for: peer.model, providerID: peer.providerID)?.id ?? peer.model
     }
 
-    func setPullRequestReviewPermission(_ value: String) {
-        settingsService.update { settings in
-            settings.pullRequestReviewPermissionMode = value == Self.pullRequestReviewInheritValue ? nil : value
+    func pullRequestReviewPeerModelOptions(_ peer: PullRequestReviewPeer) -> [String] {
+        var values = concreteModelOptions(for: peer.providerID).map(\.id)
+        let selection = pullRequestReviewPeerModelSelection(peer)
+        if !selection.isEmpty, !values.contains(selection) {
+            values.append(selection)
         }
+        return values
     }
 
-    func pullRequestReviewLabel(forProvider value: String) -> String {
-        value == Self.pullRequestReviewInheritValue ? "Default" : providerDisplayName(for: value)
+    func pullRequestReviewPeerStoredModel(providerID: String, selection: String) -> String {
+        concreteModelOptions(for: providerID).first { $0.id == selection }?.model ?? selection
     }
 
-    func pullRequestReviewLabel(forModel value: String) -> String {
-        value == Self.pullRequestReviewInheritValue
-            ? "Default"
-            : modelLabel(for: value, providerId: pullRequestReviewEffectiveProviderID)
-    }
-
-    func pullRequestReviewLabel(forEffort value: String) -> String {
-        guard value != Self.pullRequestReviewInheritValue else {
-            return "Default"
+    func pullRequestReviewPeerEffortOptions(_ peer: PullRequestReviewPeer) -> [String] {
+        let option = concreteModelOption(for: peer.model, providerID: peer.providerID)
+        var values = option?.supportedEffortOptions.map(\.value) ?? []
+        if !peer.effort.isEmpty, !values.contains(peer.effort) {
+            values.append(peer.effort)
         }
-        return pullRequestReviewEffortOptions.first { $0.value == value }?.label
+        if values.isEmpty {
+            values = [AppSettings.defaultEffortLevel]
+        }
+        return values
+    }
+
+    func pullRequestReviewPeerModelLabel(_ value: String, providerID: String) -> String {
+        concreteModelOption(for: value, providerID: providerID)?.label
+            ?? ChatComposerTextSupport.modelLabel(for: value)
+    }
+
+    func pullRequestReviewPeerEffortLabel(_ value: String, peer: PullRequestReviewPeer) -> String {
+        let option = concreteModelOption(for: peer.model, providerID: peer.providerID)
+        return option?.supportedEffortOptions.first { $0.value == value }?.label
             ?? ChatComposerTextSupport.effortLabel(for: value)
     }
 
-    func pullRequestReviewLabel(forPermission value: String) -> String {
-        guard value != Self.pullRequestReviewInheritValue else {
-            return "Use thread default"
+    func defaultPullRequestReviewPeer(
+        providerID: String,
+        excluding peers: [PullRequestReviewPeer],
+        settings draftSettings: AppSettings? = nil
+    ) -> PullRequestReviewPeer? {
+        var excludedModels = Set(peers.filter { $0.providerID == providerID }.map(\.model))
+        if let lead = resolvedPullRequestReviewLead(settings: draftSettings), providerID == lead.providerID {
+            excludedModels.insert(lead.launchModel)
         }
-        let provider = pullRequestReviewEffectiveProviderID
-        let label = permissionModeLabel(for: value, providerId: provider)
-        // Claude's concrete default must remain distinguishable from inheriting Threads settings.
-        return label == "Default" ? "Default (\(providerDisplayName(for: provider)))" : label
+        guard let option = concreteModelOptions(for: providerID).first(where: {
+            guard let model = $0.model else { return false }
+            return !excludedModels.contains(model)
+        }), let model = option.model else {
+            return nil
+        }
+        return PullRequestReviewPeer(
+            id: UUID().uuidString,
+            providerID: providerID,
+            model: model,
+            effort: option.defaultEffortOption?.value
+                ?? option.supportedEffortOptions.first?.value
+                ?? AppSettings.defaultEffortLevel
+        )
     }
 
-    /// Per-route, unlike the agent pickers above: a review thread and a feedback thread are
-    /// different work and belong in different places. Both degrade on *read* — an id no longer
+    func nextPullRequestReviewPeer(
+        excluding peers: [PullRequestReviewPeer],
+        settings draftSettings: AppSettings? = nil
+    ) -> PullRequestReviewPeer? {
+        for providerID in threadDefaultProviderIDs {
+            if let peer = defaultPullRequestReviewPeer(providerID: providerID, excluding: peers, settings: draftSettings) {
+                return peer
+            }
+        }
+        return nil
+    }
+
+    func pullRequestReviewPeerDefaultEffort(providerID: String, model: String) -> String {
+        let option = concreteModelOption(for: model, providerID: providerID)
+        return option?.defaultEffortOption?.value
+            ?? option?.supportedEffortOptions.first?.value
+            ?? AppSettings.defaultEffortLevel
+    }
+
+    var pullRequestReviewEffectiveProviderID: String { reviewAgentEditor.effectiveProviderID }
+    var pullRequestReviewProviderSelection: String { reviewAgentEditor.providerSelection }
+    var pullRequestReviewProviderOptions: [String] { reviewAgentEditor.providerOptions }
+    var pullRequestReviewModelSelection: String { reviewAgentEditor.modelSelection }
+    var pullRequestReviewModelOptions: [String] { reviewAgentEditor.modelOptions }
+    var pullRequestReviewEffortSelection: String { reviewAgentEditor.effortSelection }
+    var pullRequestReviewEffortOptions: [AgentProviderOption] { reviewAgentEditor.effortOptions }
+    var pullRequestReviewPermissionSelection: String { reviewAgentEditor.permissionSelection }
+    var pullRequestReviewPermissionOptions: [String] { reviewAgentEditor.permissionOptions }
+
+    func setPullRequestReviewProvider(_ value: String) { reviewAgentEditor.setProvider(value) }
+    func setPullRequestReviewModel(_ value: String) { reviewAgentEditor.setModel(value) }
+    func setPullRequestReviewEffort(_ value: String) { reviewAgentEditor.setEffort(value) }
+    func setPullRequestReviewPermission(_ value: String) { reviewAgentEditor.setPermission(value) }
+
+    func pullRequestReviewLabel(forProvider value: String) -> String { reviewAgentEditor.label(forProvider: value) }
+    func pullRequestReviewLabel(forModel value: String) -> String { reviewAgentEditor.label(forModel: value) }
+    func pullRequestReviewLabel(forEffort value: String) -> String { reviewAgentEditor.label(forEffort: value) }
+    func pullRequestReviewLabel(forPermission value: String) -> String { reviewAgentEditor.label(forPermission: value) }
+
+    /// A review thread and a feedback thread can belong in different places. Both degrade on *read* — an id no longer
     /// among the options shows `Tasks` while the stored value survives, so re-creating the
     /// section restores the pick and no getter has to write. The `Selection` suffix the agent
     /// pickers carry is dropped here only because that spelling exceeds the identifier limit.
@@ -194,6 +233,60 @@ extension SettingsViewModel {
         }
         return id
     }
+
+    private var typedProviderStatuses: [AgentProviderID: AgentProviderStatus] {
+        Dictionary(uniqueKeysWithValues: providerStatuses.compactMap { key, value in
+            AgentProviderID(rawValue: key).map { ($0, value) }
+        })
+    }
+
+    private func concreteModelOptions(for providerID: String) -> [AgentModelOption] {
+        guard let typedProviderID = AgentProviderID(rawValue: providerID),
+              let options = typedProviderStatuses[typedProviderID]?.modelOptions else {
+            return []
+        }
+        return options.filter { option in
+            guard let model = option.model else { return false }
+            let launchModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !launchModel.isEmpty
+                && launchModel.lowercased() != AppSettings.defaultModelValue
+                && !option.supportedEffortOptions.isEmpty
+        }
+    }
+
+    private func concreteModelOption(for selection: String, providerID: String) -> AgentModelOption? {
+        let options = concreteModelOptions(for: providerID)
+        if let exact = options.first(where: { $0.id == selection || $0.model == selection }) {
+            return exact
+        }
+        return selection == AppSettings.defaultModelValue ? options.first(where: \.isDefault) : nil
+    }
+
+    private func resolvedPullRequestReviewLead(settings draftSettings: AppSettings?) -> ReviewWorkerConfiguration? {
+        try? PullRequestReviewTeamResolver.resolveLead(
+            settings: draftSettings ?? settingsService.current,
+            providerStatuses: typedProviderStatuses
+        )
+    }
+
+    private func suggestedPullRequestReviewPeers() -> [PullRequestReviewPeer] {
+        [
+            PullRequestReviewPeer(id: UUID().uuidString, providerID: "codex", model: "gpt-6-astra", effort: "max"),
+            PullRequestReviewPeer(id: UUID().uuidString, providerID: "claude", model: "claude-fable-5-1", effort: "max")
+        ].filter { peer in
+            guard let status = providerStatuses[peer.providerID],
+                  settingsService.current.isProviderEnabled(peer.providerID),
+                  status.isEnabled, status.isInstalled, status.isSetupReady,
+                  let executable = status.availability?.executablePath else { return false }
+            return !executable.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+}
+
+enum PullRequestReviewTeamSettingsStatus: Equatable {
+    case checking
+    case ready
+    case needsAttention(String)
 }
 
 /// One custom sidebar section for the Git tab's pickers. Deliberately not

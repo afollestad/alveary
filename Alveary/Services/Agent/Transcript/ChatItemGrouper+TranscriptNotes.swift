@@ -11,6 +11,10 @@ extension ChatItemGrouper {
             handleHostToolOutcomeMarker(event)
         case ConversationEventRecord.taskListType:
             handleTaskListSnapshot(event)
+        case ConversationEventRecord.collectiveReviewRunType:
+            handleCollectiveReviewRun(event)
+        case ConversationEventRecord.pullRequestReviewProposalType:
+            handleCollectiveReviewProposal(event)
         case ConversationEventRecord.stopType,
              ConversationEventRecord.steeredConversationType,
              ConversationEventRecord.scheduledTaskNoteType,

@@ -35,12 +35,23 @@ extension ChatTranscriptView {
     }
 
     var appKitTranscriptItems: [ChatItem] {
+        appKitTranscriptItems(reviewTeamRun: pullRequestReviewTeamCoordinator?.runs[viewModel.conversationID])
+    }
+
+    /// A failed save leaves the durable event unchanged; render the coordinator's state without altering that event.
+    func appKitTranscriptItems(reviewTeamRun: ReviewTeamRun?) -> [ChatItem] {
         let items = viewModel.state.grouper.items.visibleTranscriptItems
-        guard viewModel.state.shouldShowInterruptedCue,
-              !viewModel.turnState.isActive else {
-            return items
+        let visibleItems = viewModel.state.shouldShowInterruptedCue && !viewModel.turnState.isActive
+            ? items.interruptedActivityTerminalized : items
+        return visibleItems.map { item in
+            guard let run = reviewTeamRun,
+                  run.conversationID == viewModel.conversationID,
+                  case .hostToolWidget(let id, let entry) = item,
+                  case .collectiveReviewRun(let persisted) = entry.content,
+                  persisted.conversationID == run.conversationID,
+                  persisted.id == run.id else { return item }
+            return ChatItem.collectiveReviewRun(id: id, run: run)
         }
-        return items.interruptedActivityTerminalized
     }
 
     var appKitTransientRows: AppKitTranscriptTransientRows {
@@ -56,7 +67,7 @@ extension ChatTranscriptView {
             ? nil
             : viewModel.completedThoughtText
         return AppKitTranscriptTransientRows(
-            isTurnActive: viewModel.turnState.isActive &&
+            isTurnActive: (viewModel.turnState.isActive || isReviewTeamWorking) &&
                 visibleStreamingText == nil &&
                 visibleThoughtText == nil &&
                 visibleCompletedThoughtText == nil &&
@@ -72,6 +83,7 @@ extension ChatTranscriptView {
             completedThoughtSequence: viewModel.completedThoughtSequence,
             showsInterruptedNote: viewModel.state.shouldShowInterruptedCue &&
                 !viewModel.turnState.isActive &&
+                !isReviewTeamWorking &&
                 shouldShowTransientInterruptedNote
         )
     }

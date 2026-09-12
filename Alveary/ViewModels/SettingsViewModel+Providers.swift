@@ -350,13 +350,19 @@ private extension SettingsViewModel {
     }
 
     func persistResolvedThreadDefaultsIfNeeded() {
+        let current = settingsService.current
+        // A team launch treats inherited defaults as strict lead pins; persisting the Threads
+        // runtime fallback here would silently replace an invalid lead while Settings opens.
+        guard current.pullRequestReviewMode != .reviewTeam else {
+            return
+        }
+
         let resolution = threadDefaultResolution
         guard let providerID = resolution.providerID else {
             return
         }
 
         let nextDefaultModel = resolution.storedThreadModel ?? AppSettings.defaultModelValue
-        let current = settingsService.current
         guard current.defaultProvider != providerID
             || current.defaultModel != nextDefaultModel
             || current.permissionMode != resolution.permissionMode

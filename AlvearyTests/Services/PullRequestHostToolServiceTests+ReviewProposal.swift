@@ -117,7 +117,7 @@ extension PullRequestHostToolServiceTests {
 
         XCTAssertFalse(result.isError, result.text)
         let stored = try XCTUnwrap(try fixture.conversation.pullRequestReviewProposal())
-        XCTAssertEqual(stored.payloadVersion, 3)
+        XCTAssertEqual(stored.payloadVersion, PullRequestReviewProposalRecord.currentPayloadVersion)
         let comment = try XCTUnwrap(stored.stagedComments.first)
         XCTAssertEqual(comment.anchorContent, "line 1")
         // The window is what separates two lines reading the same thing.

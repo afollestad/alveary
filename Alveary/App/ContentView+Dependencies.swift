@@ -54,6 +54,7 @@ struct ContentViewDependencies {
     let voiceInputService: any VoiceInputService
     let voiceInputLifecycleController: VoiceInputLifecycleController
     let modelContainer: ModelContainer
+    var pullRequestReviewTeamCoordinator: PullRequestReviewTeamCoordinator?
 
     // A flat one-to-one mapping of the root's dependencies; splitting it would only hide the list.
     @MainActor
@@ -108,7 +109,8 @@ struct ContentViewDependencies {
             pullRequestReviewProposalPreviewCache: component.pullRequestReviewProposalPreviewCache,
             voiceInputService: component.voiceInputService,
             voiceInputLifecycleController: component.voiceInputLifecycleController,
-            modelContainer: component.modelContainer
+            modelContainer: component.modelContainer,
+            pullRequestReviewTeamCoordinator: component.pullRequestReviewTeamCoordinator
         )
     }
 }

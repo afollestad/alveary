@@ -18,6 +18,36 @@ struct PullRequestAgenticThreadRequest {
     let preferredProjectID: PersistentIdentifier?
 }
 
+/// Throws when any saved reviewer cannot resolve to a concrete launch configuration.
+typealias PullRequestReviewTeamSettingsValidator = @MainActor @Sendable (AppSettings) async throws -> Void
+
+/// The settings that can change strict review-team resolution; unrelated settings do not restart validation.
+struct PullRequestReviewTeamSettingsSignature: Equatable, Sendable {
+    let mode: PullRequestReviewMode
+    let peers: [PullRequestReviewPeer]
+    let defaultProvider: String
+    let defaultModel: String
+    let defaultEffort: String
+    let disabledProviderIDs: Set<String>
+    let providerConfigs: [String: ProviderCustomConfig]
+    let leadProvider: String?
+    let leadModel: String?
+    let leadEffort: String?
+
+    init(settings: AppSettings) {
+        mode = settings.pullRequestReviewMode
+        peers = settings.pullRequestReviewPeers
+        defaultProvider = settings.defaultProvider
+        defaultModel = settings.defaultModel
+        defaultEffort = settings.effort
+        disabledProviderIDs = settings.disabledProviderIDs
+        providerConfigs = settings.providerConfigs
+        leadProvider = settings.pullRequestReviewProvider
+        leadModel = settings.pullRequestReviewModel
+        leadEffort = settings.pullRequestReviewEffort
+    }
+}
+
 /// The review footer's split-button selection and the agentic options it can run.
 extension PullRequestsViewModel {
     /// The stored pick for this pull request's authorship. A stored kind this build does not
@@ -65,19 +95,24 @@ extension PullRequestsViewModel {
         }
     }
 
+    func openPullRequestReviewSettings() {
+        openGitSettings()
+    }
+
     /// Spawns the agentic thread and marks its route working, without moving the user anywhere.
     ///
     /// Navigation used to fire here the moment the thread existed, which threw away the pull
     /// request the user was reading — and unmounted the Overview a beat before the link landed in
     /// it, so the Linked threads row nobody ever saw was the one pointing at the new thread. The
-    /// footer's own button carries the state instead: it spins and goes dead for its route until
-    /// that thread's first turn ends, and the Linked threads row is the way in.
+    /// footer carries single-agent activity until the first turn ends, or team activity until the
+    /// coordinator releases its route; the Linked threads row is the way in.
     ///
     /// Per kind, so a running review does not block addressing feedback. Two runs on one pull
     /// request are fine; two runs on one *route* are what the tracker's guard refuses.
     func startAgenticThread(kind: PullRequestAgenticThreadService.Kind) {
         guard let target = activePaneTarget,
               let session = paneSessions[target],
+              canStartAgenticThread(kind: kind, session: session),
               !agenticThreadActivity.isWorking(target.identifier, kind: kind),
               let agenticThreadStarter,
               let request = agenticThreadRequest(kind: kind, target: target, session: session) else {
@@ -123,6 +158,17 @@ extension PullRequestsViewModel {
         }
     }
 
+    /// Team review is the only agentic route whose saved configuration needs strict preflight.
+    private func canStartAgenticThread(
+        kind: PullRequestAgenticThreadService.Kind,
+        session: PullRequestPaneSession
+    ) -> Bool {
+        guard kind == .review, session.pullRequestReviewMode == .reviewTeam else {
+            return true
+        }
+        return session.pullRequestReviewTeamValidationStatus == .valid
+    }
+
     /// A failure from before the thread existed, which the still-mounted footer can show. The
     /// missing-project refusal is the one the user can act on, and the action lives outside this
     /// pane, so it gets the modal; everything else is the inline banner.
@@ -160,6 +206,98 @@ extension PullRequestsViewModel {
         if let agenticThreadActivityObserver {
             notificationCenter.removeObserver(agenticThreadActivityObserver)
             self.agenticThreadActivityObserver = nil
+        }
+    }
+
+    /// Keeps settings out of the memoized footer body while still reflecting changes immediately.
+    func observePullRequestReviewSettings() {
+        guard let settingsService else {
+            return
+        }
+        pullRequestReviewSettingsObserver = NotificationCenter.default.addObserver(
+            forName: .appSettingsChanged,
+            object: settingsService,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshPullRequestReviewConfiguration()
+            }
+        }
+    }
+
+    func endPullRequestReviewSettingsObservation() {
+        guard let pullRequestReviewSettingsObserver else {
+            return
+        }
+        NotificationCenter.default.removeObserver(pullRequestReviewSettingsObserver)
+        self.pullRequestReviewSettingsObserver = nil
+    }
+
+    /// Pane opens force a fresh discovery check after external CLI repairs; an identical in-flight check is shared.
+    func refreshPullRequestReviewConfiguration(force: Bool = false) {
+        let settings = settingsService?.current ?? AppSettings()
+        let signature = PullRequestReviewTeamSettingsSignature(settings: settings)
+        let signatureChanged = signature != reviewTeamSettingsSignature
+        guard force || signatureChanged,
+              signatureChanged || mirroredReviewTeamValidationStatus != .validating else {
+            return
+        }
+
+        reviewTeamSettingsSignature = signature
+        reviewTeamValidationTask?.cancel()
+        let token = UUID()
+        reviewTeamValidationToken = token
+        mirroredPullRequestReviewMode = settings.pullRequestReviewMode
+
+        guard settings.pullRequestReviewMode == .reviewTeam else {
+            mirroredReviewTeamValidationStatus = .notRequired
+            mirrorPullRequestReviewConfiguration()
+            return
+        }
+
+        guard let reviewTeamSettingsValidator else {
+            mirroredReviewTeamValidationStatus = .unvalidated
+            mirrorPullRequestReviewConfiguration()
+            return
+        }
+
+        mirroredReviewTeamValidationStatus = .validating
+        mirrorPullRequestReviewConfiguration()
+        reviewTeamValidationTask = Task { [weak self] in
+            let status: PullRequestReviewTeamValidationStatus
+            do {
+                try await reviewTeamSettingsValidator(settings)
+                status = .valid
+            } catch is CancellationError {
+                return
+            } catch {
+                status = .invalid(error.localizedDescription)
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.finishReviewTeamValidation(status, token: token)
+        }
+    }
+
+    private func finishReviewTeamValidation(
+        _ status: PullRequestReviewTeamValidationStatus,
+        token: UUID
+    ) {
+        guard token == reviewTeamValidationToken else {
+            return
+        }
+        reviewTeamValidationTask = nil
+        mirroredReviewTeamValidationStatus = status
+        mirrorPullRequestReviewConfiguration()
+    }
+
+    private func mirrorPullRequestReviewConfiguration() {
+        for target in Array(paneSessions.keys) {
+            mutateSession(target) { session in
+                session.pullRequestReviewMode = mirroredPullRequestReviewMode
+                session.pullRequestReviewTeamValidationStatus = mirroredReviewTeamValidationStatus
+            }
         }
     }
 

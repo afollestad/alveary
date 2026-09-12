@@ -1,6 +1,18 @@
 import Foundation
 import SwiftData
 
+enum PullRequestReviewMode: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
+    case singleAgent
+    case reviewTeam
+}
+
+struct PullRequestReviewPeer: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    var providerID: String
+    var model: String
+    var effort: String
+}
+
 struct AppSettings: Codable, Sendable, Equatable {
     static let currentSettingsSchemaVersion = 1
     static let supportedProviderIDs = ["claude", "codex"]
@@ -84,18 +96,22 @@ struct AppSettings: Codable, Sendable, Equatable {
     var pullRequestGenerationPrompt = Self.defaultPullRequestGenerationPrompt
     var pullRequestReviewPrompt = Self.defaultPullRequestReviewPrompt
     var pullRequestAddressFeedbackPrompt = Self.defaultPullRequestAddressFeedbackPrompt
-    // Shared by both agentic pull-request routes, review and address-feedback; the
-    // `pullRequestReview` names are historical. Nil follows the Threads tab's defaults,
-    // so an agentic thread inherits whatever a typed thread would get unless the user
-    // pins one here.
+    var pullRequestReviewMode = PullRequestReviewMode.singleAgent
+    var pullRequestReviewPeers: [PullRequestReviewPeer] = []
+    /// Review pins also configure the team lead; nil follows the Threads defaults.
     var pullRequestReviewProvider: String?
     var pullRequestReviewModel: String?
     var pullRequestReviewEffort: String?
-    /// Shared by both agentic routes; nil inherits permissions for the resolved provider.
+    /// Used by single-agent reviews only; team workers always run read-only.
     var pullRequestReviewPermissionMode: String?
+    var pullRequestAddressFeedbackProvider: String?
+    var pullRequestAddressFeedbackModel: String?
+    var pullRequestAddressFeedbackEffort: String?
+    var pullRequestAddressFeedbackPermissionMode: String?
+    /// Encoding this marker keeps cleared feedback pins from inheriting legacy review pins again.
+    var pullRequestAgentSettingsVersion = 1
     /// `SidebarSection.id` of the custom section each agentic route's spawned thread joins; nil
-    /// is the plain `Tasks` list. Per-route, unlike the agent settings above, because the two kinds
-    /// of work belong in different places. A bare id with no relationship behind it — unlike
+    /// is the plain `Tasks` list. A bare id with no relationship behind it — unlike
     /// `ScheduledTask.threadSection` nothing nullifies it when the section is removed, so every
     /// reader degrades to `Tasks` rather than failing.
     var pullRequestAddressFeedbackSectionID: String?
@@ -292,20 +308,27 @@ struct AppSettings: Codable, Sendable, Equatable {
         if pullRequestAddressFeedbackPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             pullRequestAddressFeedbackPrompt = Self.defaultPullRequestAddressFeedbackPrompt
         }
-        normalizePullRequestReviewAgentDefaults()
+        normalizePullRequestAgentDefaults()
     }
 
     /// Drop unknown provider and permission values; creation validates compatibility with the
     /// resolved provider, which may differ from an unavailable pin. Section existence needs SwiftData.
-    private mutating func normalizePullRequestReviewAgentDefaults() {
-        pullRequestReviewProvider = Self.normalizedOptionalSetting(pullRequestReviewProvider)
-            .flatMap { Self.supportedProviderIDs.contains($0) ? $0 : nil }
-        pullRequestReviewModel = Self.normalizedOptionalSetting(pullRequestReviewModel)
-        pullRequestReviewEffort = Self.normalizedOptionalSetting(pullRequestReviewEffort)
-        pullRequestReviewPermissionMode = Self.normalizedOptionalSetting(pullRequestReviewPermissionMode)
-            .flatMap { Self.supportedPermissionModes.contains($0) ? $0 : nil }
+    private mutating func normalizePullRequestAgentDefaults() {
+        pullRequestReviewAgent = Self.normalizedPullRequestAgent(pullRequestReviewAgent)
+        pullRequestAddressFeedbackAgent = Self.normalizedPullRequestAgent(pullRequestAddressFeedbackAgent)
         pullRequestAddressFeedbackSectionID = Self.normalizedOptionalSetting(pullRequestAddressFeedbackSectionID)
         pullRequestReviewSectionID = Self.normalizedOptionalSetting(pullRequestReviewSectionID)
+    }
+
+    private static func normalizedPullRequestAgent(_ value: PullRequestAgentSettings) -> PullRequestAgentSettings {
+        var result = value
+        result.provider = normalizedOptionalSetting(value.provider)
+            .flatMap { Self.supportedProviderIDs.contains($0) ? $0 : nil }
+        result.model = normalizedOptionalSetting(value.model)
+        result.effort = normalizedOptionalSetting(value.effort)
+        result.permissionMode = normalizedOptionalSetting(value.permissionMode)
+            .flatMap { Self.supportedPermissionModes.contains($0) ? $0 : nil }
+        return result
     }
 
     private static func normalizedOptionalSetting(_ value: String?) -> String? {

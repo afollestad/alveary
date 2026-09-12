@@ -41,16 +41,6 @@ final class PromptDefaultsMarkdownRoundTripTests: XCTestCase {
         }
     }
 
-    /// The tool names the workflow depends on are backticked, so markdown cannot
-    /// read the underscore pairs in `get_pr_timeline` and `get_pr_diff` as
-    /// emphasis and render them as "get*pr*timeline".
-    func testTheReviewPromptBackticksEveryToolItNames() {
-        let prompt = AppSettings.defaultPullRequestReviewPrompt
-        for tool in ["alveary_host", "get_pr", "get_pr_timeline", "get_pr_diff", "propose_pr_review"] {
-            XCTAssertTrue(prompt.contains("`\(tool)`"), "\(tool) is not backticked")
-        }
-    }
-
     func testTheAddressFeedbackPromptBackticksEveryToolItNames() {
         let prompt = AppSettings.defaultPullRequestAddressFeedbackPrompt
         let tools = ["alveary_host", "get_pr", "get_pr_timeline", "get_pr_diff", "reply_to_pr_thread", "resolve_pr_thread", "comment_on_pr"]

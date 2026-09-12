@@ -27,6 +27,21 @@ final class PullRequestReviewFooterActionTests: XCTestCase {
         XCTAssertEqual(feedback.icon, .system("brain"))
     }
 
+    func testTeamModeRenamesOnlyTheAgenticReviewAction() {
+        XCTAssertEqual(
+            PullRequestReviewFooterAction.title(for: .agenticReview, reviewMode: .reviewTeam),
+            "Review with team"
+        )
+        XCTAssertEqual(
+            PullRequestReviewFooterAction.title(for: .addressFeedback, reviewMode: .reviewTeam),
+            "Address feedback"
+        )
+        XCTAssertEqual(
+            PullRequestReviewFooterAction.title(for: .agenticReview, reviewMode: .singleAgent),
+            "Agentic review"
+        )
+    }
+
     /// Staged comments make finishing the review the likely intent, so it leads by default.
     func testAPendingReviewWithStagedCommentsLeadsWithSubmit() {
         XCTAssertEqual(

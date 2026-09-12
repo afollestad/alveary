@@ -1,10 +1,8 @@
 import Foundation
 
 /// The review footer's trailing split button: write the review yourself, or hand either half of
-/// the pull request's life to an agent. Unlike `PullRequestStateAction` there is no availability
-/// policy — every option applies to every pull request, and `propose_pr_review` validates the
-/// verdict when the agent proposes one. Which one *leads* is `PullRequestReviewFooterAuthorship`'s
-/// to say.
+/// the pull request's life to an agent. Which one *leads* is
+/// `PullRequestReviewFooterAuthorship`'s to say.
 struct PullRequestReviewFooterAction: Equatable, Identifiable {
     enum Kind: String, CaseIterable {
         case submitReview
@@ -40,6 +38,13 @@ struct PullRequestReviewFooterAction: Equatable, Identifiable {
         all.first { $0.kind == kind } ?? all[0]
     }
 
+    static func title(for kind: Kind, reviewMode: PullRequestReviewMode) -> String {
+        if kind == .agenticReview, reviewMode == .reviewTeam {
+            return "Review with team"
+        }
+        return action(for: kind).title
+    }
+
     /// Which option the split button's face shows.
     ///
     /// A written review outranks the stored pick until the user picks otherwise: with comments
@@ -67,5 +72,20 @@ struct PullRequestReviewFooterAction: Equatable, Identifiable {
     /// depends on who wrote the pull request.
     static func kind(fromStored raw: String?, default fallback: Kind) -> Kind {
         raw.flatMap(Kind.init(rawValue:)) ?? fallback
+    }
+}
+
+extension PullRequestReviewTeamValidationStatus {
+    var footerMessage: String? {
+        switch self {
+        case .notRequired, .valid:
+            return nil
+        case .unvalidated:
+            return "Review team has not been validated."
+        case .validating:
+            return "Checking review team settings…"
+        case .invalid(let message):
+            return "Review team needs attention. \(message)"
+        }
     }
 }

@@ -46,6 +46,7 @@ enum ThreadDetailConversationDeletion {
         if modelContext.hasChanges {
             try modelContext.save()
         }
+        let conversationID = conversation.id
         modelContext.delete(conversation)
         do {
             try save(modelContext)
@@ -54,5 +55,7 @@ enum ThreadDetailConversationDeletion {
             throw error
         }
         invalidateController()
+        NotificationCenter.default.post(name: .reviewTeamConversationDidDelete, object: nil,
+                                        userInfo: ["conversationID": conversationID])
     }
 }

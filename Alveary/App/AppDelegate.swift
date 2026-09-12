@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var wakeRefreshTask: Task<Void, Never>?
     private var wakeObserver: NSObjectProtocol?
     private var managedProcessesObserver: NSObjectProtocol?
+    private var collectiveReviewObservers: [NSObjectProtocol] = []
     private var suddenTerminationDisabled = false
     private let notificationTapDelegate: NotificationTapDelegate
     private let draftThreadIDsPresentAtInitialization: Set<PersistentIdentifier>?
@@ -45,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let managedProcessesObserver {
             dependencies.notificationCenter.removeObserver(managedProcessesObserver)
         }
+        for observer in collectiveReviewObservers { dependencies.notificationCenter.removeObserver(observer) }
         if suddenTerminationDisabled {
             dependencies.enableSuddenTermination()
         }
@@ -91,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
+            dependencies.recoverCollectiveReviews()
             await dependencies.activateScheduledTasks()
         }
 
@@ -104,16 +107,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        managedProcessesObserver = dependencies.notificationCenter.addObserver(
-            forName: .managedProcessesChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.updateSuddenTerminationState()
-            }
-        }
-
+        observeManagedProcesses()
+        observeCollectiveReviewActivity()
         updateSuddenTerminationState()
     }
 
@@ -204,6 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for failure in controllerFlushFailures {
             print("[AppDelegate] Failed to flush conversation \(failure.key.conversationID): \(failure.message)")
         }
+        dependencies.prepareCollectiveReviewsForTermination()
         dependencies.agentsManager.beginShutdown()
         dependencies.notificationCenter.post(name: .appWillTerminate, object: nil)
 
@@ -241,6 +237,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private extension AppDelegate {
+    func observeManagedProcesses() {
+        managedProcessesObserver = dependencies.notificationCenter.addObserver(
+            forName: .managedProcessesChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateSuddenTerminationState() }
+        }
+    }
+
+    func observeCollectiveReviewActivity() {
+        for name in [Notification.Name.pullRequestReviewWorkerProcessesChanged, .pullRequestReviewRunsChanged] {
+            collectiveReviewObservers.append(dependencies.notificationCenter.addObserver(
+                forName: name, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateSuddenTerminationState() }
+            })
+        }
+    }
+
     static func draftThreadIDs(in modelContext: ModelContext) -> Set<PersistentIdentifier>? {
         let descriptor = FetchDescriptor<AgentThread>(predicate: #Predicate { thread in
             thread.isDraft == true
@@ -282,7 +296,8 @@ private extension AppDelegate {
 
     func updateSuddenTerminationState() {
         let hasLiveProcesses = !dependencies.agentsManager.allProcessesSnapshot.isEmpty ||
-            dependencies.agentsManager.allStatuses.values.contains { $0 == .busy || $0 == .waitingForUser }
+            dependencies.agentsManager.allStatuses.values.contains { $0 == .busy || $0 == .waitingForUser } ||
+            dependencies.hasCollectiveReviewWork()
         switch (hasLiveProcesses, suddenTerminationDisabled) {
         case (true, false):
             dependencies.disableSuddenTermination()
@@ -416,6 +431,8 @@ private extension AppDelegate {
     }
 
     func removeObservers() {
+        for observer in collectiveReviewObservers { dependencies.notificationCenter.removeObserver(observer) }
+        collectiveReviewObservers = []
         if let wakeObserver {
             dependencies.workspaceNotificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil

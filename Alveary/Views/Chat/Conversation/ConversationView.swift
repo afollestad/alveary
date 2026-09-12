@@ -23,6 +23,7 @@ struct ConversationView: View {
     let availableProjects: [Project]
     let onSelectDraftProject: (String) -> Void
     @Bindable var appState: AppState
+    @Environment(PullRequestReviewTeamCoordinator.self) var reviewTeamCoordinator: PullRequestReviewTeamCoordinator?
 
     @State var controllerLease: ConversationControllerLease
     @State var composerProviderStatuses: [AgentCLIKit.AgentProviderID: AgentCLIKit.AgentProviderStatus]
@@ -119,6 +120,7 @@ struct ConversationView: View {
     var body: some View {
         let settings = settingsService.current
         let transcriptTypography = TranscriptTypography(settings: settings)
+        let reviewRun = reviewTeamCoordinator?.runs[viewModel.conversationID]
 
         ChatView(
             viewModel: viewModel,
@@ -128,6 +130,11 @@ struct ConversationView: View {
             defaultEnterBehavior: settings.defaultEnterBehavior,
             providerID: activeProviderID,
             runtimeStatus: runtimeStatus,
+            isReviewTeamWorking: reviewRun?.phase.isWorking == true,
+            onCancelReviewTeam: {
+                guard let reviewRun else { return }
+                reviewTeamCoordinator?.cancel(conversationID: reviewRun.conversationID, runID: reviewRun.id, generation: reviewRun.generation)
+            },
             contextWindowCache: contextWindowCache,
             workingDirectory: activeWorkingDirectory,
             projectTrustPrompt: projectTrustPrompt,

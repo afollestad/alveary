@@ -12,6 +12,8 @@ struct ChatView: View {
     let defaultEnterBehavior: ThreadEnterDefaultBehavior
     let providerID: String
     let runtimeStatus: ActivitySignal
+    let isReviewTeamWorking: Bool
+    let onCancelReviewTeam: () -> Void
     let contextWindowCache: any ContextWindowCache
     let workingDirectory: String?
     let projectTrustPrompt: ProjectTrustPrompt?
@@ -71,7 +73,8 @@ struct ChatView: View {
             pendingToolApprovalStatusText: pendingToolApprovalStatusTextForComposer,
             isTurnActive: viewModel.turnState.isActive,
             runtimeStatus: runtimeStatus,
-            isSendingMessage: viewModel.state.isSendingMessage
+            isSendingMessage: viewModel.state.isSendingMessage,
+            isReviewTeamWorking: isReviewTeamWorking
         ))
     }
 
@@ -118,6 +121,8 @@ struct ChatView: View {
         defaultEnterBehavior: ThreadEnterDefaultBehavior,
         providerID: String,
         runtimeStatus: ActivitySignal,
+        isReviewTeamWorking: Bool = false,
+        onCancelReviewTeam: @escaping () -> Void = {},
         contextWindowCache: any ContextWindowCache,
         workingDirectory: String?,
         projectTrustPrompt: ProjectTrustPrompt?,
@@ -142,6 +147,8 @@ struct ChatView: View {
         self.defaultEnterBehavior = defaultEnterBehavior
         self.providerID = providerID
         self.runtimeStatus = runtimeStatus
+        self.isReviewTeamWorking = isReviewTeamWorking
+        self.onCancelReviewTeam = onCancelReviewTeam
         self.contextWindowCache = contextWindowCache
         self.workingDirectory = workingDirectory
         self.projectTrustPrompt = projectTrustPrompt
@@ -321,7 +328,8 @@ extension ChatView {
                 workingDirectory: workingDirectory,
                 lastScrollTime: $lastScrollTime,
                 isFollowing: $isFollowing,
-                scrollToBottomRequest: $scrollToBottomRequest
+                scrollToBottomRequest: $scrollToBottomRequest,
+                isReviewTeamWorking: isReviewTeamWorking
             )
             .environment(\.transcriptTypography, transcriptTypography)
             .transition(.opacity)
@@ -395,10 +403,7 @@ extension ChatView {
             onSubmit: sendDraft,
             onSteer: steerDraft,
             onAlternateSteer: alternateSteerDraft,
-            onStop: {
-                isStopConfirmationArmed = false
-                Task { await viewModel.cancel() }
-            },
+            onStop: stopActiveWork,
             onStopConfirmationChange: { isArmed in
                 isStopConfirmationArmed = isArmed
             },

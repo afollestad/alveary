@@ -13,10 +13,47 @@ struct PullRequestReviewProposalPresentation: Identifiable, Equatable {
     let comments: [PullRequestReviewProposalRecord.Comment]
     /// The user's own already-pending draft comments on GitHub, distinct from `comments`.
     let pendingCommentCount: Int
+    /// Frozen reviewer labels for collective evidence; empty for host-tool proposals.
+    let reviewers: [PullRequestReviewProposalRecord.Reviewer]
+    /// Local completion context, never part of the review submitted to GitHub.
+    let collectiveCompletionWarning: String?
     let createdAt: Date
+
+    init(
+        id: String,
+        sourceConversationID: String,
+        identifier: PullRequestIdentifier,
+        title: String,
+        proposedEvent: PullRequestReviewEvent,
+        body: String?,
+        comments: [PullRequestReviewProposalRecord.Comment],
+        pendingCommentCount: Int,
+        reviewers: [PullRequestReviewProposalRecord.Reviewer] = [],
+        collectiveCompletionWarning: String? = nil,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.sourceConversationID = sourceConversationID
+        self.identifier = identifier
+        self.title = title
+        self.proposedEvent = proposedEvent
+        self.body = body
+        self.comments = comments
+        self.pendingCommentCount = pendingCommentCount
+        self.reviewers = reviewers
+        self.collectiveCompletionWarning = collectiveCompletionWarning
+        self.createdAt = createdAt
+    }
 
     var displayKey: String {
         identifier.displayKey
+    }
+
+    /// Sidecar metadata stays out of the GitHub comment models used by Overview and submission.
+    var voteEvidenceByProposedIndex: [Int: PullRequestReviewVotePresentation] {
+        Dictionary(uniqueKeysWithValues: comments.enumerated().compactMap { index, comment in
+            comment.evidence.map { (index, PullRequestReviewVotePresentation(evidence: $0, reviewers: reviewers)) }
+        })
     }
 }
 

@@ -407,13 +407,13 @@ private extension SnapshotTests {
     @MainActor
     func settingsPromptEditorSheet(prompt: String) -> some View {
         SettingsPromptEditorSheet(
-            title: "Agentic review instructions",
+            title: "Review criteria",
             draft: AppMarkdownDraft(
                 markdown: prompt,
                 referenceMarkdown: AppSettings.defaultPullRequestReviewPrompt
             ),
             defaultPrompt: AppSettings.defaultPullRequestReviewPrompt,
-            placeholder: "Write the instructions the agent follows when reviewing a pull request.",
+            placeholder: "Write the criteria reviewers use when reviewing a pull request.",
             onCancel: {},
             onSave: {}
         )

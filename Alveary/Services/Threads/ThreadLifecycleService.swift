@@ -355,6 +355,8 @@ final class ThreadLifecycleService {
 
     func beginConversationTeardowns(_ conversationIDs: [String]) async {
         for conversationId in uniqueConversationIDs(conversationIDs) {
+            NotificationCenter.default.post(name: .reviewTeamConversationWillClose, object: nil,
+                                            userInfo: ["conversationID": conversationId])
             await agentsManager.kill(conversationId: conversationId)
         }
     }

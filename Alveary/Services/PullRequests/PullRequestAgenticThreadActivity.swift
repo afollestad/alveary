@@ -56,6 +56,7 @@ final class PullRequestAgenticThreadActivity {
         var phase = Phase.pending
         var conversationID: String?
         var graceTask: Task<Void, Never>?
+        var isCollective = false
     }
 
     private static let workingSignals: Set<ActivitySignal> = [.busy, .waitingForUser]
@@ -133,7 +134,7 @@ final class PullRequestAgenticThreadActivity {
     /// Starts the bounded wait for the turn to appear. A no-op once the entry is already running.
     func armStartupGrace(_ identifier: PullRequestIdentifier, kind: PullRequestAgenticThreadService.Kind) {
         let key = Key(identifier: identifier, kind: kind)
-        guard let entry = entries[key], entry.phase == .pending else {
+        guard let entry = entries[key], entry.phase == .pending, !entry.isCollective else {
             return
         }
         guard !promoteIfWorking(key) else {
@@ -152,6 +153,18 @@ final class PullRequestAgenticThreadActivity {
     /// Ends the route: a spawn that threw, or a dispatch that never reached the prompt.
     func end(_ identifier: PullRequestIdentifier, kind: PullRequestAgenticThreadService.Kind) {
         remove(Key(identifier: identifier, kind: kind))
+    }
+
+    /// Collective work ends at the app-owned staging boundary, never at an unrelated provider turn.
+    func setCollectiveWorking(_ working: Bool, identifier: PullRequestIdentifier, conversationID: String) {
+        let key = Key(identifier: identifier, kind: .review)
+        guard working else {
+            if entries[key]?.conversationID == conversationID { remove(key) }
+            return
+        }
+        entries[key]?.graceTask?.cancel()
+        entries[key] = Entry(phase: .running, conversationID: conversationID, isCollective: true)
+        announce()
     }
 
     // MARK: - Runtime signals
@@ -184,6 +197,7 @@ final class PullRequestAgenticThreadActivity {
         guard let key = entries.first(where: { $0.value.conversationID == conversationID })?.key else {
             return
         }
+        guard entries[key]?.isCollective != true else { return }
         if Self.workingSignals.contains(signal) {
             promote(key)
         } else if entries[key]?.phase == .running {

@@ -203,6 +203,10 @@ final class SidebarViewModel {
         // Pending scheduled cleanup deliberately retains the Task row as its retry owner.
         // Every other path commits before teardown suspends so a draft cannot be reused or materialized.
         try commitThreadDeletion(snapshot)
+        for conversationID in snapshot.conversationIDs {
+            NotificationCenter.default.post(name: .reviewTeamConversationDidDelete, object: nil,
+                                            userInfo: ["conversationID": conversationID])
+        }
         onPersistenceCommit()
         invalidateConversationControllers(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
@@ -226,6 +230,10 @@ final class SidebarViewModel {
         let projectDirectoryExists = directoryExists(at: snapshot.projectPath)
         // Child drafts must disappear atomically before teardown yields to other UI work.
         try commitProjectDeletion(snapshot)
+        for conversationID in snapshot.conversationIDs {
+            NotificationCenter.default.post(name: .reviewTeamConversationDidDelete, object: nil,
+                                            userInfo: ["conversationID": conversationID])
+        }
         invalidateConversationControllers(snapshot.conversationIDs)
         notificationManager.forgetConversations(withIDs: snapshot.conversationIDs)
 

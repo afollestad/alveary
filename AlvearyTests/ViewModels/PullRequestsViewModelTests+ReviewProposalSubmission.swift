@@ -32,6 +32,33 @@ extension PullRequestsViewModelTests {
         XCTAssertFalse(try XCTUnwrap(fixture.session?.pendingReview.isSubmitting))
     }
 
+    func testCollectiveEvidenceDoesNotTravelInTheGitHubCommentBody() async throws {
+        let evidence = PullRequestReviewProposalRecord.CommentEvidence(
+            findingID: "finding-1",
+            sourceCandidateIDs: ["reviewer-1:candidate-1"],
+            priority: 1,
+            votes: [
+                ReviewTeamVote(
+                    voterID: "reviewer-1",
+                    findingID: "finding-1",
+                    decision: .agree,
+                    priority: 1,
+                    rationale: "The failure is reachable."
+                )
+            ]
+        )
+        let fixture = try ReviewProposalAttachmentFixture(commentEvidence: evidence)
+        await fixture.openPane()
+
+        let didSubmit = await fixture.viewModel.submitReview(event: .comment)
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Staged remark"])
+        XCTAssertFalse(fixture.service.addedPendingComments.map(\.body).contains { body in
+            body.contains("finding-1") || body.contains("The failure is reachable.")
+        })
+    }
+
     /// The footer's picker used to start at Comment and never read the proposal, so an untouched
     /// pane published a COMMENT review over whatever the model proposed and the card displayed.
     func testAnUntouchedPaneSubmitsTheProposedVerdictRatherThanComment() async throws {

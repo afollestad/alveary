@@ -58,6 +58,17 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
         XCTAssertFalse(activity.isWorking(identifier, kind: .review))
     }
 
+    func testCollectiveWorkIgnoresProviderTurnCompletion() {
+        let (activity, center) = makeActivity()
+        activity.setCollectiveWorking(true, identifier: identifier, conversationID: "team")
+        for signal in [ActivitySignal.idle, .neutral, .stopped, .error] {
+            post(signal, conversationID: "team", on: center)
+            XCTAssertTrue(activity.isWorking(identifier, kind: .review))
+        }
+        activity.setCollectiveWorking(false, identifier: identifier, conversationID: "team")
+        XCTAssertFalse(activity.isWorking(identifier, kind: .review))
+    }
+
     /// An approval pause is the run needing the user, not the run being over.
     func testAWaitingForUserPauseKeepsTheRouteWorking() {
         let (activity, center) = makeActivity()

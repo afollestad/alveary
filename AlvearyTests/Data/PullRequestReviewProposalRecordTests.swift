@@ -45,8 +45,65 @@ final class PullRequestReviewProposalRecordTests: XCTestCase {
         XCTAssertEqual(record.payloadVersion, 2)
         let comment = try XCTUnwrap(record.stagedComments.first)
         XCTAssertEqual(comment.line, 4)
+        XCTAssertNil(comment.id)
+        XCTAssertNil(comment.evidence)
         XCTAssertNil(comment.anchorContent)
         XCTAssertNil(comment.anchorContext)
+    }
+
+    func testAVersionThreeEnvelopeDecodesWithAnchorFingerprintsAndNoCollectiveEvidence() throws {
+        let conversation = try makeConversation()
+        conversation.pullRequestReviewProposalJSON = """
+        {"body":"Please fix this.","comments":[{"anchorContent":"+guard value != nil else { return }",\
+        "anchorContext":["+let value = load()"],"body":"Guard this.","line":4,\
+        "path":"Sources/Alpha.swift","side":"RIGHT"}],\
+        "createdAt":"2024-01-01T00:00:00Z","deduplicationKey":"d1",\
+        "event":"request_changes","id":"p1","number":7,"payloadVersion":3,\
+        "pendingCommentCountSnapshot":1,"repositoryNameWithOwner":"octo/alpha",\
+        "sourceProcessToken":"t","sourceRequestID":"r","titleSnapshot":"Title"}
+        """
+
+        let record = try XCTUnwrap(conversation.pullRequestReviewProposal())
+        let comment = try XCTUnwrap(record.stagedComments.first)
+
+        XCTAssertEqual(record.payloadVersion, 3)
+        XCTAssertEqual(comment.anchorContent, "+guard value != nil else { return }")
+        XCTAssertEqual(comment.anchorContext, ["+let value = load()"])
+        XCTAssertNil(comment.id)
+        XCTAssertNil(comment.evidence)
+        XCTAssertNil(record.sourceKind)
+        XCTAssertNil(record.reviewers)
+    }
+
+    func testAVersionFourEnvelopeRoundTripsCollectiveEvidenceAndProvenance() throws {
+        let conversation = try makeConversation()
+        let reviewers = [
+            PullRequestReviewProposalRecord.Reviewer(id: "r1", providerID: "codex", modelOptionID: "gpt-5"),
+            PullRequestReviewProposalRecord.Reviewer(id: "r2", providerID: "claude", modelOptionID: "sonnet")
+        ]
+        let evidence = PullRequestReviewProposalRecord.CommentEvidence(
+            findingID: "f1",
+            sourceCandidateIDs: ["r1:c1"],
+            priority: 1,
+            votes: [
+                ReviewTeamVote(
+                    voterID: "r1",
+                    findingID: "f1",
+                    decision: .agree,
+                    priority: 1,
+                    rationale: "The failure is reachable."
+                )
+            ],
+            reviewers: reviewers
+        )
+        let record = makeCollectiveRecord(reviewers: reviewers, evidence: evidence)
+
+        try conversation.storePullRequestReviewProposal(record)
+        let decoded = try XCTUnwrap(conversation.pullRequestReviewProposal())
+
+        XCTAssertEqual(decoded, record)
+        XCTAssertEqual(decoded.stagedComments.first?.evidence, evidence)
+        XCTAssertEqual(decoded.sourceKind, .collectiveReview)
     }
 
     func testANewerEnvelopeVersionIsRefusedRatherThanPartiallyRead() throws {
@@ -158,6 +215,45 @@ private extension PullRequestReviewProposalRecordTests {
             sourceProviderID: "codex",
             sourceProcessToken: "t",
             sourceRequestID: "r",
+            createdAt: Date(timeIntervalSince1970: 1_000)
+        )
+    }
+
+    func makeCollectiveRecord(
+        reviewers: [PullRequestReviewProposalRecord.Reviewer],
+        evidence: PullRequestReviewProposalRecord.CommentEvidence
+    ) -> PullRequestReviewProposalRecord {
+        PullRequestReviewProposalRecord(
+            payloadVersion: 4,
+            id: "collective-proposal",
+            deduplicationKey: "collective-review:run-1",
+            repositoryNameWithOwner: "octo/alpha",
+            number: 7,
+            event: "request_changes",
+            body: "Please address this.",
+            comments: [
+                PullRequestReviewProposalRecord.Comment(
+                    id: "collective:run-1:f1",
+                    path: "A.swift",
+                    line: 3,
+                    side: "RIGHT",
+                    body: "**[P1]** Guard this.",
+                    evidence: evidence,
+                    anchorContent: "+guard value != nil else { return }",
+                    anchorContext: ["+let value = load()"]
+                )
+            ],
+            titleSnapshot: "Title",
+            pendingCommentCountSnapshot: 0,
+            sourceProviderID: nil,
+            sourceProcessToken: nil,
+            sourceRequestID: nil,
+            sourceKind: .collectiveReview,
+            sourceRunID: "run-1",
+            sourceResultHash: "result-hash",
+            reviewedBaseOID: "base",
+            reviewedHeadOID: "head",
+            reviewers: reviewers,
             createdAt: Date(timeIntervalSince1970: 1_000)
         )
     }

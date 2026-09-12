@@ -82,6 +82,8 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 )
             }
 
+            reviewTeamConfigurationBanner
+
             if isExpanded {
                 summaryComposer
             }
@@ -336,17 +338,19 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     /// selects only — the row's one accent voice stays `.primary` either way.
     private func reviewActionButton(expandsHorizontally: Bool) -> some View {
         let action = PullRequestReviewFooterAction.action(for: effectiveReviewKind)
+        let title = reviewActionTitle(for: action.kind)
         return SplitActionButton(
-            title: action.title,
+            title: title,
             icon: action.icon,
             emphasis: .primary,
             expandsHorizontally: expandsHorizontally,
             // Held for the whole run, not just the spawn: the thread this button started is the
             // one working, and re-running the same route on top of it is what the dimming refuses.
             isBusy: isWorking(action.kind),
+            isPrimaryActionEnabled: isReviewActionEnabled(action.kind),
             selectedOption: action.kind,
             options: PullRequestReviewFooterAction.all.map(\.kind),
-            optionTitle: { PullRequestReviewFooterAction.action(for: $0).title },
+            optionTitle: { reviewActionTitle(for: $0) },
             action: { runReviewAction(action.kind) },
             selectOption: { kind in
                 selectedReviewKind = kind
@@ -354,7 +358,41 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 viewModel.selectReviewFooterAction(kind, for: authorship)
             }
         )
-        .help(isWorking(action.kind) ? "\(action.title) is running" : action.title)
+        .help(isWorking(action.kind) ? "\(title) is running" : reviewActionHelp(for: action.kind))
+    }
+
+    private func reviewActionTitle(for kind: PullRequestReviewFooterAction.Kind) -> String {
+        PullRequestReviewFooterAction.title(for: kind, reviewMode: session.pullRequestReviewMode)
+    }
+
+    private func isReviewActionEnabled(_ kind: PullRequestReviewFooterAction.Kind) -> Bool {
+        guard kind == .agenticReview, session.pullRequestReviewMode == .reviewTeam else {
+            return true
+        }
+        return session.pullRequestReviewTeamValidationStatus == .valid
+    }
+
+    private func reviewActionHelp(for kind: PullRequestReviewFooterAction.Kind) -> String {
+        guard kind == .agenticReview,
+              session.pullRequestReviewMode == .reviewTeam,
+              let message = reviewTeamConfigurationMessage else {
+            return reviewActionTitle(for: kind)
+        }
+        return message
+    }
+
+    private var reviewTeamConfigurationBanner: some View {
+        PullRequestReviewTeamConfigurationBanner(
+            isPresented: !isExpanded
+                && effectiveReviewKind == .agenticReview
+                && session.pullRequestReviewMode == .reviewTeam,
+            status: session.pullRequestReviewTeamValidationStatus,
+            onOpenSettings: viewModel.openPullRequestReviewSettings
+        )
+    }
+
+    private var reviewTeamConfigurationMessage: String? {
+        session.pullRequestReviewTeamValidationStatus.footerMessage
     }
 
     /// Only the two agentic options can be running; Submit review opens a composer and returns.
@@ -414,6 +452,38 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             return .octicon(.alert16)
         case .comment:
             return .octicon(.codeReview16)
+        }
+    }
+}
+
+private struct PullRequestReviewTeamConfigurationBanner: View {
+    let isPresented: Bool
+    let status: PullRequestReviewTeamValidationStatus
+    let onOpenSettings: () -> Void
+
+    @ViewBuilder
+    var body: some View {
+        if isPresented {
+            switch status {
+            case .notRequired, .valid:
+                EmptyView()
+            case .validating:
+                InlineBanner(
+                    message: status.footerMessage ?? "",
+                    severity: .info,
+                    autoDismissAfter: nil,
+                    onDismiss: nil
+                )
+            case .unvalidated, .invalid:
+                InlineBanner(
+                    message: status.footerMessage ?? "",
+                    severity: .warning,
+                    autoDismissAfter: nil,
+                    actionTitle: "Open settings",
+                    onAction: onOpenSettings,
+                    onDismiss: nil
+                )
+            }
         }
     }
 }

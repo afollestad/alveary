@@ -20,6 +20,7 @@ struct ChatTranscriptView: View {
     let appState: AppState
     let events: [ConversationEventRecord]
     let workingDirectory: String?
+    let isReviewTeamWorking: Bool
 
     @Binding var lastScrollTime: Date
     @Binding var isFollowing: Bool
@@ -33,6 +34,7 @@ struct ChatTranscriptView: View {
     /// Review submissions are confirmed inside transcript widgets too; optional for the same
     /// reason, so a snapshot host can render without the pull request stack.
     @Environment(PullRequestReviewProposalCoordinator.self) var pullRequestReviewProposalCoordinator: PullRequestReviewProposalCoordinator?
+    @Environment(PullRequestReviewTeamCoordinator.self) var pullRequestReviewTeamCoordinator: PullRequestReviewTeamCoordinator?
     @State private var pendingProgrammaticScrollMode: PendingProgrammaticScrollMode?
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State var latestMetrics: ChatTranscriptScrollMetrics?
@@ -53,12 +55,14 @@ struct ChatTranscriptView: View {
         workingDirectory: String?,
         lastScrollTime: Binding<Date>,
         isFollowing: Binding<Bool>,
-        scrollToBottomRequest: Binding<Int>
+        scrollToBottomRequest: Binding<Int>,
+        isReviewTeamWorking: Bool = false
     ) {
         self.viewModel = viewModel
         self.appState = appState
         self.events = events
         self.workingDirectory = workingDirectory
+        self.isReviewTeamWorking = isReviewTeamWorking
         _lastScrollTime = lastScrollTime
         _isFollowing = isFollowing
         _scrollToBottomRequest = scrollToBottomRequest
@@ -151,6 +155,14 @@ struct ChatTranscriptView: View {
                     return
                 }
                 viewModel.rebuildChatItemsFromConversationRecords(fallbackEvents: events)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .pullRequestReviewRunsChanged)) { _ in
+                // A run updates one durable event in place, so its unchanged row count needs a
+                // full regroup to replace the progress card's decoded snapshot.
+                viewModel.rebuildChatItemsFromConversationRecords(
+                    fallbackEvents: events,
+                    forceFullRebuild: true
+                )
             }
             .onReceive(
                 NotificationCenter.default.publisher(for: .reviewProposalCardStateChanged)

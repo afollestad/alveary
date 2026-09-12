@@ -172,6 +172,10 @@ struct DiffCommentThreadRow: View {
                     taskStateScope: markdownStateScope(for: comment)
                 )
 
+                if let evidence = comment.voteEvidence {
+                    PullRequestReviewVoteEvidenceView(presentation: evidence)
+                }
+
                 if !comment.isPending, comment.nodeID != nil, let interaction {
                     CommentReactionBar(
                         reactions: comment.reactions,

@@ -73,6 +73,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     private let reviewProposalBody = AppKitReviewProposalWidgetView()
     private let pullRequestListBody = AppKitPullRequestListWidgetView()
     private let reviewInstructionsBody = AppKitReviewInstructionsWidgetView()
+    private let reviewTeamRunBody = AppKitReviewTeamRunWidgetView()
 
     private var configuration: Configuration?
     private var lastMeasuredHeight: CGFloat = -1
@@ -194,6 +195,12 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             self?.onOpenMarkdownLink?(url)
         }
         contentStack.addFullWidthArrangedSubview(reviewInstructionsBody)
+
+        reviewTeamRunBody.translatesAutoresizingMaskIntoConstraints = false
+        reviewTeamRunBody.onHeightInvalidated = { [weak self] in
+            self?.measureAndPublishHeight(force: true)
+        }
+        contentStack.addFullWidthArrangedSubview(reviewTeamRunBody)
     }
 
     /// Its own function so `setupProposalBodies` stays inside the shared function-length limit; the
@@ -389,6 +396,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         reviewProposalBody.isHidden = true
         pullRequestListBody.isHidden = true
         reviewInstructionsBody.isHidden = true
+        reviewTeamRunBody.isHidden = true
         switch configuration.entry.content {
         case .pullRequestLink, .threadAction:
             // The header and detail lines say everything these cards have to say.
@@ -424,6 +432,10 @@ private extension AppKitTranscriptHostToolWidgetRowView {
                 )
             )
             proposalBody.isHidden = !proposalBody.hasContent
+        case .collectiveReviewRun(let run):
+            proposalBody.isHidden = true
+            reviewTeamRunBody.configure(.init(run: run, typography: configuration.typography))
+            reviewTeamRunBody.isHidden = !reviewTeamRunBody.hasContent
         }
     }
 
@@ -456,7 +468,8 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         let reviewWidth = reviewProposalBody.isHidden ? 0 : reviewProposalBody.naturalWidth
         let listWidth = pullRequestListBody.isHidden ? 0 : pullRequestListBody.naturalWidth
         let instructionsWidth = reviewInstructionsBody.isHidden ? 0 : reviewInstructionsBody.naturalWidth
-        return ceil(max(headerWidth, detailWidth, bodyWidth, reviewWidth, listWidth, instructionsWidth))
+        let reviewTeamWidth = reviewTeamRunBody.isHidden ? 0 : reviewTeamRunBody.naturalWidth
+        return ceil(max(headerWidth, detailWidth, bodyWidth, reviewWidth, listWidth, instructionsWidth, reviewTeamWidth))
             + (chatBlockPadding * 2)
     }
 

@@ -12,6 +12,7 @@ struct PullRequestReviewThreadView: View {
     let session: PullRequestPaneSession
     let viewModel: PullRequestsViewModel
     let onOpenFiles: () -> Void
+    var voteEvidenceByProposedIndex: [Int: PullRequestReviewVotePresentation] = [:]
 
     /// Resolved threads collapse their whole conversation — replies included — to
     /// the shared resolved header; this remembers an explicit expand. Resolution
@@ -175,6 +176,9 @@ struct PullRequestReviewThreadView: View {
                     // separates one comment's disclosure state from another's.
                     stateScope: comment.nodeID ?? ""
                 )
+                if let index = comment.proposedIndex, let evidence = voteEvidenceByProposedIndex[index] {
+                    PullRequestReviewVoteEvidenceView(presentation: evidence)
+                }
             }
         }
     }

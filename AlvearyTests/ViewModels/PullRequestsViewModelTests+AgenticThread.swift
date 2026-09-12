@@ -25,7 +25,7 @@ final class FlagBox: @unchecked Sendable {
 @MainActor
 extension PullRequestsViewModelTests {
     @MainActor
-    private struct OpenedReviewPane {
+    struct OpenedReviewPane {
         let viewModel: PullRequestsViewModel
         let id: PullRequestIdentifier
         /// The private bus both the tracker and the view model are on, so a test can stand in for
@@ -53,11 +53,13 @@ extension PullRequestsViewModelTests {
         }
     }
 
-    private func openedReviewPane(
+    func openedReviewPane(
         settingsService: (any SettingsService)? = nil,
         origin: PullRequestPaneOrigin = .screen,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         startupGrace: Duration = .seconds(30),
+        reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
+        openGitSettings: @escaping @MainActor () -> Void = {},
         starter: (
             @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
         )? = nil
@@ -79,6 +81,8 @@ extension PullRequestsViewModelTests {
             settingsService: settingsService,
             presentToast: presentToast,
             agenticThreadStarter: starter,
+            reviewTeamSettingsValidator: reviewTeamSettingsValidator,
+            openGitSettings: openGitSettings,
             agenticThreadActivity: activity,
             notificationCenter: notificationCenter
         )

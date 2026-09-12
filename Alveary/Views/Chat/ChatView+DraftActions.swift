@@ -1,6 +1,16 @@
 import Foundation
 
 extension ChatView {
+    /// Team workers are coordinator-owned and never have an ordinary provider turn to cancel.
+    func stopActiveWork() {
+        isStopConfirmationArmed = false
+        if isReviewTeamWorking {
+            onCancelReviewTeam()
+        } else {
+            Task { await viewModel.cancel() }
+        }
+    }
+
     func sendDraft() {
         guard canUseOutboundComposerActions else {
             return

@@ -3,8 +3,8 @@ import XCTest
 
 @testable import Alveary
 
-// Agentic pull-request settings: the two sets of editable instructions, the pinned agent
-// options they share, and the footer's two remembered split-button picks.
+// Agentic pull-request settings: review criteria, address-feedback instructions, their independent
+// agent options, the saved team, and the footer's two remembered split-button picks.
 extension AppSettingsTests {
     func testPullRequestReviewDefaultsWhenFieldsAreMissing() throws {
         let json = Data("{}".utf8)
@@ -12,6 +12,8 @@ extension AppSettingsTests {
 
         XCTAssertEqual(settings.pullRequestReviewPrompt, AppSettings.defaultPullRequestReviewPrompt)
         XCTAssertEqual(settings.pullRequestAddressFeedbackPrompt, AppSettings.defaultPullRequestAddressFeedbackPrompt)
+        XCTAssertEqual(settings.pullRequestReviewMode, .singleAgent)
+        XCTAssertEqual(settings.pullRequestReviewPeers, [])
         // Nil means "follow the Threads defaults" — not "no agent".
         XCTAssertNil(settings.pullRequestReviewProvider)
         XCTAssertNil(settings.pullRequestReviewModel)
@@ -32,6 +34,11 @@ extension AppSettingsTests {
         settings.pullRequestReviewModel = "gpt-5"
         settings.pullRequestReviewEffort = "high"
         settings.pullRequestReviewPermissionMode = "never"
+        settings.pullRequestReviewMode = .reviewTeam
+        settings.pullRequestReviewPeers = [
+            PullRequestReviewPeer(id: "peer-1", providerID: "claude", model: "opus", effort: "high"),
+            PullRequestReviewPeer(id: "peer-2", providerID: "codex", model: "gpt-5.5", effort: "xhigh")
+        ]
         settings.pullRequestOwnFooterActionKind = "submitReview"
         settings.pullRequestOthersFooterActionKind = "addressFeedback"
 
@@ -44,6 +51,8 @@ extension AppSettingsTests {
         XCTAssertEqual(decoded.pullRequestReviewModel, "gpt-5")
         XCTAssertEqual(decoded.pullRequestReviewEffort, "high")
         XCTAssertEqual(decoded.pullRequestReviewPermissionMode, "never")
+        XCTAssertEqual(decoded.pullRequestReviewMode, .reviewTeam)
+        XCTAssertEqual(decoded.pullRequestReviewPeers, settings.pullRequestReviewPeers)
         XCTAssertEqual(decoded.pullRequestOwnFooterActionKind, "submitReview")
         XCTAssertEqual(decoded.pullRequestOthersFooterActionKind, "addressFeedback")
     }
@@ -54,6 +63,101 @@ extension AppSettingsTests {
         let settings = try JSONDecoder().decode(AppSettings.self, from: json)
 
         XCTAssertNil(settings.pullRequestReviewPermissionMode)
+    }
+
+    func testLegacySharedAgentPinsMigrateToFeedbackOnce() throws {
+        let json = Data(#"""
+        {
+            "pullRequestReviewProvider": "codex",
+            "pullRequestReviewModel": "gpt-5.5",
+            "pullRequestReviewEffort": "high",
+            "pullRequestReviewPermissionMode": "never"
+        }
+        """#.utf8)
+        var settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.pullRequestAddressFeedbackAgent, settings.pullRequestReviewAgent)
+
+        settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings()
+        let restored = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+
+        XCTAssertEqual(restored.pullRequestAddressFeedbackAgent, PullRequestAgentSettings())
+        XCTAssertEqual(restored.pullRequestReviewAgent, settings.pullRequestReviewAgent)
+    }
+
+    func testExplicitFeedbackPinsAndNullOutrankLegacyPinsDuringMigration() throws {
+        let json = Data(#"""
+        {
+            "pullRequestReviewProvider": "codex",
+            "pullRequestReviewModel": "gpt-5.5",
+            "pullRequestReviewEffort": "high",
+            "pullRequestReviewPermissionMode": "never",
+            "pullRequestAddressFeedbackProvider": null,
+            "pullRequestAddressFeedbackModel": "sonnet",
+            "pullRequestAddressFeedbackEffort": true,
+            "pullRequestAddressFeedbackPermissionMode": "acceptEdits"
+        }
+        """#.utf8)
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(
+            settings.pullRequestAddressFeedbackAgent,
+            PullRequestAgentSettings(model: "sonnet", permissionMode: "acceptEdits")
+        )
+    }
+
+    func testFeedbackAndReviewAgentPinsRoundTripIndependently() throws {
+        var settings = AppSettings()
+        settings.pullRequestReviewAgent = PullRequestAgentSettings(provider: "codex", model: "gpt-5.5", effort: "high")
+        settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(
+            provider: "claude", model: "sonnet", effort: "medium", permissionMode: "acceptEdits"
+        )
+
+        let restored = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+
+        XCTAssertEqual(restored.pullRequestReviewAgent, settings.pullRequestReviewAgent)
+        XCTAssertEqual(restored.pullRequestAddressFeedbackAgent, settings.pullRequestAddressFeedbackAgent)
+    }
+
+    func testFeedbackNormalizationTrimsPinsAndDropsUnsupportedValues() {
+        var settings = AppSettings()
+        settings.pullRequestAddressFeedbackAgent = PullRequestAgentSettings(
+            provider: "unknown", model: " sonnet ", effort: " ", permissionMode: "plan"
+        )
+
+        XCTAssertEqual(settings.normalized().pullRequestAddressFeedbackAgent, PullRequestAgentSettings(model: "sonnet"))
+    }
+
+    func testAnUnknownReviewModeAndMalformedPeersDecodeAsDefaults() throws {
+        let json = Data(#"{"pullRequestReviewMode":"unknown","pullRequestReviewPeers":true}"#.utf8)
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.pullRequestReviewMode, .singleAgent)
+        XCTAssertEqual(settings.pullRequestReviewPeers, [])
+    }
+
+    func testCustomLegacyReviewTextIsPreservedAsCriteria() throws {
+        let json = Data(#"{"pullRequestReviewPrompt":"Use my exact custom criteria."}"#.utf8)
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: json)
+
+        XCTAssertEqual(settings.pullRequestReviewPrompt, "Use my exact custom criteria.")
+    }
+
+    func testTheShippedLegacyReviewWorkflowMigratesToCriteriaOnly() throws {
+        var legacySettings = AppSettings()
+        legacySettings.pullRequestReviewPrompt = PullRequestReviewPromptDefaults.legacyDefaultPrompt
+
+        let settings = try JSONDecoder().decode(
+            AppSettings.self,
+            from: JSONEncoder().encode(legacySettings)
+        )
+
+        XCTAssertEqual(settings.pullRequestReviewPrompt, AppSettings.defaultPullRequestReviewPrompt)
+        XCTAssertNotEqual(settings.pullRequestReviewPrompt, PullRequestReviewPromptDefaults.legacyDefaultPrompt)
+        XCTAssertFalse(settings.pullRequestReviewPrompt.contains("get_pr_diff"))
     }
 
     // MARK: - The single footer pick that preceded the split

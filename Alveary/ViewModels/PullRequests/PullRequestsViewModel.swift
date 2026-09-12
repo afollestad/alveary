@@ -31,17 +31,13 @@ final class PullRequestsViewModel {
     /// App-level toast presentation, for failures a pane banner cannot carry because the pane may
     /// already be closed when one lands: attachment uploads and an agentic thread's deferred dispatch.
     let presentToast: @MainActor @Sendable (String) -> Void
-    /// Fills the shared provider-discovery cache when a pull request opens, so the footer's
-    /// agentic routes do not pay its subprocess fan-out on the click. Opening is the trigger
-    /// because the cache's TTL is a minute: launch warms it once, and every later click — read a
-    /// pull request, then act on it — would otherwise find it cold. Fire-and-forget.
+    /// Warms provider discovery on pane opens, before a footer click; the cache expires after a minute.
     let warmAgentProviderDiscovery: @MainActor () -> Void
-    /// Spawns the footer's agentic thread — review or address-feedback — and answers as soon as
-    /// it exists. A closure rather than the service so tests and previews stay light; nil means
-    /// the footer's agentic options do nothing.
-    let agenticThreadStarter: (
-        @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
-    )?
+    /// Spawns a review or address-feedback task. The closure keeps tests and previews light;
+    /// nil makes the footer's agentic options no-ops.
+    let agenticThreadStarter: (@MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart)?
+    let reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator?
+    let openGitSettings: @MainActor () -> Void
     /// Which agentic footer routes are running, app-scoped so a run survives the pane unmounting.
     /// Mirrored onto each pane session rather than read from a `body` — see `workingAgenticKinds`.
     let agenticThreadActivity: PullRequestAgenticThreadActivity
@@ -64,6 +60,12 @@ final class PullRequestsViewModel {
     @ObservationIgnored let searchDebounce: Duration
     @ObservationIgnored var remoteChangeObserver: (any NSObjectProtocol)?
     @ObservationIgnored var agenticThreadActivityObserver: (any NSObjectProtocol)?
+    @ObservationIgnored var pullRequestReviewSettingsObserver: (any NSObjectProtocol)?
+    @ObservationIgnored var reviewTeamValidationTask: Task<Void, Never>?
+    @ObservationIgnored var reviewTeamValidationToken = UUID()
+    @ObservationIgnored var reviewTeamSettingsSignature = PullRequestReviewTeamSettingsSignature(settings: AppSettings())
+    @ObservationIgnored var mirroredPullRequestReviewMode = PullRequestReviewMode.singleAgent
+    @ObservationIgnored var mirroredReviewTeamValidationStatus = PullRequestReviewTeamValidationStatus.notRequired
     /// Debounced detail refetches, keyed by the target whose session they refresh.
     @ObservationIgnored var remoteRefreshTasks: [PullRequestPaneTarget: Task<Void, Never>] = [:]
     @ObservationIgnored var remoteListRefreshTask: Task<Void, Never>?
@@ -201,9 +203,9 @@ final class PullRequestsViewModel {
         attachmentImageRepositoryRegistrar: (@MainActor (String) -> Void)? = nil,
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         warmAgentProviderDiscovery: @escaping @MainActor () -> Void = {},
-        agenticThreadStarter: (
-            @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
-        )? = nil,
+        agenticThreadStarter: (@MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart)? = nil,
+        reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
+        openGitSettings: @escaping @MainActor () -> Void = {},
         agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
         imageBlobFetcher: (any DiffImageBlobFetching)? = nil,
@@ -230,6 +232,8 @@ final class PullRequestsViewModel {
         self.presentToast = presentToast
         self.warmAgentProviderDiscovery = warmAgentProviderDiscovery
         self.agenticThreadStarter = agenticThreadStarter
+        self.reviewTeamSettingsValidator = reviewTeamSettingsValidator
+        self.openGitSettings = openGitSettings
         // Defaulted rather than optional: every read is a plain membership question, and an
         // absent tracker would make the footer's busy state silently untrackable in previews.
         self.agenticThreadActivity = agenticThreadActivity
@@ -245,13 +249,17 @@ final class PullRequestsViewModel {
         }
         observeRemoteChanges()
         observeAgenticThreadActivity()
+        observePullRequestReviewSettings()
+        refreshPullRequestReviewConfiguration(force: true)
     }
 
     deinit {
         MainActor.assumeIsolated {
             searchCommitTask?.cancel()
+            reviewTeamValidationTask?.cancel()
             endRemoteChangeObservation()
             endAgenticThreadActivityObservation()
+            endPullRequestReviewSettingsObservation()
         }
     }
 
@@ -357,6 +365,7 @@ extension PullRequestsViewModel {
         // Reading a pull request is the lead time the footer's agentic routes need: the probe runs
         // while the user reads, so the click finds provider discovery already answered.
         warmAgentProviderDiscovery()
+        refreshPullRequestReviewConfiguration(force: true)
         if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
             deactivatedPaneDismissals.remove(request)
             dismissPane(target, generation: request.generation, restoreFocus: false)
@@ -369,6 +378,8 @@ extension PullRequestsViewModel {
             // A run started before this session existed — the pane was dismissed and reopened
             // mid-run — has no transition left to announce, so seed from the tracker directly.
             session.workingAgenticKinds = agenticThreadActivity.workingKinds(for: target.identifier)
+            session.pullRequestReviewMode = mirroredPullRequestReviewMode
+            session.pullRequestReviewTeamValidationStatus = mirroredReviewTeamValidationStatus
             paneSessions[target] = session
             loadPaneContent(target: target, generation: session.generation)
         } else {

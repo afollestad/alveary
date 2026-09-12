@@ -94,7 +94,8 @@ struct PullRequestPaneFiles: View, Equatable {
                 allowsRemoval: !viewModel.isSubmittingPendingProposal(for: target),
                 onRemove: { index in
                     viewModel.removeProposedComment(at: index, target: target)
-                }
+                },
+                reviewers: viewModel.pendingReviewProposal(for: target)?.reviewers ?? []
             )
         }
         if files.isEmpty {
@@ -213,7 +214,8 @@ struct PullRequestPaneFiles: View, Equatable {
                 to: &annotations,
                 resolvedAgainst: session.diffFiles ?? [],
                 viewerLogin: session.detail?.viewerLogin,
-                viewerAvatarURL: session.detail?.viewerAvatarURL
+                viewerAvatarURL: session.detail?.viewerAvatarURL,
+                reviewers: proposal.reviewers
             )
         }
         // Edits render inline inside their thread; only new comments and replies

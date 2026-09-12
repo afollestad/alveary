@@ -193,6 +193,17 @@ extension ContentView {
                     preferredProjectID: request.preferredProjectID
                 )
             },
+            reviewTeamSettingsValidator: { settings in
+                guard let coordinator = dependencies.pullRequestReviewTeamCoordinator else {
+                    throw ReviewTeamError.invalidOutput("Review team is unavailable.")
+                }
+                // Strict validation must not adopt the cache's stale-while-revalidate answer after a CLI repair.
+                await dependencies.providerDiscoveryCache.invalidate()
+                await dependencies.providerDiscoveryCache.warm()
+                try Task.checkCancellation()
+                _ = try await coordinator.preflight(settings: settings)
+            },
+            openGitSettings: { appState.openSettings(targetPage: .git) },
             agenticThreadActivity: dependencies.pullRequestAgenticThreadActivity,
             reviewProposalCoordinator: reviewProposalCoordinator,
             imageBlobFetcher: dependencies.gitHubDiffImageBlobFetcher,

@@ -19,6 +19,15 @@ final class ConversationWorkActivityTests: XCTestCase {
         XCTAssertFalse(activity.isWorking("conversation-2"))
     }
 
+    func testCollectiveWorkIsIndependentOfProposalSubmission() {
+        let activity = ConversationWorkActivity(
+            publishingReviewConversationIDs: ["publishing"], collectiveReviewConversationIDs: ["team"]
+        )
+        XCTAssertTrue(activity.isWorking("team"))
+        XCTAssertTrue(activity.isWorking("publishing"))
+        XCTAssertFalse(activity.isWorking("idle"))
+    }
+
     /// Previews and snapshot hosts mount the status surfaces without the app root's environment.
     func testAnAbsentCoordinatorDegradesToNoWork() {
         let activity = ConversationWorkActivity(reviewProposals: nil)

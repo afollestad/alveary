@@ -18,6 +18,7 @@ struct PullRequestPaneStaleComments: View {
     let allowsRemoval: Bool
     /// Drops one staged comment by its position in the stored envelope.
     let onRemove: (Int) -> Void
+    var reviewers: [PullRequestReviewProposalRecord.Reviewer] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -64,6 +65,10 @@ struct PullRequestPaneStaleComments: View {
                 markdown: comment.bodyMarkdown,
                 taskStateScope: "stale:\(comment.path):\(comment.proposedIndex)"
             )
+            if let evidence = comment.evidence {
+                PullRequestReviewVoteEvidenceView(presentation: .init(evidence: evidence, reviewers: reviewers))
+                    .padding(.top, 6)
+            }
         }
         .accessibilityElement(children: .contain)
         // No line to name — that is the whole point — so the label says the file and the reason.

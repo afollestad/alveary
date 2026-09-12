@@ -371,9 +371,8 @@ extension GitHubPullRequestsService {
     /// The one non-`api` mutation here: GitHub's `createPullRequest` GraphQL
     /// mutation needs a repository node id, while `gh pr create` resolves the
     /// repository from the working directory and prints the new URL — which is
-    /// also how the caller learns the identifier. `--body` rides argv because
-    /// `ShellRunner` has no stdin-data mode; `standardInput: .nullDevice` keeps
-    /// an unexpected `gh` prompt from hanging the call. A mutation: never retried.
+    /// also how the caller learns the identifier. `standardInput: .nullDevice`
+    /// keeps an unexpected `gh` prompt from hanging the call. A mutation: never retried.
     func createPullRequest(
         inDirectory directory: String,
         baseBranch: String,

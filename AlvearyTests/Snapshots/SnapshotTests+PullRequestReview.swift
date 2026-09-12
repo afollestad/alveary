@@ -84,6 +84,22 @@ extension SnapshotTests {
         )
     }
 
+    func testPullRequestPaneReviewFooterInvalidReviewTeam() {
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            status: .open,
+            selectedReviewAction: .agenticReview,
+            reviewMode: .reviewTeam,
+            reviewTeamValidationStatus: .invalid("Reviewer 2 uses a model that is no longer available.")
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 170),
+            named: "pull_request_review_footer_invalid_team"
+        )
+    }
+
     func testPullRequestPaneReviewFooterAddressFeedbackIdleWhileReviewWorks() {
         // The two routes are independent: a running review leaves Address feedback fully live on
         // the face, which is what the caret exists to reach.
@@ -221,20 +237,22 @@ struct PullRequestReviewFooterFixture {
         viewerCanUpdate: Bool = true,
         headRefExists: Bool = true,
         selectedReviewAction: PullRequestReviewFooterAction.Kind? = .submitReview,
-        workingAgenticKinds: Set<PullRequestAgenticThreadService.Kind> = []
+        workingAgenticKinds: Set<PullRequestAgenticThreadService.Kind> = [],
+        reviewMode: PullRequestReviewMode = .singleAgent,
+        reviewTeamValidationStatus: PullRequestReviewTeamValidationStatus? = nil
     ) {
         let service = StubPullRequestsService()
         // The footer seeds its split-button selection from settings at init, so the stored
         // kind is what puts a particular option on the button's primary side. Both authorship
         // keys are written because the fixture renders either side; nil stores neither, which
         // is what leaves the packaged authorship defaults showing.
-        let settingsService = InMemorySettingsService()
+        var settings = AppSettings()
+        settings.pullRequestReviewMode = reviewMode
         if let selectedReviewAction {
-            settingsService.update {
-                $0.pullRequestOwnFooterActionKind = selectedReviewAction.rawValue
-                $0.pullRequestOthersFooterActionKind = selectedReviewAction.rawValue
-            }
+            settings.pullRequestOwnFooterActionKind = selectedReviewAction.rawValue
+            settings.pullRequestOthersFooterActionKind = selectedReviewAction.rawValue
         }
+        let settingsService = InMemorySettingsService(current: settings)
         viewModel = makePullRequestsViewModel(service: service, settingsService: settingsService)
         let summary = makePullRequestSummary(number: 7, status: summaryStatus, isAuthored: isAuthored)
         viewModel.requestDetails(summary)
@@ -258,6 +276,11 @@ struct PullRequestReviewFooterFixture {
         if !workingAgenticKinds.isEmpty {
             viewModel.mutateActiveSession { session in
                 session.workingAgenticKinds = workingAgenticKinds
+            }
+        }
+        if let reviewTeamValidationStatus {
+            viewModel.mutateActiveSession { session in
+                session.pullRequestReviewTeamValidationStatus = reviewTeamValidationStatus
             }
         }
         guard let session = viewModel.activePaneSession else {

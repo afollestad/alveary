@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 import XCTest
 
@@ -37,7 +38,8 @@ extension PullRequestAgenticThreadServiceTests {
     func makeStartFixture(
         fixture: SidebarTestFixture? = nil,
         existingDirectories: Set<String> = [],
-        branchesByRoot: [String: String] = [:]
+        branchesByRoot: [String: String] = [:],
+        providerDiscovery: (any AgentProviderDiscoveryService)? = nil
     ) throws -> StartFixture {
         let fixture = try fixture ?? SidebarTestFixture()
         let pullRequests = StubPullRequestsService()
@@ -52,8 +54,8 @@ extension PullRequestAgenticThreadServiceTests {
             settingsService: fixture.settingsService,
             worktreeManager: fixture.worktreeManager,
             taskWorkspaceOwnershipService: fixture.taskWorkspaceOwnershipService,
-            // nil discovery takes the static fallback resolver, so no provider subprocess runs.
-            providerDiscovery: nil,
+            // Tests use either static defaults or an injected catalog, never a live provider.
+            providerDiscovery: providerDiscovery,
             directoryExists: { existingDirectories.contains($0) },
             currentBranch: { branchesByRoot[$0] },
             startInitialPrompt: { conversation, prompt in
@@ -99,8 +101,11 @@ extension PullRequestAgenticThreadServiceTests {
         XCTAssertEqual(start.prompts.wasLinkedAtDispatch, [true])
     }
 
-    func testBothRoutesCreateThreadsWithThePinnedPermissionMode() async throws {
-        let start = try makeStartFixture()
+    func testEachRouteCreatesThreadsWithItsOwnAgentSettings() async throws {
+        let start = try makeStartFixture(providerDiscovery: RecordingProviderDiscoveryService(statuses: [
+            .claude: SettingsViewModelTests.providerStatus(for: .claude, modelOptions: AgentModelOptionTestFixtures.claudeModelOptions),
+            .codex: SettingsViewModelTests.providerStatus(for: .codex, modelOptions: AgentModelOptionTestFixtures.codexModelOptions)
+        ]))
         let project = Project(
             path: "/tmp/alveary-permission-project",
             name: "alpha",
@@ -110,15 +115,28 @@ extension PullRequestAgenticThreadServiceTests {
         try start.fixture.context.save()
         start.fixture.settingsService.update { settings in
             settings.permissionMode = "acceptEdits"
-            settings.pullRequestReviewPermissionMode = "bypassPermissions"
+            settings.pullRequestReviewProvider = "codex"
+            settings.pullRequestReviewModel = "gpt-5.4-mini"
+            settings.pullRequestReviewEffort = "medium"
+            settings.pullRequestReviewPermissionMode = "never"
+            settings.pullRequestAddressFeedbackProvider = "claude"
+            settings.pullRequestAddressFeedbackModel = "haiku"
+            settings.pullRequestAddressFeedbackEffort = "low"
+            settings.pullRequestAddressFeedbackPermissionMode = "bypassPermissions"
         }
 
         for kind in PullRequestAgenticThreadService.Kind.allCases {
             let started = try await start.service.start(kind: kind, identifier: start.identifier, url: start.url)
             _ = try await started.dispatch.value
 
-            let thread = start.fixture.context.resolveConversation(conversationID: started.conversationID)?.thread
-            XCTAssertEqual(thread?.permissionMode, "bypassPermissions")
+            let conversation = start.fixture.context.resolveConversation(conversationID: started.conversationID)
+            let thread = conversation?.thread
+            let settings = start.fixture.settingsService.current
+            let expected = kind == .review ? settings.pullRequestReviewAgent : settings.pullRequestAddressFeedbackAgent
+            XCTAssertEqual(conversation?.provider, expected.provider)
+            XCTAssertEqual(thread?.model, expected.model)
+            XCTAssertEqual(thread?.effort, expected.effort)
+            XCTAssertEqual(thread?.permissionMode, expected.permissionMode)
         }
     }
 

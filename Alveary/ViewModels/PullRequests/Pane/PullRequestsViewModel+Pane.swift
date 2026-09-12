@@ -39,6 +39,15 @@ enum PullRequestDiffState: Equatable {
     case failed(String)
 }
 
+/// Whether a saved review team is ready to launch without substituting a stale selection.
+enum PullRequestReviewTeamValidationStatus: Equatable, Sendable {
+    case notRequired
+    case unvalidated
+    case validating
+    case valid
+    case invalid(String)
+}
+
 /// One in-flight pane load. The `token` is what completion cleanup matches on: a
 /// restart reuses the session's generation, so nothing else distinguishes a
 /// cancelled load from the one that replaced it.
@@ -116,6 +125,10 @@ struct PullRequestPaneSession: Equatable {
     /// A failed close or reopen; rendered as a banner in the review footer, where
     /// the action lives.
     var stateChangeError: String?
+    /// Mirrored from settings so the memoized review footer changes its title immediately.
+    var pullRequestReviewMode = PullRequestReviewMode.singleAgent
+    /// Resolved asynchronously and mirrored here so footer equality includes launch readiness.
+    var pullRequestReviewTeamValidationStatus = PullRequestReviewTeamValidationStatus.notRequired
     /// The agentic footer routes with a run in flight, mirrored out of the app-scoped
     /// `PullRequestAgenticThreadActivity` so the footer's `==` can see it — reading the tracker
     /// from `body` would leave the memoized footer stale. Per kind, so a running review does not
