@@ -8,8 +8,17 @@ extension SidebarThreadRow {
             TextField("Thread name", text: $editText)
                 .textFieldStyle(.plain)
                 .focused($isFieldFocused)
-                .onSubmit { commitRename() }
-                .onExitCommand { cancelRename() }
+                // Claim focus after the conditional field mounts, not from the row's earlier
+                // editing-state change while the List still owns the native focus proxy.
+                .task { isFieldFocused = true }
+                .onSubmit {
+                    commitRename()
+                    onFinishKeyboardRename()
+                }
+                .onExitCommand {
+                    cancelRename()
+                    onFinishKeyboardRename()
+                }
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(0)

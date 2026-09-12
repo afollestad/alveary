@@ -210,10 +210,13 @@ struct SidebarView: View, Equatable {
             }
             .overlay { sidebarDragOverlay }
             .overlay { sidebarSecondaryClickMenuTarget(context: context) }
+            .overlay {
+                SidebarRenameKeyMonitor { handleRenameKey(context: context) }
+            }
             .focusable()
             .focused($isKeyboardFocused)
             .focusEffectDisabled()
-            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .return, Self.backspaceKey]) { keyPress in
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, Self.backspaceKey]) { keyPress in
                 handleSidebarKeyPress(keyPress, context: context)
             }
         }
@@ -273,7 +276,7 @@ struct SidebarView: View, Equatable {
         _ thread: AgentThread,
         layout: SidebarThreadRowLayout,
         topSpacing: CGFloat,
-        conversationStatuses: [ConversationStatusSnapshot],
+        context: SidebarRenderContext,
         dragConfiguration: SidebarRowDragConfiguration? = nil,
         opacity: Double = 1
     ) -> some View {
@@ -291,20 +294,21 @@ struct SidebarView: View, Equatable {
             status: viewModel.threadStatus(
                 threadID: thread.persistentModelID,
                 isArchived: thread.archivedAt != nil,
-                conversationStatuses: conversationStatuses
+                conversationStatuses: context.conversationStatuses(for: thread.persistentModelID)
             ),
             isSelected: isSelected,
             layout: layout,
-            editingThreadID: editingThreadID,
-            onEditingThreadIDChange: { editingThreadID = $0 },
+            editingThreadID: context.editingThreadID,
+            onEditingThreadIDChange: { self.editingThreadID = $0 },
             cleanupAction: cleanupAction,
             cleanupDisabledReason: cleanupDisabledReason,
             suppressHoverAffordances: isSidebarDragInteractionInFlight,
-            canBeginRename: !isSidebarInlineEditingActive,
+            canBeginRename: !context.isSidebarInlineEditingActive,
             dragConfiguration: dragConfiguration,
             onCommitRename: { newName in
                 renameThread(thread, to: newName)
             },
+            onFinishKeyboardRename: { claimSidebarFocus() },
             onConfirmCleanup: { confirmThreadCleanup(thread, action: cleanupAction) }
         )
         .padding(.leading, leadingPadding)

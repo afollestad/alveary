@@ -30,6 +30,7 @@ The surfaces themselves each have their own scope: `Rows/` (project, thread, and
 
 ## Keyboard And Top-Level Rows
 
+- **Keep Return in `SidebarRenameKeyMonitor` over the whole `List`, out of `.onKeyPress`.** A parallel handler bypasses the monitor's modifier and focus filters; verify routing changes with hosted native events.
 - **`sidebarTopLevelRowItems(showsPullRequests:hasArchivedThreads:)` in `SidebarView+Selection.swift` is the single ordered source of truth** for the top-level rows (`Skills`, `MCP`, `Scheduled`, `Pull Requests`, `Archived`) and for which one carries trailing spacing and `.topLevelTerminal`; it documents why both follow the list's last element. Adding, removing, or hiding a row means changing that function, never re-deriving the group's shape per row.
     - **Gate visibility on render-context flags.** `Pull Requests` follows `SidebarRenderContext.showsPullRequests` (from `AppSettings.pullRequestsEnabled`), `Archived` follows `hasArchivedThreads`; both are computed once in `makeRenderContext()`. Row builders must not read the settings service or run a fetch.
     - **Keep the geometry modifier applied and flip only its value.** Every top-level row calls `.sidebarDragGeometry(.topLevelTerminal, isEnabled:)` unconditionally; applying/removing the modifier makes `List` transition the row and can leave a stale frame published mid-drag.

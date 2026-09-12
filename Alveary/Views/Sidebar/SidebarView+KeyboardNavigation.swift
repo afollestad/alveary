@@ -41,7 +41,7 @@ extension SidebarView {
         // Let the inline-rename TextField own the keyboard while editing so arrow keys,
         // Return, and Delete don't leak into sidebar navigation or trigger a re-entrant
         // rename. Re-enabling this path while `editingThreadID` is set produces key
-        // collisions — `handleRenameKey()` guards against re-entering edit mode, but
+        // collisions — `handleRenameKey(context:)` guards against re-entering edit mode, but
         // the other cases still mutate `selectedSidebarItem`, leaving the TextField
         // stranded on a different row.
         if shouldSuppressSidebarKeyPressWhileEditing(isInlineEditingActive: isSidebarInlineEditingActive) {
@@ -51,8 +51,6 @@ extension SidebarView {
         switch keyPress.key {
         case .upArrow, .downArrow:
             return handleVerticalArrow(keyPress.key, context: context)
-        case .return:
-            return handleRenameKey()
         case Self.backspaceKey:
             return handleDeleteKey()
         case .leftArrow, .rightArrow:
@@ -62,16 +60,26 @@ extension SidebarView {
         }
     }
 
-    func handleRenameKey() -> KeyPress.Result {
-        guard let threadID = renameThreadID(
+    /// Native Return dispatch bypasses `handleSidebarKeyPress`, so the editing and drag guards
+    /// belong here too. A hidden selection has no mounted row in which to present its editor.
+    func handleRenameKey(context: SidebarRenderContext) -> Bool {
+        guard !isSidebarDragInteractionInFlight,
+              !isSidebarInlineEditingActive,
+              voiceInputLifecycleController?.isModelPreparationModalPresented != true,
+              case .thread(let thread) = appState.selectedSidebarItem,
+              thread.isLiveForRender,
+              navigableItems(context: context).contains(.thread(thread)),
+              let threadID = renameThreadID(
             for: appState.selectedSidebarItem,
             editingThreadID: editingThreadID
         ) else {
-            return .ignored
+            return false
         }
 
+        // The list and its new TextField must not both claim SwiftUI keyboard focus.
+        isKeyboardFocused = false
         editingThreadID = threadID
-        return .handled
+        return true
     }
 
     func handleDeleteKey() -> KeyPress.Result {

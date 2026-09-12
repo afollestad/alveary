@@ -43,6 +43,8 @@ struct SidebarThreadRow: View, Equatable {
     let canBeginRename: Bool
     let dragConfiguration: SidebarRowDragConfiguration?
     let onCommitRename: (String) -> Void
+    /// Keyboard completion returns to the list; blur must leave focus with the clicked surface.
+    let onFinishKeyboardRename: () -> Void
     let onConfirmCleanup: () -> Void
 
     @State var editText = ""
@@ -79,6 +81,7 @@ struct SidebarThreadRow: View, Equatable {
         initialCleanupButtonHover: Bool = false,
         initialCleanupConfirmationArmed: Bool = false,
         onCommitRename: @escaping (String) -> Void,
+        onFinishKeyboardRename: @escaping () -> Void = {},
         onConfirmCleanup: @escaping () -> Void = {}
     ) {
         self.presentation = presentation
@@ -93,6 +96,7 @@ struct SidebarThreadRow: View, Equatable {
         self.canBeginRename = canBeginRename
         self.dragConfiguration = dragConfiguration
         self.onCommitRename = onCommitRename
+        self.onFinishKeyboardRename = onFinishKeyboardRename
         self.onConfirmCleanup = onConfirmCleanup
         _isHovering = State(initialValue: initialRowHover)
         _isHoveringCleanupButton = State(initialValue: initialCleanupButtonHover)
@@ -104,10 +108,11 @@ struct SidebarThreadRow: View, Equatable {
 
     var displayName: String { presentation.displayName }
 
-    /// The three closures are excluded: `onCommitRename` and `onConfirmCleanup` capture the live
+    /// The four closures are excluded: `onCommitRename` and `onConfirmCleanup` capture the live
     /// thread — context-unique for the `threadID` that `presentation` compares — plus the
     /// sidebar's `@State`-backed action paths, and `onEditingThreadIDChange` writes the `@State`
-    /// storage behind the compared `editingThreadID`. None can serve staler than a fresh copy.
+    /// storage behind the compared `editingThreadID`. `onFinishKeyboardRename` claims the
+    /// sidebar's stable focus storage and relay. None can serve staler than a fresh copy.
     /// `dragConfiguration` compares its own non-closure fields, `logicalOrder` included, so a
     /// skipped body cannot keep a gesture whose captured order the list no longer renders.
     nonisolated static func == (lhs: SidebarThreadRow, rhs: SidebarThreadRow) -> Bool {
@@ -167,7 +172,6 @@ struct SidebarThreadRow: View, Equatable {
             if editing {
                 editText = displayName
                 initialEditText = displayName
-                isFieldFocused = true
             }
         }
         .onChange(of: isFieldFocused) { _, focused in

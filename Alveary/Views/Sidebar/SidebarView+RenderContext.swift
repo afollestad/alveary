@@ -9,6 +9,10 @@ import SwiftUI
 struct SidebarRenderContext {
     let snapshot: SidebarRenderSnapshot
     let threadOrderAnimation: Animation?
+    /// Carry editing values through every lazy row closure. Capturing the equatable sidebar
+    /// alone can retain stale rows when the animation is already nil before rename begins.
+    let editingThreadID: PersistentIdentifier?
+    let isSidebarInlineEditingActive: Bool
     let dragLogicalOrder: SidebarDragLogicalOrder
     let hasArchivedThreads: Bool
     let showsPullRequests: Bool
@@ -82,7 +86,7 @@ extension SidebarView {
         )
         let settings = viewModel.settingsService.current
         let conversationStatusesByThreadID = makeConversationStatuses(settings: settings)
-        // Bound to its own `let` rather than folded into the initializer below, whose seven
+        // Bound to its own `let` rather than folded into the initializer below, whose
         // arguments would otherwise be solved together on `body`'s type-check budget.
         let collapsedActivity = makeCollapsedActivity(
             snapshot: snapshot,
@@ -96,6 +100,8 @@ extension SidebarView {
                     collapsedSections: collapsedSections
                 )
             ),
+            editingThreadID: editingThreadID,
+            isSidebarInlineEditingActive: isSidebarInlineEditingActive,
             dragLogicalOrder: SidebarDragLogicalOrder(
                 pinnedItems: snapshot.pinnedItems.map(\.dragItem),
                 regularProjects: snapshot.regularProjects.map { .project($0.persistentModelID) },
