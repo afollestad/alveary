@@ -40,6 +40,8 @@ Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockI
 
 The AgentCLIKit pin includes explicit-root overrides on Codex resume, including launches without host tools. `swift-custom-dump` is pinned to a release using the current IssueReporting package identity to keep package resolution compatible with snapshot testing.
 
+Validation and release builds run on GitHub's `xcode-27` runner with Xcode 27.0 explicitly selected in both workflows. Each job logs its macOS and compiler versions for comparison with local runs.
+
 Project upgrades migrate a copy of the database before installing it. The original database and SQLite companions remain available beside the store. A failed upgrade shows recovery details with Retry and Quit; it never substitutes an empty database.
 
 Provider-session cleanup borrows the runtime's AgentCLIKit adapters so Codex archive and delete requests reach the server holding each thread's writer lock. Approval continuations explicitly resume runtime activity so the transcript and task indicators stay synchronized.

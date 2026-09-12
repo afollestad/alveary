@@ -44,7 +44,7 @@ jobs:
     # so naming the job after them mislabels the canary runs that now dominate.
     name: Build and package
     needs: detect
-    runs-on: macos-26
+    runs-on: xcode-27
     # Canary runs share one group so a newer push supersedes an unfinished
     # build. Release and dry run runs key on the unique run id instead, so they
     # can neither cancel nor queue behind anything.
@@ -54,15 +54,21 @@ jobs:
     env:
       APP_NAME: Alveary
       SCHEME: Alveary
-      # Must track `ci.yml`'s pin: a release has to compile on the toolchain the suite tested
-      # against. Unpinned, this job took the runner image's default Xcode, which moves on every
-      # image update and was already a major version ahead of CI.
-      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+      # Keep the runner label and Xcode selection aligned with ci.yml so releases use
+      # the same toolchain as validation, even when the image's default minor version moves.
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcode-select -p
+          xcodebuild -version
+          xcrun swift --version
 
       - name: Configure release paths
         run: |

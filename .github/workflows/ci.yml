@@ -17,36 +17,19 @@ concurrency:
 jobs:
   validate:
     name: Validate
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
       SNAPSHOT_ARTIFACTS: .build/snapshot-failures
-      # Fails the Build step on a body drifting toward the compiler's per-expression type-check
-      # budget, which otherwise only errors on this slower hardware and never locally. Set for
-      # the whole job so the build, test, and snapshot steps compile with identical settings and
-      # keep sharing one set of products.
-      #
-      # Calibrate against *these* runners, not a dev machine. The same symbols measured 7x or
-      # more higher here than locally (slower hardware, and a pinned toolchain rather than
-      # whatever Xcode a dev has), so a local reading badly understates the real cost. The
-      # slowest symbols measured here are `#Predicate` fetch shapes at ~1.5s, so 3000 keeps
-      # roughly 2x headroom for the app target while still tripping well before a hard
-      # `unable to type-check this expression` error.
-      #
-      # Test sources fail at a higher bar because their floor is attribution noise, not real
-      # solve cost: the solver's wall-clock timer bills first-touch framework deserialization to
-      # whichever expression in a frontend batch needs it first, and `AppDelegateTests`
-      # statements whose genuine solve is under 100ms locally have measured 3063-7156ms here
-      # across runs, invariant to how the statement was written. That noise drifts upward across
-      # toolchains, so `typecheck-budget.sh` exempts the paths it lands on from the failure scan
-      # rather than absorbing it into these numbers; chasing it by raising them instead took the
-      # whole test target past the point where a genuine offender would still be caught.
-      # 7000 stays as headroom for the rest of the test target, whose readings run well under it.
-      # App sources have one such exemption too — AppKit's `NSMenu` metadata, measured at 3264ms
-      # against this 3000 — so do not read that number as slack the app target can spend.
-      # The compiler flag stays at the base budget for every step (identical build settings,
-      # shared products); only `test.sh`'s failure scan reads the higher value.
+      # Keep the compiler flags identical across build and test so they share products;
+      # only test.sh's failure scan uses the higher test threshold.
+      # These budgets were calibrated on macos-26 with Xcode 26.5: #Predicate fetch shapes
+      # reached ~1.5s, while first-touch framework deserialization was attributed to trivial
+      # test statements at 3063-7156ms and an AppKit menu source at 3264ms.
+      # Preserve the budgets for the Xcode 27 migration and assess clean hosted runs, not
+      # faster local timings. scripts/lib/typecheck-budget.sh documents the existing noise
+      # exemptions; investigate new offenders rather than raising thresholds to hide them.
       TYPECHECK_BUDGET_MS: "3000"
       TYPECHECK_TEST_BUDGET_MS: "7000"
 
@@ -58,6 +41,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select --switch "$DEVELOPER_DIR"
 
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcode-select -p
+          xcodebuild -version
+          xcrun swift --version
+
       - name: Cache Swift packages
         uses: actions/cache@v5
         with:
@@ -65,9 +55,9 @@ jobs:
             ~/.swiftpm/cache
             ~/Library/Caches/org.swift.swiftpm
             .build/xcode/SourcePackages
-          key: ${{ runner.os }}-xcode-26.5-swiftpm-${{ hashFiles('project.yml') }}
+          key: ${{ runner.os }}-xcode-27.0-swiftpm-${{ hashFiles('project.yml') }}
           restore-keys: |
-            ${{ runner.os }}-xcode-26.5-swiftpm-
+            ${{ runner.os }}-xcode-27.0-swiftpm-
             ${{ runner.os }}-swiftpm-
 
       - name: Setup
