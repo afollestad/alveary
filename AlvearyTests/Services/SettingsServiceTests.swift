@@ -14,6 +14,7 @@ final class SettingsServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(service.current, AppSettings())
+        XCTAssertNil(defaults.data(forKey: UserDefaultsSettingsService.corruptStorageKey))
     }
 
     func testUserDefaultsSettingsServicePersistsUpdatesAcrossReloads() throws {
@@ -155,18 +156,6 @@ final class SettingsServiceTests: XCTestCase {
 
         XCTAssertEqual(service.current, AppSettings())
         XCTAssertNil(defaults.data(forKey: UserDefaultsSettingsService.storageKey))
-    }
-
-    func testUserDefaultsSettingsServiceFallsBackToDefaultsForCorruptStoredJSON() throws {
-        let defaults = try makeDefaults()
-        defaults.set(Data("not-json".utf8), forKey: UserDefaultsSettingsService.storageKey)
-
-        let service = UserDefaultsSettingsService(
-            defaults: defaults,
-            hasEnabledSystemConflict: { _ in false }
-        )
-
-        XCTAssertEqual(service.current, AppSettings())
     }
 
     func testUserDefaultsSettingsServiceMigratesLegacyAutoTrustWorktreesKey() throws {

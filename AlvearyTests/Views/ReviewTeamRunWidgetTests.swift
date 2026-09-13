@@ -76,13 +76,17 @@ struct ReviewTeamRunWidgetTests {
     }
 
     @Test
-    func `a run requiring new input cannot be retried`() {
+    func `a run requiring new input cannot be retried`() throws {
         let view = AppKitReviewTeamRunWidgetView()
         var run = failedRun()
+        view.configure(.init(run: run, typography: TranscriptTypography()))
+        _ = try #require(descendants(of: NSButton.self, in: view).first { $0.title == "Retry failed reviewers" })
         run.requiresNewRun = true
         view.configure(.init(run: run, typography: TranscriptTypography()))
 
-        #expect(descendants(of: NSButton.self, in: view).allSatisfy { $0.title != "Retry review" })
+        #expect(descendants(of: NSButton.self, in: view).allSatisfy {
+            $0.title != "Retry review" && $0.title != "Retry failed reviewers"
+        })
     }
 
     @Test

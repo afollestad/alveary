@@ -161,15 +161,13 @@ extension ContentView {
         guard let folder = folderSelection.selected(
             in: project.workspaceFolderTargets, owner: .project(project.id)
         ) else { return nil }
-        let threads = liveDiffViewerThreads().filter {
-            $0.workspaceFolderTargets.contains { $0.directory == folder.directory }
-        }
         return DiffViewerSwitchTarget.forFolder(
-            folder, conversationIDs: Set(threads.flatMap { $0.conversations.map(\.id) })
+            folder, conversationIDs: Self.projectDiffViewerConversationIDs(in: folder.directory, modelContext: uiModelContext)
         )
     }
 
-    private func liveDiffViewerThreads() -> [AgentThread] {
+    /// A folder can be shared by threads in other projects; archived and draft threads contribute no conversations.
+    static func projectDiffViewerConversationIDs(in directory: String, modelContext: ModelContext) -> Set<String> {
         var descriptor = FetchDescriptor<AgentThread>(
             predicate: #Predicate { thread in
                 thread.archivedAt == nil && thread.isDraft == false
@@ -178,7 +176,10 @@ extension ContentView {
         // The project route reads every candidate thread's conversations right after this
         // fetch, so prefetching keeps that batched instead of one fault per thread.
         descriptor.relationshipKeyPathsForPrefetching = [\.conversations]
-        return (try? uiModelContext.fetch(descriptor)) ?? []
+        let threads = ((try? modelContext.fetch(descriptor)) ?? []).filter {
+            $0.workspaceFolderTargets.contains { $0.directory == directory }
+        }
+        return Set(threads.flatMap { $0.conversations.map(\.id) })
     }
 
     private func liveDiffViewerConversationIDs(for thread: AgentThread) -> Set<String> {

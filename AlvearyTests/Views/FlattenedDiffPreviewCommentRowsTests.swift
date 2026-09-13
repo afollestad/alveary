@@ -28,37 +28,6 @@ final class FlattenedDiffPreviewCommentRowsTests: XCTestCase {
         XCTAssertEqual(addedAnchor, DiffCommentAnchor(path: "File.swift", side: .right, line: 11))
     }
 
-    func testNilAnnotationsKeepRowStreamIdentical() {
-        let files = DiffParser.parse(raw)
-        let baseline = FlattenedDiffPreviewRows.makeRows(
-            files: files,
-            imagePreviews: [:],
-            showsFileHeaders: true,
-            allowsFileCollapse: false,
-            collapsedFileIDs: []
-        )
-        let explicitNone = FlattenedDiffPreviewRows.makeRows(
-            files: files,
-            imagePreviews: [:],
-            showsFileHeaders: true,
-            allowsFileCollapse: false,
-            collapsedFileIDs: [],
-            commentAnnotations: .none
-        )
-
-        XCTAssertEqual(baseline.rows.map(\.id), explicitNone.rows.map(\.id))
-        XCTAssertEqual(baseline.minimumScrollableContentWidth, explicitNone.minimumScrollableContentWidth)
-        XCTAssertFalse(baseline.rows.contains { row in
-            if case .commentThread = row {
-                return true
-            }
-            if case .commentComposer = row {
-                return true
-            }
-            return false
-        })
-    }
-
     func testThreadAndComposerRowsInsertAfterAnchoredLine() {
         let files = DiffParser.parse(raw)
         let addedAnchor = DiffCommentAnchor(path: "File.swift", side: .right, line: 11)
@@ -220,31 +189,9 @@ final class FlattenedDiffPreviewCommentRowsTests: XCTestCase {
         )
         let ids = annotated.rows.map(\.id)
         XCTAssertTrue(ids.contains("comment:\(anchor.key)"), "Expected the anchored thread to render in \(ids)")
-    }
-
-    /// The anchor exemption must not disable collapsing wholesale: context far
-    /// from both the change and the comment still folds away.
-    func testUnanchoredContextStillCollapsesAroundAComment() {
-        let files = DiffParser.parse(collapsibleRaw)
-        let anchor = DiffCommentAnchor(path: "File.swift", side: .right, line: 10)
-        var annotations = DiffCommentAnnotations()
-        annotations.threads[anchor] = DiffLineCommentThread(
-            comments: [DiffLineComment(author: "carol", bodyMarkdown: "Context note", isPending: false)]
-        )
-
-        let annotated = FlattenedDiffPreviewRows.makeRows(
-            files: files,
-            imagePreviews: [:],
-            showsFileHeaders: true,
-            allowsFileCollapse: false,
-            collapsedFileIDs: [],
-            commentAnnotations: annotations
-        )
-
+        // The anchor exemption must leave distant context collapsed.
         XCTAssertTrue(annotated.rows.contains { row in
-            if case .collapsed = row {
-                return true
-            }
+            if case .collapsed = row { return true }
             return false
         })
     }
@@ -270,6 +217,12 @@ final class FlattenedDiffPreviewCommentRowsTests: XCTestCase {
             allowsFileCollapse: false,
             collapsedFileIDs: []
         )
+        XCTAssertGreaterThan(baseline.minimumScrollableContentWidth, 0)
+        XCTAssertFalse(baseline.rows.contains { row in
+            if case .commentThread = row { return true }
+            if case .commentComposer = row { return true }
+            return false
+        })
         let annotated = FlattenedDiffPreviewRows.makeRows(
             files: files,
             imagePreviews: [:],
@@ -279,6 +232,10 @@ final class FlattenedDiffPreviewCommentRowsTests: XCTestCase {
             commentAnnotations: annotations
         )
 
+        XCTAssertTrue(annotated.rows.contains { row in
+            guard case .commentThread = row else { return false }
+            return row.id == "comment:\(anchor.key)"
+        })
         XCTAssertEqual(annotated.minimumScrollableContentWidth, baseline.minimumScrollableContentWidth)
     }
 }

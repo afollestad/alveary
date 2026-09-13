@@ -13,8 +13,10 @@ extension DiffGitCommitModalModelTests {
 
         await model.load()
 
+        XCTAssertEqual(model.baseBranch, "main")
         XCTAssertEqual(model.branchSelection, .base)
         XCTAssertEqual(model.selectedBranchTitle, "main")
+        XCTAssertFalse(model.isCurrentBranchSelectable)
     }
 
     /// The repository's default branch wins over the context's persisted hint,
@@ -33,18 +35,6 @@ extension DiffGitCommitModalModelTests {
         XCTAssertEqual(model.baseBranch, "trunk")
         XCTAssertEqual(model.branchSelection, .base)
         XCTAssertEqual(model.selectedBranchTitle, "trunk")
-    }
-
-    func testBaseBranchFallsBackToTheContextWhenNoDefaultResolves() async {
-        let gitService = DiffGitCommitModalMockGitService(
-            statusResults: [],
-            currentBranchResult: .success("main")
-        )
-        let model = makeModel(gitService: gitService)
-
-        await model.load()
-
-        XCTAssertEqual(model.baseBranch, "main")
     }
 
     func testDefaultsToCurrentBranchWhenCurrentBranchDiffersFromBase() async {
@@ -69,18 +59,6 @@ extension DiffGitCommitModalModelTests {
         XCTAssertNil(model.preflightMessage)
         // The name is still prepared so switching to New branch has a default.
         XCTAssertEqual(model.newBranchName, "af/disable-steering-during-handoff")
-    }
-
-    func testCurrentBranchIsNotOfferedWhenAlreadyOnBase() async {
-        let gitService = DiffGitCommitModalMockGitService(
-            statusResults: [],
-            currentBranchResult: .success("main")
-        )
-        let model = makeModel(gitService: gitService)
-
-        await model.load()
-
-        XCTAssertFalse(model.isCurrentBranchSelectable)
     }
 
     func testCommittingToCurrentBranchDoesNotCheckOutANewBranch() async {

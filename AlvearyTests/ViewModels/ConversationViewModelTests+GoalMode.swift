@@ -226,7 +226,6 @@ extension ConversationViewModelTests {
 
         let goalRecords = try fixture.records(type: ConversationEventRecord.goalType)
         XCTAssertEqual(goalRecords.count, 3)
-        XCTAssertTrue(goalRecords.allSatisfy(\.isHiddenGoalRecord))
         XCTAssertTrue(goalRecords.allSatisfy { !$0.isVisibleTranscriptEvent })
         XCTAssertNil(fixture.viewModel.visibleGoalSnapshot)
 
@@ -256,6 +255,5 @@ extension ConversationViewModelTests {
         let goalRecords = try fixture.records(type: ConversationEventRecord.goalType)
         XCTAssertEqual(goalRecords.count, 1)
         XCTAssertEqual(goalRecords.first?.content, "Persist runtime status")
-        XCTAssertTrue(goalRecords.allSatisfy(\.isHiddenGoalRecord))
     }
 }

@@ -51,12 +51,6 @@ final class DemoDataSeederTests: XCTestCase {
         XCTAssertTrue(threads.contains { $0.archivedAt != nil })
         // Both spawned review threads plus the two hand-made Task threads.
         XCTAssertEqual(threads.filter { $0.mode == .task }.count, 4)
-    }
-
-    func testSidebarOrderFieldsAreDenseAndPinnedProjectsCarryNoRegularOrder() throws {
-        let projects = try context.fetch(FetchDescriptor<Project>())
-        let threads = try context.fetch(FetchDescriptor<AgentThread>())
-
         XCTAssertTrue(projects.filter(\.isPinned).allSatisfy { $0.sidebarSortOrder == nil })
         XCTAssertEqual(
             projects.compactMap(\.sidebarSortOrder).sorted(),
@@ -64,7 +58,16 @@ final class DemoDataSeederTests: XCTestCase {
         )
 
         // Pinned projects and pinned Task threads share one dense sequence.
+        let pinnedProjects = projects.filter(\.isPinned)
+        let pinnedThreads = threads.filter(\.isPinned)
+        for project in pinnedProjects {
+            XCTAssertNotNil(project.pinnedSortOrder)
+        }
+        for thread in pinnedThreads {
+            XCTAssertNotNil(thread.pinnedSortOrder)
+        }
         let pinnedOrders = projects.compactMap(\.pinnedSortOrder) + threads.compactMap(\.pinnedSortOrder)
+        XCTAssertEqual(pinnedOrders.count, pinnedProjects.count + pinnedThreads.count)
         XCTAssertEqual(pinnedOrders.sorted(), Array(0..<pinnedOrders.count))
     }
 

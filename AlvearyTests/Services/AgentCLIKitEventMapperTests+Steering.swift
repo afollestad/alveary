@@ -18,15 +18,6 @@ extension AgentCLIKitEventMapperTests {
         XCTAssertEqual(events, [.steeredConversation(inputID: "local-user-1")])
     }
 
-    func testUntaggedUserMessageRemainsNormalMessageEvent() {
-        let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.message(AgentMessageEvent(
-            role: .user,
-            text: "Normal replay"
-        ))))
-
-        XCTAssertEqual(events, [.message(role: "user", content: "Normal replay", parentToolUseId: nil)])
-    }
-
     func testSteeringUserMessageWithUnknownSignalRemainsNormalMessageEvent() {
         let events = AgentCLIKitEventMapper().conversationEvents(from: envelope(.message(AgentMessageEvent(
             role: .user,

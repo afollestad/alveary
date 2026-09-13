@@ -265,8 +265,5 @@ extension AppKitFileAttachmentChipView {
         titleField.frame
     }
 
-    var titleFontSizeForTesting: CGFloat {
-        titleField.font?.pointSize ?? 0
-    }
 }
 #endif

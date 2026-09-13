@@ -46,6 +46,9 @@ final class SkillsViewModel {
     private var searchTask: Task<Void, Never>?
     private var searchGeneration = 0
 
+    /// Captures the current search consumer so tests can join a superseded response.
+    var searchTaskForTesting: Task<Void, Never>? { searchTask }
+
     private(set) var installed: [Skill] = []
     private(set) var catalog: [Skill] = []
     private(set) var searchResults: [Skill] = []

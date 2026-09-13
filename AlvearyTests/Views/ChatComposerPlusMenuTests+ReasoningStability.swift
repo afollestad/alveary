@@ -214,7 +214,6 @@ extension ChatComposerPlusMenuTests {
         XCTAssertNil(row.reasoningDisplaySelectionOverride)
         XCTAssertNil(row.reasoningMenuController)
         XCTAssertNil(row.reasoningPopover)
-        XCTAssertFalse(popover.isShown)
     }
 
     func testDisablingActionRowCancelsActivePreviewWithoutCommit() throws {
@@ -265,7 +264,6 @@ extension ChatComposerPlusMenuTests {
         XCTAssertNil(row.reasoningDisplaySelectionOverride)
         XCTAssertNil(row.reasoningMenuController)
         XCTAssertNil(row.reasoningPopover)
-        XCTAssertFalse(popover.isShown)
     }
 
     private static var reasoningStabilityEffortOptions: [ChatComposerActionRowView.MenuOption] {

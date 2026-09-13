@@ -408,22 +408,6 @@ final class ChatComposerPlusMenuTests: XCTestCase {
         XCTAssertNil(row.reasoningPopover)
     }
 
-    func testReasoningModelOptionIdentityIncludesProviderToAvoidDefaultCollisions() {
-        let claudeDefault = ChatComposerActionRowView.ReasoningModelOption(
-            providerID: "claude",
-            value: AppSettings.defaultModelValue,
-            title: "Provider default"
-        )
-        let codexDefault = ChatComposerActionRowView.ReasoningModelOption(
-            providerID: "codex",
-            value: AppSettings.defaultModelValue,
-            title: "Provider default"
-        )
-
-        XCTAssertNotEqual(claudeDefault.identity, codexDefault.identity)
-        XCTAssertEqual(claudeDefault.identity, "claude:default")
-        XCTAssertEqual(codexDefault.identity, "codex:default")
-    }
 }
 
 private final class FocusTargetView: NSView {

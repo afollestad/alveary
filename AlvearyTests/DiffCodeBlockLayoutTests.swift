@@ -44,15 +44,14 @@ final class DiffCodeBlockLayoutTests: XCTestCase {
 
     /// The palette caches its swatches once, so they have to stay dynamic — a frozen resolution
     /// would keep painting the light gutter after the app switches to dark.
-    func testDiffPaletteSwatchesStillResolvePerAppearance() {
+    func testDiffPaletteSwatchesStillResolvePerAppearance() throws {
         let wash = AppKitDiffCodeBlockPalette.gutterWash(for: .context)
         var light: NSColor?
         var dark: NSColor?
-        NSAppearance(named: .aqua)?.performAsCurrentDrawingAppearance { light = wash.usingColorSpace(.sRGB) }
-        NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance { dark = wash.usingColorSpace(.sRGB) }
+        try XCTUnwrap(NSAppearance(named: .aqua)).performAsCurrentDrawingAppearance { light = wash.usingColorSpace(.sRGB) }
+        try XCTUnwrap(NSAppearance(named: .darkAqua)).performAsCurrentDrawingAppearance { dark = wash.usingColorSpace(.sRGB) }
 
-        XCTAssertNotNil(light)
-        XCTAssertNotEqual(light, dark)
+        XCTAssertNotEqual(try XCTUnwrap(light), try XCTUnwrap(dark))
     }
 
     /// Tool output renders its diff through the transcript code surface, whose scroll view never

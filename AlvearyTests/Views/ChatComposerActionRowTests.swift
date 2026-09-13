@@ -282,11 +282,6 @@ final class ChatComposerActionRowTests: XCTestCase {
     }
 
     func testConfigureSkipsReapplyForValueIdenticalConfigurations() {
-        XCTAssertEqual(
-            ChatComposerActionRowView.AppliedConfigurationSnapshot(makeConfiguration(mode: .idle)),
-            ChatComposerActionRowView.AppliedConfigurationSnapshot(makeConfiguration(mode: .idle))
-        )
-
         let row = ChatComposerActionRowView()
         row.configure(makeConfiguration(mode: .idle))
         // Marker the apply pass always resets (taskWorkspace is nil here).

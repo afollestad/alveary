@@ -38,6 +38,10 @@ extension PullRequestHostToolServiceTests {
         let result = await fixture.handle(PullRequestHostToolCatalog.reviewProposalToolName)
 
         XCTAssertFalse(result.isError, result.text)
+        // Providers persisting only the text must still be able to carry every comment forward.
+        XCTAssertTrue(result.text.contains("First"), result.text)
+        XCTAssertTrue(result.text.contains("Second"), result.text)
+        XCTAssertTrue(result.text.contains("Sources/Alpha.swift:1"), result.text)
         let content = try object(result.structuredContent)
         XCTAssertEqual(content["has_proposal"], .bool(true))
         XCTAssertEqual(content["event"], .string("comment"))
@@ -51,19 +55,6 @@ extension PullRequestHostToolServiceTests {
         // The keys `propose_pr_review` takes, so carrying one forward is a copy.
         XCTAssertEqual(Set(first.keys), ["path", "line", "side", "body"])
         XCTAssertEqual(first["body"], .string("First"))
-    }
-
-    /// Codex persists the plain-text fallback rather than the structured content, so a model
-    /// reading only the text must still be able to pass every comment back.
-    func testTheTextFallbackCarriesEveryStagedComment() async throws {
-        let fixture = try PullRequestHostToolFixture()
-        try await fixture.stageProposal(bodies: ["First", "Second"])
-
-        let result = await fixture.handle(PullRequestHostToolCatalog.reviewProposalToolName)
-
-        XCTAssertTrue(result.text.contains("First"), result.text)
-        XCTAssertTrue(result.text.contains("Second"), result.text)
-        XCTAssertTrue(result.text.contains("Sources/Alpha.swift:1"), result.text)
     }
 
     /// The asking thread is usually not the holding thread — that is the whole point.

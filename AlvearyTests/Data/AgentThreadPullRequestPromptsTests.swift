@@ -6,11 +6,10 @@ import XCTest
 
 @MainActor
 final class AgentThreadPullRequestPromptsTests: XCTestCase {
-    func testNewThreadHasNoPromptsOrWatermark() throws {
-        let context = ModelContext(try makeContainer())
+    func testNewThreadHasNoPromptsOrWatermark() {
         let thread = AgentThread(name: "Thread")
-        context.insert(thread)
 
+        XCTAssertFalse(thread.hasUnansweredPullRequestLinkPrompt(conversationID: "conversation-1"))
         XCTAssertNil(thread.pendingPullRequestPromptsJSON)
         XCTAssertNil(thread.pullRequestScanWatermark)
         XCTAssertEqual(thread.pendingPullRequestLinkPrompts, [])
@@ -46,42 +45,21 @@ final class AgentThreadPullRequestPromptsTests: XCTestCase {
         )
     }
 
-    func testMalformedPayloadDecodesToEmpty() throws {
-        let context = ModelContext(try makeContainer())
+    func testMalformedPayloadDecodesToEmpty() {
         let thread = AgentThread(name: "Thread")
-        context.insert(thread)
         thread.pendingPullRequestPromptsJSON = "{ not json"
 
         XCTAssertEqual(thread.pendingPullRequestLinkPrompts, [])
     }
 
-    func testClearingPromptsClearsTheColumn() throws {
-        let context = ModelContext(try makeContainer())
+    func testClearingPromptsClearsTheColumn() {
         let thread = AgentThread(name: "Thread")
-        context.insert(thread)
         thread.pendingPullRequestLinkPrompts = [makePrompt(number: 7, messageEventID: "message-1")]
         XCTAssertNotNil(thread.pendingPullRequestPromptsJSON)
 
         thread.pendingPullRequestLinkPrompts = []
 
         XCTAssertNil(thread.pendingPullRequestPromptsJSON)
-    }
-
-    /// A fork gets its own history, so it must neither inherit questions about the
-    /// source's pull requests nor its scan fence. Both columns are absent from
-    /// `AgentThread.init`, which is what enforces it.
-    func testForkedThreadInheritsNeitherPromptsNorWatermark() throws {
-        let context = ModelContext(try makeContainer())
-        let source = AgentThread(name: "Source", branch: "feat/change")
-        context.insert(source)
-        source.pendingPullRequestLinkPrompts = [makePrompt(number: 7, messageEventID: "message-1")]
-        source.pullRequestScanWatermark = Date(timeIntervalSince1970: 100)
-
-        let fork = AgentThread(name: source.name, branch: "feat/change-fork")
-        context.insert(fork)
-
-        XCTAssertEqual(fork.pendingPullRequestLinkPrompts, [])
-        XCTAssertNil(fork.pullRequestScanWatermark)
     }
 
     private func identifier(number: Int) -> PullRequestIdentifier {

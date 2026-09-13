@@ -241,22 +241,14 @@ extension SidebarView {
                    let viewport = sidebarDragViewportFrame {
                     switch sidebarDropCandidate.kind {
                     case .boundary:
-                        Rectangle()
-                            .fill(AppAccentFill.primary)
-                            .frame(width: max(proxy.size.width - 20, 0), height: 2)
-                            .offset(
-                                x: 10,
-                                y: sidebarDragIndicatorOffset(
-                                    indicatorY: sidebarDropCandidate.indicatorY,
-                                    viewport: viewport,
-                                    overlayHeight: proxy.size.height
-                                )
-                            )
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-                            .transition(.opacity)
+                        SidebarDropInsertionIndicator(
+                            indicatorY: sidebarDropCandidate.indicatorY,
+                            viewport: viewport,
+                            overlaySize: proxy.size
+                        )
+                        .transition(.opacity)
                     case .container:
-                        sidebarSectionContainerBorder(
+                        SidebarSectionContainerBorder(
                             frame: sidebarDropCandidate.borderFrame,
                             viewport: viewport,
                             overlaySize: proxy.size
@@ -269,7 +261,7 @@ extension SidebarView {
                 // trail it. The two are exclusive anyway — a drag in flight declines the menu.
                 if let highlight = sidebarSectionSecondaryClickHighlight,
                    let viewport = sidebarDragViewportFrame {
-                    sidebarSectionContainerBorder(
+                    SidebarSectionContainerBorder(
                         frame: highlight.frame,
                         viewport: viewport,
                         overlaySize: proxy.size
@@ -277,29 +269,6 @@ extension SidebarView {
                 }
             }
         }
-    }
-
-    /// The whole-section outline, shared by a drop container and by the section whose
-    /// secondary-click menu is open, so the two are the same pixels by construction.
-    private func sidebarSectionContainerBorder(
-        frame: CGRect,
-        viewport: CGRect,
-        overlaySize: CGSize
-    ) -> some View {
-        let rect = sidebarDragBorderLocalRect(frame: frame, viewport: viewport, overlaySize: overlaySize)
-        return RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-            .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .strokeBorder(
-                        Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
-                        lineWidth: SidebarDragBorderMetrics.lineWidth
-                    )
-            }
-            .frame(width: rect.width, height: rect.height)
-            .offset(x: rect.minX, y: rect.minY)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 
     func updateSidebarDrag(
@@ -449,4 +418,46 @@ func sidebarDragBorderLocalRect(
         width: width,
         height: max(maxY - minY, 0)
     )
+}
+
+/// The live drop boundary, also used by visual fixtures to retain its inset and viewport clamping.
+struct SidebarDropInsertionIndicator: View {
+    let indicatorY: CGFloat
+    let viewport: CGRect
+    let overlaySize: CGSize
+
+    var body: some View {
+        Rectangle()
+            .fill(AppAccentFill.primary)
+            .frame(width: max(overlaySize.width - 20, 0), height: 2)
+            .offset(x: 10, y: sidebarDragIndicatorOffset(
+                indicatorY: indicatorY, viewport: viewport, overlayHeight: overlaySize.height
+            ))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Drop-container and secondary-click outlines share the same production pixels.
+struct SidebarSectionContainerBorder: View {
+    let frame: CGRect
+    let viewport: CGRect
+    let overlaySize: CGSize
+
+    var body: some View {
+        let rect = sidebarDragBorderLocalRect(frame: frame, viewport: viewport, overlaySize: overlaySize)
+        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+            .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
+                    .strokeBorder(
+                        Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
+                        lineWidth: SidebarDragBorderMetrics.lineWidth
+                    )
+            }
+            .frame(width: rect.width, height: rect.height)
+            .offset(x: rect.minX, y: rect.minY)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 }

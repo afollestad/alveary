@@ -16,6 +16,7 @@ final class PullRequestsViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.loadPhase, .loaded)
         XCTAssertEqual(viewModel.items.count, 1)
+        // Every requested bucket returns the same warning; the UI shows it once.
         XCTAssertEqual(viewModel.warnings, ["partial"])
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertNotNil(viewModel.lastRefreshedAt)

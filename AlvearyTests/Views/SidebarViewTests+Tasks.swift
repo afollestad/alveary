@@ -253,9 +253,11 @@ extension SidebarViewTests {
 
     func testDeletingSelectedTaskClearsConversationSelectionBeforePersistenceCommit() async throws {
         let appState = AppState()
+        var commitCount = 0
         var deletingThreadID: PersistentIdentifier?
         var selectedConversationIDAtCommit: PersistentIdentifier?
         let fixture = try SidebarTestFixture(saveDeletionCommit: { context in
+            commitCount += 1
             if let deletingThreadID {
                 selectedConversationIDAtCommit = appState.selectedConversationIDs[deletingThreadID]
             }
@@ -272,6 +274,7 @@ extension SidebarViewTests {
 
         await view.confirmDeleteThread(task)
 
+        XCTAssertEqual(commitCount, 1)
         XCTAssertNil(selectedConversationIDAtCommit)
         XCTAssertNil(appState.selectedConversationIDs[task.persistentModelID])
         XCTAssertFalse(try fixture.threadExists(task))

@@ -242,11 +242,4 @@ final class PullRequestAgenticThreadServiceTests: XCTestCase {
         XCTAssertFalse(PullRequestAgenticThreadService.Kind.review.needsCheckout)
         XCTAssertTrue(PullRequestAgenticThreadService.Kind.addressFeedback.needsCheckout)
     }
-
-    func testNoReadyProviderIsTheOnlyStartFailure() {
-        XCTAssertEqual(
-            PullRequestAgenticThreadService.StartError.noReadyProvider.errorDescription,
-            "No agent is ready to start this thread. Check the Agents settings."
-        )
-    }
 }

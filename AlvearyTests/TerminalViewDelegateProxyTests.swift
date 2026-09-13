@@ -31,11 +31,9 @@ final class TerminalViewDelegateProxyTests: XCTestCase {
         XCTAssertEqual(processDelegate.currentDirectory, "file:///Users/alice/Project")
     }
 
-    func testDelegateProxyDeniesOSC52ClipboardAccess() {
+    func testDelegateProxyDeniesOSC52ClipboardReads() {
         let terminalView = AlvearyLocalTerminalView(frame: .zero)
         let proxy = TerminalViewDelegateProxy(terminalView: terminalView)
-
-        proxy.clipboardCopy(source: terminalView, content: Data("secret".utf8))
 
         XCTAssertNil(proxy.clipboardRead(source: terminalView))
     }

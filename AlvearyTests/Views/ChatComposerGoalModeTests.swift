@@ -168,6 +168,7 @@ final class ChatComposerGoalModeTests: XCTestCase {
 
         XCTAssertTrue(chatView.isGoalModeToggleEnabled)
         XCTAssertNil(chatView.goalModeToggleDisabledTooltip)
+        XCTAssertFalse(chatView.composerActionRowConfiguration(usageSummary: .unreported).isGoalModeChipVisible)
     }
 
     func testGoalModeToggleTurnsOffPlanMode() throws {
@@ -299,22 +300,6 @@ final class ChatComposerGoalModeTests: XCTestCase {
         try await waitUntil("expected goal chip dismiss to perform delete") {
             await fixture.agentsManager.goalActionCalls().map(\.action) == [.delete]
         }
-    }
-
-    func testGoalChipIsHiddenForTerminalGoal() throws {
-        let fixture = try ConversationViewModelTestFixture(providerId: "codex")
-        fixture.viewModel.state.goalSnapshot = AgentGoalSnapshot(
-            objective: "Previous goal",
-            status: .achieved
-        )
-        let chatView = makeChatView(
-            fixture: fixture,
-            appState: AppState(),
-            supportsGoalMode: true,
-            providerID: "codex"
-        )
-
-        XCTAssertFalse(chatView.composerActionRowConfiguration(usageSummary: .unreported).isGoalModeChipVisible)
     }
 
     func testGoalChipIsHiddenWhenDeleteIsNotCurrentlyVisible() throws {

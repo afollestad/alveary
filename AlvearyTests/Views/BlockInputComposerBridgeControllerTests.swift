@@ -32,7 +32,6 @@ final class BlockInputComposerBridgeControllerTests: XCTestCase {
         XCTAssertEqual(blockInputConfiguration.editorHorizontalInset, BlockInputConfiguration.defaultEditorHorizontalInset)
         XCTAssertEqual(blockInputConfiguration.editorVerticalInset, BlockInputConfiguration.defaultEditorVerticalInset)
         XCTAssertEqual(blockInputConfiguration.imagePresentation, .inlineBlocks)
-        XCTAssertEqual(BlockInputComposerBridgeController.blockVerticalInsetMultiplier, 0.7)
         XCTAssertEqual(blockInputConfiguration.blockVerticalInsetMultiplier, BlockInputComposerBridgeController.blockVerticalInsetMultiplier)
         XCTAssertEqual(blockInputConfiguration.fileBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-project"))
         XCTAssertEqual(blockInputConfiguration.imageBaseURL?.path, CanonicalPath.normalize("/tmp/alveary-project"))

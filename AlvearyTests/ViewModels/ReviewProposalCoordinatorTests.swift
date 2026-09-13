@@ -25,6 +25,7 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertNil(try fixture.conversation.pullRequestReviewProposal())
         XCTAssertNil(fixture.coordinator.presentation(forProposalID: ReviewProposalFixture.proposalID))
         XCTAssertEqual(fixture.outcomeMarkers().count, 1)
+        XCTAssertTrue(fixture.coordinator.pendingSourceConversationIDs.isEmpty)
     }
 
     func testConfirmingWithoutADraftPostsASummaryOnlyReview() async throws {
@@ -71,6 +72,9 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
         XCTAssertNotNil(fixture.coordinator.errorMessage(forProposalID: ReviewProposalFixture.proposalID))
         XCTAssertTrue(fixture.outcomeMarkers().isEmpty)
+        // A failed submit leaves the card confirmable, so the ring hands the row back to the waiting dot.
+        XCTAssertTrue(fixture.coordinator.submittingSourceConversationIDs.isEmpty)
+        XCTAssertEqual(fixture.coordinator.pendingSourceConversationIDs, [fixture.conversation.id])
     }
 
     func testConfirmingWritesStagedCommentsIntoADraftThenSubmitsIt() async throws {
@@ -174,6 +178,7 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertEqual(fixture.service.detailCallCount, 0)
         XCTAssertTrue(fixture.service.submittedReviews.isEmpty)
         XCTAssertEqual(fixture.outcomeMarkers().count, 1)
+        XCTAssertTrue(fixture.coordinator.pendingSourceConversationIDs.isEmpty)
     }
 
     func testApproveIsUnavailableOnTheViewersOwnPullRequest() async throws {
@@ -297,8 +302,18 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         fixture.service.submitPendingReviewResult = .failure(.rateLimited)
         let recorder = fixture.recordAnnouncements()
 
+        _ = try XCTUnwrap(fixture.coordinator.presentation(forProposalID: ReviewProposalFixture.proposalID))
         let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
 
+        XCTAssertEqual(fixture.service.submittedPendingReviews, [
+            StubPullRequestsService.SubmittedPendingReview(
+                reviewNodeID: "DRAFT_1", event: .approve, body: "Looks good to me."
+            )
+        ])
+        XCTAssertEqual(
+            fixture.coordinator.errorMessage(forProposalID: ReviewProposalFixture.proposalID),
+            PullRequestsServiceError.rateLimited.localizedDescription
+        )
         XCTAssertFalse(didSubmit)
         XCTAssertTrue(recorder.announcements.isEmpty)
     }

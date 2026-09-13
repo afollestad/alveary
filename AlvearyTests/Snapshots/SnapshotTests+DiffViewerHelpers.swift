@@ -5,8 +5,6 @@ import SwiftUI
 extension SnapshotTests {
     func primaryToolbarButtonGroup(
         selectedThread: AgentThread? = nil,
-        // Pass a source path to render captured project-row actions.
-        selectedProjectPath: String? = nil,
         projectActions: [AlvearyProjectConfig.ProjectAction] = [],
         terminalDisplayState: TerminalToolbarDisplayState = .idle,
         // Nil matches the pre-existing baselines: no thread selected means no
@@ -17,10 +15,6 @@ extension SnapshotTests {
     ) -> some View {
         let owner = selectedThread.flatMap { thread in
             thread.workspaceFolderTargets.first.map { ToolbarProjectActionsOwner.folder(.thread(thread.persistentModelID), $0) }
-        } ?? selectedProjectPath.map { path in
-            ToolbarProjectActionsOwner.folder(.project("snapshot-project"), WorkspaceFolderTarget(
-                directory: path, source: SourceFolderSnapshot(path: path), isPrimary: true
-            ))
         }
         return PrimaryToolbarButtonGroup(
             isSelectionProjectActionCapable: owner != nil,

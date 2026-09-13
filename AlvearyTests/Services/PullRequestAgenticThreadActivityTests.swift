@@ -46,18 +46,6 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
         XCTAssertEqual(activity.workingKinds(for: identifier), [.review])
     }
 
-    func testTheRouteEndsWhenItsFirstTurnGoesIdle() {
-        let (activity, center) = makeActivity()
-        activity.begin(identifier, kind: .review)
-        activity.attach(conversationID: "c1", identifier: identifier, kind: .review)
-
-        post(.busy, conversationID: "c1", on: center)
-        XCTAssertTrue(activity.isWorking(identifier, kind: .review))
-
-        post(.idle, conversationID: "c1", on: center)
-        XCTAssertFalse(activity.isWorking(identifier, kind: .review))
-    }
-
     func testCollectiveWorkIgnoresProviderTurnCompletion() {
         let (activity, center) = makeActivity()
         activity.setCollectiveWorking(true, identifier: identifier, conversationID: "team")
@@ -89,6 +77,7 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
             activity.begin(identifier, kind: .review)
             activity.attach(conversationID: "c1", identifier: identifier, kind: .review)
             post(.busy, conversationID: "c1", on: center)
+            XCTAssertTrue(activity.isWorking(identifier, kind: .review))
 
             post(signal, conversationID: "c1", on: center)
 
@@ -177,14 +166,22 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
     /// A turn that took longer than the grace to appear is still a turn; the live signal gets the
     /// last word before the entry is dropped.
     func testAnExpiringGraceDefersToALateStartedTurn() async {
-        let (activity, _) = makeActivity(startupGrace: .milliseconds(10), currentSignal: { _ in .busy })
+        let probe = LateStartedTurnSignalProbe()
+        let expired = expectation(description: "Startup grace rereads the late busy signal")
+        let (activity, center) = makeActivity(startupGrace: .milliseconds(10), currentSignal: { _ in
+            if probe.signal == .busy { expired.fulfill() }
+            return probe.signal
+        })
         activity.begin(identifier, kind: .review)
         activity.attach(conversationID: "c1", identifier: identifier, kind: .review)
-
         activity.armStartupGrace(identifier, kind: .review)
-        try? await Task.sleep(for: .milliseconds(200))
+        probe.signal = .busy
+
+        await fulfillment(of: [expired], timeout: 2)
 
         XCTAssertTrue(activity.isWorking(identifier, kind: .review))
+        post(.idle, conversationID: "c1", on: center)
+        XCTAssertFalse(activity.isWorking(identifier, kind: .review))
     }
 
     /// The two halves of a pull request's life are separate work, and separate pull requests are
@@ -241,4 +238,9 @@ private final class AnnouncementCounter: @unchecked Sendable {
     func increment() {
         count += 1
     }
+}
+
+@MainActor
+private final class LateStartedTurnSignalProbe {
+    var signal: ActivitySignal = .neutral
 }

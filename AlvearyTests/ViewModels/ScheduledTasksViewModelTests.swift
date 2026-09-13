@@ -184,9 +184,12 @@ final class ScheduledTasksViewModelTests: XCTestCase {
         fixture.viewModel.requestCreate()
         let firstGeneration = try XCTUnwrap(fixture.viewModel.activePaneSession?.generation)
         fixture.viewModel.dismissActivePane()
+        XCTAssertNil(fixture.viewModel.activePaneSession)
         fixture.viewModel.requestCreate()
 
-        XCTAssertNotEqual(fixture.viewModel.activePaneSession?.generation, firstGeneration)
+        let reopened = try XCTUnwrap(fixture.viewModel.activePaneSession)
+        XCTAssertEqual(fixture.viewModel.activePaneTarget, .create)
+        XCTAssertNotEqual(reopened.generation, firstGeneration)
     }
 
     func testProposalFailureDoesNotMutateManualPaneDraftOrError() throws {

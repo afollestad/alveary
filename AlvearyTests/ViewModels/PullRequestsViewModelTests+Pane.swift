@@ -42,31 +42,40 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(viewModel.activePaneTarget, target)
     }
 
-    func testStaleLoadCompletionCannotResurrectDismissedSession() async {
-        let service = StubPullRequestsService()
-        let summary = makePullRequestSummary(number: 7)
-        let detailGate = PullRequestsServiceGate()
-        let diffGate = PullRequestsServiceGate()
-        service.detailGate = detailGate
-        service.diffGate = diffGate
-        service.detailResult = .success(makePullRequestDetail(id: summary.id))
-        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
-        let viewModel = makePullRequestsViewModel(service: service)
-        let target = PullRequestPaneTarget.details(summary.id)
+    func testStaleLoadCompletionCannotResurrectDismissedSession() async throws {
+        let cleanup = PullRequestLoadCleanup()
+        try await cleanup.run {
+            let service = StubPullRequestsService()
+            let summary = makePullRequestSummary(number: 7)
+            let detailGate = cleanup.makeGate()
+            let diffGate = cleanup.makeGate()
+            service.paneResponsesIgnoreCancellation = true
+            service.detailGate = detailGate
+            service.diffGate = diffGate
+            service.detailResult = .success(makePullRequestDetail(id: summary.id))
+            service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+            let viewModel = makePullRequestsViewModel(service: service)
+            let target = PullRequestPaneTarget.details(summary.id)
 
-        viewModel.requestDetails(summary)
-        guard let generation = viewModel.paneSessions[target]?.generation else {
-            return XCTFail("Expected a live session")
+            viewModel.requestDetails(summary)
+            cleanup.capture(viewModel)
+            try await waitUntil("both pane fetches entered their held responses") {
+                service.detailCallCount == 1 && service.diffCallCount == 1
+            }
+            let detailTask = try XCTUnwrap(viewModel.paneLoadTasks[target]?.detail?.task)
+            let diffTask = try XCTUnwrap(viewModel.paneLoadTasks[target]?.diff?.task)
+            let generation = try XCTUnwrap(viewModel.paneSessions[target]?.generation)
+            viewModel.dismissPane(target, generation: generation)
+            XCTAssertNil(viewModel.paneSessions[target])
+
+            detailGate.open()
+            diffGate.open()
+            await detailTask.value
+            await diffTask.value
+
+            XCTAssertNil(viewModel.paneSessions[target])
+            XCTAssertNil(viewModel.activePaneTarget)
         }
-        viewModel.dismissPane(target, generation: generation)
-        XCTAssertNil(viewModel.paneSessions[target])
-
-        detailGate.open()
-        diffGate.open()
-        await drainMainQueue()
-
-        XCTAssertNil(viewModel.paneSessions[target])
-        XCTAssertNil(viewModel.activePaneTarget)
     }
 
     func testDeactivateThenDismissLifecycle() async {

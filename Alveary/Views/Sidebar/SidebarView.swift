@@ -123,7 +123,8 @@ struct SidebarView: View, Equatable {
     /// sidebar without the interactions that expand a group. Selecting a project deliberately
     /// does not expand it (see `sidebarProjectPathToExpand`), so a fixture wanting an expanded
     /// group must say so. `initialCollapsedSections` is the same seed for section collapse, which
-    /// no fixture can reach either.
+    /// no fixture can reach either. `initialDragSession` lets visual fixtures render a live drag
+    /// without synthesizing a physical mouse gesture; their host owns the monitor lifetime.
     init(
         viewModel: SidebarViewModel,
         appState: AppState,
@@ -132,7 +133,8 @@ struct SidebarView: View, Equatable {
         initialExpandedProjects: Set<String> = [],
         initialCollapsedSections: Set<SidebarCollapsibleSection> = [],
         initialEditingSectionID: String? = nil,
-        initialIsCreatingSection: Bool = false
+        initialIsCreatingSection: Bool = false,
+        initialDragSession: SidebarDragSession? = nil
     ) {
         self.viewModel = viewModel
         self.appState = appState
@@ -142,6 +144,7 @@ struct SidebarView: View, Equatable {
         _collapsedSections = State(initialValue: initialCollapsedSections)
         _editingSectionID = State(initialValue: initialEditingSectionID)
         _isCreatingSection = State(initialValue: initialIsCreatingSection)
+        _sidebarDragInteractionState = State(initialValue: initialDragSession.map(SidebarDragInteractionState.active) ?? .idle)
     }
 
     /// True while any inline text field owns the sidebar: a thread rename, a section rename, or

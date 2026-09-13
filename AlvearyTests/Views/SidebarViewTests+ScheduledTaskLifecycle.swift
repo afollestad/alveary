@@ -1,12 +1,54 @@
+import AppKit
 import SwiftData
+import SwiftUI
 import XCTest
 
 @testable import Alveary
 
 @MainActor
 extension SidebarViewTests {
-    func testScheduledTaskIndicatorUsesAudibleAccessibilityLabel() {
-        XCTAssertEqual(SidebarThreadRow.scheduledIndicatorAccessibilityLabel, "Scheduled task")
+    func testScheduledTaskIndicatorUsesAudibleAccessibilityLabel() throws {
+        // SwiftUI only builds its accessibility nodes while a client requests the app's enhanced interface.
+        let application = NSApplication.shared
+        let enhancedInterface = "AXEnhancedUserInterface" as NSString
+        let previousInterface = try XCTUnwrap(application.perform(
+            NSSelectorFromString("accessibilityAttributeValue:"), with: enhancedInterface
+        )?.takeUnretainedValue())
+        _ = application.perform(
+            NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: true as NSNumber, with: enhancedInterface
+        )
+        defer {
+            _ = application.perform(
+                NSSelectorFromString("accessibilitySetValue:forAttribute:"),
+                with: previousInterface, with: enhancedInterface
+            )
+        }
+        let definition = ScheduledTask(
+            title: "Scheduled review", prompt: "Review changes", destination: .newThreadPerRun,
+            recurrence: .daily(hour: 9, minute: 0), timeZoneIdentifier: "UTC", providerID: "codex"
+        )
+        let run = ScheduledTaskRun(
+            snapshotting: definition, occurrenceID: "accessibility-run", occurrenceAt: Date(), triggerKind: .scheduled
+        )
+        let thread = AgentThread(name: "Review", mode: .task, scheduledTaskRun: run)
+        let row = SidebarThreadRow(
+            presentation: SidebarThreadRowPresentation(thread: thread), status: .stopped,
+            isSelected: false, onCommitRename: { _ in }
+        )
+        let host = NSHostingView(rootView: row)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 280, height: 52),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer {
+            window.contentView = nil
+            window.close()
+        }
+        host.layoutSubtreeIfNeeded()
+        let labels = scheduledRowAccessibilityLabels(in: host)
+        XCTAssertTrue(labels.contains("Scheduled task"), "Mounted accessibility labels: \(labels)")
     }
 
     func testScheduledTaskRemovalSanitizesReselectedTargetAtPersistenceCommit() async throws {
@@ -331,6 +373,19 @@ private final class SidebarPostCommitCleanupGate {
 
 private enum SidebarScheduledLifecycleActionTestError: Error {
     case stopFailed
+}
+
+@MainActor
+private func scheduledRowAccessibilityLabels(in element: Any, depth: Int = 0) -> [String] {
+    guard depth < 20, let node = element as? NSObject else { return [] }
+    // SwiftUI's nodes expose the AppKit selectors without conforming to NSAccessibilityProtocol.
+    let labelSelector = NSSelectorFromString("accessibilityLabel")
+    let childrenSelector = NSSelectorFromString("accessibilityChildren")
+    let label = node.responds(to: labelSelector) ? node.perform(labelSelector)?.takeUnretainedValue() as? String : nil
+    let children = node.responds(to: childrenSelector) ? node.perform(childrenSelector)?.takeUnretainedValue() as? [Any] : nil
+    return [label].compactMap { $0 } + (children ?? []).flatMap {
+        scheduledRowAccessibilityLabels(in: $0, depth: depth + 1)
+    }
 }
 
 @MainActor

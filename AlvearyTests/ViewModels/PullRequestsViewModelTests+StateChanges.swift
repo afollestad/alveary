@@ -228,10 +228,9 @@ private struct OpenedStatePane {
     }
 
     /// Settles once the mutation has been sent and the round trip has finished.
-    func waitForStateChange() async {
-        for _ in 0..<2_000 where mutationCount == 0
-            || viewModel.activePaneSession?.isChangingState == true {
-            await Task.yield()
-        }
+    func waitForStateChange(file: StaticString = #filePath, line: UInt = #line) async {
+        await waitFor({
+            mutationCount > 0 && viewModel.activePaneSession?.isChangingState == false
+        }, file: file, line: line)
     }
 }

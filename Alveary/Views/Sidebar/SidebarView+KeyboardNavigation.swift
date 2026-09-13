@@ -34,29 +34,19 @@ extension SidebarView {
     }
 
     func handleSidebarKeyPress(_ keyPress: KeyPress, context: SidebarRenderContext) -> KeyPress.Result {
-        if isSidebarDragInteractionInFlight {
-            return .handled
-        }
-
-        // Let the inline-rename TextField own the keyboard while editing so arrow keys,
-        // Return, and Delete don't leak into sidebar navigation or trigger a re-entrant
-        // rename. Re-enabling this path while `editingThreadID` is set produces key
-        // collisions — `handleRenameKey(context:)` guards against re-entering edit mode, but
-        // the other cases still mutate `selectedSidebarItem`, leaving the TextField
-        // stranded on a different row.
-        if shouldSuppressSidebarKeyPressWhileEditing(isInlineEditingActive: isSidebarInlineEditingActive) {
-            return .ignored
-        }
-
-        switch keyPress.key {
-        case .upArrow, .downArrow:
-            return handleVerticalArrow(keyPress.key, context: context)
-        case Self.backspaceKey:
-            return handleDeleteKey()
-        case .leftArrow, .rightArrow:
-            return handleHorizontalArrow(keyPress.key, context: context)
-        default:
-            return .ignored
+        dispatchSidebarKey(
+            keyPress.key,
+            isDragInFlight: isSidebarDragInteractionInFlight,
+            isInlineEditingActive: isSidebarInlineEditingActive
+        ) { action in
+            switch action {
+            case .verticalArrow(let key):
+                return handleVerticalArrow(key, context: context)
+            case .cleanup:
+                return handleDeleteKey()
+            case .horizontalArrow(let key):
+                return handleHorizontalArrow(key, context: context)
+            }
         }
     }
 
@@ -134,6 +124,40 @@ extension SidebarView {
     }
 }
 
+enum SidebarKeyAction: Equatable {
+    case verticalArrow(KeyEquivalent)
+    case cleanup
+    case horizontalArrow(KeyEquivalent)
+}
+
+/// Inline editors own navigation and deletion while editing; Return belongs exclusively to the native rename monitor.
+@MainActor
+func dispatchSidebarKey(
+    _ key: KeyEquivalent,
+    isDragInFlight: Bool,
+    isInlineEditingActive: Bool,
+    perform: (SidebarKeyAction) -> KeyPress.Result
+) -> KeyPress.Result {
+    // A cancelled drag remains in flight until mouse-up, so its keys must not reach another responder.
+    if isDragInFlight {
+        return .handled
+    }
+    if isInlineEditingActive {
+        return .ignored
+    }
+
+    switch key {
+    case .upArrow, .downArrow:
+        return perform(.verticalArrow(key))
+    case SidebarView.backspaceKey:
+        return perform(.cleanup)
+    case .leftArrow, .rightArrow:
+        return perform(.horizontalArrow(key))
+    default:
+        return .ignored
+    }
+}
+
 func effectiveSidebarSelection(_ selection: SidebarItem?) -> SidebarItem? {
     guard case .thread(let thread) = selection,
           thread.isDraft else {
@@ -175,14 +199,6 @@ func shouldNavigateDownOnRightArrow(
     default:
         return false
     }
-}
-
-// While any inline field is active — a thread rename, a section rename, or the pending
-// new-section row — that TextField must own the keyboard so typing/arrow/Delete don't
-// leak into sidebar navigation. Split out so tests can lock in the invariant
-// without needing to instantiate `SidebarView`.
-func shouldSuppressSidebarKeyPressWhileEditing(isInlineEditingActive: Bool) -> Bool {
-    isInlineEditingActive
 }
 
 enum SidebarThreadCleanupConfirmation {

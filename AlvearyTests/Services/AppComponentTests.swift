@@ -31,22 +31,7 @@ final class AppComponentTests: XCTestCase {
         assertSameInstance(component.providerRegistry, component.providerRegistry)
         assertSameInstance(component.providerDetectionService, component.providerDetectionService)
         assertSameInstance(component.keepAwakeService, component.keepAwakeService)
-        assertSameInstance(component.agentCLIKitRuntime, component.agentCLIKitRuntime)
-        assertSameInstance(component.agentCLIKitSessionStore, component.agentCLIKitSessionStore)
-        assertSameInstance(component.agentCLIKitInteractionStore, component.agentCLIKitInteractionStore)
-        assertSameInstance(component.agentCLIKitApprovalPolicyStore, component.agentCLIKitApprovalPolicyStore)
-        assertSameInstance(component.agentCLIKitClaudeApprovalPolicyStore, component.agentCLIKitClaudeApprovalPolicyStore)
-        XCTAssertEqual(component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue), ["claude", "codex"])
-        _ = component.agentCLIKitOneShotPromptRunner
-        assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
-        assertSameInstance(component.agentCLIKitCodexConfigStore, component.agentCLIKitCodexConfigStore)
-        assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
-        _ = component.agentCLIKitProjectTrustService
-        _ = component.agentCLIKitProviderDiscoveryService
-        // The decorator is only worth anything shared: a per-resolution instance would give every
-        // injection site its own empty cache, silently restoring the per-thread-creation probe.
-        XCTAssertTrue(component.cachedAgentProviderDiscoveryService === component.cachedAgentProviderDiscoveryService)
-        assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
+        assertAgentCLIKitServicesAreAppScoped(component)
         assertSameInstance(component.claudeApprovalPersistenceStore, component.claudeApprovalPersistenceStore)
         assertSameInstance(component.executablePathResolver, component.executablePathResolver)
         assertSameInstance(component.gitService, component.gitService)
@@ -65,12 +50,22 @@ final class AppComponentTests: XCTestCase {
         XCTAssertTrue(component.defaultAgentsManager === agentsManager)
         XCTAssertTrue(component.defaultAgentsManager === runtimeStore)
         assertSameInstance(component.agentOneShotPromptService, component.agentOneShotPromptService)
-    }
-
-    func testConversationControllerRegistryIsAppScoped() {
-        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
-
         assertSameInstance(component.conversationControllerRegistry, component.conversationControllerRegistry)
+        assertSameInstance(component.onboardingDependencyService, component.onboardingDependencyService)
+        _ = component.appUpdateReleaseClient
+        _ = component.appVersionProvider
+        _ = component.agentEnvironmentBuilder
+        _ = component.providerSetupService
+        _ = component.contextWindowCache
+        _ = component.agentCLIKitShellRunner
+        _ = component.agentCLIKitProviderDetector
+        _ = component.agentCLIKitProviderSetup
+        _ = component.agentCLIKitCodexProviderSetup
+        _ = component.agentCLIKitHostAdapter
+        _ = component.agentCLIKitHostServices
+        _ = component.worktreeManager
+        _ = component.fileListManager
+        _ = component.diffWorkspaceStore
     }
 
     func testScheduledTaskServicesAreAppScopedAndIdleWhenResolved() {
@@ -93,72 +88,6 @@ final class AppComponentTests: XCTestCase {
         XCTAssertTrue(component.scheduledTaskSchedulerCoordinator.activeRunIDs.isEmpty)
         XCTAssertTrue(component.scheduledTaskLifecycleCoordinator === component.scheduledTaskLifecycleCoordinator)
         XCTAssertNil(component.scheduledTaskLifecycleCoordinator.scheduledDeadline)
-    }
-
-    func testOnboardingDependencyServiceIsAppScoped() {
-        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
-
-        assertSameInstance(component.onboardingDependencyService, component.onboardingDependencyService)
-    }
-
-    func testRootPropertiesResolveAllServices() {
-        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
-
-        _ = component.modelContainer
-        _ = component.modelContext
-        _ = component.settingsService
-        _ = component.shellRunner
-        _ = component.executablePathResolver
-        _ = component.sessionManager
-        _ = component.notificationRouter
-        _ = component.notificationManager
-        _ = component.appUpdateReleaseClient
-        _ = component.appVersionProvider
-        _ = component.appUpdateManager
-        _ = component.agentRegistry
-        _ = component.providerRegistry
-        _ = component.providerDetectionService
-        _ = component.keepAwakeService
-        _ = component.agentEnvironmentBuilder
-        _ = component.providerSetupService
-        _ = component.contextWindowCache
-        _ = component.agentCLIKitShellRunner
-        _ = component.agentCLIKitInteractionStore
-        _ = component.agentCLIKitApprovalPolicyStore
-        _ = component.agentCLIKitClaudeApprovalPolicyStore
-        _ = component.agentCLIKitProviderAdapterSet
-        _ = component.agentCLIKitOneShotPromptRunner
-        _ = component.agentCLIKitClaudeConfigStore
-        _ = component.agentCLIKitCodexConfigStore
-        _ = component.agentCLIKitProviderRegistry
-        _ = component.agentCLIKitProviderDetector
-        _ = component.agentCLIKitProviderSetup
-        _ = component.agentCLIKitCodexProviderSetup
-        _ = component.agentCLIKitProjectTrustService
-        _ = component.agentCLIKitProviderDiscoveryService
-        _ = component.agentCLIKitContextWindowCache
-        _ = component.agentCLIKitHostAdapter
-        _ = component.agentCLIKitRuntime
-        _ = component.agentCLIKitSessionStore
-        _ = component.agentCLIKitHostServices
-        _ = component.claudeApprovalPersistenceStore
-        _ = component.defaultAgentsManager
-        _ = component.agentsManager
-        _ = component.agentOneShotPromptService
-        _ = component.conversationRuntimeStore
-        _ = component.gitService
-        _ = component.worktreeManager
-        _ = component.fileListManager
-        _ = component.diffWorkspaceStore
-        resolveAppScopedFeatureServices(component)
-    }
-
-    private func resolveAppScopedFeatureServices(_ component: AppComponent) {
-        _ = component.gitHubCLIService
-        _ = component.skillsService
-        _ = component.mcpService
-        _ = component.voiceInputService
-        _ = component.voiceInputLifecycleController
     }
 
     func testAgentCLIKitProviderRegistryUsesAdapterSetDefinitions() async {
@@ -242,6 +171,25 @@ final class AppComponentTests: XCTestCase {
         ))) { error in
             XCTAssertEqual(error as? AgentCLIKitHostAdapterError, .unsupportedProvider("unknown"))
         }
+    }
+
+    private func assertAgentCLIKitServicesAreAppScoped(_ component: AppComponent) {
+        assertSameInstance(component.agentCLIKitRuntime, component.agentCLIKitRuntime)
+        assertSameInstance(component.agentCLIKitSessionStore, component.agentCLIKitSessionStore)
+        assertSameInstance(component.agentCLIKitInteractionStore, component.agentCLIKitInteractionStore)
+        assertSameInstance(component.agentCLIKitApprovalPolicyStore, component.agentCLIKitApprovalPolicyStore)
+        assertSameInstance(component.agentCLIKitClaudeApprovalPolicyStore, component.agentCLIKitClaudeApprovalPolicyStore)
+        XCTAssertEqual(component.agentCLIKitProviderAdapterSet.definitions.map(\.id.rawValue), ["claude", "codex"])
+        _ = component.agentCLIKitOneShotPromptRunner
+        assertSameInstance(component.agentCLIKitClaudeConfigStore, component.agentCLIKitClaudeConfigStore)
+        assertSameInstance(component.agentCLIKitCodexConfigStore, component.agentCLIKitCodexConfigStore)
+        assertSameInstance(component.agentCLIKitProviderRegistry, component.agentCLIKitProviderRegistry)
+        _ = component.agentCLIKitProjectTrustService
+        _ = component.agentCLIKitProviderDiscoveryService
+        // The decorator is only worth anything shared: a per-resolution instance would give every
+        // injection site its own empty cache, silently restoring the per-thread-creation probe.
+        XCTAssertTrue(component.cachedAgentProviderDiscoveryService === component.cachedAgentProviderDiscoveryService)
+        assertSameInstance(component.agentCLIKitContextWindowCache, component.agentCLIKitContextWindowCache)
     }
 
     private func assertSameInstance<T>(

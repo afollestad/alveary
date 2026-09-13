@@ -183,15 +183,6 @@ extension ChatComposerActionRowTests {
 
         XCTAssertFalse(indicator.isHidden)
         XCTAssertEqual(indicator.accessibilityValue() as? String, "No usage reported yet")
-    }
-
-    func testContextWindowTooltipOpensUpward() throws {
-        let row = ChatComposerActionRowView(frame: NSRect(x: 0, y: 0, width: 900, height: 30))
-        row.configure(makeConfiguration(mode: .idle, usageSummary: .unreported))
-        row.layoutSubtreeIfNeeded()
-
-        let indicator = try XCTUnwrap(row.descendants(of: AppKitContextWindowIndicatorView.self).first)
-
         XCTAssertTrue(indicator.isFlipped)
         XCTAssertEqual(indicator.hoverPopoverPreferredEdge, .minY)
     }

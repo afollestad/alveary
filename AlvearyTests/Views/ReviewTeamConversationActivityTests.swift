@@ -7,10 +7,13 @@ import Testing
 @MainActor
 struct ReviewTeamConversationActivityTests {
     @Test(arguments: [
-        ReviewTeamRun.Phase.preparing, .inspecting, .consolidating, .crossChecking, .staging,
-        .awaitingDecision, .staged, .completed, .cancelled
+        (ReviewTeamRun.Phase.preparing, ThreadStatus.busy), (.inspecting, .busy), (.consolidating, .busy),
+        (.crossChecking, .busy), (.staging, .busy), (.awaitingDecision, .waitingForUser),
+        (.staged, .stopped), (.completed, .stopped), (.cancelled, .stopped)
     ])
-    func `coordinator drives sidebar and tab activity without a provider turn`(phase: ReviewTeamRun.Phase) throws {
+    func `coordinator drives sidebar and tab activity without a provider turn`(
+        phase: ReviewTeamRun.Phase, expected: ThreadStatus
+    ) throws {
         let fixture = try ReviewCoordinatorFixture()
         var run = try fixture.makeRun()
         run.phase = phase
@@ -20,7 +23,6 @@ struct ReviewTeamConversationActivityTests {
             approvals: nil, scheduledProposals: nil, reviewProposals: nil, settings: AppSettings(), reviewTeams: fixture.coordinator
         )
         let snapshot = ConversationStatusSnapshot(conversation: fixture.conversation, attention: attention, activity: activity)
-        let expected: ThreadStatus = phase.isWorking ? .busy : phase == .awaitingDecision ? .waitingForUser : .stopped
 
         #expect(ThreadStatus.folded(isArchived: false, conversations: [snapshot], runtimeFor: { _ in .neutral }) == expected)
         #expect(activity.isWorking("another-conversation") == false)
@@ -82,16 +84,32 @@ struct ReviewTeamConversationActivityTests {
         #expect(transcript.events.first?.content == persistedContent)
     }
 
-    @Test(arguments: [true, false])
-    func `a different live run cannot replace the saved progress card`(sameConversation: Bool) throws {
+    @Test(arguments: [(true, false), (false, false), (false, true)])
+    func `a different live run cannot replace the saved progress card`(sameConversation: Bool, sameRun: Bool) throws {
         let fixture = try ConversationViewModelTestFixture()
         let reviewFixture = try ReviewCoordinatorFixture()
         let run = try reviewFixture.makeRun(conversationID: fixture.viewModel.conversationID)
         let transcript = try ReviewTeamConversationTestFixture.transcript(fixture: fixture, run: run)
-        var other = try reviewFixture.makeRun(conversationID: sameConversation ? run.conversationID : "another-conversation")
+        var other = try reviewFixture.makeRun(
+            conversationID: sameConversation ? run.conversationID : "another-conversation",
+            runID: sameRun ? run.id : UUID().uuidString
+        )
         other.phase = .cancelled
+        let savedItems = fixture.viewModel.state.grouper.items
+        let savedEntry = try #require(savedItems.first?.hostToolWidgetEntry)
+        let savedEvent = try #require(transcript.events.first)
+        let savedJSON = try #require(savedEvent.content)
+        // Event encoding uses second-precision ISO-8601 dates; compare the complete persisted payload.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let savedRun = try decoder.decode(ReviewTeamRun.self, from: Data(savedJSON.utf8))
 
-        #expect(transcript.appKitTranscriptItems(reviewTeamRun: other) == fixture.viewModel.state.grouper.items)
+        #expect(savedRun.id == run.id)
+        #expect(savedRun.conversationID == run.conversationID)
+        #expect(savedEntry.content == .collectiveReviewRun(savedRun))
+        #expect((other.id == run.id) == sameRun)
+        #expect((other.conversationID == run.conversationID) == sameConversation)
+        #expect(transcript.appKitTranscriptItems(reviewTeamRun: other) == savedItems)
     }
 
     @Test

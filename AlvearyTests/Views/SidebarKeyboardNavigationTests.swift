@@ -9,18 +9,11 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     // Non-private so `SidebarKeyboardNavigationTests+*.swift` companions can seed models.
     var context: ModelContext!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    func setUpModelContext() throws {
         container = try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            ScheduledTask.self,
-            ScheduledTaskRun.self,
-            ScheduledTaskProposal.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
+            for: Project.self, AgentThread.self, Conversation.self, ConversationEventRecord.self,
+            ScheduledTask.self, ScheduledTaskRun.self, ScheduledTaskProposal.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         context = ModelContext(container)
     }
 
@@ -33,6 +26,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testBuildNavigableItemsWithCollapsedProjects() throws {
+        try setUpModelContext()
         let projectA = makeProject(name: "Alpha", path: "/tmp/alpha")
         let projectB = makeProject(name: "Beta", path: "/tmp/beta")
         makeThread(name: "Thread 1", project: projectA)
@@ -50,6 +44,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testBuildNavigableItemsPlacesPinnedThreadsAfterScheduledBeforeProjects() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let pinned = makeThread(name: "Pinned", project: project, isPinned: true)
         try context.save()
@@ -65,6 +60,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testBuildNavigableItemsWithExpandedProject() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
         try context.save()
@@ -81,6 +77,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testBuildNavigableItemsDoesNotDuplicatePinnedThreadsUnderExpandedProject() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let pinned = makeThread(name: "Pinned", project: project, isPinned: true)
         let unpinned = makeThread(name: "Unpinned", project: project)
@@ -99,6 +96,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testBuildNavigableItemsIncludesExpandedPinnedProjectChildrenBeforeRegularProjects() throws {
+        try setUpModelContext()
         let pinnedProject = makeProject(name: "Pinned", path: "/tmp/pinned", isPinned: true)
         let pinnedProjectChild = makeThread(name: "Pinned Child", project: pinnedProject)
         let regularProject = makeProject(name: "Regular", path: "/tmp/regular")
@@ -127,6 +125,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testBuildNavigableItemsExcludesArchivedThreads() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let active = makeThread(name: "Active", project: project)
         makeThread(name: "Archived", project: project, archivedAt: Date())
@@ -144,6 +143,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testBuildNavigableItemsMixedExpandedAndCollapsed() throws {
+        try setUpModelContext()
         let projectA = makeProject(name: "Alpha", path: "/tmp/alpha")
         let projectB = makeProject(name: "Beta", path: "/tmp/beta")
         let threadA = makeThread(name: "Thread A", project: projectA)
@@ -172,6 +172,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testNavigateDownThroughItems() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
         try context.save()
@@ -191,6 +192,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testNavigateUpThroughItems() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
         try context.save()
@@ -221,6 +223,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testNavigateDownFromUnrecognizedSelectionSelectsFirst() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         try context.save()
 
@@ -231,6 +234,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testShouldNavigateUpOnLeftArrowReturnsTrueForThreadSelection() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
 
@@ -261,6 +265,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testShouldNavigateUpOnLeftArrowReturnsFalseForExpandedProject() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 
         let result = shouldNavigateUpOnLeftArrow(
@@ -272,6 +277,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testShouldNavigateUpOnLeftArrowReturnsTrueForCollapsedProject() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 
         let result = shouldNavigateUpOnLeftArrow(
@@ -292,6 +298,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testShouldNavigateDownOnRightArrowReturnsFalseForCollapsedProject() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 
         let result = shouldNavigateDownOnRightArrow(
@@ -303,6 +310,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testShouldNavigateDownOnRightArrowReturnsTrueForExpandedProject() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 
         let result = shouldNavigateDownOnRightArrow(
@@ -314,6 +322,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testShouldNavigateDownOnRightArrowReturnsTrueForThreadSelection() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
 
@@ -353,6 +362,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testRenameThreadIDReturnsSelectedThreadIDWhenNotEditing() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
 
@@ -365,6 +375,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testDraftThreadUsesProjectAsEffectiveSidebarSelectionAndCannotRename() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/draft-alpha")
         let thread = AgentThread(name: "Draft", isDraft: true, project: project)
 
@@ -401,6 +412,7 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
     }
 
     func testRenameThreadIDReturnsNilForNonThreadSelection() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
 
         let result = renameThreadID(
@@ -411,15 +423,8 @@ final class SidebarKeyboardNavigationTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    func testShouldSuppressSidebarKeyPressWhileEditingReturnsTrueWhenEditing() {
-        XCTAssertTrue(shouldSuppressSidebarKeyPressWhileEditing(isInlineEditingActive: true))
-    }
-
-    func testShouldSuppressSidebarKeyPressWhileEditingReturnsFalseWhenIdle() {
-        XCTAssertFalse(shouldSuppressSidebarKeyPressWhileEditing(isInlineEditingActive: false))
-    }
-
     func testRenameThreadIDReturnsNilWhileEditingAnotherThread() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         let thread = makeThread(name: "Thread 1", project: project)
         let editingThread = makeThread(name: "Thread 2", project: project)

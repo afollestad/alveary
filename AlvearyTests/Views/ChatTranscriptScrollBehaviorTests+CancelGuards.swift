@@ -54,26 +54,11 @@ extension ChatTranscriptScrollBehaviorTests {
                 newMetrics: newMetrics
             )
         )
+        // Keep the drop below the velocity cap to isolate the near-bottom guard.
+        XCTAssertFalse(ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
+            oldMetrics: .init(offsetY: 0, contentHeight: 228, containerHeight: 393),
+            newMetrics: .init(offsetY: -177, contentHeight: 228, containerHeight: 393)
+        ))
     }
 
-    // REGRESSION: during streaming, bottom anchoring catches up to content growth
-    // by *increasing* offsetY, but if content grew by more than the anchor bumped
-    // on the same tick, `distanceFromBottom` also grows.
-    // The old `offsetChanged && movedFurtherFromBottom` check read that as a user
-    // drag and tripped `.cancelled`, briefly flipping `isFollowing` to false and
-    // flashing the jump-to-latest button mid-stream. A user drag decreases offsetY;
-    // anchor catch-up increases it — requiring `offsetDecreased` fixes this.
-    func testDoesNotCancelProgrammaticScrollOnAnchorCatchUpDuringStreaming() {
-        // offsetY increased (anchor catch-up toward bottom), distance grew
-        // (content grew by more than the catch-up).
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 600, contentHeight: 1_000, containerHeight: 400)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 620, contentHeight: 1_100, containerHeight: 400)
-
-        XCTAssertFalse(
-            ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
-                oldMetrics: oldMetrics,
-                newMetrics: newMetrics
-            )
-        )
-    }
 }

@@ -62,25 +62,6 @@ final class BlockInputComposerStyleTests: XCTestCase {
         XCTAssertEqual(style.inlineCode.foregroundColor, AppMarkdownCodeBlockPalette.composerChipForegroundNSColor)
     }
 
-    func testComposerStyleKeepsHostAttachmentPreviewTokens() throws {
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewStripBackgroundColor, .windowBackgroundColor)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewThumbnailSize, NSSize(width: 76, height: 76))
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewVerticalPadding, 8)
-        XCTAssertEqual(
-            BlockInputComposerStyle.imagePreviewHorizontalPadding,
-            AppKitChatComposerEditorController.editorHorizontalPadding
-        )
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewInterItemSpacing, 12)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewCornerRadius, AppCornerRadius.standard)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewBorderWidth, 1)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonSize, NSSize(width: 24, height: 24))
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonSymbolSize, NSSize(width: 10, height: 10))
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonBorderWidth, 1)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonShadowColor, .black)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonShadowOpacity, 0.22)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewRemoveButtonShadowRadius, 4)
-    }
-
     func testComposerStyleUsesNeutralSelectionTokenDistinctFromChipFill() throws {
         let style = BlockInputComposerStyle.make()
 
@@ -137,24 +118,6 @@ final class BlockInputComposerStyleTests: XCTestCase {
                     baseColor: .labelColor,
                     opacity: 0.1
                 )
-            )
-        }
-    }
-
-    func testPopupSurfaceStyleResolvesSharedFill() throws {
-        for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
-            let appearance = try XCTUnwrap(NSAppearance(named: appearanceName))
-            let expected = expectedPopupBackgroundColor(for: appearance)
-
-            try assertColor(
-                AppPopupSurfaceStyle.backgroundColor(for: appearance),
-                appearanceName: appearanceName,
-                matches: expected
-            )
-            try assertColor(
-                BlockInputComposerStyle.completionPopupBackgroundColor,
-                appearanceName: appearanceName,
-                matches: expected
             )
         }
     }

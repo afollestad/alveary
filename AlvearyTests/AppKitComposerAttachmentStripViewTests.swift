@@ -20,7 +20,6 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         let imageFrame = try XCTUnwrap(strip.imageTileFramesForTesting.first)
         XCTAssertEqual(imageFrame.minX, AppKitChatComposerEditorController.editorHorizontalPadding, accuracy: 0.5)
         XCTAssertFalse(strip.isOpaque)
-        XCTAssertEqual(BlockInputComposerStyle.imagePreviewStripBackgroundColor, .windowBackgroundColor)
     }
 
     func testMixedAttachmentRowBottomAlignsItems() throws {
@@ -166,30 +165,26 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         let fileAttachment = try localFileAttachment(filename: "locked.pdf")
         let mounted = configuredMountedStrip(attachments: [.file(fileAttachment)], width: 320)
         let strip = mounted.strip
-        var interactionCount = 0
-        strip.onOpenAttachment = { _ in interactionCount += 1 }
-        strip.onRemoveAttachment = { _ in interactionCount += 1 }
+        var openedIDs: [String] = []
+        var removedIDs: [String] = []
+        strip.onOpenAttachment = { openedIDs.append($0.testingID) }
+        strip.onRemoveAttachment = { removedIDs.append($0.testingID) }
+        let frame = try XCTUnwrap(strip.fileChipFramesForTesting.first)
+        let removePoint = fileRemoveButtonCenter(in: frame)
+        try click(strip, at: removePoint)
+        XCTAssertEqual(removedIDs, [fileAttachment.id])
+        XCTAssertTrue(openedIDs.isEmpty)
+        removedIDs.removeAll()
 
         strip.onOpenAttachment = nil
         strip.onRemoveAttachment = nil
+        try click(strip, at: center(of: frame))
+        try click(strip, at: removePoint)
         let chip = try XCTUnwrap(strip.fileChipViews.first)
-        chip.mouseUp(with: mouseEvent(at: chip.convert(center(of: chip.bounds), to: nil)))
 
-        XCTAssertEqual(interactionCount, 0)
+        XCTAssertTrue(openedIDs.isEmpty)
+        XCTAssertTrue(removedIDs.isEmpty)
         XCTAssertEqual(chip.accessibilityRole(), .group)
-    }
-
-    func testFilePreviewUsesStandaloneDocumentIconAndSmallerTitle() throws {
-        let fileAttachment = try localFileAttachment(filename: "Home_Inspection_Report.pdf")
-        let mounted = configuredMountedStrip(attachments: [.file(fileAttachment)], width: 320)
-        let strip = mounted.strip
-        let chip = try XCTUnwrap(strip.fileChipViews.first)
-
-        XCTAssertNotNil(chip.iconImageForTesting)
-        XCTAssertEqual(chip.iconFrameForTesting.width, 28, accuracy: 0.5)
-        XCTAssertEqual(chip.iconFrameForTesting.height, 32, accuracy: 0.5)
-        XCTAssertEqual(chip.titleFontSizeForTesting, 12, accuracy: 0.1)
-        XCTAssertEqual(chip.titleFrameForTesting.minX, 46, accuracy: 0.5)
     }
 
     func testFilePreviewHitTestingUsesCardAcrossIconAndTitle() throws {
@@ -197,6 +192,7 @@ final class AppKitComposerAttachmentStripViewTests: XCTestCase {
         let mounted = configuredMountedStrip(attachments: [.file(fileAttachment)], width: 320)
         let strip = mounted.strip
         let chip = try XCTUnwrap(strip.fileChipViews.first)
+        XCTAssertNotNil(chip.iconImageForTesting)
         let iconPoint = chip.convert(center(of: chip.iconFrameForTesting), to: strip)
         let titlePoint = chip.convert(center(of: chip.titleFrameForTesting), to: strip)
 

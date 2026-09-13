@@ -46,9 +46,6 @@ final class ChatComposerReasoningMenuLayoutTests: XCTestCase {
         let models = try XCTUnwrap(controller.debugModelsDisclosure)
         let fast = try XCTUnwrap(controller.debugFastToggle)
 
-        XCTAssertEqual(ComposerReasoningMenuMetrics.topInset, 14)
-        XCTAssertEqual(ComposerReasoningMenuMetrics.bottomInset, 12)
-        XCTAssertEqual(ComposerReasoningMenuMetrics.sliderBottomSpacing, 4)
         XCTAssertEqual(slider.frame.minY, ComposerReasoningMenuMetrics.topInset)
         XCTAssertEqual(
             controller.view.bounds.maxY - models.frame.maxY,

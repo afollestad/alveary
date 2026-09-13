@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftData
 import XCTest
@@ -77,8 +78,32 @@ extension SidebarViewTests {
     /// space, so the reporting view has to hand back a top-left-origin point. An unflipped `NSView`
     /// mirrors y, which put every empty-area click somewhere near the top of the list and made the
     /// "New Section..." menu unreachable.
-    func testSecondaryClickTargetReportsTopLeftOriginPoints() {
-        XCTAssertTrue(SecondaryClickTargetView().isFlipped)
+    func testSecondaryClickTargetReportsTopLeftOriginPoints() throws {
+        let window = NSWindow(
+            contentRect: NSRect(x: -1_000, y: -1_000, width: 400, height: 300),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 300))
+        let target = SecondaryClickTargetView(frame: NSRect(x: 40, y: 60, width: 200, height: 100))
+        var points: [CGPoint] = []
+        target.onSecondaryClick = { points.append($0) }
+        window.contentView = content
+        content.addSubview(target)
+        defer {
+            target.dismantle()
+            window.contentView = nil
+            window.close()
+        }
+        // Window coordinates use a bottom-left origin: the target's top edge is y=160.
+        let event = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .rightMouseDown, location: NSPoint(x: 70, y: 140), modifierFlags: [],
+            timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1
+        ))
+
+        NSApp.sendEvent(event)
+
+        XCTAssertEqual(points, [CGPoint(x: 30, y: 20)])
     }
 
     // MARK: - Section header context menu

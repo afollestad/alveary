@@ -7,38 +7,92 @@ import XCTest
 extension SnapshotTests {
     func testSidebarDragExpandedProjectFadesHeaderChildrenAndSelectedChrome() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
-        let secondThread = try addSecondActiveThread(to: sidebar)
-
-        assertMacSnapshot(
-            SidebarDraggedProjectGroupSnapshot(
-                project: sidebar.project,
-                threads: [secondThread, sidebar.activeThread],
-                selectedThreadID: sidebar.activeThread.persistentModelID
-            ),
-            size: CGSize(width: 320, height: 170),
-            named: "sidebar_drag_expanded_project_faded"
+        sidebar.activeThread.modifiedAt = Date(timeIntervalSince1970: 1_713_000_000)
+        _ = try addSecondActiveThread(to: sidebar)
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(sidebar.activeThread)
+        let item: SidebarDragItem = .project(sidebar.project.persistentModelID)
+        let session = SidebarDragSession(
+            id: UUID(), item: item, location: .zero,
+            logicalOrder: SidebarDragLogicalOrder(
+                pinnedItems: sidebar.pinnedThread.map { [.pinnedThread($0.persistentModelID)] } ?? [],
+                regularProjects: [.project(sidebar.project.persistentModelID), .project(sidebar.emptyProject.persistentModelID)]
+            )
         )
+        let observation = SidebarDragSnapshotObservation()
+
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
+            size: CGSize(width: 320, height: 540),
+            named: "sidebar_drag_expanded_project_faded"
+        ) {
+            SidebarView(
+                viewModel: sidebar.fixture.viewModel, appState: appState,
+                initialExpandedProjects: [sidebar.project.id], initialDragSession: session
+            )
+            .overlay(alignment: .topLeading) { SidebarDragSnapshotProbe(observation: observation).frame(width: 1, height: 1) }
+        }
+        XCTAssertEqual(observation.lastActiveItem, item, "The snapshot must retain the seeded production drag state")
+        XCTAssertGreaterThan(observation.observationCount, 0)
     }
 
     func testSidebarDragStandalonePinnedThreadFadesCompleteRow() async throws {
         let sidebar = try await makeSidebarSnapshotFixture(includePinnedThread: true)
         let pinnedThread = try XCTUnwrap(sidebar.pinnedThread)
-
-        assertMacSnapshot(
-            SidebarDraggedPinnedThreadSnapshot(thread: pinnedThread),
-            size: CGSize(width: 320, height: 140),
-            named: "sidebar_drag_standalone_pinned_thread_faded"
+        let appState = AppState()
+        appState.selectedSidebarItem = .thread(pinnedThread)
+        let item: SidebarDragItem = .pinnedThread(pinnedThread.persistentModelID)
+        let session = SidebarDragSession(
+            id: UUID(), item: item, location: .zero,
+            logicalOrder: SidebarDragLogicalOrder(
+                pinnedItems: sidebar.pinnedThread.map { [.pinnedThread($0.persistentModelID)] } ?? [],
+                regularProjects: [.project(sidebar.project.persistentModelID), .project(sidebar.emptyProject.persistentModelID)]
+            )
         )
+        let observation = SidebarDragSnapshotObservation()
+
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
+            size: CGSize(width: 320, height: 540),
+            named: "sidebar_drag_standalone_pinned_thread_faded"
+        ) {
+            SidebarView(
+                viewModel: sidebar.fixture.viewModel, appState: appState,
+                initialExpandedProjects: [], initialDragSession: session
+            )
+            .overlay(alignment: .topLeading) { SidebarDragSnapshotProbe(observation: observation).frame(width: 1, height: 1) }
+        }
+        XCTAssertEqual(observation.lastActiveItem, item, "The snapshot must retain the seeded production drag state")
+        XCTAssertGreaterThan(observation.observationCount, 0)
     }
 
     func testSidebarDragExpandedEmptyProjectFadesPlaceholder() async throws {
         let sidebar = try await makeSidebarSnapshotFixture()
-
-        assertMacSnapshot(
-            SidebarDraggedEmptyProjectSnapshot(project: sidebar.emptyProject),
-            size: CGSize(width: 320, height: 140),
-            named: "sidebar_drag_expanded_empty_project_faded"
+        let appState = AppState()
+        appState.selectedSidebarItem = .project(sidebar.emptyProject)
+        let item: SidebarDragItem = .project(sidebar.emptyProject.persistentModelID)
+        let session = SidebarDragSession(
+            id: UUID(), item: item, location: .zero,
+            logicalOrder: SidebarDragLogicalOrder(
+                pinnedItems: sidebar.pinnedThread.map { [.pinnedThread($0.persistentModelID)] } ?? [],
+                regularProjects: [.project(sidebar.project.persistentModelID), .project(sidebar.emptyProject.persistentModelID)]
+            )
         )
+        let observation = SidebarDragSnapshotObservation()
+
+        await assertMacModelSnapshot(
+            modelContainer: sidebar.fixture.container,
+            size: CGSize(width: 320, height: 540),
+            named: "sidebar_drag_expanded_empty_project_faded"
+        ) {
+            SidebarView(
+                viewModel: sidebar.fixture.viewModel, appState: appState,
+                initialExpandedProjects: [sidebar.emptyProject.id], initialDragSession: session
+            )
+            .overlay(alignment: .topLeading) { SidebarDragSnapshotProbe(observation: observation).frame(width: 1, height: 1) }
+        }
+        XCTAssertEqual(observation.lastActiveItem, item, "The snapshot must retain the seeded production drag state")
+        XCTAssertGreaterThan(observation.observationCount, 0)
     }
 
     func testSidebarDragInsertionIndicatorAppearsBelowExpandedProjectTerminalChild() async throws {
@@ -69,42 +123,6 @@ extension SnapshotTests {
         )
     }
 
-    func testSidebarProjectDragShowsNoIndicatorBetweenConsecutivePinnedThreads() async throws {
-        let sidebar = try await makeSidebarSnapshotFixture(includePinnedThread: true)
-        let firstThread = try XCTUnwrap(sidebar.pinnedThread)
-        let secondThread = try addSecondPinnedThread(to: sidebar)
-        let sourceItem = SidebarDragItem.project(sidebar.emptyProject.persistentModelID)
-        let geometry: [SidebarDragGeometryRole: [CGRect]] = [
-            .viewport: [CGRect(x: 0, y: 0, width: 320, height: 240)],
-            .pinnedThread(firstThread.persistentModelID): [CGRect(x: 0, y: 40, width: 320, height: 32)],
-            .pinnedThread(secondThread.persistentModelID): [CGRect(x: 0, y: 74, width: 320, height: 32)],
-            .projectsHeader: [CGRect(x: 0, y: 130, width: 320, height: 32)]
-        ]
-        let candidate = sidebarDropCandidateForLocation(
-            at: CGPoint(x: 160, y: 73),
-            dragging: sourceItem,
-            geometry: geometry,
-            logicalOrder: SidebarDragLogicalOrder(
-                pinnedItems: [
-                    .pinnedThread(firstThread.persistentModelID),
-                    .pinnedThread(secondThread.persistentModelID)
-                ],
-                regularProjects: [sourceItem, .project(sidebar.project.persistentModelID)]
-            )
-        )
-
-        assertMacSnapshot(
-            SidebarPinnedThreadBoundarySnapshot(
-                firstThread: firstThread,
-                secondThread: secondThread,
-                sourceProject: sidebar.emptyProject,
-                showsInvalidProjectIndicator: candidate != nil
-            ),
-            size: CGSize(width: 320, height: 250),
-            named: "sidebar_project_drag_no_indicator_between_pinned_threads"
-        )
-    }
-
     private func addSecondActiveThread(to sidebar: SnapshotSidebarFixture) throws -> AgentThread {
         let thread = AgentThread(
             name: "Verify Sidebar Ordering",
@@ -125,98 +143,6 @@ extension SnapshotTests {
         return thread
     }
 
-    private func addSecondPinnedThread(to sidebar: SnapshotSidebarFixture) throws -> AgentThread {
-        let thread = AgentThread(
-            name: "Audit Drag Boundaries",
-            isPinned: true,
-            modifiedAt: Date(timeIntervalSince1970: 1_713_000_075),
-            project: sidebar.project
-        )
-        let conversation = Conversation(
-            id: "sidebar-drag-second-pinned-thread",
-            title: "Main",
-            provider: "claude",
-            thread: thread
-        )
-        thread.conversations = [conversation]
-        sidebar.project.threads.append(thread)
-        sidebar.fixture.context.insert(thread)
-        sidebar.fixture.context.insert(conversation)
-        try sidebar.fixture.context.save()
-        return thread
-    }
-}
-
-@MainActor
-private struct SidebarDraggedProjectGroupSnapshot: View {
-    let project: Project
-    let threads: [AgentThread]
-    let selectedThreadID: PersistentIdentifier
-
-    var body: some View {
-        List {
-            fadedProjectRow(project, isExpanded: true)
-
-            ForEach(Array(threads.enumerated()), id: \.element.persistentModelID) { index, thread in
-                fadedThreadRow(
-                    thread,
-                    status: index == 0 ? .stopped : .busy,
-                    isSelected: thread.persistentModelID == selectedThreadID,
-                    topSpacing: index == 0 ? 0 : SidebarRowMetrics.interThreadRowSpacing
-                )
-            }
-        }
-        .listStyle(.sidebar)
-    }
-}
-
-@MainActor
-private struct SidebarDraggedPinnedThreadSnapshot: View {
-    let thread: AgentThread
-
-    var body: some View {
-        List {
-            SidebarSectionHeaderRow(title: "Pinned")
-
-            SidebarThreadRow(
-                presentation: SidebarThreadRowPresentation(thread: thread),
-                status: .waitingForUser,
-                isSelected: true,
-                layout: .topLevel,
-                suppressHoverAffordances: true,
-                onCommitRename: { _ in }
-            )
-            .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
-            .opacity(sidebarDraggedRowOpacity)
-            .appSelectableRow(
-                isSelected: true,
-                selectionBackgroundOpacity: sidebarDraggedRowOpacity,
-                suppressesPressFeedback: true,
-                suppressesAction: true,
-                action: {}
-            )
-        }
-        .listStyle(.sidebar)
-    }
-}
-
-@MainActor
-private struct SidebarDraggedEmptyProjectSnapshot: View {
-    let project: Project
-
-    var body: some View {
-        List {
-            fadedProjectRow(project, isExpanded: true, isSelected: true)
-
-            Text("No threads")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 6.75)
-                .padding(.leading, SidebarProjectRow.projectNameLeadingInset)
-                .opacity(sidebarDraggedRowOpacity)
-        }
-        .listStyle(.sidebar)
-    }
 }
 
 @MainActor
@@ -254,11 +180,11 @@ private struct SidebarTerminalDropIndicatorSnapshot: View {
                     let terminalFrame = proxy[terminalAnchor]
                     let nextHeaderFrame = proxy[nextHeaderAnchor]
 
-                    sidebarDropInsertionIndicator
-                        .position(
-                            x: proxy.size.width / 2,
-                            y: (terminalFrame.maxY + nextHeaderFrame.minY) / 2
-                        )
+                    SidebarDropInsertionIndicator(
+                        indicatorY: (terminalFrame.maxY + nextHeaderFrame.minY) / 2,
+                        viewport: CGRect(origin: .zero, size: proxy.size),
+                        overlaySize: proxy.size
+                    )
                 }
             }
             .allowsHitTesting(false)
@@ -286,41 +212,16 @@ private struct SidebarHiddenPinnedDropIndicatorSnapshot: View {
             }
             .padding(.horizontal, 36)
 
-            sidebarDropInsertionIndicator
+            GeometryReader { proxy in
+                SidebarDropInsertionIndicator(
+                    indicatorY: 0,
+                    viewport: CGRect(origin: .zero, size: proxy.size),
+                    overlaySize: proxy.size
+                )
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .clipped()
-    }
-}
-
-@MainActor
-private struct SidebarPinnedThreadBoundarySnapshot: View {
-    let firstThread: AgentThread
-    let secondThread: AgentThread
-    let sourceProject: Project
-    let showsInvalidProjectIndicator: Bool
-
-    var body: some View {
-        List {
-            SidebarSectionHeaderRow(title: "Pinned")
-
-            topLevelThreadRow(firstThread, status: .waitingForUser)
-                .overlay(alignment: .bottom) {
-                    if showsInvalidProjectIndicator {
-                        sidebarDropInsertionIndicator
-                    }
-                }
-
-            topLevelThreadRow(
-                secondThread,
-                status: .stopped,
-                topSpacing: SidebarRowMetrics.interThreadRowSpacing
-            )
-
-            SidebarSectionHeaderRow(title: "Projects", onAddProject: {})
-            fadedProjectRow(sourceProject, isExpanded: false)
-        }
-        .listStyle(.sidebar)
     }
 }
 
@@ -355,15 +256,6 @@ private struct SidebarSnapshotBoundaryAnchorModifier: ViewModifier {
             content
         }
     }
-}
-
-@MainActor
-private var sidebarDropInsertionIndicator: some View {
-    Rectangle()
-        .fill(AppAccentFill.primary)
-        .frame(width: 300, height: 2)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
 }
 
 @MainActor
@@ -413,31 +305,6 @@ private func projectRow(
 }
 
 @MainActor
-private func fadedThreadRow(
-    _ thread: AgentThread,
-    status: ThreadStatus,
-    isSelected: Bool,
-    topSpacing: CGFloat
-) -> some View {
-    threadRow(
-        thread,
-        status: status,
-        isSelected: isSelected,
-        topSpacing: topSpacing,
-        suppressHoverAffordances: true
-    )
-    .opacity(sidebarDraggedRowOpacity)
-    .appSelectableRow(
-        isSelected: isSelected,
-        selectionBackgroundTopInset: topSpacing,
-        selectionBackgroundOpacity: sidebarDraggedRowOpacity,
-        suppressesPressFeedback: true,
-        suppressesAction: true,
-        action: {}
-    )
-}
-
-@MainActor
 private func threadRow(
     _ thread: AgentThread,
     status: ThreadStatus,
@@ -459,26 +326,51 @@ private func threadRow(
 }
 
 @MainActor
-private func topLevelThreadRow(
-    _ thread: AgentThread,
-    status: ThreadStatus,
-    topSpacing: CGFloat = 0
-) -> some View {
-    SidebarThreadRow(
-        presentation: SidebarThreadRowPresentation(thread: thread),
-        status: status,
-        isSelected: false,
-        layout: .topLevel,
-        suppressHoverAffordances: true,
-        onCommitRename: { _ in }
-    )
-    .padding(.leading, SidebarSectionHeaderRow.contentLeadingPadding)
-    .padding(.top, topSpacing)
-    .appSelectableRow(
-        isSelected: false,
-        selectionBackgroundTopInset: topSpacing,
-        suppressesPressFeedback: true,
-        suppressesAction: true,
-        action: {}
-    )
+private final class SidebarDragSnapshotObservation {
+    var lastActiveItem: SidebarDragItem?
+    var observationCount = 0
+}
+
+/// Physical pointer polling is irrelevant to a seeded visual fixture. Stop the mounted monitor's
+/// timers while keeping the sidebar's real drag state and row rendering intact.
+private struct SidebarDragSnapshotProbe: NSViewRepresentable {
+    let observation: SidebarDragSnapshotObservation
+
+    func makeNSView(context: Context) -> SidebarDragSnapshotProbeView {
+        SidebarDragSnapshotProbeView(observation: observation)
+    }
+
+    func updateNSView(_ view: SidebarDragSnapshotProbeView, context: Context) { view.observeDrag() }
+}
+
+private final class SidebarDragSnapshotProbeView: NSView {
+    let observation: SidebarDragSnapshotObservation
+
+    init(observation: SidebarDragSnapshotObservation) {
+        self.observation = observation
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) { return nil }
+
+    override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); observeDrag() }
+    override func layout() { super.layout(); observeDrag() }
+    override func draw(_ dirtyRect: NSRect) { observeDrag() }
+
+    func observeDrag() {
+        guard let root = window?.contentView, let monitor = dragMonitor(in: root) else { return }
+        monitor.stopEscapeWatch()
+        monitor.stopAutoscroll()
+        observation.observationCount += 1
+        if case .active(let session) = monitor.interactionState {
+            observation.lastActiveItem = session.item
+        } else {
+            observation.lastActiveItem = nil
+        }
+    }
+
+    private func dragMonitor(in view: NSView) -> SidebarDragMonitorView? {
+        if let monitor = view as? SidebarDragMonitorView { return monitor }
+        return view.subviews.lazy.compactMap { self.dragMonitor(in: $0) }.first
+    }
 }

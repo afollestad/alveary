@@ -198,9 +198,15 @@ extension AppKitTranscriptRowFactoryTests {
             )
         ]
 
-        _ = factory.makeRows(for: firstItems, configuration: .init(expandedRowIDs: ["activity-read-row"]))
+        let initialRows = factory.makeRows(for: firstItems, configuration: .init(expandedRowIDs: ["activity-read-row"]))
+        XCTAssertEqual(initialRows.map(\.id), ["activity-read-row"])
+        let initialGroup = try XCTUnwrap(initialRows.first?.view as? AppKitTranscriptActivityGroupView)
+        initialGroup.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
+        initialGroup.layoutSubtreeIfNeeded()
+        XCTAssertTrue(initialGroup.renderedText.contains("Asking 1 question"))
         let rows = factory.makeRows(for: secondItems, configuration: .init(expandedRowIDs: ["activity-read-row", "prompt-row"]))
         let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        XCTAssertTrue(group === initialGroup)
         group.frame = NSRect(x: 0, y: 0, width: 620, height: 1_000)
         group.layoutSubtreeIfNeeded()
 
@@ -360,15 +366,22 @@ extension AppKitTranscriptRowFactoryTests {
             )
         ]
 
-        _ = factory.makeRows(
+        let initialRows = factory.makeRows(
             for: items,
             configuration: .init(expandedRowIDs: ["activity-read-row", "read-row"])
         )
+        XCTAssertEqual(initialRows.map(\.id), ["activity-read-row"])
+        let initialGroup = try XCTUnwrap(initialRows.first?.view as? AppKitTranscriptActivityGroupView)
+        initialGroup.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
+        initialGroup.layoutSubtreeIfNeeded()
+        XCTAssertTrue(initialGroup.renderedText.contains("expanded-only"))
+
         let rows = factory.makeRows(
             for: items,
             configuration: .init(expandedRowIDs: ["activity-read-row"])
         )
         let group = try XCTUnwrap(rows.first?.view as? AppKitTranscriptActivityGroupView)
+        XCTAssertTrue(group === initialGroup)
         group.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         group.layoutSubtreeIfNeeded()
 

@@ -52,8 +52,9 @@ final class AgentOneShotPromptServiceTests: XCTestCase {
         var fixture = await makeFixture(settings: settings)
         _ = try await fixture.service.generate(prompt: "Generate", workingDirectory: "/tmp/project")
         let emptyModelRequests = await fixture.runner.requests()
-        let emptyModelRequest = emptyModelRequests.first
-        XCTAssertNil(emptyModelRequest?.model)
+        XCTAssertEqual(emptyModelRequests.count, 1)
+        let emptyModelRequest = try XCTUnwrap(emptyModelRequests.first)
+        XCTAssertNil(emptyModelRequest.model)
 
         settings.defaultModel = "claude-opus"
         fixture = await makeFixture(settings: settings)

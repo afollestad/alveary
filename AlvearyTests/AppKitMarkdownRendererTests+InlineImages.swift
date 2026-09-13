@@ -45,6 +45,7 @@ extension AppKitMarkdownRendererTests {
             return XCTFail("Expected a markdown block.")
         }
 
+        XCTAssertEqual(store.loadStateFingerprint(forMarkdown: Self.badgeMarkdown), "n")
         let attributed = AppKitMarkdownAttributedStringBuilder.attributedString(
             from: content,
             baseFont: .systemFont(ofSize: 13),
@@ -52,6 +53,7 @@ extension AppKitMarkdownRendererTests {
             imageStore: store
         )
 
+        XCTAssertEqual(store.loadStateFingerprint(forMarkdown: Self.badgeMarkdown), "p")
         XCTAssertTrue(attributed.string.contains("P1"))
         XCTAssertFalse(attributed.string.contains("\u{FFFC}"))
         XCTAssertNil(store.image(forSource: "https://example.com/p1.png"))

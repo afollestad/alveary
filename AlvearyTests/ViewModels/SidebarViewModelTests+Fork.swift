@@ -13,6 +13,17 @@ extension SidebarViewModelTests {
         let thread = setup.thread
         let sourceConversation = try fixture.requireConversation(id: "main")
         try insertForkSourceEvents(in: fixture, conversation: sourceConversation)
+        let sourceLinks = [LinkedPullRequest(summary: makePullRequestSummary(number: 7), linkedAt: Date(timeIntervalSince1970: 1))]
+        let sourcePrompts = [PendingPullRequestPrompt(
+            identifier: sourceLinks[0].id, messageEventID: "source-message",
+            conversationID: sourceConversation.id,
+            createdAt: Date(timeIntervalSince1970: 2)
+        )]
+        let sourceWatermark = Date(timeIntervalSince1970: 100)
+        thread.linkedPullRequests = sourceLinks
+        thread.pendingPullRequestLinkPrompts = sourcePrompts
+        thread.pullRequestScanWatermark = sourceWatermark
+        try fixture.context.save()
         var observedBusyStatusDuringFork = false
         await fixture.agentsManager.setSpawnObserver { _ in
             observedBusyStatusDuringFork = fixture.threadStatus(for: thread) == .busy
@@ -26,6 +37,12 @@ extension SidebarViewModelTests {
 
         try assertLocalForkThread(forkedThread, conversation: forkedConversation, spawnCall: spawnCall)
         try assertCopiedForkEvents(in: fixture, conversationID: forkedConversation.id)
+        XCTAssertTrue(forkedThread.linkedPullRequests.isEmpty)
+        XCTAssertTrue(forkedThread.pendingPullRequestLinkPrompts.isEmpty)
+        XCTAssertNil(forkedThread.pullRequestScanWatermark)
+        XCTAssertEqual(thread.linkedPullRequests, sourceLinks)
+        XCTAssertEqual(thread.pendingPullRequestLinkPrompts, sourcePrompts)
+        XCTAssertEqual(thread.pullRequestScanWatermark, sourceWatermark)
         XCTAssertTrue(observedBusyStatusDuringFork)
         XCTAssertEqual(fixture.threadStatus(for: thread), .stopped)
     }

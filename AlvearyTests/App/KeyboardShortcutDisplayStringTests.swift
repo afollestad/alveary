@@ -10,16 +10,8 @@ final class KeyboardShortcutDisplayStringTests: XCTestCase {
         XCTAssertEqual(shortcut.displayString, "⌃⌥⇧⌘A")
     }
 
-    func testUppercasesLetterKey() {
-        XCTAssertEqual(KeyboardShortcut("d", modifiers: [.shift, .command]).displayString, "⇧⌘D")
-    }
-
     func testRendersDigitKey() {
         XCTAssertEqual(KeyboardShortcut("1", modifiers: .command).displayString, "⌘1")
-    }
-
-    func testOmitsUnusedModifiers() {
-        XCTAssertEqual(KeyboardShortcut("s", modifiers: .command).displayString, "⌘S")
     }
 
     func testMapsSpecialKeysToGlyphs() {

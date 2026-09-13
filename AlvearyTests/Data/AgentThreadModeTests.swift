@@ -107,7 +107,8 @@ final class AgentThreadModeTests: XCTestCase {
         context.insert(thread)
         try context.save()
 
-        let fetchedThread = try XCTUnwrap(try context.fetch(FetchDescriptor<AgentThread>()).first)
+        let readContext = ModelContext(container)
+        let fetchedThread = try XCTUnwrap(try readContext.fetch(FetchDescriptor<AgentThread>()).first)
         XCTAssertNil(fetchedThread.project)
         XCTAssertEqual(fetchedThread.mode, .task)
         XCTAssertEqual(fetchedThread.taskWorkspaceDescriptor, descriptor)
@@ -144,7 +145,8 @@ final class AgentThreadModeTests: XCTestCase {
             withDestinationPath: movedSourceRoot.path
         )
 
-        let fetchedThread = try XCTUnwrap(try context.fetch(FetchDescriptor<AgentThread>()).first)
+        let readContext = ModelContext(container)
+        let fetchedThread = try XCTUnwrap(try readContext.fetch(FetchDescriptor<AgentThread>()).first)
         XCTAssertEqual(fetchedThread.taskWorkspaceDescriptor?.sourceProjectPath, sourceRoot.path)
         XCTAssertNotEqual(CanonicalPath.normalize(sourceRoot.path), sourceRoot.path)
     }

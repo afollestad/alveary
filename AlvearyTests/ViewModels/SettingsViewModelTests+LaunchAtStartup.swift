@@ -43,6 +43,14 @@ extension SettingsViewModelTests {
 
         XCTAssertFalse(viewModel.launchAtStartup)
         XCTAssertTrue(viewModel.didFailToChangeLaunchAtStartup)
+        XCTAssertEqual(
+            viewModel.launchAtStartupHint,
+            "macOS did not accept the change. You can add or remove Alveary in System Settings."
+        )
+        service.status = .enabled
+        viewModel.refreshLaunchAtStartupStatus()
+        XCTAssertEqual(viewModel.launchAtStartupStatus, .enabled)
+        XCTAssertFalse(viewModel.didFailToChangeLaunchAtStartup)
     }
 
     func testRefreshLaunchAtStartupStatusPicksUpAnExternalChange() {
@@ -71,31 +79,6 @@ extension SettingsViewModelTests {
             viewModel.launchAtStartupHint,
             "Alveary's login item is switched off in System Settings, so it will not launch at startup yet."
         )
-    }
-
-    func testLaunchAtStartupHintReportsARefusedChange() {
-        let service = RecordingLaunchAtStartupService(status: .disabled)
-        service.setEnabledError = RecordingLaunchAtStartupService.Failure()
-        let viewModel = makeLaunchAtStartupViewModel(service: service)
-
-        viewModel.setLaunchAtStartup(true)
-
-        XCTAssertEqual(
-            viewModel.launchAtStartupHint,
-            "macOS did not accept the change. You can add or remove Alveary in System Settings."
-        )
-    }
-
-    func testRefreshLaunchAtStartupStatusClearsAFailureOnceTheItemIsEnabled() {
-        let service = RecordingLaunchAtStartupService(status: .disabled)
-        service.setEnabledError = RecordingLaunchAtStartupService.Failure()
-        let viewModel = makeLaunchAtStartupViewModel(service: service)
-        viewModel.setLaunchAtStartup(true)
-
-        service.status = .enabled
-        viewModel.refreshLaunchAtStartupStatus()
-
-        XCTAssertFalse(viewModel.didFailToChangeLaunchAtStartup)
     }
 
     /// The packaged default must never touch the developer's real login items.

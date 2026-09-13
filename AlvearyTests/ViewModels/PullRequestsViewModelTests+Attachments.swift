@@ -8,6 +8,7 @@ extension PullRequestsViewModelTests {
     func testAttachFilesShowsPlaceholdersImmediatelyThenSwapsInLinks() async {
         let uploader = StubGitHubAttachmentUploadService()
         let gate = PullRequestsServiceGate()
+        defer { gate.open() }
         uploader.gate = gate
         uploader.result = .success([
             Self.upload("a.png", reference: "![a.png](https://example.com/a)"),
@@ -27,41 +28,14 @@ extension PullRequestsViewModelTests {
         XCTAssertTrue(draft.markdown.contains("Uploading b.png…"), draft.markdown)
 
         gate.open()
-        for _ in 0..<2_000 where viewModel.isUploadingAttachments(to: .composer) {
-            await Task.yield()
-        }
+        await waitFor { !viewModel.isUploadingAttachments(to: .composer) }
+        XCTAssertEqual(uploader.uploadCalls.count, 1)
+        XCTAssertEqual(uploader.uploadCalls.first?.repository, "octo/alpha")
 
         XCTAssertFalse(draft.markdown.contains("Uploading"), draft.markdown)
         XCTAssertTrue(draft.markdown.hasPrefix("Looks good"), draft.markdown)
         XCTAssertTrue(draft.markdown.contains("![a.png](https://example.com/a)"), draft.markdown)
         XCTAssertTrue(draft.markdown.contains("![b.png](https://example.com/b)"), draft.markdown)
-    }
-
-    func testAttachFilesAppendsReferencesToTheDraft() async {
-        let uploader = StubGitHubAttachmentUploadService()
-        uploader.result = .success([
-            Self.upload("a.png", reference: "![a.png](https://example.com/a)"),
-            Self.upload("b.png", reference: "![b.png](https://example.com/b)")
-        ])
-        let (viewModel, _) = await makeViewModelWithOpenPane(uploader: uploader)
-        let draft = PullRequestCommentDraftBox(markdown: "Looks good")
-
-        viewModel.attachFiles(
-            [URL(fileURLWithPath: "/tmp/a.png"), URL(fileURLWithPath: "/tmp/b.png")],
-            to: .composer,
-            draft: draft
-        )
-        for _ in 0..<2_000 where viewModel.isUploadingAttachments(to: .composer) {
-            await Task.yield()
-        }
-
-        // Asserted by content, not exact string: BlockInputKit normalizes block
-        // separation on the document round trip, which is not what this covers.
-        XCTAssertTrue(draft.markdown.hasPrefix("Looks good"), draft.markdown)
-        XCTAssertTrue(draft.markdown.contains("![a.png](https://example.com/a)"), draft.markdown)
-        XCTAssertTrue(draft.markdown.contains("![b.png](https://example.com/b)"), draft.markdown)
-        XCTAssertEqual(uploader.uploadCalls.count, 1)
-        XCTAssertEqual(uploader.uploadCalls.first?.repository, "octo/alpha")
     }
 
     func testInFlightUploadBlocksTheDestinationUntilItFinishes() async {

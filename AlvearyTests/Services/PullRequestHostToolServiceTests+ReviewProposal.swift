@@ -21,6 +21,12 @@ extension PullRequestHostToolServiceTests {
         )
 
         XCTAssertFalse(result.isError, result.text)
+        let stored = try XCTUnwrap(try fixture.conversation.pullRequestReviewProposal())
+        XCTAssertEqual(stored.payloadVersion, PullRequestReviewProposalRecord.currentPayloadVersion)
+        let comment = try XCTUnwrap(stored.stagedComments.first)
+        XCTAssertEqual(comment.anchorContent, "line 1")
+        // Context separates multiple lines with the same content when relocating a comment.
+        XCTAssertEqual(comment.anchorContext, ["line 2", "line 3", "line 4"])
         let entry = try await fixture.waitForSeededPreviewEntry()
         XCTAssertEqual(entry.identifier, identifier)
         XCTAssertEqual(entry.files.map(\.path), ["Sources/Alpha.swift"])
@@ -100,48 +106,6 @@ extension PullRequestHostToolServiceTests {
         XCTAssertFalse(result.text.contains("review summary"), result.text)
     }
 
-    /// Without a fingerprint a staged comment can never relocate, so it is captured from the very
-    /// diff this call already parsed to validate the anchor.
-    func testStagedCommentsKeepAFingerprintOfTheLineTheyWereWrittenAgainst() async throws {
-        let fixture = try PullRequestHostToolFixture()
-        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
-        var detail = makePullRequestDetail(id: identifier)
-        detail.viewerLogin = "viewer"
-        fixture.pullRequests.detailResult = .success(detail)
-        fixture.stubAlphaDiff()
-
-        let result = await fixture.handle(
-            PullRequestHostToolCatalog.proposeReviewToolName,
-            arguments: PullRequestHostToolFixture.reviewProposalArguments(bodies: ["First"])
-        )
-
-        XCTAssertFalse(result.isError, result.text)
-        let stored = try XCTUnwrap(try fixture.conversation.pullRequestReviewProposal())
-        XCTAssertEqual(stored.payloadVersion, PullRequestReviewProposalRecord.currentPayloadVersion)
-        let comment = try XCTUnwrap(stored.stagedComments.first)
-        XCTAssertEqual(comment.anchorContent, "line 1")
-        // The window is what separates two lines reading the same thing.
-        XCTAssertEqual(comment.anchorContext, ["line 2", "line 3", "line 4"])
-    }
-
-    /// A summary-only review publishes no comments, so its card can say so without loading at all.
-    func testProposingASummaryOnlyReviewSeedsAnEmptyPreview() async throws {
-        let fixture = try PullRequestHostToolFixture()
-        let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
-        var detail = makePullRequestDetail(id: identifier)
-        detail.viewerLogin = "viewer"
-        fixture.pullRequests.detailResult = .success(detail)
-
-        let result = await fixture.handle(PullRequestHostToolCatalog.proposeReviewToolName)
-
-        XCTAssertFalse(result.isError, result.text)
-        let entry = try await fixture.waitForSeededPreviewEntry()
-        XCTAssertTrue(entry.files.isEmpty)
-        XCTAssertEqual(entry.hiddenFileCount, 0)
-        // No comments means no diff was fetched, and none was needed.
-        XCTAssertEqual(fixture.pullRequests.diffCallCount, 0)
-    }
-
     func testProposingAReviewSubmitsNothingAndOpensAConfirmation() async throws {
         let fixture = try PullRequestHostToolFixture()
         let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
@@ -160,6 +124,10 @@ extension PullRequestHostToolServiceTests {
         XCTAssertTrue(fixture.pullRequests.submittedPendingReviews.isEmpty)
         XCTAssertTrue(result.text.contains("Nothing has been submitted"), result.text)
         XCTAssertNotNil(try fixture.conversation.pullRequestReviewProposal())
+        let entry = try await fixture.waitForSeededPreviewEntry()
+        XCTAssertTrue(entry.files.isEmpty)
+        XCTAssertEqual(entry.hiddenFileCount, 0)
+        XCTAssertEqual(fixture.pullRequests.diffCallCount, 0)
     }
 
     func testStagedCommentsAreStoredInTheEnvelopeAndReachGitHubNowhere() async throws {

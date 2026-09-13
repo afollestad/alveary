@@ -57,17 +57,21 @@ extension PullRequestReviewTeamCoordinatorTests {
         let fixture = setup.fixture
         defer { try? FileManager.default.removeItem(at: setup.root) }
         let gate = PullRequestsServiceGate()
+        defer { gate.open() }
         await fixture.worker.configure(gate: gate)
         try fixture.start()
-        defer { gate.open() }
-        try await fixture.wait { await fixture.worker.inspectionCount == 3 }
-        fixture.coordinator.cancel(conversationID: fixture.conversation.id)
-        let cancelled = try #require(fixture.coordinator.runs[fixture.conversation.id]?.history)
-        #expect(cancelled.count == 3)
-        #expect(cancelled.allSatisfy { $0.status == .cancelled && $0.finishedAt != nil && $0.response == nil })
-        gate.open()
-        try await fixture.wait { await fixture.worker.completedCount == 3 }
-        #expect(fixture.coordinator.runs[fixture.conversation.id]?.history == cancelled)
+        let pipeline = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: fixture.conversation.id))
+        try await fixture.withPipelineCleanup(pipeline, gate: gate) {
+            try await fixture.wait { await fixture.worker.inspectionCount == 3 }
+            fixture.coordinator.cancel(conversationID: fixture.conversation.id)
+            let cancelled = try #require(fixture.coordinator.runs[fixture.conversation.id]?.history)
+            #expect(cancelled.count == 3)
+            #expect(cancelled.allSatisfy { $0.status == .cancelled && $0.finishedAt != nil && $0.response == nil })
+            gate.open()
+            try await fixture.waitForCompletion(of: pipeline)
+            #expect(await fixture.worker.completedCount == 3)
+            #expect(fixture.coordinator.runs[fixture.conversation.id]?.history == cancelled)
+        }
     }
 
     @Test func `worker failures and previous attempt history survive Retry`() async throws {
@@ -175,25 +179,29 @@ extension PullRequestReviewTeamCoordinatorTests {
         let (fixture, store) = (setup.fixture, setup.store)
         defer { try? FileManager.default.removeItem(at: setup.root) }
         let gate = PullRequestsServiceGate()
+        defer { gate.open() }
         await fixture.worker.configure(gate: gate)
         try fixture.start()
-        defer { gate.open() }
-        try await fixture.wait { await fixture.worker.inspectionCount == 3 }
-        let conversationID = fixture.conversation.id
-        let run = try #require(fixture.coordinator.runs[conversationID])
-        let artifact = try #require(run.history?.first?.prompt)
-        fixture.container.mainContext.delete(fixture.conversation)
-        try fixture.container.mainContext.save()
-        fixture.coordinator.conversationDidDelete(conversationID)
-        try await fixture.wait {
-            (try? await store.read(artifact, conversationID: conversationID, runID: run.id)) == nil
-        }
-        gate.open()
-        try await fixture.wait { await fixture.worker.completedCount == 3 }
-        #expect(fixture.coordinator.runs[conversationID] == nil)
-        #expect(try !fixture.coordinator.cancellationStore.contains(runID: run.id))
-        await #expect(throws: ReviewTeamHistoryStoreError.self) {
-            try await store.save(conversationID: conversationID, runID: run.id, name: "late.txt", data: Data("late".utf8))
+        let pipeline = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: fixture.conversation.id))
+        try await fixture.withPipelineCleanup(pipeline, gate: gate) {
+            try await fixture.wait { await fixture.worker.inspectionCount == 3 }
+            let conversationID = fixture.conversation.id
+            let run = try #require(fixture.coordinator.runs[conversationID])
+            let artifact = try #require(run.history?.first?.prompt)
+            fixture.container.mainContext.delete(fixture.conversation)
+            try fixture.container.mainContext.save()
+            fixture.coordinator.conversationDidDelete(conversationID)
+            try await fixture.wait {
+                (try? await store.read(artifact, conversationID: conversationID, runID: run.id)) == nil
+            }
+            gate.open()
+            try await fixture.waitForCompletion(of: pipeline)
+            #expect(await fixture.worker.completedCount == 3)
+            #expect(fixture.coordinator.runs[conversationID] == nil)
+            #expect(try !fixture.coordinator.cancellationStore.contains(runID: run.id))
+            await #expect(throws: ReviewTeamHistoryStoreError.self) {
+                try await store.save(conversationID: conversationID, runID: run.id, name: "late.txt", data: Data("late".utf8))
+            }
         }
     }
 

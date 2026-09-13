@@ -58,24 +58,9 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
         XCTAssertEqual(fixture.viewModel.state.runtimePermissionMode, nil)
         XCTAssertEqual(fixture.viewModel.pendingPermissionModeForDisplay(), "acceptEdits")
+        XCTAssertEqual(fixture.viewModel.effectivePermissionMode, "default")
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertTrue(reconfigureCalls.isEmpty)
-    }
-
-    func testStagedPermissionModeDoesNotChangeEffectivePermissionModeBeforeNextTurn() async throws {
-        let fixture = try ConversationViewModelTestFixture(
-            hasCompletedInitialSetup: true,
-            initialAgentIsRunning: true
-        )
-        try fixture.dbThread().permissionMode = "default"
-        try fixture.context.save()
-        fixture.viewModel.state.turnState.beginTurn()
-
-        await fixture.viewModel.applyPermissionModeChange("acceptEdits").value
-
-        XCTAssertEqual(try fixture.dbThread().permissionMode, "acceptEdits")
-        XCTAssertEqual(fixture.viewModel.pendingPermissionModeForDisplay(), "acceptEdits")
-        XCTAssertEqual(fixture.viewModel.effectivePermissionMode, "default")
     }
 
     func testApplyPlanModeChangeStagesDuringActiveTurnWithoutChangingLiveMode() async throws {

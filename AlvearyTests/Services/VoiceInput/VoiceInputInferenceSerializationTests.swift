@@ -11,7 +11,11 @@ final class VoiceInputInferenceSerializationTests: XCTestCase {
 
         async let firstResult = engine.process(first)
         async let secondResult = engine.process(second)
-        _ = try await (firstResult, secondResult)
+        let results = try await (firstResult, secondResult)
+        XCTAssertEqual(results.0, "partial")
+        XCTAssertEqual(results.1, "partial")
+        let completed = await manager.completedOperations
+        XCTAssertEqual(completed, 2)
 
         let maximum = await manager.maximumConcurrentOperations
         XCTAssertEqual(maximum, 1)
@@ -34,6 +38,7 @@ final class VoiceInputInferenceSerializationTests: XCTestCase {
 
 private actor ReentrantStreamingManagerFake: VoiceInputStreamingManaging {
     private(set) var maximumConcurrentOperations = 0
+    private(set) var completedOperations = 0
     private var concurrentOperations = 0
 
     func loadModels(from directory: URL) async throws {}
@@ -45,6 +50,7 @@ private actor ReentrantStreamingManagerFake: VoiceInputStreamingManaging {
         maximumConcurrentOperations = max(maximumConcurrentOperations, concurrentOperations)
         try await Task.sleep(for: .milliseconds(20))
         concurrentOperations -= 1
+        completedOperations += 1
         return "partial"
     }
 

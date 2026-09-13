@@ -242,12 +242,11 @@ final class DiffWorkspaceStore {
     }
 
     func isCurrent(_ snapshot: DiffWorkspaceRefreshSnapshot) -> Bool { isCurrent(target: snapshot.target, generation: snapshot.generation) }
-    func waitForStatsForTesting() async {
-        guard let statsLoad = inFlightStatsLoad else { return }
+    /// Captures publication, including the stale-generation check after the service responds.
+    var statsPublicationTaskForTesting: Task<Void, Never>? { inFlightStatsLoad?.publicationTask }
 
-        _ = try? await statsLoad.task.value
-        // Stats publish from a follow-up main-actor task after the service task resolves.
-        for _ in 0..<100 where inFlightStatsLoad?.id == statsLoad.id { await Task.yield() }
+    func waitForStatsForTesting() async {
+        await statsPublicationTaskForTesting?.value
     }
 
     func waitForLoadingIndicatorsForTesting() async {
@@ -266,6 +265,7 @@ private extension DiffWorkspaceStore {
         let id: UUID
         let generation: UInt64
         let task: Task<DiffStats, Error>
+        let publicationTask: Task<Void, Never>
     }
 
     private func applyStatusFailure(
@@ -325,9 +325,7 @@ private extension DiffWorkspaceStore {
             try await gitService.diffStats(in: target.directory, knownStatuses: knownStatuses)
         }
         let statsLoadID = UUID()
-        inFlightStatsLoad = StatsLoad(id: statsLoadID, generation: generation, task: task)
-
-        Task { [weak self, task, target, generation, statsLoadID] in
+        let publicationTask = Task { [weak self, task, target, generation, statsLoadID] in
             do {
                 let refreshedStats = try await task.value
                 self?.applyStats(refreshedStats, target: target, generation: generation, statsLoadID: statsLoadID)
@@ -339,6 +337,7 @@ private extension DiffWorkspaceStore {
                 self?.applyStatsFailure(target: target, generation: generation, statsLoadID: statsLoadID)
             }
         }
+        inFlightStatsLoad = StatsLoad(id: statsLoadID, generation: generation, task: task, publicationTask: publicationTask)
     }
 
     private func applyStats(

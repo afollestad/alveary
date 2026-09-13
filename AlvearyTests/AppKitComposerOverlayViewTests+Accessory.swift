@@ -49,18 +49,23 @@ extension AppKitComposerOverlayViewTests {
         XCTAssertEqual(ComposerReasoningMenuPresenter.upwardEdge(for: NSView()), .maxY)
     }
 
-    func testAccessoryViewIdentitySurvivesReconfigure() {
+    func testAccessoryViewIdentitySurvivesReconfigure() throws {
         let panel = makeAccessoryPanel(accessory: makeOverlayAccessory())
-        let firstButton = panel.accessoryButton
+        let initialButtons = mountedReasoningButtons(in: panel)
+        XCTAssertEqual(initialButtons.count, 1)
+        let firstButton = try XCTUnwrap(initialButtons.first)
 
         // The panel is reconfigured on every ChatView render; a recreated anchor would close the
         // popover the instant a model pick re-renders.
         panel.configure(makeAccessoryConfiguration(accessory: makeOverlayAccessory(selectedModel: "opus")))
 
-        XCTAssertTrue(panel.accessoryButton === firstButton)
+        let updatedButtons = mountedReasoningButtons(in: panel)
+        XCTAssertEqual(updatedButtons.count, 1)
+        XCTAssertTrue(try XCTUnwrap(updatedButtons.first) === firstButton)
+        XCTAssertEqual(firstButton.accessibilityValue() as? String, "Opus, Medium")
     }
 
-    func testAccessoryJoinsKeyViewLoopAfterRowsAndBeforeFooterButtons() {
+    func testAccessoryJoinsKeyViewLoopAfterRowsAndBeforeFooterButtons() throws {
         let panel = makeAccessoryPanel(accessory: makeOverlayAccessory())
         panel.frame.size.height = panel.measuredHeight(width: 700)
         panel.layoutSubtreeIfNeeded()
@@ -73,15 +78,10 @@ extension AppKitComposerOverlayViewTests {
             panel.rowViews.contains { $0 === view }
         }
 
-        let accessory = try? XCTUnwrap(accessoryIndex)
-        XCTAssertNotNil(accessory)
-        if let accessory, let lastRowIndex {
-            XCTAssertGreaterThan(accessory, lastRowIndex)
-        }
-        if let accessory, let dismissIndex, let primaryIndex {
-            XCTAssertLessThan(accessory, dismissIndex)
-            XCTAssertLessThan(accessory, primaryIndex)
-        }
+        let accessory = try XCTUnwrap(accessoryIndex)
+        XCTAssertGreaterThan(accessory, try XCTUnwrap(lastRowIndex))
+        XCTAssertLessThan(accessory, try XCTUnwrap(dismissIndex))
+        XCTAssertLessThan(accessory, try XCTUnwrap(primaryIndex))
     }
 
     func testDisabledAccessoryLeavesKeyViewLoop() {
@@ -118,11 +118,13 @@ extension AppKitComposerOverlayViewTests {
         let panel = makeAccessoryPanel(accessory: makeOverlayAccessory())
         XCTAssertFalse(panel.accessoryButton.isHidden)
 
+        panel.accessoryMenuPresenter.popover = NSPopover()
+
         panel.configure(nil)
 
         XCTAssertTrue(panel.accessoryButton.isHidden)
         XCTAssertEqual(panel.accessoryButton.frame, .zero)
-        XCTAssertFalse(panel.accessoryMenuPresenter.isShown)
+        XCTAssertNil(panel.accessoryMenuPresenter.popover)
     }
 
     func testDetachingPanelFromWindowClosesAccessoryMenu() {
@@ -219,4 +221,11 @@ private func makeKeyEvent(keyCode: UInt16) -> NSEvent {
         keyCode: keyCode
         // swiftlint:disable:next force_unwrapping
     )!
+}
+
+@MainActor
+private func mountedReasoningButtons(in view: NSView) -> [ComposerReasoningButton] {
+    view.subviews.flatMap { child in
+        (child as? ComposerReasoningButton).map { [$0] } ?? mountedReasoningButtons(in: child)
+    }
 }

@@ -9,6 +9,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         let row = AppKitTranscriptTextBubbleRowView()
         let markdown = "Async prepared markdown \(UUID().uuidString) with `code`."
         let loader = ControlledAsyncMarkdownLoader()
+        defer { loader.finishAllRequests() }
         row.asyncDocumentLoaderForTesting = loader.load(markdown:context:)
         row.hydratesMarkdownImmediately = false
         let configuration = AppKitTranscriptTextBubbleRowView.Configuration(
@@ -20,7 +21,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         row.configure(configuration)
         let context = row.preparedMeasurementContext(for: 320, configuration: configuration)
         row.scheduleAsyncMarkdownPreparation(for: context)
-        await loader.waitForRequestCount(1)
+        try await loader.waitForRequestCount(1)
         let pendingKey = context.key
 
         loader.finishRequest(at: 0)
@@ -35,6 +36,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         let oldMarkdown = "Old async markdown \(UUID().uuidString)"
         let newMarkdown = "New async markdown \(UUID().uuidString)"
         let loader = ControlledAsyncMarkdownLoader()
+        defer { loader.finishAllRequests() }
         row.asyncDocumentLoaderForTesting = loader.load(markdown:context:)
         row.hydratesMarkdownImmediately = false
         let oldConfiguration = AppKitTranscriptTextBubbleRowView.Configuration(
@@ -52,17 +54,20 @@ extension AppKitTranscriptTextBubbleRowTests {
 
         row.configure(oldConfiguration)
         row.scheduleAsyncMarkdownPreparation(for: row.preparedMeasurementContext(for: 320, configuration: oldConfiguration))
-        await loader.waitForRequestCount(1)
+        let oldTask = row.asyncPreparationTask
+        XCTAssertNotNil(oldTask)
+        try await loader.waitForRequestCount(1)
 
         row.configure(newConfiguration)
         let newContext = row.preparedMeasurementContext(for: 320, configuration: newConfiguration)
         row.scheduleAsyncMarkdownPreparation(for: newContext)
-        await loader.waitForRequestCount(2)
+        try await loader.waitForRequestCount(2)
 
         loader.finishRequest(at: 0)
-        await Task.yield()
+        await oldTask?.value
 
         XCTAssertNil(row.acceptedAsyncKeyForTesting)
+        XCTAssertEqual(row.pendingAsyncKeyForTesting, newContext.key)
 
         loader.finishRequest(at: 1)
         await row.waitForAcceptedAsyncKey { $0?.markdown == newMarkdown }
@@ -74,6 +79,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         let row = AppKitTranscriptTextBubbleRowView()
         let markdown = "Width-sensitive async markdown \(UUID().uuidString) " + String(repeating: "wrap ", count: 20)
         let loader = ControlledAsyncMarkdownLoader()
+        defer { loader.finishAllRequests() }
         row.asyncDocumentLoaderForTesting = loader.load(markdown:context:)
         row.hydratesMarkdownImmediately = false
         let configuration = AppKitTranscriptTextBubbleRowView.Configuration(
@@ -86,19 +92,22 @@ extension AppKitTranscriptTextBubbleRowTests {
         row.configure(configuration)
         let wideContext = row.preparedMeasurementContext(for: 440, configuration: configuration)
         row.scheduleAsyncMarkdownPreparation(for: wideContext)
-        await loader.waitForRequestCount(1)
+        let wideTask = row.asyncPreparationTask
+        XCTAssertNotNil(wideTask)
+        try await loader.waitForRequestCount(1)
         let wideKey = wideContext.key
 
         let narrowContext = row.preparedMeasurementContext(for: 236, configuration: configuration)
         row.scheduleAsyncMarkdownPreparation(for: narrowContext)
-        await loader.waitForRequestCount(2)
+        try await loader.waitForRequestCount(2)
         let narrowKey = narrowContext.key
         XCTAssertNotEqual(wideKey, narrowKey)
 
         loader.finishRequest(at: 0)
-        await Task.yield()
+        await wideTask?.value
 
         XCTAssertNil(row.acceptedAsyncKeyForTesting)
+        XCTAssertEqual(row.pendingAsyncKeyForTesting, narrowKey)
 
         loader.finishRequest(at: 1)
         await row.waitForAcceptedAsyncKey(narrowKey)
@@ -110,6 +119,7 @@ extension AppKitTranscriptTextBubbleRowTests {
         let row = AppKitTranscriptTextBubbleRowView()
         let markdown = "Typography async markdown \(UUID().uuidString)"
         let loader = ControlledAsyncMarkdownLoader()
+        defer { loader.finishAllRequests() }
         row.asyncDocumentLoaderForTesting = loader.load(markdown:context:)
         row.hydratesMarkdownImmediately = false
         row.appearance = NSAppearance(named: .aqua)
@@ -130,28 +140,34 @@ extension AppKitTranscriptTextBubbleRowTests {
         row.configure(baseConfiguration)
         let firstContext = row.preparedMeasurementContext(for: 320, configuration: baseConfiguration)
         row.scheduleAsyncMarkdownPreparation(for: firstContext)
-        await loader.waitForRequestCount(1)
+        let firstTask = row.asyncPreparationTask
+        XCTAssertNotNil(firstTask)
+        try await loader.waitForRequestCount(1)
         let firstKey = firstContext.key
 
         row.configure(typographyConfiguration)
         let typographyContext = row.preparedMeasurementContext(for: 320, configuration: typographyConfiguration)
         row.scheduleAsyncMarkdownPreparation(for: typographyContext)
-        await loader.waitForRequestCount(2)
+        let typographyTask = row.asyncPreparationTask
+        XCTAssertNotNil(typographyTask)
+        try await loader.waitForRequestCount(2)
         let typographyKey = typographyContext.key
         XCTAssertNotEqual(firstKey, typographyKey)
 
         row.appearance = NSAppearance(named: .darkAqua)
         let darkContext = row.preparedMeasurementContext(for: 320, configuration: typographyConfiguration)
         row.scheduleAsyncMarkdownPreparation(for: darkContext)
-        await loader.waitForRequestCount(3)
+        try await loader.waitForRequestCount(3)
         let darkKey = darkContext.key
         XCTAssertNotEqual(typographyKey, darkKey)
 
         loader.finishRequest(at: 0)
         loader.finishRequest(at: 1)
-        await Task.yield()
+        await firstTask?.value
+        await typographyTask?.value
 
         XCTAssertNil(row.acceptedAsyncKeyForTesting)
+        XCTAssertEqual(row.pendingAsyncKeyForTesting, darkKey)
 
         loader.finishRequest(at: 2)
         await row.waitForAcceptedAsyncKey(darkKey)
@@ -159,10 +175,11 @@ extension AppKitTranscriptTextBubbleRowTests {
         XCTAssertEqual(row.acceptedAsyncKeyForTesting, darkKey)
     }
 
-    func testRemovedRowsDoNotHydrateOrInvalidateWhenAsyncPreparationFinishes() async {
+    func testRemovedRowsDoNotHydrateOrInvalidateWhenAsyncPreparationFinishes() async throws {
         let row = AppKitTranscriptTextBubbleRowView()
         let markdown = "Removed async markdown \(UUID().uuidString)"
         let loader = ControlledAsyncMarkdownLoader()
+        defer { loader.finishAllRequests() }
         var invalidationCount = 0
         row.asyncDocumentLoaderForTesting = loader.load(markdown:context:)
         row.hydratesMarkdownImmediately = false
@@ -177,13 +194,17 @@ extension AppKitTranscriptTextBubbleRowTests {
         )
         row.configure(configuration)
         row.scheduleAsyncMarkdownPreparation(for: row.preparedMeasurementContext(for: 320, configuration: configuration))
-        await loader.waitForRequestCount(1)
+        let removedTask = row.asyncPreparationTask
+        XCTAssertNotNil(removedTask)
+        try await loader.waitForRequestCount(1)
         let baselineInvalidationCount = invalidationCount
 
         row.resetAsyncMarkdownPreparation()
         loader.finishRequest(at: 0)
-        await Task.yield()
+        await removedTask?.value
 
+        XCTAssertNil(row.acceptedAsyncKeyForTesting)
+        XCTAssertNil(row.pendingAsyncKeyForTesting)
         XCTAssertFalse(row.isMarkdownHydratedForTesting)
         XCTAssertEqual(invalidationCount, baselineInvalidationCount)
     }
@@ -216,16 +237,20 @@ private extension AppKitTranscriptTextBubbleRowView {
 private final class ControlledAsyncMarkdownLoader {
     private struct Request {
         let markdown: String
-        let continuation: CheckedContinuation<AppMarkdownDocument, Never>
+        var continuation: CheckedContinuation<AppMarkdownDocument, Never>?
     }
 
     private var requests: [Request] = []
+    private var isReleased = false
 
     func load(
         markdown: String,
         context: AppMarkdownDocumentCacheContext
     ) async -> AppMarkdownDocument {
-        await withCheckedContinuation { continuation in
+        if isReleased {
+            return AppMarkdownParser().documentPreservingSource(for: markdown)
+        }
+        return await withCheckedContinuation { continuation in
             requests.append(Request(markdown: markdown, continuation: continuation))
         }
     }
@@ -240,19 +265,29 @@ private final class ControlledAsyncMarkdownLoader {
             return
         }
         let request = requests[index]
-        request.continuation.resume(returning: AppMarkdownParser().documentPreservingSource(for: request.markdown))
+        requests[index].continuation = nil
+        request.continuation?.resume(returning: AppMarkdownParser().documentPreservingSource(for: request.markdown))
+    }
+
+    func finishAllRequests() {
+        isReleased = true
+        for index in requests.indices { finishRequest(at: index) }
     }
 
     func waitForRequestCount(
         _ count: Int,
         file: StaticString = #filePath,
         line: UInt = #line
-    ) async {
-        for _ in 0..<50 where requests.count < count {
+    ) async throws {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while requests.count < count, ContinuousClock.now < deadline {
             await Task.yield()
         }
-        if requests.count < count {
-            XCTFail("Expected \(count) async markdown requests, got \(requests.count)", file: file, line: line)
-        }
+        _ = try XCTUnwrap(
+            requests.count >= count ? true : nil,
+            "Expected \(count) async markdown requests, got \(requests.count)",
+            file: file,
+            line: line
+        )
     }
 }

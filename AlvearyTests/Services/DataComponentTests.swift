@@ -160,14 +160,6 @@ final class DataComponentTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ConversationEventRecord>()), 0)
     }
 
-    func testModelContextIsContainerScoped() {
-        let component = makeComponent()
-        let firstContext = component.modelContext
-        let secondContext = component.modelContext
-
-        XCTAssertTrue(firstContext === secondContext)
-    }
-
     private func makeComponent() -> AppComponent {
         AppDI.makeTestComponent(isStoredInMemoryOnly: true)
     }

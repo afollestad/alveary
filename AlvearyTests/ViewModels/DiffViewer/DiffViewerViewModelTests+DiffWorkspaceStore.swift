@@ -177,25 +177,21 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.diffStats, DiffStats(additions: 5, deletions: 1))
     }
 
-    func testStaleStatsLoadCannotPublishAfterTargetSwitch() async {
+    func testStaleStatsLoadCannotPublishAfterTargetSwitch() async throws {
         let modifiedFile = FileStatus(path: "feature.swift", originalPath: nil, status: .modified, isStaged: false)
         let staleStats = DiffStats(additions: 99, deletions: 99)
         let currentStats = DiffStats(additions: 2, deletions: 1)
         let secondDirectory = storeFixtureDirectory("second")
         let fixture = DiffViewerTestFixture(
             gitService: DiffViewerMockGitService(
-                statusResults: [
-                    .success([modifiedFile]),
-                    .success([modifiedFile])
-                ],
-                diffStatsResults: [
-                    .success(staleStats),
-                    .success(currentStats)
-                ],
-                diffStatsDelays: [.milliseconds(180), .zero]
+                statusResults: [.success([modifiedFile]), .success([modifiedFile])],
+                diffStatsResults: [.success(staleStats), .success(currentStats)]
             )
         )
         defer { fixture.viewModel.tearDown() }
+        let oldGate = PullRequestsServiceGate()
+        defer { oldGate.open() }
+        await fixture.gitService.holdNextDiffStats(on: oldGate)
 
         await fixture.viewModel.switchToDirectory(
             fixture.directory,
@@ -203,8 +199,18 @@ extension DiffViewerViewModelTests {
             remoteName: nil,
             conversationIds: []
         )
-        await fixture.diffStore.waitForLoadingIndicatorsForTesting()
-        XCTAssertTrue(fixture.viewModel.isDiffToolbarLoading)
+        let oldPublication = try XCTUnwrap(fixture.diffStore.statsPublicationTaskForTesting)
+        do {
+            try await waitUntil("old stats request reached its held response") {
+                await fixture.gitService.diffStatsCallCount() == 1
+            }
+            await fixture.diffStore.waitForLoadingIndicatorsForTesting()
+            XCTAssertTrue(fixture.viewModel.isDiffToolbarLoading)
+        } catch {
+            oldGate.open()
+            await oldPublication.value
+            throw error
+        }
 
         await fixture.viewModel.switchToDirectory(
             secondDirectory,
@@ -215,8 +221,11 @@ extension DiffViewerViewModelTests {
         await fixture.diffStore.waitForStatsForTesting()
         XCTAssertEqual(fixture.viewModel.diffStats, currentStats)
 
-        try? await Task.sleep(for: .milliseconds(220))
+        oldGate.open()
+        await oldPublication.value
         XCTAssertEqual(fixture.viewModel.diffStats, currentStats)
+        XCTAssertEqual(fixture.diffStore.statsLoadState, .loaded)
+        XCTAssertFalse(fixture.viewModel.isDiffToolbarLoading)
     }
 
     func testTargetSwitchRestartsToolbarSpinnerGracePeriod() async {

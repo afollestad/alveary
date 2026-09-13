@@ -60,30 +60,33 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         )
     }
 
-    func testProjectScopedThreadFetchGathersOnlyItsOwnConversations() throws {
+    func testProjectFolderRouteGathersOnlyLiveConversationsSharingTheSelectedDirectory() throws {
         let fixture = try DiffRoutingFixture()
         let otherProject = Project(path: "/tmp/diff-routing-other", name: "Other")
         let otherThread = AgentThread(name: "Other thread", project: otherProject)
-        otherProject.threads.append(otherThread)
+        let sharedThread = AgentThread(name: "Shared folder", project: otherProject)
+        try sharedThread.replaceAdditionalFolders([SourceFolderSnapshot(path: fixture.project.path)])
+        let archivedThread = AgentThread(name: "Archived", archivedAt: Date(), project: fixture.project)
+        let draftThread = AgentThread(name: "Draft", isDraft: true, project: fixture.project)
+        otherProject.threads = [otherThread, sharedThread]
+        fixture.project.threads += [archivedThread, draftThread]
         otherThread.conversations = [Conversation(id: "other", title: "Other", provider: "claude", thread: otherThread)]
+        sharedThread.conversations = [Conversation(id: "shared", provider: "claude", thread: sharedThread)]
+        archivedThread.conversations = [Conversation(id: "archived", provider: "claude", thread: archivedThread)]
+        draftThread.conversations = [Conversation(id: "draft", provider: "claude", thread: draftThread)]
         fixture.thread.conversations = [
             Conversation(id: "main", title: "Main", provider: "claude", thread: fixture.thread)
         ]
         fixture.context.insert(otherProject)
         try fixture.context.save()
 
-        // Locks in the thread fetch the project route gathers conversations through. A
-        // nested `conversation.thread?.project?.path` predicate traps the store instead.
-        let projectID = fixture.project.id
-        var descriptor = FetchDescriptor<AgentThread>(
-            predicate: #Predicate { thread in
-                thread.archivedAt == nil && thread.isDraft == false && thread.project?.id == projectID
-            }
+        // Exercise the production fetch: a nested conversation-to-project predicate traps the store,
+        // and project ownership alone misses live threads that share the selected folder.
+        let conversationIDs = ContentView.projectDiffViewerConversationIDs(
+            in: fixture.project.path, modelContext: fixture.context
         )
-        descriptor.relationshipKeyPathsForPrefetching = [\.conversations]
-        let threads = try fixture.context.fetch(descriptor)
 
-        XCTAssertEqual(threads.flatMap { $0.conversations.map(\.id) }, ["main"])
+        XCTAssertEqual(conversationIDs, ["main", "shared"])
     }
 
     func testResolutionAndPaneWorkStartOnlyAfterTheSuspensionGate() async throws {
@@ -93,7 +96,13 @@ final class ContentViewDiffViewerRoutingTests: XCTestCase {
         let runner = recorder.makeRunner(currentKey: key, gate: gate)
 
         let routing = Task { await runner.run(key: key) }
-        await Task.yield()
+        do {
+            try await waitUntil("expected diff routing to reach the suspension gate") { gate.hasWaiter }
+        } catch {
+            gate.open()
+            await routing.value
+            throw error
+        }
 
         XCTAssertTrue(recorder.resolvedSelections.isEmpty)
         XCTAssertTrue(recorder.appliedTargets.isEmpty)
@@ -282,6 +291,7 @@ private final class DiffRoutingRecorder {
 private final class DiffRoutingGate {
     private var isOpen: Bool
     private var continuations: [CheckedContinuation<Void, Never>] = []
+    var hasWaiter: Bool { !continuations.isEmpty }
 
     init(isOpen: Bool = false) {
         self.isOpen = isOpen

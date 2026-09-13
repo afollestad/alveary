@@ -237,17 +237,22 @@ struct PullRequestReviewTeamCoordinatorTests {
     func `cancellation invalidates the generation before late results arrive`() async throws {
         let fixture = try ReviewCoordinatorFixture()
         let gate = PullRequestsServiceGate()
+        defer { gate.open() }
         await fixture.worker.configure(gate: gate)
         try fixture.start()
-        try await fixture.wait { await fixture.worker.inspectionCount == 3 }
-        let oldGeneration = try #require(fixture.coordinator.runs[fixture.conversation.id]?.generation)
-        fixture.coordinator.cancel(conversationID: fixture.conversation.id)
-        #expect(fixture.coordinator.runs[fixture.conversation.id]?.generation == oldGeneration + 1)
-        gate.open()
-        try await fixture.wait { await fixture.worker.completedCount == 3 }
-        #expect(try fixture.conversation.collectiveReviewRun()?.phase == .cancelled)
-        #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
-        #expect(fixture.conversation.events.allSatisfy { $0.type != ConversationEventRecord.pullRequestReviewProposalType })
+        let pipeline = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: fixture.conversation.id))
+        try await fixture.withPipelineCleanup(pipeline, gate: gate) {
+            try await fixture.wait { await fixture.worker.inspectionCount == 3 }
+            let oldGeneration = try #require(fixture.coordinator.runs[fixture.conversation.id]?.generation)
+            fixture.coordinator.cancel(conversationID: fixture.conversation.id)
+            #expect(fixture.coordinator.runs[fixture.conversation.id]?.generation == oldGeneration + 1)
+            gate.open()
+            try await fixture.waitForCompletion(of: pipeline)
+            #expect(await fixture.worker.completedCount == 3)
+            #expect(try fixture.conversation.collectiveReviewRun()?.phase == .cancelled)
+            #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
+            #expect(fixture.conversation.events.allSatisfy { $0.type != ConversationEventRecord.pullRequestReviewProposalType })
+        }
     }
 
     @Test

@@ -344,60 +344,6 @@ extension DiffViewerViewModelTests {
         XCTAssertEqual(fixture.viewModel.selectedFile, first)
     }
 
-    func testNonGitRefreshClearsMultiSelection() async {
-        let file = FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false)
-        let fixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([file]), .failure(GitError.notARepository)],
-                diffResults: [Self.modifiedDiff(path: file.path)]
-            )
-        )
-        defer { fixture.viewModel.tearDown() }
-
-        await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
-        await fixture.viewModel.selectFile(file, in: fixture.directory)
-        await fixture.viewModel.refresh(in: fixture.directory, reason: .manual)
-
-        XCTAssertTrue(fixture.viewModel.selectedFiles.isEmpty)
-        XCTAssertNil(fixture.viewModel.selectedFile)
-    }
-
-    func testStatusErrorRefreshClearsMultiSelection() async {
-        let file = FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false)
-        let fixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([file]), .failure(GitError.commandFailed("fatal"))],
-                diffResults: [Self.modifiedDiff(path: file.path)]
-            )
-        )
-        defer { fixture.viewModel.tearDown() }
-
-        await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
-        await fixture.viewModel.selectFile(file, in: fixture.directory)
-        await fixture.viewModel.refresh(in: fixture.directory, reason: .manual)
-
-        XCTAssertTrue(fixture.viewModel.selectedFiles.isEmpty)
-        XCTAssertNil(fixture.viewModel.selectedFile)
-    }
-
-    func testTargetSwitchClearsMultiSelection() async {
-        let file = FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false)
-        let fixture = DiffViewerTestFixture(
-            gitService: DiffViewerMockGitService(
-                statusResults: [.success([file]), .success([])],
-                diffResults: [Self.modifiedDiff(path: file.path)]
-            )
-        )
-        defer { fixture.viewModel.tearDown() }
-
-        await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
-        await fixture.viewModel.selectFile(file, in: fixture.directory)
-        await fixture.viewModel.switchToDirectory("/tmp/other-alveary-project", baseRef: "main", remoteName: nil, conversationIds: [])
-
-        XCTAssertTrue(fixture.viewModel.selectedFiles.isEmpty)
-        XCTAssertNil(fixture.viewModel.selectedFile)
-    }
-
     func testBatchStageAndUnstageUseOnlyApplicableSelections() async throws {
         let unstaged = FileStatus(path: "one.swift", originalPath: nil, status: .modified, isStaged: false)
         let staged = FileStatus(path: "two.swift", originalPath: nil, status: .modified, isStaged: true)

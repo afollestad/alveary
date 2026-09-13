@@ -47,25 +47,33 @@ final class FileListManagerTests: XCTestCase {
     }
 
     func testFilesReturnsEmptyArrayWhenGitLookupFails() async {
+        let missingRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missingRoot))
         let gitService = MockGitService(listFilesError: GitError.notARepository)
         let manager = GitFileListManager(gitService: gitService)
 
-        let files = await manager.files(for: "/tmp/project")
+        let files = await manager.files(for: missingRoot)
 
         XCTAssertTrue(files.isEmpty)
+        let callCount = await gitService.listFilesCallCount()
+        XCTAssertEqual(callCount, 1)
     }
 
     func testWarmCacheFailureDoesNotPoisonLaterSuccessfulLookup() async {
+        let missingRoot = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missingRoot))
         let gitService = MockGitService(
             listFilesResults: [["Sources/App.swift"]],
             listFilesErrors: [GitError.notARepository, nil]
         )
         let manager = GitFileListManager(gitService: gitService)
 
-        await manager.warmCache(for: "/tmp/project")
-        let files = await manager.files(for: "/tmp/project")
+        await manager.warmCache(for: missingRoot)
+        let files = await manager.files(for: missingRoot)
 
         XCTAssertEqual(files, ["Sources/App.swift"])
+        let callCount = await gitService.listFilesCallCount()
+        XCTAssertEqual(callCount, 2)
     }
 }
 

@@ -115,11 +115,19 @@ extension PullRequestsViewModelTests {
         viewModel.openCommentComposer(at: pullRequestReviewAnchor)
         viewModel.updateComposerText("Keep me")
         viewModel.saveComposerComment()
-        await waitForPullRequestCondition { !service.addedPendingComments.isEmpty }
+        await waitForPullRequestCondition {
+            viewModel.activePaneSession?.detail?.reviewThreads.first?.comments.first?.nodeID == "PENDING_COMMENT_Keep me"
+        }
 
+        XCTAssertEqual(
+            viewModel.activePaneSession?.detail?.reviewThreads.first?.comments.first?.nodeID,
+            "PENDING_COMMENT_Keep me"
+        )
         viewModel.deletePendingComment(nodeID: "PENDING_COMMENT_Keep me")
+        XCTAssertEqual(viewModel.activePaneSession?.detail?.pendingCommentCount, 0)
         await waitForPullRequestCondition { viewModel.activePaneSession?.composerError != nil }
 
+        XCTAssertEqual(service.deletedPendingCommentNodeIDs, ["PENDING_COMMENT_Keep me"])
         XCTAssertEqual(viewModel.activePaneSession?.detail?.pendingCommentCount, 1)
         XCTAssertEqual(service.deletedPendingReviewNodeIDs, [])
     }

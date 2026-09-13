@@ -43,13 +43,4 @@ extension ConversationViewModelTests {
 
         XCTAssertNil(fixture.viewModel.providerAuthenticationFailure)
     }
-
-    func testProviderAuthenticationNoticeIsDismissable() throws {
-        let fixture = try ConversationViewModelTestFixture()
-        fixture.viewModel.handleEvent(.providerAuthenticationRequired(message: "OAuth session expired"))
-
-        fixture.viewModel.providerAuthenticationFailure = nil
-
-        XCTAssertNil(fixture.viewModel.providerAuthenticationFailure)
-    }
 }

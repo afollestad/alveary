@@ -8,10 +8,8 @@ import XCTest
 /// this covers the project side of the round trip and the shared failure modes.
 @MainActor
 final class ProjectPullRequestLinksTests: XCTestCase {
-    func testNewProjectHasNoLinks() throws {
-        let context = ModelContext(try makeContainer())
+    func testNewProjectHasNoLinks() {
         let project = Project(path: "/tmp/alpha", name: "Alpha")
-        context.insert(project)
 
         XCTAssertNil(project.linkedPullRequestsJSON)
         XCTAssertEqual(project.linkedPullRequests, [])
@@ -38,19 +36,15 @@ final class ProjectPullRequestLinksTests: XCTestCase {
         XCTAssertTrue(reread.isPullRequestLinked(PullRequestIdentifier(owner: "octo", repo: "alpha", number: 9)))
     }
 
-    func testMalformedPayloadDecodesToEmpty() throws {
-        let context = ModelContext(try makeContainer())
+    func testMalformedPayloadDecodesToEmpty() {
         let project = Project(path: "/tmp/alpha", name: "Alpha")
-        context.insert(project)
         project.linkedPullRequestsJSON = "{ not json"
 
         XCTAssertEqual(project.linkedPullRequests, [])
     }
 
-    func testClearingLinksClearsTheColumn() throws {
-        let context = ModelContext(try makeContainer())
+    func testClearingLinksClearsTheColumn() {
         let project = Project(path: "/tmp/alpha", name: "Alpha")
-        context.insert(project)
         project.linkedPullRequests = [
             LinkedPullRequest(summary: makePullRequestSummary(number: 7), linkedAt: Date(timeIntervalSince1970: 1))
         ]

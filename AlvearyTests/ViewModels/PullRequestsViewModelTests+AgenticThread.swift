@@ -216,7 +216,7 @@ extension PullRequestsViewModelTests {
     /// Several clones can hold one repository, so a pane opened from a project names the one the
     /// user is looking at; the checkout ladder takes it from there.
     func testAProjectPaneNamesItsCloneForTheCheckout() async throws {
-        let projectID = try makeOwnerIdentifiers().project
+        let projectID = makeOwnerIdentifiers().project
         let requested = RequestBox()
         let pane = await openedReviewPane(origin: .project(projectID), starter: { request in
             requested.value = request

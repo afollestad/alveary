@@ -15,6 +15,7 @@ extension SnapshotTests {
     /// The estimate's signature was that the reported content height moved as rows realized and
     /// were released. A counted total cannot: the same diff reports one height from any offset.
     func testDiffViewerContentHeightDoesNotChangeWithScrollPosition() throws {
+        let plain = try Self.contentHeight(threadCount: 0)
         let host = DiffPreviewScrollHost(
             Self.commentedDiffPreview(threadCount: 3),
             size: CGSize(width: 600, height: 444)
@@ -37,19 +38,11 @@ extension SnapshotTests {
         // A total that fell *short* of what the rows draw would strand the last of them outside the
         // scroll range, so guard the floor too: 640 line rows cannot fit in less than 18pt each.
         XCTAssertGreaterThan(atBottom, 640 * 18)
-    }
-
-    /// Comment rows must cost their own height and nothing more. They used to cost that plus a
-    /// per-row surcharge on every other row in the diff, which is what pooled as dead space.
-    func testDiffViewerCommentRowsCostOnlyTheirOwnHeight() throws {
-        let plain = try Self.contentHeight(threadCount: 0)
-        let threaded = try Self.contentHeight(threadCount: 3)
-
-        // Three cards, each ~127pt drawn. The bound is loose enough to survive a card redesign and
-        // far tighter than what three threads cost while the height was estimated — that surcharge
-        // scaled with the row count, so this fixture is wide on purpose.
-        XCTAssertGreaterThan(threaded, plain)
-        XCTAssertLessThan(threaded - plain, 3 * 260)
+        // Comment cards must cost only their own height, not a surcharge on every row.
+        // Three ~127pt cards use a loose redesign margin, still far below the old
+        // estimate's row-count-dependent inflation in this deliberately wide fixture.
+        XCTAssertGreaterThan(atBottom, plain)
+        XCTAssertLessThan(atBottom - plain, 3 * 260)
     }
 
     private static func contentHeight(threadCount: Int) throws -> CGFloat {

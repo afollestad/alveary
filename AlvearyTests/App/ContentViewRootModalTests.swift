@@ -45,22 +45,6 @@ final class ContentViewRootModalTests: XCTestCase {
         XCTAssertNil(modalKind)
     }
 
-    func testImagePreviewIsUsedWhenOnboardingIsAbsent() throws {
-        let requestID = try XCTUnwrap(UUID(uuidString: "C06B7D95-6E34-4AB3-989B-F7BC727668A6"))
-        let request = AppImagePreviewRequest(
-            id: requestID,
-            title: "Preview",
-            source: .fileURL(URL(fileURLWithPath: "/tmp/preview.png"))
-        )
-
-        let modalKind = ContentView.rootWindowModalKind(
-            isOnboardingPresented: false,
-            imagePreviewRequest: request
-        )
-
-        XCTAssertEqual(modalKind, .imagePreview(requestID))
-    }
-
     func testVoiceInputLockDefersEveryRootModalCandidate() throws {
         let requestID = try XCTUnwrap(UUID(uuidString: "F8A18B43-7E8E-4935-B095-A67A7F05AA64"))
         let request = AppImagePreviewRequest(
@@ -76,23 +60,16 @@ final class ContentViewRootModalTests: XCTestCase {
         )
 
         XCTAssertNil(modalKind)
-    }
-
-    func testDeferredRootModalResumesItsNormalPriorityAfterVoiceInputUnlocks() throws {
-        let requestID = try XCTUnwrap(UUID(uuidString: "5578216A-0EC8-4F90-863E-A9766466A4B5"))
-        let request = AppImagePreviewRequest(
-            id: requestID,
-            title: "Preview",
-            source: .fileURL(URL(fileURLWithPath: "/tmp/preview.png"))
-        )
-
-        let modalKind = ContentView.rootWindowModalKind(
+        XCTAssertNil(ContentView.rootWindowModalKind(
+            isOnboardingPresented: false,
+            imagePreviewRequest: request,
+            isVoiceInputLocked: true
+        ))
+        XCTAssertEqual(ContentView.rootWindowModalKind(
             isOnboardingPresented: false,
             imagePreviewRequest: request,
             isVoiceInputLocked: false
-        )
-
-        XCTAssertEqual(modalKind, .imagePreview(requestID))
+        ), .imagePreview(requestID))
     }
 
     func testAppUpdateRestartAlertIsDeferredWithoutDiscardingItsPrompt() {

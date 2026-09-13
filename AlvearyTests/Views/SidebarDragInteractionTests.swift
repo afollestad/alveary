@@ -100,20 +100,30 @@ final class SidebarDragInteractionTests: XCTestCase {
     /// so the source must gate its gesture by value, never by structure. A conditional branch
     /// here changes the row's identity on each flip, and `List` answered every drop's animated
     /// flip-back by remove-inserting all the section headers, sliding them up and back down.
-    func testDragSourceKeepsViewStructureWhateverItsConfiguration() {
-        let enabled = Color.clear.sidebarDragSource(
-            SidebarRowDragConfiguration(
-                item: .section(.tasks),
-                isEnabled: true,
-                logicalOrder: SidebarDragLogicalOrder(pinnedItems: [], regularProjects: []),
-                onChanged: { _ in },
-                onEnded: { _ in }
-            )
+    func testDragSourceKeepsViewStructureWhateverItsConfiguration() async throws {
+        let model = DragSourceIdentityModel()
+        let observation = DragSourceIdentityObservation()
+        let host = NSHostingView(rootView: DragSourceIdentityHost(model: model, observation: observation))
+        let window = NSWindow(
+            contentRect: NSRect(x: -1_000, y: -1_000, width: 200, height: 80),
+            styleMask: [.borderless], backing: .buffered, defer: false
         )
-        let typeName = String(describing: type(of: enabled))
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        defer { window.contentView = nil; window.close() }
+        try await waitUntil("the enabled source mounts its child") { observation.revision == 0 }
+        let initialView = try XCTUnwrap(observation.view)
+        let initialState = try XCTUnwrap(observation.stateID)
+        initialView.tag = 71
 
-        XCTAssertFalse(typeName.contains("ConditionalContent"), typeName)
-        XCTAssertTrue(typeName.contains("SidebarDragSourceModifier"), typeName)
+        for (revision, enabled) in [false, nil, true].enumerated() {
+            model.configuration = enabled.map { model.configuration(isEnabled: $0) }
+            model.revision = revision + 1
+            try await waitUntil("the source applies configuration \(revision + 1)") { observation.revision == revision + 1 }
+            XCTAssertTrue(observation.view === initialView)
+            XCTAssertEqual(observation.stateID, initialState)
+            XCTAssertEqual(observation.view?.tag, 71)
+        }
     }
 
     func testProjectDragDoesNotExposeBoundaryBetweenConsecutivePinnedThreads() throws {
@@ -345,5 +355,63 @@ final class SidebarDragInteractionTests: XCTestCase {
             .pinnedHeader: [CGRect(x: 0, y: 6, width: 200, height: 20)],
             .projectsHeader: [CGRect(x: 0, y: projectsHeaderY, width: 200, height: 24)]
         ]
+    }
+}
+
+@MainActor
+@Observable
+private final class DragSourceIdentityModel {
+    var revision = 0
+    var configuration: SidebarRowDragConfiguration? = SidebarRowDragConfiguration(
+        item: .section(.tasks), isEnabled: true,
+        logicalOrder: SidebarDragLogicalOrder(pinnedItems: [], regularProjects: []), onChanged: { _ in }, onEnded: { _ in }
+    )
+
+    func configuration(isEnabled: Bool) -> SidebarRowDragConfiguration {
+        SidebarRowDragConfiguration(
+            item: .section(.tasks), isEnabled: isEnabled,
+            logicalOrder: SidebarDragLogicalOrder(pinnedItems: [], regularProjects: []), onChanged: { _ in }, onEnded: { _ in }
+        )
+    }
+}
+
+@MainActor
+private final class DragSourceIdentityObservation {
+    var revision: Int?
+    var stateID: UUID?
+    weak var view: NSTextField?
+}
+
+private struct DragSourceIdentityHost: View {
+    let model: DragSourceIdentityModel
+    let observation: DragSourceIdentityObservation
+
+    var body: some View {
+        DragSourceIdentityChild(revision: model.revision, observation: observation)
+            .sidebarDragSource(model.configuration)
+    }
+}
+
+private struct DragSourceIdentityChild: View {
+    let revision: Int
+    let observation: DragSourceIdentityObservation
+    @State private var stateID = UUID()
+
+    var body: some View {
+        DragSourceIdentityProbe(revision: revision, stateID: stateID, observation: observation)
+    }
+}
+
+private struct DragSourceIdentityProbe: NSViewRepresentable {
+    let revision: Int
+    let stateID: UUID
+    let observation: DragSourceIdentityObservation
+
+    func makeNSView(context: Context) -> NSTextField { NSTextField(labelWithString: "Drag source") }
+
+    func updateNSView(_ view: NSTextField, context: Context) {
+        observation.view = view
+        observation.stateID = stateID
+        observation.revision = revision
     }
 }

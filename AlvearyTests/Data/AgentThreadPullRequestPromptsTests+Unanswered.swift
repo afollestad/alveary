@@ -1,15 +1,12 @@
 import Foundation
-import SwiftData
 import XCTest
 
 @testable import Alveary
 
 @MainActor
 extension AgentThreadPullRequestPromptsTests {
-    func testUnansweredPromptsAreScopedToTheirConversation() throws {
-        let context = ModelContext(try unansweredTestContainer())
+    func testUnansweredPromptsAreScopedToTheirConversation() {
         let thread = AgentThread(name: "Thread")
-        context.insert(thread)
         thread.pendingPullRequestLinkPrompts = [
             unansweredPrompt(number: 7, conversationID: "conversation-1"),
             unansweredPrompt(number: 9, conversationID: "conversation-2")
@@ -26,10 +23,8 @@ extension AgentThreadPullRequestPromptsTests {
 
     /// Answered prompts are filtered rather than removed, so a stale entry cannot resurrect a
     /// question — nor light the sidebar dot for one.
-    func testLinkedPullRequestStopsCountingAsUnanswered() throws {
-        let context = ModelContext(try unansweredTestContainer())
+    func testLinkedPullRequestStopsCountingAsUnanswered() {
         let thread = AgentThread(name: "Thread")
-        context.insert(thread)
         thread.pendingPullRequestLinkPrompts = [unansweredPrompt(number: 7, conversationID: "conversation-1")]
         XCTAssertTrue(thread.hasUnansweredPullRequestLinkPrompt(conversationID: "conversation-1"))
 
@@ -41,19 +36,8 @@ extension AgentThreadPullRequestPromptsTests {
         XCTAssertEqual(thread.unansweredPullRequestLinkPrompts(conversationID: "conversation-1"), [])
     }
 
-    func testNoStoredPromptsMeansNothingUnanswered() throws {
-        let context = ModelContext(try unansweredTestContainer())
+    func testUnansweredPromptsAreOldestFirst() {
         let thread = AgentThread(name: "Thread")
-        context.insert(thread)
-
-        XCTAssertNil(thread.pendingPullRequestPromptsJSON)
-        XCTAssertFalse(thread.hasUnansweredPullRequestLinkPrompt(conversationID: "conversation-1"))
-    }
-
-    func testUnansweredPromptsAreOldestFirst() throws {
-        let context = ModelContext(try unansweredTestContainer())
-        let thread = AgentThread(name: "Thread")
-        context.insert(thread)
         thread.pendingPullRequestLinkPrompts = [
             unansweredPrompt(number: 9, conversationID: "conversation-1"),
             unansweredPrompt(number: 7, conversationID: "conversation-1")
@@ -75,19 +59,6 @@ extension AgentThreadPullRequestPromptsTests {
             messageEventID: "message-\(number)",
             conversationID: conversationID,
             createdAt: Date(timeIntervalSince1970: TimeInterval(number))
-        )
-    }
-
-    private func unansweredTestContainer() throws -> ModelContainer {
-        try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            ScheduledTask.self,
-            ScheduledTaskRun.self,
-            ScheduledTaskProposal.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }
 }

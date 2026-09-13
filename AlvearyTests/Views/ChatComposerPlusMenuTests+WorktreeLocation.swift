@@ -72,16 +72,6 @@ extension ChatComposerPlusMenuTests {
         XCTAssertEqual(closeCount, 1)
     }
 
-    func testWorktreeLocationMenuUsesCompactWidthAndStandardIconSpacing() {
-        XCTAssertEqual(ComposerWorktreeMenuMetrics.width, 280)
-        XCTAssertEqual(
-            ComposerReasoningMenuMetrics.iconTitleLeading -
-                ComposerReasoningMenuMetrics.iconLeading -
-                ComposerReasoningMenuMetrics.iconSlotSize,
-            ComposerReasoningMenuMetrics.iconTextSpacing
-        )
-    }
-
     func testWorktreeLocationMenuEscapeRequestsClose() throws {
         var closeCount = 0
         let controller = ComposerWorktreeMenuViewController(

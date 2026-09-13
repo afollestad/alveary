@@ -56,7 +56,7 @@ extension SnapshotTests {
                 isGoalModeChipVisible: true,
                 isGoalModeChipEnabled: true
             ),
-            size: CGSize(width: 1000, height: 230),
+            size: CGSize(width: 1000, height: 280),
             named: "appkit_composer_panel_active_goal_with_staged_context",
             colorScheme: .dark
         )
@@ -85,7 +85,7 @@ extension SnapshotTests {
                 isGoalModeChipVisible: true,
                 isGoalModeChipEnabled: true
             ),
-            size: CGSize(width: 1000, height: 270),
+            size: CGSize(width: 1000, height: 320),
             named: "appkit_composer_panel_active_goal_with_banners",
             colorScheme: .dark
         )

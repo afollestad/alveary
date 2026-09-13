@@ -292,7 +292,9 @@ func makeLoadedPullRequestPane(
 @MainActor
 func waitForPullRequestCondition(
     _ condition: @MainActor () -> Bool,
-    iterations: Int = 2_000
+    iterations: Int = 2_000,
+    file: StaticString = #filePath,
+    line: UInt = #line
 ) async {
     for _ in 0..<iterations {
         if condition() {
@@ -300,11 +302,62 @@ func waitForPullRequestCondition(
         }
         await Task.yield()
     }
+    XCTFail("Pull request condition never became true", file: file, line: line)
 }
 
 @MainActor
 func drainMainQueue() async {
     for _ in 0..<200 {
         await Task.yield()
+    }
+}
+
+/// Owns held requests and the tasks that can disappear from pane dictionaries during cancellation.
+@MainActor
+final class PullRequestLoadCleanup {
+    private var gates: [PullRequestsServiceGate] = []
+    private var tasks: [Task<Void, Never>] = []
+    private var currentTasks: [() -> [Task<Void, Never>]] = []
+
+    func makeGate() -> PullRequestsServiceGate {
+        let gate = PullRequestsServiceGate()
+        gates.append(gate)
+        return gate
+    }
+
+    func capture(_ viewModel: PullRequestsViewModel) {
+        let latest = {
+            viewModel.paneLoadTasks.values.flatMap { [$0.detail?.task, $0.diff?.task].compactMap { $0 } }
+        }
+        tasks.append(contentsOf: latest())
+        currentTasks.append(latest)
+    }
+
+    func capture(_ fixture: ReviewProposalFixture) {
+        // Retain the cache fixture until all work finishes, including warm tasks born after a cache read.
+        let latest = {
+            let coordinator = fixture.coordinator
+            return [coordinator.previewCacheTask, coordinator.previewWarmTask].compactMap { $0 }
+                + Array(coordinator.previewTasks.values)
+        }
+        tasks.append(contentsOf: latest())
+        currentTasks.append(latest)
+    }
+
+    func run(_ operation: () async throws -> Void) async rethrows {
+        do {
+            try await operation()
+        } catch {
+            await finish()
+            throw error
+        }
+        await finish()
+    }
+
+    private func finish() async {
+        tasks.append(contentsOf: currentTasks.flatMap { $0() })
+        for task in tasks { task.cancel() }
+        for gate in gates { gate.open() }
+        for task in tasks { await task.value }
     }
 }

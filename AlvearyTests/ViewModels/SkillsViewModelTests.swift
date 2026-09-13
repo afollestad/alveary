@@ -68,30 +68,6 @@ final class SkillsViewModelTests: XCTestCase {
         XCTAssertEqual(settledSearchCalls, ["pl"])
     }
 
-    func testSearchDiscardsStaleResponsesWhenQueryChangesMidFlight() async {
-        let service = SkillsMockService(
-            installed: [],
-            catalog: [],
-            searchResultsByQuery: [
-                "pl": [makeSkill(id: "old")],
-                "pla": [makeSkill(id: "new")]
-            ],
-            searchDelaysByQuery: [
-                "pl": .milliseconds(300),
-                "pla": .zero
-            ]
-        )
-        let viewModel = SkillsViewModel(skillsService: service)
-
-        viewModel.searchQuery = "pl"
-        try? await Task.sleep(for: .milliseconds(350))
-        viewModel.searchQuery = "pla"
-        try? await Task.sleep(for: .milliseconds(350))
-
-        XCTAssertEqual(viewModel.searchResults.map(\.id), ["new"])
-        XCTAssertFalse(viewModel.isSearchingSkillsSh)
-    }
-
     func testSearchCancelsInFlightSkillsShRequestWhenQueryChanges() async {
         let service = SkillsMockService(
             installed: [],
@@ -144,39 +120,6 @@ final class SkillsViewModelTests: XCTestCase {
         try? await Task.sleep(for: .milliseconds(350))
         XCTAssertFalse(viewModel.isSearchingSkillsSh)
         XCTAssertEqual(viewModel.searchResults.map(\.id), ["new"])
-    }
-
-    func testSearchClearsProgressAndResultsForShortQuery() async {
-        let service = SkillsMockService(
-            installed: [],
-            catalog: [],
-            searchResultsByQuery: [
-                "pl": [makeSkill(id: "new")]
-            ],
-            searchDelaysByQuery: [
-                "pl": .milliseconds(300)
-            ]
-        )
-        let viewModel = SkillsViewModel(skillsService: service)
-
-        viewModel.searchQuery = "pl"
-        try? await Task.sleep(for: .milliseconds(350))
-        XCTAssertTrue(viewModel.isSearchingSkillsSh)
-
-        viewModel.searchQuery = "p"
-        XCTAssertFalse(viewModel.isSearchingSkillsSh)
-        XCTAssertTrue(viewModel.searchResults.isEmpty)
-    }
-
-    func testSearchEmptyResultsClearProgress() async {
-        let service = SkillsMockService(installed: [], catalog: [])
-        let viewModel = SkillsViewModel(skillsService: service)
-
-        viewModel.searchQuery = "missing"
-        try? await Task.sleep(for: .milliseconds(350))
-
-        XCTAssertFalse(viewModel.isSearchingSkillsSh)
-        XCTAssertTrue(viewModel.searchResults.isEmpty)
     }
 
     func testSearchDeduplicatesDuplicateSkillsShResults() async {
@@ -354,6 +297,7 @@ actor SkillsMockService: SkillsService {
     private var installedAfterMutation: [Skill]?
     private var catalogAfterMutation: [Skill]?
     private var searchQueryCalls: [String] = []
+    private var searchGates: [String: PullRequestsServiceGate] = [:]
     private var cancelledSearchQueryCalls: [String] = []
     private var shouldBlockCatalogLoad = false
     private var catalogContinuation: CheckedContinuation<Void, Never>?
@@ -393,6 +337,7 @@ actor SkillsMockService: SkillsService {
 
     func searchSkillsSh(query: String) async throws -> [Skill] {
         searchQueryCalls.append(query)
+        await searchGates[query]?.wait()
         do {
             if let delay = searchDelaysByQuery[query], delay != .zero {
                 try await Task.sleep(for: delay)
@@ -445,6 +390,10 @@ actor SkillsMockService: SkillsService {
 
     func setCatalogAfterMutation(_ skills: [Skill]) {
         catalogAfterMutation = skills
+    }
+
+    func setSearchGate(_ gate: PullRequestsServiceGate, for query: String) {
+        searchGates[query] = gate
     }
 
     func searchCalls() -> [String] {

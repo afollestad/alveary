@@ -4,12 +4,6 @@ import XCTest
 
 @MainActor
 final class NotificationRouterTests: XCTestCase {
-    func testRequestOpenSetsPending() {
-        let router = NotificationRouter()
-        router.requestOpen(conversationId: "abc")
-        XCTAssertEqual(router.pendingConversationId, "abc")
-    }
-
     func testClearPendingClearsMatchingID() {
         let router = NotificationRouter()
         router.requestOpen(conversationId: "abc")

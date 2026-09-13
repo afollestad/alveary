@@ -195,7 +195,7 @@ private struct SidebarCollapsedSectionHighlightSnapshot: View {
             if let headerFrame = geometry[.customSectionHeader(Self.sectionID)]?.sidebarUnion,
                let viewport = geometry[.viewport]?.sidebarUnion {
                 GeometryReader { proxy in
-                    sidebarSnapshotSectionContainerBorder(
+                    SidebarSectionContainerBorder(
                         frame: sidebarSectionContainerFrame(headerFrame: headerFrame, contentFrames: []),
                         viewport: viewport,
                         overlaySize: proxy.size

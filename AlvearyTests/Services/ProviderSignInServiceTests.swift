@@ -55,51 +55,85 @@ final class ProviderSignInServiceTests: XCTestCase {
     }
 
     func testFinishedSignInKeepsPendingProviderWhileItStillNeedsSetup() async throws {
-        let service = makeService(claudeSetup: .needsSetup)
+        let (service, discovery) = makeFixture()
         let terminalManager = TerminalManager(controllerFactory: StubTerminalControllerFactory())
         XCTAssertTrue(service.startSignIn(providerID: "claude", terminalManager: terminalManager))
 
-        service.handleRunningProjectActionSessionIDsChange([])
-        // Draining the refresh's own task hop is enough to observe it not clearing.
-        for _ in 0..<20 {
-            await Task.yield()
-        }
+        try await waitForRefresh(service.handleRunningProjectActionSessionIDsChange([]))
 
-        // Still pending, so the one activation retry is still available.
+        let probes = await discovery.providerStatusesInvocations()
+        XCTAssertEqual(probes, 1)
         XCTAssertEqual(service.pendingProviderID, "claude")
     }
 
-    /// The browser round trip happens while the sign-in command is still waiting, so an activation
-    /// during it must not spend the one retry — nor pay discovery's fan-out.
-    func testActivationDuringTheLiveSignInTabDoesNotSpendTheRetry() {
-        let service = makeService(claudeSetup: .needsSetup)
+    /// A live browser round trip must neither launch discovery nor spend the later activation retry.
+    func testActivationDuringTheLiveSignInTabDoesNotSpendTheRetry() async throws {
+        let (service, discovery) = makeFixture()
         let terminalManager = TerminalManager(controllerFactory: StubTerminalControllerFactory())
         XCTAssertTrue(service.startSignIn(providerID: "claude", terminalManager: terminalManager))
 
-        service.handleAppDidBecomeActive()
-
+        XCTAssertNil(service.handleAppDidBecomeActive())
         XCTAssertEqual(service.pendingProviderID, "claude")
+        let liveProbes = await discovery.providerStatusesInvocations()
+        XCTAssertEqual(liveProbes, 0)
+
+        try await waitForRefresh(service.handleRunningProjectActionSessionIDsChange([]))
+        XCTAssertEqual(service.pendingProviderID, "claude")
+        let finishedProbes = await discovery.providerStatusesInvocations()
+        XCTAssertEqual(finishedProbes, 1)
+
+        let retry = service.handleAppDidBecomeActive()
+        XCTAssertNil(service.pendingProviderID)
+        try await waitForRefresh(retry)
+        let retryProbes = await discovery.providerStatusesInvocations()
+        XCTAssertEqual(retryProbes, 2)
     }
 
-    /// Bounded at one attempt: staying pending would put discovery's fan-out on every app switch for
-    /// the rest of the session.
+    /// The final activation refresh stops tracking immediately, then still completes discovery once.
     func testActivationAfterTheTabIsGoneStopsTrackingEvenWhenStillNotReady() async throws {
-        let service = makeService(claudeSetup: .needsSetup)
+        let (service, discovery) = makeFixture()
         let terminalManager = TerminalManager(controllerFactory: StubTerminalControllerFactory())
         XCTAssertTrue(service.startSignIn(providerID: "claude", terminalManager: terminalManager))
-        service.handleRunningProjectActionSessionIDsChange([])
+        try await waitForRefresh(service.handleRunningProjectActionSessionIDsChange([]))
+        let finishedProbes = await discovery.providerStatusesInvocations()
+        XCTAssertEqual(finishedProbes, 1)
 
-        service.handleAppDidBecomeActive()
+        let retry = service.handleAppDidBecomeActive()
         XCTAssertNil(service.pendingProviderID)
+        try await waitForRefresh(retry)
+        let retryProbes = await discovery.providerStatusesInvocations()
+        XCTAssertEqual(retryProbes, 2)
 
-        // A second activation is now a no-op rather than another refresh.
-        service.handleAppDidBecomeActive()
+        XCTAssertNil(service.handleAppDidBecomeActive())
         XCTAssertNil(service.pendingProviderID)
+        let finalProbes = await discovery.providerStatusesInvocations()
+        XCTAssertEqual(finalProbes, 2)
+    }
+
+    /// Probe entry alone precedes status consumption; observe the actual scheduled task finishing.
+    private func waitForRefresh(_ scheduledTask: Task<Void, Never>?) async throws {
+        let task = try XCTUnwrap(scheduledTask)
+        let completed = expectation(description: "Sign-in readiness refresh completed")
+        let observer = Task {
+            await task.value
+            completed.fulfill()
+        }
+        defer {
+            task.cancel()
+            observer.cancel()
+        }
+        await fulfillment(of: [completed], timeout: 3)
     }
 
     private func makeService(
         claudeSetup: AgentCLIKit.AgentProviderReadinessState = .needsSetup
     ) -> ProviderSignInService {
+        makeFixture(claudeSetup: claudeSetup).0
+    }
+
+    private func makeFixture(
+        claudeSetup: AgentCLIKit.AgentProviderReadinessState = .needsSetup
+    ) -> (ProviderSignInService, RecordingProviderDiscoveryService) {
         let base = RecordingProviderDiscoveryService(statuses: [
             .claude: AgentCLIKit.AgentProviderStatus(
                 providerId: .claude,
@@ -113,11 +147,12 @@ final class ProviderSignInServiceTests: XCTestCase {
                 modelOptions: []
             )
         ])
-        return ProviderSignInService(
+        let service = ProviderSignInService(
             agentRegistry: DefaultAgentRegistry(),
             discoveryService: CachingAgentProviderDiscoveryService(base: base),
             settingsService: InMemorySettingsService()
         )
+        return (service, base)
     }
 
     /// The readiness refresh runs in an unstructured `Task`, so poll rather than assert immediately.

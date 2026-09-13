@@ -29,44 +29,48 @@ extension PullRequestReviewTeamCoordinatorTests {
         let saves = ReviewCoordinatorSaveControl()
         let fixture = try ReviewCoordinatorFixture(commitSave: saves.save)
         let gate = PullRequestsServiceGate()
+        defer { gate.open() }
         await fixture.worker.configure(gate: gate)
         try fixture.start()
-        defer { gate.open() }
-        try await fixture.wait { await fixture.worker.inspectionCount == 3 }
-        let original = try #require(fixture.coordinator.runs[fixture.conversation.id])
-        let savedPhaseBeforeCancellation = try fixture.conversation.collectiveReviewRun()?.phase
-        #expect(savedPhaseBeforeCancellation == .inspecting)
-        let priorJSON = fixture.conversation.pullRequestReviewRunJSON
-        let priorEvents = fixture.conversation.events.map(\.content)
-        saves.shouldFail = true
+        let pipeline = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: fixture.conversation.id))
+        try await fixture.withPipelineCleanup(pipeline, gate: gate) {
+            try await fixture.wait { await fixture.worker.inspectionCount == 3 }
+            let original = try #require(fixture.coordinator.runs[fixture.conversation.id])
+            let savedPhaseBeforeCancellation = try fixture.conversation.collectiveReviewRun()?.phase
+            #expect(savedPhaseBeforeCancellation == .inspecting)
+            let priorJSON = fixture.conversation.pullRequestReviewRunJSON
+            let priorEvents = fixture.conversation.events.map(\.content)
+            saves.shouldFail = true
 
-        fixture.coordinator.cancel(conversationID: original.conversationID)
+            fixture.coordinator.cancel(conversationID: original.conversationID)
 
-        let savedPhaseAfterCancellation = try fixture.conversation.collectiveReviewRun()?.phase
-        #expect(savedPhaseAfterCancellation == .inspecting)
-        #expect(fixture.conversation.pullRequestReviewRunJSON == priorJSON)
-        #expect(fixture.conversation.events.map(\.content) == priorEvents)
-        #expect(!fixture.container.mainContext.hasChanges)
-        let verificationContext = ModelContext(fixture.container)
-        let persisted = try #require(verificationContext.resolveConversation(conversationID: original.conversationID))
-        #expect(persisted.pullRequestReviewRunJSON == priorJSON)
-        #expect(fixture.coordinator.runs[original.conversationID]?.phase == .cancelled)
-        #expect(fixture.coordinator.runs[original.conversationID]?.error?.contains("restored after relaunch") == true)
-        let reopenedStore = ReviewTeamCancellationStore(rootDirectory: fixture.packetRoot.appendingPathComponent("cancellations"))
-        #expect(try reopenedStore.contains(runID: original.id))
-        #expect(try !fixture.coordinator.hasUnfinishedReview(for: original.identifier))
-        saves.shouldFail = false
-        let recovered = recoveryCoordinator(fixture, cancellationStore: reopenedStore)
+            let savedPhaseAfterCancellation = try fixture.conversation.collectiveReviewRun()?.phase
+            #expect(savedPhaseAfterCancellation == .inspecting)
+            #expect(fixture.conversation.pullRequestReviewRunJSON == priorJSON)
+            #expect(fixture.conversation.events.map(\.content) == priorEvents)
+            #expect(!fixture.container.mainContext.hasChanges)
+            let verificationContext = ModelContext(fixture.container)
+            let persisted = try #require(verificationContext.resolveConversation(conversationID: original.conversationID))
+            #expect(persisted.pullRequestReviewRunJSON == priorJSON)
+            #expect(fixture.coordinator.runs[original.conversationID]?.phase == .cancelled)
+            #expect(fixture.coordinator.runs[original.conversationID]?.error?.contains("restored after relaunch") == true)
+            let reopenedStore = ReviewTeamCancellationStore(rootDirectory: fixture.packetRoot.appendingPathComponent("cancellations"))
+            #expect(try reopenedStore.contains(runID: original.id))
+            #expect(try !fixture.coordinator.hasUnfinishedReview(for: original.identifier))
+            saves.shouldFail = false
+            let recovered = recoveryCoordinator(fixture, cancellationStore: reopenedStore)
 
-        recovered.recover()
+            recovered.recover()
 
-        #expect(try fixture.conversation.collectiveReviewRun()?.phase == .cancelled)
-        #expect(try fixture.conversation.collectiveReviewRun()?.generation == original.generation + 1)
-        #expect(try !reopenedStore.contains(runID: original.id))
-        gate.open()
-        try await fixture.wait { await fixture.worker.completedCount == 3 }
-        #expect(await fixture.worker.inspectionCount == 3)
-        #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
+            #expect(try fixture.conversation.collectiveReviewRun()?.phase == .cancelled)
+            #expect(try fixture.conversation.collectiveReviewRun()?.generation == original.generation + 1)
+            #expect(try !reopenedStore.contains(runID: original.id))
+            gate.open()
+            try await fixture.waitForCompletion(of: pipeline)
+            #expect(await fixture.worker.completedCount == 3)
+            #expect(await fixture.worker.inspectionCount == 3)
+            #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
+        }
     }
 
     @Test

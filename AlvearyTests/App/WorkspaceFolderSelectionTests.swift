@@ -245,18 +245,26 @@ final class WorkspaceFolderSelectionTests: XCTestCase {
         XCTAssertTrue(context.setLinkedPullRequests([link], for: .project(project.persistentModelID)))
         try context.save()
         await fixture.viewModel.switchToDirectory(fixture.directory, baseRef: "main", remoteName: nil, conversationIds: [])
+        XCTAssertEqual(fixture.viewModel.activeSourceDirectory, fixture.directory)
+        let targets = project.workspaceFolderTargets
+        XCTAssertEqual(targets.map(\.directory), ["/tmp/other-folder", fixture.directory])
+        XCTAssertEqual(targets.map(\.repository), [nil, "owner/repo"])
         let keys = project.workspaceFolderTargets.map {
             FolderRepositoryDiscoveryKey.resolve(
                 selection: .project(project), folder: $0, modelContext: context, diffViewModel: fixture.viewModel
             )
         }
+        XCTAssertEqual(keys.map(\.linkedPullRequestIDs), [Set([link.id]), Set([link.id])])
         XCTAssertTrue(keys.allSatisfy { $0.workspaceRefreshRevision == nil })
+        let revisionBeforeRefresh = fixture.viewModel.workspaceRefreshRevision
         await fixture.viewModel.refresh(in: fixture.directory, reason: .agentTurnCompleted)
+        XCTAssertGreaterThan(fixture.viewModel.workspaceRefreshRevision, revisionBeforeRefresh)
         let refreshedKeys = project.workspaceFolderTargets.map {
             FolderRepositoryDiscoveryKey.resolve(
                 selection: .project(project), folder: $0, modelContext: context, diffViewModel: fixture.viewModel
             )
         }
+        XCTAssertEqual(refreshedKeys.compactMap { $0.folder?.directory }, ["/tmp/other-folder", fixture.directory])
         XCTAssertEqual(keys, refreshedKeys)
     }
 

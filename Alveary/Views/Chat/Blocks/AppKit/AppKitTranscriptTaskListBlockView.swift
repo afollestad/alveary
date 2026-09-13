@@ -34,10 +34,6 @@ final class AppKitTranscriptTaskListBlockView: NSView {
         activeRowAnimationTargetFramesByID[id]
     }
 
-    var rowSpacingForTesting: CGFloat {
-        taskListRowSpacing
-    }
-
     func taskRowForTesting(id: String) -> AppKitTranscriptTaskListRowView? {
         rowViewsByID[id]
     }

@@ -35,6 +35,8 @@ extension ChatVoiceInputCoordinatorTests {
         XCTAssertTrue(fixture.coordinator.physicalRelease(.mouse, forced: true))
         await waitUntil { fixture.service.hasPendingStop }
         XCTAssertEqual(fixture.coordinator.phase, .finalizing)
+        let finalizationTask = fixture.coordinator.startupTask
+        XCTAssertNotNil(finalizationTask)
 
         XCTAssertTrue(fixture.coordinator.cancelFromEscape())
         XCTAssertEqual(fixture.currentMarkdown, "Original draft")
@@ -54,7 +56,7 @@ extension ChatVoiceInputCoordinatorTests {
             termination: .committed,
             error: nil
         ))
-        await Task.yield()
+        await finalizationTask?.value
 
         XCTAssertEqual(fixture.currentMarkdown, "Original draft")
         XCTAssertEqual(fixture.flushCount, 1)

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import XCTest
 
@@ -85,13 +86,35 @@ final class PaneHeaderTests: XCTestCase {
         XCTAssertEqual(filter.selectedTitle, "")
     }
 
-    /// Pull Requests caps its field tighter than the default, and the cap has to stay above
-    /// the floor or the field could never render at a width the header would accept.
-    func testEverySearchCapClearsTheSharedMinimum() {
-        let caps = [PaneHeaderSearch(placeholder: "", text: .constant("")).maximumWidth, 220]
-
-        for cap in caps {
-            XCTAssertGreaterThan(cap, PaneHeaderLayout.searchMinimumWidth)
+    func testRenderedSearchRespectsDefaultAndCustomCaps() throws {
+        let searches = [
+            PaneHeaderSearch(placeholder: "Search cases", text: .constant("")),
+            PaneHeaderSearch(placeholder: "Search cases", text: .constant(""), maximumWidth: 220)
+        ]
+        var fieldWidths: [CGFloat] = []
+        for search in searches {
+            XCTAssertGreaterThan(search.maximumWidth, PaneHeaderLayout.searchMinimumWidth)
+            let host = NSHostingView(rootView: ResponsivePaneHeader(search: search) { _ in EmptyView() })
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 900, height: PaneHeaderLayout.height),
+                styleMask: [.borderless], backing: .buffered, defer: false
+            )
+            window.isReleasedWhenClosed = false
+            window.contentView = host
+            defer {
+                window.contentView = nil
+                window.close()
+            }
+            host.layoutSubtreeIfNeeded()
+            let field = try XCTUnwrap(searchFields(in: host).first { $0.placeholderString == "Search cases" })
+            XCTAssertGreaterThan(field.frame.width, 0)
+            XCTAssertLessThanOrEqual(field.frame.width, search.maximumWidth)
+            fieldWidths.append(field.frame.width)
         }
+        XCTAssertGreaterThan(fieldWidths[0], fieldWidths[1], "The tighter cap must constrain the actual mounted field")
+    }
+
+    private func searchFields(in view: NSView) -> [NSTextField] {
+        (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { searchFields(in: $0) }
     }
 }

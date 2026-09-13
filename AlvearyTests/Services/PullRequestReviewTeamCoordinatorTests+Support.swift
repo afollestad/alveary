@@ -53,10 +53,14 @@ final class ReviewCoordinatorFixture {
                               url: URL(string: "https://github.com/octo/alpha/pull/7")!, team: reviewTestTeam(), criteria: "Find bugs.")
     }
 
-    func makeRun(prior: PullRequestCollectiveReviewStagingSnapshot? = nil, conversationID: String? = nil) throws -> ReviewTeamRun {
+    func makeRun(
+        prior: PullRequestCollectiveReviewStagingSnapshot? = nil,
+        conversationID: String? = nil,
+        runID: String = UUID().uuidString
+    ) throws -> ReviewTeamRun {
         let snapshot = try prior ?? coordinator.staging.snapshot(for: identifier, editState: nil)
         return ReviewTeamRun(
-            payloadVersion: 1, id: UUID().uuidString, proposalID: UUID().uuidString, conversationID: conversationID ?? conversation.id,
+            payloadVersion: 1, id: runID, proposalID: UUID().uuidString, conversationID: conversationID ?? conversation.id,
             identifier: identifier, url: URL(string: "https://github.com/octo/alpha/pull/7")!, team: reviewTestTeam(),
             criteria: "Find bugs.", priorProposal: snapshot, createdAt: .now, generation: 0, phase: .preparing,
             inspections: [:], voteReports: [:], accepted: [], attempts: [:], failures: [:], supersededProposalIDs: []
@@ -66,6 +70,40 @@ final class ReviewCoordinatorFixture {
     func terminalRun() async throws -> ReviewTeamRun {
         try await wait { self.coordinator.runs[self.conversation.id]?.phase.isWorking == false }
         return try #require(coordinator.runs[conversation.id])
+    }
+
+    /// Release and join held work before fixture teardown when an intermediate requirement throws.
+    func withPipelineCleanup(
+        _ task: Task<Void, Never>,
+        gate: PullRequestsServiceGate,
+        operation: @MainActor () async throws -> Void
+    ) async throws {
+        do {
+            try await operation()
+        } catch {
+            task.cancel()
+            gate.open()
+            do {
+                try await waitForCompletion(of: task)
+            } catch {
+                Issue.record(error)
+            }
+            throw error
+        }
+    }
+
+    /// Fake worker completion precedes pipeline result handling; observe the original scheduled task instead.
+    func waitForCompletion(of task: Task<Void, Never>) async throws {
+        let completion = ReviewCoordinatorTaskCompletion()
+        let observer = Task {
+            await task.value
+            completion.finished = true
+        }
+        defer {
+            task.cancel()
+            observer.cancel()
+        }
+        try await wait { completion.finished }
     }
 
     func wait(_ condition: @MainActor () async -> Bool) async throws {
@@ -150,4 +188,9 @@ actor ReviewCoordinatorWorker: PullRequestReviewWorkerExecuting {
     private func json<T: Encodable>(_ value: T) throws -> String {
         try ReviewTeamDigest.jsonString(value)
     }
+}
+
+@MainActor
+private final class ReviewCoordinatorTaskCompletion {
+    var finished = false
 }

@@ -10,10 +10,7 @@ struct ReviewTeamConsensusTests {
     }
 
     @Test
-    func `inspection assigns identities and requires exact anchors`() throws {
-        let report = ReviewInspectionReport(findings: [candidate()])
-        let parsed = try ReviewTeamConsensus.inspection(json(report), files: files)
-        #expect(parsed.findings.first?.id != "untrusted")
+    func `inspection requires exact anchors and nonempty evidence`() throws {
         #expect(throws: ReviewTeamError.self) {
             try ReviewTeamConsensus.inspection(json(ReviewInspectionReport(findings: [candidate(line: 99)])), files: files)
         }
@@ -31,7 +28,10 @@ struct ReviewTeamConsensusTests {
         let first = try ReviewTeamConsensus.inspection(json(report), files: files).findings.map(\.id)
         let second = try ReviewTeamConsensus.inspection(json(report), files: files).findings.map(\.id)
 
-        #expect(Set(first).count == report.findings.count)
+        #expect(first.count == 2)
+        #expect(second.count == 2)
+        #expect(Set(first).count == 2)
+        #expect(Set(second).count == 2)
         #expect(Set(first).isDisjoint(with: Set(second)))
         #expect((first + second).allSatisfy { id in
             id.hasPrefix("candidate-") && UUID(uuidString: String(id.dropFirst("candidate-".count))) != nil

@@ -77,7 +77,10 @@ struct PullRequestDiffPagingTests {
         let session = PullRequestHostToolDiffSession(snapshot: snapshot, detail: detail, source: "test", identifier: identifier)
         var cursor = PullRequestHostToolDiffCursor(job: "test", identifier: identifier, paths: nil)
         var ids: [String] = []
+        var pages = 0
         while true {
+            pages += 1
+            try #require(pages < 1_000)
             let result = try PullRequestHostToolDiffPage(session: session, cursor: cursor).render()
             #expect(result.text.utf8.count + (try JSONEncoder().encode(result.structuredContent)).count < 1_000_000)
             let content = try diffPageObject(result.structuredContent)
@@ -126,9 +129,9 @@ struct PullRequestDiffPagingTests {
             #expect(!result.isError)
             let content = try diffPageObject(result.structuredContent)
             #expect(content["total_files"] == .number(1))
-            if case .array(let files) = content["files"] {
-                for file in files { #expect(try diffPageObject(file)["path"] == .string("File1.swift")) }
-            }
+            guard case .array(let files) = content["files"] else { throw PullRequestDiffError.invalidEncoding }
+            try #require(files.count == 1)
+            #expect(try diffPageObject(files[0])["path"] == .string("File1.swift"))
             pages += 1
             try #require(pages < 10)
             guard let token = content["next_cursor"] else { break }

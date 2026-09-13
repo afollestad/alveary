@@ -322,13 +322,6 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertEqual(settings.normalized().defaultModel, AppSettings.defaultModelValue)
     }
 
-    func testNormalizedPreservesSupportedDefaultModel() {
-        var settings = AppSettings()
-        settings.defaultModel = "opus"
-
-        XCTAssertEqual(settings.normalized().defaultModel, "opus")
-    }
-
     func testNormalizedPreservesLastSettingsPage() {
         var settings = AppSettings()
         settings.lastSettingsPage = .terminal

@@ -71,9 +71,6 @@ extension AppKitTextEditorCoordinatorTests {
             }
         }
         XCTAssertFalse(fencedBlockRuns.isEmpty)
-        XCTAssertTrue(inlineCodeRanges.allSatisfy { range in
-            attributedString[range].runs.allSatisfy { $0.inlinePresentationIntent?.contains(.code) == true }
-        })
     }
 
     // A file mention inside a fenced code block must not be re-styled as a composer chip —
@@ -138,8 +135,6 @@ extension AppKitTextEditorCoordinatorTests {
         let flatString = String(attributedString.characters)
         XCTAssertTrue(flatString.contains("@ChatView.swift"))
         XCTAssertFalse(flatString.contains("@Alveary/Views/Chat/ChatView.swift"))
-
-        XCTAssertTrue(chipTexts.allSatisfy { !$0.isEmpty })
     }
 
     // Regression guard for the fix in `attachComposerChips`: a file mention wrapped in
@@ -444,7 +439,7 @@ extension AppKitTextEditorCoordinatorTests {
         XCTAssertLessThan(chipRect.maxX, textView.textContainerOrigin.x + nextWordRect.minX)
     }
 
-    func testApplyConfigurationUsesStableBaseFontForPlainText() {
+    func testApplyConfigurationUsesStableBaseFontForPlainText() throws {
         var text = "My name is `Aidan`."
         var measuredHeight: CGFloat = 0
 
@@ -484,10 +479,12 @@ extension AppKitTextEditorCoordinatorTests {
 
         let plainTextFont = textStorage.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
         let ranges = AppMarkdownCodeBlockParser.codeRanges(in: text)
-        let inlineFont = textStorage.attribute(.font, at: ranges.inlineContentRanges[0].location, effectiveRange: nil) as? NSFont
+        let inlineFont = try XCTUnwrap(
+            textStorage.attribute(.font, at: ranges.inlineContentRanges[0].location, effectiveRange: nil) as? NSFont
+        )
 
         XCTAssertEqual(plainTextFont?.fontName, textView.baseTextFont.fontName)
         XCTAssertEqual(plainTextFont?.pointSize, textView.baseTextFont.pointSize)
-        XCTAssertNotEqual(inlineFont?.fontName, textView.baseTextFont.fontName)
+        XCTAssertNotEqual(inlineFont.fontName, textView.baseTextFont.fontName)
     }
 }

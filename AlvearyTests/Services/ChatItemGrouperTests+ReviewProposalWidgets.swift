@@ -212,12 +212,15 @@ extension ChatItemGrouperTests {
     /// Scheduling and pull-request reviews both open confirmations. A keyless marker — what a
     /// plain-text-fallback provider leaves behind — must not resolve the other feature's card,
     /// or a review would report a decision the user never made.
-    func testAKeylessSchedulingMarkerDoesNotResolveAReviewProposal() {
+    func testAKeylessSchedulingMarkerDoesNotResolveAReviewProposal() throws {
         let grouper = ChatItemGrouper()
         let reviewCall = reviewProposalCall()
         let reviewResult = reviewProposalResult()
         grouper.update(events: [reviewCall, reviewResult])
-        XCTAssertEqual(grouper.items.first?.hostToolWidgetEntry?.isUnresolvedReviewProposal, true)
+        let initialEntries = grouper.items.compactMap(\.hostToolWidgetEntry)
+        XCTAssertEqual(initialEntries.count, 1)
+        let initialEntry = try XCTUnwrap(initialEntries.first)
+        XCTAssertTrue(initialEntry.isUnresolvedReviewProposal)
 
         let unrelatedMarker = ConversationEventRecord(
             id: "scheduling-outcome",
@@ -229,15 +232,24 @@ extension ChatItemGrouperTests {
         )
         grouper.update(events: [reviewCall, reviewResult, unrelatedMarker])
 
-        XCTAssertNil(grouper.items.first?.hostToolWidgetEntry?.outcome)
+        let entries = grouper.items.compactMap(\.hostToolWidgetEntry)
+        XCTAssertEqual(entries.count, 1)
+        let entry = try XCTUnwrap(entries.first)
+        XCTAssertEqual(entry.id, initialEntry.id)
+        XCTAssertNil(entry.outcome)
+        XCTAssertTrue(entry.isUnresolvedReviewProposal)
     }
 
     /// The mirror of the case above: a review marker must not resolve a scheduling proposal.
-    func testAKeylessReviewMarkerDoesNotResolveASchedulingProposal() {
+    func testAKeylessReviewMarkerDoesNotResolveASchedulingProposal() throws {
         let grouper = ChatItemGrouper()
         let call = schedulingProposalCall()
         let result = schedulingProposalResult()
         grouper.update(events: [call, result])
+        let initialEntries = grouper.items.compactMap(\.hostToolWidgetEntry)
+        XCTAssertEqual(initialEntries.count, 1)
+        let initialEntry = try XCTUnwrap(initialEntries.first)
+        XCTAssertTrue(initialEntry.isUnresolvedProposal)
 
         let reviewMarker = ConversationEventRecord(
             id: "review-outcome",
@@ -249,7 +261,12 @@ extension ChatItemGrouperTests {
         )
         grouper.update(events: [call, result, reviewMarker])
 
-        XCTAssertNil(grouper.items.first?.hostToolWidgetEntry?.outcome)
+        let entries = grouper.items.compactMap(\.hostToolWidgetEntry)
+        XCTAssertEqual(entries.count, 1)
+        let entry = try XCTUnwrap(entries.first)
+        XCTAssertEqual(entry.id, initialEntry.id)
+        XCTAssertNil(entry.outcome)
+        XCTAssertTrue(entry.isUnresolvedProposal)
     }
 
     /// A plain-text-fallback provider leaves the widget no proposal id, so its own feature's

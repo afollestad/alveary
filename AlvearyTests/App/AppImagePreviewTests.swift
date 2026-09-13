@@ -235,6 +235,8 @@ final class AppImagePreviewTests: XCTestCase {
 
         XCTAssertFalse(view.hasPendingFitAfterLayoutForTesting)
         XCTAssertEqual(view.magnification, 0.4, accuracy: 0.01)
+        XCTAssertEqual(view.visibleDocumentCenterForTesting.x, 100, accuracy: 0.01)
+        XCTAssertEqual(view.visibleDocumentCenterForTesting.y, 50, accuracy: 0.01)
     }
 
     func testZoomViewFitCommandUsesViewportFrameAfterZooming() {
@@ -247,15 +249,6 @@ final class AppImagePreviewTests: XCTestCase {
 
         XCTAssertFalse(view.hasPendingFitAfterLayoutForTesting)
         XCTAssertEqual(view.magnification, 0.4, accuracy: 0.01)
-    }
-
-    func testZoomViewFitCentersImageInViewport() {
-        let view = AppImagePreviewScrollView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
-        view.configure(image: NSImage(size: NSSize(width: 200, height: 100)))
-        view.layoutSubtreeIfNeeded()
-
-        XCTAssertEqual(view.visibleDocumentCenterForTesting.x, 100, accuracy: 0.01)
-        XCTAssertEqual(view.visibleDocumentCenterForTesting.y, 50, accuracy: 0.01)
     }
 
     func testZoomViewBackgroundClickDismissesOnlyOutsideImage() {

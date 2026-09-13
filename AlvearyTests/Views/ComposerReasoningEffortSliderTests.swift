@@ -20,8 +20,6 @@ final class ComposerReasoningEffortSliderTests: XCTestCase {
         XCTAssertEqual(trackRect, NSRect(x: 0, y: 6, width: 244, height: 21))
         XCTAssertEqual(knobRect.width, 25.5)
         XCTAssertEqual(knobRect.height, 25.5)
-        XCTAssertEqual(ComposerReasoningEffortSliderMetrics.dotDiameter, 5.25)
-        XCTAssertEqual(ComposerReasoningEffortSliderMetrics.dotAlpha, 0.72)
         XCTAssertEqual(tickCenters.first?.x, 12.75)
         XCTAssertEqual(tickCenters.last?.x, slider.bounds.maxX - 12.75)
         XCTAssertEqual(knobRect.midX, tickCenters[1].x)
@@ -324,7 +322,6 @@ final class ComposerReasoningEffortSliderTests: XCTestCase {
             onDragDirectionVisibilityChanged: { visibilityStates.append($0) }
         )
 
-        XCTAssertEqual(ComposerReasoningEffortSliderMetrics.dragDirectionRevealDelay, 0.15)
         slider.beginTrackingInteraction(at: NSPoint(x: 40, y: 20), schedulesDragDirectionReveal: true)
         slider.fireDragDirectionRevealDelayForTesting()
 

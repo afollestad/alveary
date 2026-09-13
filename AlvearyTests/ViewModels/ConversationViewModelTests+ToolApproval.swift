@@ -333,8 +333,7 @@ extension ConversationViewModelTests {
             initialAgentIsRunning: false
         )
         let approval = ToolApprovalRequest(
-            sessionId: "session-123",
-            toolUseId: "tool-1",
+            sessionId: "session-123", toolUseId: "tool-1",
             toolName: "Bash",
             toolInput: "{\"command\":\"swift test\"}"
         )
@@ -343,7 +342,13 @@ extension ConversationViewModelTests {
         do {
             try await fixture.viewModel.approveToolUse(toolUseId: "tool-1")
             XCTFail("Expected approval resume to fail")
-        } catch {}
+        } catch MockAgentsManager.MockError.approvalFailed {}
+
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.count, 1)
+        let call = try XCTUnwrap(calls.first)
+        XCTAssertEqual(call.approval.toolUseId, approval.toolUseId)
+        XCTAssertEqual(call.decision, .allow)
 
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval, PendingToolApproval(request: approval, status: .pending))
         XCTAssertTrue(fixture.viewModel.lastTurnError?.hasPrefix("Tool approval failed:") == true)
@@ -471,6 +476,9 @@ extension ConversationViewModelTests {
         )
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
 
+        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request, approval)
+        XCTAssertFalse(fixture.viewModel.isAgentActivelyWorking)
+        XCTAssertFalse(fixture.viewModel.state.isSendingMessage)
         do {
             try await fixture.viewModel.reconfigureSession(config: AgentSpawnConfig(
                 providerId: "claude",
@@ -481,7 +489,9 @@ extension ConversationViewModelTests {
                 initialPrompt: nil
             ))
             XCTFail("Expected reconfigure to be rejected")
-        } catch {}
+        } catch {
+            XCTAssertEqual(error as? AgentError, .spawnFailed("Approve or deny the pending tool use before applying session changes"))
+        }
 
         let reconfigureCalls = await fixture.agentsManager.reconfigureCalls()
         XCTAssertTrue(reconfigureCalls.isEmpty)

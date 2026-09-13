@@ -9,6 +9,12 @@ These instructions apply to files under `AlvearyTests/`. `AlvearyTests/Snapshots
 - SwiftUI logs `Accessing Environment<…>'s value outside of being installed on a View` when a test builds a view struct directly and reads an `@Environment` object property. The read yields `nil`, which is what those tests want; do not host the view or convert the property to explicit injection just to quiet the log.
 - **Avoid live `NSPopover` host tests on macOS 26.** Resizing a shown popover or opening nested shown popovers can schedule `_NSWindowTransformAnimation`; AppKit over-releases it after the popover window dies and crashes whichever later test pumps the run loop. `xcodebuild` silently relaunches the crashed host and can still report success, so verify suspicious runs by checking for new `Alveary-*.ips` files in `~/Library/Logs/DiagnosticReports`. Prefer not-shown content/frame tests over OS-skipped live-popover coverage.
 
+## Test Value
+
+- Assert observable behavior or independent compatibility contracts; avoid checks that merely repeat implementation aliases or test-fixture behavior.
+- Preserve distinct inputs, failures, and asynchronous checkpoints when consolidating overlapping tests.
+- Cover SDK algorithms in the SDK's tests; app tests should exercise their integration with app behavior.
+
 ## Test File Organization
 
 When a test class grows large, split it into companion files named `<BaseTests>+<Topic>.swift` (for example `ConversationViewModelTests+Settings.swift`). The `+` in the filename has a specific contract in this repo:

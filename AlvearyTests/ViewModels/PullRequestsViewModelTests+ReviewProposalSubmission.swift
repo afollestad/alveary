@@ -65,6 +65,9 @@ extension PullRequestsViewModelTests {
         let fixture = try ReviewProposalAttachmentFixture(proposalEvent: "request_changes")
         await fixture.openPane()
 
+        XCTAssertEqual(fixture.session?.pendingReview.overallComment, "")
+        XCTAssertEqual(fixture.viewModel.selectedReviewEvent(for: fixture.target), .requestChanges)
+
         XCTAssertEqual(
             fixture.viewModel.activePendingReviewProposal?.proposedEvent,
             .requestChanges
@@ -80,29 +83,6 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.event), [.requestChanges])
         // Nothing was typed, so the model's body is what publishes.
         XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Some notes."])
-    }
-
-    /// GitHub refuses a request-changes review with no body, so the guard demands one — and used
-    /// to read only the composer, which a seeded verdict arrives with empty. Submit disabled itself
-    /// over a body `confirm` was about to supply from the proposal.
-    func testARequestChangesProposalSubmitsWithTheComposerUntouched() async throws {
-        let fixture = try ReviewProposalAttachmentFixture(proposalEvent: "request_changes")
-        await fixture.openPane()
-
-        XCTAssertEqual(fixture.session?.pendingReview.overallComment, "")
-
-        let didSubmit = await fixture.viewModel.submitReview(event: .requestChanges)
-
-        XCTAssertTrue(didSubmit)
-    }
-
-    /// What the footer's picker binds to. The proposal owns the verdict, so the pane reads back
-    /// what the model proposed rather than the footer's own `comment` default.
-    func testThePanesVerdictStartsAtWhatTheModelProposed() async throws {
-        let fixture = try ReviewProposalAttachmentFixture(proposalEvent: "request_changes")
-        await fixture.openPane()
-
-        XCTAssertEqual(fixture.viewModel.selectedReviewEvent(for: fixture.target), .requestChanges)
     }
 
     /// No proposal means no owner, and the footer keeps its own selection — nil is that signal.

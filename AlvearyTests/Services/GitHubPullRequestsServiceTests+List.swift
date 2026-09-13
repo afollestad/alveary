@@ -36,6 +36,16 @@ extension GitHubPullRequestsServiceTests {
         // Empty and null nodes drop out; buckets merge by id and sort newest first.
         XCTAssertEqual(result.summaries.map(\.id.number), [2, 1, 3])
 
+        // The authored bucket's second and third edges map to nothing, so neither contributes a
+        // row cursor — the two arrays have to stay index-for-index.
+        XCTAssertEqual(result.summariesByBucket[.authored]?.count, 1)
+        XCTAssertEqual(result.pageInfoByBucket[.authored]?.rowCursors, ["authored-1"])
+        XCTAssertEqual(result.pageInfoByBucket[.authored]?.hasNextPage, false)
+
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.rowCursors, ["requested-1", "requested-2"])
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.endCursor, "requested-2")
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.hasNextPage, true)
+
         let merged = result.summaries[1]
         XCTAssertEqual(merged.id, PullRequestIdentifier(owner: "octo", repo: "alpha", number: 1))
         // The newer authored entry supplies fields; the stale requested duplicate only ORs flags.
@@ -186,23 +196,6 @@ extension GitHubPullRequestsServiceTests {
 
     // MARK: - Paging
 
-    func testListDecodesPageInfoAndAlignsRowCursorsWithTheRowsThatMapped() async throws {
-        let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
-
-        // The authored bucket's second and third edges map to nothing, so neither contributes a
-        // row cursor — the two arrays have to stay index-for-index.
-        XCTAssertEqual(result.summariesByBucket[.authored]?.count, 1)
-        XCTAssertEqual(result.pageInfoByBucket[.authored]?.rowCursors, ["authored-1"])
-        XCTAssertEqual(result.pageInfoByBucket[.authored]?.hasNextPage, false)
-
-        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.rowCursors, ["requested-1", "requested-2"])
-        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.endCursor, "requested-2")
-        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested]?.hasNextPage, true)
-    }
-
     func testListSelectsEdgeCursorsAndPageInfoAndClampsThePageSize() async throws {
         let shell = makeUniformShellRunner(pullRequestsShellResult(stdout: PullRequestsServiceFixtures.list))
         let service = makeGitHubPullRequestsService(shell: shell)
@@ -263,20 +256,6 @@ extension GitHubPullRequestsServiceTests {
         )
     }
 
-    func testListReportsASAMLForbiddenBucketAsHavingNoNextPage() async throws {
-        let shell = makeUniformShellRunner(pullRequestsShellResult(
-            stdout: PullRequestsServiceFixtures.samlPartial,
-            exitCode: 1
-        ))
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
-
-        // Loaded-and-empty, not more-pages-unknown: a caller must never page a bucket GitHub
-        // refuses to answer.
-        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested], .exhausted)
-    }
-
     // MARK: - Search qualifiers
 
     func testListNarrowsEveryBucketToTheSelectedStatus() async throws {
@@ -304,20 +283,6 @@ extension GitHubPullRequestsServiceTests {
 
     // MARK: - Partial results and failures
 
-    func testListKeysARequestedButForbiddenBucketAsEmptyRatherThanMissing() async throws {
-        let shell = makeUniformShellRunner(pullRequestsShellResult(
-            stdout: PullRequestsServiceFixtures.samlPartial,
-            exitCode: 1
-        ))
-        let service = makeGitHubPullRequestsService(shell: shell)
-
-        let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
-
-        // A null bucket must read as fetched-and-empty; absent would have the caller refetch forever.
-        XCTAssertEqual(Set(result.summariesByBucket.keys), allBuckets)
-        XCTAssertEqual(result.summariesByBucket[.reviewRequested], [])
-    }
-
     func testListToleratesPartialForbiddenResults() async throws {
         let shell = makeUniformShellRunner(
             pullRequestsShellResult(stdout: PullRequestsServiceFixtures.samlPartial, exitCode: 1)
@@ -326,6 +291,10 @@ extension GitHubPullRequestsServiceTests {
 
         let result = try await service.listInvolvedPullRequests(buckets: allBuckets, status: nil, options: .firstPage)
 
+        // Forbidden buckets are loaded-and-empty, so callers neither refetch nor page them.
+        XCTAssertEqual(result.pageInfoByBucket[.reviewRequested], .exhausted)
+        XCTAssertEqual(Set(result.summariesByBucket.keys), allBuckets)
+        XCTAssertEqual(result.summariesByBucket[.reviewRequested], [])
         XCTAssertEqual(result.summaries.map(\.id.number), [1])
         XCTAssertTrue(result.summaries[0].isAuthored)
         // Every leg carries the same SAML message; the merge reports it once.

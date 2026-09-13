@@ -5,6 +5,7 @@ import XCTest
 
 extension SidebarKeyboardNavigationTests {
     func testBuildNavigableItemsOmitsArchivedRowWhenNothingIsArchived() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         try context.save()
 
@@ -19,6 +20,7 @@ extension SidebarKeyboardNavigationTests {
     }
 
     func testBuildNavigableItemsPlacesArchivedAfterScheduledWhenArchivedThreadsExist() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         try context.save()
 
@@ -32,22 +34,8 @@ extension SidebarKeyboardNavigationTests {
         XCTAssertEqual(items, [.skills, .mcp, .scheduled, .pullRequests, .archived, .project(project)])
     }
 
-    func testBuildNavigableItemsOmitsPullRequestsRowWhenHidden() throws {
-        let project = makeProject(name: "Alpha", path: "/tmp/alpha")
-        try context.save()
-
-        let items = buildNavigableItems(
-            projects: [project],
-            expandedProjects: [],
-            activeThreads: { _ in [] },
-            hasArchivedThreads: false,
-            showsPullRequests: false
-        )
-
-        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(project)])
-    }
-
     func testBuildNavigableItemsKeepsArchivedRowWhenPullRequestsIsHidden() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         try context.save()
 
@@ -63,6 +51,7 @@ extension SidebarKeyboardNavigationTests {
     }
 
     func testArrowKeysSkipTheHiddenPullRequestsRow() throws {
+        try setUpModelContext()
         let project = makeProject(name: "Alpha", path: "/tmp/alpha")
         try context.save()
 
@@ -74,6 +63,7 @@ extension SidebarKeyboardNavigationTests {
             showsPullRequests: false
         )
 
+        XCTAssertEqual(items, [.skills, .mcp, .scheduled, .project(project)])
         XCTAssertEqual(navigateVertically(in: items, from: .scheduled, forward: true), .project(project))
         XCTAssertEqual(navigateVertically(in: items, from: .project(project), forward: false), .scheduled)
     }

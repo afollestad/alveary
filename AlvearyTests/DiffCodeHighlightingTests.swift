@@ -172,6 +172,7 @@ final class DiffCodeHighlightingTests: XCTestCase {
             preserveLineNumberPrefixes: true
         )
 
+        XCTAssertEqual(String(highlighted.characters), source)
         XCTAssertTrue(highlighted.runs.allSatisfy { $0.backgroundColor == nil })
     }
 }

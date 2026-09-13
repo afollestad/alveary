@@ -184,7 +184,10 @@ extension PullRequestHostToolServiceTests {
         XCTAssertEqual(patched.count, 2)
         let continued = try object(patched.first)
         XCTAssertEqual(continued["path"], .string("File1.swift"))
-        XCTAssertNotEqual(continued["patch_offset"], .number(0))
+        guard case .number(let patchOffset) = continued["patch_offset"] else {
+            return XCTFail("Expected a numeric continuation offset")
+        }
+        XCTAssertGreaterThan(patchOffset, 0)
     }
 
     func testDiffRefusesAnOffsetPastTheEndRatherThanReturningNothing() async throws {

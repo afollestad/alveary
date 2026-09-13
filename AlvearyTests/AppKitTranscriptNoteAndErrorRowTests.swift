@@ -60,6 +60,7 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
         XCTAssertEqual(label.stringValue, "Session handed off")
         XCTAssertEqual(label.frame.midX, note.bounds.midX, accuracy: 0.5)
+        XCTAssertEqual(label.frame.width, label.naturalCellWidth, accuracy: 0.5)
     }
 
     func testSessionForkedTranscriptNoteStaysCentered() throws {
@@ -88,17 +89,6 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
         XCTAssertEqual(label.visibleTextMaxX, userBubble.bubbleFrameForTesting.maxX, accuracy: 0.5)
         XCTAssertEqual(label.frame.minY, transcriptInlineToolRowVerticalPadding, accuracy: 0.5)
-    }
-
-    func testTranscriptNoteRendersFullSessionHandoffText() throws {
-        let note = AppKitTranscriptNoteView()
-        note.frame = NSRect(x: 0, y: 0, width: 320, height: 120)
-        note.configure(.init(kind: .sessionHandoff))
-        note.layoutSubtreeIfNeeded()
-
-        let label = try XCTUnwrap(note.descendants(of: NSTextField.self).first)
-        XCTAssertEqual(label.stringValue, "Session handed off")
-        XCTAssertEqual(label.frame.width, label.naturalCellWidth, accuracy: 0.5)
     }
 
     func testSteeredConversationTranscriptNoteUsesToolLeadingAlignment() throws {
@@ -162,18 +152,6 @@ final class AppKitTranscriptNoteAndErrorRowTests: XCTestCase {
         XCTAssertEqual(label.accessibilityLabel(), "Something failed.")
         XCTAssertEqual(icon.frame.size, NSSize(width: 16, height: 16))
         XCTAssertEqual(bannerSurface.layer?.borderWidth, 1)
-    }
-
-    func testErrorBannerSurfaceUsesFlippedCoordinatesForChildren() throws {
-        let banner = AppKitTranscriptErrorBannerView()
-        banner.frame = NSRect(x: 0, y: 0, width: 520, height: 200)
-        banner.configure(.init(message: "Something failed.", bubbleMaxWidth: 320))
-        banner.layoutSubtreeIfNeeded()
-
-        let bannerSurface = try XCTUnwrap(banner.subviews.first)
-        let label = try XCTUnwrap(banner.descendants(of: NSTextField.self).first)
-        let icon = try XCTUnwrap(banner.descendants(of: NSImageView.self).first)
-
         XCTAssertTrue(bannerSurface.isFlipped)
         XCTAssertEqual(icon.frame.minY, 10, accuracy: 1)
         XCTAssertEqual(label.frame.minY, 10, accuracy: 1)

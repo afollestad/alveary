@@ -70,7 +70,7 @@ private struct SidebarCustomSectionDragBorderSnapshot: View {
         .listStyle(.sidebar)
         .overlay {
             GeometryReader { proxy in
-                sidebarSnapshotSectionContainerBorder(
+                SidebarSectionContainerBorder(
                     frame: sectionFrame,
                     viewport: CGRect(origin: .zero, size: proxy.size),
                     overlaySize: proxy.size
@@ -112,35 +112,12 @@ private struct SidebarSectionReorderLineSnapshot: View {
         .listStyle(.sidebar)
         .overlay {
             GeometryReader { proxy in
-                Rectangle()
-                    .fill(Color.accentColor)
-                    .frame(width: proxy.size.width, height: 2)
-                    .offset(y: boundaryY)
-                    .allowsHitTesting(false)
+                SidebarDropInsertionIndicator(
+                    indicatorY: boundaryY,
+                    viewport: CGRect(origin: .zero, size: proxy.size),
+                    overlaySize: proxy.size
+                )
             }
         }
     }
-}
-
-/// The whole-section outline production draws from `sidebarSectionContainerBorder`, shared here by
-/// the drop-container baselines and the secondary-click highlight one.
-@MainActor
-func sidebarSnapshotSectionContainerBorder(
-    frame: CGRect,
-    viewport: CGRect,
-    overlaySize: CGSize
-) -> some View {
-    let rect = sidebarDragBorderLocalRect(frame: frame, viewport: viewport, overlaySize: overlaySize)
-    return RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-        .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                .strokeBorder(
-                    Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
-                    lineWidth: SidebarDragBorderMetrics.lineWidth
-                )
-        }
-        .frame(width: rect.width, height: rect.height)
-        .offset(x: rect.minX, y: rect.minY)
-        .allowsHitTesting(false)
 }

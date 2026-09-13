@@ -258,6 +258,7 @@ final class ScheduledTaskSchedulerEngineTests: XCTestCase {
 
         guard case .claimed(let id) = result else { return XCTFail("Expected the frozen schedule to remain claimable") }
         XCTAssertEqual(try fixture.runCount(), 1)
+        XCTAssertEqual(project.baseRef, "develop")
         XCTAssertEqual(fixture.run(id: id)?.projectBaseRefSnapshot, "main")
     }
 

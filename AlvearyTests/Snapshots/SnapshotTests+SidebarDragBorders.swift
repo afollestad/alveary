@@ -90,31 +90,17 @@ private struct SidebarDragSelectedProjectBorderSnapshot: View {
         .listStyle(.sidebar)
         .overlay {
             GeometryReader { proxy in
-                let rect = sidebarDragBorderLocalRect(
+                SidebarSectionContainerBorder(
                     frame: groupFrame.insetBy(dx: 0, dy: -SidebarDropTargetingMetrics.containerOutset),
                     viewport: CGRect(origin: .zero, size: proxy.size),
                     overlaySize: proxy.size
                 )
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                            .strokeBorder(
-                                Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
-                                lineWidth: SidebarDragBorderMetrics.lineWidth
-                            )
-                    }
-                    .frame(width: rect.width, height: rect.height)
-                    .offset(x: rect.minX, y: rect.minY)
-                    .allowsHitTesting(false)
             }
         }
     }
 }
 
-/// Mirrors what `sidebarDragOverlay` draws for a `.container` candidate: the border is an overlay
-/// on the list, positioned from drag geometry, so the snapshot feeds it a synthetic frame instead
-/// of driving a live drag.
+/// Renders the production container overlay using deterministic drag geometry.
 @MainActor
 private struct SidebarDragContainerBorderSnapshot: View {
     let draggedTask: AgentThread
@@ -167,23 +153,11 @@ private struct SidebarDragContainerBorderSnapshot: View {
         .listStyle(.sidebar)
         .overlay {
             GeometryReader { proxy in
-                let rect = sidebarDragBorderLocalRect(
+                SidebarSectionContainerBorder(
                     frame: tasksSectionFrame,
                     viewport: CGRect(origin: .zero, size: proxy.size),
                     overlaySize: proxy.size
                 )
-                RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                    .fill(Color.accentColor.opacity(SidebarDragBorderMetrics.fillOpacity))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: AppCornerRadius.standard, style: .continuous)
-                            .strokeBorder(
-                                Color.accentColor.opacity(SidebarDragBorderMetrics.strokeOpacity),
-                                lineWidth: SidebarDragBorderMetrics.lineWidth
-                            )
-                    }
-                    .frame(width: rect.width, height: rect.height)
-                    .offset(x: rect.minX, y: rect.minY)
-                    .allowsHitTesting(false)
             }
         }
     }

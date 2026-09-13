@@ -7,7 +7,8 @@ import XCTest
 @MainActor
 final class ScheduledTaskProposalModelTests: XCTestCase {
     func testProposalPersistsTrustedDraftAndSourceRelationships() throws {
-        let context = ModelContext(try makeContainer())
+        let container = try makeContainer()
+        let context = ModelContext(container)
         let project = Project(path: "/tmp/proposal-project", name: "Proposal Project")
         let thread = AgentThread(name: "Source", mode: .project, project: project)
         let conversation = Conversation(id: "conversation-1", provider: "codex", thread: thread)
@@ -34,7 +35,8 @@ final class ScheduledTaskProposalModelTests: XCTestCase {
         context.insert(proposal)
         try context.save()
 
-        let fetched = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTaskProposal>()).first)
+        let readContext = ModelContext(container)
+        let fetched = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTaskProposal>()).first)
         XCTAssertEqual(fetched.id, "proposal-1")
         XCTAssertEqual(fetched.sourceConversationID, "conversation-1")
         XCTAssertEqual(fetched.action, .create)

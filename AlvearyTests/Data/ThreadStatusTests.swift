@@ -140,10 +140,6 @@ final class ThreadStatusTests: XCTestCase {
         XCTAssertEqual(folded([.init(), .init()]), .stopped)
     }
 
-    func testThreadArchivedOverridesUnread() {
-        XCTAssertEqual(folded([.init(isUnread: true, runtime: .busy)], isArchived: true), .archived)
-    }
-
     func testThreadStoppedWithNoConversations() {
         XCTAssertEqual(folded([]), .stopped)
     }

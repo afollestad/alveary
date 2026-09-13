@@ -8,28 +8,17 @@ import XCTest
 /// that opened it.
 @MainActor
 extension PullRequestsViewModelTests {
-    func testPaneOriginDefaultsToTheScreen() async {
-        let service = StubPullRequestsService()
-        let summary = makePullRequestSummary(number: 7)
-        service.detailResult = .success(makePullRequestDetail(id: summary.id))
-        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
-        let viewModel = makePullRequestsViewModel(service: service)
-
-        viewModel.requestDetails(summary)
-
-        XCTAssertEqual(viewModel.activePaneOrigin, .screen)
-        XCTAssertEqual(viewModel.activePaneTarget(for: .screen), .details(summary.id))
-    }
-
     func testScreenOriginTargetIsWithheldFromAThread() async throws {
         let service = StubPullRequestsService()
         let summary = makePullRequestSummary(number: 7)
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         let viewModel = makePullRequestsViewModel(service: service)
-        let threadID = try makeThreadIdentifier()
+        let threadID = makeThreadIdentifier()
 
         viewModel.requestDetails(summary)
+        XCTAssertEqual(viewModel.activePaneOrigin, .screen)
+        XCTAssertEqual(viewModel.activePaneTarget(for: .screen), .details(summary.id))
 
         XCTAssertNil(viewModel.activePaneTarget(for: .thread(threadID)))
     }
@@ -40,8 +29,8 @@ extension PullRequestsViewModelTests {
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         let viewModel = makePullRequestsViewModel(service: service)
-        let threadID = try makeThreadIdentifier()
-        let otherThreadID = try makeThreadIdentifier()
+        let threadID = makeThreadIdentifier()
+        let otherThreadID = makeThreadIdentifier()
 
         viewModel.requestDetails(summary, origin: .thread(threadID))
 
@@ -59,7 +48,7 @@ extension PullRequestsViewModelTests {
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         let viewModel = makePullRequestsViewModel(service: service)
-        let threadID = try makeThreadIdentifier()
+        let threadID = makeThreadIdentifier()
 
         viewModel.requestDetails(summary, origin: .thread(threadID))
         viewModel.requestDetails(summary)
@@ -76,7 +65,7 @@ extension PullRequestsViewModelTests {
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         let viewModel = makePullRequestsViewModel(service: service)
-        let identifiers = try makeOwnerIdentifiers()
+        let identifiers = makeOwnerIdentifiers()
 
         viewModel.requestDetails(summary, origin: PullRequestPaneOrigin(owner: .project(identifiers.project)))
 
@@ -94,7 +83,7 @@ extension PullRequestsViewModelTests {
         service.detailResult = .success(makePullRequestDetail(id: summary.id))
         service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         let viewModel = makePullRequestsViewModel(service: service)
-        let threadID = try makeThreadIdentifier()
+        let threadID = makeThreadIdentifier()
 
         viewModel.requestDetails(summary, origin: .thread(threadID))
         XCTAssertEqual(viewModel.activePaneTarget(for: .thread(threadID)), .details(summary.id))
@@ -106,29 +95,14 @@ extension PullRequestsViewModelTests {
         XCTAssertNotNil(viewModel.paneSessions[.details(summary.id)])
     }
 
-    private func makeThreadIdentifier() throws -> PersistentIdentifier {
-        try makeOwnerIdentifiers().thread
+    private func makeThreadIdentifier() -> PersistentIdentifier {
+        makeOwnerIdentifiers().thread
     }
 
-    /// Internal so the agentic-thread suite can name a project origin without standing up a
-    /// second in-memory container of its own.
-    func makeOwnerIdentifiers() throws -> (thread: PersistentIdentifier, project: PersistentIdentifier) {
-        let container = try ModelContainer(
-            for: Project.self,
-            AgentThread.self,
-            Conversation.self,
-            ConversationEventRecord.self,
-            ScheduledTask.self,
-            ScheduledTaskRun.self,
-            ScheduledTaskProposal.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
-        let context = ModelContext(container)
+    /// These origins are compared as values; no owner lookup or persistence is involved.
+    func makeOwnerIdentifiers() -> (thread: PersistentIdentifier, project: PersistentIdentifier) {
         let thread = AgentThread(name: "Thread")
-        context.insert(thread)
         let project = Project(path: "/tmp/alpha", name: "Alpha")
-        context.insert(project)
-        try context.save()
         return (thread.persistentModelID, project.persistentModelID)
     }
 }

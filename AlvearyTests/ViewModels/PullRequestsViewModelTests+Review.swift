@@ -61,9 +61,23 @@ extension PullRequestsViewModelTests {
     /// With no proposal pending there is nothing to fall back to, so the guard still demands a
     /// summary. `resolvedReviewSummary` widened what counts as one; it must not have widened
     /// *whether* one is required.
-    func testSubmitReviewStillRefusesASummarylessRequestChanges() async {
+    func testSubmitReviewStillRefusesASummarylessRequestChanges() async throws {
         let service = StubPullRequestsService()
-        let (viewModel, _) = await makeLoadedPullRequestPane(service: service)
+        let summary = makePullRequestSummary(number: 7)
+        service.detailResult = .success(makePullRequestDetail(id: summary.id))
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+        let viewModel = makePullRequestsViewModel(service: service)
+        viewModel.requestDetails(summary)
+        let initialSession = try XCTUnwrap(viewModel.activePaneSession)
+        XCTAssertNil(initialSession.detail)
+
+        let earlySuccess = await viewModel.submitReview(event: .requestChanges)
+        XCTAssertFalse(earlySuccess)
+        XCTAssertTrue(service.submittedPendingReviews.isEmpty)
+        XCTAssertTrue(service.submittedReviews.isEmpty)
+
+        await waitForPaneContent(viewModel, target: .details(summary.id))
+        _ = try XCTUnwrap(viewModel.activePaneSession?.detail)
 
         let success = await viewModel.submitReview(event: .requestChanges)
 
@@ -374,16 +388,5 @@ extension PullRequestsViewModelTests {
 
         XCTAssertNil(viewModel.activePaneSession?.composerAnchor)
         XCTAssertNil(viewModel.activePaneSession?.composerRemoteCommentID)
-    }
-
-    func testSubmitReviewRejectedByValidationDoesNotCallService() async {
-        let service = StubPullRequestsService()
-        let viewModel = makePullRequestsViewModel(service: service)
-        viewModel.requestDetails(makePullRequestSummary(number: 7))
-
-        let success = await viewModel.submitReview(event: .requestChanges)
-
-        XCTAssertFalse(success)
-        XCTAssertEqual(service.submittedReviews.count, 0)
     }
 }

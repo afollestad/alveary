@@ -12,26 +12,6 @@ final class AppShotCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.attachableApp)
     }
 
-    func testRequestCaptureRaisesTheTriggerWhileEnabled() {
-        let coordinator = makeCoordinator()
-        coordinator.start(settingsService: makeSettingsService(appShotsEnabled: true))
-        defer { coordinator.stop() }
-
-        coordinator.requestCapture()
-
-        XCTAssertNotNil(coordinator.pendingTriggerID)
-    }
-
-    func testRequestCaptureIsIgnoredWhileAppShotsAreDisabled() {
-        let coordinator = makeCoordinator()
-        coordinator.start(settingsService: makeSettingsService(appShotsEnabled: false))
-        defer { coordinator.stop() }
-
-        coordinator.requestCapture()
-
-        XCTAssertNil(coordinator.pendingTriggerID)
-    }
-
     func testRequestCaptureRaisesDistinctTriggersForRepeatedRequests() {
         let coordinator = makeCoordinator()
         coordinator.start(settingsService: makeSettingsService(appShotsEnabled: true))
@@ -39,8 +19,10 @@ final class AppShotCoordinatorTests: XCTestCase {
 
         coordinator.requestCapture()
         let firstTrigger = coordinator.pendingTriggerID
+        XCTAssertNotNil(firstTrigger)
         coordinator.requestCapture()
 
+        XCTAssertNotNil(coordinator.pendingTriggerID)
         XCTAssertNotEqual(coordinator.pendingTriggerID, firstTrigger)
     }
 
@@ -80,6 +62,7 @@ final class AppShotCoordinatorTests: XCTestCase {
 
         coordinator.requestCapture()
 
+        XCTAssertNil(coordinator.pendingTriggerID)
         XCTAssertEqual(recorder.count, 0)
     }
 

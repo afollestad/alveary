@@ -216,14 +216,9 @@ final class AppStateTests: XCTestCase {
         XCTAssertNil(state.selectedConversationIDs[fixture.primaryThread.persistentModelID])
     }
 
-    func testPendingComposerFocusTokenDefaultsToNilUntilRequested() {
-        let state = AppState()
-
-        XCTAssertNil(state.pendingComposerFocusToken)
-    }
-
     func testRequestComposerFocusProducesFreshTokenEachCall() {
         let state = AppState()
+        XCTAssertNil(state.pendingComposerFocusToken)
 
         state.requestComposerFocus()
         let firstToken = state.pendingComposerFocusToken

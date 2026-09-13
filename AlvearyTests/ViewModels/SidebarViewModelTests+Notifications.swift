@@ -28,12 +28,19 @@ extension SidebarViewModelTests {
         )
         await fixture.agentsManager.setDestroyError(.destroyFailed("main"), for: "main")
 
+        var readCallsAtCleanup: [String]?
+        await fixture.agentsManager.setDestroyObserver { _ in
+            readCallsAtCleanup = fixture.notificationManager.markReadCalls
+        }
         do {
             try await fixture.viewModel.archiveThread(thread)
             XCTFail("Expected archive to throw")
-        } catch {
-            // expected
+        } catch SidebarViewModelError.archiveCleanupFailed(let underlying) {
+            XCTAssertEqual(underlying as? SidebarMockAgentsManager.MockError, .destroyFailed("main"))
         }
+        let destroyCalls = await fixture.agentsManager.destroyCalls()
+        XCTAssertEqual(destroyCalls, ["main"])
+        XCTAssertEqual(readCallsAtCleanup, ["main"])
 
         XCTAssertEqual(fixture.notificationManager.markReadCalls, ["main"])
     }

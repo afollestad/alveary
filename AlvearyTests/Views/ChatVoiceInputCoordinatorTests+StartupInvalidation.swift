@@ -12,7 +12,10 @@ extension ChatVoiceInputCoordinatorTests {
         fixture.controller.bridgeController?.focusEditorAtDocumentEnd()
 
         XCTAssertTrue(fixture.coordinator.physicalPress(.mouse))
+        defer { fixture.service.resumePendingBegin() }
         await waitUntil { fixture.service.hasPendingBegin }
+        let startupGeneration = fixture.coordinator.sessionGeneration
+        let startupSession = try XCTUnwrap(fixture.service.lock.withLock { fixture.service.state.pendingBeginSession })
         XCTAssertTrue(fixture.editor.performCommand(.insertLink(BlockInputInsertLinkCommand(presentation: .modal))))
 
         XCTAssertEqual(fixture.coordinator.phase, .cleanup)
@@ -20,8 +23,12 @@ extension ChatVoiceInputCoordinatorTests {
         XCTAssertNil(fixture.coordinator.provisionalSession)
         XCTAssertTrue(fixture.coordinator.releaseBarrier.contains(.mouse))
 
-        fixture.service.emitPartial("stale partial")
-        await Task.yield()
+        // Execute the stale handler after real editor-driven invalidation. Queue ordering
+        // remains covered by the callback-delivery tests.
+        fixture.coordinator.receiveRecognitionUpdate(
+            .partial(session: startupSession, text: "stale partial"),
+            generation: startupGeneration
+        )
         XCTAssertNil(fixture.coordinator.latestNonemptyTranscript)
         XCTAssertTrue(fixture.coordinator.pendingStartupRecognitionUpdates.isEmpty)
 

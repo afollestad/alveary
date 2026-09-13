@@ -159,6 +159,7 @@ extension SnapshotTests {
         defer { host.close() }
         host.pumpRunLoop(seconds: 0.3)
 
+        try host.requireLoadedOldImage()
         let scrollView = try host.scrollView()
         assertRowHeightComesFromThePaneNotTheImage(scrollView)
     }
@@ -172,6 +173,7 @@ extension SnapshotTests {
         defer { host.close() }
         host.pumpRunLoop(seconds: 0.3)
 
+        try host.requireLoadedOldImage()
         let scrollView = try host.scrollView()
         assertRowHeightComesFromThePaneNotTheImage(scrollView)
         let maxX = try host.horizontalMaxX(in: scrollView)
@@ -188,6 +190,7 @@ extension SnapshotTests {
         defer { host.close() }
         host.pumpRunLoop(seconds: 0.3)
 
+        try host.requireLoadedOldImage()
         let scrollView = try host.scrollView()
         // The long line legitimately opens horizontal range...
         let maxX = try host.horizontalMaxX(in: scrollView)
@@ -436,6 +439,11 @@ final class DiffPreviewScrollHost<Content: View> {
     /// scroll; the SwiftUI bridge dispatches it on a later run-loop turn.
     func pumpRunLoop(seconds: TimeInterval = 0.05) {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+        layout()
+    }
+
+    func requireLoadedOldImage() throws {
+        try requireSnapshotAccessibilityLabel("Old image preview, open", in: controller.view, pump: { pumpRunLoop() })
         layout()
     }
 

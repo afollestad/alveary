@@ -46,8 +46,9 @@ extension ScheduledTaskModelTests {
         context.insert(run)
         try context.save()
 
-        let fetchedTask = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTask>()).first)
-        let fetchedRun = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
+        let readContext = ModelContext(container)
+        let fetchedTask = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTask>()).first)
+        let fetchedRun = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
         XCTAssertEqual(fetchedTask.destination, .existingThread)
         XCTAssertEqual(fetchedTask.targetThread?.persistentModelID, target.persistentModelID)
         XCTAssertEqual(fetchedRun.destinationSnapshot, .existingThread)
@@ -124,8 +125,9 @@ extension ScheduledTaskModelTests {
         context.insert(run)
         try context.save()
 
-        let fetchedTask = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTask>()).first)
-        let fetchedRun = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
+        let readContext = ModelContext(container)
+        let fetchedTask = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTask>()).first)
+        let fetchedRun = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
         XCTAssertEqual(fetchedTask.destination, .reusedThread)
         XCTAssertEqual(fetchedTask.runTargetThread?.persistentModelID, reused.persistentModelID)
         // The reused target contributes identity only; the definition stays authoritative for

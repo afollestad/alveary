@@ -13,7 +13,10 @@ extension ConversationViewModelTests {
         )
         XCTAssertEqual(try fixture.dbThread().effort, "medium")
 
-        await fixture.viewModel.applyEffortChange("high").value
+        // SwiftUI must see the synchronous DB mutation before the returned task can suspend.
+        let task = fixture.viewModel.applyEffortChange("high")
+        XCTAssertEqual(try fixture.dbThread().effort, "high")
+        await task.value
 
         XCTAssertEqual(try fixture.dbThread().effort, "high")
         XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.effort, "high")
@@ -44,7 +47,10 @@ extension ConversationViewModelTests {
             initialAgentIsRunning: false
         )
 
-        await fixture.viewModel.applyModelChange("opus").value
+        // Keep this assertion before any await so deferred persistence cannot satisfy it.
+        let task = fixture.viewModel.applyModelChange("opus")
+        XCTAssertEqual(try fixture.dbThread().model, "opus")
+        await task.value
 
         XCTAssertEqual(try fixture.dbThread().model, "opus")
         XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.model, "opus")
@@ -66,24 +72,6 @@ extension ConversationViewModelTests {
         }
         XCTAssertEqual(invalidations.count, 1)
         XCTAssertEqual(invalidations.first?.conversationId, fixture.conversation.id)
-    }
-
-    func testApplyModelChangeDoesNotInvalidateContextWindowWhenReconfigureFails() async throws {
-        let fixture = try ConversationViewModelTestFixture(
-            hasCompletedInitialSetup: true,
-            reconfigureError: .reconfigureFailed,
-            initialAgentIsRunning: false,
-            providerId: "codex"
-        )
-        try fixture.dbThread().model = "sonnet"
-        try fixture.context.save()
-
-        await fixture.viewModel.applyModelChange("opus").value
-
-        let invalidations = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
-            $0.type == ConversationEventRecord.contextWindowInvalidatedType
-        }
-        XCTAssertTrue(invalidations.isEmpty)
     }
 
     func testApplyEffortChangeSkipsReconfigureBeforeInitialSetup() async throws {
@@ -184,6 +172,10 @@ extension ConversationViewModelTests {
 
         XCTAssertEqual(try fixture.dbThread().model, "sonnet")
         XCTAssertNotNil(fixture.viewModel.lastTurnError)
+        let invalidations = try fixture.context.fetch(FetchDescriptor<ConversationEventRecord>()).filter {
+            $0.type == ConversationEventRecord.contextWindowInvalidatedType
+        }
+        XCTAssertTrue(invalidations.isEmpty)
     }
 
     func testApplyPermissionModeChangeRollsBackOnReconfigureFailure() async throws {
@@ -436,34 +428,6 @@ extension ConversationViewModelTests {
         fixture.viewModel.applyWorktreePreferenceChange(true)
 
         XCTAssertFalse(try fixture.dbThread().useWorktree)
-    }
-
-    // The sync prologue (state + DB mutation) must run before the returned Task
-    // is observable, so SwiftUI's next render sees the new value on the same
-    // cycle as the click. Await of the returned Task would only add the async
-    // fork tail; the DB write must already be visible without awaiting.
-    func testApplyEffortChangePersistsBeforeReturning() async throws {
-        let fixture = try ConversationViewModelTestFixture(
-            hasCompletedInitialSetup: true,
-            initialAgentIsRunning: false
-        )
-
-        let task = fixture.viewModel.applyEffortChange("high")
-        XCTAssertEqual(try fixture.dbThread().effort, "high")
-
-        await task.value
-    }
-
-    func testApplyModelChangePersistsBeforeReturning() async throws {
-        let fixture = try ConversationViewModelTestFixture(
-            hasCompletedInitialSetup: true,
-            initialAgentIsRunning: false
-        )
-
-        let task = fixture.viewModel.applyModelChange("opus")
-        XCTAssertEqual(try fixture.dbThread().model, "opus")
-
-        await task.value
     }
 
     func testApplyWorktreePreferenceChangeIsRejectedWhileSendingMessage() async throws {

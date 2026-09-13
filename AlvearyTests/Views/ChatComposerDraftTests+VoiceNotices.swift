@@ -30,6 +30,20 @@ extension ChatComposerDraftTests {
         XCTAssertEqual(labels, ["Turn failed.", "Voice input failed.", "Session changed.", "Staged context"])
     }
 
+    func testProviderAuthenticationNoticeDismissalIsExposedByBanner() throws {
+        let fixture = try ConversationViewModelTestFixture()
+        fixture.viewModel.providerAuthenticationFailure = "Sign in again to continue."
+        let chatView = makeChatView(fixture: fixture, appState: AppState())
+        let banner = try XCTUnwrap(inlineBanner(in: chatView.composerTopContentConfiguration))
+
+        XCTAssertEqual(banner.message, "Sign in again to continue.")
+        let dismiss = try XCTUnwrap(banner.onDismiss)
+        dismiss()
+
+        XCTAssertNil(fixture.viewModel.providerAuthenticationFailure)
+        XCTAssertNil(inlineBanner(in: chatView.composerTopContentConfiguration))
+    }
+
     func testRuntimeVoiceNoticeDismissalIsExposedByBanner() throws {
         let fixture = try ConversationViewModelTestFixture()
         let chatView = makeChatView(fixture: fixture, appState: AppState())

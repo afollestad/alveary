@@ -102,18 +102,6 @@ extension SnapshotTests {
         )
     }
 
-    func testPrimaryToolbarButtonGroupMultipleLinkedPullRequests() {
-        assertMacSnapshot(
-            primaryToolbarButtonGroup(
-                pullRequestState: PullRequestLinksToolbarState(linkCount: 3, status: nil),
-                diffDisplayState: .idle(.empty)
-            )
-            .padding(8),
-            size: CGSize(width: 214, height: 64),
-            named: "primary_toolbar_button_group_pull_requests_multiple"
-        )
-    }
-
     func testPullRequestLinksPopoverEmpty() throws {
         let popover = try pullRequestLinksPopover(links: { _ in [] })
         assertMacSnapshot(

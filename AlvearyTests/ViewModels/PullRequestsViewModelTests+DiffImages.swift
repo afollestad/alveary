@@ -41,28 +41,12 @@ extension PullRequestsViewModelTests {
         return session
     }
 
-    func testBothLegsLandedRendersEveryImage() {
-        var session = Self.session(withDiff: true, withDetail: true)
-
-        PullRequestsViewModel.refreshDiffImagePreviews(&session, identifier: Self.identifier)
-
-        XCTAssertEqual(Set(session.diffImagePreviews.keys), ["0:assets/hero.png", "1:assets/logo.png"])
-    }
-
     /// The LFS object is content-addressed, so it renders while the detail leg is still in flight;
     /// the ordinary blob has to wait for the commit oids that leg carries.
-    func testDiffAheadOfDetailStillRendersTheLFSImage() {
-        var session = Self.session(withDiff: true, withDetail: false)
-
-        PullRequestsViewModel.refreshDiffImagePreviews(&session, identifier: Self.identifier)
-
-        XCTAssertEqual(Set(session.diffImagePreviews.keys), ["0:assets/hero.png"])
-    }
-
     func testDetailArrivingAfterTheDiffBackfillsTheOrdinaryImage() {
         var session = Self.session(withDiff: true, withDetail: false)
         PullRequestsViewModel.refreshDiffImagePreviews(&session, identifier: Self.identifier)
-        XCTAssertEqual(session.diffImagePreviews.count, 1)
+        XCTAssertEqual(Set(session.diffImagePreviews.keys), ["0:assets/hero.png"])
 
         var detail = makePullRequestDetail(id: Self.identifier)
         detail.headRefOid = "head123"
@@ -86,7 +70,7 @@ extension PullRequestsViewModelTests {
     func testClearingTheDiffClearsPreviousPreviews() {
         var session = Self.session(withDiff: true, withDetail: true)
         PullRequestsViewModel.refreshDiffImagePreviews(&session, identifier: Self.identifier)
-        XCTAssertFalse(session.diffImagePreviews.isEmpty)
+        XCTAssertEqual(Set(session.diffImagePreviews.keys), ["0:assets/hero.png", "1:assets/logo.png"])
 
         session.diffFiles = nil
         PullRequestsViewModel.refreshDiffImagePreviews(&session, identifier: Self.identifier)

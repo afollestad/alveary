@@ -25,7 +25,6 @@ final class AppKitTranscriptTaskListBlockTests: XCTestCase {
             block.taskTextFields.map(\.stringValue),
             ["Pick a fake task C", "Pick a fake task B", "Pick a fake task A"]
         )
-        XCTAssertEqual(tasks.taskListPresentationOrder.map(\.content), ["Pick a fake task C", "Pick a fake task B", "Pick a fake task A"])
     }
 
     func testCompletedTaskReusesCheckedRowAndMovesToSortedPosition() throws {
@@ -101,12 +100,6 @@ final class AppKitTranscriptTaskListBlockTests: XCTestCase {
         XCTAssertEqual(image.accessibilityLabel(), "Interrupted")
     }
 
-    func testTaskRowsUseCompactVerticalSpacing() {
-        let block = configuredBlock(tasks: mixedTasks())
-
-        XCTAssertEqual(block.rowSpacingForTesting, 10)
-    }
-
     func testPendingRowAnimationSurvivesDetachedRelayout() throws {
         let block = AppKitTranscriptTaskListBlockView()
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
@@ -147,10 +140,12 @@ final class AppKitTranscriptTaskListBlockTests: XCTestCase {
         XCTAssertNotNil(attributes[.strikethroughStyle])
     }
 
-    func testBubbleHugsShortContentBeforeConfiguredMaxWidth() {
+    func testBubbleHugsShortContentBeforeConfiguredMaxWidth() throws {
         let block = configuredBlock(tasks: mixedTasks(), blockWidth: 600, bubbleMaxWidth: 480)
 
-        XCTAssertLessThan(block.subviews.first?.frame.width ?? 0, 320)
+        let bubble = try XCTUnwrap(block.subviews.first)
+        XCTAssertGreaterThan(bubble.frame.width, 0)
+        XCTAssertLessThan(bubble.frame.width, 320)
     }
 
     func testBubbleCapsLongContentAtConfiguredMaxWidth() {

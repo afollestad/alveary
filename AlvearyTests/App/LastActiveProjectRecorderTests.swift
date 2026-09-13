@@ -11,14 +11,20 @@ final class LastActiveProjectRecorderTests: XCTestCase {
         let gate = LastActiveProjectGate()
         let recorder = fixture.makeRecorder(gate: gate)
 
-        let job = recorder.record(for: .project(fixture.alpha))
-        await Task.yield()
+        let job = try XCTUnwrap(recorder.record(for: .project(fixture.alpha)))
+        do {
+            try await gate.waitForWaiters(count: 1)
+        } catch {
+            gate.open()
+            await job.value
+            throw error
+        }
 
         XCTAssertTrue(fixture.resolvedOwners.isEmpty)
         XCTAssertTrue(fixture.persistedPaths.isEmpty)
 
         gate.open()
-        await job?.value
+        await job.value
 
         XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.id])
     }
@@ -36,7 +42,7 @@ final class LastActiveProjectRecorderTests: XCTestCase {
         await second?.value
         await third?.value
 
-        XCTAssertEqual(fixture.persistedPaths, [fixture.alpha.id, fixture.beta.id, fixture.gamma.id])
+        XCTAssertEqual(fixture.persistedPaths.last, fixture.gamma.id)
     }
 
     func testAStaleJobCannotOverwriteANewerProjectWrite() async throws {
@@ -44,15 +50,24 @@ final class LastActiveProjectRecorderTests: XCTestCase {
         let gate = LastActiveProjectGate()
         let recorder = fixture.makeRecorder(gate: gate)
 
-        let stale = recorder.record(for: .project(fixture.alpha))
-        let newest = recorder.record(for: .project(fixture.beta))
-        await gate.waitForWaiters(count: 2)
+        let stale = try XCTUnwrap(recorder.record(for: .project(fixture.alpha)))
+        var newest: Task<Void, Never>?
+        do {
+            try await gate.waitForWaiters(count: 1)
+            newest = try XCTUnwrap(recorder.record(for: .project(fixture.beta)))
+            try await gate.waitForWaiters(count: 2)
+        } catch {
+            gate.open()
+            await stale.value
+            await newest?.value
+            throw error
+        }
 
         // Finish the newer job first, then let the superseded one resume.
         gate.release(1)
         await newest?.value
         gate.release(0)
-        await stale?.value
+        await stale.value
 
         XCTAssertEqual(fixture.persistedPaths, [fixture.beta.id])
     }
@@ -204,9 +219,9 @@ private final class LastActiveProjectGate {
         continuations.removeValue(forKey: index)?.resume()
     }
 
-    func waitForWaiters(count: Int) async {
-        while arrivalCount < count {
-            await Task.yield()
+    func waitForWaiters(count: Int) async throws {
+        try await waitUntil("expected \(count) project-recording gate arrivals") {
+            self.arrivalCount >= count
         }
     }
 

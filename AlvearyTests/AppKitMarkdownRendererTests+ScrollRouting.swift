@@ -35,12 +35,24 @@ extension AppKitMarkdownRendererTests {
         let scrollDocument = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 400))
         parentScrollView.documentView = scrollDocument
         scrollDocument.addSubview(codeBlock)
+        let window = try Self.mountScrollView(parentScrollView)
+        defer { window.contentView = nil; window.close() }
+        parentScrollView.layoutSubtreeIfNeeded()
         codeBlock.layoutSubtreeIfNeeded()
 
+        let overflowScrollView = try XCTUnwrap(codeBlock.descendants(of: AppKitHorizontalOverflowScrollView.self).first)
         let textView = try XCTUnwrap(codeBlock.descendants(of: AppKitMarkdownTextView.self).first)
+        let document = try XCTUnwrap(overflowScrollView.documentView)
+        XCTAssertGreaterThan(document.frame.width - overflowScrollView.contentView.bounds.width, 160)
+        overflowScrollView.contentView.scroll(to: NSPoint(x: 80, y: 0))
+        overflowScrollView.reflectScrolledClipView(overflowScrollView.contentView)
+        let initialX = overflowScrollView.contentView.bounds.minX
+        XCTAssertEqual(initialX, 80, accuracy: 0.5)
         textView.scrollWheel(with: try Self.scrollEvent(deltaY: 0, deltaX: -12))
 
-        XCTAssertFalse(parentScrollView.didReceiveVerticalScroll)
+        Self.waitForHorizontalMovement(in: overflowScrollView, from: initialX)
+        XCTAssertEqual(parentScrollView.verticalScrollCount, 0)
+        XCTAssertGreaterThan(overflowScrollView.contentView.bounds.minX, initialX)
     }
 
     func testCodeBlockTextViewForwardsPreciseVerticalScrollToAncestor() throws {
@@ -125,12 +137,23 @@ extension AppKitMarkdownRendererTests {
         let scrollDocument = NSView(frame: NSRect(x: 0, y: 0, width: 260, height: 400))
         parentScrollView.documentView = scrollDocument
         scrollDocument.addSubview(codeBlock)
+        let window = try Self.mountScrollView(parentScrollView)
+        defer { window.contentView = nil; window.close() }
+        parentScrollView.layoutSubtreeIfNeeded()
         codeBlock.layoutSubtreeIfNeeded()
 
         let overflowScrollView = try XCTUnwrap(codeBlock.descendants(of: AppKitHorizontalOverflowScrollView.self).first)
+        let document = try XCTUnwrap(overflowScrollView.documentView)
+        XCTAssertGreaterThan(document.frame.width - overflowScrollView.contentView.bounds.width, 160)
+        overflowScrollView.contentView.scroll(to: NSPoint(x: 80, y: 0))
+        overflowScrollView.reflectScrolledClipView(overflowScrollView.contentView)
+        let initialX = overflowScrollView.contentView.bounds.minX
+        XCTAssertEqual(initialX, 80, accuracy: 0.5)
         overflowScrollView.scrollWheel(with: try Self.scrollEvent(deltaY: -4, deltaX: -12))
 
-        XCTAssertFalse(parentScrollView.didReceiveVerticalScroll)
+        Self.waitForHorizontalMovement(in: overflowScrollView, from: initialX)
+        XCTAssertEqual(parentScrollView.verticalScrollCount, 0)
+        XCTAssertGreaterThan(overflowScrollView.contentView.bounds.minX, initialX)
     }
 
     func testTableOverflowForwardsMostlyVerticalScrollToAncestor() throws {
@@ -156,6 +179,27 @@ extension AppKitMarkdownRendererTests {
         overflowScrollView.scrollWheel(with: try Self.scrollEvent(deltaY: -12, deltaX: -12))
 
         XCTAssertTrue(parentScrollView.didReceiveVerticalScroll)
+    }
+
+    private static func mountScrollView(_ scrollView: NSScrollView) throws -> NSWindow {
+        let screen = try XCTUnwrap(NSScreen.main)
+        // AppKit's legacy wheel path needs a display-backed frame for its animation ticks.
+        // The window can remain hidden; a frame entirely outside every display never scrolls.
+        let window = NSWindow(
+            contentRect: NSRect(x: screen.visibleFrame.minX + 40, y: screen.visibleFrame.minY + 40, width: 260, height: 200),
+            styleMask: .borderless, backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = scrollView
+        return window
+    }
+
+    private static func waitForHorizontalMovement(in scrollView: NSScrollView, from initialX: CGFloat) {
+        // AppKit animates line-wheel events after dispatch; observe the mounted clip view's result.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while scrollView.contentView.bounds.minX <= initialX, ContinuousClock.now < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
     }
 
     private static func scrollEvent(deltaY: Int32, deltaX: Int32) throws -> NSEvent {

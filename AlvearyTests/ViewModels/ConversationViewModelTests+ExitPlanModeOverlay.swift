@@ -91,7 +91,13 @@ extension ConversationViewModelTests {
         do {
             try await fixture.viewModel.approveExitPlanMode(toolUseId: approval.toolUseId)
             XCTFail("Expected approval to fail")
-        } catch {}
+        } catch MockAgentsManager.MockError.approvalFailed {}
+
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.count, 1)
+        let call = try XCTUnwrap(calls.first)
+        XCTAssertEqual(call.approval.toolUseId, approval.toolUseId)
+        XCTAssertEqual(call.decision, .allow)
 
         XCTAssertTrue(try fixture.userMessages().isEmpty)
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .pending)
@@ -349,10 +355,14 @@ extension ConversationViewModelTests {
             followUp: "Please revise the plan first."
         )
 
+        XCTAssertTrue(fixture.viewModel.state.isAwaitingExitPlanModeFollowUp)
+        XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         do {
             try await fixture.viewModel.queueOrSend("Manual message")
             XCTFail("Expected manual send to be blocked")
-        } catch {}
+        } catch {
+            XCTAssertEqual(error as? AgentError, .spawnFailed("Wait for the plan response to be sent before sending another message"))
+        }
 
         let sentMessages = await fixture.agentsManager.sentMessages()
         XCTAssertTrue(sentMessages.isEmpty)
@@ -421,27 +431,6 @@ extension ConversationViewModelTests {
         XCTAssertEqual(try fixture.userMessages().map(\.content), [exitPlanModeRevisionFollowUp()])
         XCTAssertTrue(try fixture.dbThread().hasCompletedInitialSetup)
         XCTAssertEqual(fixture.viewModel.state.stagedContext, "Live staged context")
-    }
-
-    func testCustomDenyFollowUpClearsWhenApprovalFails() async throws {
-        let fixture = try ConversationViewModelTestFixture(
-            approvalError: .approvalFailed,
-            initialAgentIsRunning: false
-        )
-        let approval = exitPlanModeApproval(toolUseId: "exit-plan-1")
-        fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
-
-        do {
-            try await fixture.viewModel.denyExitPlanMode(
-                toolUseId: approval.toolUseId,
-                followUp: "Revise it."
-            )
-            XCTFail("Expected denial to fail")
-        } catch {}
-
-        XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUp)
-        XCTAssertNil(fixture.viewModel.state.pendingExitPlanModeFollowUpQuietTask)
-        XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .pending)
     }
 }
 

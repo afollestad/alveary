@@ -3,10 +3,9 @@ import XCTest
 
 @testable import Alveary
 
-/// `submittingSourceConversationIDs` is the only thing standing between an in-flight submit and the
-/// sidebar's working ring — `ConversationWorkActivity` reads nothing else from this coordinator —
-/// so every edge of the span owes it an assertion. Its sibling is
-/// `ReviewProposalCoordinatorTests+WaitingDot.swift`, which covers the dot underneath.
+/// Covers the submitting span consumed by `ConversationWorkActivity`, including reloads while
+/// submission is suspended. The base tests assert failure outcomes; the waiting-dot companion
+/// covers the pending state underneath this span.
 @MainActor
 extension ReviewProposalCoordinatorTests {
     func testSubmittingMarksItsSourceConversationWorking() async throws {
@@ -30,25 +29,6 @@ extension ReviewProposalCoordinatorTests {
 
         XCTAssertTrue(didSubmit)
         XCTAssertTrue(fixture.coordinator.submittingSourceConversationIDs.isEmpty)
-    }
-
-    /// A failed submit leaves the card confirmable, so the ring has to hand the row back to the dot
-    /// rather than to nothing.
-    func testAFailedSubmissionDropsTheRingAndKeepsTheDot() async throws {
-        let fixture = try ReviewProposalFixture()
-        fixture.service.detailResult = .success(
-            makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
-        )
-        fixture.service.submitPendingReviewResult = .failure(.rateLimited)
-
-        let didSubmit = await fixture.coordinator.confirm(
-            proposalID: ReviewProposalFixture.proposalID,
-            event: .approve
-        )
-
-        XCTAssertFalse(didSubmit)
-        XCTAssertTrue(fixture.coordinator.submittingSourceConversationIDs.isEmpty)
-        XCTAssertEqual(fixture.coordinator.pendingSourceConversationIDs, [fixture.conversation.id])
     }
 
     /// The reason the span stores its conversation rather than re-deriving it from `presentations`.

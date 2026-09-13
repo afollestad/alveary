@@ -22,7 +22,7 @@ struct PullRequestDiffSnapshotTests {
         var sawContinuation = false
         while offset < patch.utf8.count {
             let fragment = try snapshot.fragment(file: 0, offset: offset, maxBytes: 15_001)
-            #expect(fragment.nextOffset > offset)
+            try #require(fragment.nextOffset > offset)
             reconstructed += fragment.text
             offset = fragment.nextOffset
             if fragment.startsMidLine {

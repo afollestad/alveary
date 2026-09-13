@@ -81,17 +81,6 @@ extension AppKitComposerOverlayViewTests {
         XCTAssertLessThan(compactPanel.measuredHeight(width: 700), defaultPanel.measuredHeight(width: 700))
     }
 
-    func testOverlayDensitiesUseTighterPanelSpacing() {
-        XCTAssertEqual(AppKitComposerOverlayMetrics.regularDensity.panelPadding, 9)
-        XCTAssertEqual(AppKitComposerOverlayMetrics.regularDensity.topPadding, 12)
-        XCTAssertEqual(AppKitComposerOverlayMetrics.regularDensity.headerRowsSpacing, 8)
-        XCTAssertEqual(AppKitComposerOverlayMetrics.regularDensity.footerSpacing, 8)
-        XCTAssertEqual(AppKitComposerOverlayMetrics.compactDensity.panelPadding, 6)
-        XCTAssertEqual(AppKitComposerOverlayMetrics.compactDensity.topPadding, 8)
-        XCTAssertEqual(AppKitComposerOverlayMetrics.compactDensity.headerRowsSpacing, 4)
-        XCTAssertEqual(AppKitComposerOverlayMetrics.compactDensity.footerSpacing, 5)
-    }
-
     func testQuestionNavigationCentersWithHeader() throws {
         let panel = AppKitComposerOverlayPanelView(frame: NSRect(x: 0, y: 0, width: 520, height: 160))
         panel.configure(

@@ -33,7 +33,8 @@ final class ScheduledTaskModelTests: XCTestCase {
         context.insert(project)
         try context.save()
 
-        let fetchedTask = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTask>()).first)
+        let readContext = ModelContext(container)
+        let fetchedTask = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTask>()).first)
         XCTAssertEqual(fetchedTask.id, "schedule-1")
         XCTAssertEqual(fetchedTask.revision, 3)
         XCTAssertEqual(fetchedTask.state, .active)
@@ -119,7 +120,8 @@ final class ScheduledTaskModelTests: XCTestCase {
         task.revision = 2
         try context.save()
 
-        let fetchedRun = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
+        let readContext = ModelContext(container)
+        let fetchedRun = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
         assertSnapshotRun(fetchedRun, occurrence: occurrence, workspaceIdentities: workspaceIdentities)
     }
 
@@ -141,7 +143,8 @@ final class ScheduledTaskModelTests: XCTestCase {
         context.insert(run)
         try context.save()
 
-        let fetchedRun = try XCTUnwrap(try context.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
+        let readContext = ModelContext(container)
+        let fetchedRun = try XCTUnwrap(try readContext.fetch(FetchDescriptor<ScheduledTaskRun>()).first)
 
         XCTAssertFalse(try XCTUnwrap(fetchedRun.pendingWorktreeCleanup).branchIsOwned)
         XCTAssertEqual(fetchedRun.pendingWorktreeCleanup?.branchOID, "persisted-head")

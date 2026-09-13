@@ -23,6 +23,7 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
 
         await harness.model.load()
 
+        XCTAssertEqual(harness.model.baseBranch, "main")
         XCTAssertEqual(harness.model.branchSelection, .current)
         XCTAssertTrue(harness.model.isCurrentBranchSelectable)
     }
@@ -48,14 +49,6 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
 
         XCTAssertEqual(harness.model.branchSelection, .new)
         XCTAssertFalse(harness.model.isCurrentBranchSelectable)
-    }
-
-    func testBaseBranchFallsBackToTheContextWhenNoDefaultResolves() async throws {
-        let harness = try Harness(currentBranch: "alveary/feature")
-
-        await harness.model.load()
-
-        XCTAssertEqual(harness.model.baseBranch, "main")
     }
 
     // MARK: - Preflight
@@ -112,6 +105,7 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
 
         let identifier = await harness.model.submit()
 
+        XCTAssertTrue(harness.generationPrompts.isEmpty)
         XCTAssertEqual(identifier, createdIdentifier)
         XCTAssertNil(harness.model.errorMessage)
         let checkouts = await harness.gitService.checkoutNewBranchCalls()
@@ -165,18 +159,6 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
         XCTAssertEqual(harness.model.descriptionDraft.markdown, "Caches GitHub responses for an hour.")
         XCTAssertEqual(harness.service.createdPullRequests.map(\.title), ["Add response caching"])
         XCTAssertEqual(harness.service.createdPullRequests.map(\.body), ["Caches GitHub responses for an hour."])
-    }
-
-    func testTypedContentSkipsGeneration() async throws {
-        let harness = try Harness(currentBranch: "alveary/feature", commitsAhead: 1)
-        harness.service.createPullRequestResult = .success(createdIdentifier)
-        await harness.model.load()
-        harness.model.title = "Typed title"
-        harness.model.descriptionDraft.replaceText("Typed body.")
-
-        _ = await harness.model.submit()
-
-        XCTAssertTrue(harness.generationPrompts.isEmpty)
     }
 
     /// A blank title with a typed body generates, keeps the typed body, and
@@ -242,6 +224,7 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
         let gitService: DiffGitCommitModalMockGitService
         let service: StubPullRequestsService
         let model: DiffCreatePullRequestModalModel
+        private let ownerThread = AgentThread(name: "Thread")
         private(set) var generationPrompts: [String] = []
         private(set) var didRefreshAfterMutation = false
 
@@ -270,7 +253,7 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
                     targetName: "Test Thread",
                     baseBranch: "main",
                     remoteName: "origin",
-                    owner: .thread(try Self.makeThreadIdentifier()),
+                    owner: .thread(ownerThread.persistentModelID),
                     sourceDirectory: sourceDirectory
                 ),
                 gitService: gitService,
@@ -315,24 +298,6 @@ final class DiffCreatePullRequestModalModelTests: XCTestCase {
                 diffForCommitResults: ["abc123": "+ cached line"],
                 defaultBranchResult: defaultBranch
             )
-        }
-
-        private static func makeThreadIdentifier() throws -> PersistentIdentifier {
-            let container = try ModelContainer(
-                for: Project.self,
-                AgentThread.self,
-                Conversation.self,
-                ConversationEventRecord.self,
-                ScheduledTask.self,
-                ScheduledTaskRun.self,
-                ScheduledTaskProposal.self,
-                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-            )
-            let context = ModelContext(container)
-            let thread = AgentThread(name: "Thread")
-            context.insert(thread)
-            try context.save()
-            return thread.persistentModelID
         }
     }
 }

@@ -234,41 +234,47 @@ final class AppKitTranscriptPromptBlockTests: XCTestCase {
 
     func testSubmittingDisablesSubmitUntilCallbackCompletes() async {
         let block = AppKitTranscriptPromptBlockView()
-        var continuation: CheckedContinuation<String?, Never>?
-        block.onSubmit = { _ in
-            await withCheckedContinuation { continuation = $0 }
+        let gate = PromptSubmissionGate()
+        block.onSubmit = { answers in
+            XCTAssertEqual(answers.map(\.question), ["Pick one"])
+            XCTAssertEqual(answers.map(\.answer), ["Option A"])
+            return await gate.wait()
         }
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         block.configure(.init(prompt: prompt(), isBusy: false))
         block.toggleOption(at: 0, option: promptOption(label: "Option A"))
         block.layoutSubtreeIfNeeded()
 
+        XCTAssertTrue(block.submitButton?.isEnabled == true)
         let submitTask = Task { await block.submit() }
-        await Task.yield()
+        await gate.waitForEntry()
         XCTAssertFalse(block.submitButton?.isEnabled ?? true)
 
-        continuation?.resume(returning: nil)
+        gate.release(nil)
         await submitTask.value
         XCTAssertTrue(block.submitButton?.isEnabled ?? false)
     }
 
     func testStaleSubmitCompletionDoesNotApplyAfterPromptReconfigure() async {
         let block = AppKitTranscriptPromptBlockView()
-        var continuation: CheckedContinuation<String?, Never>?
-        block.onSubmit = { _ in
-            await withCheckedContinuation { continuation = $0 }
+        let gate = PromptSubmissionGate()
+        block.onSubmit = { answers in
+            XCTAssertEqual(answers.map(\.question), ["Pick one"])
+            XCTAssertEqual(answers.map(\.answer), ["Option A"])
+            return await gate.wait()
         }
         block.frame = NSRect(x: 0, y: 0, width: 520, height: 1_000)
         block.configure(.init(prompt: prompt(), isBusy: false))
         block.toggleOption(at: 0, option: promptOption(label: "Option A"))
         block.layoutSubtreeIfNeeded()
 
+        XCTAssertTrue(block.submitButton?.isEnabled == true)
         let submitTask = Task { await block.submit() }
-        await Task.yield()
+        await gate.waitForEntry()
         block.configure(.init(prompt: multiQuestionPrompt(), isBusy: false))
         block.layoutSubtreeIfNeeded()
 
-        continuation?.resume(returning: "Q: Pick one\nA: Stale response")
+        gate.release("Q: Pick one\nA: Stale response")
         await submitTask.value
         block.layoutSubtreeIfNeeded()
 
@@ -416,46 +422,6 @@ final class AppKitTranscriptPromptBlockTests: XCTestCase {
         XCTAssertTrue(block.renderedText.contains("Wait for the current send or turn to finish"))
         XCTAssertFalse(block.submitButton?.isEnabled ?? true)
     }
-}
-
-private func prompt(submittedSummary: String? = nil) -> PromptEntry {
-    PromptEntry(
-        id: "prompt-1",
-        questions: [
-            .init(
-                question: "Pick one",
-                header: "Required",
-                options: [
-                    promptOption(label: "Option A", description: "Use the smaller row slice."),
-                    promptOption(label: "Option B", description: "Take the broader route.")
-                ],
-                multiSelect: false
-            )
-        ],
-        submittedSummary: submittedSummary
-    )
-}
-
-private func multiQuestionPrompt() -> PromptEntry {
-    PromptEntry(
-        id: "prompt-2",
-        questions: prompt().questions + [
-            .init(
-                question: "Choose checks",
-                header: nil,
-                options: [
-                    promptOption(label: "Build"),
-                    promptOption(label: "Focused tests")
-                ],
-                multiSelect: true
-            )
-        ],
-        submittedSummary: nil
-    )
-}
-
-private func promptOption(label: String, description: String = "") -> PromptEntry.PromptOption {
-    PromptEntry.PromptOption(label: label, description: description)
 }
 
 private extension NSView {

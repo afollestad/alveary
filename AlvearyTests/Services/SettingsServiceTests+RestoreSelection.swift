@@ -26,15 +26,6 @@ extension SettingsServiceTests {
         XCTAssertEqual(UserDefaultsSettingsService(defaults: defaults).current.lastActiveProjectPath, "/tmp/alveary")
     }
 
-    func testInMemoryLastActiveProjectPathDoesNotUseNormalUpdateChannel() {
-        let service = InMemorySettingsService()
-
-        service.updateLastActiveProjectPath("  /tmp/../tmp/alveary  ")
-
-        XCTAssertEqual(service.current.lastActiveProjectPath, "/tmp/alveary")
-        XCTAssertEqual(service.updateCount, 0)
-    }
-
     func testUserDefaultsSettingsServiceRestoreSelectionUpdateDoesNotNotify() throws {
         let defaults = try makeDefaults()
         let service = UserDefaultsSettingsService(defaults: defaults)

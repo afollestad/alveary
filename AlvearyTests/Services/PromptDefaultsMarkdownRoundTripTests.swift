@@ -1,4 +1,3 @@
-import BlockInputKit
 import XCTest
 
 @testable import Alveary
@@ -12,30 +11,11 @@ import XCTest
 final class PromptDefaultsMarkdownRoundTripTests: XCTestCase {
     func testEveryPackagedPromptSurvivesTheEditorUnchanged() {
         for (name, prompt) in Self.packagedPrompts {
-            XCTAssertEqual(
-                AppMarkdownDraft(markdown: prompt).markdown,
-                prompt,
-                "\(name) does not round-trip through the prompt editor"
-            )
-        }
-    }
-
-    /// Opening an untouched default must leave Reset disabled, which is only true
-    /// when the seeded document serializes back to the packaged text.
-    func testAnUntouchedDefaultLeavesResetDisabled() {
-        for (name, prompt) in Self.packagedPrompts {
             let draft = AppMarkdownDraft(markdown: prompt, referenceMarkdown: prompt)
+            XCTAssertEqual(draft.markdown, prompt, "\(name) does not round-trip through the prompt editor")
             XCTAssertTrue(draft.matchesReference, "\(name) reports itself edited before any edit")
-        }
-    }
-
-    /// The source files wrap with `\#` continuations, which is easy to drop when
-    /// editing the prose. A real line break inside a paragraph still round-trips,
-    /// so only this catches it — it renders as a hard break in the editor and the
-    /// transcript card, which is the "weird line breaks" this authoring style fixed.
-    func testNoPackagedPromptCarriesAHardWrapInsideABlock() {
-        for (name, prompt) in Self.packagedPrompts {
-            for block in BlockInputDocument(markdown: prompt).blocks where block.text.contains("\n") {
+            // A hard break can round-trip unchanged while still rendering an unwanted line break.
+            for block in draft.store.document.blocks where block.text.contains("\n") {
                 XCTFail("\(name) hard-wraps a block: \(block.text.prefix(80))...")
             }
         }

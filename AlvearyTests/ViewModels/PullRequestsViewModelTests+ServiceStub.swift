@@ -44,6 +44,7 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     var deletePendingReviewResult: Result<Void, PullRequestsServiceError> = .success(())
     var submitPendingReviewResult: Result<Void, PullRequestsServiceError> = .success(())
     var detailGate: PullRequestsServiceGate?
+    var paneResponsesIgnoreCancellation = false
     var diffGate: PullRequestsServiceGate?
     /// Holds `createPendingReview` open so a concurrency test can fire a second
     /// comment while the first one's review is still being opened.
@@ -174,16 +175,15 @@ final class StubPullRequestsService: PullRequestsService, @unchecked Sendable {
     func fetchDetail(_ id: PullRequestIdentifier) async throws -> PullRequestDetail {
         detailCallCount += 1
         await detailGate?.wait()
-        // The gate is deliberately non-throwing, so mirror the real service and
-        // unwind here instead; cancelled pane loads must not deliver a result.
-        try Task.checkCancellation()
+        // Stale-success tests opt out; normal held loads still cooperate with cancellation.
+        if !paneResponsesIgnoreCancellation { try Task.checkCancellation() }
         return try detailResult.get()
     }
 
     func fetchDiff(_ id: PullRequestIdentifier) async throws -> String {
         diffCallCount += 1
         await diffGate?.wait()
-        try Task.checkCancellation()
+        if !paneResponsesIgnoreCancellation { try Task.checkCancellation() }
         return try diffResult.get()
     }
 

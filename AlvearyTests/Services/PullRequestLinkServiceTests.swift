@@ -23,6 +23,7 @@ final class PullRequestLinkServiceTests: XCTestCase {
         XCTAssertEqual(link.summary.title, "Add caching")
         XCTAssertEqual(link.summary.status, .draft)
         XCTAssertEqual(harness.thread.linkedPullRequests.map(\.id), [identifier])
+        XCTAssertEqual(try harness.committedLinks(for: harness.threadOwner), [link])
         XCTAssertEqual(harness.service.detailCallCount, 1)
     }
 
@@ -129,16 +130,23 @@ final class PullRequestLinkServiceTests: XCTestCase {
         let harness = try Harness()
         harness.service.detailResult = .success(makePullRequestDetail(id: identifier, title: "Add caching", status: .open))
 
-        _ = try await harness.linkService.link(identifier, owner: harness.projectOwner)
+        let outcome = try await harness.linkService.link(identifier, owner: harness.projectOwner)
+        guard case .linked(let link) = outcome else { return XCTFail("Expected a project link") }
 
         XCTAssertEqual(harness.project.linkedPullRequests.map(\.id), [identifier])
         XCTAssertEqual(harness.thread.linkedPullRequests, [])
+        XCTAssertEqual(try harness.committedLinks(for: harness.projectOwner), [link])
+        XCTAssertEqual(try harness.committedLinks(for: harness.threadOwner), [])
     }
 
     func testUnlinkRemovesTheLocalLinkAndReportsWhatItRemoved() async throws {
         let harness = try Harness()
         harness.service.detailResult = .success(makePullRequestDetail(id: identifier, title: "Add caching", status: .open))
         _ = try await harness.linkService.link(identifier, owner: harness.threadOwner)
+
+        let linked = try harness.committedLinks(for: harness.threadOwner)
+        XCTAssertEqual(linked.map(\.id), [identifier])
+        let callsAfterLink = harness.service.detailCallCount
 
         let outcome = try harness.linkService.unlink(identifier, owner: harness.threadOwner)
 
@@ -147,6 +155,8 @@ final class PullRequestLinkServiceTests: XCTestCase {
         }
         XCTAssertEqual(link.id, identifier)
         XCTAssertEqual(harness.thread.linkedPullRequests, [])
+        XCTAssertEqual(try harness.committedLinks(for: harness.threadOwner), [])
+        XCTAssertEqual(harness.service.detailCallCount, callsAfterLink)
     }
 
     /// The end state the caller wanted, so it is a success rather than an error.
@@ -167,18 +177,6 @@ final class PullRequestLinkServiceTests: XCTestCase {
         )
     }
 
-    /// Unlinking is a local record change; nothing may reach GitHub.
-    func testUnlinkNeverCallsGitHub() async throws {
-        let harness = try Harness()
-        harness.service.detailResult = .success(makePullRequestDetail(id: identifier, title: "Add caching", status: .open))
-        _ = try await harness.linkService.link(identifier, owner: harness.threadOwner)
-        let callsAfterLink = harness.service.detailCallCount
-
-        _ = try harness.linkService.unlink(identifier, owner: harness.threadOwner)
-
-        XCTAssertEqual(harness.service.detailCallCount, callsAfterLink)
-    }
-
     @MainActor
     private struct Harness {
         let container: ModelContainer
@@ -189,6 +187,12 @@ final class PullRequestLinkServiceTests: XCTestCase {
         let threadOwner: PullRequestLinkOwner
         let project: Project
         let projectOwner: PullRequestLinkOwner
+
+        /// Each reader is independent of the writer, so an unsaved mutation cannot satisfy persistence checks.
+        func committedLinks(for owner: PullRequestLinkOwner) throws -> [LinkedPullRequest] {
+            let reader = ModelContext(container)
+            return try XCTUnwrap(reader.linkedPullRequests(for: owner))
+        }
 
         init() throws {
             container = try ModelContainer(
@@ -202,6 +206,7 @@ final class PullRequestLinkServiceTests: XCTestCase {
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true)
             )
             context = ModelContext(container)
+            context.autosaveEnabled = false
             service = StubPullRequestsService()
             linkService = PullRequestLinkService(
                 modelContext: context,

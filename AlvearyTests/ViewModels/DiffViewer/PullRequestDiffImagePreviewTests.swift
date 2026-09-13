@@ -71,6 +71,8 @@ final class PullRequestDiffImagePreviewTests: XCTestCase {
         // The pointer states the size, so the auto-load gate needs no request to apply.
         XCTAssertEqual(preview.old?.byteSize, 166_854)
         XCTAssertEqual(preview.new?.byteSize, 4_096)
+        XCTAssertEqual(preview.new?.identityPrefix, "lfs-\(Self.newOID)")
+        XCTAssertEqual(preview.new?.needsContentHash, false)
     }
 
     /// An LFS object is content-addressed, so it resolves without knowing which commits the diff
@@ -81,12 +83,6 @@ final class PullRequestDiffImagePreviewTests: XCTestCase {
         )
         XCTAssertNotNil(preview.old)
         XCTAssertNotNil(preview.new)
-    }
-
-    func testAnLFSVersionIsCachedByItsOIDAndNeedsNoContentHash() throws {
-        let preview = try XCTUnwrap(previews(modifiedPointerDiff())["0:assets/hero.png"])
-        XCTAssertEqual(preview.new?.identityPrefix, "lfs-\(Self.newOID)")
-        XCTAssertEqual(preview.new?.needsContentHash, false)
     }
 
     // MARK: - Ordinary binary images

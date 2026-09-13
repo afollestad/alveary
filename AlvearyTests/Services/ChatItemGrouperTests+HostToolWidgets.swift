@@ -205,7 +205,12 @@ extension ChatItemGrouperTests {
 
         grouper.update(events: [call])
 
-        XCTAssertNil(grouper.items.first?.hostToolWidgetEntry)
+        XCTAssertEqual(grouper.items.count, 1)
+        guard case .standaloneTool(_, let tool) = grouper.items.first else {
+            return XCTFail("Expected the original generic tool row")
+        }
+        XCTAssertEqual(tool.id, call.toolId)
+        XCTAssertEqual(tool.name, call.toolName)
     }
 
     func testUnreadableHostToolInputFallsBackToTheGenericToolRow() {
@@ -215,8 +220,12 @@ extension ChatItemGrouperTests {
 
         grouper.update(events: [call])
 
-        XCTAssertNil(grouper.items.first?.hostToolWidgetEntry)
         XCTAssertEqual(grouper.items.count, 1)
+        guard case .standaloneTool(_, let tool) = grouper.items.first else {
+            return XCTFail("Expected the original generic tool row")
+        }
+        XCTAssertEqual(tool.id, call.toolId)
+        XCTAssertEqual(tool.name, call.toolName)
     }
 
     /// The link tools have no outcome marker: their result is the whole outcome, so the card

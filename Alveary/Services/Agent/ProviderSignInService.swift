@@ -69,13 +69,14 @@ final class ProviderSignInService {
     /// Refreshes readiness once the sign-in tab's command exits.
     ///
     /// Driven by `TerminalManager.runningProjectActionSessionIDs`, which the app root already
-    /// observes, so this needs no completion callback of its own.
-    func handleRunningProjectActionSessionIDsChange(_ runningSessionIDs: Set<UUID>) {
+    /// observes. The returned task finishes after readiness has been consumed; nil means the trigger was gated.
+    @discardableResult
+    func handleRunningProjectActionSessionIDsChange(_ runningSessionIDs: Set<UUID>) -> Task<Void, Never>? {
         guard let sessionID = pendingSessionID, !runningSessionIDs.contains(sessionID) else {
-            return
+            return nil
         }
         pendingSessionID = nil
-        refreshProviderReadiness()
+        return refreshProviderReadiness()
     }
 
     /// One safety-net refresh, for a sign-in whose tab is already gone.
@@ -88,11 +89,12 @@ final class ProviderSignInService {
     /// back without finishing will not be caught by the next activation either, and staying pending
     /// would put that fan-out on every activation for the rest of the session. The Agents settings
     /// screen and system wake each invalidate on their own, so a later sign-in is still picked up.
-    func handleAppDidBecomeActive() {
+    @discardableResult
+    func handleAppDidBecomeActive() -> Task<Void, Never>? {
         guard pendingProviderID != nil, pendingSessionID == nil else {
-            return
+            return nil
         }
-        refreshProviderReadiness(stopsTrackingRegardless: true)
+        return refreshProviderReadiness(stopsTrackingRegardless: true)
     }
 }
 
@@ -103,15 +105,15 @@ private extension ProviderSignInService {
     ///
     /// `stopsTrackingRegardless` gives up before the answer arrives, for the caller that has no
     /// further trigger left to offer. The refresh still runs, so the snapshot every other readiness
-    /// gate reads is fresh either way.
-    func refreshProviderReadiness(stopsTrackingRegardless: Bool = false) {
+    /// gate reads is fresh either way. Return the scheduled work so completion includes consuming the refreshed status.
+    func refreshProviderReadiness(stopsTrackingRegardless: Bool = false) -> Task<Void, Never>? {
         guard let providerID = pendingProviderID else {
-            return
+            return nil
         }
         if stopsTrackingRegardless {
             pendingProviderID = nil
         }
-        Task { @MainActor [weak self] in
+        return Task { @MainActor [weak self] in
             guard let self else {
                 return
             }

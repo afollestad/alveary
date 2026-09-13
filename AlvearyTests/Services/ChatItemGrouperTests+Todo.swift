@@ -79,7 +79,8 @@ extension ChatItemGrouperTests {
         guard case .taskListBlock(_, let tasks) = grouper.items[1] else {
             return XCTFail("Expected completed todo list to remain in transcript order")
         }
-        XCTAssertTrue(tasks.allSatisfy { $0.status == .completed })
+        XCTAssertEqual(tasks.map(\.content), ["Inspect transcript"])
+        XCTAssertEqual(tasks.map(\.status), [.completed])
         guard case .assistantMessage(_, let text) = grouper.items[2] else {
             return XCTFail("Expected final assistant message below completed todo list")
         }
@@ -258,7 +259,8 @@ extension ChatItemGrouperTests {
         guard case .taskListBlock(_, let completedTasks) = grouper.items[0] else {
             return XCTFail("Expected the completed todo list to remain in history")
         }
-        XCTAssertTrue(completedTasks.allSatisfy { $0.status == .completed })
+        XCTAssertEqual(completedTasks.map(\.content), ["Inspect transcript"])
+        XCTAssertEqual(completedTasks.map(\.status), [.completed])
         guard case .taskListBlock(_, let repeatedTasks) = grouper.items[1] else {
             return XCTFail("Expected same-content new todo list to append after completion")
         }

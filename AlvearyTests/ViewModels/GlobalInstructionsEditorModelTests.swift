@@ -49,19 +49,12 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
         XCTAssertEqual(model.contentGeneration, 2)
     }
 
-    func testNoteDocumentChangedSetsDirty() async {
-        let model = makeModel(service: StubInstructionsService(shared: ""))
-        await model.loadIfNeeded()
-
-        model.noteDocumentChanged()
-
-        XCTAssertTrue(model.isDirty)
-    }
-
     func testSavePersistsDocumentMarkdownAndClearsDirty() async {
         let service = StubInstructionsService(shared: "")
         let model = makeModel(service: service)
         await model.loadIfNeeded()
+        model.noteDocumentChanged()
+        XCTAssertTrue(model.isDirty)
         model.draft.replaceText("# Draft")
         model.noteDocumentChanged()
 
@@ -142,10 +135,14 @@ final class GlobalInstructionsEditorModelTests: XCTestCase {
             "codex": .absent(path: "/home/.codex/AGENTS.md"),
             "claude": .linked
         ]
-        let model = makeModel(service: service)
+        let registry = ServiceTestAgentRegistry(agents: DefaultAgentRegistry().agents.sorted { $0.id > $1.id })
+        let model = GlobalInstructionsEditorModel(service: service, agentRegistry: registry)
         await model.loadIfNeeded()
 
-        XCTAssertEqual(model.linkRows.map(\.agent.id), ["claude", "codex"])
+        XCTAssertEqual(model.linkRows.map(\.agent.id), ["codex", "claude"])
+        service.states.removeValue(forKey: "claude")
+        await model.loadIfNeeded()
+        XCTAssertEqual(model.linkRows.map(\.agent.id), ["codex"])
     }
 
     private func makeModel(service: StubInstructionsService) -> GlobalInstructionsEditorModel {

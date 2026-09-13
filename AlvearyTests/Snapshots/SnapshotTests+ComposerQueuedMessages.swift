@@ -50,7 +50,7 @@ extension SnapshotTests {
                 ],
                 queuedMessagesPauseHeaderTitle: "Queue paused because you interrupted"
             ),
-            size: CGSize(width: 1000, height: 260),
+            size: CGSize(width: 1000, height: 310),
             named: "appkit_composer_panel_paused_native_queued_messages",
             colorScheme: .dark
         )
@@ -64,7 +64,7 @@ extension SnapshotTests {
                     QueuedMessage(text: "Hi", stagedContext: nil)
                 ]
             ),
-            size: CGSize(width: 1000, height: 200),
+            size: CGSize(width: 1000, height: 250),
             named: "appkit_composer_panel_native_queued_messages_without_context",
             colorScheme: .dark
         )

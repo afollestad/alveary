@@ -7,21 +7,24 @@ import XCTest
 final class DiffImagePreviewPresentationTests: XCTestCase {
     private var directory = FileManager.default.temporaryDirectory
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("DiffImagePreviewPresentationTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: directory)
-        try super.tearDownWithError()
+        try await super.tearDown()
     }
 
     private func makeFile(named name: String, byteCount: Int) throws -> URL {
         let url = directory.appendingPathComponent(name)
-        try Data(repeating: 0xAB, count: byteCount).write(to: url)
+        try Data().write(to: url)
+        let handle = try FileHandle(forWritingTo: url)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: UInt64(byteCount))
         return url
     }
 

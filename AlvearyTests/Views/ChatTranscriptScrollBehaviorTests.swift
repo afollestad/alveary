@@ -20,6 +20,11 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
                 newMetrics: newMetrics
             )
         )
+        // Start at bottom so the geometry guard determines this result.
+        XCTAssertFalse(ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
+            oldMetrics: .init(offsetY: 540, contentHeight: 1_000, containerHeight: 460),
+            newMetrics: .init(offsetY: 540, contentHeight: 1_040, containerHeight: 460)
+        ))
     }
 
     func testDoesNotPreserveFollowModeWhenOffsetChangesWithContainerChange() {
@@ -32,6 +37,11 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
                 newMetrics: newMetrics
             )
         )
+        // Start at bottom so the geometry guard determines this result.
+        XCTAssertFalse(ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
+            oldMetrics: .init(offsetY: 540, contentHeight: 1_000, containerHeight: 460),
+            newMetrics: .init(offsetY: 510, contentHeight: 1_000, containerHeight: 360)
+        ))
     }
 
     func testPreservesFollowModeWhenContainerHeightChangesAtBottomWithoutUserScroll() {
@@ -80,18 +90,11 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
                 newMetrics: newMetrics
             )
         )
-    }
-
-    func testCancelsProgrammaticScrollWhenUserMovesFurtherFromBottom() {
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 400)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 470, contentHeight: 1_000, containerHeight: 400)
-
-        XCTAssertTrue(
-            ChatTranscriptScrollBehavior.shouldCancelProgrammaticScroll(
-                oldMetrics: oldMetrics,
-                newMetrics: newMetrics
-            )
-        )
+        // Start at bottom so the geometry guard determines this result.
+        XCTAssertFalse(ChatTranscriptScrollBehavior.shouldPreserveFollowMode(
+            oldMetrics: .init(offsetY: 640, contentHeight: 1_000, containerHeight: 360),
+            newMetrics: .init(offsetY: 640, contentHeight: 1_000, containerHeight: 460)
+        ))
     }
 
     func testDoesNotCancelProgrammaticScrollWhenOffsetMovesTowardBottom() {
@@ -123,18 +126,6 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    func testReissuesPendingJumpToLatestWhenContentGrows() {
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_080, containerHeight: 460)
-
-        XCTAssertTrue(
-            ChatTranscriptScrollBehavior.shouldReissuePendingJumpToLatest(
-                oldMetrics: oldMetrics,
-                newMetrics: newMetrics
-            )
-        )
-    }
-
     func testDoesNotReissuePendingJumpToLatestWhenGeometryIsStable() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 560, contentHeight: 1_000, containerHeight: 460)
@@ -153,33 +144,6 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
 
         XCTAssertFalse(
             ChatTranscriptScrollBehavior.shouldReissuePendingJumpToLatest(
-                oldMetrics: oldMetrics,
-                newMetrics: newMetrics
-            )
-        )
-    }
-
-    func testReissuesPendingPreserveFollowWhenContainerShrinks() {
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 400)
-
-        XCTAssertTrue(
-            ChatTranscriptScrollBehavior.shouldReissuePendingPreserveFollow(
-                oldMetrics: oldMetrics,
-                newMetrics: newMetrics
-            )
-        )
-    }
-
-    // Content growth is intentionally excluded so streaming / bubble-expand frames do not
-    // re-issue bottom-scroll requests; the AppKit container owns row-height anchoring,
-    // and re-issuing here would re-introduce the bubble-expand jank the narrowing fixed.
-    func testDoesNotReissuePendingPreserveFollowOnContentGrowth() {
-        let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
-        let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_080, containerHeight: 460)
-
-        XCTAssertFalse(
-            ChatTranscriptScrollBehavior.shouldReissuePendingPreserveFollow(
                 oldMetrics: oldMetrics,
                 newMetrics: newMetrics
             )
@@ -249,7 +213,8 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
         )
     }
 
-    // Composed check on top of the unit test for `shouldCancelProgrammaticScroll`.
+    // The old `offsetChanged` guard incorrectly cancelled this anchor catch-up:
+    // distance grows while offset increases. Cancellation must require offsetDecreased.
     // A `.jumpToLatest` pending scroll during streaming should NOT cancel when the
     // AppKit owner is catching up to content growth (offsetY increasing toward
     // bottom, content grew by more). It should reissue instead.
@@ -318,7 +283,8 @@ final class ChatTranscriptScrollBehaviorTests: XCTestCase {
     }
 
     // `.preserveFollow` intentionally does not react to content growth — that
-    // would re-introduce the bubble-expand jank the narrowing was meant to fix.
+    // AppKit owns row-height anchoring; reissuing on streaming or bubble-expand
+    // frames would re-introduce scroll jank.
     func testPendingScrollActionPreserveFollowIgnoresContentGrowth() {
         let oldMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_000, containerHeight: 460)
         let newMetrics = ChatTranscriptScrollMetrics(offsetY: 540, contentHeight: 1_080, containerHeight: 460)

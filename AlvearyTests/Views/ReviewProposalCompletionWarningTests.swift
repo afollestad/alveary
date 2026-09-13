@@ -32,7 +32,7 @@ struct ReviewProposalCompletionWarningTests {
 
         let presentation = try #require(coordinator.presentation(forProposalID: record.id))
 
-        #expect(presentation.collectiveCompletionWarning == (isCollective && matchesRun ? run.partialCompletionWarning : nil))
+        #expect(presentation.collectiveCompletionWarning == (isCollective && matchesRun ? Self.warning : nil))
         #expect(presentation.proposedEvent == .approve)
         #expect(presentation.body == nil)
         #expect(fixture.conversation.pullRequestReviewProposalJSON == storedProposal)

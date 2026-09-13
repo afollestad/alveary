@@ -75,32 +75,50 @@ final class DiffImagePreviewLoaderTests: XCTestCase {
         XCTAssertTrue(imageBlobCalls.isEmpty)
     }
 
+    @MainActor
     func testParallelLoadsDoNotBlockEachOther() async throws {
         let cacheDirectory = temporaryDirectory().appendingPathComponent("cache", isDirectory: true)
         let loader = DiffImagePreviewLoader(cacheDirectory: cacheDirectory)
         let first = Self.version(path: "Assets/first.png")
         let second = Self.version(path: "Assets/second.png")
-        let gitService = DiffViewerMockGitService(
-            statusResults: [.success([])],
-            imageBlobResults: [
-                .success(try Self.pngData(width: 10, height: 10)),
-                .success(try Self.pngData(width: 12, height: 12))
-            ]
+        let gate = PullRequestsServiceGate()
+        let fetcher = HeldDiffImageFetcher(
+            heldSource: first.source, gate: gate,
+            blobs: [first.source: try Self.pngData(width: 10, height: 10), second.source: try Self.pngData(width: 12, height: 12)]
         )
-
-        async let firstOutput = loader.loadPreview(
-            version: first,
-            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
-        )
-        async let secondOutput = loader.loadPreview(
-            version: second,
-            fetcher: GitDiffImageBlobFetcher(directory: "/tmp/project", gitService: gitService)
-        )
-        let outputs = try await [firstOutput.pixelSize, secondOutput.pixelSize]
-
-        XCTAssertEqual(Set(outputs), [CGSize(width: 10, height: 10), CGSize(width: 12, height: 12)])
-        let calls = await gitService.imageBlobCalls()
-        XCTAssertEqual(calls.count, 2)
+        var firstCompleted = false
+        let firstTask = Task {
+            let output = try await loader.loadPreview(version: first, fetcher: fetcher)
+            firstCompleted = true
+            return output
+        }
+        var secondTask: Task<DiffImagePreviewOutput, Error>?
+        do {
+            try await waitUntil("first image fetch reached its held response") { await fetcher.calls == [first.source] }
+            var secondCompleted = false
+            let task = Task {
+                let output = try await loader.loadPreview(version: second, fetcher: fetcher)
+                secondCompleted = true
+                return output
+            }
+            secondTask = task
+            try await waitUntil("second image completed while the first remained held") { secondCompleted }
+            XCTAssertFalse(firstCompleted)
+            let output = try await task.value
+            XCTAssertEqual(output.pixelSize, CGSize(width: 12, height: 12))
+        } catch {
+            firstTask.cancel()
+            secondTask?.cancel()
+            gate.open()
+            _ = await firstTask.result
+            _ = await secondTask?.result
+            throw error
+        }
+        gate.open()
+        let output = try await firstTask.value
+        XCTAssertEqual(output.pixelSize, CGSize(width: 10, height: 10))
+        let calls = await fetcher.calls
+        XCTAssertEqual(calls, [first.source, second.source])
     }
 
     func testLoadCancellationStopsBeforeDecodeAndCacheWrite() async throws {
@@ -417,4 +435,27 @@ private struct UnusableDiffImageBlobFetcher: DiffImageBlobFetching {
     }
 
     func existingFileURL(for source: DiffImageBlobSource) -> URL? { nil }
+}
+
+/// Holds one source so a second preview must finish independently of that fetch.
+private actor HeldDiffImageFetcher: DiffImageBlobFetching {
+    let heldSource: DiffImageBlobSource
+    let gate: PullRequestsServiceGate
+    let blobs: [DiffImageBlobSource: Data]
+    private(set) var calls: [DiffImageBlobSource] = []
+
+    init(heldSource: DiffImageBlobSource, gate: PullRequestsServiceGate, blobs: [DiffImageBlobSource: Data]) {
+        self.heldSource = heldSource
+        self.gate = gate
+        self.blobs = blobs
+    }
+
+    func blob(for source: DiffImageBlobSource, maxBytes: Int) async throws -> Data {
+        calls.append(source)
+        if source == heldSource { await gate.wait() }
+        guard let data = blobs[source] else { throw DiffImagePreviewLoaderError.unsupportedSource }
+        return data
+    }
+
+    nonisolated func existingFileURL(for source: DiffImageBlobSource) -> URL? { nil }
 }

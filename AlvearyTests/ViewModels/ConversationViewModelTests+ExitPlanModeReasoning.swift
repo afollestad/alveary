@@ -74,7 +74,15 @@ extension ConversationViewModelTests {
         do {
             try await fixture.viewModel.approveExitPlanMode(toolUseId: approval.toolUseId)
             XCTFail("Expected approval to fail")
-        } catch {}
+        } catch MockAgentsManager.MockError.approvalFailed {}
+
+        let calls = await fixture.agentsManager.approvalCalls()
+        XCTAssertEqual(calls.count, 1)
+        let call = try XCTUnwrap(calls.first)
+        XCTAssertEqual(call.approval.toolUseId, approval.toolUseId)
+        XCTAssertEqual(call.decision, .allow)
+        XCTAssertTrue(call.requiresProviderRestart)
+        XCTAssertEqual(call.config.model, "opus")
 
         XCTAssertEqual(fixture.viewModel.state.pendingSessionSettingsChange?.pending.model, "opus")
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.status, .pending)

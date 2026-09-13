@@ -12,26 +12,11 @@ extension SnapshotTests {
         fixture.viewModel.state.failedSessionHandoffMessage = fixture.viewModel.lastTurnError
 
         assertMacSnapshot(
-            ChatComposerPanelSnapshotView(
-                viewModel: fixture.viewModel,
-                composerCapabilities: composerPanelSnapshotCapabilities
+            AppKitComposerPanelNativeRowSnapshot(
+                topContentConfiguration: composerPanelSnapshotChatView(fixture: fixture).composerTopContentConfiguration
             ),
             size: CGSize(width: 1000, height: 210),
             named: "chat_composer_panel_error_banner_retry",
-            colorScheme: .dark
-        )
-    }
-
-    func testChatComposerPanelWithoutBanners() throws {
-        let fixture = try ConversationViewModelTestFixture()
-
-        assertMacSnapshot(
-            ChatComposerPanelSnapshotView(
-                viewModel: fixture.viewModel,
-                composerCapabilities: composerPanelSnapshotCapabilities
-            ),
-            size: CGSize(width: 1000, height: 150),
-            named: "chat_composer_panel_without_banners",
             colorScheme: .dark
         )
     }
@@ -108,13 +93,6 @@ extension SnapshotTests {
             size: CGSize(width: 1000, height: 160),
             named: "appkit_composer_panel_exit_plan_mode_overlay",
             colorScheme: .dark
-        )
-    }
-
-    private var composerPanelSnapshotCapabilities: ComposerCapabilities {
-        ComposerCapabilities(
-            supportedPermissionModes: samplePermissionModes,
-            supportsMidTurnSteering: true
         )
     }
 
@@ -445,28 +423,27 @@ private struct AppKitComposerPanelSnapshotRepresentable: NSViewRepresentable {
     }
 }
 
-private struct ChatComposerPanelSnapshotView: View {
-    let viewModel: ConversationViewModel
-    let composerCapabilities: ComposerCapabilities
-
-    var body: some View {
-        AppKitComposerPanelNativeRowSnapshot(
-            topContentConfiguration: .init(items: topContentItems)
+@MainActor
+private extension SnapshotTests {
+    func composerPanelSnapshotChatView(fixture: ConversationViewModelTestFixture) -> ChatView {
+        ChatView(
+            viewModel: fixture.viewModel,
+            conversation: fixture.conversation,
+            composerCapabilities: ComposerCapabilities(supportedPermissionModes: samplePermissionModes, supportsMidTurnSteering: true),
+            reasoningConfiguration: makeReasoningConfiguration(),
+            defaultEnterBehavior: .queue,
+            providerID: "claude",
+            runtimeStatus: .neutral,
+            contextWindowCache: fixture.contextWindowCache,
+            workingDirectory: fixture.project.path,
+            projectTrustPrompt: nil,
+            isProjectTrustBlocked: false,
+            onTrustProject: { _ in },
+            onDenyProjectTrust: { _ in },
+            loadFileCompletions: { [] },
+            loadSkillCompletions: { [] },
+            transcriptTypography: TranscriptTypography(),
+            appState: AppState()
         )
-    }
-
-    private var topContentItems: [AppKitChatComposerTopContentView.Item] {
-        if let lastTurnError = viewModel.lastTurnError {
-            return [
-                .inlineBanner(.init(
-                    message: lastTurnError,
-                    severity: .error,
-                    actionTitle: viewModel.canRetryFailedSessionHandoff ? "Retry" : nil,
-                    onAction: viewModel.canRetryFailedSessionHandoff ? {} : nil,
-                    onDismiss: viewModel.canRetryFailedSessionHandoff ? nil : {}
-                ))
-            ]
-        }
-        return []
     }
 }

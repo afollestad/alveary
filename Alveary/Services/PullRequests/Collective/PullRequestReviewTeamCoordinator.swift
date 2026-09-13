@@ -52,6 +52,13 @@ final class PullRequestReviewTeamCoordinator {
         Set(runs.values.filter { $0.phase.isWorking }.map(\.conversationID))
     }
 
+    #if DEBUG
+    /// Capture before cancellation removes the dictionary entry so tests can await late-result consumption.
+    func scheduledTaskForTesting(conversationID: String) -> Task<Void, Never>? {
+        tasks[conversationID]
+    }
+    #endif
+
     func preflight(settings: AppSettings) async throws -> [ReviewWorkerConfiguration] {
         let team = try await resolver.resolve(settings: settings)
         try await withThrowingTaskGroup(of: Void.self) { group in

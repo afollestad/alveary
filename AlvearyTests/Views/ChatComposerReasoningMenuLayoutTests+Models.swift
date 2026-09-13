@@ -137,7 +137,6 @@ extension ChatComposerReasoningMenuLayoutTests {
         let modelTitleFrame = try XCTUnwrap(modelRow.debugTitleVisualFrame)
         let disclosureTitleFrameInMenu = disclosure.convert(disclosure.debugTitleVisualFrame, to: controller.view)
         let modelTitleFrameInMenu = modelRow.convert(modelTitleFrame, to: controller.view)
-        XCTAssertEqual(ComposerReasoningMenuMetrics.controlsHeight, ComposerReasoningMenuMetrics.rowHeight)
         XCTAssertEqual(disclosure.intrinsicContentSize.height, ComposerReasoningMenuMetrics.rowHeight)
         XCTAssertEqual(disclosure.frame.height, modelRow.frame.height)
         XCTAssertEqual(disclosure.frame.width, modelRow.frame.width)
@@ -226,6 +225,7 @@ extension ChatComposerReasoningMenuLayoutTests {
         controller.setModelsExpanded(true)
 
         let list = try XCTUnwrap(controller.debugModelList)
+        XCTAssertEqual(list.debugModelRowIdentities, ["claude:default", "codex:default"])
         let selectedIdentities = zip(list.debugModelRowIdentities, list.focusableRows).compactMap { identity, row in
             row.accessibilityValue() as? String == "Selected" ? identity : nil
         }

@@ -15,6 +15,7 @@ extension PullRequestsViewModelTests {
     func testConfirmingOnTheTranscriptCardRefreshesTheOpenPane() async throws {
         let fixture = try ReviewProposalAttachmentFixture()
         await fixture.openPane()
+        XCTAssertEqual(fixture.service.listCallCount, 0)
         XCTAssertTrue(try XCTUnwrap(fixture.session?.detail?.reviews).isEmpty)
         fixture.service.detailResult = .success(fixture.reviewedDetail())
 
@@ -24,23 +25,9 @@ extension PullRequestsViewModelTests {
         await waitForPullRequestCondition { fixture.session?.detail?.reviews.isEmpty == false }
         XCTAssertEqual(fixture.session?.detail?.reviews.map(\.state), [.approved])
         XCTAssertEqual(fixture.session?.detail?.reviewers.map(\.state), [.approved])
-    }
-
-    /// "Pending review" versus "Previously reviewed" comes from the `review-requested:@me` search
-    /// bucket, so the list has to refetch too.
-    func testConfirmingOnTheTranscriptCardRefreshesTheList() async throws {
-        let fixture = try ReviewProposalAttachmentFixture()
-        await fixture.openPane()
-        XCTAssertEqual(fixture.service.listCallCount, 0)
-
-        _ = await fixture.coordinator.confirm(proposalID: ReviewProposalAttachmentFixture.proposalID, event: .approve)
-
         await waitForPullRequestCondition {
-            // A load is one request per bucket and they land independently, so waiting on the
-            // first would let the assertion below race the siblings.
             fixture.service.listCallCount >= fixture.viewModel.selectedFilter.requiredBuckets.count
         }
-        // One load, which is one request per bucket the visible tab renders.
         XCTAssertEqual(fixture.service.listCallCount, fixture.viewModel.selectedFilter.requiredBuckets.count)
     }
 
@@ -133,6 +120,7 @@ extension PullRequestsViewModelTests {
         await waitForPullRequestCondition {
             fixture.service.listCallCount >= fixture.viewModel.selectedFilter.requiredBuckets.count
         }
+        XCTAssertEqual(fixture.service.listCallCount, fixture.viewModel.selectedFilter.requiredBuckets.count)
         XCTAssertEqual(fixture.service.detailCallCount, 0)
     }
 
@@ -184,15 +172,27 @@ extension PullRequestsViewModelTests {
         let fixture = try ReviewProposalAttachmentFixture()
         await fixture.openPane()
         let loaded = try XCTUnwrap(fixture.session?.detail)
-        fixture.service.detailResult = .failure(.rateLimited)
-        let before = fixture.service.detailCallCount
-
-        fixture.announceChange(affectsListRow: false)
-
-        await waitForPullRequestCondition { fixture.service.detailCallCount > before }
-        await drainMainQueue()
-        XCTAssertEqual(fixture.session?.detail, loaded)
-        XCTAssertNil(fixture.session?.detailError)
-        XCTAssertFalse(try XCTUnwrap(fixture.session?.isLoadingDetail))
+        let cleanup = PullRequestLoadCleanup()
+        try await cleanup.run {
+            fixture.service.detailResult = .failure(.rateLimited)
+            let gate = cleanup.makeGate()
+            fixture.service.detailGate = gate
+            let before = fixture.service.detailCallCount
+            fixture.announceChange(affectsListRow: false)
+            do {
+                try await waitUntil("background detail refresh entered") { fixture.service.detailCallCount > before }
+            } catch {
+                cleanup.capture(fixture.viewModel)
+                throw error
+            }
+            cleanup.capture(fixture.viewModel)
+            XCTAssertEqual(fixture.session?.isLoadingDetail, true)
+            let task = try XCTUnwrap(fixture.viewModel.paneLoadTasks[fixture.target]?.detail?.task)
+            gate.open()
+            await task.value
+            XCTAssertEqual(fixture.session?.detail, loaded)
+            XCTAssertNil(fixture.session?.detailError)
+            XCTAssertFalse(try XCTUnwrap(fixture.session?.isLoadingDetail))
+        }
     }
 }

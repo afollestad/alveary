@@ -53,6 +53,7 @@ extension SidebarDragInteractionTests {
             logicalOrder: sectionReorderOrder()
         )
 
+        XCTAssertFalse(candidates.isEmpty)
         XCTAssertTrue(
             candidates.allSatisfy { $0.target.section == .sectionList },
             "\(candidates.map(\.target.section))"

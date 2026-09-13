@@ -58,23 +58,31 @@ extension ConversationViewModelTests {
 
     func testSuccessfulTurnClearsDurableFailure() throws {
         let fixture = try ConversationViewModelTestFixture()
-        fixture.conversation.lastTurnFailedAt = Date()
         beginVisibleTurn(fixture)
+        let previousFailure = Date(timeIntervalSince1970: 100)
+        fixture.conversation.lastTurnFailedAt = previousFailure
+        XCTAssertEqual(fixture.conversation.lastTurnFailedAt, previousFailure)
 
         fixture.viewModel.handleEvent(terminalTokens(isError: false, stopReason: "end_turn"))
 
+        XCTAssertEqual(fixture.viewModel.state.lastControllerTerminalBoundary?.wasVisible, true)
+        XCTAssertEqual(fixture.viewModel.state.lastControllerTerminalBoundary?.result, .succeeded)
         XCTAssertNil(fixture.conversation.lastTurnFailedAt)
     }
 
     /// Cancelling is not failing — `Alveary/Views/AGENTS.md` maps cancelled orange, error red.
     func testUserInterruptionClearsDurableFailure() throws {
         let fixture = try ConversationViewModelTestFixture()
-        fixture.conversation.lastTurnFailedAt = Date()
         beginVisibleTurn(fixture)
+        let previousFailure = Date(timeIntervalSince1970: 100)
+        fixture.conversation.lastTurnFailedAt = previousFailure
+        XCTAssertEqual(fixture.conversation.lastTurnFailedAt, previousFailure)
         fixture.viewModel.state.lastTurnInterrupted = true
 
         fixture.viewModel.handleEvent(.stop(message: ConversationInterruption.displayMessage))
 
+        XCTAssertEqual(fixture.viewModel.state.lastControllerTerminalBoundary?.wasVisible, true)
+        XCTAssertEqual(fixture.viewModel.state.lastControllerTerminalBoundary?.result, .interrupted)
         XCTAssertNil(fixture.conversation.lastTurnFailedAt)
     }
 
@@ -108,8 +116,9 @@ extension ConversationViewModelTests {
 
         do {
             try await fixture.viewModel.queueOrSend("Retry")
-        } catch {
-            // Expected: the dispatch fails, but the attempt still supersedes the old failure.
+            XCTFail("Expected dispatch to fail")
+        } catch MockAgentsManager.MockError.sendFailed {
+            // The attempt supersedes the old failure even though dispatch failed.
         }
 
         XCTAssertNil(fixture.conversation.lastTurnFailedAt)

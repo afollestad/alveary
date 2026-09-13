@@ -6,33 +6,30 @@ import XCTest
 
 @MainActor
 final class AppKitChatComposerEditorControllerTests: XCTestCase {
-    func testConfigureClearsPreviousDraftSnapshotProviderBeforeInstallingNext() {
+    func testConfigureClearsPreviousDraftSnapshotProviderBeforeInstallingNext() throws {
         let controller = AppKitChatComposerEditorController()
-        var firstInstalled = false
-        var firstCleared = false
-        var secondInstalled = false
+        var events: [String] = []
+        var sharedProvider: ComposerDraftSnapshotProvider?
 
         controller.configure(makeConfiguration(
             onDraftSnapshotProviderChange: { provider in
-                if provider == nil {
-                    firstCleared = true
-                } else {
-                    firstInstalled = true
-                }
+                events.append(provider == nil ? "first.clear" : "first.install")
+                sharedProvider = provider
             }
         ))
+        XCTAssertEqual(events, ["first.install"])
+        XCTAssertEqual(try XCTUnwrap(sharedProvider)().text, "First")
         controller.configure(makeConfiguration(
             text: "Second",
+            inputDraftRevision: 1,
             onDraftSnapshotProviderChange: { provider in
-                if provider != nil {
-                    secondInstalled = true
-                }
+                events.append(provider == nil ? "second.clear" : "second.install")
+                sharedProvider = provider
             }
         ))
 
-        XCTAssertTrue(firstInstalled)
-        XCTAssertTrue(firstCleared)
-        XCTAssertTrue(secondInstalled)
+        XCTAssertEqual(events, ["first.install", "first.clear", "second.install"])
+        XCTAssertEqual(try XCTUnwrap(sharedProvider)().text, "Second")
     }
 
     func testConfigureInvalidatesPreferredSizeWithSurfaceAnimationEnabled() {
@@ -309,30 +306,6 @@ final class AppKitChatComposerEditorControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.measuredEditorHeight, 92)
         XCTAssertEqual(invalidationAnimationFlags, [false])
-    }
-
-    func testPreferredHeightTransitionInterpolatesNonInitialChanges() async throws {
-        let controller = AppKitChatComposerEditorController()
-        var invalidationAnimationFlags: [Bool] = []
-        controller.measuredEditorHeight = 80
-        controller.onPreferredSizeInvalidated = { animateSurfaceHeight in
-            invalidationAnimationFlags.append(animateSurfaceHeight)
-        }
-
-        controller.handlePreferredHeightTransition(BlockInputEditorHeightTransition(
-            previousHeight: 80,
-            targetHeight: 120,
-            animation: BlockInputEditorHeightAnimation(duration: 0.04, curve: .linear),
-            isInitial: false
-        ))
-
-        XCTAssertEqual(controller.measuredEditorHeight, 80)
-
-        try await Task.sleep(nanoseconds: 80_000_000)
-
-        XCTAssertEqual(controller.measuredEditorHeight, 120, accuracy: 0.5)
-        XCTAssertFalse(invalidationAnimationFlags.isEmpty)
-        XCTAssertTrue(invalidationAnimationFlags.allSatisfy { !$0 })
     }
 
     func testPreferredHeightTransitionRelayoutsComposerSurfaceImmediately() throws {

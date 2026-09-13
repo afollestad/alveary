@@ -244,10 +244,13 @@ extension ConversationViewModelTests {
         XCTAssertEqual(queued.requiredPlanModeEnabled, true)
         XCTAssertNotNil(queued.consumedExitPlanModeRevisionGuidance)
 
+        XCTAssertTrue(fixture.viewModel.providerCanSteerCurrentTurn)
         do {
             try await fixture.viewModel.steerQueuedMessage(id: queued.id)
             XCTFail("Expected transport-only queued plan feedback to be rejected for steering")
-        } catch {}
+        } catch {
+            XCTAssertEqual(error as? AgentError, .spawnFailed("Plan-mode queued messages send on the next turn"))
+        }
 
         fixture.viewModel.editQueuedMessage(id: queued.id)
 

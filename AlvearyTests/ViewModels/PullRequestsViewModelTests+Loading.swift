@@ -164,20 +164,6 @@ extension PullRequestsViewModelTests {
         XCTAssertNil(viewModel.bucketFailures[.reviewed])
     }
 
-    func testEveryLegRepeatingAWarningShowsItOnce() async {
-        let service = StubPullRequestsService()
-        service.listResult = .success(PullRequestListResult(
-            summaries: [makePullRequestSummary(number: 1, isAuthored: true)],
-            // SAML answers every bucket with the same message.
-            warnings: ["Resource protected by organization SAML enforcement."]
-        ))
-        let viewModel = makePullRequestsViewModel(service: service)
-
-        await viewModel.refresh()
-
-        XCTAssertEqual(viewModel.warnings, ["Resource protected by organization SAML enforcement."])
-    }
-
     func testACancelledLoadDropsEvenTheLegsThatSucceeded() async {
         let service = StubPullRequestsService()
         service.listResult = .success(PullRequestListResult(

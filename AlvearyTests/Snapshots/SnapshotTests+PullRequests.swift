@@ -66,14 +66,16 @@ extension SnapshotTests {
         )
     }
 
-    func testPullRequestsScreenNotInstalled() async {
-        let fixture = await PullRequestsSnapshotFixture(failure: .ghNotInstalled)
+    func testPullRequestsScreenNotInstalled() async throws {
+        let fixture = await PullRequestsSnapshotFixture(failure: .ghNotInstalled, loadInitially: false)
+        XCTAssertEqual(fixture.viewModel.loadPhase, .idle)
+        let host = PullRequestsUnavailableSnapshotHost(viewModel: fixture.viewModel)
+        defer { host.close() }
 
-        assertMacSnapshot(
-            fixture.screen,
-            size: CGSize(width: 1_120, height: 900),
-            named: "pull_requests_not_installed"
-        )
+        try await host.requireNotInstalled {
+            fixture.service.completedBuckets == fixture.viewModel.selectedFilter.requiredBuckets
+        }
+        host.assertSnapshot(named: "pull_requests_not_installed", file: #filePath, testName: #function)
     }
 
     func testPullRequestsReviewingSectionsPopulated() async {
@@ -198,6 +200,7 @@ private final class PullRequestsSnapshotFixture {
     static let referenceDate = Date(timeIntervalSince1970: 1_800_000_000)
 
     let viewModel: PullRequestsViewModel
+    let service: SnapshotPullRequestsService
 
     var screen: some View {
         PullRequestsScreen(viewModel: viewModel, onOpenGitSettings: {})
@@ -207,9 +210,11 @@ private final class PullRequestsSnapshotFixture {
         summaries: [PullRequestSummary]? = nil,
         warnings: [String] = [],
         failure: PullRequestsServiceError? = nil,
-        hasNextPage: Bool = false
+        hasNextPage: Bool = false,
+        loadInitially: Bool = true
     ) async {
         let service = SnapshotPullRequestsService()
+        self.service = service
         if let failure {
             service.listResult = .failure(failure)
         } else {
@@ -225,18 +230,19 @@ private final class PullRequestsSnapshotFixture {
                     : [:]
             ))
         }
+        // Seed the broad status filter without selectStatusFilter spawning an unowned load.
+        var settings = AppSettings()
+        settings.pullRequestsStatusFilter = .all
         viewModel = PullRequestsViewModel(
             service: service,
             avatarLoader: GitHubAvatarLoader(),
+            settingsService: InMemorySettingsService(current: settings),
             // Zero so a baseline that sets `searchQuery` renders the narrowed list in the same
             // turn, with no debounce to wait out before the snapshot is taken.
             searchDebounce: .zero,
             now: { Self.referenceDate }
         )
-        // These baselines exercise row rendering across every status glyph, not the packaged
-        // open-only default, so the filter is widened before the rows land.
-        viewModel.selectStatusFilter(.all)
-        await viewModel.refresh()
+        if loadInitially { await viewModel.refresh() }
     }
 
     static let defaultSummaries: [PullRequestSummary] = [
@@ -340,6 +346,7 @@ private final class PullRequestsSnapshotFixture {
 
 @MainActor
 private final class SnapshotPullRequestsService: PullRequestsService, @unchecked Sendable {
+    private(set) var completedBuckets: Set<PullRequestInvolvementBucket> = []
     var listResult: Result<PullRequestListResult, PullRequestsServiceError> = .success(
         PullRequestListResult(summaries: [], warnings: [])
     )
@@ -349,6 +356,7 @@ private final class SnapshotPullRequestsService: PullRequestsService, @unchecked
         status: PullRequestStatus?,
         options: PullRequestListOptions
     ) async throws -> PullRequestListResult {
+        defer { completedBuckets.formUnion(buckets) }
         let result = try listResult.get()
         // Answer only what was asked for, like the real service and `StubPullRequestsService`.
         // The view model fetches one bucket per request and indexes the reply by bucket, so

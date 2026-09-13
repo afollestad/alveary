@@ -6,28 +6,6 @@ import XCTest
 
 @MainActor
 final class AppWindowTitlebarSeparatorTests: XCTestCase {
-    func testPaneHeaderHairlineOccupiesOnePhysicalPixelInLightAndDark() throws {
-        for colorScheme in [ColorScheme.light, .dark] {
-            let background = sampleBackground(for: colorScheme)
-            let baseline = try renderSeparatorSample(
-                surface: nil,
-                colorScheme: colorScheme,
-                background: background
-            )
-            let separator = try renderSeparatorSample(
-                surface: .paneHeader,
-                colorScheme: colorScheme,
-                background: background
-            )
-
-            XCTAssertEqual(
-                try differingRows(baseline, separator).count,
-                1,
-                "Expected one physical separator row in \(colorScheme) mode"
-            )
-        }
-    }
-
     func testTitlebarAndPaneHeaderCalibrationResolveToMatchingPixels() throws {
         for colorScheme in [ColorScheme.light, .dark] {
             let background = sampleBackground(for: colorScheme)
@@ -48,7 +26,7 @@ final class AppWindowTitlebarSeparatorTests: XCTestCase {
             )
             let paneHeaderRows = try differingRows(baseline, paneHeader)
             let titlebarRows = try differingRows(baseline, titlebar)
-            XCTAssertEqual(paneHeaderRows.count, 1)
+            XCTAssertEqual(paneHeaderRows.count, 1, "Expected one physical separator row in \(colorScheme) mode")
             XCTAssertEqual(titlebarRows.count, 1)
             let paneHeaderRow = try XCTUnwrap(paneHeaderRows.first)
             let titlebarRow = try XCTUnwrap(titlebarRows.first)
