@@ -20,6 +20,7 @@ func makePullRequestsViewModel(
     reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
         try await Task.sleep(for: .seconds(30))
     },
+    refreshReviewTeamProviderDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
     openGitSettings: @escaping @MainActor () -> Void = {},
     agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
@@ -49,6 +50,7 @@ func makePullRequestsViewModel(
         agenticThreadStarter: agenticThreadStarter,
         reviewTeamSettingsValidator: reviewTeamSettingsValidator,
         reviewTeamValidationSleeper: reviewTeamValidationSleeper,
+        refreshReviewTeamProviderDiscovery: refreshReviewTeamProviderDiscovery,
         openGitSettings: openGitSettings,
         agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,
@@ -363,5 +365,87 @@ final class PullRequestLoadCleanup {
         for task in tasks { task.cancel() }
         for gate in gates { gate.open() }
         for task in tasks { await task.value }
+    }
+}
+
+/// Shares a loaded pane and its private activity bus across review and validation tests.
+@MainActor
+extension PullRequestsViewModelTests {
+    @MainActor
+    struct OpenedReviewPane {
+        let viewModel: PullRequestsViewModel
+        let id: PullRequestIdentifier
+        /// The private bus both the tracker and the view model are on, so a test can stand in for
+        /// the runtime by posting the status changes the tracker listens for.
+        let notificationCenter: NotificationCenter
+
+        var session: PullRequestPaneSession? {
+            viewModel.paneSessions[.details(id)]
+        }
+
+        var workingKinds: Set<PullRequestAgenticThreadService.Kind> {
+            session?.workingAgenticKinds ?? []
+        }
+
+        /// Stands in for `DefaultAgentsManager.updateStatus`.
+        func post(_ signal: ActivitySignal, conversationID: String) {
+            notificationCenter.post(
+                name: .agentStatusChanged,
+                object: nil,
+                userInfo: [
+                    AgentStatusChangedKey.conversationID: conversationID,
+                    AgentStatusChangedKey.signal: signal
+                ]
+            )
+        }
+    }
+
+    func openedReviewPane(
+        settingsService: (any SettingsService)? = nil,
+        origin: PullRequestPaneOrigin = .screen,
+        presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
+        startupGrace: Duration = .seconds(30),
+        reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
+        reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
+            try await Task.sleep(for: .seconds(30))
+        },
+        refreshReviewTeamProviderDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
+        openGitSettings: @escaping @MainActor () -> Void = {},
+        starter: (
+            @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
+        )? = nil
+    ) async -> OpenedReviewPane {
+        let service = StubPullRequestsService()
+        let summary = makePullRequestSummary(number: 7, status: .open)
+        service.detailResult = .success(makePullRequestDetail(id: summary.id, status: .open, viewerCanUpdate: true))
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
+        service.listResult = .success(PullRequestListResult(summaries: [summary], warnings: []))
+        // One private bus for both, so the tracker's announcements reach this view model's mirror
+        // and nothing on `.default` can disturb the suite.
+        let notificationCenter = NotificationCenter()
+        let activity = PullRequestAgenticThreadActivity(
+            notificationCenter: notificationCenter,
+            startupGrace: startupGrace
+        )
+        let viewModel = makePullRequestsViewModel(
+            service: service,
+            settingsService: settingsService,
+            presentToast: presentToast,
+            agenticThreadStarter: starter,
+            reviewTeamSettingsValidator: reviewTeamSettingsValidator,
+            reviewTeamValidationSleeper: reviewTeamValidationSleeper,
+            refreshReviewTeamProviderDiscovery: refreshReviewTeamProviderDiscovery,
+            openGitSettings: openGitSettings,
+            agenticThreadActivity: activity,
+            notificationCenter: notificationCenter
+        )
+        await viewModel.refresh()
+        viewModel.requestDetails(summary, origin: origin)
+        await waitForPaneContent(viewModel, target: .details(summary.id))
+        return OpenedReviewPane(
+            viewModel: viewModel,
+            id: summary.id,
+            notificationCenter: notificationCenter
+        )
     }
 }

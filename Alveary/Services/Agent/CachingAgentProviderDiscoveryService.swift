@@ -19,9 +19,9 @@ import Foundation
 /// still blocks is the first after launch or after `invalidate()`, which is what the `warm()` call
 /// sites front-run.
 ///
-/// Provider *enablement* is not cached at all: `ThreadDefaultResolver` reads it from `AppSettings`
-/// on every resolve. What ages here is installation state, setup readiness, and model catalogs —
-/// all of which change from the Agents settings screen, which invalidates before it reads.
+/// Status snapshots retain provider enablement alongside installation, setup readiness, and model catalogs.
+/// `ThreadDefaultResolver` checks current `AppSettings`; strict review-team resolution refreshes the snapshot
+/// when enablement changes. Agents settings invalidates before reading after setup changes.
 actor CachingAgentProviderDiscoveryService: AgentProviderDiscoveryService {
     private let base: any AgentProviderDiscoveryService
     private let timeToLive: TimeInterval
@@ -33,8 +33,7 @@ actor CachingAgentProviderDiscoveryService: AgentProviderDiscoveryService {
     /// Every caller waiting on a probe shares this one; without it a burst of thread creations
     /// each spawns the full subprocess fan-out.
     private var inFlight: Task<[AgentProviderID: AgentProviderStatus], Never>?
-    /// Bumped by `invalidate()` so a probe that started before the invalidation cannot store its
-    /// now-outdated answer.
+    /// Bumped when a probe is disowned so its late answer cannot replace a newer snapshot or clear its task.
     private var generation = 0
 
     init(
@@ -86,6 +85,23 @@ actor CachingAgentProviderDiscoveryService: AgentProviderDiscoveryService {
         generation &+= 1
     }
 
+    /// Explicit repair must escape a stalled shared probe without making ordinary reads lose their last answer.
+    func refresh() async {
+        let superseded = inFlight
+        inFlight = nil
+        generation &+= 1
+        superseded?.cancel()
+        var awaitedGeneration = generation
+        _ = await probe().value
+        // Another window may supersede this refresh. Join its probe instead of letting this caller
+        // validate against the preserved snapshot or force yet another replacement.
+        while generation != awaitedGeneration {
+            awaitedGeneration = generation
+            guard inFlight != nil || snapshot == nil else { return }
+            _ = await probe().value
+        }
+    }
+
     /// Blocks until the snapshot is fresh, unlike `providerStatuses(projectURL:)`, which never
     /// waits once it has any snapshot at all. Launch, wake, and each opened pull request call this
     /// so the session's one genuinely blocking read happens off the click path.
@@ -114,8 +130,7 @@ actor CachingAgentProviderDiscoveryService: AgentProviderDiscoveryService {
         return task
     }
 
-    /// Adopts a completed probe's answer unless it was invalidated mid-flight, in which case the
-    /// answer predates whatever changed and `inFlight` already belongs to whoever came after.
+    /// A superseded probe still answers its own caller, but must not replace the snapshot or clear the newer probe.
     private func store(_ statuses: [AgentProviderID: AgentProviderStatus], generation startedAt: Int) {
         guard generation == startedAt else { return }
         inFlight = nil

@@ -200,11 +200,11 @@ extension ContentView {
                 guard let coordinator = dependencies.pullRequestReviewTeamCoordinator else {
                     throw ReviewTeamError.invalidOutput("Review team is unavailable.")
                 }
-                // Strict validation must not adopt the cache's stale-while-revalidate answer after a CLI repair.
-                await dependencies.providerDiscoveryCache.invalidate()
-                await dependencies.providerDiscoveryCache.warm()
                 try Task.checkCancellation()
                 _ = try await coordinator.preflight(settings: settings)
+            },
+            refreshReviewTeamProviderDiscovery: { [cache = dependencies.providerDiscoveryCache] in
+                await cache.refresh()
             },
             openGitSettings: { appState.openSettings(targetPage: .git) },
             agenticThreadActivity: dependencies.pullRequestAgenticThreadActivity,

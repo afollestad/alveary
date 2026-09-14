@@ -1,9 +1,65 @@
+import AgentCLIKit
 import XCTest
 
 @testable import Alveary
 
 @MainActor
 extension PullRequestsViewModelTests {
+    func testRetryReplacesTimedOutDiscoveryWithoutWaitingForTheAbandonedProbe() async {
+        let discovery = ReviewTeamRetryDiscovery()
+        let cache = CachingAgentProviderDiscoveryService(base: discovery)
+        let deadlines = [PullRequestsServiceGate(), PullRequestsServiceGate()]
+        var deadlineCalls = 0
+        defer {
+            discovery.firstProbe.open()
+            discovery.replacementProbe.open()
+            deadlines.forEach { $0.open() }
+        }
+        let pane = await openedReviewPane(
+            settingsService: reviewTeamValidationSettings(),
+            reviewTeamSettingsValidator: { _ in
+                _ = await cache.providerStatuses(projectURL: nil)
+            },
+            reviewTeamValidationSleeper: {
+                guard deadlines.indices.contains(deadlineCalls) else {
+                    return XCTFail("Unexpected extra validation deadline")
+                }
+                let gate = deadlines[deadlineCalls]
+                deadlineCalls += 1
+                await gate.wait()
+            },
+            refreshReviewTeamProviderDiscovery: { await cache.refresh() }
+        )
+        await waitFor { discovery.calls == 1 && deadlineCalls == 1 }
+        let abandonedValidation = pane.viewModel.reviewTeamValidationTask
+        let deadline = pane.viewModel.reviewTeamValidationDeadlineTask
+
+        deadlines[0].open()
+        await deadline?.value
+        XCTAssertEqual(
+            pane.session?.pullRequestReviewTeamValidationStatus,
+            .failed("Review team check timed out. Try again.")
+        )
+
+        pane.viewModel.retryReviewTeamValidation()
+        await waitFor { discovery.calls == 2 && deadlineCalls == 2 }
+        let retry = pane.viewModel.reviewTeamValidationTask
+        let retryDeadline = pane.viewModel.reviewTeamValidationDeadlineTask
+        discovery.replacementProbe.open()
+        await waitFor { pane.session?.pullRequestReviewTeamValidationStatus == .valid }
+
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
+        XCTAssertEqual(discovery.completedCalls, [2], "Retry must finish while the abandoned probe remains suspended")
+        XCTAssertEqual(discovery.calls, 2, "Validation must consume the cache populated by its recovery refresh")
+
+        discovery.firstProbe.open()
+        deadlines.forEach { $0.open() }
+        await abandonedValidation?.value
+        await retry?.value
+        await retryDeadline?.value
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
+    }
+
     func testTeamValidationTimeoutAndRetryReachEveryRetainedPane() async {
         let harness = ReviewTeamValidationHarness(outcomes: [.success(()), .success(())])
         let pane = await openedValidationPane(harness)
@@ -284,4 +340,26 @@ private final class ReviewTeamValidationHarness {
         for gate in validations + deadlines { gate.open() }
         for task in tasks { await task.value }
     }
+}
+
+/// A cold probe that ignores cancellation, with independent release of its replacement during Retry.
+@MainActor
+private final class ReviewTeamRetryDiscovery: AgentProviderDiscoveryService {
+    let firstProbe = PullRequestsServiceGate()
+    let replacementProbe = PullRequestsServiceGate()
+    private(set) var calls = 0
+    private(set) var completedCalls: [Int] = []
+
+    func providerStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] {
+        calls += 1
+        let call = calls
+        await (call == 1 ? firstProbe : replacementProbe).wait()
+        completedCalls.append(call)
+        return [:]
+    }
+
+    func installedProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { [:] }
+    func availableProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { [:] }
+    func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] { [] }
+    func stableProviderOrdering() async -> [AgentProviderID] { [] }
 }

@@ -33,7 +33,7 @@ struct PullRequestReviewTeamSettingsSignature: Equatable, Sendable {
 /// Lets tests release the deadline independently of a validator that ignores cancellation.
 typealias PullRequestReviewTeamValidationSleeper = @MainActor @Sendable () async throws -> Void
 
-/// Shares strict review-team checks across panes while bounding how long their footers wait.
+/// Caches successful checks for unchanged settings across panes; actual review launches still run strict preflight.
 extension PullRequestsViewModel {
     /// Keeps settings out of the memoized footer body while still reflecting changes immediately.
     func observePullRequestReviewSettings() {
@@ -60,11 +60,26 @@ extension PullRequestsViewModel {
     }
 
     func retryReviewTeamValidation() {
-        refreshPullRequestReviewConfiguration(force: true)
+        refreshPullRequestReviewConfiguration(force: true, refreshDiscovery: true)
     }
 
-    /// Pane opens force a fresh discovery check after external CLI repairs; an identical in-flight check is shared.
-    func refreshPullRequestReviewConfiguration(force: Bool = false) {
+    /// Navigation reuses success without a TTL spinner. Failed checks still discover external CLI repairs on reopening.
+    func refreshPullRequestReviewConfigurationForPane() {
+        let refreshDiscovery: Bool
+        switch mirroredReviewTeamValidationStatus {
+        case .invalid, .failed:
+            refreshDiscovery = true
+        default:
+            refreshDiscovery = false
+        }
+        refreshPullRequestReviewConfiguration(
+            force: mirroredReviewTeamValidationStatus != .valid,
+            refreshDiscovery: refreshDiscovery
+        )
+    }
+
+    /// Relevant settings changes invalidate cached success; an identical in-flight check is always shared.
+    func refreshPullRequestReviewConfiguration(force: Bool = false, refreshDiscovery: Bool = false) {
         let settings = settingsService?.current ?? AppSettings()
         let signature = PullRequestReviewTeamSettingsSignature(settings: settings)
         let signatureChanged = signature != reviewTeamSettingsSignature
@@ -73,6 +88,10 @@ extension PullRequestsViewModel {
             return
         }
 
+        // Discovery snapshots include enablement; a newly enabled provider must not reuse its disabled snapshot.
+        reviewTeamDiscoveryNeedsRefresh = reviewTeamDiscoveryNeedsRefresh
+            || signature.disabledProviderIDs != reviewTeamSettingsSignature.disabledProviderIDs
+        let needsDiscoveryRefresh = refreshDiscovery || reviewTeamDiscoveryNeedsRefresh
         reviewTeamSettingsSignature = signature
         cancelReviewTeamValidation()
         mirroredPullRequestReviewMode = settings.pullRequestReviewMode
@@ -93,9 +112,17 @@ extension PullRequestsViewModel {
         reviewTeamValidationToken = token
         mirroredReviewTeamValidationStatus = .validating
         mirrorPullRequestReviewConfiguration()
+        let refreshProviders = refreshReviewTeamProviderDiscovery
         reviewTeamValidationTask = Task { [weak self] in
             let status: PullRequestReviewTeamValidationStatus
             do {
+                try Task.checkCancellation()
+                if needsDiscoveryRefresh {
+                    await refreshProviders()
+                    try Task.checkCancellation()
+                    self?.finishReviewTeamDiscoveryRefresh(token: token)
+                }
+                try Task.checkCancellation()
                 try await reviewTeamSettingsValidator(settings)
                 try Task.checkCancellation()
                 status = .valid
@@ -106,7 +133,15 @@ extension PullRequestsViewModel {
             }
             self?.finishReviewTeamValidation(status, token: token)
         }
+        startReviewTeamValidationDeadline(token: token)
+    }
 
+    private func finishReviewTeamDiscoveryRefresh(token: UUID) {
+        guard token == reviewTeamValidationToken else { return }
+        reviewTeamDiscoveryNeedsRefresh = false
+    }
+
+    private func startReviewTeamValidationDeadline(token: UUID) {
         let sleep = reviewTeamValidationSleeper
         reviewTeamValidationDeadlineTask = Task { [weak self] in
             do {

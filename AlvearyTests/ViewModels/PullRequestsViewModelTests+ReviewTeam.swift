@@ -96,31 +96,165 @@ extension PullRequestsViewModelTests {
     }
 
     func testReopeningAPaneRevalidatesAfterAnExternalProviderRepair() async {
+        let failures: [(Error, PullRequestReviewTeamValidationStatus)] = [
+            (ReviewTeamError.invalidOutput("CLI needs repair"), .invalid("CLI needs repair")),
+            (CancellationError(), .failed("Review team check was interrupted. Try again."))
+        ]
+        for (error, expectedStatus) in failures {
+            let settingsService = InMemorySettingsService()
+            settingsService.update { $0.pullRequestReviewMode = .reviewTeam }
+            let isProviderReady = FlagBox()
+            let canRepairProvider = FlagBox()
+            var validationCalls = 0
+            var refreshCalls = 0
+            let pane = await openedReviewPane(
+                settingsService: settingsService,
+                reviewTeamSettingsValidator: { _ in
+                    validationCalls += 1
+                    if !isProviderReady.value {
+                        throw error
+                    }
+                },
+                refreshReviewTeamProviderDiscovery: {
+                    refreshCalls += 1
+                    isProviderReady.value = canRepairProvider.value
+                }
+            )
+            await pane.viewModel.reviewTeamValidationTask?.value
+            XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, expectedStatus)
+            let callsBeforeRepair = validationCalls
+            let refreshesBeforeRepair = refreshCalls
+            let savedSettings = settingsService.current
+
+            canRepairProvider.value = true
+            pane.viewModel.requestDetails(pane.id, origin: .screen)
+            await pane.viewModel.reviewTeamValidationTask?.value
+
+            XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
+            XCTAssertEqual(validationCalls, callsBeforeRepair + 1)
+            XCTAssertEqual(refreshCalls, refreshesBeforeRepair + 1)
+            XCTAssertEqual(settingsService.current, savedSettings)
+        }
+    }
+
+    func testSuccessfulTeamValidationIsReusedAcrossPullRequestsAndReviewLaunches() async {
         let settingsService = InMemorySettingsService()
         settingsService.update { $0.pullRequestReviewMode = .reviewTeam }
-        let isProviderReady = FlagBox()
+        let service = StubPullRequestsService()
+        service.diffResult = .success(makeUnifiedDiffFixture(fileCount: 1))
         var validationCalls = 0
+        var refreshCalls = 0
+        var startedReviews: [PullRequestIdentifier] = []
+        let viewModel = makePullRequestsViewModel(
+            service: service,
+            settingsService: settingsService,
+            agenticThreadStarter: { request in
+                startedReviews.append(request.identifier)
+                return makeAgenticThreadStart(conversationID: "review-\(request.identifier.number)")
+            },
+            reviewTeamSettingsValidator: { _ in validationCalls += 1 },
+            refreshReviewTeamProviderDiscovery: { refreshCalls += 1 }
+        )
+        await viewModel.reviewTeamValidationTask?.value
+
+        let summaries = (7...11).map { makePullRequestSummary(number: $0) }
+        for (index, summary) in summaries.enumerated() {
+            service.detailResult = .success(makePullRequestDetail(id: summary.id, viewerCanUpdate: true))
+            viewModel.requestDetails(summary)
+            let target = PullRequestPaneTarget.details(summary.id)
+
+            XCTAssertEqual(viewModel.paneSessions[target]?.pullRequestReviewTeamValidationStatus, .valid)
+            XCTAssertNil(viewModel.reviewTeamValidationTask)
+            await waitForPaneContent(viewModel, target: target)
+            viewModel.startAgenticThread(kind: .review)
+            await waitFor { startedReviews.count == index + 1 }
+            XCTAssertTrue(viewModel.paneSessions.values.allSatisfy { $0.pullRequestReviewTeamValidationStatus == .valid })
+            viewModel.agenticThreadActivity.end(summary.id, kind: .review)
+        }
+
+        service.detailResult = .success(makePullRequestDetail(id: summaries[0].id, viewerCanUpdate: true))
+        viewModel.requestDetails(summaries[0])
+
+        XCTAssertEqual(viewModel.activePaneTarget, .details(summaries[0].id))
+        await waitForPaneContent(viewModel, target: .details(summaries[0].id))
+        XCTAssertTrue(viewModel.paneSessions.values.allSatisfy { $0.pullRequestReviewTeamValidationStatus == .valid })
+        XCTAssertEqual(startedReviews, summaries.map(\.id))
+        XCTAssertEqual(validationCalls, 1)
+        XCTAssertEqual(refreshCalls, 0)
+        XCTAssertNil(viewModel.reviewTeamValidationTask)
+    }
+
+    func testOnlyRelevantSettingsInvalidateSuccessfulTeamValidation() async {
+        let settingsService = InMemorySettingsService()
+        settingsService.update { $0.pullRequestReviewMode = .reviewTeam }
+        let replacementGate = PullRequestsServiceGate()
+        defer { replacementGate.open() }
+        var validatedModels: [String?] = []
+        var refreshCalls = 0
         let pane = await openedReviewPane(
             settingsService: settingsService,
-            reviewTeamSettingsValidator: { _ in
-                validationCalls += 1
-                if !isProviderReady.value {
-                    throw ReviewTeamError.invalidOutput("CLI needs repair")
+            reviewTeamSettingsValidator: { settings in
+                validatedModels.append(settings.pullRequestReviewModel)
+                if validatedModels.count > 1 {
+                    await replacementGate.wait()
                 }
+            },
+            refreshReviewTeamProviderDiscovery: { refreshCalls += 1 }
+        )
+        // A duplicate initial validation would be held at replacementGate; report it without awaiting that task.
+        await waitFor { pane.session?.pullRequestReviewTeamValidationStatus == .valid }
+
+        settingsService.update { $0.pullRequestsSelectedTab = "authored" }
+        pane.viewModel.requestDetails(pane.id, origin: .screen)
+
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
+        XCTAssertNil(pane.viewModel.reviewTeamValidationTask)
+        XCTAssertEqual(validatedModels.count, 1)
+
+        settingsService.update { $0.pullRequestReviewModel = "replacement-model" }
+
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .validating)
+        await waitFor { validatedModels.count == 2 }
+        XCTAssertEqual(validatedModels.last ?? nil, "replacement-model")
+        replacementGate.open()
+        await pane.viewModel.reviewTeamValidationTask?.value
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
+        XCTAssertEqual(refreshCalls, 0)
+    }
+
+    func testExplicitRetryRefreshesDiscoveryBeforeReplacingSuccessfulValidation() async {
+        let settingsService = InMemorySettingsService()
+        settingsService.update { $0.pullRequestReviewMode = .reviewTeam }
+        let refreshGate = PullRequestsServiceGate()
+        defer { refreshGate.open() }
+        var events: [String] = []
+        let pane = await openedReviewPane(
+            settingsService: settingsService,
+            reviewTeamSettingsValidator: { _ in events.append("validate") },
+            refreshReviewTeamProviderDiscovery: {
+                events.append("refresh")
+                await refreshGate.wait()
             }
         )
-        await pane.viewModel.reviewTeamValidationTask?.value
-        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .invalid("CLI needs repair"))
-        let callsBeforeRepair = validationCalls
-        let savedSettings = settingsService.current
+        // An unexpected initial refresh must fail this checkpoint instead of trapping the test behind its own gate.
+        await waitFor { pane.session?.pullRequestReviewTeamValidationStatus == .valid }
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
+        XCTAssertEqual(events, ["validate"])
 
-        isProviderReady.value = true
-        pane.viewModel.requestDetails(pane.id, origin: .screen)
+        pane.viewModel.retryReviewTeamValidation()
+
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .validating)
+        await waitFor { events.last == "refresh" }
+        XCTAssertEqual(events, ["validate", "refresh"])
+
+        refreshGate.open()
         await pane.viewModel.reviewTeamValidationTask?.value
 
         XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
-        XCTAssertEqual(validationCalls, callsBeforeRepair + 1)
-        XCTAssertEqual(settingsService.current, savedSettings)
+        XCTAssertEqual(events, ["validate", "refresh", "validate"])
+        pane.viewModel.requestDetails(pane.id, origin: .screen)
+        XCTAssertEqual(pane.session?.pullRequestReviewTeamValidationStatus, .valid)
+        XCTAssertEqual(events, ["validate", "refresh", "validate"])
     }
 
     func testRepeatedPaneOpensShareTheSameInFlightTeamValidation() async {

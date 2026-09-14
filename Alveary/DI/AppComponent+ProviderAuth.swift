@@ -7,7 +7,7 @@ import Foundation
 /// threshold, and because the probe's wiring needs more explanation than a one-line registration.
 @MainActor
 extension AppComponent {
-    /// The Claude setup service every readiness gate, trust check, and host service shares.
+    /// The Claude setup service shared by trust checks and runtime host services; discovery owns a bounded probe separately.
     ///
     /// Demo mode gets the probe-less initializer, which reports ready with no diagnostics, so a demo
     /// build neither spawns the CLI nor shows the developer's real sign-in state.

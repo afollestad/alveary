@@ -39,6 +39,8 @@ final class PullRequestsViewModel {
     let reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator?
     /// Waits for the whole check's deadline, independently of provider discovery's cancellation support.
     let reviewTeamValidationSleeper: PullRequestReviewTeamValidationSleeper
+    /// Explicit recovery replaces abandoned discovery work without discarding the shared catalog.
+    let refreshReviewTeamProviderDiscovery: @MainActor @Sendable () async -> Void
     let openGitSettings: @MainActor () -> Void
     /// Which agentic footer routes are running, app-scoped so a run survives the pane unmounting.
     /// Mirrored onto each pane session rather than read from a `body` — see `workingAgenticKinds`.
@@ -68,6 +70,8 @@ final class PullRequestsViewModel {
     /// Nil means no attempt owns the result, including the gap between a timeout and Retry.
     @ObservationIgnored var reviewTeamValidationToken: UUID?
     @ObservationIgnored var reviewTeamSettingsSignature = PullRequestReviewTeamSettingsSignature(settings: AppSettings())
+    /// Enablement changes still need discovery after a replacement check or a period in single-agent mode.
+    @ObservationIgnored var reviewTeamDiscoveryNeedsRefresh = false
     @ObservationIgnored var mirroredPullRequestReviewMode = PullRequestReviewMode.singleAgent
     @ObservationIgnored var mirroredReviewTeamValidationStatus = PullRequestReviewTeamValidationStatus.notRequired
     /// Debounced detail refetches, keyed by the target whose session they refresh.
@@ -198,6 +202,7 @@ final class PullRequestsViewModel {
         reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
             try await Task.sleep(for: .seconds(30))
         },
+        refreshReviewTeamProviderDiscovery: @escaping @MainActor @Sendable () async -> Void = {},
         openGitSettings: @escaping @MainActor () -> Void = {},
         agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
@@ -227,6 +232,7 @@ final class PullRequestsViewModel {
         self.agenticThreadStarter = agenticThreadStarter
         self.reviewTeamSettingsValidator = reviewTeamSettingsValidator
         self.reviewTeamValidationSleeper = reviewTeamValidationSleeper
+        self.refreshReviewTeamProviderDiscovery = refreshReviewTeamProviderDiscovery
         self.openGitSettings = openGitSettings
         // Defaulted rather than optional: every read is a plain membership question, and an
         // absent tracker would make the footer's busy state silently untrackable in previews.
@@ -359,7 +365,7 @@ extension PullRequestsViewModel {
         // Reading a pull request is the lead time the footer's agentic routes need: the probe runs
         // while the user reads, so the click finds provider discovery already answered.
         warmAgentProviderDiscovery()
-        refreshPullRequestReviewConfiguration(force: true)
+        refreshPullRequestReviewConfigurationForPane()
         if let request = pendingPaneDismissals.first(where: { $0.target == target }) {
             deactivatedPaneDismissals.remove(request)
             dismissPane(target, generation: request.generation, restoreFocus: false)

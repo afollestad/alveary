@@ -13,9 +13,10 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
     private actor ProbeCountingDiscovery: AgentProviderDiscoveryService {
         private(set) var allCallCount = 0
         private(set) var lastProjectURLs: [URL?] = []
-        private var gate: CheckedContinuation<Void, Never>?
+        private var gates: [Int: CheckedContinuation<Void, Never>] = [:]
         private var isHeld = false
         private var answer: [AgentProviderID: AgentProviderStatus] = [:]
+        private(set) var cancelledCalls: Set<Int> = []
 
         func hold() {
             isHeld = true
@@ -23,8 +24,13 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
 
         func release() {
             isHeld = false
-            gate?.resume()
-            gate = nil
+            let waiting = Array(gates.values)
+            gates = [:]
+            for continuation in waiting { continuation.resume() }
+        }
+
+        func release(call: Int) {
+            gates.removeValue(forKey: call)?.resume()
         }
 
         func setAnswer(_ answer: [AgentProviderID: AgentProviderStatus]) {
@@ -33,12 +39,15 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
 
         func providerStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] {
             allCallCount += 1
+            let call = allCallCount
+            let answer = self.answer
             lastProjectURLs.append(projectURL)
             if isHeld {
                 await withCheckedContinuation { continuation in
-                    gate = continuation
+                    gates[call] = continuation
                 }
             }
+            if Task.isCancelled { cancelledCalls.insert(call) }
             return answer
         }
 
@@ -213,6 +222,136 @@ final class AgentProviderDiscoveryCacheTests: XCTestCase {
         let count = await fixture.base.allCallCount
         XCTAssertEqual(count, 2)
         XCTAssertEqual(statuses[.claude]?.availability?.versionDescription, "2.0.0")
+    }
+
+    func testExplicitRefreshPreservesTheLastSnapshotUntilItsReplacementIsReady() async {
+        let fixture = makeService()
+        await fixture.base.setAnswer(Self.statuses(version: "1.0.0"))
+        await fixture.service.warm()
+        await fixture.base.setAnswer(Self.statuses(version: "2.0.0"))
+        await fixture.base.hold()
+
+        let refresh = Task { await fixture.service.refresh() }
+        await waitUntil("expected explicit refresh to start despite a fresh snapshot") {
+            await fixture.base.allCallCount == 2
+        }
+
+        let readCompleted = expectation(description: "cached read completes while refresh is held")
+        let read = Task {
+            let statuses = await fixture.service.providerStatuses(projectURL: nil)
+            readCompleted.fulfill()
+            return statuses
+        }
+        await fulfillment(of: [readCompleted], timeout: 2)
+        await fixture.base.release()
+        let cached = await read.value
+        await refresh.value
+        XCTAssertEqual(cached[.claude]?.availability?.versionDescription, "1.0.0")
+
+        let refreshed = await fixture.service.providerStatuses(projectURL: nil)
+        let count = await fixture.base.allCallCount
+        XCTAssertEqual(refreshed[.claude]?.availability?.versionDescription, "2.0.0")
+        XCTAssertEqual(count, 2)
+    }
+
+    func testExplicitRefreshEscapesAStalledColdProbeAndRejectsItsLateAnswer() async {
+        let fixture = makeService()
+        await fixture.base.setAnswer(Self.statuses(version: "1.0.0"))
+        await fixture.base.hold()
+        let oldRead = Task { await fixture.service.providerStatuses(projectURL: nil) }
+        await waitUntil("expected the original cold probe to start") {
+            await fixture.base.allCallCount == 1
+        }
+
+        await fixture.base.setAnswer(Self.statuses(version: "2.0.0"))
+        let refreshCompleted = expectation(description: "repair completes while the original probe is held")
+        let refresh = Task {
+            await fixture.service.refresh()
+            refreshCompleted.fulfill()
+        }
+        await waitUntil("expected repair to start a new probe while the original remains held") {
+            await fixture.base.allCallCount == 2
+        }
+        await fixture.base.release(call: 2)
+        await fulfillment(of: [refreshCompleted], timeout: 2)
+
+        let readCompleted = expectation(description: "repaired snapshot is readable while the original probe is held")
+        let read = Task {
+            let statuses = await fixture.service.providerStatuses(projectURL: nil)
+            readCompleted.fulfill()
+            return statuses
+        }
+        await fulfillment(of: [readCompleted], timeout: 2)
+
+        // The old provider ignores cancellation until its own gate opens, then answers with its old snapshot.
+        await fixture.base.release()
+        await refresh.value
+        let repaired = await read.value
+        let obsolete = await oldRead.value
+        let latest = await fixture.service.providerStatuses(projectURL: nil)
+        let cancelledCalls = await fixture.base.cancelledCalls
+        let count = await fixture.base.allCallCount
+        XCTAssertEqual(repaired[.claude]?.availability?.versionDescription, "2.0.0")
+        XCTAssertEqual(obsolete[.claude]?.availability?.versionDescription, "1.0.0")
+        XCTAssertEqual(latest[.claude]?.availability?.versionDescription, "2.0.0")
+        XCTAssertEqual(cancelledCalls, [1])
+        XCTAssertEqual(count, 2)
+    }
+
+    func testSupersededRefreshWaitsForTheCurrentProbeWithoutStartingAnother() async {
+        let fixture = makeService()
+        await fixture.base.setAnswer(Self.statuses(version: "1.0.0"))
+        await fixture.service.warm()
+        await fixture.base.hold()
+        await fixture.base.setAnswer(Self.statuses(version: "2.0.0"))
+        let firstCompleted = expectation(description: "first refresh observes the replacement snapshot")
+        let first = Task {
+            await fixture.service.refresh()
+            firstCompleted.fulfill()
+        }
+        await waitUntil("expected the first refresh probe") { await fixture.base.allCallCount == 2 }
+        await fixture.base.setAnswer(Self.statuses(version: "3.0.0"))
+        let second = Task { await fixture.service.refresh() }
+        await waitUntil("expected the replacement refresh probe") { await fixture.base.allCallCount == 3 }
+
+        await fixture.base.release(call: 2)
+        let earlyCompletion = await XCTWaiter.fulfillment(of: [firstCompleted], timeout: 0.2)
+        XCTAssertEqual(earlyCompletion, .timedOut)
+
+        // Release every gate before awaiting task teardown, including when a checkpoint failed.
+        await fixture.base.release()
+        await first.value
+        await second.value
+        let latest = await fixture.service.providerStatuses(projectURL: nil)
+        let count = await fixture.base.allCallCount
+        XCTAssertEqual(latest[.claude]?.availability?.versionDescription, "3.0.0")
+        XCTAssertEqual(count, 3)
+    }
+
+    func testSupersededRefreshReusesAnAlreadyCompletedReplacement() async {
+        let fixture = makeService()
+        await fixture.base.hold()
+        await fixture.base.setAnswer(Self.statuses(version: "1.0.0"))
+        let first = Task { await fixture.service.refresh() }
+        await waitUntil("expected the first cold refresh probe") { await fixture.base.allCallCount == 1 }
+        await fixture.base.setAnswer(Self.statuses(version: "2.0.0"))
+        let secondCompleted = expectation(description: "replacement completes before the superseded probe")
+        let second = Task {
+            await fixture.service.refresh()
+            secondCompleted.fulfill()
+        }
+        await waitUntil("expected the replacement cold refresh probe") { await fixture.base.allCallCount == 2 }
+
+        await fixture.base.release(call: 2)
+        await fulfillment(of: [secondCompleted], timeout: 2)
+        await fixture.base.release()
+        await first.value
+        await second.value
+
+        let latest = await fixture.service.providerStatuses(projectURL: nil)
+        let count = await fixture.base.allCallCount
+        XCTAssertEqual(latest[.claude]?.availability?.versionDescription, "2.0.0")
+        XCTAssertEqual(count, 2)
     }
 
     /// Distinguishable snapshots, so a test can assert which one a read served.

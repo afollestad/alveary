@@ -7,7 +7,7 @@ import XCTest
 
 @MainActor
 final class PullRequestReviewTeamValidationViewTests: XCTestCase {
-    func testValidationCompletionUpdatesTheMountedEquatablePane() async throws {
+    func testValidationCompletionKeepsTheMountedEquatablePaneReadyAcrossReopens() async throws {
         let gates = ReviewTeamValidationViewGates()
         defer { gates.releaseAll() }
         let fixture = await makeFixture(gates: gates)
@@ -19,7 +19,15 @@ final class PullRequestReviewTeamValidationViewTests: XCTestCase {
             gates.validators[0].open()
 
             try await host.requireReady()
+            for _ in 0..<5 {
+                fixture.viewModel.requestDetails(fixture.target.identifier, origin: .screen)
+                XCTAssertEqual(fixture.viewModel.paneSessions[fixture.target]?.pullRequestReviewTeamValidationStatus, .valid)
+                XCTAssertNil(fixture.viewModel.reviewTeamValidationTask)
+                try await host.requireReady()
+            }
             XCTAssertEqual(gates.validationCalls, 1)
+            XCTAssertEqual(gates.deadlineCalls, 1)
+            XCTAssertEqual(gates.refreshCalls, 0)
             XCTAssertEqual(fixture.viewModel.paneSessions[fixture.target]?.generation, generation)
         }
     }
@@ -46,6 +54,7 @@ final class PullRequestReviewTeamValidationViewTests: XCTestCase {
             try host.clickButton("Retry")
             try await host.requireChecking()
             await waitFor { gates.validationCalls == 2 }
+            XCTAssertEqual(gates.refreshCalls, 1)
             XCTAssertFalse(host.hasText("Review team check timed out. Try again."))
 
             gates.validators[1].open()
@@ -67,7 +76,8 @@ final class PullRequestReviewTeamValidationViewTests: XCTestCase {
             service: service,
             settingsService: settings,
             reviewTeamSettingsValidator: { _ in await gates.validate() },
-            reviewTeamValidationSleeper: { await gates.waitForDeadline() }
+            reviewTeamValidationSleeper: { await gates.waitForDeadline() },
+            refreshReviewTeamProviderDiscovery: { gates.refreshDiscovery() }
         )
         viewModel.requestDetails(summary)
         let target = PullRequestPaneTarget.details(summary.id)
@@ -106,7 +116,12 @@ private final class ReviewTeamValidationViewGates {
     let validators = [PullRequestsServiceGate(), PullRequestsServiceGate()]
     let deadlines = [PullRequestsServiceGate(), PullRequestsServiceGate()]
     private(set) var validationCalls = 0
-    private var deadlineCalls = 0
+    private(set) var deadlineCalls = 0
+    private(set) var refreshCalls = 0
+
+    func refreshDiscovery() {
+        refreshCalls += 1
+    }
 
     func validate() async {
         let index = validationCalls
