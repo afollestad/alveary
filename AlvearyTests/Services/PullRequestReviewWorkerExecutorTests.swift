@@ -182,7 +182,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.argumentsURL.path))
     }
 
-    private struct Fixture {
+    struct Fixture {
         let executor: DefaultPullRequestReviewWorkerExecutor
         let registry: PullRequestReviewWorkerProcessRegistry
         let packet: ReviewPacketLease
@@ -191,10 +191,12 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         let directory: URL
     }
 
-    private func makeFixture(
+    func makeFixture(
         providerID: String,
         script: String,
-        environment: [String: String] = [:]
+        environment: [String: String] = [:],
+        capabilityShellRunner: (any ShellRunner)? = nil,
+        executionShellRunner: (any ShellRunner)? = nil
     ) async throws -> Fixture {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("alveary-review-worker-tests-\(UUID().uuidString)", isDirectory: true)
@@ -209,7 +211,9 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
         let registry = PullRequestReviewWorkerProcessRegistry()
         let executor = DefaultPullRequestReviewWorkerExecutor(
             environmentBuilder: ReviewWorkerTestEnvironmentBuilder(values: environment),
-            processRegistry: registry
+            processRegistry: registry,
+            capabilityShellRunner: capabilityShellRunner,
+            executionShellRunner: executionShellRunner
         )
         let packetStore = ReviewPacketStore(rootDirectory: directory.appendingPathComponent("packets"))
         let packet = try await packetStore.create(runID: "run-\(providerID)", files: [
@@ -348,7 +352,7 @@ final class PullRequestReviewWorkerExecutorTests: XCTestCase {
     """#
 }
 
-private struct ReviewWorkerTestEnvironmentBuilder: AgentEnvironmentBuilder {
+struct ReviewWorkerTestEnvironmentBuilder: AgentEnvironmentBuilder {
     let values: [String: String]
 
     func buildEnvironment(providerEnv: [String: String]?) -> [String: String] {

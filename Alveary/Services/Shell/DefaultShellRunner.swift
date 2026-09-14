@@ -95,10 +95,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
             if !capture.didFinish, let timeout = options.timeout {
                 throw ShellError.timeout(executable: executable, timeout: timeout)
             }
-            guard capture.inputCompleted, !capture.standardOutput.incomplete, !capture.standardError.incomplete else {
-                throw ShellError.ioDrainTimedOut(executable: executable)
-            }
-            return ShellResult(
+            let result = ShellResult(
                 stdout: String(bytes: capture.standardOutput.data, encoding: .utf8) ?? "",
                 stdoutData: capture.standardOutput.data,
                 stderr: String(bytes: capture.standardError.data, encoding: .utf8) ?? "",
@@ -106,6 +103,14 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
                 stdoutWasTruncated: capture.standardOutput.wasTruncated,
                 stderrWasTruncated: capture.standardError.wasTruncated
             )
+            guard capture.inputCompleted, capture.standardOutput.failure == nil, capture.standardError.failure == nil else {
+                throw ShellError.ioFailure(ShellIOFailure(
+                    executable: executable, result: result, exitedNormally: process.terminationReason == .exit,
+                    inputCompleted: capture.inputCompleted, stdoutFailure: capture.standardOutput.failure,
+                    stderrFailure: capture.standardError.failure
+                ))
+            }
+            return result
         } onCancel: {
             terminationController.requestTermination()
         }
@@ -190,7 +195,7 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
                     try pipe.fileHandleForWriting.write(contentsOf: Data(text.utf8))
                     return true
                 } catch {
-                    return true
+                    return false
                 }
             }
             return Self.writeNonBlocking(
@@ -269,14 +274,15 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
                 append(chunk, to: &captured, maxBytes: maxBytes, wasTruncated: &wasTruncated)
             }
         } catch {
-            if !Task.isCancelled {
-                print("[ShellRunner] Failed to read process output: \(error)")
-            }
+            let error = error as NSError
+            let code = error.domain == NSPOSIXErrorDomain ? Int32(clamping: error.code) : EIO
+            return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, failure: .readFailed(code))
         }
-        return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, incomplete: false)
+        return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, failure: nil)
     }
 
-    private static func readNonBlocking(
+    /// Probe once at the deadline so an already-closed pipe succeeds without letting a persistent writer extend cleanup.
+    static func readNonBlocking(
         from descriptor: Int32,
         maxBytes: Int?,
         stopController: ShellIOStopController
@@ -284,27 +290,26 @@ final class DefaultShellRunner: ShellRunner, @unchecked Sendable {
         var captured = Data()
         var wasTruncated = false
         guard setNonBlocking(descriptor) else {
-            return ShellOutputCapture(data: captured, wasTruncated: false, incomplete: true)
+            return ShellOutputCapture(data: captured, wasTruncated: false, failure: .readFailed(errno))
         }
         var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         while true {
-            if stopController.shouldStop {
-                return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, incomplete: true)
-            }
+            let isFinalRead = stopController.shouldStop
             let count = buffer.withUnsafeMutableBytes { bytes in
                 Darwin.read(descriptor, bytes.baseAddress, bytes.count)
             }
+            let code = errno
             if count > 0 {
                 append(Data(buffer.prefix(count)), to: &captured, maxBytes: maxBytes, wasTruncated: &wasTruncated)
             } else if count == 0 {
-                return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, incomplete: false)
-            } else if errno == EINTR {
-                continue
-            } else if errno == EAGAIN || errno == EWOULDBLOCK {
-                usleep(10_000)
-            } else {
-                return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, incomplete: true)
+                return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, failure: nil)
+            } else if code != EINTR, code != EAGAIN, code != EWOULDBLOCK {
+                return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, failure: .readFailed(code))
             }
+            if isFinalRead {
+                return ShellOutputCapture(data: captured, wasTruncated: wasTruncated, failure: .drainTimedOut)
+            }
+            if count < 0, code == EAGAIN || code == EWOULDBLOCK { usleep(10_000) }
         }
     }
 

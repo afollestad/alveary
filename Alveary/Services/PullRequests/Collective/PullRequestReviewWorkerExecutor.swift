@@ -109,16 +109,19 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
     private let environmentBuilder: any AgentEnvironmentBuilder
     private let processRegistry: PullRequestReviewWorkerProcessRegistry
     private let capabilityShellRunner: (any ShellRunner)?
+    private let executionShellRunner: (any ShellRunner)?
     private var tasksByRunID: [String: [String: Task<String, Error>]] = [:]
 
     init(
         environmentBuilder: any AgentEnvironmentBuilder,
         processRegistry: PullRequestReviewWorkerProcessRegistry,
-        capabilityShellRunner: (any ShellRunner)? = nil
+        capabilityShellRunner: (any ShellRunner)? = nil,
+        executionShellRunner: (any ShellRunner)? = nil
     ) {
         self.environmentBuilder = environmentBuilder
         self.processRegistry = processRegistry
         self.capabilityShellRunner = capabilityShellRunner
+        self.executionShellRunner = executionShellRunner
     }
 
     /// Recheck each launch: a CLI wrapper's target can change without changing the configured executable path.
@@ -242,20 +245,27 @@ actor DefaultPullRequestReviewWorkerExecutor: PullRequestReviewWorkerExecuting {
             prompt: prompt,
             providerID: providerID
         )
-        let shellRunner = DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
-        let standardInput = command.standardInput.map(ShellStandardInput.text) ?? .nullDevice
-        let result = try await shellRunner.run(
-            executable: command.executable,
-            args: command.arguments,
-            in: command.workingDirectory?.path,
-            environment: command.environment,
-            environmentPolicy: .replace,
-            processGroupPolicy: .create,
-            timeout: Self.timeout,
-            stdoutLimitBytes: Self.stdoutLimitBytes,
-            stderrLimitBytes: Self.stderrLimitBytes,
-            standardInput: standardInput
-        )
+        let shellRunner = executionShellRunner ?? DefaultShellRunner(processTracker: processRegistry.tracker(for: processKey))
+        let result: ShellResult
+        do {
+            result = try await shellRunner.run(
+                executable: command.executable,
+                args: command.arguments,
+                in: command.workingDirectory?.path,
+                environment: command.environment,
+                environmentPolicy: .replace,
+                processGroupPolicy: .create,
+                timeout: Self.timeout,
+                stdoutLimitBytes: Self.stdoutLimitBytes,
+                stderrLimitBytes: Self.stderrLimitBytes,
+                standardInput: command.standardInput.map(ShellStandardInput.text) ?? .nullDevice
+            )
+        } catch let error as ShellError {
+            guard providerID == .codex, case .ioFailure(let failure) = error,
+                  ReviewWorkerCodexCompletion.canRecover(failure) else { throw error }
+            result = failure.result
+        }
+        try Task.checkCancellation()
         return try await finalText(
             from: result,
             configuration: configuration,

@@ -134,19 +134,62 @@ extension ShellRunner {
 
 enum ShellError: Error, Sendable, Equatable {
     case timeout(executable: String, timeout: Duration)
-    case ioDrainTimedOut(executable: String)
+    case ioFailure(ShellIOFailure)
     case invalidDirectory(String)
 }
 
-extension ShellError: LocalizedError {
+enum ShellOutputFailure: Sendable, Equatable {
+    case drainTimedOut
+    case readFailed(Int32)
+}
+
+/// Retains incomplete captures for callers with a separate authoritative result; stdout is never a diagnostic.
+struct ShellIOFailure: Sendable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
+    let executable: String
+    let result: ShellResult
+    let exitedNormally: Bool
+    let inputCompleted: Bool
+    let stdoutFailure: ShellOutputFailure?
+    let stderrFailure: ShellOutputFailure?
+
+    var description: String { diagnostic }
+    var debugDescription: String { diagnostic }
+
+    fileprivate var diagnostic: String {
+        let exit = exitedNormally ? "exited with code \(result.exitCode)" : "was terminated by signal \(result.exitCode)"
+        var reasons: [String] = []
+        if !inputCompleted { reasons.append("standard input was not fully delivered") }
+        if let stdoutFailure { reasons.append(Self.describe(stdoutFailure, stream: "stdout")) }
+        if let stderrFailure { reasons.append(Self.describe(stderrFailure, stream: "stderr")) }
+        let message = "\(executable) \(exit), but \(reasons.joined(separator: "; "))."
+        let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !stderr.isEmpty else { return message }
+        var bytes = Data(stderr.utf8.prefix(2_000))
+        while !bytes.isEmpty, String(data: bytes, encoding: .utf8) == nil { bytes.removeLast() }
+        let suffix = stderr.utf8.count > bytes.count || result.stderrWasTruncated ? "…" : ""
+        return message + " Stderr: " + (String(data: bytes, encoding: .utf8) ?? "") + suffix
+    }
+
+    private static func describe(_ failure: ShellOutputFailure, stream: String) -> String {
+        switch failure {
+        case .drainTimedOut: "\(stream) did not close before the I/O deadline"
+        case .readFailed(let code): "\(stream) could not be read (errno \(code))"
+        }
+    }
+}
+
+extension ShellError: LocalizedError, CustomStringConvertible, CustomDebugStringConvertible {
+    var description: String { errorDescription ?? "The command failed." }
+    var debugDescription: String { description }
+
     var errorDescription: String? {
         switch self {
         case .invalidDirectory(let directory):
             return "The working directory is unavailable: \(directory)"
         case .timeout(let executable, let timeout):
             return "\(executable) timed out after \(timeout.components.seconds) seconds"
-        case .ioDrainTimedOut(let executable):
-            return "\(executable) did not close its standard I/O after exiting"
+        case .ioFailure(let failure):
+            return failure.diagnostic
         }
     }
 }

@@ -16,6 +16,7 @@ final class ReviewCoordinatorFixture {
     let identifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 7)
 
     init(ownPR: Bool = false, historyStore: ReviewTeamHistoryStore? = nil,
+         workerOverride: ((ReviewCoordinatorWorker) -> any PullRequestReviewWorkerExecuting)? = nil,
          commitSave: @escaping (ModelContext) throws -> Void = { try $0.save() }) throws {
         container = try ModelContainer(for: Project.self, AgentThread.self, Conversation.self, ConversationEventRecord.self,
                                        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
@@ -36,7 +37,7 @@ final class ReviewCoordinatorFixture {
         packetRoot = FileManager.default.temporaryDirectory.appendingPathComponent("collective-tests-\(UUID().uuidString)")
         packets = ReviewPacketStore(rootDirectory: packetRoot)
         coordinator = PullRequestReviewTeamCoordinator(
-            modelContext: context, service: service, worker: worker, packets: packets,
+            modelContext: context, service: service, worker: workerOverride?(worker) ?? worker, packets: packets,
             staging: PullRequestCollectiveReviewStagingService(modelContext: context, service: service),
             activity: PullRequestAgenticThreadActivity(currentSignal: { _ in .neutral }),
             resolver: PullRequestReviewTeamResolver(providerDiscovery: RecordingProviderDiscoveryService(statuses: [:])),
@@ -48,9 +49,9 @@ final class ReviewCoordinatorFixture {
 
     deinit { try? FileManager.default.removeItem(at: packetRoot) }
 
-    func start() throws {
+    func start(team: [ReviewWorkerConfiguration] = reviewTestTeam()) throws {
         try coordinator.begin(conversationID: conversation.id, identifier: identifier,
-                              url: URL(string: "https://github.com/octo/alpha/pull/7")!, team: reviewTestTeam(), criteria: "Find bugs.")
+                              url: URL(string: "https://github.com/octo/alpha/pull/7")!, team: team, criteria: "Find bugs.")
     }
 
     func makeRun(

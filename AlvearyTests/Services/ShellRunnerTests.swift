@@ -305,8 +305,13 @@ final class ShellRunnerTests: XCTestCase {
                 standardInput: .text(String(repeating: "x", count: 4 * 1024 * 1024))
             )
             XCTFail("Expected incomplete standard input")
-        } catch let ShellError.ioDrainTimedOut(executable) {
-            XCTAssertEqual(executable, "/usr/bin/perl")
+        } catch let ShellError.ioFailure(failure) {
+            XCTAssertEqual(failure.executable, "/usr/bin/perl")
+            XCTAssertTrue(failure.exitedNormally)
+            XCTAssertEqual(failure.result.exitCode, 0)
+            XCTAssertFalse(failure.inputCompleted)
+            XCTAssertNil(failure.stdoutFailure)
+            XCTAssertNil(failure.stderrFailure)
             XCTAssertLessThan(start.duration(to: clock.now), .seconds(4))
         }
     }

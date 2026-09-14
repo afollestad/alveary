@@ -4,7 +4,7 @@ import Foundation
 struct ShellOutputCapture: Sendable {
     let data: Data
     let wasTruncated: Bool
-    let incomplete: Bool
+    let failure: ShellOutputFailure?
 }
 
 struct ShellExecutionCapture: Sendable {
@@ -179,6 +179,11 @@ final class ProcessTerminationController: @unchecked Sendable {
 
 final class ShellIOStopController: @unchecked Sendable {
     private let state = LockedState<Double?>(nil)
+    private let drainTimeout: TimeInterval
+
+    init(drainTimeout: TimeInterval = 3) {
+        self.drainTimeout = drainTimeout
+    }
 
     var shouldStop: Bool {
         state.withLock { deadline in
@@ -189,7 +194,7 @@ final class ShellIOStopController: @unchecked Sendable {
     func beginDeadline() {
         state.withLock { deadline in
             if deadline == nil {
-                deadline = ProcessInfo.processInfo.systemUptime + 3
+                deadline = ProcessInfo.processInfo.systemUptime + drainTimeout
             }
         }
     }
