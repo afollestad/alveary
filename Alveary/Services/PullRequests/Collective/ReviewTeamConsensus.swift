@@ -7,12 +7,18 @@ enum ReviewTeamConsensus {
 
     static func requiredVotes(teamSize: Int) -> Int { teamSize / 2 + 1 }
 
+    /// Normalize framing only during validation so execution history retains the exact provider response.
     static func decode<T: Decodable>(_ type: T.Type, from text: String) throws -> T {
         guard text.utf8.count <= maximumOutputBytes else {
             throw ReviewTeamError.invalidOutput("The reviewer response exceeded the size limit.")
         }
-        do { return try JSONDecoder().decode(type, from: Data(text.utf8)) } catch {
-            throw ReviewTeamError.invalidOutput("Return only valid JSON matching the requested schema.")
+        let data = Data(normalizedJSON(text).utf8)
+        do {
+            return try JSONDecoder().decode(type, from: data)
+        } catch let error as DecodingError {
+            throw ReviewTeamError.invalidOutput(decodingDiagnostic(error, data: data))
+        } catch {
+            throw ReviewTeamError.invalidOutput("The reviewer response does not match the requested schema.")
         }
     }
 
@@ -87,6 +93,46 @@ enum ReviewTeamConsensus {
             let priorities = votes.filter { $0.decision == .agree }.compactMap(\.priority).sorted()
             guard priorities.count >= required else { return nil }
             return ReviewAcceptedFinding(finding: finding, priority: priorities[required - 1], votes: votes)
+        }
+    }
+
+    /// Unwrap only a complete outer JSON fence; searching prose for an object could select the wrong report.
+    private static func normalizedJSON(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let openingEnd = trimmed.firstIndex(where: \.isNewline),
+              let closingStart = trimmed.lastIndex(where: \.isNewline),
+              openingEnd < closingStart else { return trimmed }
+        let opening = trimmed[..<openingEnd].trimmingCharacters(in: .whitespaces).lowercased()
+        let closing = trimmed[trimmed.index(after: closingStart)...].trimmingCharacters(in: .whitespaces)
+        guard opening == "```json" || opening == "```", closing == "```" else { return trimmed }
+        return String(trimmed[trimmed.index(after: openingEnd)..<closingStart])
+    }
+
+    /// Decoder debug descriptions can echo response content; expose only the failure category and schema path.
+    private static func decodingDiagnostic(_ error: DecodingError, data: Data) -> String {
+        switch error {
+        case .keyNotFound(let key, let context):
+            return "Missing required field at \(codingPath(context.codingPath + [key]))."
+        case .valueNotFound(_, let context):
+            return "Required value is null at \(codingPath(context.codingPath))."
+        case .typeMismatch(_, let context):
+            return "Incorrect value type at \(codingPath(context.codingPath))."
+        case .dataCorrupted(let context):
+            // Foundation also loses the path for numeric conversion failures, which can still be valid JSON.
+            if context.codingPath.isEmpty,
+               (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)) == nil {
+                return "The reviewer response is not valid JSON."
+            }
+            return "Invalid value at \(codingPath(context.codingPath))."
+        @unknown default:
+            return "The reviewer response does not match the requested schema."
+        }
+    }
+
+    private static func codingPath(_ keys: [any CodingKey]) -> String {
+        keys.reduce("$") { path, key in
+            if let index = key.intValue { return "\(path)[\(index)]" }
+            return "\(path).\(key.stringValue)"
         }
     }
 

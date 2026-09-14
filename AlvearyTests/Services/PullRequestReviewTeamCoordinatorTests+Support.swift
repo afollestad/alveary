@@ -128,11 +128,14 @@ actor ReviewCoordinatorWorker: PullRequestReviewWorkerExecuting {
         id: "finding-1", sourceCandidateIDs: [], path: "File0.swift", line: 1, side: "RIGHT", body: "A concrete problem."
     )
     private(set) var calls: [Call] = []
+    private(set) var responses: [String] = []
     private(set) var completedCount = 0
     private(set) var cancelledRunIDs: [String] = []
     private var gate: PullRequestsServiceGate?
     private var empty = false
     private var malformedFirst = false
+    private var responseFence: String?
+    private var leadInspectionResponse: String?
     private var failedInspectors: Set<String> = []
     private var failedVoters: Set<String> = []
 
@@ -145,6 +148,11 @@ actor ReviewCoordinatorWorker: PullRequestReviewWorkerExecuting {
         self.malformedFirst = malformedFirst
         self.failedInspectors = failedInspectors
         self.failedVoters = failedVoters
+    }
+
+    func configureResponses(fence: String? = nil, leadInspectionResponse: String? = nil) {
+        self.responseFence = fence
+        self.leadInspectionResponse = leadInspectionResponse
     }
 
     func preflight(_ configuration: ReviewWorkerConfiguration) async throws {}
@@ -174,9 +182,12 @@ actor ReviewCoordinatorWorker: PullRequestReviewWorkerExecuting {
         default:
             await gate?.wait()
             if failedInspectors.contains(configuration.id) { throw ReviewTeamError.invalidOutput("Provider failed") }
+            if let leadInspectionResponse, configuration.id == "lead" {
+                return response(leadInspectionResponse)
+            }
             if malformedFirst, configuration.id == "lead" {
                 malformedFirst = false
-                return "malformed"
+                return response("malformed")
             }
             return try json(ReviewInspectionReport(findings: empty ? [] : [ReviewCandidate(
                 id: "untrusted", priority: 2, path: "File0.swift", line: 1, side: "RIGHT",
@@ -186,7 +197,13 @@ actor ReviewCoordinatorWorker: PullRequestReviewWorkerExecuting {
     }
 
     private func json<T: Encodable>(_ value: T) throws -> String {
-        try ReviewTeamDigest.jsonString(value)
+        response(try ReviewTeamDigest.jsonString(value))
+    }
+
+    private func response(_ text: String) -> String {
+        let result = responseFence.map { "\n\($0)\n\(text)\n```\n" } ?? text
+        responses.append(result)
+        return result
     }
 }
 

@@ -27,10 +27,10 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(String(data: originalPrompt, encoding: .utf8) == ReviewTeamPrompts.inspect(criteria: run.criteria))
         #expect(String(data: retryPrompt, encoding: .utf8)
             == ReviewTeamPrompts.inspect(criteria: run.criteria)
-                + "\nYour previous response was invalid: Return only valid JSON matching the requested schema. Return corrected JSON only.")
+                + "\nYour previous response was invalid: The reviewer response is not valid JSON. Return corrected JSON only.")
         let invalidResponse = try #require(first.response)
         #expect(try await store.read(invalidResponse, conversationID: run.conversationID, runID: run.id) == Data("malformed".utf8))
-        #expect(first.error == "Return only valid JSON matching the requested schema.")
+        #expect(first.error == "The reviewer response is not valid JSON.")
         #expect(first.packetHash == retry.packetHash)
         #expect(Set(first.inputs.map(\.name)) == ["context.json", "changes.diff", "published-feedback.json", "prior-proposal.json"])
         let response = try #require(retry.response)
@@ -38,6 +38,70 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(try JSONDecoder().decode(ReviewInspectionReport.self, from: raw).findings.first?.id == "untrusted")
         #expect(history.first { $0.phase == .consolidating }?.inputs.contains { $0.name == "candidates.json" } == true)
         #expect(history.first { $0.phase == .crossChecking }?.inputs.contains { $0.name == "canonical.json" } == true)
+    }
+
+    @Test(arguments: ["```json", "```"])
+    func `fenced responses succeed in every phase and remain unchanged in history`(fence: String) async throws {
+        let setup = try historyFixture()
+        let (fixture, store) = (setup.fixture, setup.store)
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        await fixture.worker.configureResponses(fence: fence)
+        try fixture.start()
+
+        let run = try await fixture.terminalRun()
+        let history = try #require(run.history)
+        #expect(run.phase == .staged)
+        #expect(run.attempts.isEmpty)
+        #expect(history.count == 7)
+        #expect(history.allSatisfy { $0.status == .succeeded && $0.error == nil })
+        #expect(history.filter { $0.phase == .inspecting }.count == 3)
+        #expect(history.filter { $0.phase == .consolidating }.count == 1)
+        #expect(history.filter { $0.phase == .crossChecking }.count == 3)
+        #expect(await fixture.worker.calls.count == 7)
+        var savedResponses: [String] = []
+        for attempt in history {
+            let response = try #require(attempt.response)
+            let data = try await store.read(response, conversationID: run.conversationID, runID: run.id)
+            let raw = try #require(String(data: data, encoding: .utf8))
+            #expect(raw.hasPrefix("\n\(fence)\n"))
+            #expect(raw.hasSuffix("\n```\n"))
+            savedResponses.append(raw)
+        }
+        let emittedResponses = await fixture.worker.responses
+        #expect(savedResponses.sorted() == emittedResponses.sorted())
+    }
+
+    @Test func `schema failures retain precise corrective prompts and stop after one retry`() async throws {
+        let setup = try historyFixture()
+        let (fixture, store) = (setup.fixture, setup.store)
+        defer { try? FileManager.default.removeItem(at: setup.root) }
+        let response = """
+        {"findings":[{"id":"untrusted","priority":2,"path":"File0.swift","line":1,"side":"RIGHT","body":"A concrete problem."}]}
+        """
+        await fixture.worker.configureResponses(leadInspectionResponse: response)
+        try fixture.start()
+
+        let run = try await fixture.terminalRun()
+        let history = try #require(run.history)
+        let inspections = history.filter { $0.phase == .inspecting && $0.reviewerID == "lead" }
+        let diagnostic = "Missing required field at $.findings[0].evidence."
+        #expect(run.phase == .awaitingDecision)
+        #expect(run.pausedPhase == .inspecting)
+        #expect(run.attempts["inspecting:lead"] == 2)
+        #expect(inspections.map(\.status) == [.invalid, .invalid])
+        #expect(inspections.allSatisfy { $0.error == diagnostic })
+        #expect(await fixture.worker.inspectionCount == 4)
+        #expect(history.count == 4)
+        #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
+        let retry = try #require(inspections.last)
+        let retryPrompt = try await store.read(retry.prompt, conversationID: run.conversationID, runID: run.id)
+        #expect(String(data: retryPrompt, encoding: .utf8)
+            == ReviewTeamPrompts.inspect(criteria: run.criteria)
+                + "\nYour previous response was invalid: \(diagnostic) Return corrected JSON only.")
+        for attempt in inspections {
+            let artifact = try #require(attempt.response)
+            #expect(try await store.read(artifact, conversationID: run.conversationID, runID: run.id) == Data(response.utf8))
+        }
     }
 
     @Test func `history capture failure stops the run before any worker launches`() async throws {

@@ -97,6 +97,96 @@ struct ReviewTeamConsensusTests {
         }
     }
 
+    @Test(arguments: ["bare", "", "json", "JSON"])
+    func `all review reports accept a single JSON response with optional code fencing`(format: String) throws {
+        func response(_ payload: String) -> String {
+            if format == "bare" { return " \t\r\n" + payload + "\r\n\t " }
+            return " \t\r\n  ```\(format) \t\r\n\(payload)\r\n \t```  \r\n\t "
+        }
+        let evidence = #"The value "雪" retains literal ``` backticks and a \ path."#
+        let inspection = try ReviewTeamConsensus.inspection(
+            response(json(ReviewInspectionReport(findings: [candidate(evidence: evidence)]))), files: files
+        )
+        #expect(inspection.findings.count == 1)
+        #expect(inspection.findings.first?.evidence == evidence)
+        let canonical = ReviewCanonicalReport(findings: [finding()])
+        #expect(try ReviewTeamConsensus.canonical(response(json(canonical)), candidates: [candidate(id: "a")]) == canonical)
+        let votes = try ReviewTeamConsensus.votes(
+            response(json(ReviewVoteReport(votes: [vote(priority: 2)]))), reviewerID: "trusted", findings: canonical.findings
+        )
+        #expect(votes.votes.first?.voterID == "trusted")
+        #expect(votes.votes.first?.priority == 2)
+    }
+
+    @Test(arguments: [
+        "Here is the result:\n{\"findings\":[]}",
+        "{\"findings\":[]}\nDone.",
+        "```json\n{\"findings\":[]}",
+        "```json {\"findings\":[]}\n```",
+        "```json\n{\"findings\":[]}```",
+        "```json\n{\"findings\":[]}\n```\n```json\n{\"findings\":[]}\n```",
+        "{\"findings\":[]}\n{\"findings\":[]}",
+        "```json\n{\"findings\":[]}\n{\"findings\":[]}\n```",
+        "```javascript\n{\"findings\":[]}\n```",
+        "```json\n{\"findings\":[]}\n```\nDone.",
+        "```json\n{\"findings\": [}\n```"
+    ])
+    func `decoding rejects prose incomplete fences and ambiguous or malformed payloads`(text: String) {
+        #expect(throws: ReviewTeamError.invalidOutput("The reviewer response is not valid JSON.")) {
+            try ReviewTeamConsensus.inspection(text, files: files)
+        }
+    }
+
+    @Test(arguments: [
+        (
+            #"{"findings":[{"id":"a","priority":2,"path":"File0.swift","line":1,"side":"RIGHT","body":"Problem"}]}"#,
+            "Missing required field at $.findings[0].evidence."
+        ),
+        (
+            #"{"findings":[{"id":"a","priority":2,"path":"File0.swift","line":1,"side":"RIGHT","body":"Problem","evidence":null}]}"#,
+            "Required value is null at $.findings[0].evidence."
+        ),
+        (
+            #"{"findings":[{"id":"a","priority":"2","path":"File0.swift","line":1,"side":"RIGHT","body":"Problem","evidence":"Guard"}]}"#,
+            "Incorrect value type at $.findings[0].priority."
+        ),
+        ("[]", "Incorrect value type at $."),
+        (
+            #"{"findings":[{"id":"a","priority":2.5,"path":"File0.swift","line":1,"side":"RIGHT","body":"Problem","evidence":"Guard"}]}"#,
+            "Invalid value at $."
+        )
+    ])
+    func `schema diagnostics identify the failing field and array position`(text: String, diagnostic: String) {
+        #expect(throws: ReviewTeamError.invalidOutput(diagnostic)) {
+            try ReviewTeamConsensus.inspection(text, files: files)
+        }
+    }
+
+    @Test
+    func `invalid vote decisions identify the failing field`() {
+        let text = #"{"votes":[{"voterID":"a","findingID":"finding","decision":"approve","priority":1,"rationale":"Checked"}]}"#
+        #expect(throws: ReviewTeamError.invalidOutput("Invalid value at $.votes[0].decision.")) {
+            try ReviewTeamConsensus.votes(text, reviewerID: "trusted", findings: [finding()])
+        }
+    }
+
+    @Test
+    func `fenced findings still require a valid diff anchor`() throws {
+        let payload = try json(ReviewInspectionReport(findings: [candidate(line: 99)]))
+        #expect(throws: ReviewTeamError.invalidOutput("The finding's anchor is not present in the reviewed diff.")) {
+            try ReviewTeamConsensus.inspection("```json\n\(payload)\n```", files: files)
+        }
+    }
+
+    @Test(arguments: [" ", "\u{2003}"])
+    func `response size is bounded in original UTF8 bytes before removing whitespace or fences`(padding: String) {
+        let text = String(repeating: padding, count: ReviewTeamConsensus.maximumOutputBytes / padding.utf8.count)
+            + "```json\n{\"findings\":[]}\n```"
+        #expect(throws: ReviewTeamError.invalidOutput("The reviewer response exceeded the size limit.")) {
+            try ReviewTeamConsensus.inspection(text, files: files)
+        }
+    }
+
     private var files: [DiffFile] { DiffParser.parse(makeUnifiedDiffFixture(fileCount: 1)) }
 
     private func candidate(id: String = "untrusted", line: Int = 1, evidence: String = "The guard is absent.") -> ReviewCandidate {
