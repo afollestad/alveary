@@ -86,6 +86,8 @@ extension PullRequestReviewTeamValidationStatus {
             return "Checking review team settings…"
         case .invalid(let message):
             return "Review team needs attention. \(message)"
+        case .failed(let message):
+            return message
         }
     }
 }

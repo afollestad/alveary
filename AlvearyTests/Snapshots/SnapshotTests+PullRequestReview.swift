@@ -100,6 +100,22 @@ extension SnapshotTests {
         )
     }
 
+    func testPullRequestPaneReviewFooterReviewTeamCheckTimedOut() {
+        let fixture = PullRequestReviewFooterFixture(
+            pendingCommentCount: 0,
+            status: .open,
+            selectedReviewAction: .agenticReview,
+            reviewMode: .reviewTeam,
+            reviewTeamValidationStatus: .failed("Review team check timed out. Try again.")
+        )
+
+        assertMacSnapshot(
+            fixture.footer(initiallyExpanded: false),
+            size: CGSize(width: 460, height: 170),
+            named: "pull_request_review_footer_team_check_timed_out"
+        )
+    }
+
     func testPullRequestPaneReviewFooterAddressFeedbackIdleWhileReviewWorks() {
         // The two routes are independent: a running review leaves Address feedback fully live on
         // the face, which is what the caret exists to reach.

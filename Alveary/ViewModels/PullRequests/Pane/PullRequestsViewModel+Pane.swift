@@ -46,6 +46,8 @@ enum PullRequestReviewTeamValidationStatus: Equatable, Sendable {
     case validating
     case valid
     case invalid(String)
+    /// A check that could not finish; retrying does not require changing the saved team.
+    case failed(String)
 }
 
 /// One in-flight pane load. The `token` is what completion cleanup matches on: a

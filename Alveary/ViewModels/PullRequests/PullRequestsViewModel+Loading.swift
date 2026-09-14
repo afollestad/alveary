@@ -28,6 +28,20 @@ struct PullRequestBucketState: Equatable {
 // MARK: - Loading
 
 extension PullRequestsViewModel {
+    var isRefreshing: Bool {
+        !inFlightBuckets.isEmpty
+    }
+
+    /// Newest bucket fetch, so a screen appearance can tell a cold start from a warm one.
+    var lastRefreshedAt: Date? {
+        bucketStates.values.map(\.fetchedAt).max()
+    }
+
+    /// The visible tab's phase; the screen renders one tab, so this is what it switches on.
+    var loadPhase: PullRequestsLoadPhase {
+        loadPhase(for: selectedFilter)
+    }
+
     /// Warms the tab the screen will open on while the user is still elsewhere, so the first
     /// visit of a session usually issues nothing at all.
     ///

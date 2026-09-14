@@ -18,36 +18,6 @@ struct PullRequestAgenticThreadRequest {
     let preferredProjectID: PersistentIdentifier?
 }
 
-/// Throws when any saved reviewer cannot resolve to a concrete launch configuration.
-typealias PullRequestReviewTeamSettingsValidator = @MainActor @Sendable (AppSettings) async throws -> Void
-
-/// The settings that can change strict review-team resolution; unrelated settings do not restart validation.
-struct PullRequestReviewTeamSettingsSignature: Equatable, Sendable {
-    let mode: PullRequestReviewMode
-    let peers: [PullRequestReviewPeer]
-    let defaultProvider: String
-    let defaultModel: String
-    let defaultEffort: String
-    let disabledProviderIDs: Set<String>
-    let providerConfigs: [String: ProviderCustomConfig]
-    let leadProvider: String?
-    let leadModel: String?
-    let leadEffort: String?
-
-    init(settings: AppSettings) {
-        mode = settings.pullRequestReviewMode
-        peers = settings.pullRequestReviewPeers
-        defaultProvider = settings.defaultProvider
-        defaultModel = settings.defaultModel
-        defaultEffort = settings.effort
-        disabledProviderIDs = settings.disabledProviderIDs
-        providerConfigs = settings.providerConfigs
-        leadProvider = settings.pullRequestReviewProvider
-        leadModel = settings.pullRequestReviewModel
-        leadEffort = settings.pullRequestReviewEffort
-    }
-}
-
 /// The review footer's split-button selection and the agentic options it can run.
 extension PullRequestsViewModel {
     /// The stored pick for this pull request's authorship. A stored kind this build does not
@@ -206,98 +176,6 @@ extension PullRequestsViewModel {
         if let agenticThreadActivityObserver {
             notificationCenter.removeObserver(agenticThreadActivityObserver)
             self.agenticThreadActivityObserver = nil
-        }
-    }
-
-    /// Keeps settings out of the memoized footer body while still reflecting changes immediately.
-    func observePullRequestReviewSettings() {
-        guard let settingsService else {
-            return
-        }
-        pullRequestReviewSettingsObserver = NotificationCenter.default.addObserver(
-            forName: .appSettingsChanged,
-            object: settingsService,
-            queue: nil
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.refreshPullRequestReviewConfiguration()
-            }
-        }
-    }
-
-    func endPullRequestReviewSettingsObservation() {
-        guard let pullRequestReviewSettingsObserver else {
-            return
-        }
-        NotificationCenter.default.removeObserver(pullRequestReviewSettingsObserver)
-        self.pullRequestReviewSettingsObserver = nil
-    }
-
-    /// Pane opens force a fresh discovery check after external CLI repairs; an identical in-flight check is shared.
-    func refreshPullRequestReviewConfiguration(force: Bool = false) {
-        let settings = settingsService?.current ?? AppSettings()
-        let signature = PullRequestReviewTeamSettingsSignature(settings: settings)
-        let signatureChanged = signature != reviewTeamSettingsSignature
-        guard force || signatureChanged,
-              signatureChanged || mirroredReviewTeamValidationStatus != .validating else {
-            return
-        }
-
-        reviewTeamSettingsSignature = signature
-        reviewTeamValidationTask?.cancel()
-        let token = UUID()
-        reviewTeamValidationToken = token
-        mirroredPullRequestReviewMode = settings.pullRequestReviewMode
-
-        guard settings.pullRequestReviewMode == .reviewTeam else {
-            mirroredReviewTeamValidationStatus = .notRequired
-            mirrorPullRequestReviewConfiguration()
-            return
-        }
-
-        guard let reviewTeamSettingsValidator else {
-            mirroredReviewTeamValidationStatus = .unvalidated
-            mirrorPullRequestReviewConfiguration()
-            return
-        }
-
-        mirroredReviewTeamValidationStatus = .validating
-        mirrorPullRequestReviewConfiguration()
-        reviewTeamValidationTask = Task { [weak self] in
-            let status: PullRequestReviewTeamValidationStatus
-            do {
-                try await reviewTeamSettingsValidator(settings)
-                status = .valid
-            } catch is CancellationError {
-                return
-            } catch {
-                status = .invalid(error.localizedDescription)
-            }
-            guard !Task.isCancelled else {
-                return
-            }
-            self?.finishReviewTeamValidation(status, token: token)
-        }
-    }
-
-    private func finishReviewTeamValidation(
-        _ status: PullRequestReviewTeamValidationStatus,
-        token: UUID
-    ) {
-        guard token == reviewTeamValidationToken else {
-            return
-        }
-        reviewTeamValidationTask = nil
-        mirroredReviewTeamValidationStatus = status
-        mirrorPullRequestReviewConfiguration()
-    }
-
-    private func mirrorPullRequestReviewConfiguration() {
-        for target in Array(paneSessions.keys) {
-            mutateSession(target) { session in
-                session.pullRequestReviewMode = mirroredPullRequestReviewMode
-                session.pullRequestReviewTeamValidationStatus = mirroredReviewTeamValidationStatus
-            }
         }
     }
 

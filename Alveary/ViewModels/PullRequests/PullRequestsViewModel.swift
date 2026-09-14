@@ -37,6 +37,8 @@ final class PullRequestsViewModel {
     /// nil makes the footer's agentic options no-ops.
     let agenticThreadStarter: (@MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart)?
     let reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator?
+    /// Waits for the whole check's deadline, independently of provider discovery's cancellation support.
+    let reviewTeamValidationSleeper: PullRequestReviewTeamValidationSleeper
     let openGitSettings: @MainActor () -> Void
     /// Which agentic footer routes are running, app-scoped so a run survives the pane unmounting.
     /// Mirrored onto each pane session rather than read from a `body` — see `workingAgenticKinds`.
@@ -62,7 +64,9 @@ final class PullRequestsViewModel {
     @ObservationIgnored var agenticThreadActivityObserver: (any NSObjectProtocol)?
     @ObservationIgnored var pullRequestReviewSettingsObserver: (any NSObjectProtocol)?
     @ObservationIgnored var reviewTeamValidationTask: Task<Void, Never>?
-    @ObservationIgnored var reviewTeamValidationToken = UUID()
+    @ObservationIgnored var reviewTeamValidationDeadlineTask: Task<Void, Never>?
+    /// Nil means no attempt owns the result, including the gap between a timeout and Retry.
+    @ObservationIgnored var reviewTeamValidationToken: UUID?
     @ObservationIgnored var reviewTeamSettingsSignature = PullRequestReviewTeamSettingsSignature(settings: AppSettings())
     @ObservationIgnored var mirroredPullRequestReviewMode = PullRequestReviewMode.singleAgent
     @ObservationIgnored var mirroredReviewTeamValidationStatus = PullRequestReviewTeamValidationStatus.notRequired
@@ -112,20 +116,6 @@ final class PullRequestsViewModel {
     /// A "Load more" page in flight. Stored rather than derived from `inFlightBuckets`, which a
     /// concurrent page-one refresh also fills — only the footer's own request may disable it.
     var isLoadingMore = false
-
-    var isRefreshing: Bool {
-        !inFlightBuckets.isEmpty
-    }
-
-    /// Newest bucket fetch, so a screen appearance can tell a cold start from a warm one.
-    var lastRefreshedAt: Date? {
-        bucketStates.values.map(\.fetchedAt).max()
-    }
-
-    /// The visible tab's phase; the screen renders one tab, so this is what it switches on.
-    var loadPhase: PullRequestsLoadPhase {
-        loadPhase(for: selectedFilter)
-    }
 
     /// The open comment-composing session's BlockInputKit store; created by the
     /// composer-opening methods and cleared on cancel or successful save.
@@ -205,6 +195,9 @@ final class PullRequestsViewModel {
         warmAgentProviderDiscovery: @escaping @MainActor () -> Void = {},
         agenticThreadStarter: (@MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart)? = nil,
         reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
+        reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
+            try await Task.sleep(for: .seconds(30))
+        },
         openGitSettings: @escaping @MainActor () -> Void = {},
         agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
         reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
@@ -233,6 +226,7 @@ final class PullRequestsViewModel {
         self.warmAgentProviderDiscovery = warmAgentProviderDiscovery
         self.agenticThreadStarter = agenticThreadStarter
         self.reviewTeamSettingsValidator = reviewTeamSettingsValidator
+        self.reviewTeamValidationSleeper = reviewTeamValidationSleeper
         self.openGitSettings = openGitSettings
         // Defaulted rather than optional: every read is a plain membership question, and an
         // absent tracker would make the footer's busy state silently untrackable in previews.
@@ -256,7 +250,7 @@ final class PullRequestsViewModel {
     deinit {
         MainActor.assumeIsolated {
             searchCommitTask?.cancel()
-            reviewTeamValidationTask?.cancel()
+            cancelReviewTeamValidation()
             endRemoteChangeObservation()
             endAgenticThreadActivityObservation()
             endPullRequestReviewSettingsObservation()

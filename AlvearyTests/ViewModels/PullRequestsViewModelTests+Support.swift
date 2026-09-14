@@ -17,6 +17,9 @@ func makePullRequestsViewModel(
         @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
     )? = nil,
     reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
+    reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
+        try await Task.sleep(for: .seconds(30))
+    },
     openGitSettings: @escaping @MainActor () -> Void = {},
     agenticThreadActivity: PullRequestAgenticThreadActivity? = nil,
     reviewProposalCoordinator: PullRequestReviewProposalCoordinator? = nil,
@@ -45,6 +48,7 @@ func makePullRequestsViewModel(
         warmAgentProviderDiscovery: warmAgentProviderDiscovery,
         agenticThreadStarter: agenticThreadStarter,
         reviewTeamSettingsValidator: reviewTeamSettingsValidator,
+        reviewTeamValidationSleeper: reviewTeamValidationSleeper,
         openGitSettings: openGitSettings,
         agenticThreadActivity: agenticThreadActivity,
         reviewProposalCoordinator: reviewProposalCoordinator,

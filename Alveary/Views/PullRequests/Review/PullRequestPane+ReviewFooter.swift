@@ -387,7 +387,8 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 && effectiveReviewKind == .agenticReview
                 && session.pullRequestReviewMode == .reviewTeam,
             status: session.pullRequestReviewTeamValidationStatus,
-            onOpenSettings: viewModel.openPullRequestReviewSettings
+            onOpenSettings: viewModel.openPullRequestReviewSettings,
+            onRetry: viewModel.retryReviewTeamValidation
         )
     }
 
@@ -460,6 +461,7 @@ private struct PullRequestReviewTeamConfigurationBanner: View {
     let isPresented: Bool
     let status: PullRequestReviewTeamValidationStatus
     let onOpenSettings: () -> Void
+    let onRetry: () -> Void
 
     @ViewBuilder
     var body: some View {
@@ -481,6 +483,15 @@ private struct PullRequestReviewTeamConfigurationBanner: View {
                     autoDismissAfter: nil,
                     actionTitle: "Open settings",
                     onAction: onOpenSettings,
+                    onDismiss: nil
+                )
+            case .failed:
+                InlineBanner(
+                    message: status.footerMessage ?? "",
+                    severity: .warning,
+                    autoDismissAfter: nil,
+                    actionTitle: "Retry",
+                    onAction: onRetry,
                     onDismiss: nil
                 )
             }

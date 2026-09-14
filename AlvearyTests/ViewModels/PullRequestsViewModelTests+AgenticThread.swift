@@ -59,6 +59,9 @@ extension PullRequestsViewModelTests {
         presentToast: @escaping @MainActor @Sendable (String) -> Void = { _ in },
         startupGrace: Duration = .seconds(30),
         reviewTeamSettingsValidator: PullRequestReviewTeamSettingsValidator? = nil,
+        reviewTeamValidationSleeper: @escaping PullRequestReviewTeamValidationSleeper = {
+            try await Task.sleep(for: .seconds(30))
+        },
         openGitSettings: @escaping @MainActor () -> Void = {},
         starter: (
             @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart
@@ -82,6 +85,7 @@ extension PullRequestsViewModelTests {
             presentToast: presentToast,
             agenticThreadStarter: starter,
             reviewTeamSettingsValidator: reviewTeamSettingsValidator,
+            reviewTeamValidationSleeper: reviewTeamValidationSleeper,
             openGitSettings: openGitSettings,
             agenticThreadActivity: activity,
             notificationCenter: notificationCenter
