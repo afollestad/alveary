@@ -88,9 +88,17 @@ struct PullRequestRow: View, Equatable {
 
     private var trailingCluster: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            Text(model.ageText)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if model.hasLinkedThread {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .imageScale(.small)
+                        .help("Linked thread")
+                        .accessibilityHidden(true)
+                }
+                Text(model.ageText)
+                    .monospacedDigit()
+            }
+            .foregroundStyle(.secondary)
 
             diffStats
         }

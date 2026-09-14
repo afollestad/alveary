@@ -69,13 +69,15 @@ extension PullRequestsViewModelTests {
         func makeRow(
             isSelected: Bool = false,
             referenceDate: Date = date,
+            hasLinkedThread: Bool = false,
             onSelect: @escaping () -> Void = {}
         ) -> PullRequestRow {
             PullRequestRow(
                 model: PullRequestRowModel(
                     summary: makePullRequestSummary(number: 1),
                     showsRepository: true,
-                    referenceDate: referenceDate
+                    referenceDate: referenceDate,
+                    hasLinkedThread: hasLinkedThread
                 ),
                 isSelected: isSelected,
                 avatarLoader: loader,
@@ -85,6 +87,7 @@ extension PullRequestsViewModelTests {
 
         XCTAssertEqual(makeRow(onSelect: {}), makeRow(onSelect: { _ = loader }))
         XCTAssertNotEqual(makeRow(), makeRow(isSelected: true))
+        XCTAssertNotEqual(makeRow(), makeRow(hasLinkedThread: true))
         // A day on, so the rendered age moves; see the same-age case below.
         XCTAssertNotEqual(makeRow(), makeRow(referenceDate: date.addingTimeInterval(86_400)))
     }

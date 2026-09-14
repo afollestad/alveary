@@ -48,8 +48,7 @@ struct PullRequestListSection: Identifiable, Equatable {
     let rows: [PullRequestSummary]
 }
 
-/// One row's rendered text, derived once per `(summary, showsRepository, referenceDate)` instead
-/// of on every `body` pass.
+/// One row's rendered values, derived once per summary and display inputs instead of on every `body` pass.
 ///
 /// `PullRequestRow` used to build all of this inline, which cost each visible row two
 /// `compactRelativeAge` calls, two segment-cache probes for the same title (render plus
@@ -62,14 +61,16 @@ struct PullRequestRowModel: Identifiable, Equatable {
     /// Carried per row rather than passed alongside, so it lands in `==` with everything else the
     /// row draws.
     let showsRepository: Bool
+    let hasLinkedThread: Bool
     let ageText: String
     let accessibilityLabel: String
 
     var id: PullRequestIdentifier { summary.id }
 
-    init(summary: PullRequestSummary, showsRepository: Bool, referenceDate: Date) {
+    init(summary: PullRequestSummary, showsRepository: Bool, referenceDate: Date, hasLinkedThread: Bool = false) {
         self.summary = summary
         self.showsRepository = showsRepository
+        self.hasLinkedThread = hasLinkedThread
         let age = compactRelativeAge(from: summary.updatedAt, relativeTo: referenceDate)
         ageText = age
         var parts = [
@@ -83,6 +84,9 @@ struct PullRequestRowModel: Identifiable, Equatable {
         parts.append("branch \(summary.headRefName)")
         parts.append("updated \(age) ago")
         parts.append("\(summary.additions) added, \(summary.deletions) deleted")
+        if hasLinkedThread {
+            parts.append("Linked thread")
+        }
         accessibilityLabel = parts.joined(separator: ", ")
     }
 }
@@ -110,7 +114,8 @@ enum PullRequestListItem: Identifiable, Equatable {
     static func flatten(
         _ sections: [PullRequestListSection],
         showsRepository: Bool,
-        referenceDate: Date
+        referenceDate: Date,
+        linkedThreadIDs: Set<PullRequestIdentifier> = []
     ) -> [PullRequestListItem] {
         sections.flatMap { section -> [PullRequestListItem] in
             let rows = section.rows.map { summary in
@@ -118,7 +123,8 @@ enum PullRequestListItem: Identifiable, Equatable {
                     PullRequestRowModel(
                         summary: summary,
                         showsRepository: showsRepository,
-                        referenceDate: referenceDate
+                        referenceDate: referenceDate,
+                        hasLinkedThread: linkedThreadIDs.contains(summary.id)
                     )
                 )
             }

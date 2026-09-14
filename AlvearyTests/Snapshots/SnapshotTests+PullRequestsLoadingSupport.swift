@@ -1,4 +1,5 @@
 import SnapshotTesting
+import SwiftData
 import SwiftUI
 import XCTest
 
@@ -7,14 +8,17 @@ import XCTest
 /// Keep the real screen mounted through its appearance load; a failed preload is retried on mount.
 @MainActor
 final class PullRequestsUnavailableSnapshotHost {
+    private let modelContainer: ModelContainer
     private let viewModel: PullRequestsViewModel
     private let controller: NSHostingController<AnyView>
     private let window: NSWindow
 
-    init(viewModel: PullRequestsViewModel) {
+    init(viewModel: PullRequestsViewModel, modelContainer: ModelContainer) {
         self.viewModel = viewModel
+        self.modelContainer = modelContainer
         let size = CGSize(width: 1_120, height: 900)
         let root = PullRequestsScreen(viewModel: viewModel, onOpenGitSettings: {})
+            .modelContainer(modelContainer)
             .transaction { $0.animation = nil }
             .environment(\.locale, Locale(identifier: "en_US_POSIX"))
             .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .current)
@@ -65,7 +69,11 @@ final class PullRequestsUnavailableSnapshotHost {
         )
     }
 
-    func close() { closeSnapshotWindow(window, controller: controller) }
+    /// Drain the screen query observations before the next fixture saves into an in-memory store.
+    func close() async {
+        closeSnapshotWindow(window, controller: controller)
+        await awaitSnapshotHostTeardown(retaining: modelContainer)
+    }
 
     private func layout() {
         window.makeFirstResponder(nil)

@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct PullRequestsScreen: View {
@@ -5,6 +6,8 @@ struct PullRequestsScreen: View {
     let onOpenGitSettings: () -> Void
 
     @FocusState private var isListFocused: Bool
+    @Query(PullRequestLinkedOwnerLookup.linkHoldingThreads) private var linkHoldingThreads: [AgentThread]
+    @State private var linkedThreadIndex = PullRequestLinkedThreadIndex()
 
     private let contentVerticalPadding: CGFloat = 28
     // Match the new-thread hero's optical center within the Pull Requests pane.
@@ -43,7 +46,8 @@ struct PullRequestsScreen: View {
         // Resolved once per body pass rather than inside the scroll content: that closure
         // re-runs on every geometry change, so the filter/sort/bucket pipeline used to run
         // again for each frame of the right pane's slide-in.
-        let items = viewModel.visibleListItems(for: viewModel.selectedFilter)
+        let linkedThreadIDs = linkedThreadIndex.identifiers(in: linkHoldingThreads)
+        let items = viewModel.visibleListItems(for: viewModel.selectedFilter, linkedThreadIDs: linkedThreadIDs)
         let activeDetailID = viewModel.activeDetailIdentifier
         let avatarLoader = viewModel.avatarLoader
         let canLoadMore = viewModel.canLoadMore(for: viewModel.selectedFilter)
