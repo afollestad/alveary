@@ -1,3 +1,4 @@
+import AgentCLIKit
 import AppKit
 
 /// Persistent progress and terminal detail for an app-owned collective review run.
@@ -86,6 +87,8 @@ private extension AppKitReviewTeamRunWidgetView {
     func addTeam(_ configuration: Configuration) {
         for (index, member) in configuration.run.team.enumerated() {
             let status = ReviewTeamRunPresentation.status(for: member, in: configuration.run)
+            let providerName = member.providerID.capitalized
+            let modelName = modelLabel(for: member)
             let memberStack = NSStackView()
             memberStack.translatesAutoresizingMaskIntoConstraints = false
             memberStack.orientation = .vertical
@@ -106,7 +109,7 @@ private extension AppKitReviewTeamRunWidgetView {
             header.addArrangedSubview(details)
             memberStack.addFullWidthArrangedSubview(header)
             memberStack.addFullWidthArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
-                "Requested model: \(member.providerID) · \(member.modelOptionID) — \(status.label)",
+                "Requested model: \(providerName) · \(modelName) — \(status.label)",
                 level: .caption,
                 color: status.failed ? .systemRed : .secondaryLabelColor,
                 typography: configuration.typography,
@@ -124,12 +127,30 @@ private extension AppKitReviewTeamRunWidgetView {
             memberStack.setAccessibilityElement(false)
             memberStack.setAccessibilityRole(.group)
             memberStack.setAccessibilityLabel(
-                ["Requested model \(member.providerID) \(member.modelOptionID), \(status.label)", status.detail]
+                ["Requested model \(providerName) \(modelName), \(status.label)", status.detail]
                     .compactMap { $0 }
                     .joined(separator: ". ")
             )
             stack.addFullWidthArrangedSubview(memberStack)
         }
+    }
+
+    /// Match exact catalog IDs only: resolving a saved family alias would attribute it to today's pinned version.
+    func modelLabel(for member: ReviewWorkerConfiguration) -> String {
+        if let providerID = AgentProviderID(rawValue: member.providerID),
+           let option = AgentDefaultModelOptions.staticOptions(for: providerID).first(where: {
+               $0.id == member.modelOptionID || $0.model == member.modelOptionID
+           }) {
+            return option.label
+        }
+        return member.modelOptionID.split(separator: "-").map { word in
+            let normalized = word.lowercased()
+            if normalized == "gpt" { return "GPT" }
+            if normalized.first == "o", normalized.count > 1, normalized.dropFirst().allSatisfy(\.isNumber) {
+                return normalized
+            }
+            return word.capitalized
+        }.joined(separator: " ")
     }
 
     func addNotProposed(_ configuration: Configuration) {

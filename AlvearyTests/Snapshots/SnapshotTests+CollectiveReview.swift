@@ -9,7 +9,7 @@ extension SnapshotTests {
     func testCollectiveReviewInspectionActivity() throws {
         let fixture = try ConversationViewModelTestFixture()
         let chat = ReviewTeamConversationTestFixture.chatView(fixture: fixture, isWorking: true)
-        var run = CollectiveReviewSnapshotFixture.progressRun()
+        var run = CollectiveReviewSnapshotFixture.progressRun(leadModel: "gpt-6-astra", claudeModel: "claude-opus-4-8")
         run.phase = .inspecting
         run.inspections = ["lead": ReviewInspectionReport(findings: [])]
         run.canonical = nil
@@ -129,39 +129,42 @@ private enum CollectiveReviewSnapshotFixture {
         body: "The retry path never reaches a terminal failure."
     )
 
-    static let team = [
-        ReviewWorkerConfiguration(
-            id: "lead",
-            providerID: "codex",
-            modelOptionID: "gpt-5",
-            launchModel: "gpt-5",
-            effort: "high",
-            executablePath: "/fake/codex"
-        ),
-        ReviewWorkerConfiguration(
-            id: "peer-1",
-            providerID: "claude",
-            modelOptionID: "sonnet",
-            launchModel: "sonnet",
-            effort: "high",
-            executablePath: "/fake/claude"
-        ),
-        ReviewWorkerConfiguration(
-            id: "peer-2",
-            providerID: "codex",
-            modelOptionID: "o3",
-            launchModel: "o3",
-            effort: "medium",
-            executablePath: "/fake/codex"
-        )
-    ]
+    static func team(leadModel: String = "gpt-5", claudeModel: String = "sonnet") -> [ReviewWorkerConfiguration] {
+        [
+            ReviewWorkerConfiguration(
+                id: "lead",
+                providerID: "codex",
+                modelOptionID: leadModel,
+                launchModel: leadModel,
+                effort: "high",
+                executablePath: "/fake/codex"
+            ),
+            ReviewWorkerConfiguration(
+                id: "peer-1",
+                providerID: "claude",
+                modelOptionID: claudeModel,
+                launchModel: claudeModel,
+                effort: "high",
+                executablePath: "/fake/claude"
+            ),
+            ReviewWorkerConfiguration(
+                id: "peer-2",
+                providerID: "codex",
+                modelOptionID: "o3",
+                launchModel: "o3",
+                effort: "medium",
+                executablePath: "/fake/codex"
+            )
+        ]
+    }
 
-    static func progressRun() -> ReviewTeamRun {
+    static func progressRun(leadModel: String = "gpt-5", claudeModel: String = "sonnet") -> ReviewTeamRun {
         makeRun(
             phase: .crossChecking,
             voteReports: [
                 "lead": ReviewVoteReport(votes: [vote(voterID: "lead", decision: .agree)])
-            ]
+            ],
+            team: team(leadModel: leadModel, claudeModel: claudeModel)
         )
     }
 
@@ -254,7 +257,8 @@ private enum CollectiveReviewSnapshotFixture {
         phase: ReviewTeamRun.Phase,
         voteReports: [String: ReviewVoteReport],
         failures: [String: String] = [:],
-        error: String? = nil
+        error: String? = nil,
+        team: [ReviewWorkerConfiguration] = team()
     ) -> ReviewTeamRun {
         ReviewTeamRun(
             payloadVersion: 1,
