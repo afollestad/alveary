@@ -8,6 +8,7 @@ struct ConversationRuntimeReconfigureOutcome {
 extension ConversationViewModel {
     @discardableResult
     func reconfigureSession(config: AgentSpawnConfig) async throws -> AgentSessionReconfigureResult {
+        try ensureToolApprovalRestorationFinished()
         try ensureOrdinaryScheduledOutboundAvailable()
         guard !isAgentActivelyWorking, !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current turn/send to finish before applying session changes")
@@ -58,6 +59,7 @@ extension ConversationViewModel {
         config: AgentSpawnConfig,
         hostToolTransition: HostToolRuntimeTransition
     ) async throws -> ConversationRuntimeReconfigureOutcome {
+        cancelToolApprovalRestoration()
         do {
             let result = try await agentsManager.reconfigureSession(conversationId: conversation.id, config: config)
             return ConversationRuntimeReconfigureOutcome(

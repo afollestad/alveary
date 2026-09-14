@@ -425,23 +425,25 @@ extension SnapshotTests {
         )
     }
 
-    func testAppKitTranscriptFullSurface() {
+    func testAppKitTranscriptFullSurface() async {
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = 560
         configuration.expandedRowIDs = ["activity-tools"]
         configuration.pendingToolApproval = PendingToolApproval(request: sampleWriteApproval, status: .pending)
+        let items: [ChatItem] = [
+            .userMessage(id: "user", text: "Can you inspect the transcript migration?"),
+            .assistantMessage(id: "assistant", text: "I checked the AppKit transcript path and found a few follow-ups."),
+            .toolGroup(id: "tools", tools: sampleGroupTools),
+            .taskListBlock(id: "tasks", tasks: sampleTasks),
+            .toolApproval(id: "approval", approval: sampleWriteApproval, status: nil),
+            .transcriptNote(id: "note", kind: .enteredPlanMode),
+            .error(id: "error", message: "Snapshot fixture error message")
+        ]
+        await prepareTranscriptSnapshotMarkdown(items, configuration: configuration)
 
         assertMacSnapshot(
             AppKitTranscriptScrollViewRepresentable(
-                items: [
-                    .userMessage(id: "user", text: "Can you inspect the transcript migration?"),
-                    .assistantMessage(id: "assistant", text: "I checked the AppKit transcript path and found a few follow-ups."),
-                    .toolGroup(id: "tools", tools: sampleGroupTools),
-                    .taskListBlock(id: "tasks", tasks: sampleTasks),
-                    .toolApproval(id: "approval", approval: sampleWriteApproval, status: nil),
-                    .transcriptNote(id: "note", kind: .enteredPlanMode),
-                    .error(id: "error", message: "Snapshot fixture error message")
-                ],
+                items: items,
                 transientRows: .init(isTurnActive: true, isThinkingAnimated: false),
                 rowConfiguration: configuration,
                 isFollowing: false,

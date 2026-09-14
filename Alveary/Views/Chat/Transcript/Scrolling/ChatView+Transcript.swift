@@ -38,9 +38,12 @@ struct ChatTranscriptView: View {
     @State private var pendingProgrammaticScrollMode: PendingProgrammaticScrollMode?
     @State private var pendingProgrammaticScrollTimeoutToken: UUID?
     @State var latestMetrics: ChatTranscriptScrollMetrics?
+    @State private var isPreparingInitialTranscript = false
     @State var appKitScrollToBottomRequest = 0
     @State var transcriptContentWidth: CGFloat
     @State var expandedTranscriptRows: Set<String> = []
+    @State var appKitTranscriptPresentationCache = AppKitTranscriptPresentationCache()
+    @State var appKitTranscriptAttachmentCache = AppKitTranscriptAttachmentCache()
     @State var appKitToolApprovalSelectionsBySessionID: [String: ToolApprovalSelection] = [:]
     @State var appKitPullRequestPromptSelections: [String: PullRequestLinkPromptSelection] = [:]
     @State var scheduledProposalRevision = 0
@@ -229,6 +232,15 @@ struct ChatTranscriptView: View {
     }
 }
 extension ChatTranscriptView {
+    func handleTranscriptLoadingStateChange(_ isLoading: Bool) {
+        isPreparingInitialTranscript = isLoading
+        if isLoading {
+            pendingProgrammaticScrollTimeoutToken = nil
+        } else if pendingProgrammaticScrollMode != nil {
+            schedulePendingProgrammaticScrollTimeout()
+        }
+    }
+
     func handleScrollMetricsChange(
         oldMetrics: ChatTranscriptScrollMetrics,
         newMetrics: ChatTranscriptScrollMetrics
@@ -319,6 +331,10 @@ private extension ChatTranscriptView {
     /// preserve-follow branches in `handleScrollMetricsChange`) pushes the deadline
     /// out while AppKit row heights settle.
     func schedulePendingProgrammaticScrollTimeout() {
+        guard !isPreparingInitialTranscript else {
+            pendingProgrammaticScrollTimeoutToken = nil
+            return
+        }
         let token = UUID()
         pendingProgrammaticScrollTimeoutToken = token
         DispatchQueue.main.asyncAfter(deadline: .now() + transcriptProgrammaticScrollTimeout) {

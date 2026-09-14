@@ -21,6 +21,7 @@ extension ConversationViewModel {
         responseText: String? = nil,
         providerRestartConfig: AgentSpawnConfig? = nil
     ) async throws {
+        try ensureToolApprovalRestorationFinished()
         guard !hasUnansweredPrompt else {
             throw AgentError.spawnFailed("Answer the pending question before resolving tool approval")
         }

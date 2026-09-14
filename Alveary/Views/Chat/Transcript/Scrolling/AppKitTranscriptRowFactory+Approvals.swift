@@ -42,7 +42,7 @@ extension AppKitTranscriptRowFactory {
                 approval: approval,
                 approvals: approvals,
                 status: approvalStatus(for: approvals, persistedStatus: persistedStatus, pendingToolApproval: configuration.pendingToolApproval),
-                isBlocked: configuration.hasUnansweredPrompt,
+                isBlocked: configuration.hasUnansweredPrompt || configuration.isRestoringToolApproval,
                 selectedApprovalSelection: configuration.selectedApprovalSelection(approval),
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
                 typography: configuration.typography

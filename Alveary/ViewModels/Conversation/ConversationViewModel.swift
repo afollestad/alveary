@@ -33,6 +33,10 @@ final class ConversationViewModel {
     let providerSetup: ProviderSetupService
     let contextWindowCache: any ContextWindowCache
     let attachmentStore: any ConversationAttachmentStore
+    @ObservationIgnored var readToolApprovalTranscript: ToolApprovalTranscriptReader = readClaudeToolApprovalTranscript
+    @ObservationIgnored var toolApprovalRestoreTask: Task<Void, Never>?
+    @ObservationIgnored var toolApprovalRestoreToken: UUID?
+    @ObservationIgnored var toolApprovalTranscriptGeneration: UInt64 = 0
     let threadActivityRecorder: any ThreadActivityRecording
     var subscriptionTask: Task<Void, Never>?
     static let maxRespawnAttempts = 2
@@ -81,7 +85,8 @@ final class ConversationViewModel {
     }
 
     var canSteerCurrentTurn: Bool {
-        !state.isNormalSteeringBlockedBySessionHandoff &&
+        !state.isRestoringToolApproval &&
+            !state.isNormalSteeringBlockedBySessionHandoff &&
             !defersOrdinaryScheduledOutbound &&
             providerCanSteerCurrentTurn
     }
@@ -130,6 +135,7 @@ final class ConversationViewModel {
 
     func canSubmitPromptAnswer(promptId: String) -> Bool {
         guard !state.isSendingMessage,
+              !state.isRestoringToolApproval,
               !state.isReconfiguringSession else {
             return false
         }
@@ -183,7 +189,6 @@ final class ConversationViewModel {
             self.state.lastNonPlanPermissionMode = conversation.thread?.permissionMode
         }
         installTerminalBoundaryPersistence(on: self.state)
-        cleanupUnreferencedImageAttachments()
     }
 
     /// `restoreStateAfterFailedInitialSetup` swaps in a fresh `ConversationState`, so installing
@@ -205,6 +210,7 @@ final class ConversationViewModel {
     }
 
     func answerPrompt(promptId: String, answers: [(question: String, answer: String)]) async throws -> String {
+        try ensureToolApprovalRestorationFinished()
         let approvalCandidate = latestUnresolvedAskUserQuestionApprovalCandidate(promptId: promptId)
         let promptPendingApproval = pendingApprovalForPromptAnswer(promptId: promptId, approvalCandidate: approvalCandidate)
         let canAnswerLivePrompt = canAnswerLiveAskUserQuestion(promptId: promptId) || promptPendingApproval != nil
@@ -225,7 +231,7 @@ final class ConversationViewModel {
 
         if let promptPendingApproval {
             if approvalCandidate?.shouldCheckSessionResolution != false,
-                let resolvedStatus = clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) {
+                let resolvedStatus = try await clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) {
                 if resolvedStatus != .approved {
                     try await deliverMessageReserved(
                         message,
@@ -421,6 +427,7 @@ final class ConversationViewModel {
     }
 
     func replaceState(with state: ConversationState) {
+        cancelToolApprovalRestoration()
         let previousState = self.state
         previousState.inputDraftPublishTask?.cancel()
         previousState.inputDraftPublishTask = nil
@@ -443,6 +450,7 @@ final class ConversationViewModel {
     }
 
     isolated deinit {
+        toolApprovalRestoreTask?.cancel()
         if hasActivatedViewLifecycle {
             state.unregisterViewMount()
         }

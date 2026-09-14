@@ -25,7 +25,7 @@ extension ConversationViewModel {
 
     private func fetchConversationEventRecords() throws -> [ConversationEventRecord] {
         let conversationID = conversation.id
-        return try modelContext.fetch(
+        let records = try modelContext.fetch(
             FetchDescriptor<ConversationEventRecord>(
                 predicate: #Predicate { $0.conversationId == conversationID },
                 sortBy: [
@@ -34,6 +34,8 @@ extension ConversationViewModel {
                 ]
             )
         )
+        scheduleAutomaticAttachmentCleanupIfNeeded(from: records)
+        return records
     }
 }
 

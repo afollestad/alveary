@@ -16,6 +16,7 @@ extension ConversationViewModel {
     var canApplySettingsChange: Bool {
         !defersOrdinaryScheduledOutbound &&
             !state.isSendingMessage &&
+            !state.isRestoringToolApproval &&
             !state.hasActiveSessionHandoff &&
             !state.isReconfiguringSession &&
             !state.isCancellingInitialSetup &&

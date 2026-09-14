@@ -8,7 +8,22 @@ final class AppKitTranscriptScrollContainerView: NSView {
     var activeScrollAnimationToken: UUID?
     private(set) var paginationGeneration = 0
     var onScrollMetricsChanged: ((ChatTranscriptScrollMetrics) -> Void)?
+    /// Called only after real-width layout settles, including an empty document awaiting prepared rows.
+    var onStableLayout: (() -> Void)?
+    var preservesBottomOnResize = true
     var shouldForceBottomAfterCurrentMeasurement = false
+    var layoutTransactionDepth = 0
+    private var isRunningNativeLayout = false
+    var pendingConfiguration: AppKitTranscriptPendingConfiguration?
+    var hasQueuedAnimationLayout = false
+    var pendingHeightInvalidation: AppKitTranscriptHeightInvalidation?
+    var hasScheduledHeightInvalidationFlush = false
+    let loadingIndicator = NSProgressIndicator()
+    private(set) var isLoadingForTesting = false
+    var viewportPrewarmTask: Task<Void, Never>?
+    var viewportPrewarmCandidates: [AppKitTranscriptPrewarmCandidate] = []
+    var viewportPrewarmGeneration = 0
+    private(set) var hasMountedWindow = false
     private var rowIDAliases: [String: String] = [:]
 
     override init(frame frameRect: NSRect) {
@@ -21,17 +36,26 @@ final class AppKitTranscriptScrollContainerView: NSView {
         setUpScrollView()
     }
 
-    deinit { NotificationCenter.default.removeObserver(self) }
+    deinit {
+        viewportPrewarmTask?.cancel()
+        NotificationCenter.default.removeObserver(self)
+    }
 
     override func layout() {
+        isRunningNativeLayout = true
+        defer { isRunningNativeLayout = false }
         super.layout()
-        scrollView.frame = bounds
-        transcriptDocumentView.layoutRows(width: bounds.width)
-        if restoreForcedBottomAfterMeasurementIfNeeded() {
-            return
+        layoutTranscriptContainer()
+    }
+
+    /// Native layout callbacks can install or invalidate rows while AppKit defers recursive layout requests.
+    private func layoutAtCurrentWidth() {
+        needsLayout = true
+        if isRunningNativeLayout {
+            layoutTranscriptContainer()
+        } else {
+            layoutSubtreeIfNeeded()
         }
-        hydrateViewportRows()
-        publishScrollMetrics()
     }
 
     func configure(
@@ -40,15 +64,28 @@ final class AppKitTranscriptScrollContainerView: NSView {
         rowIDAliases: [String: String] = [:],
         preserveBottomIfFollowing: Bool
     ) {
+        preservesBottomOnResize = preserveBottomIfFollowing
+        if transcriptDocumentView.hasActiveFrameAnimation {
+            pendingConfiguration = AppKitTranscriptPendingConfiguration(
+                rows: rows,
+                dirtyRowIDs: dirtyRowIDs.union(pendingConfiguration?.dirtyRowIDs ?? []),
+                rowIDAliases: rowIDAliases
+            )
+            queueLayoutAfterFrameAnimation()
+            return
+        }
+        beginLayoutTransaction()
+        defer { endLayoutTransaction() }
         let shouldRestoreBottom = preserveBottomIfFollowing && isAtBottom
         let visibleAnchor = captureVisibleAnchor()
         self.rowIDAliases = rowIDAliases
         transcriptDocumentView.configure(rows: rows, dirtyRowIDs: Set(dirtyRowIDs.map(canonicalRowID(for:))))
-        needsLayout = true
-        layoutSubtreeIfNeeded()
+        layoutAtCurrentWidth()
+        // Measurement feedback belongs to this transaction; retaining it would replay an old follow request after a later user scroll.
+        if restoreForcedBottomAfterMeasurementIfNeeded() {
+            return
+        }
         restoreScrollPosition(shouldRestoreBottom: shouldRestoreBottom, visibleAnchor: visibleAnchor)
-        hydrateViewportRows()
-        publishScrollMetrics()
     }
 
     func rowHeightInvalidated(
@@ -57,37 +94,53 @@ final class AppKitTranscriptScrollContainerView: NSView {
         forceBottomIfPreserving: Bool = false,
         animatesLayoutChanges: Bool = true
     ) {
-        let shouldRestoreBottom = preserveBottomIfFollowing && (isAtBottom || forceBottomIfPreserving)
-        let visibleAnchor = captureVisibleAnchor()
-        let documentHeightBeforeLayout = documentHeight
+        rowHeightsInvalidated(
+            rowIDs: rowID.map { [$0] },
+            preserveBottomIfFollowing: preserveBottomIfFollowing,
+            forceBottomIfPreserving: forceBottomIfPreserving,
+            animatesLayoutChanges: animatesLayoutChanges
+        )
+    }
+
+    /// Measures every dirty row before starting one animation; nil retains the unknown-row fallback.
+    func rowHeightsInvalidated(
+        rowIDs: Set<String>?,
+        preserveBottomIfFollowing: Bool,
+        forceBottomIfPreserving: Bool,
+        animatesLayoutChanges: Bool
+    ) {
         // Named invalidation is the hot path; nil stays available when callers
         // cannot identify the changed row. Reentrant measurement feedback is
         // satisfied by the active pass to avoid staggered row animations.
         if deferHeightInvalidationUntilStable(
-            rowID: rowID,
+            rowIDs: rowIDs,
             preserveBottomIfFollowing: preserveBottomIfFollowing,
             forceBottomIfPreserving: forceBottomIfPreserving,
-            animatesLayoutChanges: animatesLayoutChanges,
-            shouldRestoreBottom: shouldRestoreBottom
+            animatesLayoutChanges: animatesLayoutChanges
         ) {
             return
         }
-        if let rowID {
-            transcriptDocumentView.markRowHeightDirty(canonicalRowID(for: rowID))
+        let shouldRestoreBottom = preserveBottomIfFollowing && (isAtBottom || forceBottomIfPreserving)
+        let visibleAnchor = captureVisibleAnchor()
+        let documentHeightBeforeLayout = documentHeight
+        let revisionBeforeLayout = transcriptDocumentView.layoutRevision
+        beginLayoutTransaction()
+        defer { endLayoutTransaction() }
+        if let rowIDs {
+            rowIDs.forEach { transcriptDocumentView.markRowHeightDirty(canonicalRowID(for: $0)) }
         } else {
             transcriptDocumentView.markAllRowHeightsDirty()
         }
         if animatesLayoutChanges {
             transcriptDocumentView.animateNextLayoutChange()
         }
-        needsLayout = true
-        layoutSubtreeIfNeeded()
+        layoutAtCurrentWidth()
         if restoreForcedBottomAfterMeasurementIfNeeded() {
             return
         }
         // A named dirty row can remeasure to the same frame; in that hot path
         // downstream frames and visible anchors are already stable.
-        guard rowID == nil || transcriptDocumentView.lastLayoutChangedFrames else {
+        guard rowIDs == nil || transcriptDocumentView.layoutRevision != revisionBeforeLayout else {
             hydrateViewportRows()
             publishScrollMetrics()
             return
@@ -167,7 +220,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
         rowIDAliases[rowID] ?? rowID
     }
 
-    private var isAtBottom: Bool {
+    var isAtBottom: Bool {
         let distanceFromBottom = documentHeight - visibleBottomY
         return distanceFromBottom <= 1
     }
@@ -181,6 +234,18 @@ final class AppKitTranscriptScrollContainerView: NSView {
         scrollView.contentView.postsBoundsChangedNotifications = true
         scrollView.documentView = transcriptDocumentView
         addSubview(scrollView)
+        loadingIndicator.style = .spinning
+        loadingIndicator.controlSize = .small
+        loadingIndicator.isDisplayedWhenStopped = false
+        loadingIndicator.setAccessibilityLabel("Loading conversation")
+        loadingIndicator.isHidden = true
+        addSubview(loadingIndicator)
+        transcriptDocumentView.onLayoutDeferredByAnimation = { [weak self] in
+            self?.queueLayoutAfterFrameAnimation()
+        }
+        transcriptDocumentView.onFrameAnimationCompleted = { [weak self] in
+            self?.notifyStableLayoutIfNeeded()
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(contentBoundsDidChange),
@@ -191,6 +256,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
 
     private func scroll(toY proposedY: CGFloat) {
         scrollContentView(toY: proposedY)
+        guard layoutTransactionDepth == 0 else { return }
         let hydratedCount = hydrateViewportRows()
         if hydratedCount > 0 {
             scrollContentView(toY: proposedY)
@@ -228,6 +294,7 @@ final class AppKitTranscriptScrollContainerView: NSView {
 
     @objc
     private func contentBoundsDidChange() {
+        guard layoutTransactionDepth == 0 else { return }
         if scrollView.contentView.bounds.minX != 0 {
             scrollView.contentView.scroll(to: CGPoint(x: 0, y: scrollOffsetY))
             scrollView.reflectScrolledClipView(scrollView.contentView)
@@ -244,10 +311,12 @@ final class AppKitTranscriptScrollContainerView: NSView {
         let documentHeightBeforeHydration = documentHeight
         let hydratedCount = transcriptDocumentView.hydrateRows(intersecting: hydrationRect)
         assert(abs(documentHeight - documentHeightBeforeHydration) <= 0.5, "Viewport hydration changed transcript document height")
+        updateViewportPrewarming(in: hydrationRect)
         return hydratedCount
     }
 
     func publishScrollMetrics() {
+        guard layoutTransactionDepth == 0, !isLoadingForTesting else { return }
         onScrollMetricsChanged?(
             ChatTranscriptScrollMetrics(
                 offsetY: scrollOffsetY,
@@ -256,245 +325,27 @@ final class AppKitTranscriptScrollContainerView: NSView {
             )
         )
     }
-}
 
-@MainActor
-final class AppKitTranscriptDocumentLayoutView: NSView {
-    struct RowFrameUpdate {
-        let view: NSView
-        let frame: CGRect
-        let previousFrame: CGRect?
-    }
-
-    private struct RowHeightMeasurement {
-        let contentWidth: CGFloat
-        let viewID: ObjectIdentifier
-        let height: CGFloat
-    }
-
-    private struct RowCacheKey: Hashable {
-        let id: String
-        let viewID: ObjectIdentifier
-    }
-
-    private let topInset: CGFloat = 20
-    private let bottomInset: CGFloat = 14
-    private let rowSpacing: CGFloat = 12
-    let bottomSpacerView = NSView()
-    private var rows: [AppKitTranscriptLayoutRow] = []
-    private var rowFramesByID: [String: CGRect] = [:]
-    private var measuredHeightsByRowID: [String: RowHeightMeasurement] = [:]
-    private var dirtyRowIDs: Set<String> = []
-    private var lastContentWidth: CGFloat?
-    private var shouldAnimateNextLayoutChange = false
-    var exitingThoughtViewIDs: Set<ObjectIdentifier> = []
-    var activeFrameAnimationCompletions: [() -> Void] = []
-    var activeFrameAnimationTargetDocumentSize: CGSize?
-    private(set) var isMeasuringRows = false
-    var isApplyingFrameUpdates = false
-    var hasActiveFrameAnimation = false
-    private(set) var lastLayoutChangedFrames = false
-
-    override var isFlipped: Bool { true }
-
-    var scrollableContentBottomY: CGFloat { rowFramesByID.values.map(\.maxY).max() ?? 0 }
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        addSubview(bottomSpacerView)
-    }
-    required init?(coder: NSCoder) {
-        super.init(coder: coder)
-        addSubview(bottomSpacerView)
-    }
-
-    func configure(rows: [AppKitTranscriptLayoutRow], dirtyRowIDs externallyDirtyRowIDs: Set<String> = []) {
-        let incomingKeys = rows.map(rowCacheKey(for:))
-        let incomingKeySet = Set(incomingKeys)
-        let incomingViews = Set(rows.map { ObjectIdentifier($0.view) })
-        let animatesThoughtRemoval = subviews.contains { existingView in
-            existingView !== bottomSpacerView &&
-                !incomingViews.contains(ObjectIdentifier(existingView)) &&
-                canAnimateRemovedThoughtView(existingView)
+    func setIsLoading(_ isLoading: Bool) {
+        guard isLoadingForTesting != isLoading else { return }
+        isLoadingForTesting = isLoading
+        loadingIndicator.isHidden = !isLoading
+        if isLoading {
+            loadingIndicator.startAnimation(nil)
+        } else {
+            loadingIndicator.stopAnimation(nil)
+            publishScrollMetrics()
         }
-        for existingView in subviews where existingView !== bottomSpacerView && !incomingViews.contains(ObjectIdentifier(existingView)) {
-            removeObsoleteView(existingView)
-        }
-        if animatesThoughtRemoval {
-            animateNextLayoutChange()
-        }
-
-        self.rows = rows
-        let liveRowIDs = Set(rows.map(\.id))
-        dirtyRowIDs.formIntersection(liveRowIDs)
-        measuredHeightsByRowID = measuredHeightsByRowID.filter { rowID, measurement in
-            incomingKeySet.contains(RowCacheKey(id: rowID, viewID: measurement.viewID))
-        }
-        dirtyRowIDs.formUnion(externallyDirtyRowIDs.intersection(liveRowIDs))
-        for row in rows where row.view.superview !== self {
-            row.view.identifier = NSUserInterfaceItemIdentifier(row.id)
-            addSubview(row.view)
-            dirtyRowIDs.insert(row.id)
-        }
+        needsLayout = true
     }
 
-    override func layout() {
-        super.layout()
-        layoutRows(width: bounds.width)
-    }
-
-    func layoutRows(width: CGFloat) {
-        let contentWidth = max(0, width - transcriptScrollLeadingInset - transcriptScrollTrailingInset)
-        // Reentrant layout during a measured frame animation must not commit the final document
-        // height early, or bottom-pinned collapse visibly jumps. A zero width means no frame yet, and
-        // the first real pass re-dirties every row, so measuring here is waste that every mount pays.
-        guard !isMeasuringRows, !isApplyingFrameUpdates, !hasActiveFrameAnimation, contentWidth > 0 else {
-            return
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            cancelViewportPrewarming()
+        } else {
+            hasMountedWindow = true
+            hydrateViewportRows()
         }
-        lastLayoutChangedFrames = false
-        if lastContentWidth.map({ abs($0 - contentWidth) > 0.5 }) ?? true {
-            markAllRowHeightsDirty()
-            lastContentWidth = contentWidth
-        }
-        let previousFramesByID = rowFramesByID
-        rowFramesByID = [:]
-        let shouldAnimate = shouldAnimateNextLayoutChange && window != nil
-        shouldAnimateNextLayoutChange = false
-        let measuredLayout = measuredRowLayout(contentWidth: contentWidth, previousFramesByID: previousFramesByID)
-        let newDocumentHeight = max(measuredLayout.documentHeight, 0)
-        // Skip unchanged frame sets so configuration echoes do not perturb anchors.
-        lastLayoutChangedFrames = hasLayoutChanges(
-            frameUpdates: measuredLayout.frameUpdates,
-            documentWidth: width,
-            documentHeight: newDocumentHeight
-        )
-        let targetDocumentSize = CGSize(width: width, height: newDocumentHeight)
-        let shouldHoldShrinkingDocumentHeight = shouldAnimate && newDocumentHeight < frame.height - 0.5
-        let appliedDocumentHeight = shouldHoldShrinkingDocumentHeight ? frame.height : newDocumentHeight
-        setDocumentSize(CGSize(width: width, height: appliedDocumentHeight))
-        guard lastLayoutChangedFrames else {
-            return
-        }
-        applyFrameUpdates(measuredLayout.frameUpdates, animated: shouldAnimate, targetDocumentSize: targetDocumentSize)
-    }
-
-    func markRowHeightDirty(_ rowID: String) {
-        dirtyRowIDs.insert(rowID)
-    }
-
-    func markAllRowHeightsDirty() {
-        dirtyRowIDs.formUnion(rows.map(\.id))
-    }
-
-    func animateNextLayoutChange() {
-        shouldAnimateNextLayoutChange = true
-    }
-
-    func runAfterActiveFrameAnimation(_ completion: @escaping () -> Void) {
-        guard hasActiveFrameAnimation else {
-            completion()
-            return
-        }
-        activeFrameAnimationCompletions.append(completion)
-    }
-
-    func rowFrame(for id: String) -> CGRect? {
-        rowFramesByID[id]
-    }
-
-    @discardableResult
-    func hydrateRows(intersecting hydrationRect: CGRect) -> Int {
-        var hydratedCount = 0
-        for row in rows {
-            guard let rowFrame = rowFramesByID[row.id],
-                  rowFrame.intersects(hydrationRect),
-                  let hydratableRow = row.view as? AppKitTranscriptViewportHydratable,
-                  !hydratableRow.isTranscriptViewportHydrated
-            else {
-                continue
-            }
-            hydratableRow.hydrateForTranscriptViewport()
-            hydratedCount += 1
-        }
-        return hydratedCount
-    }
-
-    func firstRow(atOrBelow offsetY: CGFloat) -> (id: String, frame: CGRect)? {
-        rows.lazy.compactMap { row -> (id: String, frame: CGRect)? in
-            guard let frame = self.rowFramesByID[row.id], frame.maxY >= offsetY else {
-                return nil
-            }
-            return (row.id, frame)
-        }.first
-    }
-
-    private func measuredHeight(
-        for row: AppKitTranscriptLayoutRow,
-        contentWidth: CGFloat,
-        currentY: CGFloat
-    ) -> CGFloat {
-        let viewID = ObjectIdentifier(row.view)
-        if !dirtyRowIDs.contains(row.id),
-           let measurement = measuredHeightsByRowID[row.id],
-           measurement.viewID == viewID,
-           abs(measurement.contentWidth - contentWidth) <= 0.5 {
-            return measurement.height
-        }
-
-        // Commit width before measuring because transcript rows wrap against their
-        // current AppKit frame; clean rows still get fresh frames for anchor math.
-        row.view.frame = CGRect(
-            x: transcriptScrollLeadingInset,
-            y: currentY,
-            width: contentWidth,
-            height: row.view.frame.height
-        )
-        row.view.needsLayout = true
-        row.view.layoutSubtreeIfNeeded()
-        let rowHeight = max(0, row.view.fittingSize.height)
-        measuredHeightsByRowID[row.id] = RowHeightMeasurement(
-            contentWidth: contentWidth,
-            viewID: viewID,
-            height: rowHeight
-        )
-        dirtyRowIDs.remove(row.id)
-        return rowHeight
-    }
-
-    private func measuredRowLayout(
-        contentWidth: CGFloat,
-        previousFramesByID: [String: CGRect]
-    ) -> (frameUpdates: [RowFrameUpdate], documentHeight: CGFloat) {
-        var currentY = topInset
-        var frameUpdates: [RowFrameUpdate] = []
-        isMeasuringRows = true
-        defer { isMeasuringRows = false }
-        for row in rows {
-            let rowHeight = measuredHeight(for: row, contentWidth: contentWidth, currentY: currentY)
-            let rowFrame = CGRect(x: transcriptScrollLeadingInset, y: currentY, width: contentWidth, height: rowHeight)
-            frameUpdates.append(RowFrameUpdate(view: row.view, frame: rowFrame, previousFrame: previousFramesByID[row.id]))
-            rowFramesByID[row.id] = rowFrame
-            currentY += rowHeight + rowSpacing
-        }
-        if !rows.isEmpty {
-            currentY -= rowSpacing
-        }
-        return (frameUpdates, currentY + bottomInset)
-    }
-
-    private func rowCacheKey(for row: AppKitTranscriptLayoutRow) -> RowCacheKey { RowCacheKey(id: row.id, viewID: ObjectIdentifier(row.view)) }
-
-    private func hasLayoutChanges(
-        frameUpdates: [RowFrameUpdate],
-        documentWidth: CGFloat,
-        documentHeight: CGFloat
-    ) -> Bool {
-        let frameChanged = frameUpdates.contains { update in
-            guard let previousFrame = update.previousFrame else {
-                return true
-            }
-            return !previousFrame.isApproximatelyEqual(to: update.frame)
-        }
-        let documentSizeChanged = abs(frame.height - documentHeight) > 0.5 || abs(frame.width - documentWidth) > 0.5
-        return frameChanged || documentSizeChanged
     }
 }

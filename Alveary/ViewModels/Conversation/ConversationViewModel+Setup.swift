@@ -181,6 +181,7 @@ extension ConversationViewModel {
     }
 
     func prepareForSpawn(config: AgentSpawnConfig) async throws {
+        cancelToolApprovalRestoration()
         try Task.checkCancellation()
         try validateAutomatedScheduledWorkspaceIfNeeded(
             isAutomatedScheduledTurn: config.isAutomatedScheduledTurn

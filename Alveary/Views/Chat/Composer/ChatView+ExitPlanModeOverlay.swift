@@ -99,6 +99,7 @@ extension ChatView {
             !state.isDismissing &&
             approval.status == .pending &&
             !viewModel.state.isSendingMessage &&
+            !viewModel.state.isRestoringToolApproval &&
             !viewModel.state.isReconfiguringSession
 
         return AppKitComposerOverlayConfiguration(

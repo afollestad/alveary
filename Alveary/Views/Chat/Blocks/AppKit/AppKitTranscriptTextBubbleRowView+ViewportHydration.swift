@@ -56,6 +56,9 @@ extension AppKitTranscriptTextBubbleRowView {
     }
 
     func document(for configuration: Configuration) -> AppMarkdownDocument {
+        if let document = retainedDocument(for: configuration) {
+            return document
+        }
         let composerChipProvider: ((String) -> [AppTextEditorChip])?
         if configuration.role == .user {
             composerChipProvider = ChatComposerTextSupport.composerTextChips(in:)
@@ -72,11 +75,25 @@ extension AppKitTranscriptTextBubbleRowView {
                 taskStateScope: configuration.id
             )
         ) {
-            AppMarkdownParser(
+#if DEBUG
+            synchronousDocumentParseCountForTesting += 1
+#endif
+            return AppMarkdownParser(
                 composerChipProvider: composerChipProvider
             )
             .documentPreservingSource(for: configuration.markdown)
         }
+    }
+
+    func retainedDocument(for configuration: Configuration) -> AppMarkdownDocument? {
+        guard let retainedPreparedMarkdown,
+              retainedPreparedMarkdown.request.rowID == configuration.id,
+              retainedPreparedMarkdown.request.markdown == configuration.markdown,
+              retainedPreparedMarkdown.request.inlineCodeStyle == inlineCodeStyle(for: configuration.role),
+              retainedPreparedMarkdown.request.composerChipMode == (configuration.role == .user ? .composer : .none) else {
+            return nil
+        }
+        return retainedPreparedMarkdown.document
     }
 }
 

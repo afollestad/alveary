@@ -86,8 +86,8 @@ enum AppKitTranscriptActivityGrouping {
     static func visualRows(for items: [ChatItem]) -> [AppKitTranscriptVisualRow] {
         var visualRows: [AppKitTranscriptVisualRow] = []
         var pendingRun: [ChatItem] = []
-        let rawItemIDs = Set(items.map(\.id))
-        var usedVisualIDs: Set<String> = []
+        // Reserve raw ids once; copying their union for every run makes long transcripts quadratic.
+        var occupiedIDs = Set(items.map(\.id))
 
         func flushRun() {
             guard !pendingRun.isEmpty else {
@@ -95,13 +95,12 @@ enum AppKitTranscriptActivityGrouping {
             }
             let children = pendingRun.flatMap(activityChildren(for:))
             if children.count > 1, let firstID = pendingRun.first?.id {
-                let id = uniqueActivityGroupID(firstRawItemID: firstID, occupiedIDs: rawItemIDs.union(usedVisualIDs))
+                let id = uniqueActivityGroupID(firstRawItemID: firstID, occupiedIDs: occupiedIDs)
                 visualRows.append(.activityGroup(id: id, children: children))
-                usedVisualIDs.insert(id)
+                occupiedIDs.insert(id)
             } else {
                 for item in pendingRun {
                     visualRows.append(.item(item))
-                    usedVisualIDs.insert(item.id)
                 }
             }
             pendingRun = []
@@ -135,7 +134,11 @@ enum AppKitTranscriptActivityGrouping {
     }
 
     static func expandableRowIDs(for items: [ChatItem]) -> Set<String> {
-        Set(visualRows(for: items).flatMap { row in
+        expandableRowIDs(in: visualRows(for: items))
+    }
+
+    static func expandableRowIDs(in rows: [AppKitTranscriptVisualRow]) -> Set<String> {
+        Set(rows.flatMap { row in
             switch row {
             case .item(let item):
                 return item.appKitExpandableRowId.map { [$0] } ?? []
@@ -146,8 +149,12 @@ enum AppKitTranscriptActivityGrouping {
     }
 
     static func migratedExpandedRowIDs(_ expandedRowIDs: Set<String>, for items: [ChatItem]) -> Set<String> {
+        migratedExpandedRowIDs(expandedRowIDs, in: visualRows(for: items))
+    }
+
+    static func migratedExpandedRowIDs(_ expandedRowIDs: Set<String>, in rows: [AppKitTranscriptVisualRow]) -> Set<String> {
         var migrated: Set<String> = []
-        for row in visualRows(for: items) {
+        for row in rows {
             switch row {
             case .item(let item):
                 if let expansionID = item.appKitExpandableRowId, expandedRowIDs.contains(expansionID) {
@@ -168,8 +175,12 @@ enum AppKitTranscriptActivityGrouping {
     }
 
     static func rowIDAliases(for items: [ChatItem]) -> [String: String] {
+        rowIDAliases(in: visualRows(for: items))
+    }
+
+    static func rowIDAliases(in rows: [AppKitTranscriptVisualRow]) -> [String: String] {
         var aliases: [String: String] = [:]
-        for row in visualRows(for: items) {
+        for row in rows {
             guard case .activityGroup(let id, let children) = row else {
                 continue
             }

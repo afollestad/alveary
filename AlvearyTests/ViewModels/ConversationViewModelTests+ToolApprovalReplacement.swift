@@ -36,6 +36,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: bashApproval, status: .pending)
 
         try await fixture.viewModel.approveToolUse(toolUseId: readApproval.toolUseId)
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)
@@ -77,6 +78,7 @@ extension ConversationViewModelTests {
         fixture.viewModel.state.pendingToolApproval = PendingToolApproval(request: newApproval, status: .pending)
 
         try await fixture.viewModel.approveToolUse(oldApproval)
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         let calls = await fixture.agentsManager.approvalCalls()
         XCTAssertEqual(calls.count, 1)

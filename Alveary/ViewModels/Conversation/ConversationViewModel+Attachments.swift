@@ -106,6 +106,22 @@ extension ConversationViewModel {
         }
     }
 
+    /// Only a successful fetch may authorize deletion; query fallbacks can omit still-referenced attachments.
+    func scheduleAutomaticAttachmentCleanupIfNeeded(from records: [ConversationEventRecord]) {
+        guard !state.hasScheduledAutomaticAttachmentCleanup,
+              let retainedURLs = retainedImageAttachmentURLs(persistedRecords: records) else {
+            return
+        }
+        state.hasScheduledAutomaticAttachmentCleanup = true
+        let conversationID = self.conversationID
+        let attachmentStore = self.attachmentStore
+        Task {
+            await attachmentStore.cleanupUnreferenced(
+                conversationId: conversationID, keeping: retainedURLs, olderThan: 60 * 60 * 24 * 30
+            )
+        }
+    }
+
     func clearStagedImageAttachmentsIfTheyMatch(_ attachments: [LocalImageAttachment]) {
         guard !attachments.isEmpty else {
             return
@@ -139,7 +155,7 @@ extension ConversationViewModel {
 }
 
 private extension ConversationViewModel {
-    func retainedImageAttachmentURLs() -> Set<URL>? {
+    func retainedImageAttachmentURLs(persistedRecords: [ConversationEventRecord]? = nil) -> Set<URL>? {
         var urls = Set(state.stagedImageAttachments.map { $0.fileURL.standardizedFileURL })
         urls.formUnion(state.stagedAppShots.map { $0.screenshot.fileURL.standardizedFileURL })
         for message in state.messageQueue.pending {
@@ -158,7 +174,7 @@ private extension ConversationViewModel {
         for appShots in state.transcriptAppShots.values {
             urls.formUnion(appShots.map { $0.screenshot.fileURL.standardizedFileURL })
         }
-        guard let persistedURLs = persistedTranscriptImageAttachmentURLs() else {
+        guard let persistedURLs = persistedRecords.map(Self.imageAttachmentURLs) ?? persistedTranscriptImageAttachmentURLs() else {
             return nil
         }
         urls.formUnion(persistedURLs)
@@ -173,7 +189,11 @@ private extension ConversationViewModel {
         guard let records = try? modelContext.fetch(descriptor) else {
             return nil
         }
-        return Set(records.flatMap { record in
+        return Self.imageAttachmentURLs(in: records)
+    }
+
+    static func imageAttachmentURLs(in records: [ConversationEventRecord]) -> Set<URL> {
+        Set(records.flatMap { record in
             record.persistedImageAttachments.map { $0.fileURL.standardizedFileURL }
         })
     }

@@ -16,6 +16,13 @@ struct AppKitTranscriptVisibleAnchor: Equatable {
     let generation: Int
 }
 
+@MainActor
+/// Mounted rows expose optional work to the container's bounded viewport queue, never their own eager tasks.
+protocol AppKitTranscriptViewportPrewarmable: AnyObject {
+    var needsTranscriptViewportPrewarm: Bool { get }
+    func prewarmForTranscriptViewport()
+}
+
 extension CGRect {
     func isApproximatelyEqual(to other: CGRect) -> Bool {
         abs(minX - other.minX) <= 0.5 &&

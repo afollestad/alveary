@@ -2,6 +2,7 @@ import Foundation
 
 extension ConversationViewModel {
     func ensureCanReserveOutbound() throws {
+        try ensureToolApprovalRestorationFinished()
         guard !isUpdatingTaskWorkspaceConfiguration else {
             throw AgentError.spawnFailed("Task folder access is still being applied")
         }

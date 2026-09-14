@@ -2,6 +2,7 @@ import Foundation
 
 extension ConversationViewModel {
     func resetSubscriptionTrackingForNewSession() {
+        cancelToolApprovalRestoration()
         subscriptionTask?.cancel()
         subscriptionTask = nil
         state.lastObservedEventIndex = 0

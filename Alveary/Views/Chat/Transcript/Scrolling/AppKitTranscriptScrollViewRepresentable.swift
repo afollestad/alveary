@@ -3,11 +3,13 @@ import SwiftUI
 
 struct AppKitTranscriptScrollViewRepresentable: NSViewRepresentable {
     let items: [ChatItem]
+    var presentation: AppKitTranscriptPresentation?
     var transientRows = AppKitTranscriptTransientRows()
     var rowConfiguration = AppKitTranscriptRowFactory.Configuration()
     var isFollowing = true
     var scrollToBottomRequest = 0
     var scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
+    var onLoadingStateChanged: (Bool) -> Void = { _ in }
     var onScrollMetricsChanged: (ChatTranscriptScrollMetrics) -> Void = { _ in }
 
     func makeCoordinator() -> AppKitTranscriptScrollBridgeCoordinator {
@@ -18,15 +20,21 @@ struct AppKitTranscriptScrollViewRepresentable: NSViewRepresentable {
         AppKitTranscriptScrollContainerView()
     }
 
+    static func dismantleNSView(_ nsView: AppKitTranscriptScrollContainerView, coordinator: AppKitTranscriptScrollBridgeCoordinator) {
+        coordinator.cancel(container: nsView)
+    }
+
     func updateNSView(_ nsView: AppKitTranscriptScrollContainerView, context: Context) {
         context.coordinator.update(
             container: nsView,
             items: items,
+            presentation: presentation,
             transientRows: transientRows,
             rowConfiguration: rowConfiguration,
             isFollowing: isFollowing,
             scrollToBottomRequest: scrollToBottomRequest,
             scrollToRowTopRequest: scrollToRowTopRequest,
+            onLoadingStateChanged: onLoadingStateChanged,
             onScrollMetricsChanged: onScrollMetricsChanged
         )
     }
@@ -62,308 +70,5 @@ struct AppKitTranscriptTransientRows: Equatable {
 
     static func isThoughtRowID(_ rowID: String) -> Bool {
         rowID.hasPrefix(thoughtRowIDPrefix)
-    }
-}
-
-@MainActor
-final class AppKitTranscriptScrollBridgeCoordinator {
-    private let rowFactory = AppKitTranscriptRowFactory()
-    private var lastScrollToBottomRequest: Int?
-    private var lastScrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
-    private var lastAppliedContentSignature: AppKitTranscriptPreparedUpdate.ContentSignature?
-    private var markdownPreparationGeneration = 0
-    private var markdownPreparationTask: Task<Void, Never>?
-    private var currentIsFollowing = true
-
-    deinit {
-        markdownPreparationTask?.cancel()
-    }
-
-    func update(
-        container: AppKitTranscriptScrollContainerView,
-        items: [ChatItem],
-        transientRows: AppKitTranscriptTransientRows = .init(),
-        rowConfiguration: AppKitTranscriptRowFactory.Configuration,
-        isFollowing: Bool,
-        scrollToBottomRequest: Int,
-        scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest? = nil,
-        onScrollMetricsChanged: @escaping (ChatTranscriptScrollMetrics) -> Void = { _ in }
-    ) {
-        currentIsFollowing = isFollowing
-        container.onScrollMetricsChanged = { metrics in
-            DispatchQueue.main.async {
-                onScrollMetricsChanged(metrics)
-            }
-        }
-        let update = AppKitTranscriptPreparedUpdate(
-            items: items,
-            transientRows: transientRows,
-            rowConfiguration: rowConfiguration,
-            isFollowing: isFollowing,
-            scrollToBottomRequest: scrollToBottomRequest,
-            scrollToRowTopRequest: scrollToRowTopRequest
-        )
-        // Follow-state flips only drive SwiftUI chrome such as the jump button.
-        // Reconfigure AppKit rows only when their content, layout inputs, or callbacks changed.
-        if lastAppliedContentSignature == update.contentSignature {
-            honorScrollRequestsIfNeeded(
-                container: container,
-                scrollToBottomRequest: update.scrollToBottomRequest,
-                scrollToRowTopRequest: update.scrollToRowTopRequest
-            )
-            return
-        }
-
-        markdownPreparationGeneration += 1
-        let generation = markdownPreparationGeneration
-        markdownPreparationTask?.cancel()
-        let preparationRequests = rowFactory.markdownPreparationRequests(for: update.items, configuration: update.rowConfiguration)
-        let missingPreparationRequests = AppKitTranscriptMarkdownPreparation.missingRequests(preparationRequests)
-        guard missingPreparationRequests.isEmpty || lastAppliedContentSignature == nil else {
-            // Defer cold markdown rows until the shared document cache is warm; otherwise
-            // AppKit's first exact height measurement would parse markdown on the main actor.
-            // The initial render still installs immediately so the transcript never snapshots
-            // or opens as an empty surface while preparation is in flight.
-            markdownPreparationTask = Task { @MainActor [weak self, weak container] in
-                await AppKitTranscriptMarkdownPreparation.prepare(missingPreparationRequests)
-                guard !Task.isCancelled,
-                      self?.markdownPreparationGeneration == generation,
-                      let container else {
-                    return
-                }
-                self?.applyPreparedUpdate(
-                    container: container,
-                    update: update
-                )
-            }
-            return
-        }
-
-        applyPreparedUpdate(
-            container: container,
-            update: update
-        )
-    }
-
-    private func applyPreparedUpdate(
-        container: AppKitTranscriptScrollContainerView,
-        update: AppKitTranscriptPreparedUpdate
-    ) {
-        var rowConfiguration = update.rowConfiguration
-        var pendingDirtyRowIDs: Set<String> = []
-        var isBuildingRows = true
-        rowConfiguration.onRowHeightInvalidated = { [weak self, weak container] rowID, animatesLayoutChanges in
-            // Row configure can invalidate height before the new row list is installed;
-            // batch those ids so the container never lays out the previous document.
-            if isBuildingRows {
-                pendingDirtyRowIDs.insert(rowID)
-                return
-            }
-            container?.rowHeightInvalidated(
-                rowID: rowID,
-                // Row height callbacks can arrive after SwiftUI's `isFollowing`
-                // snapshot was captured. Read the coordinator's latest follow
-                // state for streaming rows because follow-state-only updates do
-                // not reconfigure cached row callbacks.
-                preserveBottomIfFollowing: true,
-                forceBottomIfPreserving: self?.shouldForceBottomForTransientTextInvalidation(rowID) == true,
-                animatesLayoutChanges: animatesLayoutChanges
-            )
-        }
-
-        let rowIDAliases = AppKitTranscriptActivityGrouping.rowIDAliases(for: update.items)
-        let rows = rowFactory.makeRows(for: update.items, transientRows: update.transientRows, configuration: rowConfiguration)
-        isBuildingRows = false
-        let hasPendingRowTopScroll = shouldHonorRowTopRequest(update.scrollToRowTopRequest)
-        container.configure(
-            rows: rows,
-            dirtyRowIDs: pendingDirtyRowIDs,
-            rowIDAliases: rowIDAliases,
-            preserveBottomIfFollowing: update.isFollowing && !hasPendingRowTopScroll
-        )
-        lastAppliedContentSignature = update.contentSignature
-
-        honorScrollRequestsIfNeeded(
-            container: container,
-            scrollToBottomRequest: update.scrollToBottomRequest,
-            scrollToRowTopRequest: update.scrollToRowTopRequest
-        )
-    }
-
-    private func honorScrollRequestsIfNeeded(
-        container: AppKitTranscriptScrollContainerView,
-        scrollToBottomRequest: Int,
-        scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
-    ) {
-        if shouldHonorRowTopRequest(scrollToRowTopRequest),
-           let scrollToRowTopRequest,
-           container.scrollToRowTop(
-               rowID: scrollToRowTopRequest.rowID,
-               topInset: scrollToRowTopRequest.topInset
-           ) {
-            lastScrollToRowTopRequest = scrollToRowTopRequest
-            lastScrollToBottomRequest = scrollToBottomRequest
-            return
-        }
-
-        let shouldHonorScrollRequest = if let lastScrollToBottomRequest {
-            lastScrollToBottomRequest != scrollToBottomRequest
-        } else {
-            scrollToBottomRequest != 0
-        }
-
-        if shouldHonorScrollRequest {
-            container.scrollToBottom()
-        }
-        lastScrollToBottomRequest = scrollToBottomRequest
-    }
-
-    private func shouldForceBottomForTransientTextInvalidation(_ rowID: String) -> Bool {
-        guard currentIsFollowing else {
-            return false
-        }
-        return rowID == AppKitTranscriptTransientRows.streamingRowID ||
-            AppKitTranscriptTransientRows.isThoughtRowID(rowID)
-    }
-
-    private func shouldHonorRowTopRequest(_ request: AppKitTranscriptRowTopScrollRequest?) -> Bool {
-        guard let request else {
-            return false
-        }
-        return lastScrollToRowTopRequest != request
-    }
-}
-
-@MainActor
-private struct AppKitTranscriptPreparedUpdate {
-    let items: [ChatItem]
-    let transientRows: AppKitTranscriptTransientRows
-    let rowConfiguration: AppKitTranscriptRowFactory.Configuration
-    let isFollowing: Bool
-    let scrollToBottomRequest: Int
-    let scrollToRowTopRequest: AppKitTranscriptRowTopScrollRequest?
-
-    var contentSignature: ContentSignature {
-        ContentSignature(
-            items: items,
-            transientRows: transientRows,
-            bubbleMaxWidth: rowConfiguration.bubbleMaxWidth,
-            typography: rowConfiguration.typography,
-            markdownBaseURL: rowConfiguration.markdownBaseURL,
-            expandedRowIDs: rowConfiguration.expandedRowIDs,
-            pendingToolApproval: rowConfiguration.pendingToolApproval,
-            retryableFailedMessageIDs: rowConfiguration.retryableFailedMessageIDs,
-            transcriptImageAttachmentsByMessageID: rowConfiguration.transcriptImageAttachmentsByMessageID,
-            transcriptFileAttachmentsByMessageID: rowConfiguration.transcriptFileAttachmentsByMessageID,
-            hasUnansweredPrompt: rowConfiguration.hasUnansweredPrompt,
-            actionContextID: rowConfiguration.actionContextID,
-            approvalSelections: approvalSelections,
-            pullRequestLinkPromptsByMessageID: rowConfiguration.pullRequestLinkPromptsByMessageID,
-            pullRequestPromptSelections: pullRequestPromptSelections,
-            scheduledProposalStates: scheduledProposalStates,
-            conversationScheduledProposal: rowConfiguration.conversationScheduledProposal(),
-            scheduledTaskRows: rowConfiguration.scheduledTaskListActions.rows(),
-            isResolvingScheduledProposal: rowConfiguration.isResolvingScheduledProposal,
-            scheduledProposalErrorMessage: rowConfiguration.scheduledProposalErrorMessage,
-            reviewProposalStates: reviewProposalStates,
-            conversationReviewProposal: rowConfiguration.conversationReviewProposal()
-        )
-    }
-
-    /// Review-proposal cards resolve their diff preview, verdict, and in-flight state through
-    /// closures too, so the signature carries what those return for the rendered items —
-    /// otherwise a loaded preview or a failed submission would never reach the card.
-    private var reviewProposalStates: [String: ReviewProposalWidgetState] {
-        Dictionary(
-            items.compactMap { item -> (String, ReviewProposalWidgetState)? in
-                guard let proposalID = item.hostToolWidgetEntry?.reviewProposalID,
-                      let state = rowConfiguration.reviewProposalState(proposalID) else {
-                    return nil
-                }
-                return (proposalID, state)
-            },
-            uniquingKeysWith: { _, latest in latest }
-        )
-    }
-
-    /// Host-tool widgets resolve live proposal state through closures, so the signature
-    /// has to carry what those closures currently return for the rendered items.
-    private var scheduledProposalStates: [String: ScheduledProposalState] {
-        Dictionary(
-            items.compactMap { item -> (String, ScheduledProposalState)? in
-                guard let proposalID = item.hostToolWidgetEntry?.scheduledProposalID else {
-                    return nil
-                }
-                return (
-                    proposalID,
-                    ScheduledProposalState(
-                        presentation: rowConfiguration.scheduledProposalPresentation(proposalID),
-                        isInteractive: rowConfiguration.isScheduledProposalInteractive(proposalID)
-                    )
-                )
-            },
-            uniquingKeysWith: { _, latest in latest }
-        )
-    }
-
-    struct ScheduledProposalState: Equatable {
-        let presentation: ScheduledTaskProposalPresentation?
-        let isInteractive: Bool
-    }
-
-    private var pullRequestPromptSelections: [String: PullRequestLinkPromptSelection] {
-        Dictionary(
-            rowConfiguration.pullRequestLinkPromptsByMessageID.values.flatMap { prompts in
-                prompts.map { ($0.id, rowConfiguration.selectedPullRequestPromptSelection($0.id)) }
-            },
-            uniquingKeysWith: { _, latest in latest }
-        )
-    }
-
-    private var approvalSelections: [String: ToolApprovalSelection] {
-        Dictionary(items.flatMap { item in
-            switch item {
-            case .toolApproval(_, let approval, _):
-                return [(approval.sessionId, rowConfiguration.selectedApprovalSelection(approval))]
-            case .toolApprovalBatch(_, let approvals, _):
-                return approvals.map { ($0.sessionId, rowConfiguration.selectedApprovalSelection($0)) }
-            case .userMessage,
-                 .assistantMessage,
-                 .toolGroup,
-                 .standaloneTool,
-                 .subAgentBlock,
-                 .taskListBlock,
-                 .hostToolWidget,
-                 .promptBlock,
-                 .transcriptNote,
-                 .error:
-                return []
-            }
-        }, uniquingKeysWith: { _, latest in latest })
-    }
-
-    struct ContentSignature: Equatable {
-        let items: [ChatItem]
-        let transientRows: AppKitTranscriptTransientRows
-        let bubbleMaxWidth: CGFloat
-        let typography: TranscriptTypography
-        let markdownBaseURL: URL?
-        let expandedRowIDs: Set<String>
-        let pendingToolApproval: PendingToolApproval?
-        let retryableFailedMessageIDs: Set<String>
-        let transcriptImageAttachmentsByMessageID: [String: [TranscriptImageAttachment]]
-        let transcriptFileAttachmentsByMessageID: [String: [LocalFileAttachment]]
-        let hasUnansweredPrompt: Bool
-        let actionContextID: String
-        let approvalSelections: [String: ToolApprovalSelection]
-        let pullRequestLinkPromptsByMessageID: [String: [PendingPullRequestPrompt]]
-        let pullRequestPromptSelections: [String: PullRequestLinkPromptSelection]
-        let scheduledProposalStates: [String: ScheduledProposalState]
-        let conversationScheduledProposal: ScheduledTaskProposalPresentation?
-        let scheduledTaskRows: [ScheduledTaskListRow]
-        let isResolvingScheduledProposal: Bool
-        let scheduledProposalErrorMessage: String?
-        let reviewProposalStates: [String: ReviewProposalWidgetState]
-        let conversationReviewProposal: ReviewProposalWidgetState?
     }
 }

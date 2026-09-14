@@ -87,6 +87,7 @@ extension AppKitTranscriptScrollContainerView {
                 self.scrollContentView(toY: clampedTargetScrollY)
                 self.activeScrollAnimationToken = nil
                 self.publishScrollMetrics()
+                self.notifyStableLayoutIfNeeded()
             }
         }
     }

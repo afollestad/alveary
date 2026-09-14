@@ -66,6 +66,34 @@ extension AppKitTranscriptScrollContainerTests {
         XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
     }
 
+    func testConfigureConsumesReentrantForceBeforeLaterFollowingCancellation() {
+        let container = bottomPreservationContainer(height: 120)
+        let row = MeasurementInvalidatingHeightRowView()
+        var isFollowing = true
+        row.onMeasure = { [weak container] in
+            container?.rowHeightInvalidated(
+                rowID: "measured", preserveBottomIfFollowing: true,
+                forceBottomIfPreserving: isFollowing, animatesLayoutChanges: false
+            )
+        }
+        container.configure(
+            rows: [bottomPreservationRow("first", height: 80), bottomPreservationRow("second", height: 80),
+                   AppKitTranscriptLayoutRow(id: "measured", view: row)],
+            preserveBottomIfFollowing: true
+        )
+        XCTAssertEqual(container.visibleBottomY, container.documentHeight, accuracy: 0.5)
+        XCTAssertFalse(container.shouldForceBottomAfterCurrentMeasurement)
+        container.scrollContentView(toY: 20)
+        isFollowing = false
+        container.preservesBottomOnResize = false
+        row.height = 160
+
+        container.rowHeightInvalidated(rowID: "measured", preserveBottomIfFollowing: true, animatesLayoutChanges: false)
+
+        XCTAssertEqual(container.scrollOffsetY, 20, accuracy: 0.5)
+        XCTAssertLessThan(container.visibleBottomY, container.documentHeight - 1)
+    }
+
     private func bottomPreservationContainer(height: CGFloat) -> AppKitTranscriptScrollContainerView {
         let container = AppKitTranscriptScrollContainerView(frame: NSRect(x: 0, y: 0, width: 300, height: height))
         container.layoutSubtreeIfNeeded()
@@ -112,6 +140,16 @@ private final class BottomPreservationMutableHeightRowView: NSView {
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: NSView.noIntrinsicMetric, height: height)
+    }
+}
+
+private final class MeasurementInvalidatingHeightRowView: NSView {
+    var height: CGFloat = 80
+    var onMeasure: (() -> Void)?
+
+    override var fittingSize: NSSize {
+        onMeasure?()
+        return NSSize(width: NSView.noIntrinsicMetric, height: height)
     }
 }
 

@@ -10,20 +10,12 @@ extension ConversationViewModel {
     /// session already answered are persisted resolved here instead of being shown again.
     func hydratePendingToolApprovalIfNeeded() {
         guard state.pendingToolApproval == nil,
+              toolApprovalRestoreTask == nil,
               let approval = latestUnresolvedToolApproval() else {
             return
         }
 
-        if let resolvedStatus = resolvedToolApprovalStatusFromClaudeSession(approval) {
-            persistToolApprovalStatus(
-                resolvedStatus,
-                toolUseId: approval.toolUseId,
-                sessionId: approval.sessionId
-            )
-            return
-        }
-
-        state.pendingToolApproval = PendingToolApproval(request: approval, status: .pending)
+        restoreToolApproval(approval)
     }
 
     func approveToolUse(toolUseId: String) async throws {
@@ -100,7 +92,7 @@ extension ConversationViewModel {
             return
         }
 
-        if completeAlreadyResolvedPromptDismissalIfNeeded(
+        if try await completeAlreadyResolvedPromptDismissalIfNeeded(
             promptId: promptId,
             promptPendingApproval: promptPendingApproval,
             shouldCheckSessionResolution: approvalCandidate?.shouldCheckSessionResolution != false
@@ -137,6 +129,7 @@ extension ConversationViewModel {
     }
 
     func validatePromptDismissalAvailable() throws {
+        try ensureToolApprovalRestorationFinished()
         guard !state.isSendingMessage else {
             throw AgentError.spawnFailed("Wait for the current approval to finish before dismissing the prompt")
         }
@@ -149,9 +142,9 @@ extension ConversationViewModel {
         promptId: String,
         promptPendingApproval: PendingToolApproval,
         shouldCheckSessionResolution: Bool
-    ) -> Bool {
+    ) async throws -> Bool {
         guard shouldCheckSessionResolution,
-              clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) != nil else {
+              try await clearResolvedToolApprovalFromClaudeSessionIfNeeded(promptPendingApproval.request) != nil else {
             return false
         }
         completePromptDismissal(
@@ -273,6 +266,9 @@ extension ConversationViewModel {
     }
 
     func replacePendingToolApproval(with approval: ToolApprovalRequest) {
+        if toolApprovalRestoreTask != nil {
+            cancelToolApprovalRestoration()
+        }
         if state.pendingToolApproval?.request == approval {
             return
         }
@@ -350,8 +346,8 @@ extension ConversationViewModel {
     func clearResolvedToolApprovalFromClaudeSessionIfNeeded(
         _ approval: ToolApprovalRequest,
         refreshTranscript: Bool = false
-    ) -> ToolApprovalStatus? {
-        guard let resolvedStatus = resolvedToolApprovalStatusFromClaudeSession(approval) else {
+    ) async throws -> ToolApprovalStatus? {
+        guard let resolvedStatus = try await resolvedToolApprovalStatusFromClaudeSession(approval) else {
             return nil
         }
 

@@ -100,31 +100,6 @@ extension ConversationViewModel {
         )
     }
 
-    func resolvedToolApprovalStatusFromClaudeSession(_ approval: ToolApprovalRequest) -> ToolApprovalStatus? {
-        let providerId = conversation.provider ?? settingsService.current.defaultProvider
-        guard providerId == "claude",
-              let workingDirectory = dbConversation()?.thread?.primaryWorkingDirectory else {
-            return nil
-        }
-
-        let transcriptReader = AgentCLIKit.ClaudeHookTranscriptReader()
-        let resolution = transcriptReader.resolution(
-            forToolUseId: AgentCLIKit.AgentInteractionID(rawValue: approval.toolUseId),
-            sessionId: AgentCLIKit.AgentSessionID(rawValue: approval.sessionId),
-            workingDirectoryPath: workingDirectory
-        )
-        switch resolution {
-        case .some(.permissionDecision(.allow)):
-            return .approved
-        case .some(.permissionDecision(.deny)):
-            return .denied
-        case .some(.nonBlockingError):
-            return .superseded
-        case .some(.permissionDecision(.deferDecision)), .none:
-            return nil
-        }
-    }
-
     private func askUserQuestionApprovalRecords(
         conversationID: String,
         promptId: String

@@ -10,6 +10,7 @@ extension ConversationViewModel {
     var isReadyForExistingScheduledTask: Bool {
         !isAgentActivelyWorking &&
             !state.isSendingMessage &&
+            !state.isRestoringToolApproval &&
             state.messageQueue.peekNext() == nil &&
             state.pendingToolApproval == nil &&
             !hasUnansweredPrompt &&
@@ -79,6 +80,7 @@ extension ConversationViewModel {
         _ prompt: String,
         onRuntimePrepared: () throws -> Void = {}
     ) async throws {
+        try ensureToolApprovalRestorationFinished()
         try validateAutomatedScheduledWorkspaceIfNeeded(isAutomatedScheduledTurn: true)
         let recoveryContext = try await prepareRuntimeForAutomatedScheduledTurn()
         try validateAutomatedScheduledWorkspaceIfNeeded(isAutomatedScheduledTurn: true)

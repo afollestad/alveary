@@ -8,6 +8,13 @@ import XCTest
 /// snapshot companions.
 @MainActor
 extension SnapshotTests {
+    /// Settled-content snapshots mount synchronously; prepare their documents before capture so they do not snapshot the loading overlay.
+    func prepareTranscriptSnapshotMarkdown(_ items: [ChatItem], configuration: AppKitTranscriptRowFactory.Configuration) async {
+        for request in AppKitTranscriptRowFactory().markdownPreparationRequests(for: items, configuration: configuration) {
+            _ = await AppMarkdownDocumentCache.document(markdown: request.markdown, context: request.documentCacheContext)
+        }
+    }
+
     func appKitRowSnapshot<Content: NSView>(
         _ makeContent: @escaping () -> Content
     ) -> some View {

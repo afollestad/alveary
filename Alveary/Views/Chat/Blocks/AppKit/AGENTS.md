@@ -17,7 +17,7 @@ AppKit-native transcript row primitives live here, because SwiftUI lazy-list rec
 ### Tool, Approval, And Prompt Rows
 
 - **Mirror the tool-row rules owned by `Alveary/Views/Chat/Blocks/Tools/AGENTS.md`** — output paging, code highlighting, no-output behavior, the shared summary formatter, non-expandable Skill rows, and sub-agent expansion shapes all match the SwiftUI rules there.
-- **Prewarm tool details.** Collapsed inline tool rows prepare their retained details view offscreen after configuration so the first expansion does not synchronously pay detail construction cost.
+- **Route tool-detail prewarming through `AppKitTranscriptViewportPrewarmable`.** The transcript container queues only mounted rows within its viewport margin; do not start row-local preparation tasks.
 - **Ignore expansion echoes.** Local AppKit expand/collapse updates are echoed back through SwiftUI as persisted row ids; rebuilding an unchanged tool row for that echo interrupts coordinated frame animations.
 - **Clip expandable row containers to bounds.** Expanded children may be laid out at target height before the row's frame animation reaches it.
 - **Debounce group status.** Multi-tool AppKit group headers delay terminal icons like SwiftUI so streaming siblings do not flash done.

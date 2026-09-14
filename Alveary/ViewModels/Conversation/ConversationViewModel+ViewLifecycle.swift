@@ -61,6 +61,7 @@ private extension ConversationViewModel {
             return
         }
 
+        cancelToolApprovalRestoration()
         subscriptionTask?.cancel()
         subscriptionTask = nil
         queueDrainTask?.cancel()

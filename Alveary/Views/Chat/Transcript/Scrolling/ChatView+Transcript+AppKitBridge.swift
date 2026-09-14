@@ -5,13 +5,16 @@ import SwiftUI
 
 extension ChatTranscriptView {
     func appKitTranscriptSurface() -> some View {
-        AppKitTranscriptScrollViewRepresentable(
-            items: appKitTranscriptItems,
+        let presentation = appKitTranscriptPresentationCache.presentation(for: appKitTranscriptItems)
+        return AppKitTranscriptScrollViewRepresentable(
+            items: presentation.items,
+            presentation: presentation,
             transientRows: appKitTransientRows,
-            rowConfiguration: appKitRowConfiguration(),
+            rowConfiguration: appKitRowConfiguration(presentation: presentation),
             isFollowing: isFollowing,
             scrollToBottomRequest: scrollToBottomRequest + appKitScrollToBottomRequest,
             scrollToRowTopRequest: nil,
+            onLoadingStateChanged: handleTranscriptLoadingStateChange,
             onScrollMetricsChanged: { newMetrics in
                 let oldMetrics = latestMetrics ?? newMetrics
                 handleScrollMetricsChange(oldMetrics: oldMetrics, newMetrics: newMetrics)
@@ -88,28 +91,26 @@ extension ChatTranscriptView {
         )
     }
 
-    func appKitRowConfiguration() -> AppKitTranscriptRowFactory.Configuration {
-        let expandableRowIDs = AppKitTranscriptActivityGrouping.expandableRowIDs(for: appKitTranscriptItems)
-        let migratedExpandedRowIDs = AppKitTranscriptActivityGrouping.migratedExpandedRowIDs(
-            expandedTranscriptRows,
-            for: appKitTranscriptItems
-        )
-        let validExpandedRowIDs = migratedExpandedRowIDs.intersection(expandableRowIDs)
+    func appKitRowConfiguration(presentation: AppKitTranscriptPresentation) -> AppKitTranscriptRowFactory.Configuration {
+        let migratedExpandedRowIDs = presentation.migratedExpandedRowIDs(expandedTranscriptRows)
+        let validExpandedRowIDs = migratedExpandedRowIDs.intersection(presentation.expandableRowIDs)
         if validExpandedRowIDs != expandedTranscriptRows {
             Task { @MainActor in
                 expandedTranscriptRows = validExpandedRowIDs
             }
         }
 
+        let attachments = appKitTranscriptAttachments
         var configuration = AppKitTranscriptRowFactory.Configuration()
         configuration.bubbleMaxWidth = adaptiveTranscriptBubbleMaxWidth(for: transcriptContentWidth)
         configuration.typography = transcriptTypography
         configuration.markdownBaseURL = appKitMarkdownBaseURL
         configuration.expandedRowIDs = validExpandedRowIDs
         configuration.pendingToolApproval = viewModel.state.pendingToolApproval
+        configuration.isRestoringToolApproval = viewModel.state.isRestoringToolApproval
         configuration.retryableFailedMessageIDs = viewModel.state.retryableFailedMessageIDs
-        configuration.transcriptImageAttachmentsByMessageID = appKitTranscriptAttachmentsByMessageID
-        configuration.transcriptFileAttachmentsByMessageID = appKitTranscriptFilesByMessageID
+        configuration.transcriptImageAttachmentsByMessageID = attachments.imagesByMessageID
+        configuration.transcriptFileAttachmentsByMessageID = attachments.filesByMessageID
         configuration.hasUnansweredPrompt = viewModel.hasUnansweredPrompt
         configuration.actionContextID = workingDirectory ?? ""
         configuration.suppressesApprovalControls = { $0.toolName == "ExitPlanMode" }
@@ -157,17 +158,11 @@ extension ChatTranscriptView {
         }
     }
 
-    var appKitTranscriptAttachmentsByMessageID: [String: [TranscriptImageAttachment]] {
-        Self.transcriptImageAttachmentsByMessageID(
+    private var appKitTranscriptAttachments: AppKitTranscriptAttachments {
+        appKitTranscriptAttachmentCache.attachments(
             events: events,
             runtimeImageAttachments: viewModel.state.transcriptImageAttachments,
-            runtimeAppShots: viewModel.state.transcriptAppShots
-        )
-    }
-
-    var appKitTranscriptFilesByMessageID: [String: [LocalFileAttachment]] {
-        Self.transcriptFileAttachmentsByMessageID(
-            events: events,
+            runtimeAppShots: viewModel.state.transcriptAppShots,
             runtimeFileAttachments: viewModel.state.transcriptFileAttachments
         )
     }
@@ -177,58 +172,24 @@ extension ChatTranscriptView {
         runtimeImageAttachments: [String: [LocalImageAttachment]],
         runtimeAppShots: [String: [AppShotAttachment]]
     ) -> [String: [TranscriptImageAttachment]] {
-        var attachmentsByID: [String: [TranscriptImageAttachment]] = [:]
-        for event in events where event.type == ConversationEventRecord.messageType {
-            appendTranscriptImageAttachments(
-                event.persistedPlainImageAttachments.map(TranscriptImageAttachment.init(localImageAttachment:)),
-                to: event.id,
-                in: &attachmentsByID
-            )
-            appendTranscriptImageAttachments(
-                event.persistedAppShotAttachments.map(TranscriptImageAttachment.init(appShot:)),
-                to: event.id,
-                in: &attachmentsByID
-            )
-        }
-        for (messageID, attachments) in runtimeImageAttachments {
-            appendTranscriptImageAttachments(
-                attachments.map(TranscriptImageAttachment.init(localImageAttachment:)),
-                to: messageID,
-                in: &attachmentsByID
-            )
-        }
-        for (messageID, appShots) in runtimeAppShots {
-            appendTranscriptImageAttachments(
-                appShots
-                    .map(PersistedAppShotAttachment.init(appShot:))
-                    .map(TranscriptImageAttachment.init(appShot:)),
-                to: messageID,
-                in: &attachmentsByID
-            )
-        }
-        return attachmentsByID
+        AppKitTranscriptAttachmentCache().attachments(
+            events: events,
+            runtimeImageAttachments: runtimeImageAttachments,
+            runtimeAppShots: runtimeAppShots,
+            runtimeFileAttachments: [:]
+        ).imagesByMessageID
     }
 
     static func transcriptFileAttachmentsByMessageID(
         events: [ConversationEventRecord],
         runtimeFileAttachments: [String: [LocalFileAttachment]]
     ) -> [String: [LocalFileAttachment]] {
-        var attachmentsByID: [String: [LocalFileAttachment]] = [:]
-        for event in events where event.type == ConversationEventRecord.messageType && event.role == ConversationEventRecord.userRole {
-            appendTranscriptFileAttachments(
-                event.persistedFileAttachments,
-                to: event.id,
-                in: &attachmentsByID
-            )
-        }
-        for (messageID, attachments) in runtimeFileAttachments {
-            appendTranscriptFileAttachments(
-                attachments,
-                to: messageID,
-                in: &attachmentsByID
-            )
-        }
-        return attachmentsByID
+        AppKitTranscriptAttachmentCache().attachments(
+            events: events,
+            runtimeImageAttachments: [:],
+            runtimeAppShots: [:],
+            runtimeFileAttachments: runtimeFileAttachments
+        ).filesByMessageID
     }
 
     static func appendTranscriptFileAttachments(

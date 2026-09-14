@@ -120,6 +120,7 @@ private extension ConversationViewModel {
             !defersOrdinaryScheduledOutbound &&
             !isAgentActivelyWorking &&
             !state.isSendingMessage &&
+            !state.isRestoringToolApproval &&
             !state.isReconfiguringSession &&
             !state.hasActiveSessionHandoff &&
             !state.isGeneratingCommitMessage &&

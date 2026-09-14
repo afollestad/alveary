@@ -61,6 +61,7 @@ Rules for `ChatView+Transcript.swift`, `ChatView+Transcript+ScrollBehavior.swift
 ## Pending Scroll Watchdog
 
 - `transcriptProgrammaticScrollTimeout` is a reset-on-progress watchdog, not a fixed deadline.
+- Suspend the watchdog while initial transcript preparation is loading; resume settling only after measured content installs.
 - `schedulePendingProgrammaticScrollTimeout()` stamps a UUID token.
 - The delayed closure clears pending state only if its token still matches.
 - Call it from initial `scrollToBottom` and every reissue branch.

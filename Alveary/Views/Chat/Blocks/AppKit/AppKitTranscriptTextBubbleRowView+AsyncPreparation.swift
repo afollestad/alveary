@@ -22,6 +22,7 @@ extension AppKitTranscriptTextBubbleRowView {
         let key = context.key
         guard pendingAsyncPreparationKey != key,
               asyncPreparedMarkdown?.key != key,
+              retainedDocument(for: context.configuration) == nil,
               AppMarkdownDocumentCache.cachedDocument(markdown: context.configuration.markdown, context: context.documentCacheContext) == nil else {
             return
         }

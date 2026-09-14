@@ -22,6 +22,7 @@ extension ConversationViewModel {
     }
 
     func cancelPendingRuntimeTasks() {
+        cancelToolApprovalRestoration()
         subscriptionTask?.cancel()
         subscriptionTask = nil
         saveTask?.cancel()

@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 extension ConversationViewModelTests {
-    func testHydratesPendingApprovalFromUnresolvedRecord() throws {
+    func testHydratesPendingApprovalFromUnresolvedRecord() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let record = ConversationEventRecord(
@@ -22,12 +22,13 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolName, "Edit")
     }
 
-    func testDoesNotHydratePendingApprovalFromResolvedApprovalRecord() throws {
+    func testDoesNotHydratePendingApprovalFromResolvedApprovalRecord() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let record = ConversationEventRecord(
@@ -44,11 +45,12 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
     }
 
-    func testHydratesLatestUnresolvedApprovalWhenNewerResolvedRecordExists() throws {
+    func testHydratesLatestUnresolvedApprovalWhenNewerResolvedRecordExists() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let unresolvedRecord = ConversationEventRecord(
@@ -77,11 +79,12 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-unresolved")
     }
 
-    func testDoesNotHydratePendingApprovalAfterDenyResolvesWithLaterToken() throws {
+    func testDoesNotHydratePendingApprovalAfterDenyResolvesWithLaterToken() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let approvalTime = Date()
@@ -107,11 +110,12 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
     }
 
-    func testHydratesPendingApprovalWhenOnlyDeferredTokenExistsAfterApproval() throws {
+    func testHydratesPendingApprovalWhenOnlyDeferredTokenExistsAfterApproval() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let approvalTime = Date()
@@ -137,11 +141,12 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
     }
 
-    func testHydratesPendingApprovalWhenLaterTokenHasNoStopReason() throws {
+    func testHydratesPendingApprovalWhenLaterTokenHasNoStopReason() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let approvalTime = Date()
@@ -166,11 +171,12 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
     }
 
-    func testHydratesPendingApprovalWhenLaterTokenIsInterimUsageUpdate() throws {
+    func testHydratesPendingApprovalWhenLaterTokenIsInterimUsageUpdate() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let approvalTime = Date()
@@ -196,11 +202,12 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertEqual(fixture.viewModel.state.pendingToolApproval?.request.toolUseId, "tool-1")
     }
 
-    func testHydrateMarksAcceptedExitPlanModeResolvedWhenImplementationAlreadyStarted() throws {
+    func testHydrateMarksAcceptedExitPlanModeResolvedWhenImplementationAlreadyStarted() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let approvalTime = Date()
@@ -228,12 +235,13 @@ extension ConversationViewModelTests {
         try fixture.context.save()
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(approval.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
-    func testHydrateMarksApprovalResolvedWhenClaudeSessionAlreadyConsumedIt() throws {
+    func testHydrateMarksApprovalResolvedWhenClaudeSessionAlreadyConsumedIt() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let sessionId = "session-restored"
@@ -259,12 +267,13 @@ extension ConversationViewModelTests {
         defer { try? FileManager.default.removeItem(at: sessionFileURL) }
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
     }
 
-    func testHydrateRecognizesSnakeCaseHookAttachmentToolUseId() throws {
+    func testHydrateRecognizesSnakeCaseHookAttachmentToolUseId() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let sessionId = "session-restored"
@@ -291,12 +300,13 @@ extension ConversationViewModelTests {
         defer { try? FileManager.default.removeItem(at: sessionFileURL) }
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.denied.rawValue)
     }
 
-    func testHydrateMarksAskUserQuestionHookErrorSuperseded() throws {
+    func testHydrateMarksAskUserQuestionHookErrorSuperseded() async throws {
         let fixture = try ConversationViewModelTestFixture()
         let conversation = try fixture.dbConversation()
         let sessionId = "session-restored"
@@ -322,6 +332,7 @@ extension ConversationViewModelTests {
         defer { try? FileManager.default.removeItem(at: sessionFileURL) }
 
         fixture.viewModel.hydratePendingToolApprovalIfNeeded()
+        await fixture.viewModel.toolApprovalRestoreTask?.value
 
         XCTAssertNil(fixture.viewModel.state.pendingToolApproval)
         XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.superseded.rawValue)

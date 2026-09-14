@@ -239,6 +239,7 @@ extension ConversationViewModel {
         guard !hasBlockingHandoff,
               !state.turnState.isActive,
               !state.isSendingMessage,
+              !state.isRestoringToolApproval,
               !state.isReconfiguringSession,
               state.pendingToolApproval == nil,
               !hasUnansweredPrompt || canClearQueuedPlanRevision else {

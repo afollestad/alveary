@@ -29,6 +29,8 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
     private let cancellationHandlerAction: CancellationHandlerAction
     let now: DateProvider
     private var activeExecutions: [PersistentIdentifier: ActiveScheduledTaskExecution] = [:]
+    /// Stop may arrive during approval recovery, before this run owns any provider activity to cancel.
+    private var preparingExecutionStopRequests: [PersistentIdentifier: Bool] = [:]
 
     init(
         modelContext: ModelContext,
@@ -80,17 +82,27 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
         _ materialization: ScheduledTaskRunMaterialization,
         onUserStop: (@MainActor () async throws -> Void)?
     ) async throws -> ScheduledTaskRunExecutionResult {
+        let runID = materialization.runID
+        guard activeExecutions[runID] == nil, preparingExecutionStopRequests[runID] == nil else {
+            throw ScheduledTaskRunExecutionError.alreadyExecuting
+        }
         let (run, conversation) = try resolveExecutionModels(materialization)
-        let runID = run.persistentModelID
+        let scheduledRunID = run.id
+        preparingExecutionStopRequests[runID] = false
+        defer { preparingExecutionStopRequests.removeValue(forKey: runID) }
         let conversationID = conversation.id
         let prompt = Self.outboundPrompt(for: materialization.prompt)
         let controllerKey = ConversationControllerKey(conversationID: conversationID)
-        let baselineEpoch = controllerRegistry.currentOutcome(for: controllerKey)?.turn.epoch
         let lease = controllerRegistry.makeBackgroundLease(
             for: conversation,
             defersAutomaticSuspension: true
         )
-        try activateLeaseIfTargetIsReady(lease, for: run)
+        try await activateLeaseIfTargetIsReady(lease) {
+            guard preparingExecutionStopRequests[runID] == false else { throw CancellationError() }
+            return try resolveExecutionModels(materialization).0
+        }
+        preparingExecutionStopRequests.removeValue(forKey: runID)
+        let baselineEpoch = controllerRegistry.currentOutcome(for: controllerKey)?.turn.epoch
         let execution = ActiveScheduledTaskExecution(
             runID: runID,
             lease: lease,
@@ -99,25 +111,46 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
         activeExecutions[runID] = execution
         let userStopToken = lease.viewModel.installAutomatedScheduledUserStopHandler(onUserStop)
         defer { lease.viewModel.removeAutomatedScheduledUserStopHandler(token: userStopToken) }
-        lease.viewModel.beginAutomatedScheduledRunExecution(runID: run.id)
-        let outcomes = lease.outcomes()
+        lease.viewModel.beginAutomatedScheduledRunExecution(runID: scheduledRunID)
+        return try await executePreparedRun(execution, conversationID: conversationID, baselineEpoch: baselineEpoch, prompt: prompt)
+    }
 
+    func stop(runID: PersistentIdentifier) async throws {
+        guard let execution = activeExecutions[runID] else {
+            if preparingExecutionStopRequests[runID] != nil {
+                preparingExecutionStopRequests[runID] = true
+            }
+            return
+        }
+        execution.isStopRequested = true
+        execution.cancelProviderTasks()
+        await execution.cancelConversationActivity()
+    }
+}
+
+private extension DefaultScheduledTaskRunExecutor {
+    func executePreparedRun(
+        _ execution: ActiveScheduledTaskExecution,
+        conversationID: String,
+        baselineEpoch: UInt64?,
+        prompt: String
+    ) async throws -> ScheduledTaskRunExecutionResult {
         do {
             let providerResult = try await providerExecutionResult(
                 execution: execution,
-                outcomes: outcomes,
+                outcomes: execution.lease.outcomes(),
                 baselineEpoch: baselineEpoch,
                 prompt: prompt
             )
             let terminalRequest = ScheduledTaskTerminalPersistenceRequest(
-                runID: runID,
+                runID: execution.runID,
                 conversationID: conversationID,
                 result: providerResult,
                 finishedAt: now()
             )
             let persistedResult = try await finishRunDurably(
                 terminalRequest,
-                viewModel: lease.viewModel,
+                viewModel: execution.lease.viewModel,
                 execution: execution
             )
             await finalizeExecutionDurably(execution)
@@ -132,17 +165,6 @@ final class DefaultScheduledTaskRunExecutor: ScheduledTaskRunExecuting {
         }
     }
 
-    func stop(runID: PersistentIdentifier) async throws {
-        guard let execution = activeExecutions[runID] else {
-            return
-        }
-        execution.isStopRequested = true
-        execution.cancelProviderTasks()
-        await execution.cancelConversationActivity()
-    }
-}
-
-private extension DefaultScheduledTaskRunExecutor {
     func finishExecutionAfterError(
         _ error: Error,
         execution: ActiveScheduledTaskExecution,
@@ -172,31 +194,6 @@ private extension DefaultScheduledTaskRunExecutor {
             await finalizeExecutionDurably(execution)
             throw error
         }
-    }
-
-    func resolveExecutionModels(
-        _ materialization: ScheduledTaskRunMaterialization
-    ) throws -> (ScheduledTaskRun, Conversation) {
-        let runID = materialization.runID
-        guard activeExecutions[runID] == nil else {
-            throw ScheduledTaskRunExecutionError.alreadyExecuting
-        }
-        guard let run = modelContext.resolveScheduledTaskRun(id: runID) else {
-            throw ScheduledTaskRunExecutionError.runMissing
-        }
-        guard run.status == .preparing else {
-            throw ScheduledTaskRunExecutionError.invalidRunStatus(run.status)
-        }
-        guard let conversation = modelContext.resolveConversation(conversationID: materialization.conversationID) else {
-            throw ScheduledTaskRunExecutionError.conversationMissing
-        }
-        guard let destination = run.decodedDestinationSnapshot else {
-            throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
-        }
-        guard conversationBelongsToRun(run, conversation: conversation, destination: destination) else {
-            throw ScheduledTaskRunExecutionError.conversationDoesNotBelongToRun
-        }
-        return (run, conversation)
     }
 
     func providerExecutionResult(

@@ -25,7 +25,7 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
         XCTAssertNotNil(container.rowFrame(for: "note"))
     }
 
-    func testCoordinatorKeepsInitialColdMarkdownRowsVisibleWhileDocumentsPrepare() async {
+    func testCoordinatorShowsLoaderUntilInitialColdMarkdownRowsArePrepared() async {
         let container = makeContainer()
         let coordinator = AppKitTranscriptScrollBridgeCoordinator()
         let rowID = "cold-\(UUID().uuidString)"
@@ -40,7 +40,11 @@ final class AppKitTranscriptScrollBridgeTests: XCTestCase {
             scrollToBottomRequest: 0
         )
 
+        XCTAssertNil(container.rowFrame(for: rowID))
+        XCTAssertTrue(container.isLoadingForTesting)
+        await container.waitForRow(id: rowID)
         XCTAssertNotNil(container.rowFrame(for: rowID))
+        XCTAssertFalse(container.isLoadingForTesting)
     }
 
     func testCoordinatorDefersSubsequentColdMarkdownRowsUntilDocumentsArePrepared() async {

@@ -167,6 +167,8 @@ final class ConversationState {
     var queuedMessagesPauseReason: QueuedMessagesPauseReason?
     var setupPhase: SetupPhase?
     var pendingToolApproval: PendingToolApproval?
+    /// Recovery reads provider history off-main; its pending decision must block outbound work until that read settles.
+    var isRestoringToolApproval = false
     var pendingExitPlanModeFollowUp: PendingExitPlanModeFollowUp?
     var pendingExitPlanModeRevisionGuidance: PendingExitPlanModeRevisionGuidance?
     @ObservationIgnored var pendingExitPlanModeFollowUpQuietTask: Task<Void, Never>?
@@ -191,6 +193,8 @@ final class ConversationState {
     var transcriptImageAttachments: [String: [LocalImageAttachment]] = [:]
     var transcriptFileAttachments: [String: [LocalFileAttachment]] = [:]
     var transcriptAppShots: [String: [AppShotAttachment]] = [:]
+    /// Survives controller remounts so automatic attachment maintenance shares the first authoritative transcript read.
+    @ObservationIgnored var hasScheduledAutomaticAttachmentCleanup = false
     var appShotProviderSessionTitleFallback: String?
     var pendingSyntheticAssistantDuplicateText: String?
     /// Non-ambient background tasks the provider process still owns after its turn ended, mirrored from

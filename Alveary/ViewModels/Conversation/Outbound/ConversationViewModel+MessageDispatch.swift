@@ -306,6 +306,7 @@ private extension ConversationViewModel {
             state.setupPhase == nil &&
             !state.isCancellingInitialSetup &&
             !state.isSendingMessage &&
+            !state.isRestoringToolApproval &&
             !state.turnState.isActive &&
             state.inFlightQueuedMessageID == nil &&
             state.pendingToolApproval == nil &&

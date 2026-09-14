@@ -29,6 +29,7 @@ final class ControllerEntry {
             pendingApprovalID: viewModel.state.pendingToolApproval?.request.toolUseId,
             pendingQuestionID: viewModel.state.grouper.latestUnansweredPrompt?.id,
             isSendingMessage: viewModel.state.isSendingMessage,
+            isRestoringToolApproval: viewModel.state.isRestoringToolApproval,
             hasInitialSetupTask: viewModel.initialSetupTask != nil,
             hasQueueDrainTask: viewModel.queueDrainTask != nil,
             hasSetupPhase: viewModel.state.setupPhase != nil,
@@ -64,6 +65,7 @@ final class ControllerEntry {
         let snapshot = observedState
         return snapshot.isTurnActive ||
             snapshot.isSendingMessage ||
+            snapshot.isRestoringToolApproval ||
             snapshot.hasInitialSetupTask ||
             snapshot.hasQueueDrainTask ||
             snapshot.hasSetupPhase ||
@@ -188,6 +190,8 @@ struct ObservedControllerState: Equatable {
     let pendingApprovalID: String?
     let pendingQuestionID: String?
     let isSendingMessage: Bool
+    /// Restoring the next approval keeps the runtime alive between visible decision surfaces.
+    let isRestoringToolApproval: Bool
     let hasInitialSetupTask: Bool
     let hasQueueDrainTask: Bool
     let hasSetupPhase: Bool

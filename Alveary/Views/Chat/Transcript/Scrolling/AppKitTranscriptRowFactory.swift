@@ -20,6 +20,7 @@ final class AppKitTranscriptRowFactory {
         var transcriptImageAttachmentsByMessageID: [String: [TranscriptImageAttachment]] = [:]
         var transcriptFileAttachmentsByMessageID: [String: [LocalFileAttachment]] = [:]
         var hasUnansweredPrompt = false
+        var isRestoringToolApproval = false
         // Bumps when callbacks resolve against a different external context, such as link base paths.
         var actionContextID = ""
         var suppressesApprovalControls: (ToolApprovalRequest) -> Bool = { _ in false }
@@ -87,13 +88,24 @@ final class AppKitTranscriptRowFactory {
     }
 
     private var cachedViewsByRowID: [String: NSView] = [:]
+    /// The coordinator retains prepared documents through installation so cache eviction cannot
+    /// force an offscreen row's first exact measurement back onto the main actor.
+    var preparedMarkdownDocuments: [AppKitTranscriptMarkdownPrepRequest: AppMarkdownDocument] = [:]
 
     func makeRows(
         for items: [ChatItem],
         transientRows: AppKitTranscriptTransientRows = .init(),
         configuration: Configuration
     ) -> [AppKitTranscriptLayoutRow] {
-        let rows = AppKitTranscriptActivityGrouping.visualRows(for: items).flatMap { layoutRows(for: $0, configuration: configuration) }
+        makeRows(for: AppKitTranscriptPresentation(items: items), transientRows: transientRows, configuration: configuration)
+    }
+
+    func makeRows(
+        for presentation: AppKitTranscriptPresentation,
+        transientRows: AppKitTranscriptTransientRows = .init(),
+        configuration: Configuration
+    ) -> [AppKitTranscriptLayoutRow] {
+        let rows = presentation.visualRows.flatMap { layoutRows(for: $0, configuration: configuration) }
             + layoutRows(for: transientRows, configuration: configuration)
         let liveRowIDs = Set(rows.map(\.id))
         cachedViewsByRowID = cachedViewsByRowID.filter { rowID, _ in liveRowIDs.contains(rowID) }
@@ -286,11 +298,21 @@ final class AppKitTranscriptRowFactory {
         view.onRetry = role == .user ? {
             configuration.onRetryFailedUserMessage(id)
         } : nil
+        let displayedMarkdown = displayMarkdown(markdown, fileAttachments: fileAttachments)
+        let preparationRequest = AppKitTranscriptMarkdownPrepRequest(
+            rowID: id,
+            markdown: displayedMarkdown,
+            inlineCodeStyle: role == .user ? .userBubble : .assistantBubble,
+            composerChipMode: role == .user ? .composer : .none
+        )
+        view.retainedPreparedMarkdown = preparedMarkdownDocuments[preparationRequest].map {
+            (request: preparationRequest, document: $0)
+        }
         view.configure(
             .init(
                 id: id,
                 role: role,
-                markdown: displayMarkdown(markdown, fileAttachments: fileAttachments),
+                markdown: displayedMarkdown,
                 imageAttachments: imageAttachments,
                 fileAttachments: fileAttachments,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,

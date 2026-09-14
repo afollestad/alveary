@@ -120,11 +120,15 @@ final class AppKitTranscriptTextBubbleRowView: NSView {
     var isHydratingMarkdownForViewport = false
     var hasMarkdownHeightHandler = false
     var asyncPreparedMarkdown: AsyncPreparedMarkdown?
+    /// Retain the bridge's document for this shell; the global cache can evict it before
+    /// a long transcript finishes installing or before an offscreen row is hydrated.
+    var retainedPreparedMarkdown: (request: AppKitTranscriptMarkdownPrepRequest, document: AppMarkdownDocument)?
     var pendingAsyncPreparationKey: AppKitMarkdownPreparedLayoutKey?
     var asyncPreparationGeneration = 0
     var asyncPreparationTask: Task<Void, Never>?
 #if DEBUG
     var asyncDocumentLoaderForTesting: ((String, AppMarkdownDocumentCacheContext) async -> AppMarkdownDocument)?
+    var synchronousDocumentParseCountForTesting = 0
 #endif
     // Set only after a prepared layout mismatch; the row then measures the
     // hydrated AppKit view until a new configuration gives the cache another chance.

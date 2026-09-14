@@ -79,5 +79,6 @@ extension AppKitTranscriptDocumentLayoutView {
         let completions = activeFrameAnimationCompletions
         activeFrameAnimationCompletions = []
         completions.forEach { $0() }
+        onFrameAnimationCompleted?()
     }
 }

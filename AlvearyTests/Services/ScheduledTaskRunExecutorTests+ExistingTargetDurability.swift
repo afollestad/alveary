@@ -113,6 +113,107 @@ extension ScheduledTaskRunExecutorTests {
         XCTAssertEqual(persistedModifiedAtBeforeRetrySave, baselineModifiedAt)
         XCTAssertEqual(fixture.thread.modifiedAt, terminalDate)
     }
+
+    func testExistingTargetResolvedApprovalFinishesRecoveryBeforeStartingRun() async throws {
+        let fixture = try ConversationViewModelTestFixture()
+        let run = try makeExistingTargetRun(fixture: fixture, modifiedAt: Date())
+        let approvalRecord = try insertUnresolvedApproval(into: fixture)
+        let recoveryGate = ExistingTargetPersistenceRetryGate()
+        fixture.viewModel.readToolApprovalTranscript = { _ in
+            await recoveryGate.wait()
+            return .approved
+        }
+        var startCalls = 0
+        let registry = DefaultConversationControllerRegistry(
+            makeViewModel: { _ in fixture.viewModel },
+            flushTerminalRecords: { _ in },
+            suspendRuntime: { _ in },
+            runtimeIsSuspended: { _ in true }
+        )
+        let executor = DefaultScheduledTaskRunExecutor(
+            modelContext: fixture.context,
+            controllerRegistry: registry,
+            notificationManager: ScheduledExecutionNotificationRecorder(),
+            startAutomatedTurn: { viewModel, _ in
+                startCalls += 1
+                viewModel.markVisibleTurnStarted()
+                viewModel.turnState.beginTurn()
+            }
+        )
+        let execution = Task { try await executor.execute(makeMaterialization(run: run, fixture: fixture)) }
+        try await waitUntil("expected scheduled approval recovery") { recoveryGate.waitCount == 1 }
+
+        XCTAssertTrue(fixture.viewModel.state.isRestoringToolApproval)
+        XCTAssertFalse(fixture.viewModel.isReadyForExistingScheduledTask)
+        XCTAssertEqual(startCalls, 0)
+        XCTAssertEqual(run.status, .preparing)
+        XCTAssertNil(run.startedAt)
+
+        recoveryGate.open()
+        try await waitUntil("expected resolved approval to allow scheduled execution") { run.status == .running }
+        XCTAssertEqual(approvalRecord.toolApprovalStatus, ToolApprovalStatus.approved.rawValue)
+        fixture.viewModel.state.endTurn()
+        let result = try await execution.value
+
+        XCTAssertEqual(result, .succeeded)
+        XCTAssertEqual(startCalls, 1)
+    }
+
+    func testExistingTargetRecoveryRevalidatesCancellationStopAndRunState() async throws {
+        for interruption in ApprovalRecoveryInterruption.allCases {
+            let fixture = try ConversationViewModelTestFixture()
+            let run = try makeExistingTargetRun(fixture: fixture, modifiedAt: Date())
+            _ = try insertUnresolvedApproval(into: fixture)
+            let recoveryGate = ExistingTargetPersistenceRetryGate()
+            fixture.viewModel.readToolApprovalTranscript = { _ in
+                await recoveryGate.wait()
+                return .approved
+            }
+            var startCalls = 0
+            let registry = DefaultConversationControllerRegistry(
+                makeViewModel: { _ in fixture.viewModel },
+                flushTerminalRecords: { _ in },
+                suspendRuntime: { _ in },
+                runtimeIsSuspended: { _ in true }
+            )
+            let executor = DefaultScheduledTaskRunExecutor(
+                modelContext: fixture.context,
+                controllerRegistry: registry,
+                notificationManager: ScheduledExecutionNotificationRecorder(),
+                startAutomatedTurn: { _, _ in startCalls += 1 }
+            )
+            let materialization = makeMaterialization(run: run, fixture: fixture)
+            let execution = Task { try await executor.execute(materialization) }
+            try await waitUntil("expected scheduled approval recovery") { recoveryGate.waitCount == 1 }
+            switch interruption {
+            case .cancellation: execution.cancel()
+            case .stop: try await executor.stop(runID: run.persistentModelID)
+            case .changedRun:
+                run.status = .interrupted
+                try fixture.context.save()
+            }
+            recoveryGate.open()
+            do {
+                _ = try await execution.value
+                XCTFail("Expected stale scheduled preparation to be rejected")
+            } catch {
+                if interruption == .changedRun {
+                    XCTAssertEqual(error as? ScheduledTaskRunExecutionError, .invalidRunStatus(.interrupted))
+                } else {
+                    XCTAssertTrue(error is CancellationError)
+                }
+            }
+            XCTAssertEqual(startCalls, 0)
+            XCTAssertNil(run.startedAt)
+            XCTAssertNil(run.finishedAt)
+            XCTAssertFalse(fixture.viewModel.state.isAutomatedScheduledRunActive)
+            XCTAssertNil(registry.controller(for: ConversationControllerKey(conversationID: fixture.conversation.id)))
+        }
+    }
+}
+
+private enum ApprovalRecoveryInterruption: CaseIterable {
+    case cancellation, stop, changedRun
 }
 
 @MainActor

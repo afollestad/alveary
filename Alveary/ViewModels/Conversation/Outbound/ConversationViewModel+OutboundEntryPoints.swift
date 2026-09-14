@@ -166,6 +166,7 @@ private extension ConversationViewModel {
     }
 
     func validateQueueOrSendAvailability() throws {
+        try ensureToolApprovalRestorationFinished()
         guard !state.hasActiveSessionHandoff else {
             throw AgentError.spawnFailed("Session handoff is in progress")
         }

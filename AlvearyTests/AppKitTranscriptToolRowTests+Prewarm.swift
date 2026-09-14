@@ -42,6 +42,7 @@ extension AppKitTranscriptToolRowTests {
 
         row.configure(.init(tool: tool, showsLeadingIcon: false))
         row.layoutSubtreeIfNeeded()
+        row.prewarmDetailsIfNeededForTesting()
 
         XCTAssertEqual(row.prewarmedDetailsFrameForTesting.minX, 0, accuracy: 0.5)
         XCTAssertEqual(row.prewarmedDetailsFrameForTesting.maxX, row.bounds.width - metrics.detailTrailingInset, accuracy: 0.5)
@@ -49,6 +50,7 @@ extension AppKitTranscriptToolRowTests {
         row.frame.size.width = 360
         row.needsLayout = true
         row.layoutSubtreeIfNeeded()
+        row.prewarmDetailsIfNeededForTesting()
 
         XCTAssertEqual(row.prewarmedDetailsFrameForTesting.minX, 0, accuracy: 0.5)
         XCTAssertEqual(row.prewarmedDetailsFrameForTesting.maxX, row.bounds.width - metrics.detailTrailingInset, accuracy: 0.5)

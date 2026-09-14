@@ -110,7 +110,7 @@ extension ChatView {
         let state = askUserQuestionOverlayState(for: prompt)
         let questionIndex = clampedQuestionIndex(state.currentQuestionIndex, questionCount: prompt.questions.count)
         let question = prompt.questions[safe: questionIndex]
-        let canInteract = !state.isSubmitting && !state.isDismissing
+        let canInteract = !state.isSubmitting && !state.isDismissing && !viewModel.state.isRestoringToolApproval
         let isCurrentQuestionAnswered = question.map {
             state.isQuestionAnswered($0, at: questionIndex)
         } ?? false
@@ -137,7 +137,7 @@ extension ChatView {
                     isCurrentQuestionAnswered &&
                     viewModel.canSubmitPromptAnswer(promptId: prompt.id),
                 prefersPrimaryActionForReturn: state.allQuestionsAnswered(in: prompt),
-                isResolving: state.isSubmitting || state.isDismissing,
+                isResolving: state.isSubmitting || state.isDismissing || viewModel.state.isRestoringToolApproval,
                 onNavigateBackward: {
                     navigateAskUserQuestion(promptID: prompt.id, delta: -1, questionCount: prompt.questions.count)
                 },

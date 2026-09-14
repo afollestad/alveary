@@ -31,7 +31,8 @@ extension ChatView {
             mode: composerMode,
             primaryActionTitle: presentation.primaryActionTitle,
             primaryActionSystemImage: presentation.primaryActionSystemImage,
-            isPrimaryActionDisabled: presentation.isPrimaryActionDisabled || voiceInputCoordinator.isDraftInteractionLocked,
+            isPrimaryActionDisabled: presentation.isPrimaryActionDisabled || voiceInputCoordinator.isDraftInteractionLocked ||
+                viewModel.state.isRestoringToolApproval,
             isStopConfirmationArmed: isStopConfirmationArmed,
             composerActionRowHeight: ChatComposerActionRowView.defaultHeight,
             onPermissionModeChange: { selectedPermissionModeBinding.wrappedValue = $0 },
@@ -88,6 +89,7 @@ extension ChatView {
 
     func submitDraftFromComposer(presentation: ComposerPresentation) {
         guard presentation.canSubmit,
+              !viewModel.state.isRestoringToolApproval,
               !voiceInputCoordinator.isDraftInteractionLocked else {
             return
         }

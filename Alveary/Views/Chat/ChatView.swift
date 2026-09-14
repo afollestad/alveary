@@ -64,7 +64,10 @@ struct ChatView: View {
         )
     }
     var composerMode: ComposerMode {
-        ChatPresentation.composerMode(for: ChatComposerModeState(
+        if viewModel.state.isRestoringToolApproval {
+            return .busy(canStop: false)
+        }
+        return ChatPresentation.composerMode(for: ChatComposerModeState(
             isCancellingInitialSetup: viewModel.state.isCancellingInitialSetup,
             hasSetupPhase: viewModel.setupPhase != nil,
             isReconfiguringSession: viewModel.state.isReconfiguringSession,
