@@ -3,38 +3,42 @@ import SwiftUI
 struct ProjectSettingsActionsCard: View {
     let actions: [ProjectSettingsActionDraft]
     let onUpdateAction: (Int, ProjectSettingsActionDraft) -> Void
-    let onAddAction: () -> Void
     let onRemoveAction: (Int) -> Void
 
+    @State private var isCompact = false
+
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 16) {
-                if actions.isEmpty {
-                    Text("Add actions that appear in the toolbar when this source folder is selected.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
-                        ProjectSettingsActionEditor(
-                            action: action,
-                            onChange: { onUpdateAction(index, $0) },
-                            onRemove: { onRemoveAction(index) }
-                        )
+        ProjectSettingsSection(title: "Toolbar actions") {
+            VStack(alignment: .leading, spacing: ProjectSettingsLayout.rowSpacing) {
+                if !isCompact {
+                    ProjectSettingsActionRowLayout(isCompact: false) {
+                        Text("Icon")
+                            .frame(width: ActionButtonMetrics.iconButtonDiameter)
+                        Text("Name")
+                        Text("Command")
+                        Color.clear.frame(height: 0)
                     }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
                 }
 
-                HStack {
-                    Button("Add Action", action: onAddAction)
-                        .secondaryActionButtonStyle()
-
-                    Spacer()
+                ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
+                    ProjectSettingsActionEditor(
+                        index: index,
+                        action: action,
+                        isCompact: isCompact,
+                        allowsRemoval: index != actions.count - 1 || !action.isEmpty,
+                        onChange: { onUpdateAction(index, $0) },
+                        onRemove: { onRemoveAction(index) }
+                    )
+                    .equatable()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 14)
-            .padding(.horizontal, 8)
-        } label: {
-            Label("Actions", systemImage: "play")
+            .onGeometryChange(for: Bool.self) { geometry in
+                geometry.size.width < ProjectSettingsLayout.compactBreakpoint
+            } action: { isCompact = $0 }
         }
     }
 }
@@ -50,120 +54,8 @@ struct ProjectSettingsAccessoryIconButton: View {
             Image(systemName: systemImage)
         }
         .modifier(AccessoryIconButtonStyleModifier(usesDestructiveStyle: usesDestructiveStyle))
+        .help(accessibilityLabel)
         .accessibilityLabel(accessibilityLabel)
-    }
-}
-
-private enum ProjectSettingsActionEditorLayout {
-    static let accessoryButtonWidth: CGFloat = 30
-    static let accessorySpacing: CGFloat = 12
-}
-
-private struct ProjectSettingsActionEditor: View {
-    let action: ProjectSettingsActionDraft
-    let onChange: (ProjectSettingsActionDraft) -> Void
-    let onRemove: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SettingsResponsiveControlRow("Name") {
-                HStack(spacing: ProjectSettingsActionEditorLayout.accessorySpacing) {
-                    AppTextField(
-                        "Name",
-                        text: Binding(
-                            get: { action.name },
-                            set: { newValue in
-                                var updatedAction = action
-                                updatedAction.name = newValue
-                                onChange(updatedAction)
-                            }
-                        ),
-                        showsPrompt: false,
-                        textAlignment: .leading,
-                        horizontalPadding: 10,
-                        verticalPadding: 7
-                    )
-
-                    ProjectSettingsAccessoryIconButton(
-                        systemImage: "trash",
-                        accessibilityLabel: "Remove action",
-                        usesDestructiveStyle: true,
-                        action: onRemove
-                    )
-                    .frame(width: ProjectSettingsActionEditorLayout.accessoryButtonWidth)
-                }
-            }
-
-            SettingsTextFieldRow(
-                "Command",
-                text: Binding(
-                    get: { action.command },
-                    set: { newValue in
-                        var updatedAction = action
-                        updatedAction.command = newValue
-                        onChange(updatedAction)
-                    }
-                ),
-                textAlignment: .leading
-            )
-
-            ProjectSettingsActionIconRow(
-                symbolName: action.displayedIconName,
-                onSelect: { selectedIcon in
-                    var updatedAction = action
-                    updatedAction.icon = selectedIcon
-                    onChange(updatedAction)
-                }
-            )
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
-    }
-}
-
-private struct AccessoryIconButtonStyleModifier: ViewModifier {
-    let usesDestructiveStyle: Bool
-
-    func body(content: Content) -> some View {
-        if usesDestructiveStyle {
-            content.destructiveIconActionButtonStyle()
-        } else {
-            content.iconActionButtonStyle()
-        }
-    }
-}
-
-private struct ProjectSettingsActionIconRow: View {
-    let symbolName: String
-    let onSelect: (String) -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Text("Icon")
-                .accessibilityHidden(true)
-
-            Spacer(minLength: 16)
-
-            Menu {
-                ForEach(ProjectSettingsActionIconOption.supported) { option in
-                    Button {
-                        onSelect(option.symbolName)
-                    } label: {
-                        Label(option.label, systemImage: option.symbolName)
-                    }
-                }
-            } label: {
-                let currentOption = ProjectSettingsActionIconOption.resolved(for: symbolName)
-                Label(currentOption.label, systemImage: currentOption.symbolName)
-            }
-            .menuStyle(.borderlessButton)
-            .accessibilityLabel("Action icon")
-        }
-        .frame(maxWidth: .infinity, minHeight: SettingsScreenLayout.settingsRowHeight, alignment: .leading)
     }
 }
 
@@ -197,5 +89,105 @@ struct ProjectSettingsActionIconOption: Identifiable {
 
         return supported.first(where: { $0.symbolName == symbolName })
             ?? .init(symbolName: symbolName, label: symbolName.replacingOccurrences(of: ".", with: " ").capitalized)
+    }
+}
+
+private struct ProjectSettingsActionEditor: View, Equatable {
+    let index: Int
+    let action: ProjectSettingsActionDraft
+    let isCompact: Bool
+    let allowsRemoval: Bool
+    let onChange: (ProjectSettingsActionDraft) -> Void
+    let onRemove: () -> Void
+
+    /// Callbacks capture parent state storage and the compared index/draft; the index changes when an earlier row is removed.
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.index == rhs.index && lhs.action == rhs.action
+            && lhs.isCompact == rhs.isCompact && lhs.allowsRemoval == rhs.allowsRemoval
+    }
+
+    var body: some View {
+        ProjectSettingsActionRowLayout(isCompact: isCompact) {
+            ProjectSettingsActionIconPicker(
+                symbolName: action.displayedIconName,
+                onSelect: { selectedIcon in
+                    var updatedAction = action
+                    updatedAction.icon = selectedIcon
+                    onChange(updatedAction)
+                }
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                if isCompact {
+                    Text("Name").font(.caption).foregroundStyle(.secondary)
+                }
+                AppTextField(
+                    "Name",
+                    text: nameBinding,
+                    horizontalPadding: 10,
+                    verticalPadding: ProjectSettingsLayout.fieldVerticalPadding
+                )
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                if isCompact {
+                    Text("Command").font(.caption).foregroundStyle(.secondary)
+                }
+                AppTextField(
+                    "Command",
+                    text: commandBinding,
+                    horizontalPadding: 10,
+                    verticalPadding: ProjectSettingsLayout.fieldVerticalPadding
+                )
+            }
+
+            if allowsRemoval {
+                ProjectSettingsAccessoryIconButton(
+                    systemImage: "trash",
+                    accessibilityLabel: "Remove action",
+                    usesDestructiveStyle: true,
+                    action: onRemove
+                )
+            } else {
+                Color.clear
+                    .frame(width: ActionButtonMetrics.iconButtonDiameter, height: ActionButtonMetrics.iconButtonDiameter)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var nameBinding: Binding<String> {
+        Binding(
+            get: { action.name },
+            set: { newValue in
+                var updatedAction = action
+                updatedAction.name = newValue
+                onChange(updatedAction)
+            }
+        )
+    }
+
+    private var commandBinding: Binding<String> {
+        Binding(
+            get: { action.command },
+            set: { newValue in
+                var updatedAction = action
+                updatedAction.command = newValue
+                onChange(updatedAction)
+            }
+        )
+    }
+}
+
+private struct AccessoryIconButtonStyleModifier: ViewModifier {
+    let usesDestructiveStyle: Bool
+
+    func body(content: Content) -> some View {
+        if usesDestructiveStyle {
+            content.destructiveIconActionButtonStyle()
+        } else {
+            content.iconActionButtonStyle()
+        }
     }
 }

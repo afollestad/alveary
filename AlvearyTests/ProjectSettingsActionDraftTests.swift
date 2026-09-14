@@ -18,12 +18,76 @@ final class ProjectSettingsActionDraftTests: XCTestCase {
         XCTAssertNil(draft.resolvedAction)
     }
 
+    func testEditingEitherPlaceholderFieldCreatesOneNewRowWithoutReplacingEditors() throws {
+        let firstEdits = [
+            ProjectSettingsActionDraft(name: "Build", command: ""),
+            ProjectSettingsActionDraft(name: "", command: "swift build")
+        ]
+
+        for firstEdit in firstEdits {
+            var editor = ProjectSettingsEditorState(config: .empty)
+            let editedRowID = try XCTUnwrap(editor.actions.first?.id)
+            editor.actions[0].name = firstEdit.name
+            editor.actions[0].command = firstEdit.command
+
+            editor.ensureTrailingBlankActionRow()
+
+            XCTAssertEqual(editor.actions.count, 2)
+            XCTAssertEqual(editor.actions.first?.id, editedRowID)
+            XCTAssertEqual(editor.actions.last?.name, "")
+            XCTAssertEqual(editor.actions.last?.command, "")
+            XCTAssertNil(editor.prepareConfigForSave().actions, "Neither an incomplete action nor its placeholder belongs on disk")
+            let rowIDs = editor.actions.map(\.id)
+
+            editor.actions[0].name = "Build app"
+            editor.ensureTrailingBlankActionRow()
+            editor.actions[0].command = "swift build"
+            editor.ensureTrailingBlankActionRow()
+
+            XCTAssertEqual(editor.actions.map(\.id), rowIDs, "Continuing an edit must keep focus and must not accumulate blank rows")
+            let savedActions = editor.prepareConfigForSave().actions
+            XCTAssertEqual(savedActions?.map(\.name), ["Build app"])
+            XCTAssertEqual(savedActions?.map(\.command), ["swift build"])
+        }
+    }
+
+    func testIconAndWhitespaceEditsLeaveOnePlaceholderAndNoSavedAction() throws {
+        var editor = ProjectSettingsEditorState(config: .empty)
+        let placeholderID = try XCTUnwrap(editor.actions.first?.id)
+        editor.actions[0].icon = "hammer"
+        editor.actions[0].name = "  "
+        editor.actions[0].command = "\n "
+
+        editor.ensureTrailingBlankActionRow()
+        let saved = editor.prepareConfigForSave()
+        editor.applyLoadedConfig(saved)
+
+        XCTAssertEqual(editor.actions.map(\.id), [placeholderID])
+        XCTAssertEqual(editor.actions.first?.icon, "hammer", "A save echo must not discard the selected icon for the next action")
+        XCTAssertNil(saved.actions)
+    }
+
+    func testRemovingLastConfiguredActionKeepsTheAvailablePlaceholder() throws {
+        let original = AlvearyProjectConfig(actions: [.init(name: "Build", command: "swift build")])
+        var editor = ProjectSettingsEditorState(config: original)
+        let placeholderID = try XCTUnwrap(editor.actions.last?.id)
+
+        editor.actions.remove(at: 0)
+        editor.ensureTrailingBlankActionRow()
+
+        XCTAssertEqual(editor.actions.map(\.id), [placeholderID])
+        XCTAssertEqual(editor.actions.first?.name, "")
+        XCTAssertEqual(editor.actions.first?.command, "")
+        XCTAssertNil(editor.prepareConfigForSave().actions)
+    }
+
     @MainActor
     func testOwnConfigSaveEchoPreservesIncompleteActionsAndEditedRowIdentity() async throws {
         let original = AlvearyProjectConfig(actions: [.init(name: "Build", command: "swift build")])
         var editor = ProjectSettingsEditorState(config: original)
         editor.actions[0].name = "Build app"
-        editor.actions.append(ProjectSettingsActionDraft(name: "Test", command: ""))
+        editor.actions[1].name = "Test"
+        editor.ensureTrailingBlankActionRow()
         let drafts = editor.actions
         let saved = editor.prepareConfigForSave()
         XCTAssertEqual(saved.actions?.map(\.name), ["Build app"], "Incomplete actions must remain local drafts")
@@ -36,13 +100,14 @@ final class ProjectSettingsActionDraftTests: XCTestCase {
         editor.applyLoadedConfig(echo)
 
         XCTAssertEqual(editor.actions, drafts, "Notification and completion echoes must preserve unfinished rows and stable IDs")
-        XCTAssertEqual(editor.actions.last?.name, "Test")
-        XCTAssertEqual(editor.actions.last?.command, "")
+        XCTAssertEqual(editor.actions.map(\.name), ["Build app", "Test", ""])
+        XCTAssertEqual(editor.actions.map(\.command), ["swift build", "", ""])
     }
 
     func testConfigReconciliationStillAppliesDifferentExternalChanges() {
         var editor = ProjectSettingsEditorState(config: .empty)
-        editor.actions.append(ProjectSettingsActionDraft(name: "Local", command: ""))
+        editor.actions[0].name = "Local"
+        editor.ensureTrailingBlankActionRow()
         _ = editor.prepareConfigForSave()
         let external = AlvearyProjectConfig(
             setupScript: "setup", actions: [.init(name: "Test", command: "swift test")]
@@ -51,9 +116,15 @@ final class ProjectSettingsActionDraftTests: XCTestCase {
         editor.applyLoadedConfig(external)
 
         XCTAssertEqual(editor.setupScript, "setup")
-        XCTAssertEqual(editor.actions.map(\.name), ["Test"])
-        XCTAssertEqual(editor.actions.map(\.command), ["swift test"])
+        XCTAssertEqual(editor.actions.map(\.name), ["Test", ""])
+        XCTAssertEqual(editor.actions.map(\.command), ["swift test", ""])
         XCTAssertEqual(editor.prepareConfigForSave(), external)
+
+        editor.applyLoadedConfig(.empty)
+
+        XCTAssertEqual(editor.actions.map(\.name), [""])
+        XCTAssertEqual(editor.actions.map(\.command), [""])
+        XCTAssertNil(editor.prepareConfigForSave().actions)
     }
 
     func testSupportedIconOptionsIncludeRequestedSymbols() {

@@ -32,6 +32,12 @@ struct ProjectSettingsActionDraft: Identifiable, Equatable {
         return .init(icon: Self.normalizedIconName(icon), name: name, command: command)
     }
 
+    /// Picking an icon alone does not turn the trailing placeholder into another action row.
+    var isEmpty: Bool {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var displayedIconName: String {
         guard let icon,
               !icon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -82,73 +88,29 @@ struct ProjectSettingsView: View {
         self.project = project
         self.sourceFolder = sourceFolder ?? project.primaryFolder?.snapshot
         self.appState = appState
-        self.sidebarViewModel = sidebarViewModel
         self.loadConfig = loadConfig
+        self.sidebarViewModel = sidebarViewModel
 
         _editorState = State(initialValue: ProjectSettingsEditorState(config: initialConfig))
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack {
-                    Text(project.name).font(.largeTitle.weight(.semibold))
-                    Spacer()
-                    Button("Name and folders…") {
-                        projectEditor = ProjectEditorPresentation(project: project)
-                    }
-                    .secondaryActionButtonStyle()
-                }
+        VStack(spacing: 0) {
+            ProjectSettingsHeader(
+                projectName: project.name,
+                onEdit: { projectEditor = ProjectEditorPresentation(project: project) }
+            )
+            .padding(.leading, transcriptScrollLeadingInset)
+            .padding(.trailing, transcriptScrollTrailingInset)
+            .padding(.top, 24)
 
-                if let screenError {
-                    InlineBanner(
-                        message: screenError,
-                        severity: .error,
-                        autoDismissAfter: nil,
-                        onDismiss: { self.screenError = nil }
-                    )
-                }
-
-                if let sourceFolder {
-                    if project.folders.count > 1 {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Label(
-                                sourceFolder.name + (sourceFolder.path == project.primaryFolder?.path ? " (Primary)" : ""),
-                                systemImage: "folder"
-                            )
-                            .font(.headline)
-                            Text(CanonicalPath.abbreviateHomeDirectory(sourceFolder.path))
-                                .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
-                                .help(sourceFolder.path)
-                        }
-                    }
-                    if sourceFolder.isGitRepository {
-                        ProjectSettingsRepositoryCard(sourceFolder: sourceFolder)
-                    }
-
-                    ProjectSettingsScriptsCard(
-                        setupScript: setupScriptBinding,
-                        teardownScript: teardownScriptBinding
-                    )
-
-                    ProjectSettingsPreservePatternsCard(
-                        patterns: editorState.preservePatterns,
-                        bindingForPattern: bindingForPattern,
-                        onRemovePattern: removePattern
-                    )
-
-                    ProjectSettingsActionsCard(
-                        actions: editorState.actions,
-                        onUpdateAction: updateAction,
-                        onAddAction: addAction,
-                        onRemoveAction: removeAction
-                    )
-                } else {
-                    Text("This project has no source folders. New threads use a private workspace.")
-                        .foregroundStyle(.secondary)
-                }
+            ScrollView {
+                settingsContent
+                    .padding(.leading, transcriptScrollLeadingInset)
+                    .padding(.trailing, transcriptScrollTrailingInset)
+                    .padding(.top, showsFolderSummary ? 14 : 8)
+                    .padding(.bottom, 24)
             }
-            .padding(28)
         }
         .task(id: sourceFolder?.path) {
             await loadState()
@@ -163,6 +125,54 @@ struct ProjectSettingsView: View {
         .sheet(item: $projectEditor) { editor in
             ProjectEditorSheet(projectID: editor.id, configuration: editor.configuration, viewModel: sidebarViewModel)
         }
+    }
+
+    private var showsFolderSummary: Bool {
+        sourceFolder != nil && project.folders.count > 1
+    }
+
+    private var settingsContent: some View {
+        VStack(alignment: .leading, spacing: ProjectSettingsLayout.sectionSpacing) {
+            if let screenError {
+                InlineBanner(
+                    message: screenError,
+                    severity: .error,
+                    autoDismissAfter: nil,
+                    onDismiss: { self.screenError = nil }
+                )
+            }
+
+            if let sourceFolder {
+                if showsFolderSummary {
+                    ProjectSettingsFolderSummary(
+                        sourceFolder: sourceFolder,
+                        isPrimary: sourceFolder.path == project.primaryFolder?.path
+                    )
+                }
+                if sourceFolder.isGitRepository {
+                    ProjectSettingsRepositoryCard(sourceFolder: sourceFolder)
+                        .padding(.bottom, 6)
+                }
+
+                ProjectSettingsActionsCard(
+                    actions: editorState.actions,
+                    onUpdateAction: updateAction,
+                    onRemoveAction: removeAction
+                )
+
+                ProjectSettingsWorktreesCard(
+                    setupScript: setupScriptBinding,
+                    teardownScript: teardownScriptBinding,
+                    patterns: editorState.preservePatterns,
+                    bindingForPattern: bindingForPattern,
+                    onRemovePattern: removePattern
+                )
+            } else {
+                Text("This project has no source folders. New threads use a private workspace.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -249,11 +259,8 @@ private extension ProjectSettingsView {
         }
 
         editorState.actions[index] = updatedAction
+        editorState.ensureTrailingBlankActionRow()
         scheduleConfigSave()
-    }
-
-    func addAction() {
-        editorState.actions.append(ProjectSettingsActionDraft())
     }
 
     func removeAction(_ index: Int) {
@@ -262,6 +269,7 @@ private extension ProjectSettingsView {
         }
 
         editorState.actions.remove(at: index)
+        editorState.ensureTrailingBlankActionRow()
         scheduleConfigSave()
     }
 
@@ -325,7 +333,13 @@ struct ProjectSettingsEditorState {
         setupScript = config.setupScript ?? ""
         teardownScript = config.teardownScript ?? ""
         preservePatterns = (config.preservePatterns ?? []) + [""]
-        actions = (config.actions ?? []).map(ProjectSettingsActionDraft.init)
+        actions = (config.actions ?? []).map(ProjectSettingsActionDraft.init) + [ProjectSettingsActionDraft()]
+    }
+
+    /// Append without rebuilding existing drafts so typing keeps its focus and unfinished rows survive save echoes.
+    mutating func ensureTrailingBlankActionRow() {
+        guard actions.last?.isEmpty != true else { return }
+        actions.append(ProjectSettingsActionDraft())
     }
 
     mutating func prepareConfigForSave() -> AlvearyProjectConfig {

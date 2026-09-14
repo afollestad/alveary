@@ -1,45 +1,47 @@
 import SwiftUI
 
-/// The `GroupBox` label sits a size below body text, so the branch glyph takes
-/// a smaller box than the settings sidebar's.
-private let repositoryCardOcticonSize: CGFloat = 14
-
 struct ProjectSettingsRepositoryCard: View {
     let sourceFolder: SourceFolderSnapshot
-
     init(sourceFolder: SourceFolderSnapshot) { self.sourceFolder = sourceFolder }
 
     init(project: Project) {
-        sourceFolder = project.primaryFolder?.snapshot ?? SourceFolderSnapshot(path: "")
+        self.init(sourceFolder: project.primaryFolder?.snapshot ?? SourceFolderSnapshot(path: ""))
     }
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                LabeledContent("Base branch", value: sourceFolder.baseRef ?? "Unknown")
-                LabeledContent("Remote", value: sourceFolder.remoteName ?? "Local only")
-                LabeledContent("Remote URL", value: sourceFolder.gitRemote ?? "Not configured")
-                LabeledContent("GitHub repo") {
-                    if let githubRepository = sourceFolder.githubRepository,
-                       let githubRepositoryURL = URL(string: "https://github.com/" + githubRepository) {
-                        Link(githubRepository, destination: githubRepositoryURL)
-                            .foregroundStyle(Color.accentColor)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    } else {
-                        Text("Not a GitHub remote")
-                    }
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+                branchLabel.fixedSize()
+                repositoryLink.fixedSize()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 14)
-            .padding(.horizontal, 8)
-        } label: {
-            Label {
-                Text("Git")
-            } icon: {
-                OcticonImage(octicon: .gitBranch16, size: repositoryCardOcticonSize)
+            VStack(alignment: .leading, spacing: 6) {
+                branchLabel
+                repositoryLink
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var branchLabel: some View {
+        Label {
+            Text("Base branch: \(sourceFolder.baseRef ?? "Unknown")")
+        } icon: {
+            OcticonImage(octicon: .gitBranch16, size: 14)
+        }
+        .font(.callout)
+        .textSelection(.enabled)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var repositoryLink: some View {
+        if let repository = sourceFolder.githubRepository,
+           let url = URL(string: "https://github.com/" + repository) {
+            Link(repository, destination: url)
+                .font(.callout)
+                .foregroundStyle(Color.accentColor)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
