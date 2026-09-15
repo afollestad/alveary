@@ -22,6 +22,8 @@ final class AppKitTranscriptScrollContainerView: NSView {
     private(set) var isLoadingForTesting = false
     var viewportPrewarmTask: Task<Void, Never>?
     var viewportPrewarmCandidates: [AppKitTranscriptPrewarmCandidate] = []
+    var viewportPrewarmRegistry: [String: AppKitTranscriptPrewarmRegistryEntry] = [:]
+    var viewportPrewarmRowOrder: [String] = []
     var viewportPrewarmGeneration = 0
     private(set) var hasMountedWindow = false
     private var rowIDAliases: [String: String] = [:]
@@ -79,7 +81,9 @@ final class AppKitTranscriptScrollContainerView: NSView {
         let shouldRestoreBottom = preserveBottomIfFollowing && isAtBottom
         let visibleAnchor = captureVisibleAnchor()
         self.rowIDAliases = rowIDAliases
-        transcriptDocumentView.configure(rows: rows, dirtyRowIDs: Set(dirtyRowIDs.map(canonicalRowID(for:))))
+        let canonicalDirtyRowIDs = Set(dirtyRowIDs.map(canonicalRowID(for:)))
+        transcriptDocumentView.configure(rows: rows, dirtyRowIDs: canonicalDirtyRowIDs)
+        refreshViewportPrewarmRegistry(rows: rows, dirtyRowIDs: canonicalDirtyRowIDs)
         layoutAtCurrentWidth()
         // Measurement feedback belongs to this transaction; retaining it would replay an old follow request after a later user scroll.
         if restoreForcedBottomAfterMeasurementIfNeeded() {
@@ -126,8 +130,10 @@ final class AppKitTranscriptScrollContainerView: NSView {
         let revisionBeforeLayout = transcriptDocumentView.layoutRevision
         beginLayoutTransaction()
         defer { endLayoutTransaction() }
-        if let rowIDs {
-            rowIDs.forEach { transcriptDocumentView.markRowHeightDirty(canonicalRowID(for: $0)) }
+        let canonicalRowIDs = rowIDs.map { Set($0.map(canonicalRowID(for:))) }
+        refreshViewportPrewarmRegistry(rowIDs: canonicalRowIDs)
+        if let canonicalRowIDs {
+            canonicalRowIDs.forEach { transcriptDocumentView.markRowHeightDirty($0) }
         } else {
             transcriptDocumentView.markAllRowHeightsDirty()
         }

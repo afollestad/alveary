@@ -1,6 +1,42 @@
 import AppKit
 
 extension AppKitTranscriptScrollContainerView {
+    /// Caches candidate discovery per row. Walking every descendant on each scroll frame makes
+    /// complex rows such as review proposals hitch even when they contain no prewarmable work.
+    func refreshViewportPrewarmRegistry(
+        rows: [AppKitTranscriptLayoutRow],
+        dirtyRowIDs: Set<String>
+    ) {
+        let liveRowIDs = Set(rows.map(\.id))
+        viewportPrewarmRegistry = viewportPrewarmRegistry.filter { liveRowIDs.contains($0.key) }
+        viewportPrewarmRowOrder = rows.map(\.id)
+        for row in rows {
+            guard dirtyRowIDs.contains(row.id) || viewportPrewarmRegistry[row.id]?.rootView !== row.view else {
+                continue
+            }
+            viewportPrewarmRegistry[row.id] = AppKitTranscriptPrewarmRegistryEntry(
+                rootView: row.view,
+                candidates: prewarmCandidates(in: row.view)
+            )
+        }
+    }
+
+    /// A row can mount nested tool rows before its SwiftUI expansion-state echo reconfigures the
+    /// transcript, so height invalidation also refreshes the affected inventories.
+    func refreshViewportPrewarmRegistry(rowIDs: Set<String>?) {
+        let ids = rowIDs ?? Set(viewportPrewarmRowOrder)
+        for id in ids {
+            guard let entry = viewportPrewarmRegistry[id], let rootView = entry.rootView else {
+                viewportPrewarmRegistry[id] = nil
+                continue
+            }
+            viewportPrewarmRegistry[id] = AppKitTranscriptPrewarmRegistryEntry(
+                rootView: rootView,
+                candidates: prewarmCandidates(in: rootView)
+            )
+        }
+    }
+
     /// Replaces queued candidates on every viewport change so scrolled-away or removed rows stop consuming UI work.
     func updateViewportPrewarming(in rect: CGRect) {
         // Off-window test hosts can prewarm; a previously mounted conversation must stay cancelled after switching away.
@@ -8,7 +44,31 @@ extension AppKitTranscriptScrollContainerView {
             cancelViewportPrewarming()
             return
         }
-        viewportPrewarmCandidates = prewarmCandidates(in: transcriptDocumentView, intersecting: rect)
+        var candidates: [AppKitTranscriptPrewarmCandidate] = []
+        for rowID in viewportPrewarmRowOrder {
+            guard let entry = viewportPrewarmRegistry[rowID],
+                  !entry.candidates.isEmpty,
+                  let rootView = entry.rootView,
+                  !rootView.isHiddenOrHasHiddenAncestor,
+                  rootView.isDescendant(of: transcriptDocumentView),
+                  rootView.convert(rootView.bounds, to: transcriptDocumentView).intersects(rect)
+            else {
+                continue
+            }
+            for candidate in entry.candidates {
+                guard let view = candidate.view,
+                      let prewarmable = view as? AppKitTranscriptViewportPrewarmable,
+                      prewarmable.needsTranscriptViewportPrewarm,
+                      !view.isHiddenOrHasHiddenAncestor,
+                      view.isDescendant(of: transcriptDocumentView),
+                      view === rootView || view.convert(view.bounds, to: transcriptDocumentView).intersects(rect)
+                else {
+                    continue
+                }
+                candidates.append(candidate)
+            }
+        }
+        viewportPrewarmCandidates = candidates
         guard !viewportPrewarmCandidates.isEmpty else {
             cancelViewportPrewarming()
             return
@@ -39,10 +99,12 @@ extension AppKitTranscriptScrollContainerView {
         while !viewportPrewarmCandidates.isEmpty {
             let candidate = viewportPrewarmCandidates.removeFirst()
             guard let view = candidate.view,
-                  view.isDescendant(of: transcriptDocumentView),
-                  view.convert(view.bounds, to: transcriptDocumentView).intersects(marginRect),
                   let prewarmable = view as? AppKitTranscriptViewportPrewarmable,
-                  prewarmable.needsTranscriptViewportPrewarm else { continue }
+                  prewarmable.needsTranscriptViewportPrewarm,
+                  !view.isHiddenOrHasHiddenAncestor,
+                  view.isDescendant(of: transcriptDocumentView),
+                  view.convert(view.bounds, to: transcriptDocumentView).intersects(marginRect)
+            else { continue }
             prewarmable.prewarmForTranscriptViewport()
             return true
         }
@@ -50,17 +112,18 @@ extension AppKitTranscriptScrollContainerView {
         return false
     }
 
-    private func prewarmCandidates(in view: NSView, intersecting rect: CGRect) -> [AppKitTranscriptPrewarmCandidate] {
-        view.subviews.flatMap { child -> [AppKitTranscriptPrewarmCandidate] in
-            guard !child.isHidden,
-                  child.convert(child.bounds, to: transcriptDocumentView).intersects(rect) else { return [] }
-            if let prewarmable = child as? AppKitTranscriptViewportPrewarmable,
-               prewarmable.needsTranscriptViewportPrewarm {
-                return [AppKitTranscriptPrewarmCandidate(view: child)]
-            }
-            return prewarmCandidates(in: child, intersecting: rect)
-        }
+    private func prewarmCandidates(in view: NSView) -> [AppKitTranscriptPrewarmCandidate] {
+        let ownCandidate = view is any AppKitTranscriptViewportPrewarmable
+            ? [AppKitTranscriptPrewarmCandidate(view: view)]
+            : []
+        return ownCandidate + view.subviews.flatMap(prewarmCandidates(in:))
     }
+}
+
+@MainActor
+struct AppKitTranscriptPrewarmRegistryEntry {
+    weak var rootView: NSView?
+    let candidates: [AppKitTranscriptPrewarmCandidate]
 }
 
 @MainActor

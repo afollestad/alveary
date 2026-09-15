@@ -85,6 +85,69 @@ extension AppKitTranscriptScrollContainerTests {
 
         XCTAssertNotNil(child.prewarmedDetailsToolForTesting)
     }
+
+    func testViewportUpdatesDoNotRediscoverStableRowSubviews() {
+        let container = prewarmingContainer()
+        let root = SubviewReadCountingView()
+        var views = [root]
+        for _ in 0..<40 {
+            let child = SubviewReadCountingView(frame: CGRect(x: 0, y: 0, width: 280, height: 40))
+            views.last?.addSubview(child)
+            views.append(child)
+        }
+        container.configure(
+            rows: [AppKitTranscriptLayoutRow(id: "deep-row", view: root)],
+            preserveBottomIfFollowing: false
+        )
+        let readsAfterDiscovery = views.map(\.subviewReadCount).reduce(0, +)
+
+        for _ in 0..<10 {
+            container.updateViewportPrewarming(in: container.scrollView.contentView.bounds)
+        }
+
+        XCTAssertGreaterThan(readsAfterDiscovery, 0)
+        XCTAssertEqual(views.map(\.subviewReadCount).reduce(0, +), readsAfterDiscovery)
+    }
+
+    func testHeightInvalidationDiscoversNewPrewarmableDescendants() async {
+        let container = prewarmingContainer()
+        let parent = PrewarmedParentView()
+        container.configure(
+            rows: [AppKitTranscriptLayoutRow(id: "parent", view: parent)],
+            preserveBottomIfFollowing: false
+        )
+        let child = PrewarmProbeView(frame: CGRect(x: 0, y: 0, width: 260, height: 30))
+        parent.addSubview(child)
+
+        container.rowHeightInvalidated(
+            rowID: "parent",
+            preserveBottomIfFollowing: false,
+            animatesLayoutChanges: false
+        )
+        await waitForViewportPrewarming(container)
+
+        XCTAssertEqual(child.prewarmCount, 1)
+    }
+
+    func testRegisteredCandidateCanNeedPrewarmingAfterAViewportChange() async {
+        let container = prewarmingContainer()
+        let parent = PrewarmedParentView()
+        let child = PrewarmProbeView(frame: CGRect(x: 0, y: 0, width: 260, height: 30))
+        child.shouldPrewarm = false
+        parent.addSubview(child)
+        container.configure(
+            rows: [AppKitTranscriptLayoutRow(id: "parent", view: parent)],
+            preserveBottomIfFollowing: false
+        )
+        await waitForViewportPrewarming(container)
+        XCTAssertEqual(child.prewarmCount, 0)
+
+        child.shouldPrewarm = true
+        container.updateViewportPrewarming(in: container.scrollView.contentView.bounds)
+        await waitForViewportPrewarming(container)
+
+        XCTAssertEqual(child.prewarmCount, 1)
+    }
 }
 
 @MainActor
@@ -126,4 +189,29 @@ private final class PrewarmedParentView: NSView, AppKitTranscriptViewportPrewarm
     var needsTranscriptViewportPrewarm: Bool { false }
     func prewarmForTranscriptViewport() {}
     override var fittingSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 40) }
+}
+
+@MainActor
+private final class SubviewReadCountingView: NSView {
+    private(set) var subviewReadCount = 0
+
+    override var subviews: [NSView] {
+        get {
+            subviewReadCount += 1
+            return super.subviews
+        }
+        set {
+            super.subviews = newValue
+        }
+    }
+
+    override var fittingSize: NSSize { NSSize(width: NSView.noIntrinsicMetric, height: 40) }
+}
+
+@MainActor
+private final class PrewarmProbeView: NSView, AppKitTranscriptViewportPrewarmable {
+    private(set) var prewarmCount = 0
+    var shouldPrewarm = true
+    var needsTranscriptViewportPrewarm: Bool { shouldPrewarm && prewarmCount == 0 }
+    func prewarmForTranscriptViewport() { prewarmCount += 1 }
 }
