@@ -6,30 +6,33 @@ import Foundation
 ///
 /// The app now outlives its last window, so revealing it can mean two different things: order the
 /// existing window front, or ask SwiftUI to build the scene again. Only the view tree can do the
-/// latter — `ContentView` registers `@Environment(\.openWindow)` here at mount, and that action
-/// stays valid after the window closes.
+/// latter — `ContentView` registers the resolved `OpenWindowAction` here at mount and keeps it
+/// separate from the window registration so closing the window does not discard the opener.
 @MainActor
 final class MainWindowPresenter {
     /// The `Window("Alveary", id:)` scene id.
     static let sceneID = "main"
-    /// The title that scene gives its window; the app has other windows (the DEBUG raw-transcript
-    /// one, system panels) that must not be mistaken for it.
-    private static let windowTitle = "Alveary"
-
     private var openMainWindow: (@MainActor () -> Void)?
+
+    /// Only the main scene's bridge registers a window, and it unregisters on close even if
+    /// SwiftUI retains that window. `NSApp.windows` and `canBecomeKey` still include such closed
+    /// windows; visibility also cannot distinguish a closed scene from a hidden or minimized one.
+    private(set) weak var mainWindow: NSWindow?
 
     func register(openMainWindow: @escaping @MainActor () -> Void) {
         self.openMainWindow = openMainWindow
     }
 
-    /// The scene's window, or `nil` when the user has closed it.
-    ///
-    /// Deliberately strict — no `NSApp.mainWindow`/`keyWindow` fallback, because treating a panel
-    /// as the main window would leave a closed scene un-recreated.
-    var mainWindow: NSWindow? {
-        NSApp.windows.first { window in
-            window.title == Self.windowTitle && window.canBecomeKey
+    func register(window: NSWindow) {
+        mainWindow = window
+    }
+
+    /// A replaced scene can finish closing or detaching after its successor has registered.
+    func unregister(window: NSWindow) {
+        guard mainWindow === window else {
+            return
         }
+        mainWindow = nil
     }
 
     func activate() {

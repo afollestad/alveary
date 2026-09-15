@@ -108,16 +108,57 @@ final class MenuBarControllerTests: XCTestCase {
         XCTAssertEqual(fixture.notificationRouter.pendingConversationId, "convo-newest")
     }
 
-    func testCommandItemsEnqueueOnTheCommandRouter() throws {
+    func testCommandItemsReopenAClosedWindowBeforeEnqueueing() throws {
         let fixture = try makeFixture()
         let menu = NSMenu()
         let controller = fixture.makeController()
         controller.rebuild(menu)
+        let window = NSWindow(
+            contentRect: .zero,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.title = "Alveary"
+        window.contentView = MainWindowRegistrationAnchorView(presenter: fixture.mainWindowPresenter)
+        window.close()
+        defer { window.contentView = nil }
+        XCTAssertNil(fixture.mainWindowPresenter.mainWindow)
+
+        var reopenCount = 0
+        fixture.mainWindowPresenter.register {
+            XCTAssertNil(fixture.commandRouter.pendingCommand, "Reopen before routing into the new window")
+            reopenCount += 1
+        }
+
+        let commands: [(String, MenuBarCommandKind)] = [("New Thread", .newThread), ("Settings...", .openSettings)]
+        for (index, command) in commands.enumerated() {
+            try performItem(titled: command.0, in: menu)
+            let request = try XCTUnwrap(fixture.commandRouter.pendingCommand)
+            XCTAssertEqual(request.kind, command.1)
+            XCTAssertEqual(reopenCount, index + 1)
+            fixture.commandRouter.clearPendingIfMatches(request)
+        }
+    }
+
+    func testCommandItemsReuseTheRegisteredWindowIncludingWhenMinimized() throws {
+        let fixture = try makeFixture()
+        let menu = NSMenu()
+        let controller = fixture.makeController()
+        controller.rebuild(menu)
+        let window = MenuBarRecordingWindow()
+        fixture.mainWindowPresenter.register(window: window)
+        fixture.mainWindowPresenter.register { XCTFail("The existing main window should be reused") }
 
         try performItem(titled: "New Thread", in: menu)
+        XCTAssertEqual(window.revealCount, 1)
         XCTAssertEqual(fixture.commandRouter.pendingCommand?.kind, .newThread)
 
+        window.isTestMiniaturized = true
         try performItem(titled: "Settings...", in: menu)
+        XCTAssertEqual(window.deminiaturizeCount, 1)
+        XCTAssertEqual(window.revealCount, 2)
         XCTAssertEqual(fixture.commandRouter.pendingCommand?.kind, .openSettings)
     }
 
@@ -152,4 +193,25 @@ final class MenuBarControllerTests: XCTestCase {
     private func makeFixture(settings: AppSettings = AppSettings()) throws -> MenuBarControllerTestFixture {
         try MenuBarControllerTestFixture(settings: settings)
     }
+}
+
+/// Records window operations without showing or minimizing hosted-test windows on the desktop.
+@MainActor
+private final class MenuBarRecordingWindow: NSWindow {
+    var isTestMiniaturized = false
+    private(set) var deminiaturizeCount = 0
+    private(set) var revealCount = 0
+
+    override var isMiniaturized: Bool { isTestMiniaturized }
+
+    override func deminiaturize(_ sender: Any?) {
+        deminiaturizeCount += 1
+        isTestMiniaturized = false
+    }
+
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        revealCount += 1
+    }
+
+    override func orderFrontRegardless() {}
 }

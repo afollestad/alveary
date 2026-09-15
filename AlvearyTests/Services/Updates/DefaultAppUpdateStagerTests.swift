@@ -240,7 +240,8 @@ extension DefaultAppUpdateStagerTests {
     func writeMetadata(
         release: AppUpdateRelease,
         appBundleURL: URL,
-        assetDigest: String? = nil
+        assetDigest: String? = nil,
+        destinationURL: URL? = nil
     ) throws {
         let fixture = AppUpdateStagedMetadataFixture(
             tagName: release.tagName,
@@ -258,8 +259,9 @@ extension DefaultAppUpdateStagerTests {
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        try FileManager.default.createDirectory(at: updatesDirectory, withIntermediateDirectories: true)
-        try encoder.encode(fixture).write(to: metadataURL, options: [.atomic])
+        let destination = destinationURL ?? metadataURL
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(fixture).write(to: destination, options: [.atomic])
     }
 
     func assertStaleReleaseIsDiscarded(tagName: String, currentVersion: String) async throws {
@@ -426,7 +428,7 @@ private actor AppUpdateMetadataMutatingShellRunner: ShellRunner {
     }
 }
 
-private func writeTestAppBundle(
+func writeTestAppBundle(
     at appURL: URL,
     version: String,
     bundleIdentifier: String

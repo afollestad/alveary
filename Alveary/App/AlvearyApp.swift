@@ -18,6 +18,10 @@ struct AlvearyApp: App {
     var body: some Scene {
         Window("Alveary", id: MainWindowPresenter.sceneID) {
             ContentView(component: AppDI.component, appState: appState)
+                .background {
+                    MainWindowRegistration(presenter: AppDI.component.mainWindowPresenter)
+                        .frame(width: 0, height: 0)
+                }
         }
         .defaultSize(width: 1440, height: 920)
         .commands {

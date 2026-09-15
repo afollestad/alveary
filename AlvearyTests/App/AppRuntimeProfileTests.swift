@@ -154,8 +154,34 @@ final class AppRuntimeProfileTests: XCTestCase {
             alvearyDirectory.appendingPathComponent("Alveary.store")
         )
         XCTAssertEqual(profile.appSupportDirectory, appSupportDirectory)
+        #if DEBUG
+        XCTAssertFalse(profile.settingsDefaults === UserDefaults.standard)
+        XCTAssertEqual(profile.settingsDefaultsSuiteName, "com.afollestad.alveary")
+        #else
         XCTAssertTrue(profile.settingsDefaults === UserDefaults.standard)
         XCTAssertNil(profile.settingsDefaultsSuiteName)
+        #endif
+        XCTAssertFalse(profile.wipesSettingsDefaultsOnExit)
+    }
+
+    func testProductionCleanupPolicyPreservesAnExplicitDefaultsSuite() throws {
+        let isolatedProfile = AppStorageProfile.hostedUnitTest()
+        defer { isolatedProfile.cleanupSettingsDefaults() }
+        let suiteName = try XCTUnwrap(isolatedProfile.settingsDefaultsSuiteName)
+        let profile = AppStorageProfile(
+            applicationSupportBaseURL: isolatedProfile.applicationSupportBaseURL,
+            settingsDefaults: isolatedProfile.settingsDefaults,
+            settingsDefaultsSuiteName: suiteName,
+            wipesSettingsDefaultsOnExit: AppStorageProfile.production.wipesSettingsDefaultsOnExit
+        )
+        profile.settingsDefaults.set("shared preference", forKey: "AppRuntimeProfileTests")
+
+        profile.cleanupSettingsDefaults()
+
+        XCTAssertEqual(
+            profile.settingsDefaults.persistentDomain(forName: suiteName)?["AppRuntimeProfileTests"] as? String,
+            "shared preference"
+        )
     }
 
     func testProductionStorageProfilePreservesServicePaths() {
@@ -193,10 +219,12 @@ final class AppRuntimeProfileTests: XCTestCase {
                 .appendingPathComponent("VoiceInput", isDirectory: true)
                 .appendingPathComponent("Models", isDirectory: true)
         )
-        XCTAssertEqual(
-            profile.updatesDirectory,
-            appSupportDirectory.appendingPathComponent("Updates", isDirectory: true)
-        )
+        let updatesDirectory = appSupportDirectory.appendingPathComponent("Updates", isDirectory: true)
+        #if DEBUG
+        XCTAssertEqual(profile.updatesDirectory, updatesDirectory.appendingPathComponent("Debug", isDirectory: true))
+        #else
+        XCTAssertEqual(profile.updatesDirectory, updatesDirectory)
+        #endif
     }
 
     func testProductionStorageProfilePreservesAgentCLIKitPaths() {

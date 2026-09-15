@@ -38,6 +38,8 @@ Alveary is built with XcodeGen, `xcsift`, SwiftLint, Needle, AgentCLIKit, BlockI
 ./scripts/setup.sh
 ```
 
+Debug builds use `com.afollestad.alveary.debug` and appear as **Alveary Dev**, so notification clicks target the developer app. They share existing tasks, settings, and support files with production; staged updates use `Updates/Debug`. macOS requires separate notification and privacy permissions for the new identity. Previously delivered banners retain their original app identity, so test with new notifications after rebuilding.
+
 The AgentCLIKit pin includes explicit-root overrides on Codex resume, including launches without host tools. `swift-custom-dump` is pinned to a release using the current IssueReporting package identity to keep package resolution compatible with snapshot testing.
 
 Validation and release builds run on GitHub's `xcode-27` runner with Xcode 27.0 explicitly selected in both workflows. Each job installs the optional Metal toolchain for SwiftTerm's shaders and logs its macOS and compiler versions for comparison with local runs.

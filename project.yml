@@ -70,6 +70,8 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
       configs:
         Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.afollestad.alveary.debug
+          INFOPLIST_KEY_CFBundleDisplayName: Alveary Dev
           OTHER_CODE_SIGN_FLAGS: "--requirements $(SRCROOT)/Config/CodeSigning/AlvearyDebugTCC.requirements"
         Release:
           # Belt-and-braces: demo mode is already `#if DEBUG` in every file, and `DemoAssets/`

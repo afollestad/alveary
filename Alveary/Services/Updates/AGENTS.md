@@ -8,5 +8,5 @@ These instructions cover update-checking, release metadata, download, staging, a
 - Installable updates require a parseable GitHub release asset SHA-256 digest, verified against the downloaded ZIP before staging — the supply-chain integrity gate.
 - Keep the release artifact contract aligned with CI: GitHub Releases publish `Alveary.app.zip`, containing `Alveary.app`.
 - Read the running app version from bundle metadata at runtime; `project.yml` is the build-time source only.
-- Downloads stream to `FileManager.default.temporaryDirectory/AlvearyUpdates/<uuid>` and the ZIP is deleted after extraction; staged metadata and helper logs live under `AppStorageProfile.updatesDirectory` (`.../Updates`), with staged bundles under `Updates/Staged`.
+- Downloads stream to `FileManager.default.temporaryDirectory/AlvearyUpdates/<uuid>` and the ZIP is deleted after extraction; staged metadata and helper logs live under `AppStorageProfile.updatesDirectory` (`Updates` for Release, `Updates/Debug` for Debug), with staged bundles under its `Staged` child.
 - Quarantine, rollback, staged-state comparison, and cleanup validation are documented in `DefaultAppUpdateInstaller.swift`, `DefaultAppUpdateStager.swift`, and `AppUpdateInstall.swift`.

@@ -157,7 +157,8 @@ struct ContentView: View {
             .onAppear {
                 // The scene can be re-created after the user closes it, and only the view tree
                 // can hand AppKit an action that rebuilds it.
-                mainWindowPresenter.register { openWindow(id: MainWindowPresenter.sceneID) }
+                let sceneOpener = openWindow
+                mainWindowPresenter.register { sceneOpener(id: MainWindowPresenter.sceneID) }
                 wireNotificationManager()
                 wireMarkdownImageFallbackResolver()
                 startThreadActivityBackfillIfNeeded()

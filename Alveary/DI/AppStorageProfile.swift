@@ -11,8 +11,8 @@ struct AppStorageProfile: @unchecked Sendable {
     let applicationSupportBaseURL: URL
     let settingsDefaults: UserDefaults
     let settingsDefaultsSuiteName: String?
-    /// Only ephemeral profiles opt into teardown. A scratch profile names a suite it must keep,
-    /// so wiping cannot be inferred from `settingsDefaultsSuiteName` being non-nil.
+    /// Only ephemeral profiles opt into teardown. Debug's shared preferences and scratch profiles
+    /// name suites they must keep, so a non-nil `settingsDefaultsSuiteName` never implies wiping.
     let wipesSettingsDefaultsOnExit: Bool
     /// Whether this is the DEBUG-only demo profile. `AppComponent+Demo.swift` branches on it to
     /// swap in the fake services, so it — not `AppRuntimeProfile.kind` — is the single source of
@@ -33,12 +33,26 @@ struct AppStorageProfile: @unchecked Sendable {
         self.isDemo = isDemo
     }
 
+    /// Debug has a separate app identity for notification routing but keeps the existing shared
+    /// preferences. Adding this suite to `.standard` would still write to Debug's own domain.
     static var production: AppStorageProfile {
-        AppStorageProfile(
+        #if DEBUG
+        let suiteName = "com.afollestad.alveary"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("Failed to open the shared Alveary defaults suite: \(suiteName)")
+        }
+        return AppStorageProfile(
+            applicationSupportBaseURL: userApplicationSupportBaseURL,
+            settingsDefaults: defaults,
+            settingsDefaultsSuiteName: suiteName
+        )
+        #else
+        return AppStorageProfile(
             applicationSupportBaseURL: userApplicationSupportBaseURL,
             settingsDefaults: .standard,
             settingsDefaultsSuiteName: nil
         )
+        #endif
     }
 
     /// Isolated but *stable* storage for manual first-run testing, selected by
@@ -248,8 +262,15 @@ struct AppStorageProfile: @unchecked Sendable {
             .appendingPathComponent("Models", isDirectory: true)
     }
 
+    /// Staging validation removes invalid metadata. Debug must never inspect production's staged
+    /// update with its different bundle identity, even though the other support files are shared.
     var updatesDirectory: URL {
-        appSupportDirectory.appendingPathComponent("Updates", isDirectory: true)
+        let directory = appSupportDirectory.appendingPathComponent("Updates", isDirectory: true)
+        #if DEBUG
+        return directory.appendingPathComponent("Debug", isDirectory: true)
+        #else
+        return directory
+        #endif
     }
 
     func cleanupSettingsDefaults() {

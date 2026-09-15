@@ -207,6 +207,43 @@ final class ContentViewNotificationRoutingTests: XCTestCase {
         XCTAssertNil(router.pendingConversationId)
     }
 
+    func testStatusMenuCommandsReplayAfterModelPreparationFinishes() throws {
+        let component = AppDI.makeTestComponent(isStoredInMemoryOnly: true)
+        let lifecycleController = component.voiceInputLifecycleController
+        let router = component.menuBarCommandRouter
+        let sink = NotificationRoutingVoiceInputSinkFake(isModelPreparationModalPresented: true)
+
+        for kind in [MenuBarCommandKind.newThread, .openSettings] {
+            let appState = AppState()
+            let view = ContentView(component: component, appState: appState)
+            lifecycleController.setActiveComposerSink(sink)
+            switch kind {
+            case .newThread: router.requestNewThread()
+            case .openSettings: router.requestOpenSettings()
+            }
+            let request = try XCTUnwrap(router.pendingCommand)
+
+            view.routePendingMenuBarCommandIfModelPreparationAllows(request)
+
+            XCTAssertEqual(router.pendingCommand, request)
+            XCTAssertNil(appState.pendingCommand)
+            XCTAssertNil(appState.selectedSidebarItem)
+
+            lifecycleController.clearActiveComposerSink(sink)
+            view.routePendingMenuBarCommandIfModelPreparationAllows(router.pendingCommand)
+
+            XCTAssertNil(router.pendingCommand)
+            switch kind {
+            case .newThread:
+                guard case .newThread = appState.pendingCommand else {
+                    return XCTFail("The reopened window should receive the new-thread request")
+                }
+            case .openSettings:
+                XCTAssertEqual(appState.selectedSidebarItem, .settings)
+            }
+        }
+    }
+
     func testPendingCommandWaitsWhenVoiceModelModalAppearsAfterAsyncWorkStarts() {
         let commandID = UUID()
 
