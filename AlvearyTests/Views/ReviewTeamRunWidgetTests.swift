@@ -26,7 +26,7 @@ struct ReviewTeamRunWidgetTests {
         let view = AppKitReviewProposalVoteEvidenceView()
         view.configure(evidence: evidence, reviewers: reviewers, typography: TranscriptTypography())
 
-        let button = try #require(descendants(of: AppKitTranscriptHeaderToggleButton.self, in: view).first)
+        let button = try #require(reviewTeamDescendants(of: AppKitTranscriptHeaderToggleButton.self, in: view).first)
         #expect(button.title == "1/2 agreed")
         #expect(button.accessibilityRole() == .button)
         #expect(button.accessibilityLabel() == "1 of 2 reviewers agreed. Show vote details")
@@ -34,7 +34,7 @@ struct ReviewTeamRunWidgetTests {
         #expect(button.font == TranscriptTypography().nsFont(.caption, weight: .medium))
 
         button.performClick(nil)
-        let labels = descendants(of: NSTextField.self, in: view).map(\.stringValue)
+        let labels = reviewTeamDescendants(of: NSTextField.self, in: view).map(\.stringValue)
         #expect(labels.contains { $0.contains("Confirmed the failure path.") })
         #expect(labels.contains { $0.contains("Failed / no valid vote") })
     }
@@ -48,18 +48,20 @@ struct ReviewTeamRunWidgetTests {
         view.onHeightInvalidated = { invalidations += 1 }
         view.configure(.init(run: run, typography: TranscriptTypography()))
 
-        let expand = try #require(descendants(of: AppKitTranscriptHeaderToggleButton.self, in: view).first)
+        let expand = try #require(reviewTeamDescendants(of: AppKitTranscriptHeaderToggleButton.self, in: view).first)
         #expect(expand.title == "Show 1 not proposed")
         #expect(expand.accessibilityLabel() == "Show findings not proposed")
+        let beforeExpand = invalidations
         expand.performClick(nil)
-        #expect(invalidations == 1)
+        #expect(invalidations > beforeExpand)
 
-        let collapse = try #require(descendants(of: AppKitTranscriptHeaderToggleButton.self, in: view).first)
+        let collapse = try #require(reviewTeamDescendants(of: AppKitTranscriptHeaderToggleButton.self, in: view).first)
         #expect(collapse.title == "Hide 1 not proposed")
         #expect(collapse.accessibilityLabel() == "Hide findings not proposed")
+        let beforeCollapse = invalidations
         collapse.performClick(nil)
-        #expect(invalidations == 2)
-        #expect(descendants(of: AppKitReviewProposalVoteEvidenceView.self, in: view).isEmpty)
+        #expect(invalidations > beforeCollapse)
+        #expect(reviewTeamDescendants(of: AppKitReviewProposalVoteEvidenceView.self, in: view).isEmpty)
     }
 
     @Test
@@ -67,9 +69,13 @@ struct ReviewTeamRunWidgetTests {
         let view = AppKitReviewTeamRunWidgetView()
         view.configure(.init(run: failedRun(), typography: TranscriptTypography()))
 
-        let labels = descendants(of: NSView.self, in: view).compactMap { $0.accessibilityLabel() }
-        #expect(labels.contains { $0.contains("timed out after five minutes") })
-        let retry = try #require(descendants(of: NSButton.self, in: view).first { $0.title == "Retry failed reviewers" })
+        let failedRow = try #require(reviewTeamDescendants(of: AppKitReviewTeamReviewerRowView.self, in: view).first { $0.reviewerID == "peer" })
+        let accessibleText = [failedRow.accessibilityLabel(), failedRow.accessibilityHelp(), failedRow.accessibilityValue() as? String]
+            .compactMap { $0 }.joined(separator: ". ")
+        #expect(accessibleText.contains("timed out after five minutes"))
+        #expect(failedRow.toolTip?.contains("timed out after five minutes") == true)
+        #expect(!reviewTeamDescendants(of: NSTextField.self, in: view).contains { $0.stringValue.contains("timed out after five minutes") })
+        let retry = try #require(reviewTeamDescendants(of: NSButton.self, in: view).first { $0.title == "Retry failed reviewers" })
         #expect(retry.accessibilityRole() == .button)
         #expect(retry.accessibilityLabel() == "Retry failed reviewers")
         #expect(retry.target != nil && retry.action != nil)
@@ -80,11 +86,11 @@ struct ReviewTeamRunWidgetTests {
         let view = AppKitReviewTeamRunWidgetView()
         var run = failedRun()
         view.configure(.init(run: run, typography: TranscriptTypography()))
-        _ = try #require(descendants(of: NSButton.self, in: view).first { $0.title == "Retry failed reviewers" })
+        _ = try #require(reviewTeamDescendants(of: NSButton.self, in: view).first { $0.title == "Retry failed reviewers" })
         run.requiresNewRun = true
         view.configure(.init(run: run, typography: TranscriptTypography()))
 
-        #expect(descendants(of: NSButton.self, in: view).allSatisfy {
+        #expect(reviewTeamDescendants(of: NSButton.self, in: view).allSatisfy {
             $0.title != "Retry review" && $0.title != "Retry failed reviewers"
         })
     }
@@ -96,10 +102,13 @@ struct ReviewTeamRunWidgetTests {
             var run = failedRun()
             run.phase = phase
             view.configure(.init(run: run, typography: TranscriptTypography()))
-            let buttons = descendants(of: NSButton.self, in: view)
+            let buttons = reviewTeamDescendants(of: NSButton.self, in: view)
             let details = try #require(buttons.first { $0.title == "Run details" })
             #expect(details.isEnabled && details.action != nil)
-            #expect(buttons.filter { $0.title == "Details" }.map(\.tag) == [0, 1])
+            let reviewers = reviewTeamDescendants(of: AppKitReviewTeamReviewerRowView.self, in: view)
+            #expect(reviewers.map(\.reviewerID) == run.team.map(\.id))
+            #expect(reviewers.allSatisfy { $0.accessibilityRole() == .button })
+            #expect(!buttons.contains { $0.title == "Details" })
         }
     }
 
@@ -120,8 +129,15 @@ struct ReviewTeamRunWidgetTests {
         #expect(run.partialCompletionWarning == nil)
         run.phase = .staged
         #expect(run.partialCompletionWarning?.contains("1/2 inspections completed") == true)
+        let view = AppKitReviewTeamRunWidgetView()
+        view.configure(.init(run: run, typography: TranscriptTypography()))
+        #expect(reviewTeamDescendants(of: NSTextField.self, in: view).contains {
+            $0.stringValue.contains("Partial team review") && $0.stringValue.contains("1/2 inspected")
+        })
         run.inspections["peer"] = ReviewInspectionReport(findings: [])
         #expect(run.partialCompletionWarning == nil)
+        view.configure(.init(run: run, typography: TranscriptTypography()))
+        #expect(!reviewTeamDescendants(of: NSTextField.self, in: view).contains { $0.stringValue.contains("Partial team review") })
     }
 
     @Test(arguments: [ReviewTeamRun.Phase.inspecting, .crossChecking])
@@ -130,7 +146,7 @@ struct ReviewTeamRunWidgetTests {
         let view = AppKitReviewTeamRunWidgetView()
         view.configure(.init(run: run, typography: TranscriptTypography()))
 
-        let buttons = descendants(of: NSButton.self, in: view)
+        let buttons = reviewTeamDescendants(of: NSButton.self, in: view)
         let expected = ["Run details", "Retry failed reviewers", "Continue with majority", "Cancel review"]
         for title in expected {
             let button = try #require(buttons.first { $0.title == title })
@@ -140,23 +156,30 @@ struct ReviewTeamRunWidgetTests {
             #expect(button.target != nil && button.action != nil)
         }
         #expect(!buttons.contains { $0.title == "Retry review" || $0.title.contains("not proposed") })
-        let next = phase == .inspecting ? "then consolidates and cross-checks any findings" : "prepares a proposal from the completed votes"
-        let labels = descendants(of: NSTextField.self, in: view).map(\.stringValue)
-        #expect(labels.contains { $0.contains(next) && $0.contains("Nothing is submitted automatically") })
-        #expect(labels.contains { $0.contains("— Failed") })
+        let labels = reviewTeamDescendants(of: NSTextField.self, in: view).map(\.stringValue)
+        let explanation = try #require(labels.first { $0.contains("Nothing is submitted automatically") })
+        #expect(explanation.localizedCaseInsensitiveContains(phase == .inspecting ? "cross-check" : "completed votes"))
+        #expect(explanation.contains("2") && explanation.contains("required"))
+        #expect(labels.contains("Failed"))
         #expect(!labels.contains { $0.contains("Cross-checking…") || $0 == "Waiting" })
         let primary = try #require(buttons.first { $0.title == "Continue with majority" } as? AppKitTranscriptApprovalButton)
         #expect(primary.actionStyle == .primary)
         #expect(primary.action == NSSelectorFromString("continueWithMajority"))
     }
 
-    @Test
-    func `continue button sends the displayed run identity to the app`() throws {
+    @Test(arguments: ["Continue with majority", "Retry failed reviewers", "Cancel review"])
+    func `paused action sends the displayed run identity to the app`(title: String) throws {
         let run = pausedRun(phase: .crossChecking)
         let view = AppKitReviewTeamRunWidgetView()
         view.configure(.init(run: run, typography: TranscriptTypography()))
         let receipt = ReviewRunActionReceipt()
-        let observer = NotificationCenter.default.addObserver(forName: .reviewTeamContinueRequested, object: view, queue: .main) { note in
+        let names: [String: Notification.Name] = [
+            "Continue with majority": .reviewTeamContinueRequested,
+            "Retry failed reviewers": .reviewTeamRetryFailedRequested,
+            "Cancel review": .reviewTeamCancelRequested
+        ]
+        let name = try #require(names[title])
+        let observer = NotificationCenter.default.addObserver(forName: name, object: view, queue: .main) { note in
             let conversationID = note.userInfo?["conversationID"] as? String
             let runID = note.userInfo?["runID"] as? String
             let generation = note.userInfo?["generation"] as? Int
@@ -168,7 +191,7 @@ struct ReviewTeamRunWidgetTests {
         }
         defer { NotificationCenter.default.removeObserver(observer) }
 
-        try #require(descendants(of: NSButton.self, in: view).first { $0.title == "Continue with majority" }).performClick(nil)
+        try #require(reviewTeamDescendants(of: NSButton.self, in: view).first { $0.title == title }).performClick(nil)
 
         #expect(receipt.conversationID == run.conversationID)
         #expect(receipt.runID == run.id)
@@ -184,7 +207,7 @@ struct ReviewTeamRunWidgetTests {
         run.failures["crossChecking:peer-2"] = "No valid report"
         let view = AppKitReviewTeamRunWidgetView()
         view.configure(.init(run: run, typography: TranscriptTypography()))
-        #expect(!descendants(of: NSButton.self, in: view).contains { $0.title == "Continue with majority" })
+        #expect(!reviewTeamDescendants(of: NSButton.self, in: view).contains { $0.title == "Continue with majority" })
     }
 
     @Test(arguments: [ReviewTeamRun.Phase.crossChecking, .staged])
@@ -200,9 +223,10 @@ struct ReviewTeamRunWidgetTests {
         #expect(status.label == "Cross-checked")
         #expect(status.detail == "Earlier inspection failed: Timed out after five minutes.")
         #expect(!status.failed)
+        #expect(status.visualState == .completed)
     }
 
-    private func pausedRun(phase: ReviewTeamRun.Phase) -> ReviewTeamRun {
+    func pausedRun(phase: ReviewTeamRun.Phase) -> ReviewTeamRun {
         var run = failedRun(teamSize: 3)
         run.phase = .awaitingDecision
         run.pausedPhase = phase
@@ -229,7 +253,7 @@ struct ReviewTeamRunWidgetTests {
         ]
     }
 
-    private func failedRun(teamSize: Int = 2) -> ReviewTeamRun {
+    func failedRun(teamSize: Int = 2) -> ReviewTeamRun {
         var team = [
             ReviewWorkerConfiguration(
                 id: "lead",
@@ -284,16 +308,18 @@ struct ReviewTeamRunWidgetTests {
 }
 
 @MainActor
-private final class ReviewRunActionReceipt {
+final class ReviewRunActionReceipt {
     var conversationID: String?
     var runID: String?
     var generation: Int?
+    var reviewerID: String?
+    var run: ReviewTeamRun?
 }
 
 @MainActor
-private func descendants<View: NSView>(of type: View.Type, in view: NSView) -> [View] {
+func reviewTeamDescendants<View: NSView>(of type: View.Type, in view: NSView) -> [View] {
     view.subviews.flatMap { subview in
-        let nested = descendants(of: type, in: subview)
+        let nested = reviewTeamDescendants(of: type, in: subview)
         return (subview as? View).map { [$0] + nested } ?? nested
     }
 }

@@ -384,14 +384,16 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     }
 
     func updateBody(_ configuration: Configuration) {
-        // Hiding a mounted editor's ancestor resigns first responder.
+        // Hiding an active body's ancestor resigns its focused editor or reviewer control.
         switch configuration.entry.content {
-        case .pullRequestReviewProposal: break
-        default: reviewProposalBody.isHidden = true
+        case .pullRequestReviewProposal: reviewTeamRunBody.isHidden = true
+        case .collectiveReviewRun: reviewProposalBody.isHidden = true
+        default:
+            reviewProposalBody.isHidden = true
+            reviewTeamRunBody.isHidden = true
         }
         pullRequestListBody.isHidden = true
         reviewInstructionsBody.isHidden = true
-        reviewTeamRunBody.isHidden = true
         switch configuration.entry.content {
         case .pullRequestLink, .threadAction:
             // The header and detail lines say everything these cards have to say.
@@ -469,13 +471,12 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     }
 
     func measureAndPublishHeight(force: Bool, immediate: Bool = false) {
-        guard let configuration else {
-            return
-        }
+        guard let configuration else { return }
         let width = bubbleWidth(for: configuration)
         guard width > 0 else {
             return
         }
+        if !reviewTeamRunBody.isHidden { reviewTeamRunBody.prepareLayout(width: max(0, width - chatBlockPadding * 2)) }
         bubbleView.frame = NSRect(x: 0, y: 0, width: width, height: max(lastMeasuredHeight, 1))
         bubbleView.layoutSubtreeIfNeeded()
         let height = ceil(contentStack.frame.maxY + chatVerticalPadding)

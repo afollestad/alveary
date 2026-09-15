@@ -73,6 +73,17 @@ extension SnapshotTests {
         )
     }
 
+    func testCollectiveReviewNotProposedFinding() {
+        for showsVotes in [false, true] {
+            assertMacSnapshot(
+                appKitRowSnapshot { CollectiveReviewSnapshotFixture.expandedNotProposedWidgetRow(showsVotes: showsVotes) },
+                size: CGSize(width: 700, height: 620),
+                named: showsVotes ? "collective_review_not_proposed_votes" : "collective_review_not_proposed_finding",
+                colorScheme: .dark
+            )
+        }
+    }
+
     func testCollectiveReviewPausedInspectionWidget() {
         assertMacSnapshot(
             appKitRowSnapshot { CollectiveReviewSnapshotFixture.widgetRow(run: CollectiveReviewSnapshotFixture.pausedRun(phase: .inspecting)) },
@@ -85,6 +96,22 @@ extension SnapshotTests {
             appKitRowSnapshot { CollectiveReviewSnapshotFixture.widgetRow(run: CollectiveReviewSnapshotFixture.pausedRun(phase: .crossChecking)) },
             size: CGSize(width: 700, height: 440), named: "collective_review_paused_cross_check"
         )
+    }
+
+    func testCollectiveReviewNarrowPausedWidget() {
+        var settings = AppSettings()
+        settings.chatFontSize = 20
+        let typography = TranscriptTypography(settings: settings)
+        for (name, appearance) in [("light", ColorScheme.light), ("dark", ColorScheme.dark)] {
+            assertMacSnapshot(
+                appKitRowSnapshot {
+                    CollectiveReviewSnapshotFixture.widgetRow(
+                        run: CollectiveReviewSnapshotFixture.narrowPausedRun(), width: 360, typography: typography
+                    )
+                },
+                size: CGSize(width: 360, height: 800), named: "collective_review_narrow_paused_\(name)", colorScheme: appearance
+            )
+        }
     }
 
     func testCollectiveReviewPausedRunDetails() {
@@ -105,6 +132,14 @@ extension SnapshotTests {
         assertMacSnapshot(
             ReviewTeamRunDecisions(run: CollectiveReviewSnapshotFixture.decisionRun()).padding(24),
             size: CGSize(width: 780, height: 600), named: "collective_review_decisions"
+        )
+    }
+
+    func testCollectiveReviewLegacyFailureActivity() {
+        assertMacSnapshot(
+            ReviewTeamRunActivity(run: CollectiveReviewSnapshotFixture.failureRun(), store: nil,
+                                  reviewerID: .constant("peer-2")).padding(24),
+            size: CGSize(width: 780, height: 300), named: "collective_review_legacy_failure_activity"
         )
     }
 
@@ -200,6 +235,62 @@ private enum CollectiveReviewSnapshotFixture {
         return run
     }
 
+    static func narrowPausedRun() -> ReviewTeamRun {
+        let models = [
+            ("lead", "codex", "gpt-6-astra-extended-context-preview"),
+            ("peer-1", "claude", "claude-opus-4-8-long-context-preview"),
+            ("peer-2", "codex", "gpt-5.6-sol"),
+            ("peer-3", "claude", "claude-sonnet-4-6"),
+            ("peer-4", "codex", "gpt-5.6-terra")
+        ]
+        let reviewers = models.map { id, provider, model in
+            ReviewWorkerConfiguration(
+                id: id, providerID: provider, modelOptionID: model, launchModel: model,
+                effort: "high", executablePath: "/fake/\(provider)"
+            )
+        }
+        var run = makeRun(
+            phase: .awaitingDecision,
+            voteReports: Dictionary(uniqueKeysWithValues: ["lead", "peer-1", "peer-2"].map {
+                ($0, ReviewVoteReport(votes: [vote(voterID: $0, decision: .agree)]))
+            }),
+            failures: [
+                "crossChecking:peer-3": "The reviewer returned an invalid vote report after one corrective retry.",
+                "crossChecking:peer-4": "The reviewer timed out after five minutes without a valid response."
+            ],
+            team: reviewers
+        )
+        run.pausedPhase = .crossChecking
+        return run
+    }
+
+    static func notProposedRun() -> ReviewTeamRun {
+        let finding = ReviewCanonicalFinding(
+            id: "compact-finding", sourceCandidateIDs: ["lead:1", "peer-1:1"],
+            path: "Alveary/Services/PullRequests/Collective/ReviewTeamCoordinator+CrossChecking.swift",
+            line: 254, side: "RIGHT",
+            body: """
+            **Preserve the completed reports when retrying.** Calling `restartReview()` here clears the saved votes before the failed worker resumes.
+
+            A transient timeout can therefore repeat completed inspections and replace findings that the user has already examined.
+
+            Keep the completed reports and retry only the failed reviewer so the original majority requirement stays unchanged.
+            """
+        )
+        var run = makeRun(
+            phase: .staged,
+            voteReports: Dictionary(uniqueKeysWithValues: [
+                ReviewTeamVote(voterID: "lead", findingID: finding.id, decision: .agree, priority: 1,
+                               rationale: "`restartReview()` removes the previous votes before scheduling the retry."),
+                ReviewTeamVote(voterID: "peer-1", findingID: finding.id, decision: .disagree, priority: nil,
+                               rationale: "The caller uses **resumeReview()**, which preserves the completed reports.")
+            ].map { ($0.voterID, ReviewVoteReport(votes: [$0])) }),
+            failures: ["crossChecking:peer-2": "The reviewer timed out without a valid response."]
+        )
+        run.canonical = ReviewCanonicalReport(findings: [finding])
+        return run
+    }
+
     static func decisionRun() -> ReviewTeamRun {
         var run = failureRun()
         run.phase = .staged
@@ -231,9 +322,11 @@ private enum CollectiveReviewSnapshotFixture {
         return run
     }
 
-    static func widgetRow(run: ReviewTeamRun) -> AppKitTranscriptHostToolWidgetRowView {
+    static func widgetRow(
+        run: ReviewTeamRun, width: CGFloat = 640, typography: TranscriptTypography = TranscriptTypography()
+    ) -> AppKitTranscriptHostToolWidgetRowView {
         let view = AppKitTranscriptHostToolWidgetRowView()
-        view.configure(.init(entry: widgetEntry(run: run), bubbleMaxWidth: 640))
+        view.configure(.init(entry: widgetEntry(run: run), bubbleMaxWidth: width, typography: typography))
         return view
     }
 
@@ -250,6 +343,13 @@ private enum CollectiveReviewSnapshotFixture {
     static func expandedFailureWidgetRow() -> AppKitTranscriptHostToolWidgetRowView {
         let row = widgetRow(run: failureRun())
         firstButton(in: row, titled: "Show 1 not proposed")?.performClick(nil)
+        return row
+    }
+
+    static func expandedNotProposedWidgetRow(showsVotes: Bool) -> AppKitTranscriptHostToolWidgetRowView {
+        let row = widgetRow(run: notProposedRun())
+        firstButton(in: row, titled: "Show 1 not proposed")?.performClick(nil)
+        if showsVotes { firstButton(in: row, titled: "1/3 agreed")?.performClick(nil) }
         return row
     }
 

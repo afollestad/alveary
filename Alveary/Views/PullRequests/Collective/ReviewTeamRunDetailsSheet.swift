@@ -92,10 +92,17 @@ enum ReviewTeamDetailsTab: String, CaseIterable, Identifiable {
 }
 
 enum ReviewTeamRunPresentation {
+    enum ReviewerVisualState {
+        case working, completed, failed, idle
+    }
+
     struct ReviewerStatus {
         let label: String
         let detail: String?
-        let failed: Bool
+        /// Shared by native and SwiftUI surfaces so changing display copy cannot change the status signal.
+        let visualState: ReviewerVisualState
+
+        var failed: Bool { visualState == .failed }
     }
 
     static func role(_ member: ReviewWorkerConfiguration, in run: ReviewTeamRun) -> String {
@@ -142,19 +149,21 @@ enum ReviewTeamRunPresentation {
             let prefix = currentFailure == nil && earlierFailure?.key.hasPrefix("inspecting:") == true
                 ? "Earlier inspection failed" : "Earlier reviewer attempt failed"
             let detail = failure.map { "\(prefix): \(String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(240)))" }
-            return ReviewerStatus(label: "Cross-checked", detail: detail, failed: false)
+            return ReviewerStatus(label: "Cross-checked", detail: detail, visualState: .completed)
         }
         if let failure {
             let message = failure.trimmingCharacters(in: .whitespacesAndNewlines)
-            return ReviewerStatus(label: "Failed", detail: message.isEmpty ? nil : String(message.prefix(240)), failed: true)
+            return ReviewerStatus(label: "Failed", detail: message.isEmpty ? nil : String(message.prefix(240)), visualState: .failed)
         }
         if phase == .crossChecking || run.canonical?.findings.isEmpty == false {
             let label = run.phase == .crossChecking ? "Cross-checking…" : "No valid cross-check"
-            return ReviewerStatus(label: label, detail: nil, failed: false)
+            return ReviewerStatus(label: label, detail: nil, visualState: run.phase == .crossChecking ? .working : .idle)
         }
-        if run.inspections[member.id] != nil { return ReviewerStatus(label: "Inspection complete", detail: nil, failed: false) }
+        if run.inspections[member.id] != nil {
+            return ReviewerStatus(label: "Inspection complete", detail: nil, visualState: .completed)
+        }
         let label = run.phase == .inspecting ? "Inspecting…" : run.phase == .awaitingDecision ? "No valid inspection" : "Waiting"
-        return ReviewerStatus(label: label, detail: nil, failed: false)
+        return ReviewerStatus(label: label, detail: nil, visualState: run.phase == .inspecting ? .working : .idle)
     }
 }
 

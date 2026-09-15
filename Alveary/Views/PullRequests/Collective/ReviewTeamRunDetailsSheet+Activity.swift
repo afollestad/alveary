@@ -40,6 +40,11 @@ private struct ReviewTeamReviewerActivity: View {
             Text(ReviewTeamRunPresentation.role(member, in: run)).font(.headline)
             Text("Requested: \(ReviewTeamRunPresentation.requestedModel(member))")
                 .font(.callout).foregroundStyle(.secondary)
+            let status = ReviewTeamRunPresentation.status(for: member, in: run)
+            if let detail = status.detail {
+                Text(detail)
+                    .font(.callout).foregroundStyle(status.failed ? Color.red : Color.secondary)
+            }
             if let report = run.inspections[member.id] {
                 DisclosureGroup("Validated inspection · \(report.findings.count) findings") {
                     ForEach(report.findings) { finding in

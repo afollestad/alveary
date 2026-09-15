@@ -1,4 +1,3 @@
-import AgentCLIKit
 import AppKit
 
 /// Persistent progress and terminal detail for an app-owned collective review run.
@@ -14,6 +13,9 @@ final class AppKitReviewTeamRunWidgetView: NSView {
     private let stack = NSStackView()
     private var configuration: Configuration?
     private var expandedRunID: String?
+    private var reviewers: [AppKitReviewTeamReviewerRowView] = []
+    private var findingViews: [String: AppKitReviewTeamNotProposedFindingView] = [:]
+    private var actionsView: AppKitReviewTeamRunActionsView?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -36,12 +38,33 @@ final class AppKitReviewTeamRunWidgetView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    override var isFlipped: Bool { true }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        prepareLayout(width: newSize.width)
+        super.setFrameSize(newSize)
+    }
+
+    /// The shell supplies its final content width before Auto Layout reads the stack height.
+    func prepareLayout(width: CGFloat) {
+        let statusWidth = reviewers.map(\.preferredStatusWidth).max() ?? 0
+        for reviewer in reviewers {
+            reviewer.prepareLayout(width: max(0, width), statusWidth: statusWidth)
+        }
+        actionsView?.prepareLayout(width: max(0, width))
+        for finding in findingViews.values { finding.prepareLayout(width: max(0, width)) }
+    }
+
     var hasContent: Bool {
         !stack.arrangedSubviews.isEmpty
     }
 
     var naturalWidth: CGFloat {
-        stack.arrangedSubviews.reduce(CGFloat.zero) { max($0, ceil($1.fittingSize.width)) }
+        stack.arrangedSubviews.reduce(CGFloat.zero) { width, view in
+            guard !(view is AppKitHostToolWidgetDividerView) else { return width }
+            let naturalWidth = (view as? AppKitReviewTeamNotProposedFindingView)?.naturalWidth ?? ceil(view.fittingSize.width)
+            return max(width, naturalWidth)
+        }
     }
 
     func configure(_ configuration: Configuration) {
@@ -50,9 +73,12 @@ final class AppKitReviewTeamRunWidgetView: NSView {
         }
         if self.configuration?.run.id != configuration.run.id {
             expandedRunID = nil
+            findingViews = [:]
+            reviewers = []
         }
         self.configuration = configuration
         rebuild(configuration)
+        prepareLayout(width: bounds.width)
     }
 }
 
@@ -65,92 +91,42 @@ private extension AppKitReviewTeamRunWidgetView {
     }
 
     func rebuild(_ configuration: Configuration) {
+        let focusedControl = AppKitReviewTeamFocus.capture(in: self)
         stack.arrangedSubviews.forEach {
             stack.removeArrangedSubview($0)
             $0.removeFromSuperview()
         }
         addTeam(configuration)
-        if let explanation = ReviewTeamRunPresentation.pauseExplanation(configuration.run) {
+        if let explanation = ReviewTeamRunCardPresentation.pauseExplanation(configuration.run) {
             stack.addFullWidthArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
                 explanation, level: .caption, color: .labelColor, typography: configuration.typography, wraps: true
             ))
         }
-        if let warning = configuration.run.partialCompletionWarning {
+        if let warning = ReviewTeamRunCardPresentation.partialCompletionWarning(configuration.run) {
             stack.addFullWidthArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
                 warning, level: .caption, color: .labelColor, typography: configuration.typography, wraps: true
             ))
         }
         addNotProposed(configuration)
         addActions(configuration)
+        AppKitReviewTeamFocus.restore(focusedControl, in: self)
     }
 
     func addTeam(_ configuration: Configuration) {
-        for (index, member) in configuration.run.team.enumerated() {
-            let status = ReviewTeamRunPresentation.status(for: member, in: configuration.run)
-            let providerName = member.providerID.capitalized
-            let modelName = modelLabel(for: member)
-            let memberStack = NSStackView()
-            memberStack.translatesAutoresizingMaskIntoConstraints = false
-            memberStack.orientation = .vertical
-            memberStack.alignment = .leading
-            memberStack.spacing = 2
-            let header = NSStackView()
-            header.orientation = .horizontal
-            header.spacing = 8
-            header.addArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
-                ReviewTeamRunPresentation.role(member, in: configuration.run),
-                level: .caption, color: .labelColor, typography: configuration.typography
-            ))
-            let details = NSButton(title: "Details", target: self, action: #selector(showReviewerDetails(_:)))
-            details.isBordered = false
-            details.controlSize = .small
-            details.tag = index
-            details.setAccessibilityLabel("Show \(ReviewTeamRunPresentation.role(member, in: configuration.run)) prompts and responses")
-            header.addArrangedSubview(details)
-            memberStack.addFullWidthArrangedSubview(header)
-            memberStack.addFullWidthArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
-                "Requested model: \(providerName) · \(modelName) — \(status.label)",
-                level: .caption,
-                color: status.failed ? .systemRed : .secondaryLabelColor,
-                typography: configuration.typography,
-                wraps: true
-            ))
-            if let detail = status.detail {
-                memberStack.addFullWidthArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
-                    detail,
-                    level: .caption,
-                    color: .secondaryLabelColor,
-                    typography: configuration.typography,
-                    wraps: true
-                ))
-            }
-            memberStack.setAccessibilityElement(false)
-            memberStack.setAccessibilityRole(.group)
-            memberStack.setAccessibilityLabel(
-                ["Requested model \(providerName) \(modelName), \(status.label)", status.detail]
-                    .compactMap { $0 }
-                    .joined(separator: ". ")
+        reviewers = configuration.run.team.enumerated().map { index, member in
+            let row = AppKitReviewTeamReviewerRowView(
+                member: member,
+                model: ReviewTeamRunCardPresentation.modelLabel(providerID: member.providerID, modelOptionID: member.modelOptionID),
+                role: member.id == "lead" ? "Lead" : "Peer \(index)",
+                status: ReviewTeamRunPresentation.status(for: member, in: configuration.run),
+                typography: configuration.typography
             )
-            stack.addFullWidthArrangedSubview(memberStack)
+            row.identifier = NSUserInterfaceItemIdentifier("reviewer:\(member.id)")
+            row.onActivate = { [weak self] in self?.showDetails(reviewerID: member.id) }
+            stack.addFullWidthArrangedSubview(row)
+            if index < configuration.run.team.count - 1 { stack.setCustomSpacing(0, after: row) }
+            return row
         }
-    }
-
-    /// Match exact catalog IDs only: resolving a saved family alias would attribute it to today's pinned version.
-    func modelLabel(for member: ReviewWorkerConfiguration) -> String {
-        if let providerID = AgentProviderID(rawValue: member.providerID),
-           let option = AgentDefaultModelOptions.staticOptions(for: providerID).first(where: {
-               $0.id == member.modelOptionID || $0.model == member.modelOptionID
-           }) {
-            return option.label
-        }
-        return member.modelOptionID.split(separator: "-").map { word in
-            let normalized = word.lowercased()
-            if normalized == "gpt" { return "GPT" }
-            if normalized.first == "o", normalized.count > 1, normalized.dropFirst().allSatisfy(\.isNumber) {
-                return normalized
-            }
-            return word.capitalized
-        }.joined(separator: " ")
     }
 
     func addNotProposed(_ configuration: Configuration) {
@@ -180,9 +156,12 @@ private extension AppKitReviewTeamRunWidgetView {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.isBordered = false
         button.font = typography.nsFont(.caption, weight: .medium)
+        let lineHeight = NSLayoutManager().defaultLineHeight(for: typography.nsFont(.caption))
+        button.heightAnchor.constraint(greaterThanOrEqualToConstant: ceil(lineHeight) + 6).isActive = true
         button.title = expanded
             ? "Hide \(count) not proposed"
             : "Show \(count) not proposed"
+        button.identifier = NSUserInterfaceItemIdentifier("review-not-proposed")
         button.symbolName = expanded ? "chevron.up" : "chevron.down"
         button.target = self
         button.action = #selector(toggleNotProposed)
@@ -216,84 +195,60 @@ private extension AppKitReviewTeamRunWidgetView {
         reviewers: [PullRequestReviewProposalRecord.Reviewer],
         configuration: Configuration
     ) {
-        let findingStack = NSStackView()
-        findingStack.translatesAutoresizingMaskIntoConstraints = false
-        findingStack.orientation = .vertical
-        findingStack.alignment = .leading
-        findingStack.spacing = 8
-        findingStack.addFullWidthArrangedSubview(AppKitTranscriptWidgetLabelFactory.label(
-            "\(finding.path):\(finding.line) — \(finding.body)",
-            level: .caption,
-            color: .secondaryLabelColor,
-            typography: configuration.typography,
-            wraps: true
-        ))
-        let evidence = AppKitReviewProposalVoteEvidenceView()
-        evidence.onHeightInvalidated = { [weak self] in self?.onHeightInvalidated?() }
-        evidence.configure(
-            findingID: finding.id,
+        let view = findingViews[finding.id] ?? AppKitReviewTeamNotProposedFindingView(findingID: finding.id)
+        findingViews[finding.id] = view
+        view.onHeightInvalidated = { [weak self] in self?.onHeightInvalidated?() }
+        view.configure(
+            finding: finding,
             votes: configuration.run.team.flatMap { member in
                 configuration.run.voteReports[member.id]?.votes.filter { $0.findingID == finding.id } ?? []
             },
             reviewers: reviewers,
-            typography: configuration.typography,
-            initiallyExpanded: true
+            typography: configuration.typography
         )
-        findingStack.addFullWidthArrangedSubview(evidence)
-        stack.addFullWidthArrangedSubview(findingStack)
+        stack.addFullWidthArrangedSubview(AppKitHostToolWidgetDividerView())
+        stack.addFullWidthArrangedSubview(view)
     }
 
     func addActions(_ configuration: Configuration) {
-        let actions = NSStackView()
-        actions.orientation = .horizontal
-        actions.spacing = 8
-        actions.addArrangedSubview(actionButton(RunAction(title: "Run details", icon: "list.bullet", selector: #selector(showRunDetails))))
-        if let previous = stack.arrangedSubviews.last {
-            stack.setCustomSpacing(AppKitReviewProposalWidgetView.actionRowSeparation, after: previous)
+        let details = AppKitTranscriptHeaderToggleButton()
+        details.title = "Run details"
+        details.identifier = NSUserInterfaceItemIdentifier("review-run-details")
+        details.symbolName = "list.bullet"
+        details.font = configuration.typography.nsFont(.caption, weight: .medium)
+        details.isBordered = false
+        details.target = self
+        details.action = #selector(showRunDetails)
+        details.setAccessibilityLabel("Run details")
+        details.setAccessibilityRole(.button)
+        var buttons: [NSButton] = [details]
+        let run = configuration.run
+        if run.phase.isWorking || run.phase == .awaitingDecision {
+            buttons.append(actionButton(RunAction(title: "Cancel review", icon: "xmark", selector: #selector(cancelReview))))
         }
-        stack.addArrangedSubview(actions)
-        if configuration.run.phase == .awaitingDecision {
-            addPausedActions(configuration)
-            return
-        }
-        if configuration.run.canRetryFailedReviewers {
+        if run.canRetryFailedReviewers {
             let retry = actionButton(RunAction(
                 title: "Retry failed reviewers", icon: "arrow.clockwise", selector: #selector(retryFailedReviewers)
             ))
             retry.toolTip = "Reuse completed reports and retry only the failed reviewers for this phase."
-            actions.addArrangedSubview(retry)
+            buttons.append(retry)
+        } else if (run.phase == .failed || run.phase == .interrupted) && run.requiresNewRun != true {
+            buttons.append(actionButton(RunAction(title: "Retry review", icon: "arrow.clockwise", selector: #selector(retryReview))))
         }
-        let action: RunAction?
-        if configuration.run.phase.isWorking {
-            action = RunAction(title: "Cancel review", icon: "xmark", selector: #selector(cancelReview))
-        } else if (configuration.run.phase == .failed || configuration.run.phase == .interrupted)
-            && configuration.run.requiresNewRun != true && !configuration.run.canRetryFailedReviewers {
-            action = RunAction(title: "Retry review", icon: "arrow.clockwise", selector: #selector(retryReview))
-        } else {
-            action = nil
-        }
-        guard let action else {
-            return
-        }
-        actions.addArrangedSubview(actionButton(action))
-    }
-
-    func addPausedActions(_ configuration: Configuration) {
-        let actions = NSStackView()
-        actions.orientation = .horizontal
-        actions.spacing = 8
-        actions.addArrangedSubview(actionButton(RunAction(title: "Cancel review", icon: "xmark", selector: #selector(cancelReview))))
-        if configuration.run.canRetryFailedReviewers {
-            actions.addArrangedSubview(actionButton(RunAction(
-                title: "Retry failed reviewers", icon: "arrow.clockwise", selector: #selector(retryFailedReviewers)
-            )))
-        }
-        if configuration.run.canContinueWithMajority {
-            actions.addArrangedSubview(actionButton(RunAction(
+        if run.canContinueWithMajority {
+            buttons.append(actionButton(RunAction(
                 title: "Continue with majority", icon: "arrow.right", selector: #selector(continueWithMajority), style: .primary
             )))
         }
-        stack.addArrangedSubview(actions)
+        let actions = AppKitReviewTeamRunActionsView(buttons: buttons, compactTitles: [
+            "Cancel review": "Cancel", "Retry failed reviewers": "Retry failed", "Retry review": "Retry",
+            "Continue with majority": "Use majority"
+        ])
+        actionsView = actions
+        if let previous = stack.arrangedSubviews.last {
+            stack.setCustomSpacing(12, after: previous)
+        }
+        stack.addFullWidthArrangedSubview(actions)
     }
 
     func actionButton(_ action: RunAction) -> NSButton {
@@ -301,7 +256,9 @@ private extension AppKitReviewTeamRunWidgetView {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.isBordered = false
         button.controlSize = .small
+        button.font = configuration?.typography.nsFont(.caption, weight: .medium)
         button.title = action.title
+        button.identifier = NSUserInterfaceItemIdentifier("review-action:\(action.title)")
         button.icon = .system(action.icon)
         button.actionStyle = action.style
         button.target = self
@@ -315,12 +272,6 @@ private extension AppKitReviewTeamRunWidgetView {
     @objc
     func showRunDetails() {
         showDetails(reviewerID: nil)
-    }
-
-    @objc
-    func showReviewerDetails(_ sender: NSButton) {
-        guard let run = configuration?.run, run.team.indices.contains(sender.tag) else { return }
-        showDetails(reviewerID: run.team[sender.tag].id)
     }
 
     func showDetails(reviewerID: String?) {
@@ -337,6 +288,7 @@ private extension AppKitReviewTeamRunWidgetView {
         }
         expandedRunID = expandedRunID == configuration.run.id ? nil : configuration.run.id
         rebuild(configuration)
+        prepareLayout(width: bounds.width)
         onHeightInvalidated?()
     }
 

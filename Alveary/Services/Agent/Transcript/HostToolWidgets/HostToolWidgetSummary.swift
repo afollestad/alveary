@@ -74,16 +74,17 @@ private extension HostToolWidgetSummary {
     static func collectiveReviewDetail(_ run: ReviewTeamRun) -> String? {
         if run.phase == .awaitingDecision {
             let count = run.pausedPhase == .crossChecking ? run.voteReports.count : run.inspections.count
-            return "\(count) of \(run.team.count) reviewers completed · \(run.requiredVotes) required to continue"
+            let step = run.pausedPhase == .crossChecking ? "cross-checked" : "inspected"
+            return "\(count)/\(run.team.count) \(step) · \(run.requiredVotes) required"
         }
         if let error = run.error, run.phase == .failed || run.phase == .interrupted || run.phase == .cancelled {
             return error
         }
         if run.phase == .inspecting {
-            return "\(run.inspections.count) of \(run.team.count) reviewers finished"
+            return "\(run.inspections.count)/\(run.team.count) inspected"
         }
         if run.phase == .crossChecking {
-            return "\(run.voteReports.count) of \(run.team.count) reviewers cross-checked"
+            return "\(run.voteReports.count)/\(run.team.count) cross-checked"
         }
         return nil
     }
