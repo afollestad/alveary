@@ -46,6 +46,7 @@ extension AppComponent {
                 cancellationStore: ReviewTeamCancellationStore(
                     rootDirectory: storageProfile.appSupportDirectory.appendingPathComponent("ReviewCancellations")
                 ),
+                notificationManager: notificationManager,
                 historyStore: reviewTeamHistoryStore
             )
         }

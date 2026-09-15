@@ -195,10 +195,84 @@ extension AgentsManagerTests {
         await manager.kill(conversationId: conversationId)
     }
 
-    private func runtimeStatus(conversationId: String, isTurnActive: Bool) -> AgentCLIKit.AgentRuntimeStatus {
+    func testOrdinaryPRReviewProposalNotifiesWhenTurnFinishes() async throws {
+        for providerId in [AgentCLIKit.AgentProviderID.claude, .codex] {
+            try await assertOrdinaryPRReviewProposalNotifies(providerId: providerId)
+        }
+    }
+
+    func testOrdinaryPRReviewProposalNotifiesWhenStatusFinishesBeforeTokens() async throws {
+        for providerId in [AgentCLIKit.AgentProviderID.claude, .codex] {
+            try await assertOrdinaryPRReviewProposalNotifies(providerId: providerId, statusFinishesFirst: true)
+        }
+    }
+
+    private func assertOrdinaryPRReviewProposalNotifies(
+        providerId: AgentCLIKit.AgentProviderID,
+        statusFinishesFirst: Bool = false
+    ) async throws {
+        let notifications = StubNotificationManager()
+        let manager = makeAgentCLIKitFixture(
+            adapter: ResolvingAgentCLIKitAdapter(providerId: providerId),
+            detectedPath: "/usr/bin/agent",
+            basePath: "/usr/bin:/bin",
+            notificationManager: notifications
+        ).manager
+        let conversationId = "ordinary-review-\(providerId.rawValue)"
+        let events = AsyncStream<AgentCLIKit.AgentEventEnvelope>.makeStream()
+        defer { events.continuation.finish() }
+        await manager.installAgentCLIKitSubscriptionBuffer(
+            conversationId: conversationId,
+            config: spawnConfig(providerId: providerId.rawValue, workingDirectory: "/tmp"),
+            subscription: AgentCLIKit.AgentEventSubscription(generation: 1, events: events.stream),
+            hasImmediateTurn: true,
+            initialTurnActivityVisibility: .visible
+        )
+        let maybeGeneration = await manager.eventBuffers[conversationId]?.generation
+        let generation = try XCTUnwrap(maybeGeneration)
+        let receipt = providerId == .claude
+            ? #"{"status":"pending_confirmation","proposal_id":"proposal-1","repository":"owner/repo","number":1}"#
+            : "Review proposal opened for confirmation."
+        let proposalEvents: [ConversationEvent] = [
+            .toolCall(
+                id: "review-proposal",
+                name: "mcp__alveary_host__propose_pr_review",
+                input: #"{"url":"https://github.com/owner/repo/pull/1","event":"APPROVE"}"#,
+                parentToolUseId: nil,
+                callerAgent: nil
+            ),
+            .toolResult(id: "review-proposal", output: receipt, isError: false, parentToolUseId: nil, metadata: nil)
+        ]
+        for event in proposalEvents {
+            await manager.handleStreamEvent(event, conversationId: conversationId, generation: generation, providerId: providerId.rawValue)
+        }
+        XCTAssertTrue(notifications.handledEvents.isEmpty, "Staging alone must not announce turn completion for \(providerId.rawValue)")
+
+        if statusFinishesFirst {
+            for isTurnActive in [true, false] {
+                await manager.handleRuntimeTurnActiveStatus(
+                    runtimeStatus(conversationId: conversationId, isTurnActive: isTurnActive, providerId: providerId),
+                    conversationId: conversationId
+                )
+            }
+        }
+        await manager.handleStreamEvent(
+            terminalSuccessTokens(), conversationId: conversationId, generation: generation, providerId: providerId.rawValue
+        )
+
+        XCTAssertEqual(notifications.handledEvents.count, 1, providerId.rawValue)
+        XCTAssertEqual(notifications.handledEvents.first?.conversationId, conversationId)
+        XCTAssertEqual(notifications.handledEvents.first?.event, terminalSuccessTokens())
+    }
+
+    private func runtimeStatus(
+        conversationId: String,
+        isTurnActive: Bool,
+        providerId: AgentCLIKit.AgentProviderID = .claude
+    ) -> AgentCLIKit.AgentRuntimeStatus {
         AgentCLIKit.AgentRuntimeStatus(
             conversationId: AgentCLIKit.AgentConversationID(rawValue: conversationId),
-            providerId: .claude,
+            providerId: providerId,
             generation: 1,
             state: .running,
             lastEventIndex: 1,

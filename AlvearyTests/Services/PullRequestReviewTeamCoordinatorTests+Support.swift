@@ -10,6 +10,7 @@ final class ReviewCoordinatorFixture {
     let conversation: Conversation
     let service = StubPullRequestsService()
     let worker = ReviewCoordinatorWorker()
+    let notificationManager = RecordingNotificationManager()
     let coordinator: PullRequestReviewTeamCoordinator
     let packets: ReviewPacketStore
     let packetRoot: URL
@@ -38,10 +39,11 @@ final class ReviewCoordinatorFixture {
         packets = ReviewPacketStore(rootDirectory: packetRoot)
         coordinator = PullRequestReviewTeamCoordinator(
             modelContext: context, service: service, worker: workerOverride?(worker) ?? worker, packets: packets,
-            staging: PullRequestCollectiveReviewStagingService(modelContext: context, service: service),
+            staging: PullRequestCollectiveReviewStagingService(modelContext: context, service: service, commitSave: commitSave),
             activity: PullRequestAgenticThreadActivity(currentSignal: { _ in .neutral }),
             resolver: PullRequestReviewTeamResolver(providerDiscovery: RecordingProviderDiscoveryService(statuses: [:])),
             cancellationStore: ReviewTeamCancellationStore(rootDirectory: packetRoot.appendingPathComponent("cancellations")),
+            notificationManager: notificationManager,
             historyStore: historyStore,
             commitSave: commitSave
         )

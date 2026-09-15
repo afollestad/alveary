@@ -43,6 +43,7 @@ final class PullRequestHostReviewLaunchFixture {
             activity: activity,
             resolver: PullRequestReviewTeamResolver(providerDiscovery: discovery),
             cancellationStore: ReviewTeamCancellationStore(rootDirectory: root.appendingPathComponent("cancellations")),
+            notificationManager: RecordingNotificationManager(),
             commitSave: coordinatorSave
         )
         self.coordinator = coordinator

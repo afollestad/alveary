@@ -91,6 +91,55 @@ extension PullRequestReviewTeamCoordinatorTests {
         #expect(persisted.events.isEmpty)
     }
 
+    @Test(arguments: [false, true])
+    func `failed terminal save never notifies completion`(ownPR: Bool) async throws {
+        let fixture = try ReviewCoordinatorFixture(ownPR: ownPR, commitSave: { context in
+            let conversations = try context.fetch(FetchDescriptor<Conversation>())
+            let phases = try conversations.compactMap { try $0.collectiveReviewRun()?.phase }
+            if phases.contains(.staged) || phases.contains(.completed) {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            try context.save()
+        })
+        await fixture.worker.configure(empty: ownPR)
+
+        try fixture.start()
+
+        #expect(try await fixture.terminalRun().phase == .failed)
+        #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
+        #expect(fixture.conversation.events.allSatisfy { $0.type != ConversationEventRecord.pullRequestReviewProposalType })
+        #expect(fixture.notificationManager.handleEventCalls.isEmpty)
+    }
+
+    @Test
+    func `staging replay and relaunch do not repeat a proposal notification`() async throws {
+        let fixture = try ReviewCoordinatorFixture()
+        try fixture.start()
+        let pipeline = try #require(fixture.coordinator.scheduledTaskForTesting(conversationID: fixture.conversation.id))
+        try await fixture.waitForCompletion(of: pipeline)
+        let run = try #require(try fixture.conversation.collectiveReviewRun())
+        let proposal = try #require(try fixture.conversation.pullRequestReviewProposal())
+        let event = try #require(PullRequestReviewEvent(rawValue: proposal.event.uppercased()))
+        let base = try #require(run.baseOID)
+        let head = try #require(run.headOID)
+        #expect(fixture.notificationManager.handleEventCalls.count == 1)
+        let request = PullRequestCollectiveReviewStagingService.Request(
+            runID: run.id, proposalID: run.proposalID, sourceConversationID: run.conversationID,
+            identifier: run.identifier, reviewedBaseOID: base, reviewedHeadOID: head, event: event, body: proposal.body,
+            acceptedFindings: run.accepted, team: run.team, expectedSnapshot: run.priorProposal
+        )
+
+        let receipt = try await fixture.coordinator.staging.stage(request, lateEditState: { nil }, atomicallyMutateRun: { _, _ in
+            Issue.record("An exact replay must not mutate the run.")
+        })
+        let recovered = recoveryCoordinator(fixture, cancellationStore: fixture.coordinator.cancellationStore)
+        recovered.recover()
+
+        #expect(receipt.proposalID == proposal.id)
+        #expect(recovered.runs[run.conversationID]?.phase == .staged)
+        #expect(fixture.notificationManager.handleEventCalls.count == 1)
+    }
+
     @Test
     func `unreadable cancellation storage blocks automatic recovery`() async throws {
         let fixture = try ReviewCoordinatorFixture()
@@ -147,7 +196,7 @@ extension PullRequestReviewTeamCoordinatorTests {
         PullRequestReviewTeamCoordinator(
             modelContext: fixture.container.mainContext, service: fixture.service, worker: fixture.worker, packets: fixture.packets,
             staging: fixture.coordinator.staging, activity: fixture.coordinator.activity, resolver: fixture.coordinator.resolver,
-            cancellationStore: cancellationStore
+            cancellationStore: cancellationStore, notificationManager: fixture.notificationManager
         )
     }
 }

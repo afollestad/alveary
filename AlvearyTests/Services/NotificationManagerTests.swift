@@ -19,7 +19,7 @@ final class NotificationManagerTests: XCTestCase {
             spy: spy
         )
 
-        manager.handleEvent(.stop(message: nil), conversationId: conversation.id)
+        manager.handleEvent(.stop(message: "Your PR review is ready to confirm"), conversationId: conversation.id)
 
         XCTAssertEqual(spy.playedSounds, ["Purr"])
         XCTAssertTrue(spy.postedNotifications.isEmpty)

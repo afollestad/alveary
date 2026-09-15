@@ -118,6 +118,7 @@ struct PullRequestReviewTeamCoordinatorTests {
         #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
         #expect(fixture.coordinator.workingConversationIDs.isEmpty)
         #expect(owner.events.filter { $0.type == ConversationEventRecord.hostToolOutcomeType && $0.toolId == "old-proposal" }.count == 1)
+        #expect(fixture.notificationManager.handleEventCalls.isEmpty)
     }
 
     @Test
@@ -208,6 +209,7 @@ struct PullRequestReviewTeamCoordinatorTests {
         let initial = await fixture.worker.calls
         #expect(initial.allSatisfy { !$0.files.contains("candidates.json") && !$0.files.contains("canonical.json") })
         #expect(Set(initial.map(\.hash)).count == 1)
+        #expect(fixture.notificationManager.handleEventCalls.isEmpty)
         gate.open()
         let run = try await fixture.terminalRun()
         #expect(run.phase == .staged)
@@ -220,6 +222,10 @@ struct PullRequestReviewTeamCoordinatorTests {
         #expect(fixture.conversation.events.filter { $0.type == ConversationEventRecord.pullRequestReviewProposalType }.count == 1)
         #expect(fixture.service.submittedReviews.isEmpty)
         #expect(fixture.coordinator.workingConversationIDs.isEmpty)
+        #expect(fixture.notificationManager.handleEventCalls.map(\.event) == [.stop(message: "Your PR review is ready to confirm")])
+        #expect(fixture.notificationManager.handleEventCalls.map(\.conversationId) == [fixture.conversation.id])
+        fixture.coordinator.didPersist(run)
+        #expect(fixture.notificationManager.handleEventCalls.count == 1)
     }
 
     @Test
@@ -254,6 +260,7 @@ struct PullRequestReviewTeamCoordinatorTests {
             #expect(try fixture.conversation.collectiveReviewRun()?.phase == .cancelled)
             #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
             #expect(fixture.conversation.events.allSatisfy { $0.type != ConversationEventRecord.pullRequestReviewProposalType })
+            #expect(fixture.notificationManager.handleEventCalls.isEmpty)
         }
     }
 
@@ -267,8 +274,11 @@ struct PullRequestReviewTeamCoordinatorTests {
         #expect(run.voteReports.isEmpty)
         #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
         #expect(await fixture.worker.calls.count == 3)
+        #expect(fixture.notificationManager.handleEventCalls.map(\.event) == [.stop(message: "Your PR review has finished")])
+        #expect(fixture.notificationManager.handleEventCalls.map(\.conversationId) == [fixture.conversation.id])
         fixture.coordinator.recover()
         #expect(fixture.coordinator.workingConversationIDs.isEmpty)
+        #expect(fixture.notificationManager.handleEventCalls.count == 1)
     }
 
     @Test

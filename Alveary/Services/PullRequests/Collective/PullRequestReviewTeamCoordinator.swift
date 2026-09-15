@@ -15,6 +15,7 @@ final class PullRequestReviewTeamCoordinator {
     let resolver: PullRequestReviewTeamResolver
     let historyStore: ReviewTeamHistoryStore?
     let cancellationStore: ReviewTeamCancellationStore
+    let notificationManager: any NotificationManager
     let commitSave: (ModelContext) throws -> Void
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var observers: [any NSObjectProtocol] = []
@@ -26,6 +27,7 @@ final class PullRequestReviewTeamCoordinator {
         staging: PullRequestCollectiveReviewStagingService, activity: PullRequestAgenticThreadActivity,
         resolver: PullRequestReviewTeamResolver,
         cancellationStore: ReviewTeamCancellationStore,
+        notificationManager: any NotificationManager,
         historyStore: ReviewTeamHistoryStore? = nil,
         commitSave: @escaping (ModelContext) throws -> Void = { try $0.save() }
     ) {
@@ -38,6 +40,7 @@ final class PullRequestReviewTeamCoordinator {
         self.resolver = resolver
         self.historyStore = historyStore
         self.cancellationStore = cancellationStore
+        self.notificationManager = notificationManager
         self.commitSave = commitSave
         observeActions()
     }
@@ -227,9 +230,11 @@ final class PullRequestReviewTeamCoordinator {
         didPersist(run)
     }
 
+    /// Publishes committed state; team workers bypass the provider-turn notification path.
     func didPersist(_ run: ReviewTeamRun) {
-        runs[run.conversationID] = run
+        let previous = runs.updateValue(run, forKey: run.conversationID)
         publish(run)
+        notifyCompletion(of: run, previous: previous)
     }
 
     func forgetRun(conversationID: String) {
@@ -281,6 +286,22 @@ final class PullRequestReviewTeamCoordinator {
     func recordRetryFailure(_ error: Error, conversationID: String) {
         runs[conversationID]?.error = ReviewTeamDiagnostics.persisted(error)
         if let run = runs[conversationID] { publish(run) }
+    }
+
+    /// Restored receipts and repeated persistence must not repeat completion alerts.
+    private func notifyCompletion(of run: ReviewTeamRun, previous: ReviewTeamRun?) {
+        guard let previous, previous.id == run.id, previous.generation == run.generation,
+              previous.phase.isWorking else { return }
+        let message: String
+        switch run.phase {
+        case .staged:
+            message = "Your PR review is ready to confirm"
+        case .completed:
+            message = "Your PR review has finished"
+        default:
+            return
+        }
+        notificationManager.handleEvent(.stop(message: message), conversationId: run.conversationID)
     }
 
     /// Returns true when a saved cancellation or unreadable receipt prevents automatic recovery.
