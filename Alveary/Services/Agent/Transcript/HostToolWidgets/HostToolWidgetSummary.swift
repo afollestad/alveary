@@ -62,9 +62,8 @@ enum HostToolWidgetSummary {
         case .pullRequestList(let content):
             return pullRequestListDetail(content)
         case .threadAction(let content):
-            // Only a created Project thread has a path to show; the rest say everything in
-            // the summary, and a refusal puts its reason here.
-            return content.status == .failed ? content.message : content.projectPath
+            // Keep launch failures and link warnings visible beside the destination.
+            return content.status == .failed ? content.message : content.linkWarning ?? content.projectPath
         case .collectiveReviewRun(let run):
             return collectiveReviewDetail(run)
         }
@@ -267,17 +266,13 @@ private extension HostToolWidgetSummary {
             )
         case .pin:
             ThreadPhrases(
-                running: "Pinning thread",
-                applied: "Thread pinned",
-                unchanged: "Thread already pinned",
-                failed: "Could not pin the thread"
+                running: "Pinning thread", applied: "Thread pinned",
+                unchanged: "Thread already pinned", failed: "Could not pin the thread"
             )
         case .unpin:
             ThreadPhrases(
-                running: "Unpinning thread",
-                applied: "Thread unpinned",
-                unchanged: "Thread was not pinned",
-                failed: "Could not unpin the thread"
+                running: "Unpinning thread", applied: "Thread unpinned",
+                unchanged: "Thread was not pinned", failed: "Could not unpin the thread"
             )
         case .archive:
             ThreadPhrases(
@@ -306,6 +301,11 @@ private extension HostToolWidgetSummary {
             ThreadPhrases(
                 running: "Sending prompt to thread", applied: "Prompt sent to thread",
                 unchanged: "Prompt sent to thread", failed: "Could not send the prompt"
+            )
+        case .startReview:
+            ThreadPhrases(
+                running: "Starting review", applied: "Review started",
+                unchanged: "Review already exists", failed: "Could not start the review"
             )
         }
     }

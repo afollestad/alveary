@@ -1,8 +1,7 @@
 import AgentCLIKit
 import Foundation
 
-/// A thread mutation — `create_thread`, `pin_thread`, `unpin_thread`, `archive_thread`, the
-/// section tools, or `send_prompt_to_thread` — as recorded durably in the transcript.
+/// A thread mutation or review launch, recorded durably in the transcript.
 ///
 /// Every thread mutation applies immediately, so the tool result *is* the outcome: these
 /// widgets carry no `host_tool_outcome` marker and never wait on a user decision.
@@ -15,6 +14,7 @@ struct ThreadActionWidgetContent: Equatable {
         case createSection
         case moveSection
         case sendPrompt
+        case startReview
     }
 
     enum Status: Equatable {
@@ -25,24 +25,30 @@ struct ThreadActionWidgetContent: Equatable {
         case applied
         /// The thread was already in the requested state, so nothing changed.
         case unchanged
-        /// The host tool refused the request outright.
+        /// The requested action failed.
         case failed
     }
 
     let action: Action
     /// Sole-main-conversation id of the thread the call names — the same handle every thread
-    /// tool takes. Nil when a text-fallback `create_thread` result never named one.
+    /// tool takes. Nil when a text-fallback launch result never named one.
     let threadID: String?
     let name: String?
     /// Project the created thread works in; nil for a Task thread and for the other actions.
     let projectPath: String?
     let message: String?
     let status: Status
+    var linkWarning: String?
 
     /// The call landed and its change — or its deliberate lack of one — is in effect, so the
     /// thread it names can be opened.
     var isSettled: Bool {
         status == .applied || status == .unchanged
+    }
+
+    /// A review launch can fail after creating its task; keep that task reachable for recovery.
+    var canOpenThread: Bool {
+        isSettled || (action == .startReview && status == .failed)
     }
 }
 
@@ -63,7 +69,7 @@ enum ThreadActionWidgetParsing {
             action: action,
             // The result echoes the thread Alveary acted on, which is canonical. `pin_thread`,
             // `unpin_thread`, `archive_thread`, and `send_prompt_to_thread` require the id in the
-            // request, so their cards can name it while the call is still running; `create_thread`
+            // request, so their cards can name it while the call is still running. Launch tools
             // cannot, and for a provider that emits only the text fallback its own message is the
             // sole source. A structured receipt never takes that fallback — its fields are the answer.
             threadID: receipt?.threadID
@@ -72,20 +78,22 @@ enum ThreadActionWidgetParsing {
             name: receipt?.name ?? (receipt == nil ? quotedName(inMessage: message) : nil),
             projectPath: receipt?.projectPath,
             message: message,
-            status: status(receipt: receipt, output: output, isError: isError)
+            status: status(action: action, receipt: receipt, output: output, isError: isError),
+            linkWarning: receipt?.linkWarning ?? (action == .startReview && receipt == nil ? linkWarning(inMessage: message) : nil)
         )
     }
 }
 
 private extension ThreadActionWidgetParsing {
-    /// The `status` values `ThreadHostToolService` reports for a call that changed nothing.
+    /// The status values host tools report for a call that changed nothing.
     /// `create_thread` has no such status: it either creates a thread or fails.
     static let unchangedStatuses: Set<String> = [
         "already_pinned",
         "already_unpinned",
         "already_archived",
         "already_exists",
-        "already_in_section"
+        "already_in_section",
+        "existing"
     ]
 
     struct Receipt {
@@ -94,6 +102,7 @@ private extension ThreadActionWidgetParsing {
         let name: String?
         let projectPath: String?
         let message: String?
+        let linkWarning: String?
 
         init(object: [String: AgentCLIKit.JSONValue]) {
             status = HostToolWidgetJSON.string(object["status"])
@@ -103,6 +112,7 @@ private extension ThreadActionWidgetParsing {
             // private workspace and names no path.
             projectPath = HostToolWidgetJSON.string(object["project_path"])
             message = HostToolWidgetJSON.string(object["message"])
+            linkWarning = HostToolWidgetJSON.string(object["link_warning"])
         }
     }
 
@@ -120,8 +130,7 @@ private extension ThreadActionWidgetParsing {
         return name.isEmpty ? nil : name
     }
 
-    /// `create_thread` is the one action whose request cannot name its thread, and its message
-    /// renders the new id as `(id: <id>)` — without this the card could never open it.
+    /// Launch results render their new id as `(id: <id>)`, since the request cannot name it yet.
     static func threadID(inMessage message: String?) -> String? {
         guard let message, let marker = message.range(of: "(id: ") else {
             return nil
@@ -135,6 +144,7 @@ private extension ThreadActionWidgetParsing {
     }
 
     static func status(
+        action: ThreadActionWidgetContent.Action,
         receipt: Receipt?,
         output: String?,
         isError: Bool
@@ -142,8 +152,11 @@ private extension ThreadActionWidgetParsing {
         guard let output, !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .running
         }
-        guard !isError else {
+        guard !isError, receipt?.status != "error" else {
             return .failed
+        }
+        if action == .startReview, receipt == nil, output.hasPrefix("Review already exists in the thread ") {
+            return .unchanged
         }
         guard let status = receipt?.status, unchangedStatuses.contains(status) else {
             // A provider that emits only the text fallback still reports refusal through
@@ -151,5 +164,12 @@ private extension ThreadActionWidgetParsing {
             return .applied
         }
         return .unchanged
+    }
+
+    /// The launch tool appends this label so text-only providers retain a nonfatal link failure.
+    static func linkWarning(inMessage message: String?) -> String? {
+        guard let message, let marker = message.range(of: "Link warning: ") else { return nil }
+        let warning = message[marker.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return warning.isEmpty ? nil : warning
     }
 }

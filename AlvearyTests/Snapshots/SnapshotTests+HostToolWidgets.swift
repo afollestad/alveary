@@ -201,10 +201,32 @@ extension SnapshotTests {
         )
     }
 
+    func testReviewStartWidget() {
+        assertMacSnapshot(
+            appKitRowSnapshot { self.threadActionWidgetRow(action: .startReview, name: "Review acme/app#12") },
+            size: CGSize(width: 700, height: 100),
+            named: "review_start_widget"
+        )
+    }
+
+    func testReviewStartWidgetFailed() {
+        assertMacSnapshot(
+            appKitRowSnapshot {
+                self.threadActionWidgetRow(
+                    action: .startReview, status: .failed, name: "Review acme/app#12", message: "The agent could not start."
+                )
+            },
+            size: CGSize(width: 700, height: 120),
+            named: "review_start_widget_failed"
+        )
+    }
+
     private func threadActionWidgetRow(
         action: ThreadActionWidgetContent.Action,
         projectPath: String? = nil,
-        status: ThreadActionWidgetContent.Status = .applied
+        status: ThreadActionWidgetContent.Status = .applied,
+        name: String = "Add caching to the diff viewer",
+        message: String = "Done."
     ) -> AppKitTranscriptHostToolWidgetRowView {
         let entry = HostToolWidgetEntry(
             id: "tool-thread-action",
@@ -213,13 +235,14 @@ extension SnapshotTests {
                 ThreadActionWidgetContent(
                     action: action,
                     threadID: "conv-1",
-                    name: "Add caching to the diff viewer",
+                    name: name,
                     projectPath: projectPath,
-                    message: "Done.",
+                    message: message,
                     status: status
                 )
             ),
-            isComplete: true
+            isComplete: true,
+            isError: status == .failed
         )
         let view = AppKitTranscriptHostToolWidgetRowView()
         view.configure(.init(entry: entry, bubbleMaxWidth: 640))

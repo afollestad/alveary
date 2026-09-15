@@ -14,6 +14,8 @@ struct PullRequestReviewTeamCoordinatorTests {
         try fixture.conversation.storeCollectiveReviewRun(run)
         try fixture.container.mainContext.save()
         #expect(fixture.coordinator.runs.isEmpty)
+        let uppercase = PullRequestIdentifier(owner: "OCTO", repo: "ALPHA", number: fixture.identifier.number)
+        #expect(try fixture.coordinator.unfinishedReview(for: uppercase)?.id == run.id)
         #expect(throws: ReviewTeamError.self) { try fixture.start() }
         #expect(try fixture.conversation.collectiveReviewRun()?.id == run.id)
     }

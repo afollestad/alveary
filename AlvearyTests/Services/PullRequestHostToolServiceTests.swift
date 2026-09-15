@@ -37,7 +37,8 @@ final class PullRequestHostToolServiceTests: XCTestCase {
     /// request on GitHub has to announce it. Table-driven because the announcement is posted once
     /// centrally — a tool added later inherits it, and this is what proves the wiring.
     func testEverySuccessfulMutationAnnouncesTheChangeExceptTheReviewProposal() async throws {
-        for toolName in PullRequestHostToolCatalog.mutatingToolNames.sorted() {
+        for toolName in PullRequestHostToolCatalog.mutatingToolNames.sorted()
+            where toolName != PullRequestHostToolCatalog.startReviewToolName {
             let fixture = try PullRequestHostToolFixture()
             let identifier = try XCTUnwrap(PullRequestHostToolFixture.identifier)
             fixture.pullRequests.detailResult = .success(
@@ -190,7 +191,7 @@ enum PullRequestHostToolFixtureError: Error {
 @MainActor
 final class PullRequestHostToolFixture {
     let modelContext: ModelContext
-    let service: PullRequestHostToolService
+    var service: PullRequestHostToolService
     let pullRequests: StubPullRequestsService
     let summaryHandoff: PullRequestSummaryHandoff
     let settingsService: InMemorySettingsService
@@ -207,7 +208,8 @@ final class PullRequestHostToolFixture {
 
     init(
         now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_000) },
-        notificationCenter: NotificationCenter = NotificationCenter()
+        notificationCenter: NotificationCenter = NotificationCenter(),
+        sidebar: SidebarTestFixture? = nil
     ) throws {
         let container = try ModelContainer(
             for: Project.self,
@@ -219,7 +221,7 @@ final class PullRequestHostToolFixture {
             ScheduledTaskProposal.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
-        let context = ModelContext(container)
+        let context = sidebar?.context ?? ModelContext(container)
         modelContext = context
         self.notificationCenter = notificationCenter
 
@@ -236,7 +238,7 @@ final class PullRequestHostToolFixture {
 
         let stub = StubPullRequestsService()
         pullRequests = stub
-        let settings = InMemorySettingsService()
+        let settings = sidebar?.settingsService ?? InMemorySettingsService()
         settingsService = settings
         let handoff = PullRequestSummaryHandoff(now: now)
         summaryHandoff = handoff

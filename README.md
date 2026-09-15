@@ -90,6 +90,8 @@ The same tab has **Launch at startup**, which registers Alveary as a macOS login
 
 Single-agent review is the default. In **Settings → Git → Pull requests**, choose **Review team** to configure one team of 2–5 distinct models. Reviewers inspect independently, cross-check findings, and propose comments supported by a fixed majority. The lead also consolidates findings. One task shows progress, failures, votes, cancellation, and retry controls; nothing is submitted without confirmation.
 
+Reviews requested through the built-in MCP tools honor that setting too. Single-agent reviews stay in the current task; team reviews launch a dedicated task linked from the conversation. `start_pr_review` explicitly launches a dedicated review in either mode, including from the scheduled review suggestion. Reading review instructions never starts work.
+
 **Manage** edits the lead and peers together. Single-agent review shows its agent controls inline; **Address feedback** has independent agent and permission settings.
 
 **Run details** exposes per-reviewer attempts, exact app prompts and final responses, pinned input files, candidate consolidation, and vote decisions. History stays local to the task, survives proposal handling, and is deleted with the task. Older runs retain validated results but may lack exact execution history.

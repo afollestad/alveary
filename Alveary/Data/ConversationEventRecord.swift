@@ -26,6 +26,8 @@ final class ConversationEventRecord {
     static let taskListType = "task_list"
     static let steeredConversationType = "steered_conversation"
     static let pullRequestReviewProposalType = "pull_request_review_proposal"
+    /// Hidden JSON snapshot owned by `PullRequestReviewLaunchInstructions`; it never enters provider context directly.
+    static let pullRequestReviewLaunchInstructionsType = "pull_request_review_launch_instructions"
 
     static let userRole = "user"
     static let assistantRole = "assistant"
@@ -237,6 +239,7 @@ extension ConversationEventRecord {
              Self.goalType,
              Self.subAgentCompletedType,
              Self.hostToolOutcomeType,
+             Self.pullRequestReviewLaunchInstructionsType,
              "session_init":
             return false
         default:

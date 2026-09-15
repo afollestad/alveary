@@ -173,6 +173,21 @@ final class AlvearyHostToolCatalogTests: XCTestCase {
         XCTAssertTrue(instructions.contains("propose_pr_review"))
     }
 
+    func testReviewLaunchOnlyAcceptsThePullRequestURLAndExplainsItsDestination() throws {
+        let tool = try XCTUnwrap(AlvearyHostToolCatalog.tools.first { $0.name == "start_pr_review" })
+        guard case .object(let schema) = tool.inputSchema,
+              case .object(let properties)? = schema["properties"] else {
+            return XCTFail("Review launch has no object input schema")
+        }
+
+        XCTAssertEqual(Set(properties.keys), ["url"])
+        XCTAssertEqual(schema["additionalProperties"], .bool(false))
+        XCTAssertEqual(schema["required"], .array([.string("url")]))
+        XCTAssertTrue(tool.description.contains("saved review mode"))
+        XCTAssertTrue(tool.description.contains("leave the review to that task"))
+        XCTAssertTrue(tool.description.contains("get_pr_review_instructions"))
+    }
+
     /// Guards the one structural risk of splitting static catalogs from DI-built handlers:
     /// a tool the server advertises that no feature actually answers.
     func testEveryAdvertisedToolIsRoutableAndHandled() async throws {

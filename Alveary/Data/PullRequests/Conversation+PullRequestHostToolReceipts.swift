@@ -1,3 +1,4 @@
+import AgentCLIKit
 import Foundation
 
 /// What one comment in a batch call produced, so a replay reports the same per-item rows —
@@ -24,6 +25,9 @@ struct PullRequestHostToolReceipt: HostToolReceiptRecord {
     var proposalID: String?
     let sourceProcessToken: String
     let createdAt: Date
+    /// Review launches checkpoint their destination before dispatch, then replace it with the final tool result.
+    var reviewLaunchResult: AgentCLIKit.JSONValue?
+    var reviewLaunchIsError: Bool?
 }
 
 extension Conversation {
@@ -56,6 +60,20 @@ extension Conversation {
         let receipts = HostToolReceiptLedger.appending(receipt, to: maintained)
         guard receipts != stored else {
             return
+        }
+        pullRequestHostToolReceiptsJSON = try HostToolReceiptLedger.encode(receipts)
+    }
+
+    /// Only launch receipts transition after insertion; published GitHub mutations remain append-only.
+    func updatePullRequestReviewLaunchReceipt(_ receipt: PullRequestHostToolReceipt) throws {
+        let stored: [PullRequestHostToolReceipt] = try HostToolReceiptLedger.decode(pullRequestHostToolReceiptsJSON)
+        var receipts = HostToolReceiptLedger.maintained(
+            stored, currentProcessToken: receipt.sourceProcessToken, at: receipt.createdAt
+        )
+        if let index = receipts.firstIndex(where: { $0.deduplicationKey == receipt.deduplicationKey }) {
+            receipts[index] = receipt
+        } else {
+            receipts = HostToolReceiptLedger.appending(receipt, to: receipts)
         }
         pullRequestHostToolReceiptsJSON = try HostToolReceiptLedger.encode(receipts)
     }

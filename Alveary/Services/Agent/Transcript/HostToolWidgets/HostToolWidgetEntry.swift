@@ -137,8 +137,7 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
         }
     }
 
-    /// What this widget's card opens, once its call has landed. A running or refused call has
-    /// nothing to open, and neither has one whose result never named its target.
+    /// What this widget's card opens once its call has landed and named a target.
     var openableTarget: HostToolWidgetTarget? {
         switch content {
         case .scheduledTaskProposal:
@@ -159,7 +158,7 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             // Each row opens a different pull request, so the rows are the controls, not the card.
             nil
         case .threadAction(let content):
-            content.isSettled ? content.threadID.map(HostToolWidgetTarget.thread) : nil
+            content.canOpenThread ? content.threadID.map(HostToolWidgetTarget.thread) : nil
         case .collectiveReviewRun:
             nil
         }

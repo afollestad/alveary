@@ -46,6 +46,18 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
         XCTAssertEqual(activity.workingKinds(for: identifier), [.review])
     }
 
+    func testRepositoryCasingSharesTheWorkingRoute() {
+        let (activity, _) = makeActivity()
+        let uppercase = PullRequestIdentifier(owner: "OCTO", repo: "ALPHA", number: identifier.number)
+        activity.begin(uppercase, kind: .review)
+
+        XCTAssertTrue(activity.isWorking(identifier, kind: .review))
+        XCTAssertEqual(activity.workingKinds(for: identifier), [.review])
+        XCTAssertEqual(activity.workingKinds(for: uppercase), [.review])
+        activity.end(identifier, kind: .review)
+        XCTAssertFalse(activity.isWorking(uppercase, kind: .review))
+    }
+
     func testCollectiveWorkIgnoresProviderTurnCompletion() {
         let (activity, center) = makeActivity()
         activity.setCollectiveWorking(true, identifier: identifier, conversationID: "team")
@@ -207,6 +219,28 @@ final class PullRequestAgenticThreadActivityTests: XCTestCase {
 
         activity.end(identifier, kind: .review)
 
+        XCTAssertFalse(activity.isWorking(identifier, kind: .review))
+    }
+
+    func testFailedPreparationPreservesARecoveredReview() {
+        let (activity, _) = makeActivity()
+        activity.begin(identifier, kind: .review)
+        activity.setCollectiveWorking(true, identifier: identifier, conversationID: "recovered")
+
+        activity.endPending(identifier, kind: .review)
+
+        XCTAssertTrue(activity.isWorking(identifier, kind: .review))
+    }
+
+    func testAnOldDispatchCannotEndAReplacementRoute() {
+        let (activity, _) = makeActivity()
+        activity.begin(identifier, kind: .review)
+        activity.attach(conversationID: "replacement", identifier: identifier, kind: .review)
+
+        activity.end(identifier, kind: .review, conversationID: "old")
+
+        XCTAssertTrue(activity.isWorking(identifier, kind: .review))
+        activity.end(identifier, kind: .review, conversationID: "replacement")
         XCTAssertFalse(activity.isWorking(identifier, kind: .review))
     }
 

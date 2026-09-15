@@ -12,6 +12,7 @@ enum PullRequestHostToolCatalog {
     static let timelineToolName = "get_pr_timeline"
     static let diffToolName = "get_pr_diff"
     static let reviewInstructionsToolName = "get_pr_review_instructions"
+    static let startReviewToolName = "start_pr_review"
     /// Long on purpose. A shorter `get_pr_feedback` reads like a tool that *returns* the
     /// feedback, which is `get_pr_timeline`'s job — the same confusion `list_involved_prs`
     /// already had to be renamed out of.
@@ -53,13 +54,19 @@ enum PullRequestHostToolCatalog {
     list_linked_prs, which reads only what was attached to one Alveary thread by hand and will look empty or \
     misleadingly short. Alveary renders the results as a \
     list the user can click, so answer what they asked instead of repeating the rows back. get_pr, get_pr_timeline, and \
-    get_pr_diff read one pull request, and thread_id values come from their output — never invent one. When the user \
-    asks you to review a pull request, in any words, call get_pr_review_instructions before anything else: the user \
+    get_pr_diff read one pull request; feedback-thread IDs for reply_to_pr_thread, resolve_pr_thread, and \
+    unresolve_pr_thread come from their output — never invent one. When the user \
+    asks you to review a pull request in this conversation, call get_pr_review_instructions before anything else: the user \
     keeps standing review preferences in Alveary, that tool is the only way to read them, and a review that skips it is \
-    done wrong. The user keeps a second set of preferences for the opposite job — addressing the feedback a pull \
+    done wrong. In Review team mode it directs you to start_pr_review, which launches the configured review in a dedicated \
+    task. Use start_pr_review directly when asked to launch dedicated review tasks, including scheduled review batches; \
+    do not create wrapper threads or send review prompts yourself. It links the PR and uses the saved review mode. \
+    Report its status and leave the review to the returned task; do not wait for completion or stage another review here. \
+    The user keeps a second set of preferences for the opposite job — addressing the feedback a pull \
     request already received — so when they ask you to address, fix, answer, or resolve feedback on one, in any words, \
     call get_pr_address_feedback_instructions before anything else for the same reasons. Reviewing gives new feedback \
-    and ends at propose_pr_review; addressing answers existing feedback and ends at reply_to_pr_thread and \
+    and ends at propose_pr_review for an in-conversation single-agent review, or start_pr_review for a dedicated task; \
+    addressing answers existing feedback and ends at reply_to_pr_thread and \
     resolve_pr_thread, so pick the tool that matches what was asked. When get_pr_diff \
     returns next_cursor (including while preparing), call it again with cursor until exhausted. Patch fragments continue \
     by path and UTF-8 patch_offset, including inside a line; use patch_old_line/patch_new_line and the mid-line flags. Copy @@ headers as \
@@ -88,7 +95,8 @@ enum PullRequestHostToolCatalog {
         reopenToolName,
         markReadyToolName,
         markDraftToolName,
-        proposeReviewToolName
+        proposeReviewToolName,
+        startReviewToolName
     ]
 
     /// The mutations that change a pull request's status, so a change announcement from one also
@@ -107,6 +115,7 @@ enum PullRequestHostToolCatalog {
         timelineTool,
         diffTool,
         reviewInstructionsTool,
+        startReviewTool,
         addressFeedbackInstructionsTool,
         replyToThreadTool,
         resolveThreadTool,
@@ -130,10 +139,12 @@ private extension PullRequestHostToolCatalog {
         title: "Get the user's instructions for reviewing a pull request",
         description: """
         Read the user's own instructions for reviewing a pull request, written in Alveary's Git settings. Call this \
-        first, before any other tool, whenever the user asks you to review a pull request — "review this PR", "take a \
+        first for a review in this conversation — "review this PR", "take a \
         look at octo/repo#42", "what do you think of these changes", and every other phrasing of the same request. The \
-        instructions it returns are the user's standing preferences for how their reviews are done, so follow them for \
-        the rest of the review; they name the workflow to use and what to look for. Calling this does not review \
+        instructions it returns include the saved review mode and criteria. Use start_pr_review directly when asked to \
+        launch dedicated review tasks. Single-agent mode reviews here; Review team \
+        mode directs you to start_pr_review and leaves the review to its dedicated task. Follow the returned workflow. \
+        Calling this does not review \
         anything or notify anyone, so calling it when unsure costs nothing. Its sibling \
         get_pr_address_feedback_instructions covers the opposite job — answering feedback the pull request already \
         received rather than giving new feedback.

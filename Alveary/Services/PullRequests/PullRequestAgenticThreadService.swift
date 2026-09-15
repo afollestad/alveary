@@ -2,32 +2,6 @@ import AgentCLIKit
 import Foundation
 import SwiftData
 
-/// What `start` hands back. The conversation is answered as soon as the thread exists so the
-/// caller can mark the route working against a real thread; everything that still has to happen
-/// rides `dispatch`.
-///
-/// Deliberately a plain value rather than a nested type, so the pane's view model can name it
-/// without reaching for the service.
-struct PullRequestAgenticThreadStart {
-    /// The new thread's sole-main-conversation id, which is what the caller tracks activity by.
-    let conversationID: String
-    /// Links the pull request, settles the checkout when one is owed, then dispatches the first
-    /// prompt — in that order, behind `start`'s return. Await it only to surface a failure;
-    /// nothing else may depend on it.
-    let dispatch: Task<PullRequestAgenticDispatchOutcome, Error>
-}
-
-/// What the deferred half reports back. A *thrown* `dispatch` means the prompt never went out, so
-/// the caller ends the route; this value means it did, and carries anything non-fatal that went
-/// wrong on the way.
-///
-/// `linkFailure` is a value rather than a thrown error precisely because linking is best-effort:
-/// throwing it would tell the caller the run had died when the agent is in fact working.
-struct PullRequestAgenticDispatchOutcome: Equatable {
-    /// A failed link, already localized, for the caller's toast. Nil when the link landed.
-    let linkFailure: String?
-}
-
 /// Creates the footer's review and Address feedback tasks. Ordinary agent turns fetch workflow
 /// instructions through host tools; collective reviews hand the same visible task to their coordinator.
 @MainActor
@@ -137,10 +111,15 @@ final class PullRequestAgenticThreadService {
     let currentBranch: @MainActor (String) async -> String?
     let linkService: PullRequestLinkService
     private let pullRequestsService: any PullRequestsService
-    private let settingsService: any SettingsService
+    let settingsService: any SettingsService
     private let providerDiscovery: (any AgentProviderDiscoveryService)?
     private let startInitialPrompt: @MainActor (Conversation, String) -> Void
-    private let reviewTeamCoordinator: PullRequestReviewTeamCoordinator?
+    let reviewTeamCoordinator: PullRequestReviewTeamCoordinator?
+    let activity: PullRequestAgenticThreadActivity
+    var pendingLaunches: [PullRequestAgenticThreadActivity.Key: PullRequestLaunchReservation] = [:]
+    var activeLaunches: [PullRequestAgenticThreadActivity.Key: PullRequestAgenticThreadStart] = [:]
+    var acceptedLaunches: [String: PullRequestAgenticThreadStart] = [:]
+    var completedLaunchOrder: [String] = []
 
     init(
         lifecycleService: ThreadLifecycleService,
@@ -157,6 +136,7 @@ final class PullRequestAgenticThreadService {
         },
         currentBranch: @escaping @MainActor (String) async -> String? = { _ in nil },
         reviewTeamCoordinator: PullRequestReviewTeamCoordinator? = nil,
+        activity: PullRequestAgenticThreadActivity? = nil,
         startInitialPrompt: @escaping @MainActor (Conversation, String) -> Void
     ) {
         self.lifecycleService = lifecycleService
@@ -170,6 +150,7 @@ final class PullRequestAgenticThreadService {
         self.currentBranch = currentBranch
         self.startInitialPrompt = startInitialPrompt
         self.reviewTeamCoordinator = reviewTeamCoordinator
+        self.activity = activity ?? PullRequestAgenticThreadActivity()
     }
 
     /// Creates the thread and answers the moment it exists, so the caller's spinner is backed by a
@@ -181,20 +162,23 @@ final class PullRequestAgenticThreadService {
     /// one either. `knownSummary` is the same handover one rung down, for a pane opened from a
     /// list row whose detail has not landed; together they are what make the link reliable rather
     /// than merely best-effort, because neither needs the network.
-    func start(
+    func createLaunch(
         kind: Kind,
         identifier: PullRequestIdentifier,
         url: URL,
         knownDetail: PullRequestDetail? = nil,
         knownSummary: PullRequestSummary? = nil,
-        preferredProjectID: PersistentIdentifier? = nil
+        preferredProjectID: PersistentIdentifier? = nil,
+        settings: AppSettings,
+        authorization: PullRequestAgenticThreadAuthorization
     ) async throws -> PullRequestAgenticThreadStart {
-        let settings = settingsService.current
         if kind == .review, settings.pullRequestReviewMode == .reviewTeam {
             let work = CollectiveReviewWork(
                 identifier: identifier, url: url, knownDetail: knownDetail, knownSummary: knownSummary, settings: settings
             )
-            return try await startCollectiveReview(work, coordinator: reviewTeamCoordinator)
+            return try await startCollectiveReview(
+                work, coordinator: reviewTeamCoordinator, authorization: authorization
+            )
         }
         let threadName = kind.threadName(for: identifier)
         // The link ignores a detail naming a different pull request and fetches its own; the
@@ -218,39 +202,50 @@ final class PullRequestAgenticThreadService {
         }
         let borrowedSnapshot = borrowed.map { workspaceSnapshot(for: $0, identifier: identifier) }
         let seed = try await resolvedSeedSettings(settings: settings, kind: kind)
+        try Task.checkCancellation()
+        try authorization.validateSource()
+        if let existing = try unfinishedReviewStart(kind: kind, identifier: identifier, checkpoint: authorization.checkpoint) {
+            return existing
+        }
 
-        let thread = try lifecycleService.insertTaskThread(
-            seed: Self.threadSeed(
-                seed,
-                name: threadName,
-                workspace: borrowed,
-                workspaceSnapshot: borrowedSnapshot,
-                placement: resolvedPlacement(for: kind, settings: settings)
-            )
-        )
+        let thread = try lifecycleService.insertTaskThread(seed: Self.threadSeed(
+            seed, name: threadName, workspace: borrowed, workspaceSnapshot: borrowedSnapshot,
+            placement: resolvedPlacement(for: kind, settings: settings)
+        ))
         guard let conversation = thread.soleMainConversation else {
             throw StartError.conversationMissing
         }
         // Snapshotted before the dispatch task, which suspends and can invalidate the models.
         let work = DeferredWork(
-            kind: kind,
-            identifier: identifier,
-            url: url,
-            threadID: thread.persistentModelID,
-            threadName: threadName,
-            trustedDetail: trustedDetail,
-            trustedSummary: trustedSummary,
-            seededBorrow: borrowed,
-            preferredProjectID: preferredProjectID
+            kind: kind, identifier: identifier, url: url, threadID: thread.persistentModelID,
+            threadName: threadName, trustedDetail: trustedDetail, trustedSummary: trustedSummary,
+            seededBorrow: borrowed, preferredProjectID: preferredProjectID
         )
-        return PullRequestAgenticThreadStart(
-            conversationID: conversation.id,
-            // `self` is captured on purpose: settling the checkout needs the service's own
-            // collaborators, and this service is app-scoped, so the task cannot outlive it.
-            dispatch: Task { @MainActor [self] in
-                try await runDeferredWork(work)
+        return try preparedStart(
+            destination: PullRequestAgenticThreadDestination(
+                conversationID: conversation.id, name: threadName, reviewMode: .singleAgent, disposition: .created
+            ),
+            identifier: identifier, kind: kind,
+            checkpoint: { try self.checkpointReview($0, work: work, settings: settings, authorization: authorization) },
+            operation: { [self] in try await runDeferredWork(work) }
+        )
+    }
+
+    private func checkpointReview(
+        _ destination: PullRequestAgenticThreadDestination, work: DeferredWork,
+        settings: AppSettings, authorization: PullRequestAgenticThreadAuthorization
+    ) throws {
+        if work.kind == .review {
+            guard let conversation = lifecycleService.modelContext.resolveConversation(conversationID: destination.conversationID) else {
+                throw StartError.conversationMissing
             }
-        )
+            try PullRequestReviewLaunchInstructions.store(
+                settings: settings,
+                pullRequest: .init(url: work.url, identifier: work.identifier, title: work.trustedDetail?.title ?? work.trustedSummary?.title),
+                on: conversation, in: lifecycleService.modelContext
+            )
+        }
+        try authorization.checkpoint(destination)
     }
 
     /// Links the pull request, settles the checkout, and sends the first prompt — in that order,

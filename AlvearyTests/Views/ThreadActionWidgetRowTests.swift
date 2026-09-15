@@ -18,6 +18,26 @@ final class ThreadActionWidgetRowTests: XCTestCase {
         XCTAssertEqual(opened, ["conv-1"])
     }
 
+    func testReviewStartCardOpensItsTask() throws {
+        var opened: [String] = []
+        let host = host(for: entry(action: .startReview, status: .applied)) { opened.append($0) }
+
+        XCTAssertTrue(labels(in: host).contains("Review started: Add caching"))
+        _ = try XCTUnwrap(pressableCard(in: host)).accessibilityPerformPress()
+
+        XCTAssertEqual(opened, ["conv-1"])
+    }
+
+    func testFailedReviewStartKeepsItsCreatedTaskReachable() throws {
+        var opened: [String] = []
+        let host = host(for: entry(action: .startReview, status: .failed, isError: true)) { opened.append($0) }
+
+        XCTAssertTrue(labels(in: host).contains("Could not start the review"))
+        _ = try XCTUnwrap(pressableCard(in: host)).accessibilityPerformPress()
+
+        XCTAssertEqual(opened, ["conv-1"])
+    }
+
     /// An archived thread is still reachable — the root routes it to the Archived screen — so
     /// the card stays a control.
     func testArchivedCardStillOpensItsThread() throws {

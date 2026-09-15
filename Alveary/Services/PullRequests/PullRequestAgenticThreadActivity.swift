@@ -1,50 +1,28 @@
 import Foundation
 
-/// Which of a pull request's agentic footer routes are working right now, so the detail pane can
-/// show the running one as a spinner and refuse a second click on that same route.
+/// App-scoped activity shared by UI and host-tool launches, independent of the pane's lifetime.
 ///
-/// App-scoped rather than per-window or per-pane: the pane is origin-scoped, so it unmounts the
-/// moment the user looks at anything else and its session is discarded on dismissal. A run tracked
-/// there would be forgotten by walking away from it. `PullRequestsViewModel` mirrors what the
-/// footer needs onto the pane session — nothing reads this from a `body`.
+/// The launcher marks preparation pending before preflight, attaches the created task, and arms a
+/// startup grace after dispatch. The first busy or waiting-for-user signal latches the route running;
+/// only a subsequent idle, neutral, stopped, or error signal ends it. An initial idle signal cannot
+/// end a task whose provider has not started yet. Grace expiry clears a dispatched turn that never starts.
 ///
-/// ## The phase machine
-///
-/// An entry is `.pending` from the click until its conversation is first seen working, then
-/// `.running` until that turn ends:
-///
-/// - `begin` on the click, before a thread exists.
-/// - `attach` once `start` has answered with a conversation id.
-/// - `armStartupGrace` once the first prompt has been dispatched. Before that there is nothing to
-///   wait on; after it, a turn that never starts — `setupAndStart` threw — would strand the entry
-///   at `.pending`, so the grace drops it.
-/// - Promotion to `.running` on the first working signal, which cancels the grace.
-/// - Removal on the first non-working signal *after* promotion.
-///
-/// ## Why those signals
-///
-/// Working is `.busy` **or** `.waitingForUser`, so a turn paused on a tool approval still counts —
-/// the run is not over, it needs the user inside it. Ending on `.idle` / `.neutral` / `.stopped` /
-/// `.error` is what scopes the indicator to the spawned thread's *first turn*: a later turn the
-/// user starts by hand does not light the pull request's button back up. A deleted thread clears
-/// its status to `.neutral`, so it ends on the same rule with nothing extra to observe.
-///
-/// Promotion has to latch. `.idle` is also what the runtime reports at buffer install when a spawn
-/// carries no immediate turn, so an entry that ended on the first non-working signal it saw would
-/// end before its turn began.
-///
-/// ## Why the live signal is re-read
-///
-/// `start` creates its dispatch task before it returns, so a fast turn can report `.busy` before
-/// the caller has had a chance to `attach` — and a notification that arrives while no entry names
-/// that conversation is dropped on the floor. Re-reading `currentSignal` at attach and at grace
-/// expiry recovers that case; the notification alone would leave such a run stuck at `.pending`
-/// until the grace killed a spinner that should have been running.
+/// Attach and grace expiry re-read the live signal because a notification may arrive before the
+/// conversation is attached. Collective work instead ends when its coordinator releases the route;
+/// unrelated provider-turn completion cannot end a team review.
 @MainActor
 final class PullRequestAgenticThreadActivity {
     struct Key: Hashable {
         let identifier: PullRequestIdentifier
         let kind: PullRequestAgenticThreadService.Kind
+
+        /// GitHub repository casing does not distinguish launch routes.
+        init(identifier: PullRequestIdentifier, kind: PullRequestAgenticThreadService.Kind) {
+            self.identifier = PullRequestIdentifier(
+                owner: identifier.owner.lowercased(), repo: identifier.repo.lowercased(), number: identifier.number
+            )
+            self.kind = kind
+        }
     }
 
     private enum Phase {
@@ -100,13 +78,13 @@ final class PullRequestAgenticThreadActivity {
     }
 
     func workingKinds(for identifier: PullRequestIdentifier) -> Set<PullRequestAgenticThreadService.Kind> {
-        Set(entries.keys.lazy.filter { $0.identifier == identifier }.map(\.kind))
+        let normalized = Key(identifier: identifier, kind: .review).identifier
+        return Set(entries.keys.lazy.filter { $0.identifier == normalized }.map(\.kind))
     }
 
     // MARK: - Lifecycle
 
-    /// Marks the route busy on the click's own turn, so the spinner is up before the spawn's first
-    /// suspension and a second click on the same route is refused by the caller's guard.
+    /// Marks preparation busy before the launcher's first suspension.
     func begin(_ identifier: PullRequestIdentifier, kind: PullRequestAgenticThreadService.Kind) {
         let key = Key(identifier: identifier, kind: kind)
         guard entries[key] == nil else {
@@ -151,8 +129,17 @@ final class PullRequestAgenticThreadActivity {
     }
 
     /// Ends the route: a spawn that threw, or a dispatch that never reached the prompt.
-    func end(_ identifier: PullRequestIdentifier, kind: PullRequestAgenticThreadService.Kind) {
-        remove(Key(identifier: identifier, kind: kind))
+    func end(_ identifier: PullRequestIdentifier, kind: PullRequestAgenticThreadService.Kind, conversationID: String? = nil) {
+        let key = Key(identifier: identifier, kind: kind)
+        guard conversationID == nil || entries[key]?.conversationID == conversationID else { return }
+        remove(key)
+    }
+
+    /// A failed preparation must not clear a run recovered while its validation was suspended.
+    func endPending(_ identifier: PullRequestIdentifier, kind: PullRequestAgenticThreadService.Kind) {
+        let key = Key(identifier: identifier, kind: kind)
+        guard entries[key]?.conversationID == nil else { return }
+        remove(key)
     }
 
     /// Collective work ends at the app-owned staging boundary, never at an unrelated provider turn.

@@ -69,7 +69,7 @@ extension PullRequestsViewModel {
         openGitSettings()
     }
 
-    /// Spawns the agentic thread and marks its route working, without moving the user anywhere.
+    /// Starts through the shared launcher, which owns activity across UI and host-tool callers.
     ///
     /// Navigation used to fire here the moment the thread existed, which threw away the pull
     /// request the user was reading — and unmounted the Overview a beat before the link landed in
@@ -89,40 +89,24 @@ extension PullRequestsViewModel {
             return
         }
         let generation = session.generation
-        let identifier = target.identifier
         updateSession(target, generation: generation) { session in
             session.agenticThreadError = nil
             session.agenticThreadMissingProject = nil
         }
-        // Ahead of the `Task`, so the button is spinning on the click's own turn rather than after
-        // the first suspension — and so the guard above refuses a second click immediately.
-        agenticThreadActivity.begin(identifier, kind: kind)
         Task {
             let start: PullRequestAgenticThreadStart
             do {
                 start = try await agenticThreadStarter(request)
             } catch {
-                agenticThreadActivity.end(identifier, kind: kind)
                 applyAgenticThreadStartFailure(error, target: target, generation: generation)
                 return
             }
-            agenticThreadActivity.attach(
-                conversationID: start.conversationID,
-                identifier: identifier,
-                kind: kind
-            )
             do {
                 let outcome = try await start.dispatch.value
-                // The prompt is out, so a turn is owed; the grace bounds how long it may take to
-                // appear before the route stops claiming to be working.
-                agenticThreadActivity.armStartupGrace(identifier, kind: kind)
                 if let linkFailure = outcome.linkFailure {
                     presentToast(linkFailure)
                 }
             } catch {
-                // A throw means the prompt never went out, so nothing will ever report a turn for
-                // this thread — the route has to stop working now or it would spin forever.
-                agenticThreadActivity.end(identifier, kind: kind)
                 presentToast(error.localizedDescription)
             }
         }

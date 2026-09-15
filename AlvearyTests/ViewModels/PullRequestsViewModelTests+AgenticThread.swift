@@ -173,14 +173,13 @@ extension PullRequestsViewModelTests {
 
     // MARK: - The working indicator
 
-    /// The click's own turn, before any suspension — otherwise the button sits idle through a
-    /// provider-discovery round trip that can run into seconds.
-    func testTheRouteIsMarkedWorkingSynchronouslyOnTheClick() async {
+    func testTheRouteMirrorsTheSharedLaunchersActivity() async {
         let pane = await openedReviewPane(starter: { _ in
             makeAgenticThreadStart(conversationID: "conversation-1")
         })
 
         pane.viewModel.startAgenticThread(kind: .review)
+        await drainMainQueue()
 
         XCTAssertEqual(pane.workingKinds, [.review])
     }
@@ -260,6 +259,7 @@ extension PullRequestsViewModelTests {
         )
 
         pane.viewModel.startAgenticThread(kind: .review)
+        await drainMainQueue()
         await waitFor { pane.workingKinds.isEmpty }
 
         XCTAssertEqual(pane.workingKinds, [])
@@ -294,8 +294,8 @@ extension PullRequestsViewModelTests {
         })
 
         pane.viewModel.startAgenticThread(kind: .review)
+        await drainMainQueue()
         pane.viewModel.startAgenticThread(kind: .review)
-        // The tracker is written synchronously, which is what refuses the second click.
         XCTAssertEqual(pane.workingKinds, [.review])
         await drainMainQueue()
 

@@ -10,7 +10,7 @@ These instructions cover `Alveary/Services/PullRequests/HostTools/` — the `alv
 - **That claim stops at pull requests that already exist.** Nothing here opens one, so the fragment hands creation back to the model's own `gh pr create` — otherwise "never run `gh` yourself" bans the only route — and `reopen_pr`'s description disowns it too, because its name is what an "open a pull request" ask reaches for.
 - **Gate every tool on `AppSettings.pullRequestsEnabled`** as the first statement of `handle`. With the integration off, the pane the user would check the result in does not exist. The catalog stays static — exposure is all-or-nothing per turn — so the tools remain advertised and the refusal names the setting.
 - **Only `propose_pr_review` needs confirmation, and it carries the whole review.** Do not reintroduce an immediate `add_pr_review_comments`-style writer: even a private draft is GitHub state a cancelled review would leave behind. Everything else here is undoable from Alveary's pane or github.com, so it applies immediately and says so.
-- **Thread IDs are GraphQL node ids from the read tools.** No tool accepts a REST comment id — the handler resolves reply targets itself — so a model can only name a thread it actually read.
+- **Use GraphQL feedback-thread IDs from the PR read tools for reply/resolve mutations.** `start_pr_review` returns an Alveary task ID; never pass it to those mutations.
 - **State-change preconditions mirror `PullRequestStateAction.available(for:)`**, so a refusal here is one the pane's footer would have shown as a missing button. `Alveary/Services/PullRequests/GitHub/AGENTS.md` owns which of them are GraphQL-only and why.
 - **`Alveary/ViewModels/PullRequests/Pane/AGENTS.md` owns what a mutation's change announcement drives.**
 - **A tool whose name invites the wrong ask has to disown it in its own description**, naming the tool that serves it instead — `list_involved_prs` against the threads feature's `list_linked_prs`, `get_pr_address_feedback_instructions` against `get_pr_timeline`, `reopen_pr` against opening a new pull request. Renaming alone does not work: the wrong tool still answers, and `list_linked_prs` returning an empty list reads as truth. So the sibling refuses in its own words too, both fragments state the split, and `AlvearyHostToolCatalogTests` pins it. A tool added next to an existing one owes the same.
@@ -41,9 +41,15 @@ Propose time only. `Alveary/ViewModels/PullRequests/Review/AGENTS.md` owns confi
 
 ### Instruction Tools
 
-`get_pr_review_instructions` and `get_pr_address_feedback_instructions` are one pattern twice. Every rule below holds for both; each has its own editable prompt (`Alveary/Services/Settings/AGENTS.md`) and they share `PullRequestReviewPromptBuilder`'s context block, so only the user's text differs.
+`get_pr_review_instructions` and `get_pr_address_feedback_instructions` read saved guidance (`Alveary/Services/Settings/AGENTS.md`) through `PullRequestReviewPromptBuilder`. Reviewing also routes according to the saved review mode.
 
 - **Calling one is how Alveary learns which job was asked for.** Deciding that from the wording of a message would need intent heuristics, and "I already reviewed #42" reads the same to a regex as "review #42" — so the decision stays with the model, which understands the sentence. A call made in error costs a read and nothing else.
-- **The fragment is the only thing that routes to them.** It has to say, in the always-in-context text, that the user keeps standing preferences for both jobs and that these tools are the only way to read them; without that they exist and nothing calls them. It also has to say which job is which — reviewing gives new feedback and ends at `propose_pr_review`, addressing answers existing feedback and ends at `reply_to_pr_thread`/`resolve_pr_thread` — or "address the feedback" reaches the reviewing tool. The two `+…Instructions` test companions pin that wording.
+- **Keep both instruction tools read-only.** Team-mode review instructions direct callers to `start_pr_review`; single-agent instructions retain in-conversation review. Dedicated launch requests may call `start_pr_review` directly. Addressing feedback still routes through its own instructions tool.
 - **They fetch the pull request rather than assuming it.** A URL naming one that does not exist fails here instead of halfway through work the model has already begun narrating.
 - **One transcript card serves both**, keyed by `ReviewInstructionsWidgetContent.Kind`; `Alveary/Views/Chat/Blocks/AppKit/Widgets/AGENTS.md` owns what the kind may change.
+
+### Review Launches
+
+- **Launch through `PullRequestAgenticThreadService`.** The UI and MCP must share reservation and activity tracking; copying task creation can start competing reviewers before the coordinator's final guard.
+- **Checkpoint the destination receipt before dispatch.** Store Alveary task identity separately from GitHub review-thread IDs, and replay the recorded launch rather than restarting terminal work. `PullRequestHostToolService+StartReview.swift` owns replay and source revalidation.
+- **Exclude launches from GitHub-change announcements.** Launch cards open the review task; its existing progress and proposal controls own completion, recovery, and confirmation.

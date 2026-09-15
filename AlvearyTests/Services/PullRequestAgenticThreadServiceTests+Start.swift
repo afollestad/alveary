@@ -1,5 +1,6 @@
 import AgentCLIKit
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -238,4 +239,141 @@ extension PullRequestAgenticThreadServiceTests {
 
         XCTAssertNil(outcome.linkFailure)
     }
+    func testConcurrentCallersSharePreparationAndCheckpointTheirOwnDestination() async throws {
+        let entered = expectation(description: "provider discovery entered")
+        let discovery = LaunchGatedDiscovery(onRead: { entered.fulfill() })
+        defer { discovery.gate.open() }
+        let start = try makeStartFixture(providerDiscovery: discovery)
+        var checkpoints: [PullRequestAgenticThreadDestination] = []
+        let first = Task { try await start.service.start(
+            kind: .review, identifier: start.identifier, url: start.url,
+            checkpoint: { checkpoints.append($0); XCTAssertTrue(start.prompts.prompts.isEmpty) }
+        ) }
+        await fulfillment(of: [entered], timeout: 2)
+        let joining = expectation(description: "second caller entered")
+        var didJoin = false
+        let uppercase = PullRequestIdentifier(owner: "OCTO", repo: "ALPHA", number: start.identifier.number)
+        let second = Task { try await start.service.start(
+            kind: .review, identifier: uppercase, url: start.url,
+            validateSource: { if !didJoin { didJoin = true; joining.fulfill() } },
+            checkpoint: { checkpoints.append($0) }
+        ) }
+        await fulfillment(of: [joining], timeout: 2)
+        discovery.gate.open()
+
+        let created = try await first.value
+        let existing = try await second.value
+        _ = try await created.dispatch.value
+
+        XCTAssertEqual(existing.conversationID, created.conversationID)
+        XCTAssertEqual(checkpoints.map(\.disposition), [.created, .existing])
+        XCTAssertEqual(try start.fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
+        XCTAssertEqual(start.prompts.prompts.count, 1)
+        XCTAssertNotNil(start.service.dispatch(conversationID: created.conversationID))
+    }
+
+    func testSourceIsRevalidatedAfterPreparationBeforeInsertingATask() async throws {
+        let entered = expectation(description: "provider discovery entered")
+        let discovery = LaunchGatedDiscovery(onRead: { entered.fulfill() })
+        defer { discovery.gate.open() }
+        let start = try makeStartFixture(providerDiscovery: discovery)
+        var sourceExists = true
+        let launch = Task { try await start.service.start(
+            kind: .review, identifier: start.identifier, url: start.url,
+            validateSource: { if !sourceExists { throw LaunchTestError.refused } }
+        ) }
+        await fulfillment(of: [entered], timeout: 2)
+        sourceExists = false
+        discovery.gate.open()
+
+        do {
+            _ = try await launch.value
+            XCTFail("A missing caller must not create a task")
+        } catch { XCTAssertEqual(error as? LaunchTestError, .refused) }
+        XCTAssertEqual(try start.fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
+        XCTAssertFalse(start.service.activity.isWorking(start.identifier, kind: .review))
+    }
+
+    func testCancellationDuringPreparationCreatesNoTask() async throws {
+        let entered = expectation(description: "provider discovery entered")
+        let discovery = LaunchGatedDiscovery(onRead: { entered.fulfill() })
+        defer { discovery.gate.open() }
+        let start = try makeStartFixture(providerDiscovery: discovery)
+        let launch = Task { try await start.service.start(kind: .review, identifier: start.identifier, url: start.url) }
+        await fulfillment(of: [entered], timeout: 2)
+        launch.cancel()
+        discovery.gate.open()
+
+        do {
+            _ = try await launch.value
+            XCTFail("Cancelled preparation must not create a task")
+        } catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(try start.fixture.context.fetchCount(FetchDescriptor<AgentThread>()), 0)
+        XCTAssertTrue(start.prompts.prompts.isEmpty)
+    }
+
+    func testCheckpointFailureRetainsTheTaskAndNeverDispatches() async throws {
+        let start = try makeStartFixture()
+        var destination: PullRequestAgenticThreadDestination?
+        do {
+            _ = try await start.service.start(
+                kind: .review, identifier: start.identifier, url: start.url,
+                checkpoint: { destination = $0; throw LaunchTestError.refused }
+            )
+            XCTFail("A failed checkpoint must prevent dispatch")
+        } catch {
+            let failure = try XCTUnwrap(error as? PullRequestAgenticThreadLaunchError)
+            XCTAssertEqual(failure.destination, destination)
+            XCTAssertEqual(failure.underlying as? LaunchTestError, .refused)
+        }
+        let target = try XCTUnwrap(destination)
+        let conversation = try XCTUnwrap(start.fixture.context.resolveConversation(conversationID: target.conversationID))
+        XCTAssertEqual(conversation.events.filter { $0.type == ConversationEventRecord.errorType }.count, 1)
+        XCTAssertTrue(start.prompts.prompts.isEmpty)
+        XCTAssertFalse(start.service.activity.isWorking(start.identifier, kind: .review))
+    }
+
+    func testAnActiveRouteReusesItsTaskUntilTheProviderTurnEnds() async throws {
+        let start = try makeStartFixture()
+        let first = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
+        _ = try await first.dispatch.value
+        let existing = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
+        XCTAssertEqual(existing.destination.disposition, .existing)
+        XCTAssertEqual(existing.conversationID, first.conversationID)
+        for signal in [ActivitySignal.busy, .idle] {
+            NotificationCenter.default.post(name: .agentStatusChanged, object: nil, userInfo: [
+                AgentStatusChangedKey.conversationID: first.conversationID, AgentStatusChangedKey.signal: signal
+            ])
+        }
+        let next = try await start.service.start(kind: .review, identifier: start.identifier, url: start.url)
+        _ = try await next.dispatch.value
+        XCTAssertNotEqual(next.conversationID, first.conversationID)
+        XCTAssertEqual(start.prompts.prompts.count, 2)
+    }
+}
+
+private enum LaunchTestError: Error, Equatable {
+    case refused
+}
+
+private actor LaunchGatedDiscovery: AgentProviderDiscoveryService {
+    nonisolated let gate = PullRequestsServiceGate()
+    private let onRead: @Sendable () -> Void
+    private let statuses: [AgentProviderID: AgentProviderStatus] = [
+        .claude: AgentProviderStatus(providerId: .claude, installation: .installed, setup: .ready,
+                                    modelOptions: AgentModelOptionTestFixtures.claudeModelOptions)
+    ]
+
+    init(onRead: @escaping @Sendable () -> Void) { self.onRead = onRead }
+
+    func providerStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] {
+        onRead()
+        await gate.wait()
+        return statuses
+    }
+
+    func installedProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { statuses }
+    func availableProviderStatuses(projectURL: URL?) async -> [AgentProviderID: AgentProviderStatus] { statuses }
+    func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] { statuses[providerId]?.modelOptions ?? [] }
+    func stableProviderOrdering() async -> [AgentProviderID] { [.claude] }
 }

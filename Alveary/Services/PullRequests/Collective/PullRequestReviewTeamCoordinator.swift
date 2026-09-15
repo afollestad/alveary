@@ -257,13 +257,19 @@ final class PullRequestReviewTeamCoordinator {
 
     /// Startup discovery can still be running when the user launches a review; disk is authoritative until recovery catches up.
     func hasUnfinishedReview(for identifier: PullRequestIdentifier, excludingConversationID: String? = nil) throws -> Bool {
+        try unfinishedReview(for: identifier, excludingConversationID: excludingConversationID) != nil
+    }
+
+    func unfinishedReview(for identifier: PullRequestIdentifier, excludingConversationID: String? = nil) throws -> ReviewTeamRun? {
         let descriptor = FetchDescriptor<Conversation>(predicate: #Predicate { $0.pullRequestReviewRunJSON != nil })
-        return try modelContext.fetch(descriptor).contains { conversation in
-            guard conversation.id != excludingConversationID else { return false }
-            guard conversation.thread?.archivedAt == nil, let run = try conversation.collectiveReviewRun() else { return false }
-            guard run.identifier == identifier, run.phase.isUnfinished else { return false }
-            return try !cancellationStore.contains(runID: run.id)
+        for conversation in try modelContext.fetch(descriptor) {
+            guard conversation.id != excludingConversationID, conversation.thread?.archivedAt == nil,
+                  let run = try conversation.collectiveReviewRun(), run.identifier.number == identifier.number,
+                  run.identifier.nameWithOwner.caseInsensitiveCompare(identifier.nameWithOwner) == .orderedSame, run.phase.isUnfinished,
+                  try !cancellationStore.contains(runID: run.id) else { continue }
+            return run
         }
+        return nil
     }
 
     /// The retry guard proves all workers settled; cancelling their run ID would permanently deny new executions.

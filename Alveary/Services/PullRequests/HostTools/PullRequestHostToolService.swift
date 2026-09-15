@@ -22,6 +22,10 @@ final class PullRequestHostToolService {
     let notificationCenter: NotificationCenter
     let diffJobs: PullRequestDiffJobs<PullRequestHostToolDiffSession>
     let diffWait: Duration
+    let reviewLauncher: PullRequestAgenticThreadService?
+    let reviewReceiptSave: (ModelContext) throws -> Void
+    var reviewLaunchCalls: [String: Task<AgentCLIKit.AgentHostToolResult, Never>] = [:]
+    var reviewLaunchFallbackReceipts: [String: PullRequestHostToolReceipt] = [:]
     var reviewedDiffRevisions: [String: (base: String?, head: String?)] = [:]
     private let requestParser: PullRequestHostToolRequestParser
     private let now: () -> Date
@@ -37,6 +41,8 @@ final class PullRequestHostToolService {
         diffJobs: PullRequestDiffJobs<PullRequestHostToolDiffSession> = PullRequestDiffJobs(),
         diffWait: Duration = .seconds(20),
         requestParser: PullRequestHostToolRequestParser = PullRequestHostToolRequestParser(),
+        reviewLauncher: PullRequestAgenticThreadService? = nil,
+        reviewReceiptSave: @escaping (ModelContext) throws -> Void = { try $0.save() },
         now: @escaping () -> Date = Date.init,
         makeProposalID: @escaping () -> String = { UUID().uuidString }
     ) {
@@ -50,6 +56,8 @@ final class PullRequestHostToolService {
         self.diffJobs = diffJobs
         self.diffWait = diffWait
         self.requestParser = requestParser
+        self.reviewLauncher = reviewLauncher
+        self.reviewReceiptSave = reviewReceiptSave
         self.now = now
     }
 
@@ -82,6 +90,7 @@ final class PullRequestHostToolService {
     /// already re-reads on every render.
     private func announceChange(for call: AgentCLIKit.AgentHostToolCall) {
         guard call.name != PullRequestHostToolCatalog.proposeReviewToolName,
+              call.name != PullRequestHostToolCatalog.startReviewToolName,
               // Not `parseIdentifier`, whose `requireOnly(["url"])` rejects the further arguments
               // these tools carry; the handler has already proven the URL parses.
               case .string(let url)? = call.arguments["url"],
@@ -133,6 +142,8 @@ final class PullRequestHostToolService {
             return result
         }
         switch call.name {
+        case PullRequestHostToolCatalog.startReviewToolName:
+            return try await startPullRequestReview(context: context, arguments: call.arguments)
         case PullRequestHostToolCatalog.replyToThreadToolName:
             return try await replyToThread(context: context, arguments: call.arguments)
         case PullRequestHostToolCatalog.resolveThreadToolName:
@@ -337,6 +348,16 @@ final class PullRequestHostToolService {
             // A GitHub reachability failure is the model's to report, not Alveary's to swallow as
             // a generic persistence problem.
             message = Self.unavailable(pullRequestError).localizedDescription
+        case let launchError as PullRequestAgenticThreadLaunchError:
+            message = launchError.underlying.localizedDescription
+        case let teamError as ReviewTeamError:
+            message = teamError.localizedDescription
+        case let teamError as PullRequestReviewTeamResolutionError:
+            message = teamError.localizedDescription
+        case let startError as PullRequestAgenticThreadService.StartError:
+            message = startError.localizedDescription
+        case is CancellationError:
+            message = "The review launch was cancelled."
         default:
             message = PullRequestHostToolServiceError.persistenceFailure.localizedDescription
         }

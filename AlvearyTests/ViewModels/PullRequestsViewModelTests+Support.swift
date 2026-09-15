@@ -131,6 +131,7 @@ func makePullRequestSummary(
 func makePullRequestDetail(
     id: PullRequestIdentifier,
     title: String = "Detail title",
+    url: URL? = nil,
     status: PullRequestStatus = .open,
     headRefName: String = "feat/change",
     comments: [PullRequestComment] = [],
@@ -146,7 +147,7 @@ func makePullRequestDetail(
     var detail = PullRequestDetail(
         id: id,
         title: title,
-        url: nil,
+        url: url,
         status: status,
         authorLogin: "alice",
         authorAvatarURL: nil,
@@ -431,7 +432,7 @@ extension PullRequestsViewModelTests {
             service: service,
             settingsService: settingsService,
             presentToast: presentToast,
-            agenticThreadStarter: starter,
+            agenticThreadStarter: starter.map { trackedStarter($0, activity: activity) },
             reviewTeamSettingsValidator: reviewTeamSettingsValidator,
             reviewTeamValidationSleeper: reviewTeamValidationSleeper,
             refreshReviewTeamProviderDiscovery: refreshReviewTeamProviderDiscovery,
@@ -448,4 +449,32 @@ extension PullRequestsViewModelTests {
             notificationCenter: notificationCenter
         )
     }
+
+    /// Injected starters model the shared launcher's activity ownership; the view model only mirrors it.
+    private func trackedStarter(
+        _ starter: @escaping @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart,
+        activity: PullRequestAgenticThreadActivity
+    ) -> @MainActor (PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart {
+        { @MainActor (request: PullRequestAgenticThreadRequest) async throws -> PullRequestAgenticThreadStart in
+            activity.begin(request.identifier, kind: request.kind)
+            do {
+                let start = try await starter(request)
+                activity.attach(conversationID: start.conversationID, identifier: request.identifier, kind: request.kind)
+                return PullRequestAgenticThreadStart(conversationID: start.conversationID, dispatch: Task {
+                    do {
+                        let outcome = try await start.dispatch.value
+                        activity.armStartupGrace(request.identifier, kind: request.kind)
+                        return outcome
+                    } catch {
+                        activity.end(request.identifier, kind: request.kind)
+                        throw error
+                    }
+                })
+            } catch {
+                activity.end(request.identifier, kind: request.kind)
+                throw error
+            }
+        }
+    }
+
 }

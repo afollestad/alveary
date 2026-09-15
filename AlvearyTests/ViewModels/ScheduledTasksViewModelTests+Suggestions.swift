@@ -36,6 +36,18 @@ extension ScheduledTasksViewModelTests {
         XCTAssertEqual(draft.recurrence, .interval(minutes: 360, anchor: fixture.now))
     }
 
+    func testReviewSuggestionLaunchesReviewsDirectlyAndKeepsItsSkipLedger() throws {
+        let fixture = try ScheduledTasksViewModelFixture()
+        let suggestion = try XCTUnwrap(fixture.viewModel.firstTaskSuggestions.first { $0.id == "pull-request-review" })
+
+        XCTAssertTrue(suggestion.prompt.contains("start_pr_review"))
+        XCTAssertTrue(suggestion.prompt.contains("Review owner/repo#123"))
+        XCTAssertTrue(suggestion.prompt.contains("keep paging"))
+        XCTAssertTrue(suggestion.prompt.contains("20"))
+        XCTAssertFalse(suggestion.prompt.contains("create_thread"))
+        XCTAssertFalse(suggestion.prompt.contains("link_pr"))
+    }
+
     func testWallClockSuggestionsBuildTheirWeekdayAndWeeklyRecurrences() throws {
         let fixture = try ScheduledTasksViewModelFixture()
         let suggestions = fixture.viewModel.firstTaskSuggestions

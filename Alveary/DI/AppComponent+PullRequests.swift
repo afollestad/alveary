@@ -29,6 +29,7 @@ extension AppComponent {
                     try? await gitService.currentBranch(in: path)
                 },
                 reviewTeamCoordinator: pullRequestReviewTeamCoordinator,
+                activity: pullRequestAgenticThreadActivity,
                 startInitialPrompt: { conversation, prompt in
                     self.startHeadlessInitialPrompt(conversation: conversation, prompt: prompt)
                 }
@@ -58,7 +59,8 @@ extension AppComponent {
                 pullRequestsService: pullRequestsService,
                 settingsService: settingsService,
                 summaryHandoff: pullRequestSummaryHandoff,
-                reviewProposalPreviewCache: pullRequestReviewProposalPreviewCache
+                reviewProposalPreviewCache: pullRequestReviewProposalPreviewCache,
+                reviewLauncher: pullRequestAgenticThreadService
             )
         }
     }

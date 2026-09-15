@@ -7,6 +7,7 @@ extension HostToolTranscriptCatalogTests {
     func testDescriptorLookupCoversEveryThreadMutationTool() {
         for hostToolName in [
             ThreadHostToolCatalog.createThreadToolName,
+            PullRequestHostToolCatalog.startReviewToolName,
             ThreadHostToolCatalog.pinThreadToolName,
             ThreadHostToolCatalog.unpinThreadToolName,
             ThreadHostToolCatalog.archiveThreadToolName,
@@ -344,6 +345,8 @@ extension HostToolTranscriptCatalogTests {
             ThreadHostToolCatalog.moveThreadToSectionToolName
         case .sendPrompt:
             ThreadHostToolCatalog.sendPromptToThreadToolName
+        case .startReview:
+            PullRequestHostToolCatalog.startReviewToolName
         }
     }
 

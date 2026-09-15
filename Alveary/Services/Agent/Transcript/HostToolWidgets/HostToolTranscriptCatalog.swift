@@ -164,11 +164,12 @@ private extension HostToolTranscriptCatalog {
         )
     }
 
-    /// Every thread mutation gets a card; the read-only lookups (`list_threads`,
-    /// `list_projects`, `list_linked_prs`) stay ordinary tool rows.
+    /// Thread mutations and review launches need a card that opens their destination.
+    /// Read-only thread lookups stay ordinary tool rows.
     static var threadActionDescriptors: [HostToolTranscriptDescriptor] {
         [
             threadActionDescriptor(hostToolName: ThreadHostToolCatalog.createThreadToolName, action: .create),
+            threadActionDescriptor(hostToolName: PullRequestHostToolCatalog.startReviewToolName, action: .startReview),
             threadActionDescriptor(hostToolName: ThreadHostToolCatalog.pinThreadToolName, action: .pin),
             threadActionDescriptor(hostToolName: ThreadHostToolCatalog.unpinThreadToolName, action: .unpin),
             threadActionDescriptor(hostToolName: ThreadHostToolCatalog.archiveThreadToolName, action: .archive),

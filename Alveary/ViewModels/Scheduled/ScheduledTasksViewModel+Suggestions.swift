@@ -62,31 +62,16 @@ private extension ScheduledTasksViewModel {
         }
     }
 
-    /// The spawned thread's name is this prompt's only ledger. A `newThread` schedule keeps no
-    /// state between runs, so skipping pull requests that already have a thread is what advances
-    /// the batch past the first twenty — GitHub drops one from `review-requested:@me` only once a
-    /// review is *submitted*, which a proposal awaiting the user's card has not done. The template
-    /// matches `PullRequestAgenticThreadService`'s `"Review \(displayKey)"` so a review started by
-    /// hand from the pull request pane is skipped too; rewording either one alone breaks the skip.
-    /// `link_pr` is named outright because `automaticallyLinkPullRequests` may be off, and the pane's
-    /// own agentic review links regardless of it — this fan-out should not be the one route that
-    /// does not. The nested prompt asks in words rather than naming a tool, because
-    /// `PullRequestHostToolCatalog.instructionsFragment` already routes any wording of "review a
-    /// pull request" through `get_pr_review_instructions` to `propose_pr_review`; asking to have
-    /// the review *proposed* is what aims a run at that confirmation card rather than a written
-    /// summary. It stays last so nothing trailing it reads as part of what the spawned thread was
-    /// handed.
+    /// The launch tool owns settings, linking, and dispatch, avoiding an extra wrapper task.
     static let pullRequestReviewSuggestion = ScheduledTaskSuggestion(
         id: "pull-request-review",
         icon: .octicon(.pullRequest16),
         title: "Review pull requests",
         scheduleCaption: "Every 6 hours",
-        prompt: "Fetch PRs that need my review, skipping any that already have an Alveary thread — "
-            + "check my existing thread names first, and keep paging until you have 20 that do not. "
-            + "Then create a new thread for each one, named like \"Review owner/repo#123\", and use the "
-            + "link_pr tool to link that PR to the thread you just created. Give each of those threads "
-            + "this prompt, where [PR URL] is the actual URL: Review pull request [PR URL] and propose "
-            + "the review to me.",
+        prompt: "Fetch PRs that need my review, skipping any that already have an Alveary thread "
+            + "named like \"Review owner/repo#123\". Check my existing thread names first, and keep paging "
+            + "until you have 20 that do not, or no more remain. Call start_pr_review with each PR's URL "
+            + "to launch its review using my saved settings and propose the review to me.",
         schedule: .everyMinutes(360)
     )
 

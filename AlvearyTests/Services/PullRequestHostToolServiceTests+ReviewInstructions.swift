@@ -1,5 +1,6 @@
 import AgentCLIKit
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Alveary
@@ -87,6 +88,84 @@ extension PullRequestHostToolServiceTests {
         )
 
         XCTAssertTrue(result.isError)
+    }
+
+    func testReviewInstructionsRouteTeamModeWithoutStartingWork() async throws {
+        let launch = try PullRequestHostReviewLaunchFixture()
+        launch.host.settingsService.update {
+            $0.pullRequestReviewMode = .reviewTeam
+            $0.pullRequestReviewPrompt = "Focus on concurrency."
+        }
+
+        let result = await launch.host.handle(PullRequestHostToolCatalog.reviewInstructionsToolName)
+
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertTrue(result.text.contains(PullRequestHostToolCatalog.startReviewToolName), result.text)
+        XCTAssertEqual(try launch.sidebar.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
+        XCTAssertTrue(launch.prompts.prompts.isEmpty)
+        XCTAssertTrue(launch.coordinator.runs.isEmpty)
+    }
+
+    func testReviewInstructionsKeepSingleAgentWorkInTheCallingConversation() async throws {
+        let launch = try PullRequestHostReviewLaunchFixture()
+        launch.host.settingsService.update {
+            $0.pullRequestReviewMode = .singleAgent
+            $0.pullRequestReviewPrompt = "Focus on concurrency."
+        }
+
+        let result = await launch.host.handle(PullRequestHostToolCatalog.reviewInstructionsToolName)
+
+        XCTAssertFalse(result.isError, result.text)
+        XCTAssertTrue(result.text.contains("Focus on concurrency."), result.text)
+        XCTAssertFalse(result.text.contains(PullRequestHostToolCatalog.startReviewToolName), result.text)
+        XCTAssertEqual(try launch.sidebar.context.fetchCount(FetchDescriptor<AgentThread>()), 1)
+        XCTAssertTrue(launch.prompts.prompts.isEmpty)
+    }
+
+    func testDedicatedSingleReviewKeepsItsLaunchInstructionsAfterTheSettingChanges() async throws {
+        let launch = try PullRequestHostReviewLaunchFixture()
+        launch.host.settingsService.update { $0.pullRequestReviewPrompt = "Original review criteria." }
+        let detail = makePullRequestDetail(
+            id: try XCTUnwrap(PullRequestHostToolFixture.identifier), url: URL(string: PullRequestHostToolFixture.url)
+        )
+        launch.host.pullRequests.detailResult = .success(detail)
+        let started = await launch.host.handle(
+            PullRequestHostToolCatalog.startReviewToolName,
+            arguments: ["url": .string("https://github.com/OCTO/Alpha/pull/7")]
+        )
+        XCTAssertFalse(started.isError, started.text)
+        guard case .string(let destinationID)? = try object(started.structuredContent)["thread_id"] else {
+            return XCTFail("Review launch returned no destination")
+        }
+        let destinationContext = launch.host.agentContext(providerID: .claude, conversationID: destinationID)
+        launch.host.settingsService.update {
+            $0.pullRequestReviewMode = .reviewTeam
+            $0.pullRequestReviewPrompt = "Replacement review criteria."
+        }
+
+        let destinationInstructions = await launch.host.handle(
+            PullRequestHostToolCatalog.reviewInstructionsToolName, context: destinationContext
+        )
+        let sourceInstructions = await launch.host.handle(PullRequestHostToolCatalog.reviewInstructionsToolName)
+
+        XCTAssertFalse(destinationInstructions.isError, destinationInstructions.text)
+        XCTAssertTrue(destinationInstructions.text.contains("Original review criteria."))
+        XCTAssertFalse(destinationInstructions.text.contains("Replacement review criteria."))
+        XCTAssertFalse(destinationInstructions.text.contains(PullRequestHostToolCatalog.startReviewToolName))
+        XCTAssertTrue(sourceInstructions.text.contains(PullRequestHostToolCatalog.startReviewToolName))
+        XCTAssertTrue(sourceInstructions.text.contains("Replacement review criteria."))
+
+        let otherIdentifier = PullRequestIdentifier(owner: "octo", repo: "alpha", number: 8)
+        launch.host.pullRequests.detailResult = .success(makePullRequestDetail(id: otherIdentifier))
+        let otherInstructions = await launch.host.handle(
+            PullRequestHostToolCatalog.reviewInstructionsToolName,
+            arguments: ["url": .string("https://github.com/octo/alpha/pull/8")], context: destinationContext
+        )
+
+        XCTAssertFalse(otherInstructions.isError, otherInstructions.text)
+        XCTAssertTrue(otherInstructions.text.contains(PullRequestHostToolCatalog.startReviewToolName))
+        XCTAssertTrue(otherInstructions.text.contains("Replacement review criteria."))
+        XCTAssertFalse(otherInstructions.text.contains("Original review criteria."))
     }
 
     /// The fragment is the only thing that tells the model to call this before reviewing; without

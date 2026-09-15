@@ -14,12 +14,12 @@ App-scoped pull-request services live here; collective runs are owned by `Collec
 
 - **Keep `.review` tasks projectless and `grantedRoots` empty.** Single-agent reviews use host tools; collective workers use app-prepared packets. Neither should inspect an unrelated checkout.
 - **Preserve fallback seed resolution for single-agent review and Address feedback only.** Collective configuration is strict: unavailable pins block launch rather than silently replacing a reviewer.
-- **Keep single-agent workflows behind the instructions tool.** Their initial prompt is a short request, not embedded instructions. Collective reviews instead use fixed phase contracts and the same saved review criteria.
+- **Keep single-agent workflows behind the instructions tool.** Dedicated tasks persist their launch-time instructions before dispatch; ordinary conversations read current settings. Collective reviews use fixed phase contracts and frozen review criteria.
 - **A section pick seeds creation and never moves an existing thread.** `insertTaskThread` throws on a vanished section, so `resolvedPlacement` validates first and degrades to `Tasks`; its doc comment owns why. Never `.project` — both kinds stay projectless, which is what makes a section render at all.
 - **Keep preparation behind `start`'s return except launch validation.** Checkout and collective configuration/capability preflights may refuse before creating a task; packet acquisition and paid worker execution may not.
 - **`dispatch` links before dispatching**, best-effort, regardless of `automaticallyLinkPullRequests`. Linking first means transcript detection finds the pull request already linked and asks no redundant "link this?" question under the prompt. A GitHub hiccup must not stop the thread, and a racing auto-link resolves as `alreadyLinked`. Re-resolve the thread after that `await` rather than carrying the model across it.
     - **Give it a detail *and* a summary** — between them the link never needs the network, which is the difference between reliably linked and merely attempted.
-    - **A link failure rides the outcome value, never a throw.** A throw means the prompt never went out and ends the working indicator; the run is in fact working, so throwing would take the spinner off a live thread. One consumer either way — do not give it a second.
+    - **A link failure rides the outcome value, never a throw.** The launcher owns activity; callers display startup outcomes. Throwing for a link failure would clear activity for work that already started.
 
 #### The Checkout Ladder
 

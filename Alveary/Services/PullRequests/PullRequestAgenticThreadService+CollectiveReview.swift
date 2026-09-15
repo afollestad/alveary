@@ -5,7 +5,8 @@ import SwiftData
 extension PullRequestAgenticThreadService {
     func startCollectiveReview(
         _ work: CollectiveReviewWork,
-        coordinator: PullRequestReviewTeamCoordinator?
+        coordinator: PullRequestReviewTeamCoordinator?,
+        authorization: PullRequestAgenticThreadAuthorization
     ) async throws -> PullRequestAgenticThreadStart {
         guard let coordinator else {
             throw ReviewTeamError.invalidOutput("Review team is unavailable. Check Pull requests settings.")
@@ -14,10 +15,13 @@ extension PullRequestAgenticThreadService {
         guard let lead = team.first else {
             throw StartError.noReadyProvider
         }
+        try Task.checkCancellation()
+        try authorization.validateSource()
+        if let existing = try unfinishedReviewStart(kind: .review, identifier: work.identifier, checkpoint: authorization.checkpoint) {
+            return existing
+        }
         let seed = SeedSettings(
-            provider: lead.providerID,
-            model: lead.launchModel,
-            effort: lead.effort,
+            provider: lead.providerID, model: lead.launchModel, effort: lead.effort,
             permissionMode: AppSettings.defaultPermissionMode(forProvider: lead.providerID)
         )
         let thread = try lifecycleService.insertTaskThread(seed: Self.threadSeed(
@@ -32,24 +36,27 @@ extension PullRequestAgenticThreadService {
         }
         let conversationID = conversation.id
         let threadID = thread.persistentModelID
-        return PullRequestAgenticThreadStart(
-            conversationID: conversationID,
-            dispatch: Task { [linkService] in
-                let linkFailure = await Self.collectiveReviewLinkFailure(
-                    work,
-                    threadID: threadID,
-                    linkService: linkService
-                )
-                try coordinator.begin(
-                    conversationID: conversationID,
-                    identifier: work.identifier,
-                    url: work.url,
-                    team: team,
-                    criteria: PullRequestReviewPromptBuilder.teamCriteria(settings: work.settings)
-                )
-                return PullRequestAgenticDispatchOutcome(linkFailure: linkFailure)
-            }
-        )
+        return try preparedStart(
+            destination: PullRequestAgenticThreadDestination(
+                conversationID: conversationID, name: Kind.review.threadName(for: work.identifier),
+                reviewMode: .reviewTeam, disposition: .created
+            ),
+            identifier: work.identifier, kind: .review, checkpoint: authorization.checkpoint
+        ) { [linkService] in
+            let linkFailure = await Self.collectiveReviewLinkFailure(
+                work,
+                threadID: threadID,
+                linkService: linkService
+            )
+            try coordinator.begin(
+                conversationID: conversationID,
+                identifier: work.identifier,
+                url: work.url,
+                team: team,
+                criteria: PullRequestReviewPromptBuilder.teamCriteria(settings: work.settings)
+            )
+            return PullRequestAgenticDispatchOutcome(linkFailure: linkFailure)
+        }
     }
 
     private static func collectiveReviewLinkFailure(
