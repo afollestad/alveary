@@ -4,13 +4,13 @@ Rules for `AppMarkdownEditor`, `AppTextEditor`, `AppKitTextView`, and their comp
 
 ## AppMarkdownEditor
 
-`AppMarkdownEditor` + `AppMarkdownDraft` are the app's shared BlockInputKit host. This section owns their rules; `Alveary/Views/PullRequests/`, `Alveary/Views/Settings/`, `Alveary/Views/Skills/`, `Alveary/Views/Scheduled/`, and `Alveary/Views/DiffViewer/` consume them.
+`AppMarkdownEditor` and `AppKitMarkdownEditor` share `AppMarkdownDraft` and `AppMarkdownEditorConfiguration` for BlockInputKit hosting. This section owns their rules; `Alveary/Views/PullRequests/`, `Alveary/Views/Settings/`, `Alveary/Views/Skills/`, `Alveary/Views/Scheduled/`, and `Alveary/Views/DiffViewer/` consume them.
 
 - **Reach for it whenever the content is markdown prose** — comments, agent prompts, commit messages, skill and scheduled-task instructions. Keep `AppTextEditor` for raw non-markdown text a block editor would reformat, such as `MCPServerPane`'s headers and env blocks, and `AppTextField` for single-line values.
 - **Never write serialized markdown back into a `String` while the user types.** `BlockInputView.configure` always reloads the document from its store, so a per-keystroke write-back reconfigures the editor mid-edit. Hosts hold the draft and read `draft.markdown` at their own commit point — Save, Submit, and `onDisappear` when a closed pane must reopen with its text.
 - **Swap a whole document with `resetContent(to:)`, splice with `replaceText(_:)`.** `resetContent` bumps `contentGeneration`, which keys the editor and rebuilds it — a caret left from the old document otherwise scrolls the new one under its top inset and clips the first block against the chrome. Reset, disk reloads, and generated bodies reset; mid-edit rewrites that must keep the caret (PR attachment links, composer text sync) use `replaceText`.
 - **Publish coarse state only on transitions.** `isEffectivelyEmpty` and `matchesReference` re-render the host, which reconfigures the editor; the guards in `AppMarkdownDraft` are what keep that to once per transition rather than once per keystroke. A new flag follows the same shape.
-- **Size by line count, not pixels.** `.growsToLineCount` grows with content then scrolls; `.fillsAvailableHeight` takes the host's frame, for a resizable sheet. A `ScrollView` host needs neither — put the editor in a sheet instead, rather than reintroducing a fixed-height mode to survive the unbounded vertical proposal.
+- **Size by line count, not pixels.** `.growsToLineCount` grows with content then scrolls; `.fillsAvailableHeight` takes the host's frame, for a resizable sheet. SwiftUI `ScrollView` hosts use a sheet; native transcript editors use the SDK's capped preferred height through `AppKitMarkdownEditor`.
 - **Text put into a draft has to come back out unchanged.** `AppMarkdownDraftTests` covers commit-message and instruction shapes; `PromptDefaultsMarkdownRoundTripTests` covers the packaged prompts, whose authoring rules live in `Alveary/Services/Settings/AGENTS.md`.
 
 ## AppTextField

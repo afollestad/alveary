@@ -28,15 +28,25 @@ extension AppKitTranscriptRowFactory {
             return approvalMarkdownPreparationRequests(id: id, approvals: approvals, configuration: configuration)
         case .standaloneTool(let id, let tool):
             return exitPlanModeFollowUpMarkdownPreparationRequest(id: id, tool: tool)
+        case .hostToolWidget(let id, let entry):
+            return reviewSummaryPreparationRequest(id: id, entry: entry, state: configuration.reviewState(for: entry)).map { [$0] } ?? []
         case .toolGroup,
              .subAgentBlock,
              .taskListBlock,
-             .hostToolWidget,
              .promptBlock,
              .transcriptNote,
              .error:
             return []
         }
+    }
+
+    func reviewSummaryPreparationRequest(
+        id: String, entry: HostToolWidgetEntry, state: ReviewProposalWidgetState?
+    ) -> AppKitTranscriptMarkdownPrepRequest? {
+        guard let body = ReviewProposalWidgetState.summaryBody(for: entry, state: state), !body.isEmpty else { return nil }
+        return AppKitTranscriptMarkdownPrepRequest(
+            rowID: "\(id)-review-summary", markdown: body, inlineCodeStyle: .standard, composerChipMode: .none
+        )
     }
 
     private func markdownPreparationRequest(

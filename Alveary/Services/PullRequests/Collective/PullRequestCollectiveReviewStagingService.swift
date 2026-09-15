@@ -8,6 +8,8 @@ struct PullRequestCollectiveReviewStagingSnapshot: Codable, Equatable, Sendable 
     let proposalID: String?
     let proposalContentHash: String?
     let editState: PullRequestReviewProposalEditStateToken?
+    /// Recovery needs the superseded body after its envelope is gone; legacy snapshots may omit it.
+    var proposalBody: String?
 }
 
 /// Atomically hands a completed collective review to the existing proposal controls.
@@ -79,7 +81,8 @@ final class PullRequestCollectiveReviewStagingService {
             proposalOwnerConversationID: owner.conversationID,
             proposalID: owner.record.id,
             proposalContentHash: try contentHash(owner.record),
-            editState: editState
+            editState: editState,
+            proposalBody: owner.record.body ?? ""
         )
     }
 

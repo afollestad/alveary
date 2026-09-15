@@ -20,6 +20,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
         let errorMessage: String?
         let bubbleMaxWidth: CGFloat
         let typography: TranscriptTypography
+        let reviewSummaryDocument: AppMarkdownDocument?
 
         init(
             entry: HostToolWidgetEntry,
@@ -30,7 +31,8 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
             isTargetRunInFlight: Bool = false,
             errorMessage: String? = nil,
             bubbleMaxWidth: CGFloat = .infinity,
-            typography: TranscriptTypography = TranscriptTypography()
+            typography: TranscriptTypography = TranscriptTypography(),
+            reviewSummaryDocument: AppMarkdownDocument? = nil
         ) {
             self.entry = entry
             self.proposalPresentation = proposalPresentation
@@ -41,10 +43,12 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
             self.errorMessage = errorMessage
             self.bubbleMaxWidth = bubbleMaxWidth
             self.typography = typography
+            self.reviewSummaryDocument = reviewSummaryDocument
         }
     }
 
     var onHeightInvalidated: (() -> Void)?
+    var onImmediateHeightInvalidated: (() -> Void)?
     var onConfirmScheduledProposal: ((String) -> Void)?
     var onReviewScheduledProposal: ((String) -> Void)?
     var onRejectScheduledProposal: ((String) -> Void)?
@@ -54,6 +58,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     var onConfirmReviewProposal: ((String, PullRequestReviewEvent) -> Void)?
     var onRejectReviewProposal: ((String) -> Void)?
     var onSelectReviewVerdict: ((String, PullRequestReviewEvent) -> Void)?
+    var onUpdateReviewProposalBody: ((String, String) -> Bool)?
     var onRemoveReviewProposalComment: ((String, Int) -> Void)?
     var onJumpToReviewProposalComment: ((String, DiffCommentAnchor) -> Void)?
     /// Fetches comment-author avatars. Kept off `Configuration`, which is `Equatable`: the loader
@@ -70,7 +75,7 @@ final class AppKitTranscriptHostToolWidgetRowView: NSView {
     private let disclosureSlot = AppKitHostToolWidgetDisclosureSlotView()
     private let detailField = NSTextField(labelWithString: "")
     private let proposalBody = AppKitScheduledTaskProposalWidgetView()
-    private let reviewProposalBody = AppKitReviewProposalWidgetView()
+    let reviewProposalBody = AppKitReviewProposalWidgetView()
     private let pullRequestListBody = AppKitPullRequestListWidgetView()
     private let reviewInstructionsBody = AppKitReviewInstructionsWidgetView()
     private let reviewTeamRunBody = AppKitReviewTeamRunWidgetView()
@@ -207,6 +212,12 @@ private extension AppKitTranscriptHostToolWidgetRowView {
     /// review proposal carries the most callbacks of any body here.
     func setupReviewProposalBody() {
         reviewProposalBody.translatesAutoresizingMaskIntoConstraints = false
+        reviewProposalBody.onUpdateBody = { [weak self] id, body in
+            self?.onUpdateReviewProposalBody?(id, body) ?? false
+        }
+        reviewProposalBody.onImmediateHeightInvalidated = { [weak self] in
+            self?.measureAndPublishHeight(force: false, immediate: true)
+        }
         reviewProposalBody.onConfirm = { [weak self] proposalID, event in
             self?.onConfirmReviewProposal?(proposalID, event)
         }
@@ -335,7 +346,12 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         // The detail line is author-written — a pull request title, a task name, a review body —
         // so it renders as markdown. Its fill is the muted wash, matching the already-secondary
         // text it sits on.
-        let detail = HostToolWidgetSummary.detail(for: entry)
+        let detail: String?
+        if case .pullRequestReviewProposal(let proposal) = entry.content, proposal.status != .failed {
+            detail = nil
+        } else {
+            detail = HostToolWidgetSummary.detail(for: entry)
+        }
         let detailFont = configuration.typography.nsFont(.caption)
         detailField.font = detailFont
         detailField.attributedStringValue = AppKitMarkdownInlineString.attributedString(
@@ -367,33 +383,12 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         iconView.setDynamicContentTintColor(symbol.tint)
     }
 
-    /// Its own function so `updateBody` stays inside the shared function-length limit; the
-    /// proposal is the one body here with live confirmation state to thread through.
-    func updateReviewProposalBody(
-        _ content: PullRequestReviewProposalWidgetContent,
-        configuration: Configuration
-    ) {
-        let state = configuration.reviewProposal ?? ReviewProposalWidgetState()
-        reviewProposalBody.avatarLoader = avatarLoader
-        reviewProposalBody.configure(
-            .init(
-                content: content,
-                presentation: state.presentation,
-                preview: state.preview,
-                selectedEvent: state.selectedEvent,
-                canSubmit: state.canSubmit,
-                isInteractive: configuration.isProposalInteractive,
-                isSubmitting: state.isSubmitting,
-                outcome: configuration.entry.outcome,
-                errorMessage: state.errorMessage ?? configuration.errorMessage,
-                typography: configuration.typography
-            )
-        )
-        reviewProposalBody.isHidden = !reviewProposalBody.hasContent
-    }
-
     func updateBody(_ configuration: Configuration) {
-        reviewProposalBody.isHidden = true
+        // Hiding a mounted editor's ancestor resigns first responder.
+        switch configuration.entry.content {
+        case .pullRequestReviewProposal: break
+        default: reviewProposalBody.isHidden = true
+        }
         pullRequestListBody.isHidden = true
         reviewInstructionsBody.isHidden = true
         reviewTeamRunBody.isHidden = true
@@ -473,7 +468,7 @@ private extension AppKitTranscriptHostToolWidgetRowView {
             + (chatBlockPadding * 2)
     }
 
-    func measureAndPublishHeight(force: Bool) {
+    func measureAndPublishHeight(force: Bool, immediate: Bool = false) {
         guard let configuration else {
             return
         }
@@ -485,15 +480,19 @@ private extension AppKitTranscriptHostToolWidgetRowView {
         bubbleView.layoutSubtreeIfNeeded()
         let height = ceil(contentStack.frame.maxY + chatVerticalPadding)
         bubbleView.frame.size.height = height
-        publishHeight(height, force: force)
+        publishHeight(height, force: force, immediate: immediate)
     }
 
-    func publishHeight(_ height: CGFloat, force: Bool) {
+    func publishHeight(_ height: CGFloat, force: Bool, immediate: Bool) {
         guard force || abs(height - lastMeasuredHeight) > 0.5 else {
             return
         }
         lastMeasuredHeight = height
         invalidateIntrinsicContentSize()
-        onHeightInvalidated?()
+        if immediate, let onImmediateHeightInvalidated {
+            onImmediateHeightInvalidated()
+        } else {
+            onHeightInvalidated?()
+        }
     }
 }

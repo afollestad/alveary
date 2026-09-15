@@ -26,3 +26,13 @@ struct ReviewProposalWidgetState: Equatable {
         self.errorMessage = errorMessage
     }
 }
+
+/// Use one body resolution for asynchronous preparation and the visible card. A live clear is authoritative.
+extension ReviewProposalWidgetState {
+    static func summaryBody(for entry: HostToolWidgetEntry, state: ReviewProposalWidgetState?) -> String? {
+        guard case .pullRequestReviewProposal(let content) = entry.content, content.status != .failed else { return nil }
+        if entry.outcome != nil { return entry.outcomeBody ?? content.body }
+        if let presentation = state?.presentation { return presentation.body ?? "" }
+        return content.body
+    }
+}

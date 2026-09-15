@@ -10,6 +10,7 @@ import SwiftUI
 final class AppMarkdownDraft {
     @ObservationIgnored let store: BlockInputMemoryDocumentStore
     private(set) var isEffectivelyEmpty: Bool
+    @ObservationIgnored private var initialDocument: BlockInputDocument
     /// True while the document matches `referenceMarkdown`, for hosts offering a
     /// Reset affordance. Always false when no reference was supplied.
     private(set) var matchesReference: Bool
@@ -29,11 +30,15 @@ final class AppMarkdownDraft {
 
     init(markdown: String, referenceMarkdown: String? = nil) {
         let document = BlockInputDocument(markdown: markdown)
+        initialDocument = document
         store = BlockInputMemoryDocumentStore(document: document)
         isEffectivelyEmpty = document.isEffectivelyEmpty
         self.referenceMarkdown = referenceMarkdown
         matchesReference = referenceMarkdown == document.markdown
     }
+
+    /// Checked at commit or external refresh, never serialized per keystroke.
+    var hasChanges: Bool { store.document != initialDocument }
 
     var markdown: String {
         store.document.markdown
@@ -62,6 +67,7 @@ final class AppMarkdownDraft {
     /// the first block against the editor chrome.
     func resetContent(to markdown: String) {
         replaceText(markdown)
+        initialDocument = store.document
         contentGeneration += 1
     }
 
@@ -140,74 +146,10 @@ struct AppMarkdownEditor: View {
     }
 
     private var configuration: BlockInputConfiguration {
-        BlockInputConfiguration(
-            documentStore: draft.store,
-            allowsBlockReordering: false,
-            allowsDrops: false,
-            placeholder: placeholder,
-            isEditable: isEditable,
-            rawFileMentionChips: rawFileMentionChips,
-            style: Self.style,
-            heightSizing: heightSizing,
-            undoController: undoController,
-            keyboardShortcuts: keyboardShortcuts,
-            onDocumentChange: { [weak draft] document in
-                Task { @MainActor in
-                    draft?.noteDocumentChanged(document)
-                    onDocumentChange?()
-                }
-            }
+        AppMarkdownEditorConfiguration.make(
+            draft: draft, placeholder: placeholder, sizing: sizing, isEditable: isEditable,
+            rawFileMentionChips: rawFileMentionChips, undoController: undoController,
+            onSubmit: onSubmit, onCancel: onCancel, onDocumentChange: onDocumentChange
         )
-    }
-
-    private var heightSizing: BlockInputEditorHeightSizing? {
-        switch sizing {
-        case .fillsAvailableHeight:
-            return nil
-        case .growsToLineCount(let minimum, let maximum):
-            return BlockInputEditorHeightSizing(
-                defaultVisibleLineCount: minimum,
-                maximumVisibleLineCount: maximum
-            )
-        }
-    }
-
-    /// Cmd+Return submits and Escape cancels when the host provides the action;
-    /// plain Return stays a newline because every host here is multi-line, unlike
-    /// the chat composer.
-    private var keyboardShortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] {
-        var shortcuts: [BlockInputKeyboardShortcut: BlockInputKeyboardShortcutHandler] = [:]
-        if let onSubmit {
-            shortcuts[BlockInputKeyboardShortcut(key: .return, modifiers: .command)] = { _ in
-                onSubmit()
-                return .handled
-            }
-        }
-        if let onCancel {
-            shortcuts[BlockInputKeyboardShortcut(key: .escape)] = { _ in
-                onCancel()
-                return .handled
-            }
-        }
-        return shortcuts
-    }
-
-    /// Local chrome matching the app's input styling; deliberately not
-    /// `BlockInputComposerStyle`, which reaches into composer layout constants.
-    private static var style: BlockInputStyle {
-        var style = BlockInputStyle.default
-        style.editorSurface = BlockInputEditorSurfaceStyle(
-            editorBackgroundColor: nil,
-            scrollBackgroundColor: nil,
-            collectionBackgroundColor: nil,
-            chrome: BlockInputEditorChromeStyle(
-                fillColor: NSColor.textBackgroundColor.withAlphaComponent(0.55),
-                strokeColor: NSColor.separatorColor,
-                borderWidth: 1,
-                cornerRadius: 8,
-                clipsContentToShape: true
-            )
-        )
-        return style
     }
 }

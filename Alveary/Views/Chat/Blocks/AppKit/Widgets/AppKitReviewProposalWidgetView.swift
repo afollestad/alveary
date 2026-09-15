@@ -1,11 +1,6 @@
 import AppKit
 
-/// Body for `propose_pr_review`: the verdict the user is about to submit, the pending comments it
-/// would publish shown on their diff lines, and the confirm/reject decision.
-///
-/// Unlike the scheduling proposal beside it, confirming here awaits GitHub, so the row carries a
-/// submitting state; and unlike every other host-tool card, its verdict is editable — the model
-/// proposes, the user decides.
+/// A review decision with its saved comment, staged threads, and editable verdict.
 @MainActor
 final class AppKitReviewProposalWidgetView: NSView {
     struct Configuration: Equatable {
@@ -19,11 +14,15 @@ final class AppKitReviewProposalWidgetView: NSView {
         let outcome: HostToolWidgetOutcome?
         let errorMessage: String?
         let typography: TranscriptTypography
+        var summaryBody: String = ""
+        var summaryDocument: AppMarkdownDocument?
     }
 
     var onConfirm: ((String, PullRequestReviewEvent) -> Void)?
     var onReject: ((String) -> Void)?
     var onSelectEvent: ((String, PullRequestReviewEvent) -> Void)?
+    var onUpdateBody: ((String, String) -> Bool)?
+    var onImmediateHeightInvalidated: (() -> Void)?
     /// Drops one of the review's staged comments, by its position in the stored envelope.
     var onRemoveComment: ((String, Int) -> Void)?
     var onJumpToComment: ((String, DiffCommentAnchor) -> Void)?
@@ -41,6 +40,7 @@ final class AppKitReviewProposalWidgetView: NSView {
     private let diffView = AppKitReviewProposalDiffView()
     private let staleCommentsView = AppKitReviewProposalStaleCommentsView()
     private var configuration: Configuration?
+    private var summaryView: AppKitReviewProposalSummaryView?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -96,13 +96,16 @@ final class AppKitReviewProposalWidgetView: NSView {
     }
 
     var hasContent: Bool {
-        !stack.arrangedSubviews.isEmpty
+        stack.arrangedSubviews.contains { !$0.isHidden }
     }
 
     /// Widest row at its uncompressed size, so the shell can size to content. The actions row
     /// carries a flexible spacer, so measure its buttons instead.
     var naturalWidth: CGFloat {
         stack.arrangedSubviews.reduce(CGFloat.zero) { widest, row in
+            if let summary = row as? AppKitReviewProposalSummaryView {
+                return max(widest, summary.naturalWidth)
+            }
             if let staleRow = row as? AppKitReviewProposalStaleCommentsView {
                 return max(widest, min(staleRow.naturalWidth, Self.maximumDiffWidth))
             }
@@ -132,38 +135,13 @@ final class AppKitReviewProposalWidgetView: NSView {
         guard self.configuration != configuration else {
             return
         }
+        let previous = self.configuration
         self.configuration = configuration
-        rebuild(configuration)
-    }
-
-    static let selectableEvents: [PullRequestReviewEvent] = [.approve, .requestChanges, .comment]
-    /// Past this the card is sized by one long code line rather than by its controls.
-    static let maximumDiffWidth: CGFloat = 560
-    /// Clearance between the diff preview and the action row, replacing the stack's ordinary spacing.
-    static let actionRowSeparation: CGFloat = 12
-
-    static func verdictLabel(_ event: PullRequestReviewEvent) -> String {
-        switch event {
-        case .approve:
-            "Approve"
-        case .requestChanges:
-            "Request changes"
-        case .comment:
-            "Comment"
-        }
-    }
-
-    /// Leading glyph naming the verdict the primary half would submit. Matches
-    /// the pull-request pane's review footer so a verdict reads the same on
-    /// both surfaces.
-    static func verdictIcon(_ event: PullRequestReviewEvent) -> ActionIcon {
-        switch event {
-        case .approve:
-            .octicon(.checkCircle16)
-        case .requestChanges:
-            .octicon(.alert16)
-        case .comment:
-            .octicon(.codeReview16)
+        updateSummary(configuration)
+        if Self.needsBodyRebuild(previous, configuration) {
+            rebuild(configuration)
+        } else {
+            updateVerdictControl(configuration)
         }
     }
 
@@ -217,8 +195,40 @@ final class AppKitReviewProposalWidgetView: NSView {
 }
 
 private extension AppKitReviewProposalWidgetView {
+    func updateSummary(_ configuration: Configuration) {
+        let isInteractive = configuration.isInteractive && configuration.presentation != nil
+        guard isInteractive || !configuration.summaryBody.isEmpty else {
+            if let summaryView {
+                stack.removeArrangedSubview(summaryView)
+                summaryView.removeFromSuperview()
+                self.summaryView = nil
+            }
+            return
+        }
+        if summaryView == nil {
+            let summary = AppKitReviewProposalSummaryView()
+            summary.onSave = { [weak self] id, body in self?.onUpdateBody?(id, body) ?? false }
+            summary.onOpenLink = { [weak self] url in self?.onOpenMarkdownLink?(url) }
+            summary.onHeightInvalidated = { [weak self] in self?.onImmediateHeightInvalidated?() }
+            summary.onEditingChanged = { [weak self] in
+                guard let self, let configuration = self.configuration else { return }
+                updateVerdictControl(configuration)
+            }
+            summaryView = summary
+            stack.addFullWidthArrangedSubview(summary)
+        }
+        summaryView?.isHidden = false
+        summaryView?.configure(.init(
+            proposalID: isInteractive ? configuration.presentation?.id : nil,
+            markdown: configuration.summaryBody,
+            document: configuration.summaryDocument,
+            isEditable: isInteractive && !configuration.isSubmitting,
+            typography: configuration.typography
+        ))
+    }
+
     func rebuild(_ configuration: Configuration) {
-        stack.arrangedSubviews.forEach { view in
+        stack.arrangedSubviews.filter { $0 !== summaryView }.forEach { view in
             stack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
@@ -285,7 +295,7 @@ private extension AppKitReviewProposalWidgetView {
             let total = Self.fallbackCommentTotal(configuration)
             text = total > 0
                 ? "Publishes \(total) review comment\(total == 1 ? "" : "s")."
-                : "Publishes the review summary only."
+                : Self.noInlineCommentsSummary
         case .loaded(let preview):
             text = Self.loadedCommentSummary(preview)
         }
@@ -353,6 +363,14 @@ private extension AppKitReviewProposalWidgetView {
     /// only place a refusal reaches that card. Do not unify the two.
     func bannerMessages(_ configuration: Configuration) -> [String] {
         var messages: [String] = []
+        if configuration.isInteractive, configuration.summaryBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let event = configuration.selectedEvent ?? configuration.content.event
+            if event == .requestChanges {
+                messages.append("Request changes requires a top-level comment.")
+            } else if event == .comment, Self.fallbackCommentTotal(configuration) == 0 {
+                messages.append("Add a top-level comment or a review thread to submit a comment review.")
+            }
+        }
         if configuration.isInteractive, let errorMessage = configuration.errorMessage {
             messages.append(errorMessage)
         }
@@ -382,7 +400,7 @@ private extension AppKitReviewProposalWidgetView {
         // reviewing their own pull request can still switch to the verdict GitHub does allow.
         verdictControl.isEnabled = !configuration.isSubmitting
         verdictControl.setEnabled(
-            configuration.canSubmit && !isSelfReviewVerdict(selected, configuration),
+            configuration.canSubmit && summaryView?.isEditing != true && !isSelfReviewVerdict(selected, configuration),
             forSegment: 0
         )
         verdictControl.setEnabled(true, forSegment: 1)

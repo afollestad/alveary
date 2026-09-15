@@ -68,7 +68,8 @@ extension ChatItemGrouper {
             entry: entry.withOutcome(
                 existing.outcome,
                 definitionID: existing.outcomeDefinitionID,
-                title: existing.outcomeTitle
+                title: existing.outcomeTitle,
+                body: existing.outcomeBody
             )
         )
     }
@@ -86,7 +87,8 @@ extension ChatItemGrouper {
         let pending = PendingHostToolOutcome(
             outcome: outcome,
             definitionID: HostToolWidgetOutcomeMarker.definitionID(fromContent: content),
-            title: HostToolWidgetOutcomeMarker.title(fromContent: content)
+            title: HostToolWidgetOutcomeMarker.title(fromContent: content),
+            body: HostToolWidgetOutcomeMarker.body(fromContent: content)
         )
         // Cache regardless: a later replay of the same call must resolve too.
         pendingHostToolOutcomesByKey[key] = pending
@@ -154,7 +156,8 @@ private extension ChatItemGrouper {
             entry: entry.withOutcome(
                 pending.outcome,
                 definitionID: pending.definitionID,
-                title: pending.title
+                title: pending.title,
+                body: pending.body
             )
         )
     }
@@ -183,7 +186,8 @@ private extension ChatItemGrouper {
             outcomeKey: outcomeKey,
             outcome: pending?.outcome,
             outcomeDefinitionID: pending?.definitionID,
-            outcomeTitle: pending?.title
+            outcomeTitle: pending?.title,
+            outcomeBody: pending?.body
         )
     }
 }
@@ -193,6 +197,7 @@ struct PendingHostToolOutcome: Equatable {
     let outcome: HostToolWidgetOutcome
     let definitionID: String?
     let title: String?
+    let body: String?
 }
 
 /// Encoding for the feature-neutral `host_tool_outcome` marker payload.
@@ -200,7 +205,8 @@ enum HostToolWidgetOutcomeMarker {
     static func content(
         for outcome: HostToolWidgetOutcome,
         definitionID: String? = nil,
-        title: String? = nil
+        title: String? = nil,
+        body: String? = nil
     ) -> String {
         var payload: [String: String] = ["status": outcome.rawValue]
         if let definitionID {
@@ -209,6 +215,7 @@ enum HostToolWidgetOutcomeMarker {
         if let title {
             payload["title"] = title
         }
+        if let body { payload["body"] = body }
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let encoded = String(data: data, encoding: .utf8) else {
             return "{\"status\":\"\(outcome.rawValue)\"}"
@@ -229,6 +236,11 @@ enum HostToolWidgetOutcomeMarker {
     /// carried one (state-change requests, plain-text fallbacks).
     static func title(fromContent content: String) -> String? {
         decoded(content)?["title"]
+    }
+
+    /// Optional for older outcomes; an empty value must survive decoding.
+    static func body(fromContent content: String) -> String? {
+        decoded(content)?["body"]
     }
 
     private static func decoded(_ content: String) -> [String: String]? {

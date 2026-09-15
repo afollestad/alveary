@@ -48,7 +48,8 @@ extension ChatItemGrouper {
             outcomeKey: payload.proposalID,
             outcome: pending?.outcome,
             outcomeDefinitionID: pending?.definitionID,
-            outcomeTitle: pending?.title
+            outcomeTitle: pending?.title,
+            outcomeBody: pending?.body
         )
         currentToolApprovalBatch = nil
         flushGroup()

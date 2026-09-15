@@ -60,6 +60,7 @@ final class AppKitTranscriptRowFactory {
         var onConfirmReviewProposal: (String, PullRequestReviewEvent) -> Void = { _, _ in }
         var onRejectReviewProposal: (String) -> Void = { _ in }
         var onSelectReviewVerdict: (String, PullRequestReviewEvent) -> Void = { _, _ in }
+        var onUpdateReviewProposalBody: (String, String) -> Bool = { _, _ in false }
         /// Drops one staged comment from a review proposal, by its position in the stored envelope.
         var onRemoveReviewProposalComment: (String, Int) -> Void = { _, _ in }
         /// Opens one staged comment in the pull request pane. A pure output callback, so it stays

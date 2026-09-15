@@ -71,7 +71,8 @@ extension PullRequestReviewTeamCoordinator {
             return
         }
         PullRequestReviewProposalOutcomeRecorder.record(
-            proposalID: priorID, sourceConversationID: owner, outcome: .rejected, in: modelContext
+            proposalID: priorID, sourceConversationID: owner, outcome: .rejected,
+            body: run.priorProposal.proposalBody, in: modelContext
         )
     }
 }

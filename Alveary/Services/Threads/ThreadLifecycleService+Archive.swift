@@ -78,6 +78,7 @@ extension ThreadLifecycleService {
 private struct PullRequestReviewProposalRejection {
     let proposalID: String
     let conversationID: String
+    let body: String
 }
 
 /// Archiving dismisses any review proposal the thread is holding.
@@ -99,7 +100,8 @@ extension ThreadLifecycleService {
             conversation.clearPullRequestReviewProposal()
             return PullRequestReviewProposalRejection(
                 proposalID: record.id,
-                conversationID: conversation.id
+                conversationID: conversation.id,
+                body: record.body ?? ""
             )
         }
     }
@@ -113,6 +115,7 @@ extension ThreadLifecycleService {
                 proposalID: rejection.proposalID,
                 sourceConversationID: rejection.conversationID,
                 outcome: .rejected,
+                body: rejection.body,
                 in: modelContext
             )
         }

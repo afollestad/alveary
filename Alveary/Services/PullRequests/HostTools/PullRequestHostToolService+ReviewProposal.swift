@@ -325,6 +325,7 @@ private extension PullRequestHostToolService {
             proposalID: record.id,
             sourceConversationID: conversation.id,
             outcome: .rejected,
+            body: record.body ?? "",
             in: modelContext,
             at: requestDate
         )

@@ -14,6 +14,7 @@ extension PullRequestReviewProposalCoordinator {
     func beginSubmitting(_ proposalID: String, conversationID: String) {
         submittingConversationIDsByProposalID[proposalID] = conversationID
         PullRequestReviewProposalEditState.beginSubmission(proposalID: proposalID)
+        refreshSharedSubmissionState()
         PullRequestReviewSubmissionActivity.post(
             conversationID: conversationID,
             isSubmitting: true,
@@ -26,6 +27,7 @@ extension PullRequestReviewProposalCoordinator {
     func endSubmitting(_ proposalID: String, conversationID: String) {
         submittingConversationIDsByProposalID[proposalID] = nil
         PullRequestReviewProposalEditState.endSubmission(proposalID: proposalID)
+        refreshSharedSubmissionState()
         PullRequestReviewSubmissionActivity.post(
             conversationID: conversationID,
             isSubmitting: false,
@@ -39,8 +41,7 @@ extension PullRequestReviewProposalCoordinator {
     /// `submitPendingReview` is the one call that publishes anything. A failure before it leaves
     /// only a private draft, and the card stays confirmable for a retry.
     ///
-    /// `body` is already resolved by the caller: the pull request pane's footer summary when the
-    /// submit came from there, otherwise what the model proposed.
+    /// `body` is the saved comment, including an intentional clear.
     func submit(
         presentation: PullRequestReviewProposalPresentation,
         event: PullRequestReviewEvent,

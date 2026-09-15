@@ -88,7 +88,7 @@ extension PullRequestReviewProposalCoordinator {
                         PullRequestReviewProposalPreview(
                             files: [],
                             annotations: DiffCommentAnnotations(),
-                            pendingCommentCount: 0,
+                            pendingCommentCount: detail.pendingCommentCount,
                             proposedCommentCount: 0,
                             hiddenFileCount: 0,
                             staleComments: [],
@@ -158,7 +158,7 @@ extension PullRequestReviewProposalCoordinator {
                 PullRequestReviewProposalPreview(
                     files: shown,
                     annotations: annotations,
-                    pendingCommentCount: pendingThreads.reduce(0) { $0 + $1.comments.count },
+                    pendingCommentCount: detail.pendingCommentCount,
                     proposedCommentCount: presentation.comments.count,
                     hiddenFileCount: files.count - shown.count,
                     staleComments: stale,

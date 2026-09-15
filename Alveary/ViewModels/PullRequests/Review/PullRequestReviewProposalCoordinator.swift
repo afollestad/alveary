@@ -9,7 +9,8 @@ import SwiftData
 @MainActor
 @Observable
 final class PullRequestReviewProposalCoordinator {
-    @ObservationIgnored private let modelContext: ModelContext
+    /// Shared with the persistence companion for its container and outcome records.
+    @ObservationIgnored let modelContext: ModelContext
     @ObservationIgnored private let pullRequestsService: any PullRequestsService
     /// Internal rather than private so `+Submission.swift` can announce the submitting span on the
     /// same bus this coordinator observes. Immutable, so nothing is loosened by widening it.
@@ -20,6 +21,7 @@ final class PullRequestReviewProposalCoordinator {
     @ObservationIgnored let previewCache: PullRequestReviewProposalPreviewCache?
     @ObservationIgnored private var observationTask: Task<Void, Never>?
     @ObservationIgnored private var remoteChangeTask: Task<Void, Never>?
+    @ObservationIgnored private var bodyChangeTask: Task<Void, Never>?
     @ObservationIgnored var previewCacheTask: Task<Void, Never>?
     @ObservationIgnored var previewWarmTask: Task<Void, Never>?
     /// How long `scheduleRemoteReload` waits before reloading what an announcement invalidated.
@@ -51,6 +53,7 @@ final class PullRequestReviewProposalCoordinator {
         Set(submittingConversationIDsByProposalID.values)
     }
 
+    private var sharedSubmittingProposalIDs: Set<String> = []
     private(set) var errorMessages: [String: String] = [:]
     /// The diff-with-comments preview each card renders, painted from cache and refreshed behind.
     ///
@@ -93,6 +96,7 @@ final class PullRequestReviewProposalCoordinator {
     deinit {
         observationTask?.cancel()
         remoteChangeTask?.cancel()
+        bodyChangeTask?.cancel()
         previewCacheTask?.cancel()
         previewWarmTask?.cancel()
         remoteReloadTask?.cancel()
@@ -120,6 +124,8 @@ final class PullRequestReviewProposalCoordinator {
 
     func isSubmitting(proposalID: String) -> Bool {
         submittingConversationIDsByProposalID[proposalID] != nil
+            || sharedSubmittingProposalIDs.contains(proposalID)
+            || PullRequestReviewProposalEditState.current(proposalID: proposalID)?.isSubmitting == true
     }
 
     func errorMessage(forProposalID proposalID: String) -> String? {
@@ -128,7 +134,8 @@ final class PullRequestReviewProposalCoordinator {
 
     func reload() {
         var loaded: [String: PullRequestReviewProposalPresentation] = [:]
-        guard let conversations = try? modelContext.fetch(
+        let reader = ModelContext(modelContext.container)
+        guard let conversations = try? reader.fetch(
             PullRequestReviewProposalLookup.proposalHoldingConversations
         ) else {
             return
@@ -145,6 +152,7 @@ final class PullRequestReviewProposalCoordinator {
             loaded[owner.record.id] = presentation
         }
         presentations = loaded
+        refreshSharedSubmissionState()
         // Drop preview and error state for proposals that are gone, so a confirmed card cannot
         // keep a stale banner or hold its diff in memory.
         let liveIDs = Set(loaded.keys)
@@ -167,23 +175,12 @@ final class PullRequestReviewProposalCoordinator {
         loadCachedPreviews()
     }
 
-    /// Submits the review the user confirmed. `event` is what the card's verdict picker holds,
-    /// which may differ from what the model proposed.
-    ///
-    /// `bodyOverride` is the summary the pull request pane's footer holds when the submit came from
-    /// there; the card passes none and publishes what the model wrote. Empty is the caller's to
-    /// normalize away — an untouched footer must fall back to the proposal's body rather than
-    /// blanking it.
+    /// Publishes the saved proposal, including an intentionally empty top-level comment.
     @discardableResult
-    func confirm(
-        proposalID: String,
-        event: PullRequestReviewEvent,
-        bodyOverride: String? = nil
-    ) async -> Bool {
-        guard submittingConversationIDsByProposalID[proposalID] == nil,
-              let presentation = presentations[proposalID] else {
-            return false
-        }
+    func confirm(proposalID: String, event: PullRequestReviewEvent) async -> Bool {
+        guard !isSubmitting(proposalID: proposalID),
+              refreshSavedProposal(proposalID: proposalID),
+              let presentation = presentations[proposalID] else { return false }
         beginSubmitting(proposalID, conversationID: presentation.sourceConversationID)
         errorMessages[proposalID] = nil
         // Entering and leaving the submitting state both re-render the card; the transcript
@@ -198,10 +195,11 @@ final class PullRequestReviewProposalCoordinator {
             // Re-read GitHub rather than trusting the snapshot: the pull request can merge, or the
             // draft review can change, between proposing and confirming.
             let detail = try await pullRequestsService.fetchDetail(presentation.identifier)
+            guard validateSubmission(presentation: presentation, event: event, detail: detail) else { return false }
             try await submit(
                 presentation: presentation,
                 event: event,
-                body: bodyOverride ?? presentation.body ?? "",
+                body: presentation.body ?? "",
                 detail: detail
             )
         } catch {
@@ -233,6 +231,7 @@ final class PullRequestReviewProposalCoordinator {
             sourceConversationID: presentation.sourceConversationID,
             outcome: .confirmed,
             submittedEvent: PullRequestHostToolRequestParser.reviewEventName(for: event),
+            body: presentation.body ?? "",
             in: modelContext,
             at: now()
         )
@@ -243,10 +242,9 @@ final class PullRequestReviewProposalCoordinator {
 
     @discardableResult
     func reject(proposalID: String) -> Bool {
-        guard submittingConversationIDsByProposalID[proposalID] == nil,
-              let presentation = presentations[proposalID] else {
-            return false
-        }
+        guard !isSubmitting(proposalID: proposalID),
+              refreshSavedProposal(proposalID: proposalID),
+              let presentation = presentations[proposalID] else { return false }
         guard clearProposal(proposalID: proposalID, conversationID: presentation.sourceConversationID) else {
             errorMessages[proposalID] = "Alveary could not dismiss this review proposal."
             notifyChanged()
@@ -256,6 +254,7 @@ final class PullRequestReviewProposalCoordinator {
             proposalID: proposalID,
             sourceConversationID: presentation.sourceConversationID,
             outcome: .rejected,
+            body: presentation.body ?? "",
             in: modelContext,
             at: now()
         )
@@ -264,12 +263,25 @@ final class PullRequestReviewProposalCoordinator {
         return true
     }
 
-    /// Drops one of the review's staged comments before it is submitted. `index` is the comment's
-    /// position in `PullRequestReviewProposalPresentation.comments`, which is the UI removal
-    /// address even when collective evidence carries a durable comment id.
-    ///
-    /// Local by construction: a staged comment exists nowhere on GitHub until the user confirms, so
-    /// this rewrites the stored envelope and prunes the loaded preview rather than calling anything.
+    /// Saves locally without invalidating the diff or regrouping transcript records.
+    @discardableResult
+    func updateBody(proposalID: String, body: String) -> Bool {
+        guard !isSubmitting(proposalID: proposalID),
+              let presentation = presentations[proposalID] else { return false }
+        guard let updated = rewriteProposal(presentation: presentation, { $0.replacingBody(body) }) else {
+            errorMessages[proposalID] = "Alveary could not save this review comment."
+            notifyChanged()
+            return false
+        }
+        apply(updated, for: presentation)
+        PullRequestReviewProposalEditState.recordEdit(proposalID: proposalID)
+        errorMessages[proposalID] = nil
+        notifySavedBodyChanged(proposalID: proposalID)
+        return true
+    }
+
+    /// Removes a staged comment by presentation index, rewriting the envelope and pruning the
+    /// loaded preview locally; staged comments do not exist on GitHub until confirmation.
     @discardableResult
     func removeStagedComment(proposalID: String, at index: Int) -> Bool {
         guard submittingConversationIDsByProposalID[proposalID] == nil,
@@ -294,11 +306,7 @@ final class PullRequestReviewProposalCoordinator {
         return true
     }
 
-    /// Stages one more inline comment on the review, for a comment composed in the pull request
-    /// pane while this proposal is pending.
-    ///
-    /// Local like `removeStagedComment` — the comment exists nowhere on GitHub until the review is
-    /// submitted, which is the whole point of composing here rather than into the viewer's draft.
+    /// Stages a pane-composed comment locally until the proposal is confirmed.
     /// The tool's `maxReviewCommentsPerProposal` deliberately does not apply: it bounds what a
     /// model may send in one call, not what a person may write by hand.
     @discardableResult
@@ -376,8 +384,29 @@ final class PullRequestReviewProposalCoordinator {
         return PullRequestsViewModel.canSubmitReview(
             event: event,
             draft: draft,
-            pendingCommentCount: presentation.pendingCommentCount + presentation.comments.count
+            pendingCommentCount: pendingCommentCount(proposalID: proposalID) + presentation.comments.count
         )
+    }
+
+    /// Refreshes only one saved envelope, retaining its diff and the other rows' state.
+    @discardableResult
+    func refreshSavedProposal(proposalID: String) -> Bool {
+        guard let presentation = presentations[proposalID],
+              let record = savedProposal(for: presentation) else {
+            errorMessages[proposalID] = "This review proposal is no longer available."
+            notifyChanged()
+            return false
+        }
+        apply(record, for: presentation)
+        return true
+    }
+
+    /// Mirrors app-wide activity into observable state so another window's footer disables too.
+    func refreshSharedSubmissionState() {
+        let submitting = Set(presentations.keys.filter {
+            PullRequestReviewProposalEditState.current(proposalID: $0)?.isSubmitting == true
+        })
+        if sharedSubmittingProposalIDs != submitting { sharedSubmittingProposalIDs = submitting }
     }
 
     var service: any PullRequestsService {
@@ -386,29 +415,30 @@ final class PullRequestReviewProposalCoordinator {
 }
 
 private extension PullRequestReviewProposalCoordinator {
-    /// Re-reads the envelope before editing it — the proposal may have been resolved or superseded
-    /// since the surface that asked for the edit rendered — and returns the stored replacement.
-    /// `edit` returns nil to refuse.
-    func rewriteProposal(
+    func validateSubmission(
         presentation: PullRequestReviewProposalPresentation,
-        _ edit: (PullRequestReviewProposalRecord) -> PullRequestReviewProposalRecord?
-    ) -> PullRequestReviewProposalRecord? {
-        guard let conversation = modelContext.resolveConversation(
-            conversationID: presentation.sourceConversationID
-        ),
-            let record = try? conversation.pullRequestReviewProposal(),
-            record.id == presentation.id,
-            let updated = edit(record) else {
-            return nil
+        event: PullRequestReviewEvent,
+        detail: PullRequestDetail
+    ) -> Bool {
+        if detail.viewerLogin == detail.authorLogin, event == .approve || event == .requestChanges {
+            errorMessages[presentation.id] = "Only Comment is available on your own pull request."
+            return false
         }
-        do {
-            try conversation.storePullRequestReviewProposal(updated)
-            try modelContext.save()
-            return updated
-        } catch {
-            modelContext.rollback()
-            return nil
+        var draft = PendingReviewDraft()
+        draft.overallComment = presentation.body ?? ""
+        guard PullRequestsViewModel.canSubmitReview(
+            event: event, draft: draft,
+            pendingCommentCount: detail.pendingCommentCount + presentation.comments.count
+        ) else {
+            errorMessages[presentation.id] = "This review needs a top-level comment or a different review action."
+            return false
         }
+        return true
+    }
+
+    func pendingCommentCount(proposalID: String) -> Int {
+        if case .loaded(let preview) = previews[proposalID] { return preview.pendingCommentCount }
+        return presentations[proposalID]?.pendingCommentCount ?? 0
     }
 
     /// Republishes an edited envelope. A nil re-derivation would clear the entry, dropping a
@@ -428,26 +458,6 @@ private extension PullRequestReviewProposalCoordinator {
         presentations[presentation.id] = refreshed
     }
 
-    /// Clears the envelope in its own save, ahead of the outcome marker's.
-    func clearProposal(proposalID: String, conversationID: String) -> Bool {
-        guard let conversation = modelContext.resolveConversation(conversationID: conversationID) else {
-            // The conversation is gone, so the proposal went with it.
-            return true
-        }
-        guard (try? conversation.pullRequestReviewProposal())??.id == proposalID else {
-            // Already resolved elsewhere; whichever path did it wrote the marker.
-            return true
-        }
-        conversation.clearPullRequestReviewProposal()
-        do {
-            try modelContext.save()
-            return true
-        } catch {
-            modelContext.rollback()
-            return false
-        }
-    }
-
     static func message(for error: Error) -> String {
         guard let serviceError = error as? PullRequestsServiceError else {
             return error.localizedDescription
@@ -456,6 +466,7 @@ private extension PullRequestReviewProposalCoordinator {
     }
 
     func observeChanges() {
+        bodyChangeTask = makeBodyChangeObservationTask()
         let notifications = notificationCenter.notifications(named: .pullRequestReviewProposalsChanged)
         observationTask = Task { @MainActor [weak self] in
             for await _ in notifications {

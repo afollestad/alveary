@@ -243,18 +243,14 @@ final class ReviewProposalCoordinatorTests: XCTestCase {
         XCTAssertEqual(thread.comments.first?.isProposed, true)
     }
 
-    /// The pane footer carries its own summary, which outranks what the model wrote.
-    func testConfirmingWithABodyOverrideSubmitsTheOverride() async throws {
+    func testConfirmingSubmitsTheSavedBody() async throws {
         let fixture = try ReviewProposalFixture()
         fixture.service.detailResult = .success(
             makePullRequestDetail(id: ReviewProposalFixture.identifier, pendingReviewNodeID: "DRAFT_1")
         )
 
-        let didSubmit = await fixture.coordinator.confirm(
-            proposalID: ReviewProposalFixture.proposalID,
-            event: .approve,
-            bodyOverride: "The reviewer's own words."
-        )
+        XCTAssertTrue(fixture.coordinator.updateBody(proposalID: ReviewProposalFixture.proposalID, body: "The reviewer's own words."))
+        let didSubmit = await fixture.coordinator.confirm(proposalID: ReviewProposalFixture.proposalID, event: .approve)
 
         XCTAssertTrue(didSubmit)
         XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["The reviewer's own words."])

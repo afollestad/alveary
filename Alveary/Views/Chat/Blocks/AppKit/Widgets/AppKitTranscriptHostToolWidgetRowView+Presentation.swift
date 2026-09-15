@@ -81,3 +81,48 @@ extension AppKitTranscriptHostToolWidgetRowView {
         }
     }
 }
+
+/// Installs the prepared review body without parsing during measurement.
+extension AppKitTranscriptHostToolWidgetRowView {
+    /// Its own function so `updateBody` stays inside the shared function-length limit; the
+    /// proposal is the one body here with live confirmation state to thread through.
+    func updateReviewProposalBody(
+        _ content: PullRequestReviewProposalWidgetContent,
+        configuration: Configuration
+    ) {
+        let state = configuration.reviewProposal ?? ReviewProposalWidgetState()
+        reviewProposalBody.avatarLoader = avatarLoader
+        reviewProposalBody.configure(
+            .init(
+                content: content,
+                presentation: state.presentation,
+                preview: state.preview,
+                selectedEvent: state.selectedEvent,
+                canSubmit: state.canSubmit,
+                isInteractive: configuration.isProposalInteractive,
+                isSubmitting: state.isSubmitting,
+                outcome: configuration.entry.outcome,
+                errorMessage: state.errorMessage ?? configuration.errorMessage,
+                typography: configuration.typography,
+                summaryBody: ReviewProposalWidgetState.summaryBody(for: configuration.entry, state: state) ?? "",
+                summaryDocument: reviewSummaryDocument(configuration)
+            )
+        )
+        reviewProposalBody.isHidden = !reviewProposalBody.hasContent
+    }
+
+}
+
+extension AppKitTranscriptHostToolWidgetRowView {
+    func reviewSummaryDocument(_ configuration: Configuration) -> AppMarkdownDocument? {
+        if let document = configuration.reviewSummaryDocument { return document }
+        guard let markdown = ReviewProposalWidgetState.summaryBody(for: configuration.entry, state: configuration.reviewProposal),
+              !markdown.isEmpty else { return nil }
+        return AppMarkdownDocumentCache.document(
+            markdown: markdown,
+            context: AppMarkdownDocumentCacheContext(baseURL: nil, inlineCodeStyle: .standard, composerChipMode: .none, taskStateScope: nil)
+        ) {
+            AppMarkdownParser().documentPreservingSource(for: markdown)
+        }
+    }
+}

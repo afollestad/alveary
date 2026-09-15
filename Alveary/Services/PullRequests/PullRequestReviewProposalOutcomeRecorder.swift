@@ -11,11 +11,13 @@ import SwiftData
 /// Failing between the two saves leaves the widget unresolved rather than wrongly resolved, which
 /// is the safe direction when the alternative is a card claiming a review was submitted.
 enum PullRequestReviewProposalOutcomeRecorder {
+    /// Only legacy recovery may lack a body; an explicitly empty comment must be recorded as an empty string.
     static func record(
         proposalID: String,
         sourceConversationID: String,
         outcome: HostToolWidgetOutcome,
         submittedEvent: String? = nil,
+        body: String?,
         in modelContext: ModelContext,
         at timestamp: Date = .now
     ) {
@@ -27,7 +29,7 @@ enum PullRequestReviewProposalOutcomeRecorder {
             type: ConversationEventRecord.hostToolOutcomeType,
             // The verdict rides in `title`: the user may confirm a different one than the model
             // proposed, and the resolved card has to name what was actually submitted.
-            content: HostToolWidgetOutcomeMarker.content(for: outcome, title: submittedEvent),
+            content: HostToolWidgetOutcomeMarker.content(for: outcome, title: submittedEvent, body: body),
             toolId: proposalID,
             toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.proposeReviewToolName),
             timestamp: timestamp,

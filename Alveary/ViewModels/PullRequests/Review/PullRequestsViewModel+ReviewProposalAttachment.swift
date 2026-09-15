@@ -101,31 +101,16 @@ extension PullRequestsViewModel {
         return true
     }
 
-    /// The summary a submit from this pane would publish, under `confirm`'s own precedence: the
-    /// footer's text when it has one, otherwise what the model proposed.
-    ///
-    /// Both submit gates read this rather than `session.pendingReview.overallComment` alone. The
-    /// footer's verdict is seeded from the proposal, so a proposed `request_changes` arrives with
-    /// the composer untouched — and validating the empty composer would disable Submit over a body
-    /// `confirm` was going to supply anyway, with nothing on screen explaining the dead button.
-    ///
-    /// `typedOverride` stands in for the session's stored summary while the footer's editor is
-    /// mounted, because the live editor can be empty with stale text still serialized behind it.
-    /// It is a presence check, not the text — the footer passes a placeholder rather than encoding
-    /// markdown per keystroke.
-    ///
-    /// Takes the session for the reason `submittableCommentCount` does.
+    /// A mounted editor's value, including empty, wins validation. Otherwise the saved proposal
+    /// owns the body; the session draft is used only when no proposal is pending.
     func resolvedReviewSummary(
         for target: PullRequestPaneTarget,
         session: PullRequestPaneSession,
         typedOverride: String? = nil
     ) -> String {
-        let typed = (typedOverride ?? session.pendingReview.overallComment)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard typed.isEmpty else {
-            return typed
-        }
-        return pendingReviewProposal(for: target)?.body ?? ""
+        if let typedOverride { return typedOverride }
+        if let proposal = pendingReviewProposal(for: target) { return proposal.body ?? "" }
+        return session.pendingReview.overallComment
     }
 
     /// Writes a composed comment into the pending proposal's envelope instead of GitHub's draft.
@@ -165,14 +150,7 @@ extension PullRequestsViewModel {
         }
     }
 
-    /// Submits through the proposal coordinator so one GitHub review carries both sets: the
-    /// coordinator writes the staged comments into the viewer's draft — the same draft the pane's
-    /// own pending comments already live in — and publishes it once.
-    ///
-    /// The summary has two sources. The footer's text wins when it has one, falling back to what
-    /// the model proposed, so an untouched footer publishes the proposal's body rather than
-    /// blanking it. A successful confirm clears the envelope, so the staged comments drop out of
-    /// the pane on the next read and the transcript card resolves as confirmed — no detaching to do.
+    /// Publishes the saved body and both sets of comments as one review, then refreshes the pane.
     func submitProposedReview(
         _ proposal: PullRequestReviewProposalPresentation,
         event: PullRequestReviewEvent,
@@ -183,15 +161,13 @@ extension PullRequestsViewModel {
             return false
         }
         let generation = session.generation
-        let summary = session.pendingReview.overallComment.trimmingCharacters(in: .whitespacesAndNewlines)
         updateSession(target, generation: generation) { session in
             session.pendingReview.isSubmitting = true
             session.pendingReview.submissionError = nil
         }
         guard await coordinator.confirm(
             proposalID: proposal.id,
-            event: event,
-            bodyOverride: summary.isEmpty ? nil : summary
+            event: event
         ) else {
             updateSession(target, generation: generation) { session in
                 session.pendingReview.isSubmitting = false

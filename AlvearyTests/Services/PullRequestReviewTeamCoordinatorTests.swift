@@ -100,13 +100,14 @@ struct PullRequestReviewTeamCoordinatorTests {
         #expect(await fixture.worker.calls.isEmpty)
     }
 
-    @Test
-    func `staging receipt prevents recreation and repairs superseded outcomes once`() async throws {
+    @Test(arguments: ["Edited\n\nSummary", "", nil])
+    func `staging receipt prevents recreation and repairs superseded outcomes once`(body: String?) async throws {
         let fixture = try ReviewCoordinatorFixture()
         let owner = Conversation(id: "old-owner", provider: "codex", thread: fixture.conversation.thread)
         fixture.container.mainContext.insert(owner)
         var run = try fixture.makeRun(prior: PullRequestCollectiveReviewStagingSnapshot(
-            proposalOwnerConversationID: owner.id, proposalID: "old-proposal", proposalContentHash: "old-content", editState: nil
+            proposalOwnerConversationID: owner.id, proposalID: "old-proposal", proposalContentHash: "old-content",
+            editState: nil, proposalBody: body
         ))
         run.phase = .staged
         run.resultHash = "terminal-receipt"
@@ -118,6 +119,8 @@ struct PullRequestReviewTeamCoordinatorTests {
         #expect(try fixture.conversation.pullRequestReviewProposal() == nil)
         #expect(fixture.coordinator.workingConversationIDs.isEmpty)
         #expect(owner.events.filter { $0.type == ConversationEventRecord.hostToolOutcomeType && $0.toolId == "old-proposal" }.count == 1)
+        let marker = try #require(owner.events.first { $0.type == ConversationEventRecord.hostToolOutcomeType })
+        #expect(HostToolWidgetOutcomeMarker.body(fromContent: try #require(marker.content)) == body)
         #expect(fixture.notificationManager.handleEventCalls.isEmpty)
     }
 

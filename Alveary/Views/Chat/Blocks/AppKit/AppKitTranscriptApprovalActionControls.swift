@@ -21,6 +21,13 @@ final class AppKitTranscriptApprovalButton: NSButton {
     var actionStyle: AppKitTranscriptApprovalButtonStyle = .primary {
         didSet { needsDisplay = true }
     }
+    /// A tint opts into unfilled inline chrome without horizontal padding; nil preserves the approval button's normal style.
+    var inlineForegroundColor: NSColor? {
+        didSet {
+            needsDisplay = true
+            invalidateIntrinsicContentSize()
+        }
+    }
     /// `draw(_:)` paints this itself, so `NSButton.image` is cleared and its
     /// positioning/scaling properties are inert.
     var icon: ActionIcon? {
@@ -44,7 +51,8 @@ final class AppKitTranscriptApprovalButton: NSButton {
             AppKitTranscriptApprovalButtonMetrics.iconSize + AppKitTranscriptApprovalButtonMetrics.iconTextSpacing
         let shortcutWidth = measuredShortcutWidth
         let shortcutSpacing = shortcutWidth > 0 ? AppKitTranscriptApprovalButtonMetrics.shortcutSpacing : 0
-        return ceil((AppKitTranscriptApprovalButtonMetrics.horizontalPadding * 2) + imageWidth + titleWidth)
+        let horizontalPadding = inlineForegroundColor == nil ? AppKitTranscriptApprovalButtonMetrics.horizontalPadding : 0
+        return ceil((horizontalPadding * 2) + imageWidth + titleWidth)
             + shortcutSpacing
             + shortcutWidth
     }
@@ -106,6 +114,12 @@ final class AppKitTranscriptApprovalButton: NSButton {
         if keyEventHandler?(event) == true {
             return
         }
+        // Borderless buttons can receive focus without activating through AppKit's default keyDown.
+        if inlineForegroundColor != nil, isEnabled, [36, 49, 76].contains(event.keyCode),
+           event.modifierFlags.isDisjoint(with: [.command, .control, .option]) {
+            performClick(nil)
+            return
+        }
         super.keyDown(with: event)
     }
 
@@ -114,12 +128,37 @@ final class AppKitTranscriptApprovalButton: NSButton {
         drawContents()
     }
 
+    override var focusRingMaskBounds: NSRect {
+        inlineForegroundColor == nil ? super.focusRingMaskBounds : bounds
+    }
+
+    override func drawFocusRingMask() {
+        guard inlineForegroundColor != nil else {
+            super.drawFocusRingMask()
+            return
+        }
+        NSBezierPath(
+            roundedRect: bounds,
+            xRadius: AppKitTranscriptApprovalButtonMetrics.cornerRadius,
+            yRadius: AppKitTranscriptApprovalButtonMetrics.cornerRadius
+        ).fill()
+    }
+
     private var drawingFont: NSFont {
         font ?? .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
     }
 
     private var foregroundColor: NSColor {
-        .labelColor.appKitResolvedColor(in: self, alpha: isEnabled ? 1 : 0.78)
+        if let inlineForegroundColor {
+            return inlineForegroundColor.appKitResolvedColor(in: self, alpha: inlineForegroundOpacity)
+        }
+        return .labelColor.appKitResolvedColor(in: self, alpha: isEnabled ? 1 : 0.78)
+    }
+
+    private var inlineForegroundOpacity: CGFloat {
+        guard isEnabled else { return InlineActionButtonOpacity.disabled }
+        if isHovering || isHighlighted { return InlineActionButtonOpacity.active }
+        return InlineActionButtonOpacity.resting(increasesContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
     }
 
     private var fillColor: NSColor {
@@ -138,6 +177,14 @@ final class AppKitTranscriptApprovalButton: NSButton {
             xRadius: AppKitTranscriptApprovalButtonMetrics.cornerRadius,
             yRadius: AppKitTranscriptApprovalButtonMetrics.cornerRadius
         )
+        if let inlineForegroundColor {
+            // AppKit highlights keyboard and accessibility presses without entering mouseDown.
+            if isEnabled, isHighlighted {
+                inlineForegroundColor.appKitResolvedColor(in: self, alpha: 0.12).setFill()
+                path.fill()
+            }
+            return
+        }
         fillColor.setFill()
         path.fill()
         if isHovering, isEnabled, !isPressed {

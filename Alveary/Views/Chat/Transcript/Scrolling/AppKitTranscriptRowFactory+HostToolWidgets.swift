@@ -8,6 +8,7 @@ extension AppKitTranscriptRowFactory {
     ) -> AppKitTranscriptLayoutRow {
         let view = cachedView(for: id, as: AppKitTranscriptHostToolWidgetRowView.self)
         view.onHeightInvalidated = heightInvalidationHandler(for: id, configuration: configuration)
+        view.onImmediateHeightInvalidated = heightInvalidationHandler(for: id, animatesLayoutChanges: false, configuration: configuration)
         view.onConfirmScheduledProposal = configuration.onConfirmScheduledProposal
         view.onReviewScheduledProposal = configuration.onReviewScheduledProposal
         view.onRejectScheduledProposal = configuration.onRejectScheduledProposal
@@ -18,6 +19,7 @@ extension AppKitTranscriptRowFactory {
         view.onRejectReviewProposal = configuration.onRejectReviewProposal
         view.onSelectReviewVerdict = configuration.onSelectReviewVerdict
         view.onRemoveReviewProposalComment = configuration.onRemoveReviewProposalComment
+        view.onUpdateReviewProposalBody = configuration.onUpdateReviewProposalBody
         view.onJumpToReviewProposalComment = configuration.onJumpToReviewProposalComment
         view.avatarLoader = configuration.reviewProposalAvatarLoader
         view.onOpenMarkdownLink = configuration.onOpenMarkdownLink
@@ -32,8 +34,8 @@ extension AppKitTranscriptRowFactory {
         }
         // Same rule as the scheduling proposal above: a resolved card must not adopt the
         // conversation's next review proposal.
-        let review = entry.reviewProposalID.flatMap(configuration.reviewProposalState)
-            ?? (entry.isUnresolvedReviewProposal ? configuration.conversationReviewProposal() : nil)
+        let review = configuration.reviewState(for: entry)
+        let summaryRequest = reviewSummaryPreparationRequest(id: id, entry: entry, state: review)
         view.configure(
             .init(
                 entry: entry,
@@ -45,9 +47,18 @@ extension AppKitTranscriptRowFactory {
                 isTargetRunInFlight: targetRow?.hasActiveRun ?? false,
                 errorMessage: configuration.scheduledProposalErrorMessage,
                 bubbleMaxWidth: configuration.bubbleMaxWidth,
-                typography: configuration.typography
+                typography: configuration.typography,
+                reviewSummaryDocument: summaryRequest.flatMap { preparedMarkdownDocuments[$0] }
             )
         )
         return .init(id: id, view: view)
+    }
+}
+
+extension AppKitTranscriptRowFactory.Configuration {
+    /// Resolved cards cannot adopt a newer proposal from the same conversation.
+    func reviewState(for entry: HostToolWidgetEntry) -> ReviewProposalWidgetState? {
+        entry.reviewProposalID.flatMap(reviewProposalState)
+            ?? (entry.isUnresolvedReviewProposal ? conversationReviewProposal() : nil)
     }
 }

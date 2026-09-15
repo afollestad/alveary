@@ -14,6 +14,7 @@ struct PullRequestCommentEditor: View {
     /// Visible lines before the editor grows. Comments keep two; the PR
     /// description opens at four, matching how much more it usually holds.
     var minimumVisibleLineCount = 2
+    var isEditable = true
     var isFocused: Binding<Bool>?
     /// Fired on Cmd+Return inside the editor. Hosts run their primary save/submit
     /// action here, including its enablement guard — the shortcut must never
@@ -29,6 +30,7 @@ struct PullRequestCommentEditor: View {
             placeholder: placeholder,
             sizing: .growsToLineCount(minimum: minimumVisibleLineCount, maximum: 10),
             isFocused: isFocused,
+            isEditable: isEditable,
             onSubmit: onSubmit,
             onCancel: onCancel
         )

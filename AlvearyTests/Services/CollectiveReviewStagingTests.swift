@@ -6,6 +6,17 @@ import Testing
 
 @MainActor
 struct CollectiveReviewStagingTests {
+    @Test(arguments: ["Edited\n\nSummary", ""])
+    func `superseding a proposal preserves its saved body in history`(body: String) async throws {
+        let fixture = try CollectiveStagingFixture(prior: makePriorProposal().replacingBody(body))
+        _ = try await fixture.staging.stage(
+            fixture.request(body: "New proposal summary"), lateEditState: { nil }, atomicallyMutateRun: { _, _ in }
+        )
+        let marker = try #require(fixture.prior.events.first { $0.type == ConversationEventRecord.hostToolOutcomeType })
+        #expect(HostToolWidgetOutcomeMarker.body(fromContent: try #require(marker.content)) == body)
+        #expect(fixture.snapshot.proposalBody == body)
+    }
+
     @Test
     func `a failed save rolls back the exact prior proposal and receipt`() async throws {
         let fixture = try CollectiveStagingFixture(prior: makePriorProposal(), failsSave: true)

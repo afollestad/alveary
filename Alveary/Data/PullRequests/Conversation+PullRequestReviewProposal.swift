@@ -103,7 +103,7 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
     /// The tool-facing event name (`approve`, `request_changes`, `comment`). The user may pick a
     /// different verdict when confirming; this is what the model asked for.
     let event: String
-    let body: String?
+    private(set) var body: String?
     /// The review's inline comments, staged locally — nothing exists on GitHub until the user
     /// confirms. Nil in envelopes written before version 2.
     let comments: [Comment]?
@@ -176,6 +176,13 @@ struct PullRequestReviewProposalRecord: Codable, Equatable, Sendable {
 
     var stagedComments: [Comment] {
         comments ?? []
+    }
+
+    /// Empty text clears the saved body; it must never fall back to the original tool input.
+    func replacingBody(_ body: String) -> PullRequestReviewProposalRecord {
+        var updated = self
+        updated.body = body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : body
+        return updated
     }
 
     /// The envelope with one staged comment dropped, for the per-comment Remove. Returns nil for an

@@ -4,6 +4,21 @@ import XCTest
 
 @MainActor
 extension ChatItemGrouperTests {
+    func testReviewOutcomeRetainsEditedAndClearedBodiesAcrossReplay() throws {
+        for body in ["Edited\n\nSummary", ""] {
+            let marker = reviewOutcomeMarker()
+            marker.content = HostToolWidgetOutcomeMarker.content(for: .confirmed, title: "comment", body: body)
+            for events in [[reviewProposalCall(), reviewProposalResult(), marker], [marker, reviewProposalCall(), reviewProposalResult()]] {
+                let grouper = ChatItemGrouper()
+                grouper.update(events: events)
+                let entry = try XCTUnwrap(grouper.items.first?.hostToolWidgetEntry)
+                XCTAssertEqual(entry.outcomeBody, body)
+                XCTAssertEqual(ReviewProposalWidgetState.summaryBody(for: entry, state: nil), body)
+            }
+        }
+        XCTAssertNil(HostToolWidgetOutcomeMarker.body(fromContent: #"{"status":"confirmed"}"#))
+    }
+
     func testAnAppSynthesizedCollectiveProposalUsesTheExistingReviewCard() throws {
         let grouper = ChatItemGrouper()
         let payload = ReviewProposalTranscriptPayload(
@@ -37,6 +52,17 @@ extension ChatItemGrouperTests {
         XCTAssertEqual(content.event, .requestChanges)
         XCTAssertEqual(content.commentCount, 2)
         XCTAssertEqual(content.pendingCommentCount, 1)
+        for body in ["Edited collective summary", ""] {
+            let marker = reviewOutcomeMarker()
+            marker.toolId = payload.proposalID
+            marker.content = HostToolWidgetOutcomeMarker.content(for: .confirmed, body: body)
+            for events in [[event, marker], [marker, event]] {
+                let replay = ChatItemGrouper()
+                replay.update(events: events)
+                let resolved = try XCTUnwrap(replay.items.first?.hostToolWidgetEntry)
+                XCTAssertEqual(ReviewProposalWidgetState.summaryBody(for: resolved, state: nil), body)
+            }
+        }
     }
 
     func testACollectiveRunEventRendersItsLatestPersistedPhase() throws {

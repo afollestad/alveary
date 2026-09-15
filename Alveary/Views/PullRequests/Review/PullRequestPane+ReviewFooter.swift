@@ -53,7 +53,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         // mount pre-expanded and need the editor present from the first render.
         _overallDraft = State(
             initialValue: initiallyExpanded
-                ? PullRequestCommentDraftBox(markdown: session.pendingReview.overallComment)
+                ? PullRequestCommentDraftBox(markdown: viewModel.resolvedReviewSummary(for: target, session: session))
                 : nil
         )
     }
@@ -97,12 +97,15 @@ struct PullRequestPaneReviewFooter: View, Equatable {
             onDrop: attach
         )
         .contextualPaneFooterChrome()
+        .onChange(of: savedSummary) { _, text in
+            guard let overallDraft, !overallDraft.hasChanges else { return }
+            overallDraft.resetContent(to: text)
+        }
         .onChange(of: authorship) { _, settled in
             reseedReviewKind(for: settled)
         }
     }
 
-    /// Both the verdict gating and which agentic option leads ride on who wrote the pull request.
     private var authorship: PullRequestReviewFooterAuthorship {
         PullRequestReviewFooterAuthorship.resolve(summary: session.summary, detail: session.detail)
     }
@@ -134,6 +137,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 PullRequestCommentEditor(
                     draft: overallDraft,
                     placeholder: "Leave a comment",
+                    isEditable: !isSubmitting,
                     onSubmit: submitIfAllowed,
                     onCancel: cancelComposer
                 )
@@ -172,11 +176,13 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         )
     }
 
-    /// Validation reads the live editor's emptiness instead of the last-serialized
-    /// draft text, so Submit enables while typing without per-keystroke encoding.
-    ///
-    /// An empty editor still falls back to the pending proposal's body through
-    /// `resolvedReviewSummary`, matching what `submitReview` validates and what `confirm` publishes.
+    private var isSubmitting: Bool { session.pendingReview.isSubmitting || viewModel.isSubmittingPendingProposal(for: target) }
+
+    private var savedSummary: String {
+        viewModel.resolvedReviewSummary(for: target, session: session)
+    }
+
+    /// Read emptiness without serializing the document while the user types.
     private var draftForValidation: PendingReviewDraft {
         var draft = session.pendingReview
         draft.overallComment = viewModel.resolvedReviewSummary(
@@ -188,18 +194,16 @@ struct PullRequestPaneReviewFooter: View, Equatable {
     }
 
     /// Keeps the typed summary when the composer collapses without submitting.
-    private func serializeOverallComment() {
-        if let overallDraft {
-            viewModel.updateOverallReviewComment(overallDraft.markdown)
-        }
+    private func serializeOverallComment() -> Bool {
+        guard let overallDraft, overallDraft.hasChanges else { return true }
+        return viewModel.updateOverallReviewComment(overallDraft.markdown, target: target)
     }
 
-    /// Shared by the Cancel button and the editor's Escape key.
     private func cancelComposer() {
-        guard !session.pendingReview.isSubmitting else {
+        guard !isSubmitting else {
             return
         }
-        serializeOverallComment()
+        guard serializeOverallComment() else { return }
         overallDraft = nil
         isExpanded = false
     }
@@ -225,7 +229,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
 
     /// Submitting mid-upload would post the review without the attachment's link.
     private var canSubmit: Bool {
-        !session.pendingReview.isSubmitting
+        !isSubmitting
             && !isUploading
             && PullRequestsViewModel.canSubmitReview(
                 event: effectiveEvent,
@@ -247,7 +251,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         guard canSubmit else {
             return
         }
-        serializeOverallComment()
+        guard serializeOverallComment() else { return }
         Task {
             if await viewModel.submitReview(event: effectiveEvent) {
                 overallDraft = nil
@@ -322,7 +326,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
                 ActionButtonLabel(title: "Cancel", icon: .system("xmark"))
             }
             .secondaryActionButtonStyle()
-            .disabled(session.pendingReview.isSubmitting)
+            .disabled(isSubmitting)
 
             Button {
                 submitIfAllowed()
@@ -334,8 +338,6 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         }
     }
 
-    /// Every option applies to every pull request, so this is always a split button. The caret
-    /// selects only — the row's one accent voice stays `.primary` either way.
     private func reviewActionButton(expandsHorizontally: Bool) -> some View {
         let action = PullRequestReviewFooterAction.action(for: effectiveReviewKind)
         let title = reviewActionTitle(for: action.kind)
@@ -422,7 +424,7 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         switch kind {
         case .submitReview:
             overallDraft = PullRequestCommentDraftBox(
-                markdown: viewModel.activePaneSession?.pendingReview.overallComment ?? ""
+                markdown: savedSummary
             )
             isExpanded = true
         case .agenticReview:
@@ -443,8 +445,6 @@ struct PullRequestPaneReviewFooter: View, Equatable {
         }
     }
 
-    /// Tracks `submitTitle` arm for arm — the three verdicts swap inside one
-    /// button, so title and glyph have to be resolved from the same switch.
     private var submitIcon: ActionIcon {
         switch effectiveEvent {
         case .approve:

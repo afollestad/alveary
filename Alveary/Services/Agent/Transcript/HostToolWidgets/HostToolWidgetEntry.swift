@@ -44,6 +44,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
     let outcomeDefinitionID: String?
     /// Target task name the durable outcome marker recorded, when the feature supplied one.
     let outcomeTitle: String?
+    /// Missing on legacy markers; empty records a cleared review comment.
+    let outcomeBody: String?
 
     init(
         id: String,
@@ -55,7 +57,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
         outcomeKey: String? = nil,
         outcome: HostToolWidgetOutcome? = nil,
         outcomeDefinitionID: String? = nil,
-        outcomeTitle: String? = nil
+        outcomeTitle: String? = nil,
+        outcomeBody: String? = nil
     ) {
         self.id = id
         self.toolName = toolName
@@ -67,12 +70,14 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
         self.outcome = outcome
         self.outcomeDefinitionID = outcomeDefinitionID
         self.outcomeTitle = outcomeTitle
+        self.outcomeBody = outcomeBody
     }
 
     func withOutcome(
         _ outcome: HostToolWidgetOutcome?,
         definitionID: String? = nil,
-        title: String? = nil
+        title: String? = nil,
+        body: String? = nil
     ) -> HostToolWidgetEntry {
         HostToolWidgetEntry(
             id: id,
@@ -84,7 +89,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             outcomeKey: outcomeKey,
             outcome: outcome ?? self.outcome,
             outcomeDefinitionID: definitionID ?? outcomeDefinitionID,
-            outcomeTitle: title ?? outcomeTitle
+            outcomeTitle: title ?? outcomeTitle,
+            outcomeBody: body ?? outcomeBody
         )
     }
 
@@ -220,7 +226,8 @@ struct HostToolWidgetEntry: Identifiable, Equatable {
             outcomeKey: outcomeKey,
             outcome: outcome,
             outcomeDefinitionID: outcomeDefinitionID,
-            outcomeTitle: outcomeTitle
+            outcomeTitle: outcomeTitle,
+            outcomeBody: outcomeBody
         )
     }
 }

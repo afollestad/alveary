@@ -23,7 +23,7 @@ extension PullRequestsViewModelTests {
 
         XCTAssertTrue(didSubmit)
         XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Staged remark"])
-        // The footer's own summary outranks the proposal's body.
+        // The footer saved into the proposal before submitting.
         XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Looks fine."])
         XCTAssertTrue(fixture.service.submittedReviews.isEmpty)
         // Confirming clears the envelope, so the proposal drops out with no detaching to do.
@@ -120,7 +120,7 @@ extension PullRequestsViewModelTests {
     }
 
     /// `confirm`'s precedence, which both submit gates now read rather than re-deriving.
-    func testTheResolvedSummaryPrefersTheTypedTextAndFallsBackToTheProposal() async throws {
+    func testTheResolvedSummaryUsesTheSavedBodyAndHonorsAnEmptyEditor() async throws {
         let fixture = try ReviewProposalAttachmentFixture()
         await fixture.openPane()
         let session = try XCTUnwrap(fixture.session)
@@ -139,8 +139,49 @@ extension PullRequestsViewModelTests {
         // A live editor the user emptied outranks whatever is still serialized behind it.
         XCTAssertEqual(
             fixture.viewModel.resolvedReviewSummary(for: fixture.target, session: typed, typedOverride: ""),
-            "Some notes."
+            ""
         )
+    }
+
+    func testPaneClearingUpdatesTheCardAndSubmitsAnEmptyBody() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        XCTAssertTrue(fixture.viewModel.updateOverallReviewComment(""))
+        XCTAssertNil(fixture.coordinator.presentation(forProposalID: ReviewProposalAttachmentFixture.proposalID)?.body)
+        let submitted = await fixture.viewModel.submitReview(event: .comment)
+        XCTAssertTrue(submitted)
+        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), [""])
+        XCTAssertEqual(fixture.service.addedPendingComments.map(\.body), ["Staged remark"])
+    }
+
+    func testRetryingAPaneBodySaveClearsThePreviousSaveError() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        let context = fixture.coordinator.modelContext
+        let conversation = try XCTUnwrap(context.resolveConversation(conversationID: "source-conversation"))
+        let original = try XCTUnwrap(conversation.pullRequestReviewProposal())
+        conversation.clearPullRequestReviewProposal()
+        try context.save()
+        XCTAssertFalse(fixture.viewModel.updateOverallReviewComment("Retained draft"))
+        XCTAssertNotNil(fixture.session?.pendingReview.submissionError)
+        try conversation.storePullRequestReviewProposal(original)
+        try context.save()
+        XCTAssertTrue(fixture.viewModel.updateOverallReviewComment("Retained draft"))
+        XCTAssertNil(fixture.session?.pendingReview.submissionError)
+        XCTAssertEqual(fixture.viewModel.activePendingReviewProposal?.body, "Retained draft")
+    }
+
+    func testCardEditingIsWhatAnUntouchedPaneSubmits() async throws {
+        let fixture = try ReviewProposalAttachmentFixture()
+        await fixture.openPane()
+        XCTAssertTrue(fixture.coordinator.updateBody(proposalID: ReviewProposalAttachmentFixture.proposalID, body: "Edited\n\nFrom card"))
+        XCTAssertEqual(
+            fixture.viewModel.resolvedReviewSummary(for: fixture.target, session: try XCTUnwrap(fixture.session)),
+            "Edited\n\nFrom card"
+        )
+        let submitted = await fixture.viewModel.submitReview(event: .comment)
+        XCTAssertTrue(submitted)
+        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Edited\n\nFrom card"])
     }
 
     func testAFailedProposalSubmitLeavesTheReviewRetryable() async throws {

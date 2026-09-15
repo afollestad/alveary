@@ -236,12 +236,13 @@ enum ReviewProposalSnapshotFixture {
         commentIsProposed: Bool = false,
         commentLine: Int = 2,
         evidence: PullRequestReviewProposalRecord.CommentEvidence? = nil,
-        reviewers: [PullRequestReviewProposalRecord.Reviewer] = []
+        reviewers: [PullRequestReviewProposalRecord.Reviewer] = [],
+        summaryBody: String = "Only the retry loop still worries me."
     ) -> AppKitTranscriptHostToolWidgetRowView {
         let entry = HostToolWidgetEntry(
             id: "tool-review-proposal",
             toolName: HostToolTranscriptCatalog.toolName(PullRequestHostToolCatalog.proposeReviewToolName),
-            content: .pullRequestReviewProposal(widgetContent(commentIsProposed: commentIsProposed)),
+            content: .pullRequestReviewProposal(widgetContent(commentIsProposed: commentIsProposed, body: summaryBody)),
             isComplete: true,
             outcomeKey: proposalID,
             outcome: outcome,
@@ -256,7 +257,8 @@ enum ReviewProposalSnapshotFixture {
                         stagedComments: commentIsProposed
                             ? [stagedComment(body: commentBody, line: commentLine, evidence: evidence)]
                             : [],
-                        reviewers: reviewers
+                        reviewers: reviewers,
+                        body: summaryBody
                     ),
                     preview: preview ?? .loaded(
                         loadedPreview(
@@ -280,11 +282,13 @@ enum ReviewProposalSnapshotFixture {
     }
 
     /// The call snapshot a proposal card renders its header from.
-    static func widgetContent(commentIsProposed: Bool) -> PullRequestReviewProposalWidgetContent {
+    static func widgetContent(
+        commentIsProposed: Bool, body: String = "Only the retry loop still worries me."
+    ) -> PullRequestReviewProposalWidgetContent {
         PullRequestReviewProposalWidgetContent(
             event: .approve,
             identifier: identifier,
-            body: "Only the retry loop still worries me.",
+            body: body,
             commentCount: commentIsProposed ? 1 : nil,
             pendingCommentCount: commentIsProposed ? 0 : 2,
             proposalID: proposalID,
@@ -311,7 +315,8 @@ enum ReviewProposalSnapshotFixture {
     static func presentation(
         stagedComments: [PullRequestReviewProposalRecord.Comment] = [],
         reviewers: [PullRequestReviewProposalRecord.Reviewer] = [],
-        collectiveCompletionWarning: String? = nil
+        collectiveCompletionWarning: String? = nil,
+        body: String = "Only the retry loop still worries me."
     ) -> PullRequestReviewProposalPresentation {
         PullRequestReviewProposalPresentation(
             id: proposalID,
@@ -319,7 +324,7 @@ enum ReviewProposalSnapshotFixture {
             identifier: identifier,
             title: "Retry transient GitHub failures",
             proposedEvent: .approve,
-            body: "Only the retry loop still worries me.",
+            body: body,
             comments: stagedComments,
             pendingCommentCount: stagedComments.isEmpty ? 2 : 0,
             reviewers: reviewers,

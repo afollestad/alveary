@@ -19,7 +19,7 @@ extension PullRequestsViewModelTests {
         XCTAssertTrue(try XCTUnwrap(fixture.session?.detail?.reviews).isEmpty)
         fixture.service.detailResult = .success(fixture.reviewedDetail())
 
-        // Exactly the card's call: no `bodyOverride`, and nothing from the pane involved.
+        // Exactly the card's call, publishing the shared saved proposal.
         _ = await fixture.coordinator.confirm(proposalID: ReviewProposalAttachmentFixture.proposalID, event: .approve)
 
         await waitForPullRequestCondition { fixture.session?.detail?.reviews.isEmpty == false }
@@ -31,21 +31,18 @@ extension PullRequestsViewModelTests {
         XCTAssertEqual(fixture.service.listCallCount, fixture.viewModel.selectedFilter.requiredBuckets.count)
     }
 
-    /// The card publishes what the model wrote, so a summary typed into the footer was never sent.
-    /// Clearing it would drop text the user can still submit as a review of its own.
-    func testConfirmingOnTheTranscriptCardKeepsAnUnpublishedFooterSummary() async throws {
+    func testConfirmingOnTheTranscriptCardPublishesTheSavedFooterSummary() async throws {
         let fixture = try ReviewProposalAttachmentFixture()
         await fixture.openPane()
-        fixture.viewModel.updateOverallReviewComment("Typed but never sent")
+        fixture.viewModel.updateOverallReviewComment("Saved from the footer")
 
         _ = await fixture.coordinator.confirm(proposalID: ReviewProposalAttachmentFixture.proposalID, event: .approve)
 
         await waitForPullRequestCondition {
             fixture.service.listCallCount >= fixture.viewModel.selectedFilter.requiredBuckets.count
         }
-        XCTAssertEqual(fixture.session?.pendingReview.overallComment, "Typed but never sent")
-        // What was published is the proposal's body, which is what proves the text went nowhere.
-        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Some notes."])
+        XCTAssertEqual(fixture.session?.pendingReview.overallComment, "")
+        XCTAssertEqual(fixture.service.submittedPendingReviews.map(\.body), ["Saved from the footer"])
     }
 
     /// The footer's Submit owns its own epilogue — one that also clears the draft it just

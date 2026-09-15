@@ -27,6 +27,7 @@ final class ReviewProposalFixture {
     init(
         body: String? = "Looks good to me.",
         comments: [PullRequestReviewProposalRecord.Comment]? = nil,
+        pendingCommentCount: Int = 1,
         cachedEntry: PullRequestReviewProposalPreviewCache.Entry? = nil,
         corruptCache: Bool = false,
         remoteReloadDelay: Duration = .zero,
@@ -55,6 +56,7 @@ final class ReviewProposalFixture {
                 identifier: Self.identifier,
                 body: body,
                 comments: comments,
+                pendingCommentCount: pendingCommentCount,
                 createdAt: Date(timeIntervalSince1970: 1_000)
             )
         )
@@ -109,6 +111,7 @@ final class ReviewProposalFixture {
         identifier: PullRequestIdentifier,
         body: String?,
         comments: [PullRequestReviewProposalRecord.Comment]?,
+        pendingCommentCount: Int = 1,
         createdAt: Date
     ) -> PullRequestReviewProposalRecord {
         PullRequestReviewProposalRecord(
@@ -121,7 +124,7 @@ final class ReviewProposalFixture {
             body: body,
             comments: comments,
             titleSnapshot: "Detail title",
-            pendingCommentCountSnapshot: 1,
+            pendingCommentCountSnapshot: pendingCommentCount,
             sourceProviderID: "codex",
             sourceProcessToken: "token",
             sourceRequestID: "request-\(id)",
@@ -334,10 +337,10 @@ final class ReviewProposalCardStateRecorder {
     private var token: (any NSObjectProtocol)?
     private let notificationCenter: NotificationCenter
 
-    init(notificationCenter: NotificationCenter) {
+    init(notificationCenter: NotificationCenter, name: Notification.Name = .reviewProposalCardStateChanged) {
         self.notificationCenter = notificationCenter
         token = notificationCenter.addObserver(
-            forName: .reviewProposalCardStateChanged,
+            forName: name,
             object: nil,
             queue: nil
         ) { [weak self] _ in

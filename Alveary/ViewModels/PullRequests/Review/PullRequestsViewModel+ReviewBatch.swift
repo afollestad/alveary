@@ -309,10 +309,26 @@ extension PullRequestsViewModel {
         return nil
     }
 
-    func updateOverallReviewComment(_ text: String) {
-        mutateActiveSession { session in
-            session.pendingReview.overallComment = text
+    @discardableResult
+    func updateOverallReviewComment(_ text: String, target: PullRequestPaneTarget? = nil) -> Bool {
+        guard let target = target ?? activePaneTarget else { return false }
+        if let proposal = pendingReviewProposal(for: target) {
+            guard reviewProposalCoordinator?.updateBody(proposalID: proposal.id, body: text) == true else {
+                mutateSession(target) { session in
+                    session.pendingReview.submissionError = reviewProposalCoordinator?.errorMessage(forProposalID: proposal.id)
+                        ?? "Alveary could not save this review comment."
+                }
+                return false
+            }
+            mutateSession(target) { session in
+                session.pendingReview.submissionError = nil
+            }
+        } else {
+            mutateSession(target) { session in
+                session.pendingReview.overallComment = text
+            }
         }
+        return true
     }
 
     /// `pendingCommentCount` is whatever the caller's submit would actually
@@ -351,8 +367,6 @@ extension PullRequestsViewModel {
               !session.pendingReview.isSubmitting else {
             return false
         }
-        // The proposal's own body counts as the summary when the composer is empty, because that is
-        // what `confirm` would publish; `resolvedReviewSummary` owns the precedence both gates read.
         var validated = session.pendingReview
         validated.overallComment = resolvedReviewSummary(for: target, session: session)
         guard Self.canSubmitReview(

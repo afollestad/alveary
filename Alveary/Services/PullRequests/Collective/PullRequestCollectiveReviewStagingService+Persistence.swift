@@ -92,6 +92,7 @@ extension PullRequestCollectiveReviewStagingService {
                 proposalID: owner.record.id,
                 sourceConversationID: owner.conversationID,
                 outcome: .rejected,
+                body: owner.record.body ?? "",
                 in: modelContext,
                 at: now()
             )
